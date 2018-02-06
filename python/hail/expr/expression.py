@@ -76,7 +76,7 @@ def construct_reference(name, type, indices, prefix=None):
         ast = Select(Reference(prefix, True), name)
     else:
         ast = Reference(name, True)
-    return construct_expr(ast, type, indices, refs=LinkedList(tuple).push((name, indices)))
+    return construct_expr(ast, type._deep_optional(), indices, refs=LinkedList(tuple).push((name, indices)))
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -87,7 +87,7 @@ def to_expr(e):
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
     elif isinstance(e, str) or isinstance(e, unicode):
-        return construct_expr(Literal('"{}"'.format(Env.jutils().escapePyString(e))), TString())
+        return construct_expr(Literal('"{}"'.format(escape_str(e))), TString())
     elif isinstance(e, bool):
         return construct_expr(Literal("true" if e else "false"), TBoolean())
     elif isinstance(e, int):
@@ -248,6 +248,25 @@ def unify_all(*exprs):
     return new_indices, agg, joins, refs
 
 
+def unify_types_limited(*ts):
+    classes = {t.__class__ for t in ts}
+    if len(classes) == 1:
+        # only one distinct class
+        return ts[0]
+    elif all(is_numeric(t) for t in ts):
+        # assert there are at least 2 numeric types
+        assert len(classes) > 1
+        if TFloat64 in classes:
+            return TFloat64()
+        elif TFloat32 in classes:
+            return TFloat32()
+        else:
+            assert classes == {TInt32, TInt64}
+            return TInt64()
+    else:
+        return None
+
+
 def unify_types(*ts):
     classes = {t.__class__ for t in ts}
     if len(classes) == 1:
@@ -263,7 +282,7 @@ def unify_types(*ts):
         else:
             assert classes == {TInt32, TInt64}
             return TInt64()
-    elif all(isinstance(TArray, t) for t in ts):
+    elif all(isinstance(t, TArray) for t in ts):
         et = unify_types(*(t.element_type for t in ts))
         if et:
             return TArray(et)
@@ -1342,6 +1361,11 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             Sorted array.
         """
         return self._method("sort", self._type, ascending)
+
+
+class ArrayBooleanExpression(ArrayExpression):
+    """Expression of type :class:`.TArray` with element type :class:`.TBoolean`."""
+    pass
 
 
 class ArrayFloat64Expression(ArrayNumericExpression):
@@ -4027,6 +4051,7 @@ typ_to_expr = {
 }
 
 elt_typ_to_array_expr = {
+    TBoolean: ArrayBooleanExpression,
     TInt32: ArrayInt32Expression,
     TFloat64: ArrayFloat64Expression,
     TInt64: ArrayInt64Expression,
@@ -4155,6 +4180,7 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
         raise errors[0]
 
 
+@handle_py4j
 @typecheck(expression=expr_any)
 def eval_expr(expression):
     """Evaluate a Hail expression, returning the result.
@@ -4162,7 +4188,7 @@ def eval_expr(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.api2.Table` or :class:`.hail.api.MatrixTable`
+    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
     objects cannot be evaluated.
 
     Examples
@@ -4187,7 +4213,7 @@ def eval_expr(expression):
     """
     return eval_expr_typed(expression)[0]
 
-
+@handle_py4j
 @typecheck(expression=expr_any)
 def eval_expr_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.
@@ -4195,7 +4221,7 @@ def eval_expr_typed(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.api2.Table` or :class:`.hail.api.MatrixTable`
+    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
     objects cannot be evaluated.
 
     Examples
@@ -4221,7 +4247,10 @@ def eval_expr_typed(expression):
     analyze('eval_expr_typed', expression, Indices())
     if not expression._joins.empty():
         raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
-    r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
+
+    x = Env.hc()._jhc.eval(expression._ast.to_hql())
+    t = Type._from_java(x._2())
+    r = t._convert_to_py(x._1())
     return r, t
 
 

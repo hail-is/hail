@@ -63,22 +63,24 @@ object CalculateConcordance {
     left.requireUniqueSamples("concordance")
     right.requireUniqueSamples("concordance")
 
-    val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
+    val overlap = left.stringSampleIds.toSet.intersect(right.stringSampleIds.toSet)
     if (overlap.isEmpty)
       fatal("No overlapping samples between datasets")
 
     if (left.vSignature != right.vSignature)
       fatal(s"""Cannot compute concordance for datasets with different reference genomes:
-              |  left: ${ left.vSignature.toPrettyString(compact = true) }
-              |  right: ${ right.vSignature.toPrettyString(compact = true) }""")
+              |  left: ${ left.vSignature.toString }
+              |  right: ${ right.vSignature.toString }""")
 
     info(
       s"""Found ${ overlap.size } overlapping samples
          |  Left: ${ left.nSamples } total samples
          |  Right: ${ right.nSamples } total samples""".stripMargin)
 
-    val leftFiltered = left.filterSamples { case (s, _) => overlap(s) }
-    val rightFiltered = right.filterSamples { case (s, _) => overlap(s) }
+    val leftPreIds = left.stringSampleIds
+    val rightPreIds = right.stringSampleIds
+    val leftFiltered = left.filterSamples { case (_, i) => overlap(leftPreIds(i)) }
+    val rightFiltered = right.filterSamples { case (_, i) => overlap(rightPreIds(i)) }
 
     val sampleSchema = TStruct(
       "s" -> TString(),
@@ -92,8 +94,8 @@ object CalculateConcordance {
       "concordance" -> ConcordanceCombiner.schema
     )
 
-    val leftIds = leftFiltered.sampleIds
-    val rightIds = rightFiltered.sampleIds
+    val leftIds = leftFiltered.stringSampleIds
+    val rightIds = rightFiltered.stringSampleIds
 
     assert(leftIds.toSet == overlap && rightIds.toSet == overlap)
 
@@ -214,7 +216,7 @@ object CalculateConcordance {
 
     global.report()
 
-    val sampleRDD = left.hc.sc.parallelize(leftFiltered.sampleIds.zip(sampleResults)
+    val sampleRDD = left.hc.sc.parallelize(leftFiltered.stringSampleIds.zip(sampleResults)
       .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
 
     val sampleKT = Table(left.hc, sampleRDD, sampleSchema, Array("s"))

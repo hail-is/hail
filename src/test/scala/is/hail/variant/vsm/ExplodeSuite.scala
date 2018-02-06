@@ -15,9 +15,9 @@ class ExplodeSuite extends SparkSuite {
     assert(vsm.explodeVariants("va.bar").countVariants() == vsm.countVariants() * 2)
     assert(vsm.explodeSamples("sa.foo").nSamples == vsm.nSamples * 3)
     assert(vsm.explodeSamples("sa.bar").nSamples == vsm.nSamples * 2)
-    
-    val key = vsm.sampleAnnotations(0).asInstanceOf[Row].get(0)
-    val explodedKey = vsm.explodeSamples("sa.foo").sampleAnnotations.take(3).asInstanceOf[IndexedSeq[Row]].map(_.get(0))       
+
+    val key = vsm.sampleAnnotations(0).asInstanceOf[Row].get(1)
+    val explodedKey = vsm.explodeSamples("sa.foo").sampleAnnotations.take(3).asInstanceOf[IndexedSeq[Row]].map(_.get(1))
     assert(key == explodedKey)    
   }
 
@@ -30,7 +30,7 @@ class ExplodeSuite extends SparkSuite {
     assert(vsm.variants.collect().sameElements(exploded.variants.collect()))
 
     val exploded2 = vsm.explodeSamples("sa.foo")
-    assert(exploded2.sampleIds == vsm.sampleIds)
+    assert(exploded2.stringSampleIds == vsm.stringSampleIds)
   }
 
   @Test def testNoElements() {

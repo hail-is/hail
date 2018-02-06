@@ -2,19 +2,13 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext
-from hail.genetics import *
-
-hc = None
+from hail import *
 
 def setUpModule():
-    global hc
-    hc = HailContext()  # master = 'local[2]')
+    init(master='local[2]', min_block_size=0)
 
 def tearDownModule():
-    global hc
-    hc.stop()
-    hc = None
+    stop()
 
 class Tests(unittest.TestCase):
     def test_classes(self):
@@ -22,7 +16,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(v, Variant('1', 100, 'A', 'T'))
         self.assertEqual(v, Variant(1, 100, 'A', ['T']))
-        self.assertEqual(v.reference_genome, hc.default_reference)
+        self.assertEqual(v.reference_genome, default_reference())
 
         v2 = Variant.parse('1:100:A:T,C')
 
@@ -32,7 +26,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(l, Locus('1', 100))
         self.assertEqual(l, Locus(1, 100))
-        self.assertEqual(l.reference_genome, hc.default_reference)
+        self.assertEqual(l.reference_genome, default_reference())
 
         self.assertEqual(l, v.locus())
 
@@ -84,7 +78,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(interval.contains(Locus("1", 100)))
         self.assertTrue(interval.contains(Locus("1", 109)))
         self.assertFalse(interval.contains(Locus("1", 110)))
-        self.assertEqual(interval.reference_genome, hc.default_reference)
+        self.assertEqual(interval.reference_genome, default_reference())
 
         interval2 = Interval.parse("1:109-200")
         interval3 = Interval.parse("1:110-200")

@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.utils.java import Env
+from hail.utils.java import Env, escape_str, escape_id
 asttype = lazy()
 
 
@@ -38,7 +38,7 @@ class Reference(AST):
         super(Reference, self).__init__()
 
     def to_hql(self):
-        return '`{}`'.format(self.name)
+        return escape_id(self.name)
 
 
 class UnaryOperation(AST):
@@ -74,7 +74,7 @@ class Select(AST):
         # TODO: create nested selection option
 
     def to_hql(self):
-        return '{}.{}'.format(self.parent.to_hql(), self.selection)
+        return '{}.{}'.format(self.parent.to_hql(), escape_id(self.selection))
 
 
 class ApplyMethod(AST):
@@ -157,7 +157,7 @@ class StructDeclaration(AST):
         super(StructDeclaration, self).__init__(*values)
 
     def to_hql(self):
-        return '{' + ', '.join('`{}`: {}'.format(k, v.to_hql()) for k, v in zip(self.keys, self.values)) + '}'
+        return '{' + ', '.join('{}: {}'.format(escape_id(k), v.to_hql()) for k, v in zip(self.keys, self.values)) + '}'
 
 
 class StructOp(AST):
@@ -171,7 +171,7 @@ class StructOp(AST):
     def to_hql(self):
         return '{}({}{})'.format(self.operation,
                                    self.parent.to_hql(),
-                                   ''.join(', `{}`'.format(x) for x in self.keys))
+                                   ''.join(', {}'.format(escape_id(x)) for x in self.keys))
 
 
 class Condition(AST):
@@ -223,7 +223,7 @@ class RegexMatch(AST):
         super(RegexMatch, self).__init__(string)
 
     def to_hql(self):
-        return '("{regex}" ~ {string})'.format(regex=Env.jutils().escapePyString(self.regex), string=self.string.to_hql())
+        return '("{regex}" ~ {string})'.format(regex=escape_str(self.regex), string=self.string.to_hql())
 
 
 class AggregableReference(AST):
@@ -248,7 +248,7 @@ class GlobalJoinReference(AST):
         super(GlobalJoinReference, self).__init__()
 
     def set(self, target):
-        from hail.api2.matrixtable import MatrixTable
+        from hail.matrixtable import MatrixTable
         self.is_set = True
         if isinstance(target, MatrixTable):
             self.is_matrix = True
@@ -258,7 +258,7 @@ class GlobalJoinReference(AST):
     def to_hql(self):
         assert self.is_set
         if self.is_matrix:
-            return 'global.`{}`'.format(self.uid)
+            return 'global.{}'.format(escape_id(self.uid))
         else:
             return self.uid
 

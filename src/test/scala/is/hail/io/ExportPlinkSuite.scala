@@ -72,11 +72,11 @@ class ExportPlinkSuite extends SparkSuite {
     val vds = SplitMulti(hc.importVCF("src/test/resources/mendel.vcf"))
       .annotateGenotypesExpr("g = {GT: g.GT}")
       .annotateSamplesTable(Table.importFam(hc, "src/test/resources/mendel.fam", delimiter = "\\\\s+"), expr = "sa.fam = table")
-      .annotateSamplesExpr("sa = sa.fam")
+      .annotateSamplesExpr("sa = merge({s: sa.s}, sa.fam)")
       .annotateVariantsExpr("va = {rsid: str(v)}")
 
     ExportPlink(vds, plink,
-      "fam_id = sa.fam_id, id = s, mat_id = sa.mat_id, pat_id = sa.pat_id, is_female = sa.is_female, is_case = sa.is_case")
+      "fam_id = sa.fam_id, id = sa.s, mat_id = sa.mat_id, pat_id = sa.pat_id, is_female = sa.is_female, is_case = sa.is_case")
 
     assert(hc.importPlinkBFile(plink)
       // .hardCalls()

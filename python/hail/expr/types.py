@@ -64,7 +64,7 @@ class Type(HistoryMixin):
         return self._jtype.toString()
 
     def __str__(self):
-        return self._jtype.toPrettyString(0, True)
+        return self._jtype.toString()
 
     def __eq__(self, other):
         return isinstance(other, Type) and self._jtype.equals(other._jtype)
@@ -704,7 +704,7 @@ class TVariant(Type):
     ----------
     reference_genome: :class:`.GenomeReference`
         Reference genome to use. Default is
-        :meth:`hail.api1.HailContext.default_reference`.
+        :meth:`hail.default_reference`.
     """
 
     @record_init
@@ -836,7 +836,7 @@ class TLocus(Type):
     ----------
     reference_genome: :class:`.GenomeReference`
         Reference genome to use. Default is
-        :meth:`hail.api1.HailContext.default_reference`.
+        :meth:`hail.default_reference`.
     """
 
     @record_init

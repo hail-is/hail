@@ -42,7 +42,7 @@ object Type {
         .zipWithIndex
         .map { case ((k, t), i) => Field(k, t, i) }
         .toIndexedSeq))
-      .map(t => if (required) (!t).asInstanceOf[TStruct] else t)
+      .map(t => if (required) (+t).asInstanceOf[TStruct] else t)
 
   private val defaultRequiredGenRatio = 0.2
 
@@ -190,26 +190,16 @@ abstract class Type extends BaseType with Serializable {
       (this, identity[Annotation])
   }
 
-  def _toString: String
-
-  final override def toString = {
-    if (required) "!" else ""
-  } + _toString
-
-  def _pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
-    sb.append(_toString)
-  }
-
-  final def pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
+  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
-      sb.append("!")
+      sb.append("+")
     _pretty(sb, indent, compact)
   }
 
-  def toPrettyString(indent: Int = 0, compact: Boolean = false): String = {
-    val sb = new StringBuilder
-    pretty(sb, indent, compact = compact)
-    sb.result()
+  def _toString: String
+
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+    sb.append(_toString)
   }
 
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
@@ -266,26 +256,31 @@ abstract class Type extends BaseType with Serializable {
 
   final def typeCheck(a: Any): Boolean = (!required && a == null) || _typeCheck(a)
 
-  final def setRequired(required: Boolean): Type = if (this.required == required) this else !this
+  final def unary_+(): Type = setRequired(true)
 
-  final def unary_!(): Type = {
+  final def unary_-(): Type = setRequired(false)
+
+  final def setRequired(required: Boolean): Type = {
     this match {
-      case TBinary(req) => TBinary(!req)
-      case TBoolean(req) => TBoolean(!req)
-      case TInt32(req) => TInt32(!req)
-      case TInt64(req) => TInt64(!req)
-      case TFloat32(req) => TFloat32(!req)
-      case TFloat64(req) => TFloat64(!req)
-      case TString(req) => TString(!req)
-      case TCall(req) => TCall(!req)
-      case TAltAllele(req) => TAltAllele(!req)
-      case t: TArray => t.copy(required = !t.required)
-      case t: TSet => t.copy(required = !t.required)
-      case t: TDict => t.copy(required = !t.required)
-      case t: TVariant => t.copy(required = !t.required)
-      case t: TLocus => t.copy(required = !t.required)
-      case t: TInterval => t.copy(required = !t.required)
-      case t: TStruct => t.copy(required = !t.required)
+      case TBinary(_) => TBinary(required)
+      case TBoolean(_) => TBoolean(required)
+      case TInt32(_) => TInt32(required)
+      case TInt64(_) => TInt64(required)
+      case TFloat32(_) => TFloat32(required)
+      case TFloat64(_) => TFloat64(required)
+      case TString(_) => TString(required)
+      case TCall(_) => TCall(required)
+      case TAltAllele(_) => TAltAllele(required)
+      case t: TArray => t.copy(required = required)
+      case t: TSet => t.copy(required = required)
+      case t: TDict => t.copy(required = required)
+      case t: TVariant => t.copy(required = required)
+      case t: TLocus => t.copy(required = required)
+      case t: TInterval => t.copy(required = required)
+      case t: TStruct => t.copy(required = required)
+      case t: TAggregable =>
+        assert(t.required == required)
+        t
     }
   }
 
@@ -300,9 +295,9 @@ abstract class Type extends BaseType with Serializable {
       case TString(_) => t == TStringOptional || t == TStringRequired
       case TCall(_) => t == TCallOptional || t == TCallRequired
       case TAltAllele(_) => t == TAltAlleleOptional || t == TAltAlleleRequired
-      case t2: TLocus => t == t2 || t == !t2
-      case t2: TVariant => t == t2 || t == !t2
-      case t2: TInterval => t == t2 || t == !t2
+      case t2: TLocus => t == t2 || t == +t2
+      case t2: TVariant => t == t2 || t == +t2
+      case t2: TInterval => t == t2 || t == +t2
       case t2: TStruct =>
         t.isInstanceOf[TStruct] &&
           t.asInstanceOf[TStruct].size == t2.size &&

@@ -32,5 +32,5 @@ object TCall {
 
   def unapply(t: TCall): Option[Boolean] = Option(t.required)
 
-  def representation(required: Boolean = false): Type = if (required) !TInt32() else TInt32()
+  def representation(required: Boolean = false): Type = TInt32(required)
 }

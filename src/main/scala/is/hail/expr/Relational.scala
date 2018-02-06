@@ -81,23 +81,14 @@ abstract class BaseIR {
   }
 }
 
-object MatrixLocalValue {
-  def apply(sampleIds: IndexedSeq[Annotation]): MatrixLocalValue =
-    MatrixLocalValue(Annotation.empty,
-      sampleIds,
-      Annotation.emptyIndexedSeq(sampleIds.length))
-}
-
 case class MatrixLocalValue(
   globalAnnotation: Annotation,
-  sampleIds: IndexedSeq[Annotation],
   sampleAnnotations: IndexedSeq[Annotation]) {
-  assert(sampleIds.length == sampleAnnotations.length)
 
-  def nSamples: Int = sampleIds.length
+  def nSamples: Int = sampleAnnotations.length
 
-  def dropSamples(): MatrixLocalValue = MatrixLocalValue(globalAnnotation,
-    IndexedSeq.empty[Annotation],
+  def dropSamples(): MatrixLocalValue = MatrixLocalValue(
+    globalAnnotation,
     IndexedSeq.empty[Annotation])
 }
 
@@ -118,19 +109,18 @@ case class MatrixValue(
 
   def globalAnnotation: Annotation = localValue.globalAnnotation
 
-  def sampleIds: IndexedSeq[Annotation] = localValue.sampleIds
+  def sampleIds: IndexedSeq[Row] = {
+    val queriers = typ.colKey.map(field => typ.colType.query(field))
+    localValue.sampleAnnotations.map(a => Row.fromSeq(queriers.map(_(a))))
+  }
 
   def sampleAnnotations: IndexedSeq[Annotation] = localValue.sampleAnnotations
 
-  lazy val sampleIdsBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(sampleIds)
-
   lazy val sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(sampleAnnotations)
-
-  def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
   def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
     val rowType = typ.rvRowType
-    val keepType = TArray(!TInt32())
+    val keepType = TArray(+TInt32())
     val makeF = ir.Compile("row", ir.RegionValueRep[Long](rowType),
       "keep", ir.RegionValueRep[Long](keepType),
       ir.RegionValueRep[Long](rowType),
@@ -141,9 +131,7 @@ case class MatrixValue(
 
     val keepBc = sparkContext.broadcast(keep)
     copy(localValue =
-      localValue.copy(
-        sampleIds = keep.map(sampleIds),
-        sampleAnnotations = keep.map(sampleAnnotations)),
+      localValue.copy(sampleAnnotations = keep.map(sampleAnnotations)),
       rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
         val f = makeF()
         val keep = keepBc.value
@@ -159,10 +147,10 @@ case class MatrixValue(
       })
   }
 
-  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixValue = {
-    val keep = sampleIdsAndAnnotations.zipWithIndex
-      .filter { case ((s, sa), i) => p(s, sa) }
-      .map(_._2)
+  def filterSamples(p: (Annotation, Int) => Boolean): MatrixValue = {
+    val keep = (0 until nSamples)
+      .view
+      .filter { i => p(sampleAnnotations(i), i) }
       .toArray
     filterSamplesKeep(keep)
   }
@@ -318,9 +306,9 @@ case class FilterSamples(
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, prev, ec)
 
-    val p = (s: Annotation, sa: Annotation) => {
-      sampleAggregationOption.foreach(f => f.apply(s))
-      ec.setAll(localGlobalAnnotation, s, sa)
+    val p = (sa: Annotation, i: Int) => {
+      sampleAggregationOption.foreach(f => f.apply(i))
+      ec.setAll(localGlobalAnnotation, sa)
       f() == true
     }
     prev.filterSamples(p)
@@ -483,7 +471,7 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
 
   val children: IndexedSeq[BaseIR] = Array(child) ++ preds
 
-  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))).toArray)
+  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))))
 
   val typ: TableType = {
     Infer(newIR, None, child.typ.env)

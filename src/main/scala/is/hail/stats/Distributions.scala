@@ -6,12 +6,12 @@ import is.hail.utils._
 sealed trait Distribution {
     def getBreezeDist(randBasis: RandBasis): Rand[Double]
 }
-case class UniformDist(minVal: Double, maxVal: Double) extends Distribution {
-  if (minVal >= maxVal)
-    fatal(s"minVal $minVal must be less than maxVal $maxVal")
+case class UniformDist(min: Double, max: Double) extends Distribution {
+  if (min >= max)
+    fatal(s"min $min must be less than max $max")
 
   override def getBreezeDist(randBasis: RandBasis): Rand[Double] = {
-    new Uniform(minVal, maxVal)(randBasis)
+    new Uniform(min, max)(randBasis)
   }
 }
 
@@ -24,25 +24,25 @@ case class BetaDist(a: Double, b: Double) extends Distribution {
   }
 }
 
-case class TruncatedBetaDist(a: Double, b: Double, minVal: Double, maxVal: Double) extends Distribution {
-  if (minVal >= maxVal)
-    fatal(s"minVal $minVal must be less than maxVal $maxVal")
+case class TruncatedBetaDist(a: Double, b: Double, min: Double, max: Double) extends Distribution {
+  if (min >= max)
+    fatal(s"min $min must be less than max $max")
 
   override def getBreezeDist(randBasis: RandBasis): Rand[Double] = {
-    new TruncatedBeta(a, b, minVal, maxVal)(randBasis)
+    new TruncatedBeta(a, b, min, max)(randBasis)
   }
 }
 
 
-class TruncatedBeta(a: Double, b: Double, minVal: Double, maxVal: Double)(randBasis: RandBasis) extends Rand[Double] {
-  if (minVal >= maxVal)
-    fatal(s"minVal $minVal must be less than maxVal $maxVal")
+class TruncatedBeta(a: Double, b: Double, min: Double, max: Double)(randBasis: RandBasis) extends Rand[Double] {
+  if (min >= max)
+    fatal(s"min $min must be less than max $max")
 
-  if (minVal < 0)
-    fatal(s"minVal $minVal must be at least 0")
+  if (min < 0)
+    fatal(s"min $min must be at least 0")
 
-  if(maxVal > 1)
-    fatal(s"maxVal $minVal must be at most 1")
+  if(max > 1)
+    fatal(s"max $max must be at most 1")
 
   private val beta = new Beta(a, b)(randBasis)
 
@@ -50,7 +50,7 @@ class TruncatedBeta(a: Double, b: Double, minVal: Double, maxVal: Double)(randBa
   override def draw(): Double = {
     var drawn = beta.draw()
 
-    while(drawn < minVal || drawn > maxVal) {
+    while(drawn < min || drawn > max) {
       drawn = beta.draw()
     }
 

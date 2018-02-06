@@ -124,6 +124,6 @@ object TestRDDBuilder {
       }.toArray
     
     val variantRDD = hc.sc.parallelize(variantArray)
-    MatrixTable.fromLegacy(hc, MatrixFileMetadata(sampleList), variantRDD)
+    MatrixTable.fromLegacy(hc, MatrixFileMetadata(sampleList.map(Annotation(_))), variantRDD)
   }
 }

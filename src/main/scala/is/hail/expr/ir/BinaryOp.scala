@@ -6,10 +6,14 @@ import is.hail.utils._
 
 object BinaryOp {
   private val returnType: ((BinaryOp, Type, Type)) => Option[Type] = lift {
-    case (Add() | Subtract() | Multiply() | Divide(), _: TInt32, _: TInt32) => TInt32()
-    case (Add() | Subtract() | Multiply() | Divide(), _: TInt64, _: TInt64) => TInt64()
-    case (Add() | Subtract() | Multiply() | Divide(), _: TFloat32, _: TFloat32) => TFloat32()
-    case (Add() | Subtract() | Multiply() | Divide(), _: TFloat64, _: TFloat64) => TFloat64()
+    case (FloatingPointDivide(), _: TInt32, _: TInt32) => TFloat32()
+    case (FloatingPointDivide(), _: TInt64, _: TInt64) => TFloat32()
+    case (FloatingPointDivide(), _: TFloat32, _: TFloat32) => TFloat32()
+    case (FloatingPointDivide(), _: TFloat64, _: TFloat64) => TFloat64()
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TInt32, _: TInt32) => TInt32()
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TInt64, _: TInt64) => TInt64()
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat32, _: TFloat32) => TFloat32()
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat64, _: TFloat64) => TFloat64()
     case (GT() | GTEQ() | LTEQ() | LT(), _: TInt32, _: TInt32) => TBoolean()
     case (GT() | GTEQ() | LTEQ() | LT(), _: TInt64, _: TInt64) => TBoolean()
     case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat32, _: TFloat32) => TBoolean()
@@ -39,7 +43,8 @@ object BinaryOp {
         case Add() => ll + rr
         case Subtract() => ll - rr
         case Multiply() => ll * rr
-        case Divide() => ll / rr
+        case FloatingPointDivide() => ll.toF / rr.toF
+        case RoundToNegInfDivide() => Code.invokeStatic[Math, Int, Int, Int]("floorDiv", ll, rr)
         case GT() => ll > rr
         case GTEQ() => ll >= rr
         case LTEQ() => ll <= rr
@@ -55,7 +60,8 @@ object BinaryOp {
         case Add() => ll + rr
         case Subtract() => ll - rr
         case Multiply() => ll * rr
-        case Divide() => ll / rr
+        case FloatingPointDivide() => ll.toF / rr.toF
+        case RoundToNegInfDivide() => Code.invokeStatic[Math, Long, Long, Long]("floorDiv", ll, rr)
         case GT() => ll > rr
         case GTEQ() => ll >= rr
         case LTEQ() => ll <= rr
@@ -71,7 +77,8 @@ object BinaryOp {
         case Add() => ll + rr
         case Subtract() => ll - rr
         case Multiply() => ll * rr
-        case Divide() => ll / rr
+        case FloatingPointDivide() => ll / rr
+        case RoundToNegInfDivide() => Code.invokeStatic[Math, Float, Float]("floor", ll / rr)
         case GT() => ll > rr
         case GTEQ() => ll >= rr
         case LTEQ() => ll <= rr
@@ -87,7 +94,8 @@ object BinaryOp {
         case Add() => ll + rr
         case Subtract() => ll - rr
         case Multiply() => ll * rr
-        case Divide() => ll / rr
+        case FloatingPointDivide() => ll / rr
+        case RoundToNegInfDivide() => Code.invokeStatic[Math, Double, Double]("floor", ll / rr)
         case GT() => ll > rr
         case GTEQ() => ll >= rr
         case LTEQ() => ll <= rr
@@ -114,7 +122,8 @@ object BinaryOp {
     case "+" => Add()
     case "-" => Subtract()
     case "*" => Multiply()
-    case "/" => Divide()
+    case "/" => FloatingPointDivide()
+    case "//" => RoundToNegInfDivide()
     case ">" => GT()
     case ">=" => GTEQ()
     case "<=" => LTEQ()
@@ -130,7 +139,8 @@ sealed trait BinaryOp { }
 case class Add() extends BinaryOp { }
 case class Subtract() extends BinaryOp { }
 case class Multiply() extends BinaryOp { }
-case class Divide() extends BinaryOp { }
+case class FloatingPointDivide() extends BinaryOp { }
+case class RoundToNegInfDivide() extends BinaryOp { }
 case class GT() extends BinaryOp { }
 case class GTEQ() extends BinaryOp { }
 case class LTEQ() extends BinaryOp { }

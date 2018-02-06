@@ -3,6 +3,7 @@ package is.hail.distributedmatrix
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, _}
+import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.expr.EvalContext
@@ -11,6 +12,7 @@ import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
+import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
@@ -20,33 +22,35 @@ import org.json4s._
 
 object BlockMatrix {
   type M = BlockMatrix
-  val defaultBlockSize: Int = 1024
+  val defaultBlockSize: Int = 4096
 
   def from(sc: SparkContext, lm: BDM[Double]): M =
     from(sc, lm, defaultBlockSize)
 
   def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
-    val part = GridPartitioner(blockSize, lm.rows, lm.cols)
-    val lmBc = sc.broadcast(lm)
-    new BlockMatrix(
-    new RDD[((Int, Int), BDM[Double])](sc, Nil) {
-      override val partitioner = Some(part)
+    val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
+    val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
+      val (i, j) = gp.blockCoordinates(pi)
+      val (blockNRows, blockNCols) = gp.blockDims(pi)
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
+      
+      sc.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+    }
+    
+    val blocks = new RDD[((Int, Int), BDM[Double])](sc, Nil) {
+      override val partitioner = Some(gp)
 
-      def getPartitions: Array[Partition] = Array.tabulate(part.numPartitions)(i => IntPartition(i))
+      def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(i => IntPartition(i))
 
       def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-        val (i, j) = part.blockCoordinates(split.index)
-        val iOffset = i * blockSize
-        val jOffset = j * blockSize
-        val (blockNRows, blockNCols) = part.blockDims(split.index)
-        // FIXME return slice when write supports sliced blocks
-        val b = new BDM[Double](blockNRows, blockNCols)
-        b := lmBc.value(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
-        Iterator(((i, j), b))
+        val pi = split.index
+        Iterator((gp.blockCoordinates(pi), localBlocksBc(split.index).value))
       }
-    },
-    blockSize, lm.rows, lm.cols)
+    }
+    
+    new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
 
   def from(irm: IndexedRowMatrix): M =
@@ -54,25 +58,34 @@ object BlockMatrix {
 
   def from(irm: IndexedRowMatrix, blockSize: Int): M =
     irm.toHailBlockMatrix(blockSize)
+  
+  // uniform or Gaussian
+  def random(hc: HailContext, nRows: Int, nCols: Int, blockSize: Int = defaultBlockSize,
+    seed: Int = 0, gaussian: Boolean = false): M = {
+    
+    val gp = GridPartitioner(blockSize, nRows, nCols)
+    
+    val blocks = new RDD[((Int, Int), BDM[Double])](hc.sc, Nil) {
+        override val partitioner = Some(gp)
 
-  def random(hc: HailContext, nRows: Int, nCols: Int, blockSize: Int = defaultBlockSize): M = {
-    val part = GridPartitioner(blockSize, nRows, nCols)
-    new BlockMatrix(
-      new RDD[((Int, Int), BDM[Double])](hc.sc, Nil) {
-        override val partitioner = Some(part)
-
-        def getPartitions: Array[Partition] = Array.tabulate(part.numPartitions)(i =>
+        def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
           new Partition {
-            def index: Int = i
+            def index: Int = pi
           })
 
         def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-          val (i, j) = part.blockCoordinates(split.index)
-          // FIXME seed so reproducible
-          Iterator(((i, j), BDM.rand[Double](part.blockRowNRows(i), part.blockColNCols(j))))
+          val pi = split.index
+          val (i, j) = gp.blockCoordinates(pi)
+          val blockSeed = seed + pi
+          
+          val randBasis: RandBasis = new RandBasis(new ThreadLocalRandomGenerator(new MersenneTwister(blockSeed)))
+          val rand = if (gaussian) randBasis.gaussian else randBasis.uniform
+          
+          Iterator(((i, j), BDM.rand[Double](gp.blockRowNRows(i), gp.blockColNCols(j), rand)))
         }
-      },
-      blockSize, nRows, nCols)
+      }
+    
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =

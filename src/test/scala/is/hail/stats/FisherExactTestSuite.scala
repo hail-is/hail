@@ -81,7 +81,7 @@ class FisherExactTestSuite extends SparkSuite {
 
     property("expr gives same result as class") =
       forAll(MatrixTable.gen(hc, VSMSubgen.random)) { (vds: MatrixTable) =>
-        val sampleIds = vds.sampleIds
+        val sampleIds = vds.stringSampleIds
         val phenotypes = sampleIds.zipWithIndex.map { case (sample, i) =>
           if (i % 3 == 0)
             (sample, "ADHD")

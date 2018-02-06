@@ -1,16 +1,17 @@
-from hail.api2.matrixtable import MatrixTable, Table
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.expr.expression import *
-from hail.genetics import KinshipMatrix
+from hail.genetics import KinshipMatrix, GenomeReference
 from hail.genetics.ldMatrix import LDMatrix
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
-from hail.utils.java import handle_py4j, joption
+from hail.utils.java import handle_py4j, joption, jarray
 from .misc import require_biallelic
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from math import sqrt
-
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -102,14 +103,16 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               joption(min),
                                               joption(max)))
 
+@handle_py4j
 @typecheck(dataset=MatrixTable,
-           ys=oneof(Expression, listof(Expression)),
-           x=Expression,
-           covariates=listof(Expression),
+           ys=oneof(expr_numeric, listof(expr_numeric)),
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
            root=strlike,
            block_size=integral)
 def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
-    """For each row, test a derived input variable for association with response variables using linear regression.
+    """For each row, test a derived input variable for association with
+    response variables using linear regression.
 
     Examples
     --------
@@ -119,50 +122,60 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Warning
     -------
-    :meth:`.linreg` considers the same set of columns (i.e., samples, points) for every response variable and row,
-    namely those columns for which **all** response variables and covariates are defined.
-    For each row, missing values of ``x`` are mean-imputed over these columns.
+    :meth:`.linreg` considers the same set of columns (i.e., samples, points)
+    for every response variable and row, namely those columns for which **all**
+    response variables and covariates are defined. For each row, missing values
+    of ``x`` are mean-imputed over these columns.
 
     Notes
     -----
 
-    With the default root, the following row-indexed fields are added.
-    The indexing of the array fields corresponds to that of ``ys``.
+    With the default root, the following row-indexed fields are added. The
+    indexing of the array fields corresponds to that of ``ys``.
 
     - **linreg.nCompleteSamples** (*Int32*) -- number of columns used
     - **linreg.AC** (*Float64*) -- sum of input values ``x``
-    - **linreg.ytx** (*Array[Float64]*) -- array of dot products of each response vector ``y`` with the input vector ``x``
-    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients of ``x``, :math:`\hat\\beta_1` below
-    - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}_1`
-    - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`
+    - **linreg.ytx** (*Array[Float64]*) -- array of dot products of each
+      response vector ``y`` with the input vector ``x``
+    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients of
+      ``x``, :math:`\hat\\beta_1` below
+    - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors,
+      :math:`\widehat{\mathrm{se}}_1`
+    - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics,
+      equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`
     - **linreg.pval** (*Array[Float64]*) -- array of :math:`p`-values
 
-    In the statistical genetics example above, the input variable ``x`` encodes genotype
-    as the number of alternate alleles (0, 1, or 2). For each variant (row), genotype is tested for association
-    with height controlling for age and sex, by fitting the linear regression model:
+    In the statistical genetics example above, the input variable ``x`` encodes
+    genotype as the number of alternate alleles (0, 1, or 2). For each variant
+    (row), genotype is tested for association with height controlling for age
+    and sex, by fitting the linear regression model:
 
     .. math::
 
-        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\varepsilon, \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
+        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
+                          + \\beta_2 \, \mathrm{age}
+                          + \\beta_3 \, \mathrm{isFemale}
+                          + \\varepsilon, \quad \\varepsilon
+                        \sim \mathrm{N}(0, \sigma^2)
 
-    Boolean covariates like :math:`\mathrm{isFemale}` are encoded as 1 for true and 0 for false.
-    The null model sets :math:`\\beta_1 = 0`.
+    Boolean covariates like :math:`\mathrm{isFemale}` are encoded as 1 for true
+    and 0 for false. The null model sets :math:`\\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
-    <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
-    equation 3.12 for the t-statistic which follows the t-distribution with
+    <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
+    See equation 3.12 for the t-statistic which follows the t-distribution with
     :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
     ``x`` and the intercept.
 
     Parameters
     ----------
-    ys : :obj:`list` of :class:`.Expression`
+    ys : :class:`.NumericExpression` or (:obj:`list` of :class:`.NumericExpression`)
         One or more response expressions.
-    x : :class:`.Expression`
+    x : :class:`.NumericExpression`
         Input variable.
-    covariates : :obj:`list` of :class:`.Expression`
+    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`
         Covariate expressions.
     root : :obj:`str`
         Name of resulting row-indexed field.
@@ -204,6 +217,923 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     return cleanup(MatrixTable(jm))
 
+@handle_py4j
+@typecheck(dataset=MatrixTable,
+           test=strlike,
+           y=oneof(expr_bool, expr_numeric),
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
+           root=strlike)
+def logreg(dataset, test, y, x, covariates=[], root='logreg'):
+    r"""For each row, test a derived input variable for association with a
+    Boolean response variable using logistic regression.
+
+    Examples
+    --------
+
+    Run the logistic regression Wald test per variant using a Boolean
+    phenotype and two covariates stored in column-indexed fields:
+
+    >>> ds_result = methods.logreg(
+    ...     dataset,
+    ...     test='wald',
+    ...     y=dataset.pheno.isCase,
+    ...     x=dataset.GT.num_alt_alleles(),
+    ...     covariates=[dataset.pheno.age, dataset.pheno.isFemale])
+
+    Notes
+    -----
+
+    The :func:`.logreg` method performs, for each row, a significance test of
+    the input variable in predicting a binary (case-control) response
+    variable based on the logistic regression model. The response variable
+    type must either be numeric (with all present values 0 or 1) or Boolean,
+    in which case true and false are coded as 1 and 0, respectively.
+
+    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
+    Rao score test ('score'), and Firth test ('firth'). Hail only includes
+    columns for which the response variable and all covariates are defined.
+    For each row, Hail imputes missing input values as the mean of the
+    non-missing values.
+
+    The example above considers a model of the form
+
+    .. math::
+
+        \mathrm{Prob}(\mathrm{isCase}) =
+            \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
+                            + \beta_2 \, \mathrm{age}
+                            + \beta_3 \, \mathrm{isFemale} + \varepsilon),
+        \quad
+        \varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+    where :math:`\mathrm{sigmoid}` is the `sigmoid function`_, the genotype
+    :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
+    HomVar, and the Boolean covariate :math:`\mathrm{isFemale}` is coded as
+    for true (female) and 0 for false (male). The null model sets
+    :math:`\beta_1 = 0`.
+
+    .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
+
+    The resulting variant annotations depend on the test statistic as shown
+    in the tables below.
+
+    ========== =============== ======  ============================================
+    Test       Field           Type    Value
+    ========== =============== ======  ============================================
+    Wald       `logreg.beta`   Double  fit effect coefficient,
+                                       :math:`\hat\beta_1`
+    Wald       `logreg.se`     Double  estimated standard error,
+                                       :math:`\widehat{\mathrm{se}}`
+    Wald       `logreg.zstat`  Double  Wald :math:`z`-statistic, equal to
+                                       :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `logreg.pval`   Double  Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `logreg.beta`   Double  fit effect coefficient,
+                                       :math:`\hat\beta_1`
+    LRT, Firth `logreg.chi2`   Double  deviance statistic
+    LRT, Firth `logreg.pval`   Double  LRT / Firth p-value testing
+                                       :math:`\beta_1 = 0`
+    Score      `logreg.chi2`   Double  score statistic
+    Score      `logreg.pval`   Double  score p-value testing :math:`\beta_1 = 0`
+    ========== =============== ======  ============================================
+
+    For the Wald and likelihood ratio tests, Hail fits the logistic model for
+    each row using Newton iteration and only emits the above annotations
+    when the maximum likelihood estimate of the coefficients converges. The
+    Firth test uses a modified form of Newton iteration. To help diagnose
+    convergence issues, Hail also emits three variant annotations which
+    summarize the iterative fitting process:
+
+    ================ ======================= ======= ===========================
+    Test             Field                   Type    Value
+    ================ ======================= ======= ===========================
+    Wald, LRT, Firth `logreg.fit.nIter`      Int     number of iterations until
+                                                     convergence, explosion, or
+                                                     reaching the max (25 for
+                                                     Wald, LRT; 100 for Firth)
+    Wald, LRT, Firth `logreg.fit.converged`  Boolean true if iteration converged
+    Wald, LRT, Firth `logreg.fit.exploded`   Boolean true if iteration exploded
+    ================ ======================= ======= ===========================
+
+    We consider iteration to have converged when every coordinate of
+    :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
+    up to 25 iterations are attempted; in testing we find 4 or 5 iterations
+    nearly always suffice. Convergence may also fail due to explosion,
+    which refers to low-level numerical linear algebra exceptions caused by
+    manipulating ill-conditioned matrices. Explosion may result from (nearly)
+    linearly dependent covariates or complete separation_.
+
+    .. _separation: https://en.wikipedia.org/wiki/Separation_(statistics)
+
+    A more common situation in genetics is quasi-complete seperation, e.g.
+    variants that are observed only in cases (or controls). Such variants
+    inevitably arise when testing millions of variants with very low minor
+    allele count. The maximum likelihood estimate of :math:`\beta` under
+    logistic regression is then undefined but convergence may still occur after
+    a large number of iterations due to a very flat likelihood surface. In
+    testing, we find that such variants produce a secondary bump from 10 to 15
+    iterations in the histogram of number of iterations per variant. We also
+    find that this faux convergence produces large standard errors and large
+    (insignificant) p-values. To not miss such variants, consider using Firth
+    logistic regression, linear regression, or group-based tests.
+
+    Here's a concrete illustration of quasi-complete seperation in R. Suppose
+    we have 2010 samples distributed as follows for a particular variant:
+
+    ======= ====== === ======
+    Status  HomRef Het HomVar
+    ======= ====== === ======
+    Case    1000   10  0
+    Control 1000   0   0
+    ======= ====== === ======
+
+    The following R code fits the (standard) logistic, Firth logistic,
+    and linear regression models to this data, where ``x`` is genotype,
+    ``y`` is phenotype, and ``logistf`` is from the logistf package:
+
+    .. code-block:: R
+
+        x <- c(rep(0,1000), rep(1,1000), rep(1,10)
+        y <- c(rep(0,1000), rep(0,1000), rep(1,10))
+        logfit <- glm(y ~ x, family=binomial())
+        firthfit <- logistf(y ~ x)
+        linfit <- lm(y ~ x)
+
+    The resulting p-values for the genotype coefficient are 0.991, 0.00085,
+    and 0.0016, respectively. The erroneous value 0.991 is due to
+    quasi-complete separation. Moving one of the 10 hets from case to control
+    eliminates this quasi-complete separation; the p-values from R are then
+    0.0373, 0.0111, and 0.0116, respectively, as expected for a less
+    significant association.
+
+    The Firth test reduces bias from small counts and resolves the issue of
+    separation by penalizing maximum likelihood estimation by the
+    `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__.
+    This test is slower, as both the null and full model must be fit per
+    variant, and convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted for the null model and,
+    if that is successful, for the full model as well. In testing we find 20
+    iterations nearly always suffices. If the null model fails to converge, then
+    the `lmmreg.fit` fields reflect the null model; otherwise, they reflect the
+    full model.
+
+    See
+    `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
+    for an empirical comparison of the logistic Wald, LRT, score, and Firth
+    tests. The theoretical foundations of the Wald, likelihood ratio, and score
+    tests may be found in Chapter 3 of Gesine Reinert's notes
+    `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`__.
+    Firth introduced his approach in
+    `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`__.
+    Heinze and Schemper further analyze Firth's approach in
+    `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
+
+    Those variants that don't vary across the included samples (e.g., all
+    genotypes are HomRef) will have missing annotations.
+
+    Phenotype and covariate sample annotations may also be specified using
+    `programmatic expressions <exprlang.html>`__ without identifiers, such as:
+
+    .. code-block:: text
+
+        if (ds.isFemale) ds.cov.age else (2 * ds.cov.age + 10)
+
+    For Boolean covariate types, true is coded as 1 and false as 0. In
+    particular, for the sample annotation `fam.isCase` added by importing a FAM
+    file with case-control phenotype, case is 1 and control is 0.
+
+    Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
+    and ``b.score`` tests in `EPACTS`_. For each variant, Hail imputes missing
+    input values as the mean of non-missing input values, whereas EPACTS
+    subsets to those samples with called genotypes. Hence, Hail and EPACTS
+    results will currently only agree for variants with no missing genotypes.
+
+    .. _EPACTS: http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests
+
+    Parameters
+    ----------
+    test : {'wald', 'lrt', 'score', 'firth'}
+        Statistical test.
+    y : numeric or Boolean expression
+        Response expression. Must evaluate to Boolean or numeric with all values
+        0 or 1.
+    x : numeric expression
+        Expression for input variable.
+    covariates : :obj:`list` of :class:`.NumericExpression`, optional
+        Covariate expressions.
+    root : :obj:`str`, optional
+        Name of resulting row-indexed field.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset with regression results in a new row-indexed field.
+    """
+
+    # x is entry-indexed
+    analyze('logreg/x', x, dataset._entry_indices)
+
+    # y and covariates are col-indexed
+    analyze('logreg/y', y, dataset._col_indices)
+
+    all_exprs = [x, y]
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('logreg/covariates', e, dataset._col_indices)
+
+    base, cleanup = dataset._process_joins(*all_exprs)
+
+    jds = base._jvds.logreg(
+        test,
+        y._ast.to_hql(),
+        x._ast.to_hql(),
+        jarray(Env.jvm().java.lang.String,
+               [cov._ast.to_hql() for cov in covariates]),
+        'va.`{}`'.format(root))
+
+    return cleanup(MatrixTable(jds))
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           kinshipMatrix=KinshipMatrix,
+           y=expr_numeric,
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
+           global_root=strlike,
+           va_root=strlike,
+           run_assoc=bool,
+           use_ml=bool,
+           delta=nullable(numeric),
+           sparsity_threshold=numeric,
+           n_eigs=nullable(integral),
+           dropped_variance_fraction=(nullable(float)))
+def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
+           run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
+           n_eigs=None, dropped_variance_fraction=None):
+    r"""Use a kinship-based linear mixed model to estimate the genetic component
+    of phenotypic variance (narrow-sense heritability) and optionally test each
+    variant for association.
+
+    Examples
+    --------
+    Compute a :class:`.KinshipMatrix`, and use it to test variants for
+    association using a linear mixed model:
+
+    >>> ds = methods.read_matrix_table("data/example_lmmreg.vds")
+    >>> kinship_matrix = methods.rrm(ds.filter_rows(ds.useInKinship)['GT'])
+    >>> lmm_ds = methods.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
+
+    Notes
+    -----
+    Suppose the variant dataset saved at :file:`data/example_lmmreg.vds` has a
+    Boolean variant-indexed field `useInKinship` and numeric or Boolean
+    sample-indexed fields `pheno`, `cov1`, and `cov2`. Then the
+    :func:`.lmmreg` function in the above example will execute the following
+    four steps in order:
+
+    1) filter to samples in given kinship matrix to those for which
+       `ds.pheno`, `ds.cov`, and `ds.cov2` are all defined
+    2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
+    3) fit covariate coefficients and variance parameters in the
+       sample-covariates-only (global) model using restricted maximum
+       likelihood (`REML`_), storing results in a global field under
+       `lmmreg_global`
+    4) test each variant for association, storing results in a row-indexed
+       field under `lmmreg`
+
+    .. _REML: https://en.wikipedia.org/wiki/Restricted_maximum_likelihood
+
+    This plan can be modified as follows:
+
+    - Set `run_assoc` to :obj:`False` to not test any variants for association,
+      i.e. skip Step 5.
+    - Set `use_ml` to :obj:`True` to use maximum likelihood instead of REML in
+      Steps 4 and 5.
+    - Set the `delta` argument to manually set the value of :math:`\delta`
+      rather that fitting :math:`\delta` in Step 4.
+    - Set the `global_root` argument to change the global annotation root in
+      Step 4.
+    - Set the `va_root` argument to change the variant annotation root in
+      Step 5.
+
+    :func:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on
+    whether :math:`\delta` is set or fit. These global annotations are stored
+    under the prefix `global_root`, which is by default ``lmmreg_global``. The
+    prefix is not displayed in the table below.
+
+    .. list-table::
+       :header-rows: 1
+
+       * - Field
+         - Type
+         - Value
+       * - `useML`
+         - Boolean
+         - true if fit by ML, false if fit by REML
+       * - `beta`
+         - Dict[String, Double]
+         - map from *intercept* and the given ``covariates`` expressions to the
+           corresponding fit :math:`\beta` coefficients
+       * - `sigmaG2`
+         - Double
+         - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
+       * - `sigmaE2`
+         - Double
+         - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
+       * - `delta`
+         - Double
+         - fit ratio of variance component coefficients, :math:`\hat{\delta}`
+       * - `h2`
+         - Double
+         - fit narrow-sense heritability, :math:`\hat{h}^2`
+       * - `nEigs`
+         - Int
+         - number of eigenvectors of kinship matrix used to fit model
+       * - `dropped_variance_fraction`
+         - Double
+         - specified value of `dropped_variance_fraction`
+       * - `evals`
+         - Array[Double]
+         - all eigenvalues of the kinship matrix in descending order
+       * - `fit.seH2`
+         - Double
+         - standard error of :math:`\hat{h}^2` under asymptotic normal
+           approximation
+       * - `fit.normLkhdH2`
+         - Array[Double]
+         - likelihood function of :math:`h^2` normalized on the discrete grid
+           ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
+           percentage ``i``.
+       * - `fit.maxLogLkhd`
+         - Double
+         - (restricted) maximum log likelihood corresponding to
+           :math:`\hat{\delta}`
+       * - `fit.logDeltaGrid`
+         - Array[Double]
+         - values of :math:`\mathrm{ln}(\delta)` used in the grid search
+       * - `fit.logLkhdVals`
+         - Array[Double]
+         - (restricted) log likelihood of :math:`y` given :math:`X` and
+           :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and
+           :math:`\sigma_g^2`
+
+    These global annotations are also added to ``hail.log``, with the ranked
+    evals and :math:`\delta` grid with values in .tsv tabular form.  Use
+    ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
+
+    If Step 5 is performed, :func:`.lmmreg` also adds four linear regression
+    variant annotations. These annotations are stored under the row-indexed
+    field prefix `va_root`, which defaults to ``lmmreg``. Once again, the prefix
+    is not displayed in the table.
+
+    +-----------+--------+------------------------------------------------+
+    | Field     | Type   | Value                                          |
+    +===========+========+================================================+
+    | `beta`    | Double | fit genotype coefficient, :math:`\hat\beta_0`  |
+    +-----------+--------+------------------------------------------------+
+    | `sigmaG2` | Double | fit coefficient of genetic variance component, |
+    |           |        | :math:`\hat{\sigma}_g^2`                       |
+    +-----------+--------+------------------------------------------------+
+    | `chi2`    | Double | :math:`\chi^2` statistic of the likelihood     |
+    |           |        | ratio test                                     |
+    +-----------+--------+------------------------------------------------+
+    | `pval`    | Double | :math:`p`-value                                |
+    +-----------+--------+------------------------------------------------+
+
+    Those variants that don't vary across the included samples (e.g., all
+    genotypes are HomRef) will have missing annotations.
+
+    **Performance**
+
+    Hail's initial version of :func:`.lmmreg` scales beyond 15k samples and
+    to an essentially unbounded number of variants, making it particularly
+    well-suited to modern sequencing studies and complementary to tools
+    designed for SNP arrays. Analysts have used :func:`.lmmreg` in research to
+    compute kinship from 100k common variants and test 32 million non-rare
+    variants on 8k whole genomes in about 10 minutes on `Google cloud`_.
+
+    .. _Google cloud:
+        http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80
+
+    While :func:`.lmmreg` computes the kinship matrix :math:`K` using
+    distributed matrix multiplication (Step 2), the full `eigendecomposition`_
+    (Step 3) is currently run on a single core of master using the
+    `LAPACK routine DSYEVD`_, which we empirically find to be the most
+    performant of the four available routines; laptop performance plots showing
+    cubic complexity in :math:`n` are available
+    `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud,
+    eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for
+    8185 samples. If you see worse performance, check that LAPACK natives are
+    being properly loaded (see "BLAS and LAPACK" in Getting Started).
+
+    .. _LAPACK routine DSYEVD:
+        http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html
+
+    .. _eigendecomposition:
+        https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix
+
+    Given the eigendecomposition, fitting the global model (Step 4) takes on
+    the order of a few seconds on master. Association testing (Step 5) is fully
+    distributed by variant with per-variant time complexity that is completely
+    independent of the number of sample covariates and dominated by
+    multiplication of the genotype vector :math:`v` by the matrix of
+    eigenvectors :math:`U^T` as described below, which we accelerate with a
+    sparse representation of :math:`v`.  The matrix :math:`U^T` has size about
+    :math:`8n^2` bytes and is currently broadcast to each Spark executor. For
+    example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of
+    memory on a 16-core worker node with two 8-core executors. So for large
+    :math:`n`, we recommend using a high-memory configuration such as
+    *highmem* workers.
+
+    **Linear mixed model**
+
+    :func:`.lmmreg` estimates the genetic proportion of residual phenotypic
+    variance (narrow-sense heritability) under a kinship-based linear mixed
+    model, and then optionally tests each variant for association using the
+    likelihood ratio test. Inference is exact.
+
+    We first describe the sample-covariates-only model used to estimate
+    heritability, which we simply refer to as the *global model*. With
+    :math:`n` samples and :math:`c` sample covariates, we define:
+
+    - :math:`y = n \times 1` vector of phenotypes
+    - :math:`X = n \times c` matrix of sample covariates and intercept column
+      of ones
+    - :math:`K = n \times n` kinship matrix
+    - :math:`I = n \times n` identity matrix
+    - :math:`\beta = c \times 1` vector of covariate coefficients
+    - :math:`\sigma_g^2 =` coefficient of genetic variance component :math:`K`
+    - :math:`\sigma_e^2 =` coefficient of environmental variance component
+      :math:`I`
+    - :math:`\delta = \frac{\sigma_e^2}{\sigma_g^2} =` ratio of environmental
+      and genetic variance component coefficients
+    - :math:`h^2 = \frac{\sigma_g^2}{\sigma_g^2 + \sigma_e^2} = \frac{1}{1 + \delta} =`
+      genetic proportion of residual phenotypic variance
+
+    Under a linear mixed model, :math:`y` is sampled from the
+    :math:`n`-dimensional `multivariate normal distribution`_ with mean
+    :math:`X \beta` and variance components that are scalar multiples of
+    :math:`K` and :math:`I`:
+
+    .. math::
+
+      y \sim \mathrm{N}\left(X\beta, \sigma_g^2 K + \sigma_e^2 I\right)
+
+    .. _multivariate normal distribution:
+       https://en.wikipedia.org/wiki/Multivariate_normal_distribution
+
+    Thus the model posits that the residuals :math:`y_i - X_{i,:}\beta` and
+    :math:`y_j - X_{j,:}\beta` have covariance :math:`\sigma_g^2 K_{ij}` and
+    approximate correlation :math:`h^2 K_{ij}`. Informally: phenotype residuals
+    are correlated as the product of overall heritability and pairwise kinship.
+    By contrast, standard (unmixed) linear regression is equivalent to fixing
+    :math:`\sigma_2` (equivalently, :math:`h^2`) at 0 above, so that all
+    phenotype residuals are independent.
+
+    **Caution:** while it is tempting to interpret :math:`h^2` as the
+    `narrow-sense heritability`_ of the phenotype alone, note that its value
+    depends not only the phenotype and genetic data, but also on the choice of
+    sample covariates.
+
+    .. _narrow-sense heritability: https://en.wikipedia.org/wiki/Heritability#Definition
+
+    **Fitting the global model**
+
+    The core algorithm is essentially a distributed implementation of the
+    spectral approach taken in `FastLMM`_. Let :math:`K = USU^T` be the
+    `eigendecomposition`_ of the real symmetric matrix :math:`K`. That is:
+
+    - :math:`U = n \times n` orthonormal matrix whose columns are the
+      eigenvectors of :math:`K`
+    - :math:`S = n \times n` diagonal matrix of eigenvalues of :math:`K` in
+      descending order. :math:`S_{ii}` is the eigenvalue of eigenvector
+      :math:`U_{:,i}`
+    - :math:`U^T = n \times n` orthonormal matrix, the transpose (and inverse)
+      of :math:`U`
+
+    .. _FastLMM: https://www.microsoft.com/en-us/research/project/fastlmm/
+
+    A bit of matrix algebra on the multivariate normal density shows that the
+    linear mixed model above is mathematically equivalent to the model
+
+    .. math::
+
+      U^Ty \sim \mathrm{N}\left(U^TX\beta, \sigma_g^2 (S + \delta I)\right)
+
+    for which the covariance is diagonal (e.g., unmixed). That is, rotating the
+    phenotype vector (:math:`y`) and covariate vectors (columns of :math:`X`)
+    in :math:`\mathbb{R}^n` by :math:`U^T` transforms the model to one with
+    independent residuals. For any particular value of :math:`\delta`, the
+    restricted maximum likelihood (REML) solution for the latter model can be
+    solved exactly in time complexity that is linear rather than cubic in
+    :math:`n`.  In particular, having rotated, we can run a very efficient
+    1-dimensional optimization procedure over :math:`\delta` to find the REML
+    estimate :math:`(\hat{\delta}, \hat{\beta}, \hat{\sigma}_g^2)` of the
+    triple :math:`(\delta, \beta, \sigma_g^2)`, which in turn determines
+    :math:`\hat{\sigma}_e^2` and :math:`\hat{h}^2`.
+
+    We first compute the maximum log likelihood on a :math:`\delta`-grid that
+    is uniform on the log scale, with :math:`\mathrm{ln}(\delta)` running from
+    -8 to 8 by 0.01, corresponding to :math:`h^2` decreasing from 0.9995 to
+    0.0005. If :math:`h^2` is maximized at the lower boundary then standard
+    linear regression would be more appropriate and Hail will exit; more
+    generally, consider using standard linear regression when :math:`\hat{h}^2`
+    is very small. A maximum at the upper boundary is highly suspicious and
+    will also cause Hail to exit. In any case, the log file records the table
+    of grid values for further inspection, beginning under the info line
+    containing "lmmreg: table of delta".
+
+    If the optimal grid point falls in the interior of the grid as expected,
+    we then use `Brent's method`_ to find the precise location of the maximum
+    over the same range, with initial guess given by the optimal grid point and
+    a tolerance on :math:`\mathrm{ln}(\delta)` of 1e-6. If this location
+    differs from the optimal grid point by more than 0.01, a warning will be
+    displayed and logged, and one would be wise to investigate by plotting the
+    values over the grid.
+
+    .. _Brent's method: https://en.wikipedia.org/wiki/Brent%27s_method
+
+    Note that :math:`h^2` is related to :math:`\mathrm{ln}(\delta)` through the
+    `sigmoid function`_. More precisely,
+
+    .. math::
+
+      h^2 = 1 - \mathrm{sigmoid}(\mathrm{ln}(\delta))
+          = \mathrm{sigmoid}(-\mathrm{ln}(\delta))
+
+    .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
+
+    Hence one can change variables to extract a high-resolution discretization
+    of the likelihood function of :math:`h^2` over :math:`[0, 1]` at the
+    corresponding REML estimators for :math:`\beta` and :math:`\sigma_g^2`, as
+    well as integrate over the normalized likelihood function using
+    `change of variables`_ and the `sigmoid differential equation`_.
+
+    .. _change of variables: https://en.wikipedia.org/wiki/Integration_by_substitution
+    .. _sigmoid differential equation: https://en.wikipedia.org/wiki/Sigmoid_function#Properties
+
+    For convenience, `lmmreg.fit.normLkhdH2` records the the likelihood
+    function of :math:`h^2` normalized over the discrete grid
+    :math:`0.01, 0.02, \ldots, 0.98, 0.99`. The length of the array is 101 so
+    that index ``i`` contains the likelihood at percentage ``i``. The values at
+    indices 0 and 100 are left undefined.
+
+    By the theory of maximum likelihood estimation, this normalized likelihood
+    function is approximately normally distributed near the maximum likelihood
+    estimate. So we estimate the standard error of the estimator of :math:`h^2`
+    as follows. Let :math:`x_2` be the maximum likelihood estimate of
+    :math:`h^2` and let :math:`x_ 1` and :math:`x_3` be just to the left and
+    right of :math:`x_2`. Let :math:`y_1`, :math:`y_2`, and :math:`y_3` be the
+    corresponding values of the (unnormalized) log likelihood function. Setting
+    equal the leading coefficient of the unique parabola through these points
+    (as given by Lagrange interpolation) and the leading coefficient of the log
+    of the normal distribution, we have:
+
+    .. math::
+
+      \frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}
+           {(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\frac{1}{2 \sigma^2}
+
+    The standard error :math:`\hat{\sigma}` is then estimated by solving for
+    :math:`\sigma`.
+
+    Note that the mean and standard deviation of the (discretized or continuous)
+    distribution held in `lmmreg.fit.normLkhdH2` will not coincide with
+    :math:`\hat{h}^2` and :math:`\hat{\sigma}`, since this distribution only
+    becomes normal in the infinite sample limit. One can visually assess
+    normality by plotting this distribution against a normal distribution with
+    the same mean and standard deviation, or use this distribution to
+    approximate credible intervals under a flat prior on :math:`h^2`.
+
+    **Testing each variant for association**
+
+    Fixing a single variant, we define:
+
+    - :math:`v = n \times 1` input vector, with missing values imputed as the
+      mean of the non-missing values
+    - :math:`X_v = \left[v | X \right] = n \times (1 + c)` matrix concatenating
+      :math:`v` and :math:`X`
+    - :math:`\beta_v = (\beta^0_v, \beta^1_v, \ldots, \beta^c_v) = (1 + c) \times 1`
+      vector of covariate coefficients
+
+    Fixing :math:`\delta` at the global REML estimate :math:`\hat{\delta}`, we
+    find the REML estimate :math:`(\hat{\beta}_v, \hat{\sigma}_{g, v}^2)` via
+    rotation of the model
+
+    .. math::
+
+      y \sim \mathrm{N}\left(X_v\beta_v, \sigma_{g,v}^2 (K + \hat{\delta} I)\right)
+
+    Note that the only new rotation to compute here is :math:`U^T v`.
+
+    To test the null hypothesis that the genotype coefficient :math:`\beta^0_v`
+    is zero, we consider the restricted model with parameters
+    :math:`((0, \beta^1_v, \ldots, \beta^c_v), \sigma_{g,v}^2)` within the full
+    model with parameters
+    :math:`(\beta^0_v, \beta^1_v, \ldots, \beta^c_v), \sigma_{g_v}^2)`, with
+    :math:`\delta` fixed at :math:`\hat\delta` in both. The latter fit is
+    simply that of the global model,
+    :math:`((0, \hat{\beta}^1, \ldots, \hat{\beta}^c), \hat{\sigma}_g^2)`. The
+    likelihood ratio test statistic is given by
+
+    .. math::
+
+      \chi^2 = n \, \mathrm{ln}\left(\frac{\hat{\sigma}^2_g}{\hat{\sigma}_{g,v}^2}\right)
+
+    and follows a chi-squared distribution with one degree of freedom. Here the
+    ratio :math:`\hat{\sigma}^2_g / \hat{\sigma}_{g,v}^2` captures the degree
+    to which adding the variant :math:`v` to the global model reduces the
+    residual phenotypic variance.
+
+    **Kinship Matrix**
+
+    FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can
+    be computed with :func:`.rrm`. However, any instance of
+    :class:`.KinshipMatrix` may be used, so long as
+    :meth:`~.KinshipMatrix.sample_list` contains the complete samples of the
+    caller variant dataset in the same order.
+
+    **Low-rank approximation of kinship for improved performance**
+
+    :func:`.lmmreg` can implicitly use a low-rank approximation of the kinship
+    matrix to more rapidly fit delta and the statistics for each variant. The
+    computational complexity per variant is proportional to the number of
+    eigenvectors used. This number can be specified in two ways. Specify the
+    parameter `n_eigs` to use only the top `n_eigs` eigenvectors.
+    Alternatively, specify `dropped_variance_fraction` to use as many
+    eigenvectors as necessary to capture all but at most this fraction of the
+    sample variance (also known as the trace, or the sum of the eigenvalues).
+    For example, setting `dropped_variance_fraction` to 0.01 will use the
+    minimal number of eigenvectors to account for 99% of the sample variance.
+    Specifying both parameters will apply the more stringent (fewest
+    eigenvectors) of the two.
+
+    **Further background**
+
+    For the history and mathematics of linear mixed models in genetics,
+    including `FastLMM`_, see
+    `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__.
+    For an investigation of various approaches to defining kinship, see
+    `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
+
+    Parameters
+    ----------
+    kinshipMatrix : :class:`.KinshipMatrix`
+        Kinship matrix to be used.
+
+    y : :class:`.NumericExpression`
+        Response sample expression.
+
+    x : :class:`.NumericExpression`
+        Input variable.
+
+    covariates : :obj:`list` of :class:`.NumericExpression`
+        List of covariate sample expressions.
+
+    global_root : :obj:`str`
+        Global field root, a period-delimited path.
+
+    va_root : :obj:`str`
+        Variant-indexed field root, a period-delimited path.
+
+    run_assoc : :obj:`bool`
+        If true, run association testing in addition to fitting the global model.
+
+    use_ml : :obj:`bool`
+        Use ML instead of REML throughout.
+
+    delta : :obj:`float` or :obj:`None`
+        Fixed delta value to use in the global model, overrides fitting delta.
+
+    sparsity_threshold : :obj:`float`
+        Genotype vector sparsity at or below which to use sparse genotype
+        vector in rotation (advanced).
+
+    n_eigs : :obj:`int`
+        Number of eigenvectors of the kinship matrix used to fit the model.
+
+    dropped_variance_fraction : :obj:`float`
+        Upper bound on fraction of sample variance lost by dropping
+        eigenvectors with small eigenvalues.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Variant dataset with linear mixed regression annotations.
+    """
+
+    # x is entry-indexed
+    analyze('lmmreg/x', x, ds._entry_indices)
+
+    # y and covariates are col-indexed
+    analyze('lmmreg/y', y, ds._col_indices)
+
+    all_exprs = [x, y]
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('lmmreg/covariates', e, ds._col_indices)
+
+    base, cleanup = ds._process_joins(*all_exprs)
+
+    jds = base._jvds.lmmreg(kinshipMatrix._jkm,
+                            y._ast.to_hql(),
+                            x._ast.to_hql(),
+                            jarray(Env.jvm().java.lang.String,
+                                   [cov._ast.to_hql() for cov in covariates]),
+                            use_ml,
+                            'global.`{}`'.format(global_root),
+                            'va.`{}`'.format(va_root),
+                            run_assoc,
+                            joption(delta),
+                            sparsity_threshold,
+                            joption(n_eigs),
+                            joption(dropped_variance_fraction))
+
+    return cleanup(MatrixTable(jds))
+
+
+@handle_py4j
+@typecheck(dataset=MatrixTable,
+           key_expr=expr_any,
+           weight_expr=expr_numeric,
+           y=oneof(expr_numeric, expr_bool),
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
+           logistic=bool,
+           max_size=integral,
+           accuracy=numeric,
+           iterations=integral)
+def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
+         max_size=46340, accuracy=1e-6, iterations=10000):
+    r"""Test each keyed group of rows for association by linear or logistic
+    SKAT test.
+
+    Examples
+    --------
+
+    Test each gene for association using the linear sequence kernel association
+    test:
+
+    >>> ds = methods.read_matrix_table('data/example_burden.vds')
+    >>> skat_table = methods.skat(ds,
+    ...                           key_expr=ds.gene,
+    ...                           weight_expr=ds.weight,
+    ...                           y=ds.burden.pheno,
+    ...                           x=ds.GT.num_alt_alleles(),
+    ...                           covariates=[ds.burden.cov1, ds.burden.cov2])
+
+    .. caution::
+
+       By default, the Davies algorithm iterates up to 10k times until an
+       accuracy of 1e-6 is achieved. Hence a reported p-value of zero with no
+       issues may truly be as large as 1e-6. The accuracy and maximum number of
+       iterations may be controlled by the corresponding function parameters.
+       In general, higher accuracy requires more iterations.
+
+    .. caution::
+
+       To process a group with :math:`m` rows, several copies of an
+       :math:`m \times m` matrix of doubles must fit in worker memory. Groups
+       with tens of thousands of rows may exhaust worker memory causing the
+       entire job to fail. In this case, use the `max_size` parameter to skip
+       groups larger than `max_size`.
+
+    Notes
+    -----
+
+    This method provides a scalable implementation of the score-based
+    variance-component test originally described in
+    `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
+    <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
+
+    The test is run on columns with `y` and all `covariates` non-missing. For
+    each row, missing input (`x`) values are imputed as the mean of all
+    non-missing input values.
+
+    Row weights must be non-negative. Rows with missing weights are ignored. In
+    the R package ``skat``---which assumes rows are variants---default weights
+    are given by evaluating the Beta(1, 25) density at the minor allele
+    frequency. To replicate these weights in Hail using alternate allele
+    frequencies stored in a row-indexd field `AF`, one can use the expression:
+
+    .. testsetup::
+
+        ds2 = methods.variant_qc(dataset)
+        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
+
+    .. doctest::
+
+        >>> functions.dbeta(ds2.AF.min(1 - ds2.AF),
+        ...                 1.0, 25.0) ** 2
+
+    In the logistic case, the response `y` must either be numeric (with all
+    present values 0 or 1) or Boolean, in which case true and false are coded
+    as 1 and 0, respectively.
+
+    The resulting :class:`.Table` provides the group's key, the size (number of
+    rows) in the group, the variance component score ``qstat``, the SKAT
+    p-value, and a fault flag. For the toy example above, the table has the
+    form:
+
+    +-------+------+-------+-------+-------+
+    |  key  | size | qstat | pval  | fault |
+    +=======+======+=======+=======+=======+
+    | geneA |   2  | 4.136 | 0.205 |   0   |
+    +-------+------+-------+-------+-------+
+    | geneB |   1  | 5.659 | 0.195 |   0   |
+    +-------+------+-------+-------+-------+
+    | geneC |   3  | 4.122 | 0.192 |   0   |
+    +-------+------+-------+-------+-------+
+
+    Groups larger than `max_size` appear with missing ``qstat``, ``pval``, and
+    ``fault``. The hard limit on the number of rows in a group is 46340.
+
+    Note that the variance component score ``qstat`` agrees with ``Q`` in the R
+    package ``skat``, but both differ from :math:`Q` in the paper by the factor
+    :math:`\frac{1}{2\sigma^2}` in the linear case and :math:`\frac{1}{2}` in
+    the logistic case, where :math:`\sigma^2` is the unbiased estimator of
+    residual variance for the linear null model. The R package also applies a
+    "small-sample adjustment" to the null distribution in the logistic case
+    when the sample size is less than 2000. Hail does not apply this
+    adjustment.
+
+    The fault flag is an integer indicating whether any issues occurred when
+    running the Davies algorithm to compute the p-value as the right tail of a
+    weighted sum of :math:`\chi^2(1)` distributions.
+
+    +-------------+-----------------------------------------+
+    | fault value | Description                             |
+    +=============+=========================================+
+    |      0      | no issues                               |
+    +------+------+-----------------------------------------+
+    |      1      | accuracy NOT achieved                   |
+    +------+------+-----------------------------------------+
+    |      2      | round-off error possibly significant    |
+    +------+------+-----------------------------------------+
+    |      3      | invalid parameters                      |
+    +------+------+-----------------------------------------+
+    |      4      | unable to locate integration parameters |
+    +------+------+-----------------------------------------+
+    |      5      | out of memory                           |
+    +------+------+-----------------------------------------+
+
+    Parameters
+    ----------
+    key_expr : :class:`.Expression`
+        Row-indexed expression for key associated to each row.
+    weight_expr : :class:`.NumericExpression`
+        Row-indexed expression of numeric type for row weights.
+    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Column-indexed response expression.
+    x : :class:`.NumericExpression`
+        Row- and column-indexed expression for input variable.
+    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+        List of column-indexed covariate expressions.
+    logistic : :obj:`bool`
+        If true, use the logistic test rather than the linear test.
+    max_size : :obj:`int`
+        Maximum size of group on which to run the test.
+    accuracy : :obj:`float`
+        Accuracy achieved by the Davies algorithm if fault value is zero.
+    iterations : :obj:`int`
+        Maximum number of iterations attempted by the Davies algorithm.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table of SKAT results.
+    """
+    all_exprs = [key_expr, weight_expr, x, y]
+
+    # key_expr and weight_expr are row_indexed
+    analyze('skat/key_expr', key_expr, dataset._row_indices)
+    analyze('skat/weight_expr', weight_expr, dataset._row_indices)
+
+    # x is entry-indexed
+    analyze('skat/x', x, dataset._entry_indices)
+
+    # y and covariates are col-indexed
+    analyze('skat/y', y, dataset._col_indices)
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('skat/covariates', e, dataset._col_indices)
+
+    base, _ = dataset._process_joins(*all_exprs)
+
+    jt = base._jvds.skat(
+        key_expr._ast.to_hql(),
+        weight_expr._ast.to_hql(),
+        y._ast.to_hql(),
+        x._ast.to_hql(),
+        jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
+        logistic,
+        max_size,
+        accuracy,
+        iterations
+    )
+
+    return Table(jt)
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, force_local=bool)
@@ -214,16 +1144,13 @@ def ld_matrix(dataset, force_local=False):
 
     .. include:: ../_templates/req_biallelic.rst
 
-    .. testsetup::
+    Examples
+    --------
 
-        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
-        from hail.methods import ld_matrix
+    >>> ld_matrix = methods.ld_matrix(dataset)
 
-    **Examples**
-
-    >>> ld_matrix = ld_matrix(dataset)
-
-    **Notes**
+    Notes
+    -----
 
     Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as
     `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
@@ -243,18 +1170,23 @@ def ld_matrix(dataset, force_local=False):
         :meth:`.sample_variants`, :meth:`.filter_variants_expr`, or :meth:`.ld_prune` before
         calling this unless your dataset is very small.
 
-    :param dataset: Variant-keyed dataset.
-    :type dataset: :class:`.MatrixTable`
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Variant-keyed dataset.
+    force_local : `obj`:bool
+        If ``True``, the LD matrix is computed using local matrix
+        multiplication on the Spark driver.  This may improve
+        performance when the genotype matrix is small enough to easily
+        fit in local memory.  If false, the LD matrix is computed
+        using distributed matrix multiplication if the number of
+        entries exceeds :math:`5000^2` and locally otherwise.
 
-    :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver.
-        This may improve performance when the genotype matrix is small enough to easily fit in local memory.
-        If false, the LD matrix is computed using distributed matrix multiplication if the number of entries
-        exceeds :math:`5000^2` and locally otherwise.
-
-    :return: Matrix of r values between pairs of variants.
-    :rtype: :class:`.LDMatrix`
+    Returns
+    -------
+    :class:`.LDMatrix`
+        Matrix of r values between pairs of variants.
     """
-
     jldm = Env.hail().methods.LDMatrix.apply(require_biallelic(dataset, 'ld_matrix')._jvds, force_local)
     return LDMatrix(jldm)
 
@@ -391,15 +1323,14 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     PC bi-plots this amounts to a change in aspect ratio; for use of PCs as
     covariates in regression it is immaterial.)
 
-    Scores are stored in a :class:`.Table` with the following fields:
+    Scores are stored in a :class:`.Table` with the column keys of the matrix,
+    and the following additional field:
 
-     - **s**: Column key of the dataset.
-
-     - **pcaScores**: The principal component scores. This can have two different
+     - **scores**: The principal component scores. This can have two different
        structures, depending on the value of the `as_array` flag.
 
-    If `as_array` is ``False`` (default), then `pcaScores` is a ``Struct`` with
-    fields `PC1`, `PC2`, etc. If `as_array` is ``True``, then `pcaScores` is a
+    If `as_array` is ``False`` (default), then `scores` is a ``Struct`` with
+    fields `PC1`, `PC2`, etc. If `as_array` is ``True``, then `scores` is a
     field of type ``Array[Float64]`` containing the principal component scores.
 
     Loadings are stored in a :class:`.Table` with a structure similar to the scores
@@ -444,14 +1375,15 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
-@typecheck_method(k=integral,
-                  maf=numeric,
-                  block_size=integral,
-                  min_kinship=numeric,
-                  statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+@typecheck(dataset=MatrixTable,
+           k=integral,
+           maf=numeric,
+           block_size=integral,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
 def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
-    """Compute relatedness estimates between individuals using a variant of the
-    PC-Relate method.
+    """Compute relatedness estimates between individuals using a variant
+    of the PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
 
@@ -467,19 +1399,18 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     components to correct for ancestral populations, and a minimum minor
     allele frequency filter of 0.01:
 
-    >>> rel = vds.pc_relate(10, 0.01)
+    >>> rel = methods.pc_relate(dataset, 10, 0.01)
 
     Calculate values as above, but when performing distributed matrix
     multiplications use a matrix-block-size of 1024 by 1024.
 
-    >>> rel = vds.pc_relate(10, 0.01, 1024)
+    >>> rel = methods.pc_relate(dataset, 10, 0.01, 1024)
 
     Calculate values as above, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     filtering using :meth:`.Table.filter`.
 
-    >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
-
+    >>> rel = methods.pc_relate(dataset, 5, 0.01, min_kinship=0.1)
 
     The traditional estimator for kinship between a pair of individuals
     :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
@@ -663,10 +1594,11 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
        PCRelate are often too noisy to reliably distinguish these pairs from
        higher-degree-relative-pairs or unrelated pairs.
 
-
-
     Parameters
     ----------
+    ds : :class:`.MatrixTable`
+        A biallelic-variant keyed :class:`.MatrixTable` containing
+        genotype information.
     k : :obj:`int`
         The number of principal components to use to distinguish ancestries.
     maf : :obj:`float`
@@ -995,7 +1927,7 @@ def grm(dataset):
     dataset.unpersist()
     grm = bm.T.dot(bm)
 
-    return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
+    return KinshipMatrix._from_block_matrix(TString(),
                                       grm,
                                       [row.s for row in dataset.cols_table().select('s').collect()],
                                       n_variants)
@@ -1054,7 +1986,7 @@ def rrm(call_expr):
     Returns
         :return: Realized Relationship Matrix for all samples.
         :rtype: :class:`.KinshipMatrix`
-        """
+    """
     source = call_expr._indices.source
     if not isinstance(source, MatrixTable):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
@@ -1097,7 +2029,411 @@ def rrm(call_expr):
     dataset.unpersist()
     rrm = bm.T.dot(bm) / n_variants
 
-    return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
+    return KinshipMatrix._from_block_matrix(TString(),
                                             rrm,
                                             [row.s for row in dataset.cols_table().select('s').collect()],
                                             n_variants)
+
+@handle_py4j
+@typecheck(num_populations=integral,
+           num_samples=integral,
+           num_variants=integral,
+           num_partitions=nullable(integral),
+           pop_dist=nullable(listof(numeric)),
+           fst=nullable(listof(numeric)),
+           af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
+           seed=integral,
+           reference_genome=nullable(GenomeReference))
+def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
+                          pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
+                          seed=0, reference_genome=None):
+    r"""Generate a matrix table of variants, samples, and genotypes using the
+    Balding-Nichols model.
+
+    Examples
+    --------
+    Generate a matrix table of genotypes with 1000 variants and 100 samples
+    across 3 populations:
+
+    >>> ds = methods.balding_nichols_model(3, 100, 1000)
+
+    Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
+    partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
+    :math:`F_{ST}` values ``[.02, .06, .04, .12]``, ancestral allele
+    frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
+    ``b = 0.05`` over the interval ``[0.05, 1]``, and random seed 1:
+
+    >>> from hail.stats import TruncatedBetaDist
+    >>>
+    >>> ds = methods.balding_nichols_model(4, 40, 150, 3,
+    ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
+    ...          fst=[.02, .06, .04, .12],
+    ...          af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),
+    ...          seed=1)
+
+    Notes
+    -----
+    This method simulates a matrix table of variants, samples, and genotypes
+    using the Balding-Nichols model, which we now define.
+
+    - :math:`K` populations are labeled by integers 0, 1, ..., K - 1.
+    - :math:`N` samples are labeled by strings 0, 1, ..., N - 1.
+    - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ...,
+      ``1:M:A:C``.
+    - The default distribution for population assignment :math:`\pi` is uniform.
+    - The default ancestral frequency distribution :math:`P_0` is uniform on
+      ``[0.1, 0.9]``. Other options are :class:`.UniformDist`,
+      :class:`.BetaDist`, and :class:`.TruncatedBetaDist`.
+      All three classes are located in ``hail.stats``.
+    - The default :math:`F_{ST}` values are all 0.1.
+
+    The Balding-Nichols model models genotypes of individuals from a structured
+    population comprising :math:`K` homogeneous modern populations that have
+    each diverged from a single ancestral population (a `star phylogeny`). Each
+    sample is assigned a population by sampling from the categorical
+    distribution :math:`\pi`. Note that the actual size of each population is
+    random.
+
+    Variants are modeled as bi-allelic and unlinked. Ancestral allele
+    frequencies are drawn independently for each variant from a frequency
+    spectrum :math:`P_0`. The extent of genetic drift of each modern population
+    from the ancestral population is defined by the corresponding :math:`F_{ST}`
+    parameter :math:`F_k` (here and below, lowercase indices run over a range
+    bounded by the corresponding uppercase parameter, e.g. :math:`k = 1, \ldots,
+    K`). For each variant and population, allele frequencies are drawn from a
+    `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
+    whose parameters are determined by the ancestral allele frequency and
+    :math:`F_{ST}` parameter. The beta distribution gives a continuous
+    approximation of the effect of genetic drift. We denote sample population
+    assignments by :math:`k_n`, ancestral allele frequencies by :math:`p_m`,
+    population allele frequencies by :math:`p_{k, m}`, and diploid, unphased
+    genotype calls by :math:`g_{n, m}` (0, 1, and 2 correspond to homozygous
+    reference, heterozygous, and homozygous variant, respectively).
+    
+    The generative model is then given by:
+
+    .. math::
+        k_n \,&\sim\, \pi
+
+        p_m \,&\sim\, P_0
+
+        p_{k,m} \mid p_m\,&\sim\, \mathrm{Beta}(\mu = p_m,\, \sigma^2 = F_k p_m (1 - p_m))
+
+        g_{n,m} \mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m})
+
+    The beta distribution by its mean and variance above; the usual parameters
+    are :math:`a = (1 - p) \frac{1 - F}{F}` and :math:`b = p \frac{1 - F}{F}` with
+    :math:`F = F_k` and :math:`p = p_m`.
+
+    The resulting dataset has the following fields.
+
+    Global fields:
+
+    - `num_populations` (:class:`.TInt32`) -- Number of populations.
+    - `num_samples` (:class:`.TInt32`) -- Number of samples.
+    - `num_variants` (:class:`.TInt32`) -- Number of variants.
+    - `pop_dist` (:class:`.TArray` of :class:`.TFloat64`) -- Population distribution indexed by
+      population.
+    - `fst` (:class:`.TArray` of :class:`.TFloat64`) -- :math:`F_{ST}` values indexed by
+      population.
+    - `ancestral_af_dist` (:class:`.TStruct`) -- Description of the ancestral allele
+      frequency distribution.
+    - `seed` (:class:`.TInt32`) -- Random seed.
+
+    Row fields:
+
+    - `v` (:class:`.TVariant`) -- Variant (key field).
+    - `ancestral_af` (:class:`.TFloat64`) -- Ancestral allele frequency.
+    - `af` (:class:`.TArray` of :class:`.TFloat64`) -- Modern allele frequencies indexed by
+      population.
+
+    Column fields:
+
+    - `s` (:class:`.TString`) - Sample ID (key field).
+    - `pop` (:class:`.TInt32`) -- Population of sample.
+
+    Entry fields:
+
+    - `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
+
+    Parameters
+    ----------
+    num_populations : :obj:`int`
+        Number of modern populations.
+    num_samples : :obj:`int`
+        Total number of samples.
+    num_variants : :obj:`int`
+        Number of variants.
+    num_partitions : :obj:`int`, optional
+        Number of partitions.
+        Default is 1 partition per million entries or 8, whichever is larger.
+    pop_dist : :obj:`list` of :obj:`float`, optional
+        Unnormalized population distribution, a list of length
+        ``num_populations`` with non-negative values.
+        Default is ``[1, ..., 1]``.
+    fst : :obj:`list` of :obj:`float`, optional
+        :math:`F_{ST}` values, a list of length ``num_populations`` with values
+        in (0, 1). Default is ``[0.1, ..., 0.1]``.
+    af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
+        Ancestral allele frequency distribution.
+        Default is ``UniformDist(0.1, 0.9)``.
+    seed : :obj:`int`
+        Random seed.
+    reference_genome : :class:`.GenomeReference`, optional
+        Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        The row key will have type `TVariant(reference_genome)`.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Simulated matrix table of variants, samples, and genotypes.
+    """
+
+    if pop_dist is None:
+        jvm_pop_dist_opt = joption(pop_dist)
+    else:
+        jvm_pop_dist_opt = joption(jarray(Env.jvm().double, pop_dist))
+
+    if fst is None:
+        jvm_fst_opt = joption(fst)
+    else:
+        jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
+
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
+
+    jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
+                                            joption(num_partitions),
+                                            jvm_pop_dist_opt,
+                                            jvm_fst_opt,
+                                            af_dist._jrep(),
+                                            seed,
+                                            rg._jrep)
+    return MatrixTable(jmt)
+
+
+class FilterAlleles(object):
+    """Filter out a set of alternate alleles.  If all alternate alleles of
+    a variant are filtered out, the variant itself is filtered out.
+    `filter_expr` is an alternate allele indexed `Array[Boolean]`
+    where the booleans, combined with `keep`, determine which
+    alternate alleles to filter out.
+
+    This object has bindings for values used in the filter alleles
+    process: `old_to_new`, `new_to_old` and `new_v`.  Call
+    :meth:`.FilterAlleles.annotate_rows` and/or
+    :meth:`.FilterAlleles.annotate_entries` to update row-indexed and
+    row- and column-indexed fields for the new, allele filtered
+    variant.  Finally, call :meth:`.FilterAlleles.filter` to perform
+    filter alleles.
+
+    Examples
+    --------
+    
+    Filter alleles with zero AC count on a dataset with the HTS entry
+    schema and update the ``info.AC`` and entry fields.
+
+    >>> fa = methods.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
+    ... fa.annotate_rows(
+    ...     info = dataset.info.annotate(AC = fa.new_to_old[1:].map(lambda i: dataset.info.AC[i - 1])))
+    ... newPL = functions.cond(
+    ...     functions.is_defined(dataset.PL),
+    ...     functions.range(0, fa.new_v.num_genotypes()).map(
+    ...         lambda newi: functions.bind(
+    ...             functions.call(newi),
+    ...             lambda newc: dataset.PL[functions.gt_index(fa.new_to_old[newc.gtj()], fa.new_to_old[newc.gtk()])])),
+    ...     functions.null(TArray(TInt32())))
+    ... fa.annotate_entries(
+    ...     GT = functions.call(functions.gt_from_pl(newPL)),
+    ...     AD = functions.cond(
+    ...         functions.is_defined(dataset.AD),
+    ...         functions.range(0, fa.new_v.num_alleles()).map(
+    ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
+    ...         functions.null(TArray(TInt32()))),
+    ...     GQ = functions.gq_from_pl(newPL),
+    ...     PL = newPL)
+    ... filtered_result = fa.filter()
+    
+    Parameters
+    ----------
+    filter_expr : :class:`.ArrayBooleanExpression`
+        Boolean filter expression.
+    keep : bool
+        If ``True``, keep alternate alleles where the corresponding
+        element of `filter_expr` is ``True``.  If False, remove the
+        alternate alleles where the corresponding element is ``True``.
+    left_aligned : bool
+        If ``True``, variants are assumed to be left aligned and have
+        unique loci.  This avoids a shuffle.  If the assumption is
+        violated, an error is generated.
+    keep_star : bool
+        If ``True``, keep variants where the only unfiltered alternate
+        alleles are ``*`` alleles.
+    """
+    
+    @typecheck_method(filter_expr=ArrayBooleanExpression, keep=bool, left_aligned=bool, keep_star=bool)
+    def __init__(self, filter_expr, keep=True, left_aligned=False, keep_star=False):
+        source = filter_expr._indices.source
+        if not isinstance(source, MatrixTable):
+            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+        ds = source
+
+        analyze('FilterAlleles', filter_expr, ds._row_indices)
+
+        self._ds = ds
+        self._filter_expr = filter_expr
+        self._keep = keep
+        self._left_aligned = left_aligned
+        self._keep_star = keep_star
+        self._row_exprs = None
+        self._entry_exprs = None
+
+        self._old_to_new = construct_reference('oldToNew', TArray(TInt32()), ds._row_indices)
+        self._new_to_old = construct_reference('newToOld', TArray(TInt32()), ds._row_indices)
+        self._new_v = construct_reference('newV', ds._rowkey_schema, ds._row_indices)
+
+    @property
+    def new_to_old(self):
+        """The array of old allele indices, such that ``new_to_old[newIndex] =
+        oldIndex`` and ``newToOld[0] = 0``.  A row-indexed expression.
+        
+        Returns
+        -------
+        :class:`.ArrayInt32Expression`
+            The array of old indices.
+        """
+        return self._new_to_old
+
+    @property
+    def old_to_new(self):
+        """The array of new allele indices.  All old filtered alleles have new
+        index 0.  A row-indexed expression.
+        
+        Returns
+        -------
+        :class:`.ArrayInt32Expression`
+            The array of new indices.
+        """
+        return self._old_to_new
+
+    @property
+    def new_v(self):
+        """The new, allele-filtered variant.  A row-indexed expression.
+        
+        Returns
+        -------
+        :class:`.VariantExpression`
+            The new, allele-filtered variant.
+        """
+        return self._new_v
+
+    def annotate_rows(self, **named_exprs):
+        """Create or update row-indexed fields for the new, allele filtered
+        variant.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`.Expression`
+            Field names and the row-indexed expressions to compute them.
+        """
+        if self._row_exprs:
+            raise RuntimeError('annotate_rows already called')
+        for k, v in named_exprs.items():
+            analyze('FilterAlleles', v, base._row_indices)
+        self._row_exprs = named_exprs
+
+    def annotate_entries(self, **named_exprs):
+        """Create or update row- and column-indexed fields (entry fields) for
+        the new, allele filtered variant.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`.Expression`
+            Field names and the row- and column-indexed expressions to
+            compute them.
+        """
+        if self._entry_exprs:
+            raise RuntimeError('annotate_entries already called')
+        for k, v in named_exprs.items():
+            analyze('FilterAlleles', v, base._entry_indices)
+        self._entry_exprs = named_exprs
+
+    def filter(self):
+        """Perform the filter alleles, returning a new matrix table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Returns a matrix table with alleles filtered.
+        """
+        if not self._row_exprs:
+            self._row_exprs = {}
+        if not self._entry_exprs:
+            self._entry_exprs = {}
+        
+        base, cleanup = self._ds._process_joins(*(
+            [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
+        
+        filter_hql = self._filter_expr._ast.to_hql()
+        
+        row_hqls = []
+        for k, v in self._row_exprs.items():
+            row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            base._check_field_name(k, base._row_indices)
+        row_hql = ',\n'.join(row_hqls)
+
+        entry_hqls = []
+        for k, v in self._entry_exprs.items():
+            entry_hqls.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            base._check_field_name(k, base._entry_indices)
+        entry_hql = ',\n'.join(entry_hqls)
+
+        m = MatrixTable(
+            Env.hail().methods.FilterAlleles.apply(
+                base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep, self._left_aligned, self._keep_star))
+        return cleanup(m)
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           num_cores=integral,
+           r2=numeric,
+           window=integral,
+           memory_per_core=integral)
+def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
+    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
+    return MatrixTable(jmt)
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           left_aligned=bool)
+def min_rep(ds, left_aligned=False):
+    """Gives minimal, left-aligned representation of alleles. 
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    Notes
+    -----
+    Note that this can change the variant position.
+
+    Examples
+    --------
+
+    Simple trimming of a multi-allelic site, no change in variant
+    position `1:10000:TAA:TAA,AA` => `1:10000:TA:T,A`
+
+    Trimming of a bi-allelic site leading to a change in position
+    `1:10000:AATAA,AAGAA` => `1:10002:T:G`
+
+    Parameters
+    ----------
+    left_aligned : bool
+        If ``True``, variants are assumed to be left aligned and have
+        unique loci.  This avoids a shuffle.  If the assumption is
+        violated, an error is generated.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    return MatrixTable(ds._jvds.minRep(left_aligned))

@@ -858,14 +858,14 @@ object LoadVCF {
         if (hd1.genotypeSignature != hd.genotypeSignature)
           fatal(
             s"""invalid genotype signature: expected signatures to be identical for all inputs.
-             |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true) }
-             |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true) }""".stripMargin)
+             |   ${ files(0) }: ${ hd1.genotypeSignature.toString }
+             |   $file: ${ hd.genotypeSignature.toString }""".stripMargin)
 
         if (hd1.vaSignature != hd.vaSignature)
           fatal(
             s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-             |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true) }
-             |   $file: ${ hd.vaSignature.toPrettyString(compact = true) }""".stripMargin)
+             |   ${ files(0) }: ${ hd1.vaSignature.toString }
+             |   $file: ${ hd.vaSignature.toString }""".stripMargin)
       }
     } else {
       warn("Loading user-provided header file. The number of samples, sample IDs, variant annotation schema and genotype schema were not checked for agreement with input data.")
@@ -885,7 +885,8 @@ object LoadVCF {
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val matrixType: MatrixType = MatrixType(
-      sType = TString(),
+      colType = TStruct("s" -> TString()),
+      colKey = Array("s"),
       vType = TVariant(gr),
       vaType = vaSignature,
       genotypeType = genotypeSignature)
@@ -936,8 +937,7 @@ object LoadVCF {
     new MatrixTable(hc,
       matrixType,
       MatrixLocalValue(Annotation.empty,
-        sampleIds,
-        Annotation.emptyIndexedSeq(sampleIds.length)),
+        sampleIds.map(x => Annotation(x))),
       rdd)
   }
 

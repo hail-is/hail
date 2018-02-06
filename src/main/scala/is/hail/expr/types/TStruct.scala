@@ -36,14 +36,23 @@ object TStruct {
       fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
 
     val t = TStruct(sNames.zip(sTypes): _*)
-    if (required)
-      (!t).asInstanceOf[TStruct]
-    else t
+    t.setRequired(required).asInstanceOf[TStruct]
   }
 }
 
 final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends Type {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
+
+  val fieldIdx: Map[String, Int] =
+    fields.map(f => (f.name, f.index)).toMap
+
+  val fieldNames: Array[String] = fields.map(_.name).toArray
+
+  val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
+
+  val fieldType: Array[Type] = fields.map(_.typ).toArray
+
+  assert(fieldNames.areDistinct(), fieldNames.duplicates())
 
   override def children: Seq[Type] = fields.map(_.typ)
 
@@ -65,14 +74,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
-  val fieldIdx: Map[String, Int] =
-    fields.map(f => (f.name, f.index)).toMap
-
-  val fieldNames: Array[String] = fields.map(_.name).toArray
-
-  val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
-
-  val fieldType: Array[Type] = fields.map(_.typ).toArray
 
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
@@ -404,7 +405,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
                 None
             }
           }.toArray
-        case other => fatal(s"Can only ungroup fields of type Struct, but found type ${ other.toPrettyString(compact = true) } for identifier $identifier.")
+        case other => fatal(s"Can only ungroup fields of type Struct, but found type ${ other.toString } for identifier $identifier.")
       }
     }
 
@@ -546,18 +547,22 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
-  def _toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
+  def _toString: String = {
+    val sb = new StringBuilder
+    _pretty(sb, 0, compact = true)
+    sb.result()
+  }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    if (size == 0)
-      sb.append("Empty")
-    else {
-      if (compact) {
-        sb.append("Struct{")
-        fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
-        sb += '}'
-      } else {
-        sb.append("Struct{")
+    if (compact) {
+      sb.append("Struct{")
+      fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
+      sb += '}'
+    } else {
+      if (size == 0)
+        sb.append("Struct { }")
+      else {
+        sb.append("Struct {")
         sb += '\n'
         fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
         sb += '\n'
@@ -713,8 +718,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       this
     else {
       val t = TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-      if (required) (!t).asInstanceOf[TStruct] else t
-
+      t.setRequired(required).asInstanceOf[TStruct]
     }
   }
 

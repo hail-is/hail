@@ -152,7 +152,7 @@ object UnsafeRow {
       readString(region, ft.loadField(region, offset, 1)))
   }
 
-  private val tArrayAltAllele = TArray(!TAltAllele())
+  private val tArrayAltAllele = TArray(+TAltAllele())
 
   def readArrayAltAllele(region: Region, aoff: Long): Array[AltAllele] = {
     val t = tArrayAltAllele
@@ -167,7 +167,7 @@ object UnsafeRow {
     a
   }
 
-  private val tArrayInt32 = TArray(!TInt32())
+  private val tArrayInt32 = TArray(+TInt32())
 
   def readArrayInt(region: Region, aoff: Long): Array[Int] = {
     val t = tArrayInt32

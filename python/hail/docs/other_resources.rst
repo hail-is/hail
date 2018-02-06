@@ -8,5 +8,4 @@ Other Resources
     :maxdepth: 2
  
     Hadoop Glob Patterns <hadoop_glob_patterns>
-    SQL <sql>
 

@@ -63,15 +63,4 @@ class MendelErrorsSuite extends SparkSuite {
 
     assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == "Dtr1").collect().toSet)
   }
-
-  @Test def testUniqueIds() {
-    val vds = hc.importVCF("src/test/resources/mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration)
-    val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
-
-    val rename = vds.renameSamples(Array[Annotation]("Indiv0", "Son1", "Dtr1", "Dad1", "Mom1", "Son2", "Dad2", "Mom2", "Son3", "Dad3", "Indiv0"))
-    TestUtils.interceptFatal("does not support duplicate sample IDs") {
-      rename.mendelErrors(ped)
-    }
-  }
 }

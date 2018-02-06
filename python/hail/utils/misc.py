@@ -5,22 +5,17 @@ from collections import defaultdict
 import os
 
 
-class FunctionDocumentation(object):
-    @handle_py4j
-    def types_rst(self, file_name):
-        Env.hail().utils.FunctionDocumentation.makeTypesDocs(file_name)
-
-    @handle_py4j
-    def functions_rst(self, file_name):
-        Env.hail().utils.FunctionDocumentation.makeFunctionsDocs(file_name)
-
-
 def wrap_to_list(s):
     if isinstance(s, list):
         return s
     else:
         return [s]
 
+def wrap_to_tuple(x):
+    if isinstance(x, tuple):
+        return x
+    else:
+        return x,
 
 def get_env_or_default(maybe, envvar, default):
     import os
@@ -68,7 +63,8 @@ def plural(orig, n, alternate=None):
 
 
 def get_obj_metadata(obj):
-    from hail.api2 import MatrixTable, GroupedMatrixTable, Table, GroupedTable
+    from hail.matrixtable import MatrixTable, GroupedMatrixTable
+    from hail.table import Table, GroupedTable
     if isinstance(obj, MatrixTable):
         return 'MatrixTable', obj, MatrixTable
     elif isinstance(obj, GroupedMatrixTable):
@@ -94,7 +90,7 @@ def get_nice_attr_error(obj, item):
             dd[f.lower()].append(f)
 
         obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
-        methods = {x for x in obj_namespace if callable(getattr(obj, x))}
+        methods = {x for x in obj_namespace if callable(cls.__dict__[x])}
         props = obj_namespace - methods
 
         item_lower = item.lower()

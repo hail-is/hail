@@ -65,7 +65,7 @@ class OrderedRVPartitioner(
     JObject(List(
       "numPartitions" -> JInt(numPartitions),
       "partitionKey" -> JArray(partitionKey.map(n => JString(n)).toList),
-      "kType" -> JString(kType.toPrettyString(compact = true)),
+      "kType" -> JString(kType.toString),
       "rangeBounds" -> JSONAnnotationImpex.exportAnnotation(rangeBounds, rangeBoundsType)))
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVPartitioner = {

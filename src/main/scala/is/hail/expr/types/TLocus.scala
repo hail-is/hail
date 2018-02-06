@@ -11,9 +11,9 @@ import scala.reflect.classTag
 object TLocus {
   def representation(required: Boolean = false): TStruct = {
     val rep = TStruct(
-      "contig" -> !TString(),
-      "position" -> !TInt32())
-    if (required) (!rep).asInstanceOf[TStruct] else rep
+      "contig" -> +TString(),
+      "position" -> +TInt32())
+    rep.setRequired(required).asInstanceOf[TStruct]
   }
 }
 

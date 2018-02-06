@@ -52,17 +52,17 @@ object BaldingNicholsModel {
 
     af_dist match {
       case u: UniformDist =>
-        if (u.minVal < 0)
-          fatal(s"minVal ${ u.minVal } must be at least 0")
-        else if (u.maxVal > 1)
-          fatal(s"maxVal ${ u.maxVal } must be at most 1")
+        if (u.min < 0)
+          fatal(s"min ${ u.min } must be at least 0")
+        else if (u.max > 1)
+          fatal(s"max ${ u.max } must be at most 1")
       case _ =>
     }
 
     val N = nSamples
     val M = nVariants
     val K = nPops
-    val popDist = DenseVector(popDistArray)
+    val popDist = DenseVector(popDistArray.clone())
     val FstOfPop = DenseVector(FstOfPopArray)
 
     info(s"balding_nichols_model: generating genotypes for $K populations, $N samples, and $M variants...")
@@ -80,37 +80,36 @@ object BaldingNicholsModel {
     val Fst1_k = (1d - Fst_k) :/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
-    val saSignature = TStruct("pop" -> TInt32())
+    val saSignature = TStruct("s" -> TString(), "pop" -> TInt32())
     val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
     val ancestralAFAnnotation = af_dist match {
-      case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
+      case UniformDist(min, max) => Annotation("UniformDist", min, max)
       case BetaDist(a, b) => Annotation("BetaDist", a, b)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBetaDist", a, b, minVal, maxVal)
+      case TruncatedBetaDist(a, b, min, max) => Annotation("TruncatedBetaDist", a, b, min, max)
     }
     val globalAnnotation =
-      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
-
+      Annotation(K, N, M, popDistArray: IndexedSeq[Double], FstOfPopArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
 
     val ancestralAFAnnotationSignature = af_dist match {
-      case UniformDist(minVal, maxVal) => TStruct("type" -> TString(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+      case UniformDist(min, max) => TStruct("type" -> TString(), "min" -> TFloat64(), "max" -> TFloat64())
       case BetaDist(a, b) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64())
-      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+      case TruncatedBetaDist(a, b, min, max) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "min" -> TFloat64(), "max" -> TFloat64())
     }
 
     val globalSignature = TStruct(
-      "nPops" -> TInt32(),
-      "nSamples" -> TInt32(),
-      "nVariants" -> TInt32(),
-      "popDist" -> TArray(TFloat64()),
-      "Fst" -> TArray(TFloat64()),
-      "ancestralAFDist" -> ancestralAFAnnotationSignature,
+      "num_populations" -> TInt32(),
+      "num_samples" -> TInt32(),
+      "num_variants" -> TInt32(),
+      "pop_dist" -> TArray(TFloat64()),
+      "fst" -> TArray(TFloat64()),
+      "ancestral_af_dist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
 
     val matrixType = MatrixType(
       globalType = globalSignature,
-      sType = TString(),
-      saType = saSignature,
+      colType = saSignature,
+      colKey = Array("s"),
       vType = TVariant(gr),
       vaType = vaSignature,
       genotypeType = TStruct("GT" -> TCall()))
@@ -198,15 +197,14 @@ object BaldingNicholsModel {
         }
       }
 
-    val sampleIds = (0 until N).map(_.toString).toArray
-    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
+    val sampleAnnotations = (0 until N).map { i => Annotation(i.toString, popOfSample_n(i)) }.toArray
 
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
 
     new MatrixTable(hc,
       matrixType,
-      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
+      MatrixLocalValue(globalAnnotation, sampleAnnotations),
       ordrdd)
   }
 }

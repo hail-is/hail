@@ -13,14 +13,18 @@ Functions
     chisq
     combine_variants
     cond
+    switch
+    case
     bind
     ctt
+    dbeta
     Dict
     dpois
     drop
     exp
     fisher_exact_test
     gt_index
+    gp_dosage
     hardy_weinberg_p
     index
     parse_locus
@@ -42,6 +46,7 @@ Functions
     or_else
     or_missing
     pchisqtail
+    pl_dosage
     pnorm
     ppois
     qchisqtail
@@ -55,6 +60,17 @@ Functions
     select
     sqrt
     to_str
+    is_snp
+    is_mnp
+    is_transition
+    is_transversion
+    is_insertion
+    is_deletion
+    is_indel
+    is_star
+    is_complex
+    allele_type
+    hamming
 
 
 .. autofunction:: broadcast
@@ -62,13 +78,17 @@ Functions
 .. autofunction:: chisq
 .. autofunction:: combine_variants
 .. autofunction:: cond
+.. autofunction:: switch
+.. autofunction:: case
 .. autofunction:: bind
 .. autofunction:: ctt
+.. autofunction:: dbeta
 .. autofunction:: Dict
 .. autofunction:: dpois
 .. autofunction:: drop
 .. autofunction:: exp
 .. autofunction:: fisher_exact_test
+.. autofunction:: gp_dosage
 .. autofunction:: gt_index
 .. autofunction:: hardy_weinberg_p
 .. autofunction:: index
@@ -91,6 +111,7 @@ Functions
 .. autofunction:: or_else
 .. autofunction:: or_missing
 .. autofunction:: pchisqtail
+.. autofunction:: pl_dosage
 .. autofunction:: pnorm
 .. autofunction:: ppois
 .. autofunction:: qchisqtail
@@ -104,3 +125,14 @@ Functions
 .. autofunction:: select
 .. autofunction:: sqrt
 .. autofunction:: to_str
+.. autofunction:: is_snp
+.. autofunction:: is_mnp
+.. autofunction:: is_transition
+.. autofunction:: is_transversion
+.. autofunction:: is_insertion
+.. autofunction:: is_deletion
+.. autofunction:: is_indel
+.. autofunction:: is_star
+.. autofunction:: is_complex
+.. autofunction:: allele_type
+.. autofunction:: hamming

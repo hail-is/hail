@@ -24,16 +24,6 @@ package object expr extends HailRepFunctions {
     def copy(): TypedAggregator[S]
   }
 
-  trait RegionValueAggregator extends Serializable {
-    def seqOp(region: Region, off: Long, missing: Boolean): Unit
-
-    def combOp(agg2: RegionValueAggregator): Unit
-
-    def result(region: Region): Long
-
-    def copy(): RegionValueAggregator
-  }
-
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
 
   type CPS[T] = (T => Unit) => Unit

@@ -63,7 +63,7 @@ class AnnotateSuite extends SparkSuite {
 
     def qMap(query: String, vds: MatrixTable): Map[Annotation, Option[Any]] = {
       val q = vds.querySA(query)._2
-      vds.sampleIds
+      vds.stringSampleIds
         .zip(vds.sampleAnnotations)
         .map { case (id, sa) => (id, Option(q(sa))) }
         .toMap
@@ -260,7 +260,7 @@ class AnnotateSuite extends SparkSuite {
 
     // tsv
     val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", "vds")
-    vds = MatrixTable.fromTable(hc.importTable("src/test/resources/variantAnnotations.tsv",
+    vds = MatrixTable.fromRowsTable(hc.importTable("src/test/resources/variantAnnotations.tsv",
       impute = true, types = Map("Chromosome" -> TString()))
       .annotate("v = Variant(Chromosome, Position, Ref, Alt)")
       .keyBy("v"))
@@ -299,7 +299,7 @@ class AnnotateSuite extends SparkSuite {
       .annotate("""v = Variant(f0.contig, f0.start, f0.ref, f0.alt.split("/"))""")
       .keyBy("v")
 
-    vds = MatrixTable.fromTable(kt2)
+    vds = MatrixTable.fromRowsTable(kt2)
       .annotateVariantsExpr("va = va.f0")
       .filterVariantsExpr("v.isBiallelic")
     vds.write(importJSONFile)
@@ -309,25 +309,6 @@ class AnnotateSuite extends SparkSuite {
     t = sSample.annotateVariantsVDS(hc.readVDS(importJSONFile), root = Some("va.third"))
 
     assert(vds.same(t))
-  }
-
-  @Test def testAnnotateSamples() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
-
-    val annoMap = vds.sampleIds.map(id => (id, 5))
-      .toMap
-    val vds2 = vds.filterSamples({ case (s, sa) => scala.util.Random.nextFloat > 0.5 })
-      .annotateSamples(annoMap, TInt32(), "sa.test")
-
-    val q = vds2.querySA("sa.test")._2
-
-    vds2.sampleIds
-      .zipWithIndex
-      .foreach {
-        case (s, i) =>
-          assert(q(vds2.sampleAnnotations(i)) == 5)
-      }
-
   }
 
   @Test def testTables() {

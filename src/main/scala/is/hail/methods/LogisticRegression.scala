@@ -9,8 +9,6 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
-import scala.reflect.ClassTag
-
 object LogisticRegression {
 
   def apply(vsm: MatrixTable,
@@ -41,19 +39,22 @@ object LogisticRegression {
        + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
-    val nullFit = nullModel.fit()
+    var nullFit = nullModel.fit()
 
     if (!nullFit.converged)
-      fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
-        if (nullFit.exploded)
-          s"exploded at Newton iteration ${ nullFit.nIter }"
-        else
-          "Newton iteration failed to converge"))
+      if (logRegTest == FirthTest)
+        nullFit = LogisticRegressionFit(nullModel.bInterceptOnly(),
+          None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
+      else
+        fatal("Failed to fit logistic regression null model (standard MLE with covariates only): " + (
+          if (nullFit.exploded)
+            s"exploded at Newton iteration ${ nullFit.nIter }"
+          else
+            "Newton iteration failed to converge"))
 
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
-    val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
@@ -82,7 +83,7 @@ object LogisticRegression {
         val gs = ur.getAs[IndexedSeq[Annotation]](3)
 
         RegressionUtils.inputVector(X(::, -1),
-          localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+          localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
           ec, xf,
           completeSampleIndexBc.value, missingSamples)
 

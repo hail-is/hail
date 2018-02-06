@@ -28,17 +28,16 @@ class VSMSuite extends SparkSuite {
     val vds2 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     assert(vds1.same(vds2))
 
-    val s1mdata = MatrixFileMetadata(Array("S1", "S2", "S3"))
+    val s1mdata = MatrixFileMetadata(Array("S1", "S2", "S3").map(Annotation(_)))
     val s1va1: Annotation = null
     val s1va2 = Annotation()
 
-    val s2mdata = MatrixFileMetadata(Array("S1", "S2"))
+    val s2mdata = MatrixFileMetadata(Array("S1", "S2").map(Annotation(_)))
     val s2va1: Annotation = null
     val s2va2: Annotation = null
 
     val s3mdata = MatrixFileMetadata(
-      Array("S1", "S2", "S3"),
-      Annotation.emptyIndexedSeq(3),
+      Array("S1", "S2", "S3").map(Annotation(_)),
       vaSignature = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString()),
@@ -48,8 +47,7 @@ class VSMSuite extends SparkSuite {
     val s3va3 = Annotation(Annotation("no"), "yes")
 
     val s4mdata = MatrixFileMetadata(
-      Array("S1", "S2"),
-      Annotation.emptyIndexedSeq(2),
+      Array("S1", "S2").map(Annotation(_)),
       vaSignature = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString()),
@@ -179,47 +177,6 @@ class VSMSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testFilterSamples() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
-    val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
-    val nSamples = vds.nSamples
-
-    // FIXME ScalaCheck
-
-    val samples = vds.sampleIds
-    for (n <- 0 until 20) {
-      val keep = mutable.Set.empty[Annotation]
-
-      // n == 0: none
-      if (n == 1) {
-        for (i <- 0 until nSamples)
-          keep += samples(i)
-      } else if (n > 1) {
-        for (i <- 0 until nSamples) {
-          if (Random.nextFloat() < 0.5)
-            keep += samples(i)
-        }
-      }
-
-      val localKeep = keep
-      val filtered = vds.filterSamples((s, sa) => localKeep(s))
-
-      val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
-      filteredAsMap.foreach { case (k, g) => assert(vdsAsMap(k) == g) }
-
-      assert(filtered.nSamples == keep.size)
-      assert(filtered.sampleIds.toSet == keep)
-
-      val sampleKeys = filtered.mapWithKeys((v, s, g) => s).distinct.collect()
-      assert(sampleKeys.toSet == keep)
-
-      val filteredOut = tmpDir.createTempFile("filtered", extension = ".vds")
-      filtered.write(filteredOut)
-
-      assert(hc.readVDS(filteredOut).same(filtered))
-    }
-  }
-
   @Test def testSkipGenotypes() {
     val f = tmpDir.createTempFile("sample", extension = ".vds")
     hc.importVCF("src/test/resources/sample2.vcf")
@@ -319,11 +276,11 @@ class VSMSuite extends SparkSuite {
     val origOrder = Array[Annotation]("C1046::HG02024", "C1046::HG02025", "C1046::HG02026", "C1047::HG00731", "C1047::HG00732")
     val newOrder = Array[Annotation]("C1046::HG02026", "C1046::HG02024", "C1047::HG00732", "C1046::HG02025", "C1047::HG00731")
 
-    val filteredVds = vds.filterSamplesList(origOrder.toSet)
-    val reorderedVds = filteredVds.reorderSamples(newOrder)
+    val filteredVds = vds.filterSamplesList(origOrder.map(Annotation(_)).toSet)
+    val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
 
     def getGenotypes(vds: MatrixTable): RDD[((Variant, Annotation), Annotation)] = {
-      val sampleIds = vds.sampleIds
+      val sampleIds = vds.stringSampleIds
       vds.typedRDD[Variant].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>
           ((v, s), g)
@@ -335,12 +292,12 @@ class VSMSuite extends SparkSuite {
       g1 == g2
     })
 
-    assert(reorderedVds.sampleIds sameElements newOrder)
+    assert(reorderedVds.stringSampleIds sameElements newOrder)
 
-    assert(vds.reorderSamples(vds.sampleIds.toArray).same(vds))
+    assert(vds.reorderSamples(vds.colKeys.toArray).same(vds))
 
     intercept[HailException](vds.reorderSamples(newOrder))
-    intercept[HailException](vds.reorderSamples(vds.sampleIds.toArray ++ Array[Annotation]("foo", "bar")))
+    intercept[HailException](vds.reorderSamples(vds.colKeys.toArray ++ Array[Annotation]("foo", "bar").map(Annotation(_))))
   }
   
   @Test def testWriteBlockMatrix() {
@@ -351,7 +308,7 @@ class VSMSuite extends SparkSuite {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
     } {
       val vsm = hc.baldingNicholsModel(1, 6, 9, Some(numSlices), seed = blockSize + numSlices)      
-      vsm.writeBlockMatrix(dirname, "g.GT.gt + v.start + s.toInt32()", blockSize)
+      vsm.writeBlockMatrix(dirname, "g.GT.gt + v.start + sa.s.toInt32()", blockSize)
 
       val data = vsm.collect().zipWithIndex.flatMap { 
         case (row, v) => row.getAs[IndexedSeq[Row]](3).zipWithIndex.map { 
@@ -379,9 +336,9 @@ class VSMSuite extends SparkSuite {
     }
     val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
     val rowKeys = new Keys(TVariant(GenomeReference.defaultReference), Array.tabulate(nVariants)(i => Variant("1", i + 1, "A", "C")))
-    val colKeys = new Keys(TString(), Array.tabulate(nSamples)(_.toString))
+    val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
     
-    vsm.writeKeyedBlockMatrix(dirname, "g.GT.gt + v.start + s.toInt32()", blockSize = 3)
+    vsm.writeKeyedBlockMatrix(dirname, "g.GT.gt + v.start + sa.s.toInt32()", blockSize = 3)
     
     val kbm = KeyedBlockMatrix.read(hc, dirname)
     

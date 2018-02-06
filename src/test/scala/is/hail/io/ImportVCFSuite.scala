@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.check.Prop._
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.io.vcf.{ExportVCF, LoadVCF}
 import is.hail.variant.{Call, Genotype, MatrixTable, VSMSubgen, Variant}
 import org.apache.spark.SparkException
@@ -202,12 +203,12 @@ class ImportVCFSuite extends SparkSuite {
     val tmp3 = tmpDir.createTempFile("sample3", ".vcf")
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val sampleIds = vds.sampleIds
-    ExportVCF(vds.filterSamplesList(Set(sampleIds(0))), tmp1)
-    ExportVCF(vds.filterSamplesList(Set(sampleIds(1))), tmp2)
+    val sampleIds = vds.stringSampleIds
+    ExportVCF(vds.filterSamplesList(Set(Annotation(sampleIds(0)))), tmp1)
+    ExportVCF(vds.filterSamplesList(Set(Annotation(sampleIds(1)))), tmp2)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2))).getMessage.contains("invalid sample ids"))
 
-    ExportVCF(vds.filterSamplesList(Set(sampleIds(0),sampleIds(1))), tmp3)
+    ExportVCF(vds.filterSamplesList(Set(sampleIds(0),sampleIds(1)).map(Annotation(_))), tmp3)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp3))).getMessage.contains("invalid sample ids"))
 
     // no error thrown if user provides own header

@@ -7,6 +7,9 @@ Methods
 .. autosummary::
 
     hail.methods.linreg
+    hail.methods.logreg
+    hail.methods.lmmreg
+    hail.methods.skat
     hail.methods.sample_rows
     hail.methods.sample_qc
     hail.methods.variant_qc
@@ -29,13 +32,22 @@ Methods
     hail.methods.export_solr
     hail.methods.export_vcf
     hail.methods.concordance
+    hail.methods.read_matrix_table
+    hail.methods.read_table
     hail.methods.import_interval_list
     hail.methods.import_bed
     hail.methods.import_fam
+    hail.methods.import_plink
     hail.methods.nirvana
     hail.methods.tdt
+    hail.methods.FilterAlleles
+    hail.methods.min_rep
+    hail.methods.balding_nichols_model
 
 .. autofunction:: hail.methods.linreg
+.. autofunction:: hail.methods.logreg
+.. autofunction:: hail.methods.lmmreg
+.. autofunction:: hail.methods.skat
 .. autofunction:: hail.methods.sample_rows
 .. autofunction:: hail.methods.sample_qc
 .. autofunction:: hail.methods.variant_qc
@@ -58,9 +70,14 @@ Methods
 .. autofunction:: hail.methods.export_solr
 .. autofunction:: hail.methods.export_vcf
 .. autofunction:: hail.methods.concordance
+.. autofunction:: hail.methods.read_matrix_table
+.. autofunction:: hail.methods.read_table
 .. autofunction:: hail.methods.import_interval_list
 .. autofunction:: hail.methods.import_bed
 .. autofunction:: hail.methods.import_fam
+.. autofunction:: hail.methods.import_plink
 .. autofunction:: hail.methods.nirvana
 .. autofunction:: hail.methods.tdt
-
+.. autoclass:: hail.methods.FilterAlleles
+.. autofunction:: hail.methods.min_rep
+.. autofunction:: hail.methods.balding_nichols_model

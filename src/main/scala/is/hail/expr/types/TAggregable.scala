@@ -27,7 +27,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   var symTab: SymbolTable = _
 
   def bindings: Array[(String, Type)] =
-    symTab.map { case (n, (_, t)) => (n, t) }.toArray
+    (if (symTab != null) symTab.map { case (n, (_, t)) => (n, t) }.toArray else Array())
 
   override def unify(concrete: Type): Boolean = {
     concrete match {

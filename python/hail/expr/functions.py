@@ -4,9 +4,11 @@ from hail.expr.expression import *
 from hail.expr.ast import *
 from hail.genetics import Variant, Locus, Call, GenomeReference
 
+
 def _func(name, ret_type, *args):
     indices, aggregations, joins, refs = unify_all(*args)
     return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins, refs)
+
 
 @typecheck(t=Type)
 def null(t):
@@ -97,7 +99,7 @@ def broadcast(x):
     -----
     Use this function to capture large Python objects for use in expressions. This
     function provides an alternative to adding an object as a global annotation on a
-    :class:hail.api2.Table or :class:hail.api2.MatrixTable.
+    :class:hail.Table or :class:hail.MatrixTable.
 
     Parameters
     ----------
@@ -113,8 +115,8 @@ def broadcast(x):
     uid = Env._get_uid()
 
     def joiner(obj):
-        from hail.api2.table import Table
-        from hail.api2.matrixtable import MatrixTable
+        from hail.table import Table
+        from hail.matrixtable import MatrixTable
         if isinstance(obj, Table):
             return Table(obj._jt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
         else:
@@ -168,16 +170,79 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    if is_numeric(consequent._type) and is_numeric(alternate._type):
-        t = unify_types(consequent._type, alternate._type)
-    else:
-        if not consequent._type == alternate._type:
-            raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
-                            "    consequent: type {}\n"
-                            "    alternate:  type {}".format(consequent._type, alternate._type))
-        t = consequent._type
+    t = unify_types_limited(consequent._type, alternate._type)
+    if not t:
+        raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+                        "    consequent: type {}\n"
+                        "    alternate:  type {}".format(consequent._type, alternate._type))
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
+
+
+def case():
+    """Chain multiple if-else statements with a :class:`.CaseBuilder`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> x = functions.capture('foo bar baz')
+        >>> expr = (functions.case()
+        ...                  .when(x[:3] == 'FOO', 1)
+        ...                  .when(x.length() == 11, 2)
+        ...                  .when(x == 'secret phrase', 3)
+        ...                  .default(0))
+        >>> eval_expr(expr)
+        2
+
+    See Also
+    --------
+    :class:`.CaseBuilder`
+
+    Returns
+    -------
+    :class:`.CaseBuilder`.
+    """
+    from hail.expr.utils import CaseBuilder
+    return CaseBuilder()
+
+
+@typecheck(expr=expr_any)
+def switch(expr):
+    """Build a conditional tree on the value of an expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> csq = functions.capture('loss of function')
+        >>> expr = (functions.switch(csq)
+        ...                  .when('synonymous', 1)
+        ...                  .when('SYN', 1)
+        ...                  .when('missense', 2)
+        ...                  .when('MIS', 2)
+        ...                  .when('loss of function', 3)
+        ...                  .when('LOF', 3)
+        ...                  .or_missing())
+        >>> eval_expr(expr)
+        3
+
+    See Also
+    --------
+    :class:`.SwitchBuilder`
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Value to match against.
+
+    Returns
+    -------
+    :class:`.SwitchBuilder`
+    """
+    from hail.expr.utils import SwitchBuilder
+    return SwitchBuilder(expr)
+
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))
 def bind(expr, f):
@@ -382,6 +447,33 @@ def Dict(keys, values):
     ret_type = TDict(key_col._type, value_col._type)
     return _func("Dict", ret_type, keys, values)
 
+@typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
+def dbeta(x, a, b):
+    """
+    Returns the probability density at `x` of a `beta distribution
+    <https://en.wikipedia.org/wiki/Beta_distribution>`__ with parameters `a`
+    (alpha) and `b` (beta).
+
+    Examples
+    --------
+    .. doctest::
+
+        >> eval_expr(functions.dbeta(.2, 5, 20))
+        4.900377563180943
+
+    Parameters
+    ----------
+    x : :obj:`float` or :class:`.Float64Expression`
+        Point in [0,1] at which to sample. If a < 1 then x must be positive.
+        If b < 1 then x must be less than 1.
+    a : :obj:`float` or :class:`.Float64Expression`
+        The alpha parameter in the beta distribution. The result is undefined
+        for non-positive a.
+    b : :obj:`float` or :class:`.Float64Expression`
+        The beta parameter in the beta distribution. The result is undefined
+        for non-positive b.
+    """
+    return _func("dbeta", TFloat64(), x, a, b)
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
 def dpois(x, lamb, log_p=False):
@@ -396,11 +488,11 @@ def dpois(x, lamb, log_p=False):
 
     Parameters
     ----------
-    x : float or :class:`.Float64Expression`
+    x : :obj:`float` or :class:`.Float64Expression`
         Non-negative number at which to compute the probability density.
-    lamb : float or :class:`.Float64Expression`
+    lamb : :obj:`float` or :class:`.Float64Expression`
         Poisson rate parameter. Must be non-negative.
-    log_p : bool or :class:`.BooleanExpression`
+    log_p : :obj:`bool` or :class:`.BooleanExpression`
         If true, the natural logarithm of the probability density is returned.
 
     Returns
@@ -592,7 +684,7 @@ def locus(contig, pos, reference_genome=None):
     pos : int or :class:`.Int32Expression`
         Base position along the chromosome.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`~hail.default_reference` if not passed).
 
     Returns
     -------
@@ -628,7 +720,7 @@ def parse_locus(s, reference_genome=None):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -640,6 +732,64 @@ def parse_locus(s, reference_genome=None):
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
+@typecheck(gp=expr_list)
+def gp_dosage(gp):
+    """
+    Return expected genotype dosage from array of genotype probabilities.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.gp_dosage([0.0, 0.5, 0.5]))
+        1.5
+
+    Notes
+    -----
+    This function is only defined for bi-allelic variants. The `gp` argument
+    must be length 3. The value is ``gp[1] + 2 * gp[2]``.
+
+    Parameters
+    ----------
+    gp : :class:`.ArrayFloat64Expression`
+        Length 3 array of bi-allelic genotype probabilities
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    if not is_numeric(gp.dtype.element_type):
+        raise TypeError("'gp_dosage' expects an expression of type "
+                        "'Array[Float64]'. Found '{}'".format(gp.dtype))
+    return _func("dosage", TFloat64(), gp)
+
+@typecheck(pl=expr_list)
+def pl_dosage(pl):
+    """
+    Return expected genotype dosage from array of Phred-scaled genotype
+    likelihoods with uniform prior. Only defined for bi-allelic variants. The
+    `pl` argument must be length 3.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.pl_dosage([5, 10, 100]))
+        0.24025307377482674
+
+    Parameters
+    ----------
+    pl : :class:`.ArrayInt32Expression`
+        Length 3 array of bi-allelic Phred-scaled genotype likelihoods
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    if not isinstance(pl, ArrayInt32Expression):
+        raise TypeError("Function 'pl_dosage' expects an expression of type "
+                        "'Array[TInt32]'. Found {}".format(pl.dtype))
+    return _func("plDosage", TFloat64(), pl)
 
 @typecheck(start=expr_locus, end=expr_locus)
 def interval(start, end):
@@ -660,7 +810,7 @@ def interval(start, end):
     end : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
         End locus (exclusive).
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -673,7 +823,7 @@ def interval(start, end):
     if not start._type._rg == end._type._rg:
         raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
     return construct_expr(
-    ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
+        ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
         indices, aggregations, joins, refs)
 
 
@@ -703,7 +853,7 @@ def parse_interval(s, reference_genome=None):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -713,7 +863,7 @@ def parse_interval(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(
-    ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
+        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)
 
 
@@ -741,7 +891,7 @@ def variant(contig, pos, ref, alts, reference_genome=None):
     alts : :class:`.ArrayExpression` or list of str or :class:`.StringExpression`
         List of alternate alleles.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -782,7 +932,7 @@ def parse_variant(s, reference_genome=None):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -793,6 +943,7 @@ def parse_variant(s, reference_genome=None):
         reference_genome = Env.hc().default_reference
     return construct_expr(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
                           TVariant(reference_genome), s._indices, s._aggregations, s._joins, s._refs)
+
 
 @typecheck(i=expr_int32)
 def call(i):
@@ -1105,6 +1256,7 @@ def or_missing(predicate, value):
     predicate = to_expr(predicate)
     return _func("orMissing", predicate._type, predicate, value)
 
+
 @typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
            alternative=enumeration("two.sided", "greater", "less"))
 def binom_test(x, n, p, alternative):
@@ -1144,6 +1296,7 @@ def binom_test(x, n, p, alternative):
         p-value.
     """
     return _func("binomTest", TFloat64(), x, n, p, alternative)
+
 
 @typecheck(x=expr_numeric, df=expr_numeric)
 def pchisqtail(x, df):
@@ -1528,6 +1681,307 @@ def sqrt(x):
     return _func("sqrt", TFloat64(), x)
 
 
+@typecheck(ref=expr_str, alt=expr_str)
+def is_snp(ref, alt):
+    """Returns ``True`` if the alleles constitute a single nucleotide polymorphism.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_snp('A', 'T'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_snp", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_mnp(ref, alt):
+    """Returns ``True`` if the alleles constitute a multiple nucleotide polymorphism.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_mnp('AA', 'GT'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_mnp", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_transition(ref, alt):
+    """Returns ``True`` if the alleles constitute a transition.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_transition('A', 'T'))
+        False
+
+        >>> eval_expr(functions.is_transition('A', 'G'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_transition", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_transversion(ref, alt):
+    """Returns ``True`` if the alleles constitute a transversion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_transition('A', 'T'))
+        True
+
+        >>> eval_expr(functions.is_transition('A', 'G'))
+        False
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_transversion", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_insertion(ref, alt):
+    """Returns ``True`` if the alleles constitute an insertion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_insertion('A', 'ATT'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_insertion", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_deletion(ref, alt):
+    """Returns ``True`` if the alleles constitute a deletion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_deletion('ATT', 'A'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_deletion", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_indel(ref, alt):
+    """Returns ``True`` if the alleles constitute an insertion or deletion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_indel('ATT', 'A'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_indel", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_star(ref, alt):
+    """Returns ``True`` if the alleles constitute an upstream deletion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_deletion('A', '*'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_star", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_complex(ref, alt):
+    """Returns ``True`` if the alleles constitute a complex polymorphism.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_deletion('ATT', 'GCA'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_complex", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def allele_type(ref, alt):
+    """Returns the type of the polymorphism as a string.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.allele_type('A', 'T'))
+        'SNP'
+
+        >>> eval_expr(functions.allele_type('ATT', 'A'))
+        'Deletion'
+
+    Notes
+    -----
+    The possible return values are:
+     - ``"SNP"``
+     - ``"MNP"``
+     - ``"Insertion"``
+     - ``"Deletion"``
+     - ``"Complex"``
+     - ``"Star"``
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+    return _func("allele_type", TString(), ref, alt)
+
+
+@typecheck(s1=expr_str, s2=expr_str)
+def hamming(s1, s2):
+    """Returns the Hamming distance between the two strings.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.hamming('ATATA', 'ATGCA'))
+        2
+
+        >>> eval_expr(functions.hamming('abcdefg', 'zzcdefz'))
+        3
+
+    Notes
+    -----
+    This method will fail if the two strings have different length.
+
+    Parameters
+    ----------
+    s1 : :class:`.StringExpression`
+        First string.
+    s2 : :class:`.StringExpression`
+        Second string.
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("hamming", TInt32(), s1, s2)
+
+
 @typecheck(x=expr_any)
 def to_str(x):
     """Returns the string representation of `x`.
@@ -1548,3 +2002,50 @@ def to_str(x):
     :class:`.StringExpression`
     """
     return _func("str", TString(), x)
+
+@typecheck(pl=ArrayInt32Expression)
+def gt_from_pl(pl):
+    """Call genotype from Phred-scaled probability likelihoods.
+
+    Notes
+    -----
+    Returns the index of the smallest PL value if it is unique, and
+    missing otherwise.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.gt_from_pl([69,0,1035]))
+        1
+
+    Parameters
+    ----------
+    pl : :class:`.ArrayInt32Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("gtFromPL", TInt32(), pl)
+
+@typecheck(pl=ArrayInt32Expression)
+def gq_from_pl(pl):
+    """Compute genotype quality from Phred-scaled probability likelihoods.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.gq_from_pl([0,69,1035]))
+        69
+
+    Parameters
+    ----------
+    pl : :class:`.ArrayInt32Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("gqFromPL", TInt32(), pl)

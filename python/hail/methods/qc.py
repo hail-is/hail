@@ -1,6 +1,7 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j
-from hail.api2 import MatrixTable, Table
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from .misc import require_biallelic
 
 @handle_py4j
@@ -10,19 +11,16 @@ def sample_qc(dataset, name='sample_qc'):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    **Examples**
-
-    .. testsetup::
-
-        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
-        from hail.methods import sample_qc
+    Examples
+    --------
 
     Compute sample QC metrics and remove low-quality samples:
 
-    >>> dataset = sample_qc(dataset, name='sample_qc')
+    >>> dataset = methods.sample_qc(dataset, name='sample_qc')
     >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dpMean > 20) & (dataset.sample_qc.rTiTv > 1.5))
 
-    **Notes**:
+    Notes
+    -----
 
     This method computes summary statistics per sample from a genetic matrix and stores the results as
     a new column-indexed field in the matrix, named based on the ``name`` parameter.

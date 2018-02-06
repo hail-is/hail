@@ -2,8 +2,8 @@ package is.hail.stats
 
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.UnsafeRow
-import is.hail.expr.types.TVariant
+import is.hail.annotations.{Annotation, UnsafeRow}
+import is.hail.expr.types.{TString, TStruct, TVariant}
 import is.hail.methods.KinshipMatrix
 import is.hail.utils._
 import is.hail.variant.{HardCallView, Locus, MatrixTable, Variant}
@@ -57,7 +57,7 @@ object ComputeRRM {
     val rrm = new IndexedRowMatrix(computedGramian.rows.map(ir => IndexedRow(ir.index, ir.vector.map(_ * mRec))))
 
     info(s"rrm: RRM computed using $rowCount variants.")
-    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, rowCount)
+    KinshipMatrix(vds.hc, TString(), rrm, vds.stringSampleIds.map(s => s: Annotation).toArray, rowCount)
   }
 }
 

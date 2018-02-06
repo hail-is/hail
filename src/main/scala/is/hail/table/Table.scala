@@ -38,15 +38,14 @@ object SortColumn {
 
 case class SortColumn(column: String, sortOrder: SortOrder)
 
-case class KeyTableMetadata(
-  version: Int,
+case class TableMetadata(
+  file_version: Int,
+  hail_version: String,
   key: Array[String],
-  schema: String,
-  globalSchema: Option[String],
-  globals: Option[JValue],
-  // FIXME make partition_counts non-optional, remove n_partitions at next reimport
+  table_type: String,
+  globals: JValue,
   n_partitions: Int,
-  partition_counts: Option[Array[Long]])
+  partition_counts: Array[Long])
 
 case class TableLocalValue(globals: Row)
 
@@ -90,19 +89,17 @@ object Table {
     val metadata = hc.hadoopConf.readFile(metadataFile) { in =>
       // FIXME why doesn't this work?  Serialization.read[KeyTableMetadata](in)
       val json = parse(in)
-      json.extract[KeyTableMetadata]
+      json.extract[TableMetadata]
     }
 
-    val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
-    val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
-    val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
-      .getOrElse(Row.empty)
+    val tableType = Parser.parseTableType(metadata.table_type)
+    val globals = JSONAnnotationImpex.importAnnotation(metadata.globals, tableType.globalType).asInstanceOf[Row]
     new Table(hc, TableRead(path,
-      TableType(schema, metadata.key, globalSchema),
+      tableType,
       TableLocalValue(globals),
       dropRows = false,
       metadata.n_partitions,
-      metadata.partition_counts))
+      Some(metadata.partition_counts)))
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -135,13 +132,9 @@ object Table {
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 
-    val rows = data.map { case (id, values) => Row.fromSeq(Array(id) ++ values.asInstanceOf[Row].toSeq) }.toArray
-    val rdd = hc.sc.parallelize(rows)
+    val rdd = hc.sc.parallelize(data)
 
-    val newFields = List("ID" -> TString()) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
-    val struct = TStruct(newFields: _*)
-
-    Table(hc, rdd, struct, Array("ID"))
+    Table(hc, rdd, typ, Array("id"))
   }
 
   def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty,
@@ -167,8 +160,7 @@ object Table {
   }
 }
 
-class Table(val hc: HailContext,
-  val ir: TableIR) {
+class Table(val hc: HailContext, val ir: TableIR) {
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
@@ -194,8 +186,9 @@ class Table(val hc: HailContext,
     fatal(s"Key names found that are not column names: ${ key.filterNot(columns.contains(_)).mkString(", ") }")
 
   private def rowEvalContext(): EvalContext = {
-    val ec = EvalContext((fields.map { f => f.name -> f.typ } ++
-      globalSignature.fields.map { f => f.name -> f.typ }): _*)
+    val ec = EvalContext(
+      fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ }: _*)
     var i = 0
     while (i < globalSignature.size) {
       ec.set(i + nColumns, globals.get(i))
@@ -237,7 +230,7 @@ class Table(val hc: HailContext,
     if (!globalSignature.typeCheck(globals)) {
       fatal(
         s"""found violation of global signature
-           |  Schema: ${ globalSignature.toPrettyString(compact = true) }
+           |  Schema: ${ globalSignature.toString }
            |  Annotation: $globals""".stripMargin)
     }
 
@@ -246,7 +239,7 @@ class Table(val hc: HailContext,
       if (!localSignature.typeCheck(a))
         fatal(
           s"""found violation in row annotation
-             |  Schema: ${ localSignature.toPrettyString() }
+             |  Schema: ${ localSignature.toString }
              |
              |  Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
         )
@@ -265,8 +258,8 @@ class Table(val hc: HailContext,
     if (signature != other.signature) {
       info(
         s"""different signatures:
-           | left: ${ signature.toPrettyString(compact = true) }
-           | right: ${ other.signature.toPrettyString(compact = true) }
+           | left: ${ signature.toString }
+           | right: ${ other.signature.toString }
            |""".stripMargin)
       false
     } else if (key.toSeq != other.key.toSeq) {
@@ -279,8 +272,8 @@ class Table(val hc: HailContext,
     } else if (globalSignature != other.globalSignature) {
       info(
         s"""different global signatures:
-           | left: ${ globalSignature.toPrettyString(compact = true) }
-           | right: ${ other.globalSignature.toPrettyString(compact = true) }
+           | left: ${ globalSignature.toString }
+           | right: ${ other.globalSignature.toString }
            |""".stripMargin)
       false
     } else if (globals != other.globals) {
@@ -440,7 +433,7 @@ class Table(val hc: HailContext,
     if (paths.length == 0)
       return this
 
-    val irs = asts.flatMap(_.toIR())
+    val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
 
     if (irs.length != asts.length) {
       info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
@@ -484,10 +477,12 @@ class Table(val hc: HailContext,
           if (newF.last._1.isEmpty) {
             (f, newF.last._2)
           } else {
-            if (old.typ.isInstanceOf[TStruct] && coerce[TStruct](old.typ).selfField(f).isDefined)
-               (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF).toArray))
-            else
-              (f, MakeStruct(flatten(I32(0), newF).toArray))
+            old.typ match {
+              case t: TStruct if t.selfField(f).isDefined =>
+                (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF)))
+              case _ =>
+                (f, MakeStruct(flatten(I32(0), newF)))
+            }
           }
         }.toIndexedSeq
       }
@@ -609,26 +604,33 @@ class Table(val hc: HailContext,
     select(selectedColumns.asScala.toArray, mangle)
 
   def drop(columnsToDrop: Array[String]): Table = {
-    val nonexistentColumns = columnsToDrop.diff(columns)
+    if (columnsToDrop.isEmpty)
+      return this
+
+    val colMapping = columns.map(c => prettyIdentifier(c) -> c).toMap
+    val escapedCols = columns.map(prettyIdentifier)
+    val nonexistentColumns = columnsToDrop.diff(escapedCols)
     if (nonexistentColumns.nonEmpty)
       fatal(s"Columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
 
-    val selectedColumns = columns.diff(columnsToDrop)
-    select(selectedColumns)
+    val selectedColumns = escapedCols.diff(columnsToDrop)
+    select(selectedColumns.map(colMapping(_)))
   }
 
   def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
 
   def rename(columnMap: Map[String, String]): Table = {
-    val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) })
+    val newFields = signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) }
+    val duplicates = newFields.map(_.name).duplicates()
+    if (duplicates.nonEmpty)
+      fatal(s"Found duplicate column names after renaming columns: `${ duplicates.mkString(", ") }'")
+
+    val newSignature = TStruct(newFields)
     val newColumns = newSignature.fields.map(_.name)
     val newKey = key.map(n => columnMap.getOrElse(n, n))
     val duplicateColumns = newColumns.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
       _._2 > 1
     }
-
-    if (duplicateColumns.nonEmpty)
-      fatal(s"Found duplicate column names after renaming columns: `${ duplicateColumns.keys.mkString(", ") }'")
 
     copy(rdd = rdd, signature = newSignature, key = newKey)
   }
@@ -648,8 +650,8 @@ class Table(val hc: HailContext,
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ keySignature.toPrettyString(compact = true) }
-           |  Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
+           |  Left signature: ${ keySignature.toString }
+           |  Right signature: ${ other.keySignature.toString }""".stripMargin)
 
     val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
 
@@ -843,7 +845,8 @@ class Table(val hc: HailContext,
 
     info(s"$ncols columns")
 
-    val matrixType = MatrixType(sType=colKeyType,
+    val matrixType = MatrixType(colType = TStruct("col_id" -> colKeyType),
+      colKey = Array("col_id"),
       vType=rowKeyType,
       genotypeType=entryType
     )
@@ -912,8 +915,7 @@ class Table(val hc: HailContext,
     new MatrixTable(hc,
       matrixType,
       MatrixLocalValue(Annotation.empty,
-        colIDs,
-        Annotation.emptyIndexedSeq(ncols)),
+        colIDs.map(Annotation(_))),
       newRVD)
   }
 
@@ -1074,13 +1076,13 @@ class Table(val hc: HailContext,
     GenomeReference.exportReferences(hc, refPath, signature)
     GenomeReference.exportReferences(hc, refPath, globalSignature)
 
-    val metadata = KeyTableMetadata(Table.fileVersion,
+    val metadata = TableMetadata(Table.fileVersion,
+      hc.version,
       key,
-      signature.toPrettyString(compact = true),
-      Some(globalSignature.toPrettyString(compact = true)),
-      Some(JSONAnnotationImpex.exportAnnotation(globals, globalSignature)),
+      ir.typ.toString,
+      JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
       nPartitions,
-      Some(partitionCounts))
+      partitionCounts)
 
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
@@ -1163,6 +1165,11 @@ class Table(val hc: HailContext,
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
+  def sample(p: Double, seed: Int = 1): Table = {
+    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
+    copy2(rvd = rvd.sample(withReplacement = false, p, seed))
+  }
+
   def index(name: String = "index"): Table = {
     if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
@@ -1229,7 +1236,7 @@ class Table(val hc: HailContext,
           convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
         }
         case _ =>
-          ab += (name, t.toPrettyString(compact = true), t.isInstanceOf[TNumeric])
+          ab += (name, t.toString, t.isInstanceOf[TNumeric])
       }
     }
 

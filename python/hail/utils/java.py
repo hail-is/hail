@@ -29,7 +29,8 @@ class Env:
     @staticmethod
     def jvm():
         if not Env._jvm:
-            raise EnvironmentError('no Hail context initialized, create one first')
+            Env.hc()
+            assert Env._jvm is not None
         return Env._jvm
 
     @staticmethod
@@ -41,7 +42,8 @@ class Env:
     @staticmethod
     def gateway():
         if not Env._gateway:
-            raise EnvironmentError('no Hail context initialized, create one first')
+            Env.hc()
+            assert Env._gateway is not None
         return Env._gateway
 
     @staticmethod
@@ -53,7 +55,11 @@ class Env:
     @staticmethod
     def hc():
         if not Env._hc:
-            raise EnvironmentError('no Hail context initialized, create one first')
+            from hail.context import init
+            import sys
+            sys.stderr.write("Initializing Spark and Hail with default parameters...\n")
+            init()
+            assert Env._hc is not None
         return Env._hc
 
 
@@ -112,6 +118,11 @@ def jiterable_to_list(it):
     else:
         return None
 
+def escape_str(s):
+    return Env.jutils().escapePyString(s)
+
+def escape_id(s):
+    return Env.jutils().escapeIdentifier(s)
 
 def jarray_to_list(a):
     return list(a) if a else None

@@ -11,7 +11,7 @@ object HTSGenotypeView {
     new HTSGenotypeView(rowSignature)
   }
 
-  val tArrayInt32 = TArray(!TInt32())
+  val tArrayInt32 = TArray(+TInt32())
 }
 
 final class HTSGenotypeView(rs: TStruct) {

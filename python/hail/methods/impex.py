@@ -1,10 +1,13 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j, joption, FatalError
-from hail.api2 import Table, MatrixTable
+from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils import wrap_to_list
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
 from hail.methods.misc import require_biallelic
+
 
 @handle_py4j
 @typecheck(table=Table,
@@ -23,6 +26,7 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
 
     table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
 
+
 @handle_py4j
 @typecheck(dataset=MatrixTable,
            output=strlike,
@@ -39,8 +43,8 @@ def export_gen(dataset, output, precision=4):
     Import genotype probability data, filter variants based on INFO score, and
     export data to a GEN and SAMPLE file:
     
-    >>> ds = hc.import_gen('data/example.gen', sample_file='data/example.sample')
-    >>> ds = ds.filter_rows(agg.infoScore(ds.GP).score >= 0.9) # doctest: +SKIP
+    >>> ds = methods.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> ds = ds.filter_rows(agg.info_score(ds.GP).score >= 0.9) # doctest: +SKIP
     >>> methods.export_gen(ds, 'output/infoscore_filtered')
 
     Notes
@@ -84,10 +88,11 @@ def export_gen(dataset, output, precision=4):
             raise KeyError
     except KeyError:
         raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
-    
+
     dataset = require_biallelic(dataset, 'export_plink')
-    
+
     Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -156,10 +161,10 @@ def export_plink(dataset, output, **fam_args):
     fam_args : varargs of :class:`hail.expr.expression.Expression`
         Named expressions defining FAM field values.
     """
-    
+
     fam_dict = {'fam_id': TString(), 'id': TString(), 'mat_id': TString(), 'pat_id': TString(),
                 'is_female': TBoolean(), 'is_case': TBoolean(), 'quant_pheno': TFloat64()}
-        
+
     exprs = []
     named_exprs = {k: v for k, v in fam_args.items()}
     if ('is_case' in named_exprs) and ('quant_pheno' in named_exprs):
@@ -169,13 +174,14 @@ def export_plink(dataset, output, **fam_args):
             raise ValueError("fam_arg '{}' not recognized. Valid names: {}".format(k, ', '.join(fam_dict)))
         elif (v.dtype != fam_dict[k]):
             raise TypeError("fam_arg '{}' expression has type {}, expected type {}".format(k, v.dtype, fam_dict[k]))
-        
+
         analyze('export_plink/{}'.format(k), v, dataset._col_indices)
         exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
     base, _ = dataset._process_joins(*named_exprs.values())
     base = require_biallelic(base, 'export_plink')
 
     Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
+
 
 @handle_py4j
 @typecheck(table=Table,
@@ -191,6 +197,7 @@ def export_solr(table, zk_host, collection, block_size=100):
     """
 
     table._jkt.exportSolr(zk_host, collection, block_size)
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -251,7 +258,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Description, Number, and/or Type value in a FORMAT or INFO field or to
     specify FILTER lines, use the `metadata` parameter to supply a dictionary
     with the relevant information. See
-    :class:`~hail.api2.HailContext.get_vcf_metadata` for how to obtain the
+    :func:`get_vcf_metadata` for how to obtain the
     dictionary corresponding to the original VCF, and for info on how this
     dictionary should be structured. 
     
@@ -295,7 +302,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         concatenate the header and all partitions into one VCF file.
     metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
         Dictionary with information to fill in the VCF header. See
-        :class:`~hail.api2.HailContext.get_vcf_metadata` for how this
+        :func:`get_vcf_metadata` for how this
         dictionary should be structured.
     """
 
@@ -369,6 +376,7 @@ def import_interval_list(path, reference_genome=None):
     rg = reference_genome if reference_genome else Env.hc().default_reference
     t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
     return Table(t)
+
 
 @handle_py4j
 @typecheck(path=strlike,
@@ -456,6 +464,7 @@ def import_bed(path, reference_genome=None):
     jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
     return Table(jt)
 
+
 @handle_py4j
 @typecheck(path=strlike,
            quant_pheno=bool,
@@ -521,3 +530,441 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
                                            quant_pheno, delimiter, missing)
     return Table(jkt)
+
+
+@handle_py4j
+@typecheck(regex=strlike,
+           path=oneof(strlike, listof(strlike)),
+           max_count=integral)
+def grep(regex, path, max_count=100):
+    Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           tolerance=numeric,
+           sample_file=nullable(strlike),
+           min_partitions=nullable(integral),
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)))
+def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None,
+                contig_recoding=None):
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        
+    jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
+                                    tolerance, joption(min_partitions), rg._jrep,
+                                    joption(contig_recoding))
+    return MatrixTable(jmt)
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           sample_file=nullable(strlike),
+           tolerance=numeric,
+           min_partitions=nullable(integral),
+           chromosome=nullable(strlike),
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)))
+def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
+               contig_recoding=None):
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+
+    jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
+                                   tolerance, rg._jrep, joption(contig_recoding))
+    return MatrixTable(jmt)
+
+
+@handle_py4j
+@typecheck(paths=oneof(strlike, listof(strlike)),
+           key=oneof(strlike, listof(strlike)),
+           min_partitions=nullable(int),
+           impute=bool,
+           no_header=bool,
+           comment=nullable(strlike),
+           delimiter=strlike,
+           missing=strlike,
+           types=dictof(strlike, Type),
+           quote=nullable(char),
+           reference_genome=nullable(GenomeReference))
+def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
+                 comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
+    key = wrap_to_list(key)
+    paths = wrap_to_list(paths)
+    jtypes = {k: v._jtype for k, v in types.items()}
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    
+    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
+                                   no_header, impute, quote, rg._jrep)
+    return Table(jt)
+
+
+@handle_py4j
+@typecheck(bed=strlike,
+           bim=strlike,
+           fam=strlike,
+           min_partitions=nullable(integral),
+           delimiter=strlike,
+           missing=strlike,
+           quant_pheno=bool,
+           a2_reference=bool,
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)),
+           drop_chr0=bool)
+def import_plink(bed, bim, fam,
+                 min_partitions=None,
+                 delimiter='\\\\s+',
+                 missing='NA',
+                 quant_pheno=False,
+                 a2_reference=True,
+                 reference_genome=None,
+                 contig_recoding={'23': 'X',
+                                  '24': 'Y',
+                                  '25': 'X',
+                                  '26': 'MT'},
+                 drop_chr0=False):
+    """Import PLINK binary file (BED, BIM, FAM) as a :class:`.MatrixTable`.
+
+    Examples
+    --------
+
+    Import data from a PLINK binary file:
+
+    >>> ds = methods.import_plink(bed="data/test.bed",
+    ...                           bim="data/test.bim",
+    ...                           fam="data/test.fam")
+
+    Notes
+    -----
+
+    Only binary SNP-major mode files can be read into Hail. To convert your
+    file from individual-major mode to SNP-major mode, use PLINK to read in
+    your fileset and use the ``--make-bed`` option.
+
+    Hail ignores the centimorgan position (Column 3 in BIM file).
+
+    Hail uses the individual ID (column 2 in FAM file) as the sample id (`s`).
+    The individual IDs must be unique.
+
+    The resulting :class:`.MatrixTable` has the following fields:
+
+    * Row fields:
+
+        * `v` (:class:`.TVariant`) -- Variant (key field).
+        * `rsid` (:class:`.TString`) -- Column 2 in the BIM file.
+
+    * Column fields:
+
+        * `s` (:class:`.TString`) -- Column 2 in the Fam file (key field).
+        * `fam_id` (:class:`.TString`) -- Column 1 in the FAM file. Set to
+          missing if ID equals "0".
+        * `pat_id` (:class:`.TString`) -- Column 3 in the FAM file. Set to
+          missing if ID equals "0".
+        * `mat_id` (:class:`.TString`) -- Column 4 in the FAM file. Set to
+          missing if ID equals "0".
+        * `is_female` (:class:`.TString`) -- Column 5 in the FAM file. Set to
+          missing if value equals "-9", "0", or "N/A". Set to true if value
+          equals "2". Set to false if value equals "1".
+        * `is_case` (:class:`.TString`) -- Column 6 in the FAM file. Only
+          present if `quant_pheno` equals False. Set to missing if value equals
+          "-9", "0", "N/A", or the value specified by `missing`. Set to true if
+          value equals "2". Set to false if value equals "1".
+        * `quant_pheno` (:class:`.TString`) -- Column 6 in the FAM file. Only
+          present if `quant_pheno` equals True. Set to missing if value equals
+          `missing`.
+
+    * Entry fields:
+
+        * `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
+
+    Parameters
+    ----------
+    bed : :obj:`str`
+        PLINK BED file.
+
+    bim : :obj:`str`
+        PLINK BIM file.
+
+    fam : :obj:`str`
+        PLINK FAM file.
+
+    min_partitions : :obj:`int`, optional
+        Number of partitions.
+
+    missing : :obj:`str`
+        String used to denote missing values **only** for the phenotype field.
+        This is in addition to "-9", "0", and "N/A" for case-control
+        phenotypes.
+
+    delimiter : :obj:`str`
+        FAM file field delimiter regex.
+
+    quant_pheno : :obj:`bool`
+        If true, FAM phenotype is interpreted as quantitative.
+
+    a2_reference : :obj:`bool`
+        If True, A2 is treated as the reference allele. If False, A1 is treated
+        as the reference allele.
+
+    reference_genome : :class:`.GenomeReference`
+        Reference genome to use. Default is
+        :class:`~.HailContext.default_reference`.
+
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by ``reference_genome``.
+
+    drop_chr0 : :obj:`bool`
+        If true, do not include variants with contig == "0".
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset imported from PLINK files.
+    """
+
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+
+    if contig_recoding:
+        contig_recoding = TDict(TString(),
+                                TString())._convert_to_j(contig_recoding)
+
+    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
+                                    delimiter, missing, quant_pheno,
+                                    a2_reference, rg._jrep,
+                                    joption(contig_recoding), drop_chr0)
+
+    return MatrixTable(jmt)
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)))
+def read_matrix_table(path):
+    """Read a `.vds` file as a :class:`.MatrixTable`
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        File to read.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    return MatrixTable(Env.hc()._jhc.read(path, False, False))
+
+
+@handle_py4j
+@typecheck(path=strlike)
+def get_vcf_metadata(path):
+    """Extract metadata from VCF header.
+
+    Examples
+    --------
+
+    >>> metadata = methods.get_vcf_metadata('data/example2.vcf.bgz')
+    {'filter': {'LowQual': {'Description': ''}, ...},
+     'format': {'AD': {'Description': 'Allelic depths for the ref and alt alleles in the order listed',
+                       'Number': 'R',
+                       'Type': 'Integer'}, ...},
+     'info': {'AC': {'Description': 'Allele count in genotypes, for each ALT allele, in the same order as listed',
+                     'Number': 'A',
+                     'Type': 'Integer'}, ...}}
+
+    Notes
+    -----
+
+    This method parses the VCF header to extract the `ID`, `Number`,
+    `Type`, and `Description` fields from FORMAT and INFO lines as
+    well as `ID` and `Description` for FILTER lines. For example,
+    given the following header lines:
+
+    .. code-block:: text
+
+        ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+        ##FILTER=<ID=LowQual,Description="Low quality">
+        ##INFO=<ID=MQ,Number=1,Type=Float,Description="RMS Mapping Quality">
+
+    The resulting Python dictionary returned would be
+
+    .. code-block:: python
+
+        metadata = {'filter': {'LowQual': {'Description': 'Low quality'}},
+                    'format': {'DP': {'Description': 'Read Depth',
+                                      'Number': '1',
+                                      'Type': 'Integer'}},
+                    'info': {'MQ': {'Description': 'RMS Mapping Quality',
+                                    'Number': '1',
+                                    'Type': 'Float'}}}
+
+    which can be used with :meth:`.export_vcf` to fill in the relevant fields in the header.
+    
+    Parameters
+    ----------
+    path : `obj`:str
+        VCF file(s) to read. If more than one file is given, the first
+        file is used.
+
+    Returns
+    -------
+    `obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to `obj`:str:))
+    """
+    typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
+    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           force=bool,
+           force_bgz=bool,
+           header_file=nullable(strlike),
+           min_partitions=nullable(integral),
+           drop_samples=bool,
+           call_fields=oneof(strlike, listof(strlike)),
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)))
+def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
+               drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
+    """Import VCF file(s) as a matrix table.
+
+    Examples
+    --------
+
+    >>> ds = methods.import_vcf('data/example2.vcf.bgz')
+
+    Notes
+    -----
+
+    Hail is designed to be maximally compatible with files in the `VCF v4.2
+    spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
+
+    :func:`.import_vcf` takes a list of VCF files to load. All files must have
+    the same header and the same set of samples in the same order (e.g., a
+    dataset split by chromosome). Files can be specified as :ref:`Hadoop glob
+    patterns <sec-hadoop-glob>`.
+
+    Ensure that the VCF file is correctly prepared for import: VCFs should
+    either be uncompressed (**.vcf**) or block compressed (**.vcf.bgz**). If you
+    have a large compressed VCF that ends in **.vcf.gz**, it is likely that the
+    file is actually block-compressed, and you should rename the file to
+    **.vcf.bgz** accordingly. If you actually have a standard gzipped file, it
+    is possible to import it to Hail using the `force` parameter. However, this
+    is not recommended -- all parsing will have to take place on one node
+    because gzip decompression is not parallelizable. In this case, import will
+    take significantly longer.
+
+    :func:`.import_vcf` does not perform deduplication - if the provided VCF(s)
+    contain multiple records with the same chrom, pos, ref, alt, all these
+    records will be imported as-is (in multiple rows) and will not be collapsed
+    into a single variant.
+
+    .. note::
+
+        Using the **FILTER** field:
+
+        The information in the FILTER field of a VCF is contained in the
+        ``filters`` row field. This annotation is a ``Set[String]`` and can be
+        queried for filter membership with expressions like
+        ``ds.filters.contains("VQSRTranche99.5...")``. Variants that are flagged
+        as "PASS" will have no filters applied; for these variants,
+        ``ds.filters.is_empty()`` is ``True``. Thus, filtering to PASS variants
+        can be done with :meth:`.MatrixTable.filter_rows` as follows:
+
+        >>> pass_ds = dataset.filter_rows(ds.filters.is_empty())
+
+    **Column Fields**
+
+    - `s` (:class:`.TString`) -- Column key. This is the sample ID.
+
+    **Row Fields**
+
+    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the CHROM,
+      POS, REF, and ALT fields.
+    - `filters` (:class:`.TSet` of :class:`.TString`) -- Set containing all filters applied to a
+      variant.
+    - `rsid` (:class:`.TString`) -- rsID of the variant.
+    - `qual` (:class:`.TFloat64`) -- Floating-point number in the QUAL field.
+    - `info` (:class:`.TStruct`) -- All INFO fields defined in the VCF header
+      can be found in the struct `info`. Data types match the type specified
+      in the VCF header, and if the declared ``Number`` is not 1, the result
+      will be stored as an array.
+
+    **Entry Fields**
+
+    :func:`.import_vcf` generates an entry field for each FORMAT field declared
+    in the VCF header. The types of these fields are generated according to the
+    same rules as INFO fields, with one difference -- "GT" and other fields
+    specified in `call_fields` will be read as :class:`.TCall`.
+
+    Parameters
+    ----------
+    path : :obj:`str` or :obj:`list` of :obj:`str`
+        VCF file(s) to read.
+    force : :obj:`bool`
+        If ``True``, load **.vcf.gz** files serially. No downstream operations
+        can be parallelized, so this mode is strongly discouraged.
+    force_bgz : :obj:`bool`
+        If ``True``, load **.vcf.gz** files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec.
+    header_file : :obj:`str`, optional
+        Optional header override file. If not specified, the first file in
+        `path` is used.
+    min_partitions : :obj:`int`, optional
+        Minimum partitions to load per file.
+    drop_samples : :obj:`bool`
+        If ``True``, create sites-only dataset. Don't load sample IDs or
+        entries.
+    call_fields : :obj:`list` of :obj:`str`
+        List of FORMAT fields to load as :class:`.TCall`. "GT" is loaded as
+        a call automatically.
+    reference_genome: :class:`.GenomeReference`, optional
+        Reference genome to use. If ``None``, then the
+        :meth:`.HailContext.default_reference` is used.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+        Mapping from contig name in VCF to contig name in loaded dataset.
+        All contigs must be present in the `reference_genome`, so this is
+        useful for mapping differently-formatted data onto known references.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
+
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+
+    jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
+                                   joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,
+                                   joption(contig_recoding))
+
+    return MatrixTable(jmt)
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)))
+def index_bgen(path):
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
+
+
+@handle_py4j
+@typecheck(path=strlike)
+def read_table(path):
+    """Read a `.kt` file as a :class:`.Table`.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        File to read.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+    Table(Env.hc()._jhc.readTable(path))

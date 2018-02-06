@@ -5,21 +5,15 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 import random
-from hail2 import *
+from hail import *
 from hail.utils.misc import test_file
 
-hc = None
-
-
 def setUpModule():
-    global hc
-    hc = HailContext(master='local[2]', min_block_size=0)
+    init(master='local[2]', min_block_size=0)
 
 
 def tearDownModule():
-    global hc
-    hc.stop()
-    hc = None
+    stop()
 
 
 def schema_eq(x, y):
@@ -42,13 +36,6 @@ def convert_struct_to_dict(x):
 
 
 class TableTests(unittest.TestCase):
-    def test_conversion(self):
-        kt_old = hc.import_table(test_file('sampleAnnotations.tsv'), impute=True).to_hail1()
-        kt_new = kt_old.to_hail2()
-        kt_old2 = kt_new.to_hail1()
-        self.assertListEqual(kt_new.columns, ['Sample', 'Status', 'qPhen'])
-        self.assertTrue(kt_old.same(kt_old2))
-
     def test_annotate(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
                          [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32())])
@@ -60,7 +47,7 @@ class TableTests(unittest.TestCase):
         kt = Table.parallelize(rows, schema)
 
         result1 = convert_struct_to_dict(kt.annotate(foo=kt.a + 1,
-                                                     foo2=kt.a).to_hail1().take(1)[0])
+                                                     foo2=kt.a).take(1)[0])
 
         self.assertDictEqual(result1, {'a': 4,
                                        'b': 1,
@@ -70,20 +57,6 @@ class TableTests(unittest.TestCase):
                                        'f': [1, 2, 3],
                                        'foo': 5,
                                        'foo2': 4})
-
-        result2 = convert_struct_to_dict(kt.annotate(**{'a.foo': 5,
-                                                        'b.x': "hello",
-                                                        'b.y': 23,
-                                                        'b.z': True,
-                                                        'b.q.hello': [1, 2, 3]}
-                                                     ).to_hail1().take(1)[0])
-
-        self.assertDictEqual(result2, {'a': {'foo': 5},
-                                       'b': {'x': "hello", 'y': 23, 'z': True, 'q': {'hello': [1, 2, 3]}},
-                                       'c': 3,
-                                       'd': 5,
-                                       'e': "hello",
-                                       'f': [1, 2, 3]})
 
         result3 = convert_struct_to_dict(kt.annotate(
             x1=kt.f.map(lambda x: x * 2),
@@ -101,7 +74,7 @@ class TableTests(unittest.TestCase):
             x13=kt.f.map(lambda x: [[x, x + 1], [x + 2]]).flatmap(lambda x: x),
             x14=functions.cond(kt.a < kt.b, kt.c, functions.null(TInt32())),
             x15={1, 2, 3}
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         self.assertDictEqual(result3, {'a': 4,
                                        'b': 1,
@@ -247,7 +220,7 @@ class TableTests(unittest.TestCase):
                            x14=agg.call_stats(kt.GT, Variant("1", 10000, "A", "T")),
                            x15=agg.collect(Struct(a=5, b="foo", c=Struct(banana='apple')))[0],
                            x16=agg.collect(Struct(a=5, b="foo", c=Struct(banana='apple')).c.banana)[0]
-                           ).to_hail1().take(1)[0])
+                           ).take(1)[0])
 
         expected = {u'status': 0,
                     u'x13': {u'nCalled': 2L, u'expectedHoms': 1.64, u'Fstat': -1.777777777777777, u'observedHoms': 1L},
@@ -299,7 +272,7 @@ class TableTests(unittest.TestCase):
 
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
-        m = hc.import_vcf('src/test/resources/sample.vcf')
+        m = methods.import_vcf(test_file('sample.vcf'))
         vkt = m.rows_table()
         vkt = vkt.select(vkt.v, vkt.qual)
         vkt = vkt.annotate(qual2=m[vkt.v, :].qual)
@@ -317,7 +290,7 @@ class TableTests(unittest.TestCase):
         kt2 = Table.range(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
-        self.assertEqual(kt2.globals().kt_foo, 5)
+        self.assertEqual(kt2.get_globals().kt_foo, 5)
 
     def test_drop(self):
         kt = Table.range(10)
@@ -326,18 +299,33 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.drop('idx', 'foo').columns, ['sq', 'bar'])
         self.assertEqual(kt.drop(kt['idx'], kt['foo']).columns, ['sq', 'bar'])
 
+    def test_weird_names(self):
+        df = Table.range(10)
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+
+        df.annotate_globals(**exprs)
+        df.select_globals(**exprs)
+
+        df.annotate(**exprs)
+        df.select(**exprs)
+        df = df.transmute(**exprs)
+
+        df.explode('\%!^!@#&#&$%#$%')
+        df.explode(df['\%!^!@#&#&$%#$%'])
+
+        df.drop('\%!^!@#&#&$%#$%')
+        df.drop(df['\%!^!@#&#&$%#$%'])
+        df.group_by(**{'*``81': df.a}).aggregate(c = agg.count())
+
+    def test_sample(self):
+        kt = Table.range(10)
+        kt_small = kt.sample(0.01)
+        self.assertTrue(kt_small.count() < kt.count())
+
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
-        return hc.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
-
-    def testConversion(self):
-        vds = self.get_vds()
-        vds_old = vds.to_hail1()
-        vds_new = vds_old.to_hail2()
-        self.assertTrue(vds._same(vds_new))
-        vds_old2 = vds_new.to_hail1()
-        self.assertTrue(vds_old.same(vds_old2))
+        return methods.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
 
     def test_update(self):
         vds = self.get_vds()
@@ -371,8 +359,9 @@ class MatrixTests(unittest.TestCase):
                                 y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
 
-        expected_schema = TStruct(['apple', 'y1', 'y2', 'y3', 'y4'],
-                                  [TInt32(), TInt64(), TFloat64(), TInt64(), TInt32()])
+        expected_schema = TStruct(['s', 'apple', 'y1', 'y2', 'y3', 'y4'],
+                                  [TString(),
+                                   TInt32(), TInt64(), TFloat64(), TInt64(), TInt32()])
 
         self.assertTrue(schema_eq(vds.col_schema, expected_schema),
                         "expected: " + str(vds.col_schema) + "\nactual: " + str(expected_schema))
@@ -445,10 +434,38 @@ class MatrixTests(unittest.TestCase):
         vds = vds.drop_cols()
         self.assertEqual(vds.count_cols(), 0)
 
+    def test_weird_names(self):
+        ds = self.get_vds()
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+
+        ds.annotate_globals(**exprs)
+        ds.select_globals(**exprs)
+
+        ds.annotate_cols(**exprs)
+        ds1 = ds.select_cols(**exprs)
+
+        ds.annotate_rows(**exprs)
+        ds2 = ds.select_rows(**exprs)
+
+        ds.annotate_entries(**exprs)
+        ds.select_entries(**exprs)
+
+        ds1.explode_cols('\%!^!@#&#&$%#$%')
+        ds1.explode_cols(ds1['\%!^!@#&#&$%#$%'])
+        ds1.group_cols_by(ds1.a).aggregate(**{'*``81': agg.count()})
+
+        ds1.drop('\%!^!@#&#&$%#$%')
+        ds1.drop(ds1['\%!^!@#&#&$%#$%'])
+
+        ds2.explode_rows('\%!^!@#&#&$%#$%')
+        ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
+        ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
+
+
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)
         vds2 = vds.select_rows(x2=1, y2=2)
-        vds2 = vds2.select_cols(c1 = 1, c2 = 2)
+        vds2 = vds2.select_cols('s', c1 = 1, c2 = 2)
 
         vds = vds.annotate_rows(y2 = vds2[vds.v, :].y2)
         vds = vds.annotate_cols(c2 = vds2[:, vds.s].c2)
@@ -477,7 +494,7 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(vds._same(repart))
 
     def tests_unions(self):
-        dataset = hc.import_vcf('src/test/resources/sample2.vcf')
+        dataset = methods.import_vcf('src/test/resources/sample2.vcf')
 
         # test union_rows
         ds1 = dataset.filter_rows(dataset.v.start % 2 == 1)
@@ -561,9 +578,50 @@ class MatrixTests(unittest.TestCase):
                 functions.is_missing(rt.value))))
 
     def test_vcf_regression(self):
-        ds = hc.import_vcf(test_file('33alleles.vcf'))
+        ds = methods.import_vcf(test_file('33alleles.vcf'))
         self.assertEqual(
             ds.filter_rows(ds.v.num_alleles() == 2).count_rows(), 0)
+
+    def test_field_groups(self):
+        ds = self.get_vds()
+
+        df = ds.annotate_rows(row_struct=ds.row).rows_table()
+        self.assertTrue(df.forall((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
+
+        ds2 = ds.index_cols()
+        df = ds2.annotate_cols(col_struct=ds2.col).cols_table()
+        self.assertTrue(df.forall((df.col_idx == df.col_struct.col_idx)))
+
+        df = ds.annotate_entries(entry_struct = ds.entry).entries_table()
+        self.assertTrue(df.forall(
+            ((functions.is_missing(df.GT) |
+             (df.GT == df.entry_struct.GT)) &
+             (df.AD == df.entry_struct.AD))))
+
+    def test_filter_partitions(self):
+        ds = self.get_vds(min_partitions=8)
+        self.assertEqual(ds.num_partitions(), 8)
+        self.assertEqual(ds._filter_partitions([0, 1, 4]).num_partitions(), 3)
+        self.assertEqual(ds._filter_partitions([4, 5, 7], keep=False).num_partitions(), 5)
+        self.assertTrue(
+            ds._same(MatrixTable.union_rows(
+                ds._filter_partitions([0, 3, 7]),
+                ds._filter_partitions([0, 3, 7], keep=False))))
+
+    def test_from_rows_table(self):
+        ds = methods.import_vcf(test_file('sample.vcf'))
+        rt = ds.rows_table()
+        rm = MatrixTable.from_rows_table(rt)
+        # would be nice to compare rm to ds.drop_cols(), but the latter
+        # preserves the col, entry types
+        self.assertEqual(rm.count_cols(), 0)
+        self.assertTrue(rm.rows_table()._same(rt))
+
+    def test_sample_rows(self):
+        ds = self.get_vds()
+        ds_small = ds.sample_rows(0.01)
+        self.assertTrue(ds_small.count_rows() < ds.count_rows())
+
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
@@ -605,6 +663,7 @@ class FunctionsTests(unittest.TestCase):
             or_missing=functions.or_missing(kt.i, kt.j),
             pchisqtail=functions.pchisqtail(kt.a.to_float64(), kt.b.to_float64()),
             pcoin=functions.rand_bool(0.5),
+
             pnorm=functions.pnorm(0.2),
             pow=2.0 ** kt.b,
             ppois=functions.ppois(kt.a.to_float64(), kt.b.to_float64()),
@@ -617,7 +676,7 @@ class FunctionsTests(unittest.TestCase):
             sqrt=functions.sqrt(kt.a),
             to_str=[functions.to_str(5), functions.to_str(kt.a), functions.to_str(kt.g)],
             where=functions.cond(kt.i, 5, 10)
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         # print(result) # Fixme: Add asserts
 
@@ -670,7 +729,7 @@ class ColumnTests(unittest.TestCase):
             x34=(kt.a == 0) | (kt.b == 5),
             x35=False,
             x36=True
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
                     'x1': 9, 'x2': 9, 'x3': 5,
@@ -684,6 +743,8 @@ class ColumnTests(unittest.TestCase):
                     'x27': False, 'x28': True, 'x29': False,
                     'x30': False, 'x31': True, 'x32': False,
                     'x33': False, 'x34': False, 'x35': False, 'x36': True}
+
+        self.maxDiff = 2000
 
         self.assertDictEqual(result, expected)
 
@@ -699,7 +760,7 @@ class ColumnTests(unittest.TestCase):
             x4=kt.a[1:2],
             x5=kt.a[-1:2],
             x6=kt.a[:2]
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
                     'x4': [2], 'x5': [], 'x6': [1, 2]}
@@ -723,7 +784,7 @@ class ColumnTests(unittest.TestCase):
             x7=kt.a.values(),
             x8=kt.a.size(),
             x9=kt.a.map_values(lambda v: v * 2.0)
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
@@ -772,31 +833,32 @@ class ColumnTests(unittest.TestCase):
 
 class ContextTests(unittest.TestCase):
     def test_imports(self):
-        hc.index_bgen(test_file('example.v11.bgen'))
+        methods.index_bgen(test_file('example.v11.bgen'))
 
-        bgen = hc.import_bgen(test_file('example.v11.bgen'),
+        bgen = methods.import_bgen(test_file('example.v11.bgen'),
                               sample_file=test_file('example.sample'),
                               contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(bgen.forall(bgen.v.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
-        gen = hc.import_gen(test_file('example.gen'),
+        gen = methods.import_gen(test_file('example.gen'),
                             sample_file=test_file('example.sample'),
                             contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(gen.forall(gen.v.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
-        vcf = hc.import_vcf(test_file('sample2.vcf'),
-                            reference_genome=GenomeReference.GRCh38(),
-                            contig_recoding={"22": "chr22"}).to_hail1().split_multi_hts()
+        vcf = methods.split_multi_hts(
+            methods.import_vcf(test_file('sample2.vcf'),
+                               reference_genome=GenomeReference.GRCh38(),
+                               contig_recoding={"22": "chr22"}))
 
-        vcf.export_plink('/tmp/sample_plink')
+        methods.export_plink(vcf, '/tmp/sample_plink')
 
-        vcf_table = vcf.to_hail2().rows_table()
+        vcf_table = vcf.rows_table()
         self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
 
         bfile = '/tmp/sample_plink'
-        plink = hc.import_plink(
+        plink = methods.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True, contig_recoding={'chr22': '22'}).rows_table()
         self.assertTrue(plink.forall(plink.v.contig == "22"))
         self.assertEqual(vcf_table.count(), plink.count())

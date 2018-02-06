@@ -323,7 +323,7 @@ class HailContext private(val sc: SparkContext,
     val rdd = sc.union(results.map(_.rdd))
 
     MatrixTable.fromLegacy(this,
-      MatrixFileMetadata(samples,
+      MatrixFileMetadata(samples.map(Annotation(_)),
         vaSignature = signature,
         genotypeSignature = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),
@@ -372,7 +372,7 @@ class HailContext private(val sc: SparkContext,
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${ files.mkString(",") }'")
+      fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
@@ -460,9 +460,6 @@ class HailContext private(val sc: SparkContext,
   def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
     readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
 
-  def parseVCFMetadata(files: Seq[String]): Map[String, Map[String, Map[String, String]]] =
-    parseVCFMetadata(files.head)
-  
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)
     LoadVCF.parseHeaderMetadata(this, reader, file)

@@ -52,10 +52,10 @@ class GTPair(val p: Int) extends AnyVal {
 object Genotype {
   val htsGenotypeType: TStruct = TStruct(
     "GT" -> TCall(),
-    "AD" -> TArray(!TInt32()),
+    "AD" -> TArray(+TInt32()),
     "DP" -> TInt32(),
     "GQ" -> TInt32(),
-    "PL" -> TArray(!TInt32()))
+    "PL" -> TArray(+TInt32()))
 
   def unboxedGT(a: Annotation): Int = {
     if (a == null)

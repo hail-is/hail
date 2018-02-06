@@ -2,20 +2,14 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext
 from hail.expr import *
-from hail2 import *
-
-hc = None
+from hail import *
 
 def setUpModule():
-    global hc
-    hc = HailContext()  # master = 'local[2]')
+    init(master='local[2]', min_block_size=0)
 
 def tearDownModule():
-    global hc
-    hc.stop()
-    hc = None
+    stop()
 
 class Tests(unittest.TestCase):
     def test_types(self):
@@ -149,6 +143,62 @@ class Tests(unittest.TestCase):
 
         str_exp = functions.capture('5')
         self.assertEqual(str_exp.dtype, TString())
+
+    def test_switch(self):
+        x = functions.capture('1')
+        na = functions.null(TInt32())
+
+        expr1 = (functions.switch(x)
+            .when('123', 5)
+            .when('1', 6)
+            .when('0', 2)
+            .or_missing())
+        self.assertEqual(eval_expr(expr1), 6)
+
+        expr2 = (functions.switch(x)
+            .when('123', 5)
+            .when('0', 2)
+            .or_missing())
+        self.assertEqual(eval_expr(expr2), None)
+
+        expr3 = (functions.switch(x)
+            .when('123', 5)
+            .when('0', 2)
+            .default(100))
+        self.assertEqual(eval_expr(expr3), 100)
+
+        expr4 = (functions.switch(na)
+            .when(5, 0)
+            .when(6, 1)
+            .when(0, 2)
+            .when(functions.null(TInt32()), 3)  # NA != NA
+            .default(4))
+        self.assertEqual(eval_expr(expr4), None)
+
+        expr5 = (functions.switch(na)
+            .when(5, 0)
+            .when(6, 1)
+            .when(0, 2)
+            .when(functions.null(TInt32()), 3)  # NA != NA
+            .when_missing(-1)
+            .default(4))
+        self.assertEqual(eval_expr(expr5), -1)
+
+    def test_case(self):
+        def make_case(x):
+            x = functions.capture(x)
+            return (functions.case()
+            .when(x == 6, 'A')
+            .when(x % 3 == 0, 'B')
+            .when(x == 5, 'C')
+            .when(x < 2, 'D')
+            .or_missing())
+
+        self.assertEqual(eval_expr(make_case(6)), 'A')
+        self.assertEqual(eval_expr(make_case(12)), 'B')
+        self.assertEqual(eval_expr(make_case(5)), 'C')
+        self.assertEqual(eval_expr(make_case(-1)), 'D')
+        self.assertEqual(eval_expr(make_case(2)), None)
 
     def test_struct_ops(self):
         s = functions.capture(Struct(f1=1, f2=2, f3=3))
@@ -767,3 +817,43 @@ class Tests(unittest.TestCase):
         self.check_expr(a_int64 % float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float32 % float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 % float64_3s, expected, TArray(TFloat64()))
+
+    def test_allele_methods(self):
+        self.assertTrue(eval_expr(functions.is_transition("A", "G")))
+        self.assertFalse(eval_expr(functions.is_transversion("A", "G")))
+        self.assertTrue(eval_expr(functions.is_transversion("A", "T")))
+        self.assertFalse(eval_expr(functions.is_transition("A", "T")))
+        self.assertTrue(eval_expr(functions.is_snp("A", "T")))
+        self.assertTrue(eval_expr(functions.is_snp("A", "G")))
+        self.assertTrue(eval_expr(functions.is_snp("C", "G")))
+        self.assertTrue(eval_expr(functions.is_snp("CC", "CG")))
+        self.assertTrue(eval_expr(functions.is_snp("AT", "AG")))
+        self.assertTrue(eval_expr(functions.is_snp("ATCCC", "AGCCC")))
+        self.assertTrue(eval_expr(functions.is_mnp("ACTGAC", "ATTGTT")))
+        self.assertTrue(eval_expr(functions.is_mnp("CA", "TT")))
+        self.assertTrue(eval_expr(functions.is_insertion("A", "ATGC")))
+        self.assertTrue(eval_expr(functions.is_insertion("ATT", "ATGCTT")))
+        self.assertTrue(eval_expr(functions.is_deletion("ATGC", "A")))
+        self.assertTrue(eval_expr(functions.is_deletion("GTGTA", "GTA")))
+        self.assertTrue(eval_expr(functions.is_indel("A", "ATGC")))
+        self.assertTrue(eval_expr(functions.is_indel("ATT", "ATGCTT")))
+        self.assertTrue(eval_expr(functions.is_indel("ATGC", "A")))
+        self.assertTrue(eval_expr(functions.is_indel("GTGTA", "GTA")))
+        self.assertTrue(eval_expr(functions.is_complex("CTA", "ATTT")))
+        self.assertTrue(eval_expr(functions.is_complex("A", "TATGC")))
+        self.assertTrue(eval_expr(functions.is_star("ATC", "*")))
+        self.assertTrue(eval_expr(functions.is_star("A", "*")))
+        self.assertTrue(eval_expr(functions.is_star("*", "ATC")))
+        self.assertTrue(eval_expr(functions.is_star("*", "A")))
+
+    def test_hamming(self):
+        self.assertEqual(eval_expr(functions.hamming('A', 'T')), 1)
+        self.assertEqual(eval_expr(functions.hamming('AAAAA', 'AAAAT')), 1)
+        self.assertEqual(eval_expr(functions.hamming('abcde', 'edcba')), 4)
+
+    def test_gp_dosage(self):
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([1.0, 0.0, 0.0])), 0.0)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 1.0, 0.0])), 1.0)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.0, 1.0])), 2.0)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.5, 0.5, 0.0])), 0.5)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.5, 0.5])), 1.5)

@@ -3,7 +3,8 @@ from hail.typecheck import *
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from hail.utils.java import handle_py4j
-from hail.api2 import MatrixTable, Table
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from .misc import require_biallelic
 
 
@@ -21,13 +22,8 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
     Create a trio matrix:
 
-    .. testsetup::
-
-        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
-        from hail.methods import trio_matrix
-
     >>> pedigree = Pedigree.read('data/case_control_study.fam')
-    >>> trio_dataset = trio_matrix(dataset, pedigree, complete_trios=True)
+    >>> trio_dataset = methods.trio_matrix(dataset, pedigree, complete_trios=True)
 
     Notes
     -----
@@ -229,7 +225,7 @@ def tdt(dataset, pedigree):
 
     .. testsetup::
 
-        tdt_dataset = hc.import_vcf('data/tdt_tiny.vcf')
+        tdt_dataset = methods.import_vcf('data/tdt_tiny.vcf')
 
     .. doctest::
     

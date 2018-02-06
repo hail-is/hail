@@ -1,5 +1,5 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
 
+from pyspark.sql import DataFrame
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
@@ -87,7 +87,7 @@ class TableTemplate(HistoryMixin):
         return self._jt.toString()
 
     @handle_py4j
-    def globals(self):
+    def get_globals(self):
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jt.globals())
         return self._globals
@@ -124,7 +124,7 @@ class GroupedTable(TableTemplate):
 
     .. testsetup ::
 
-        table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+        table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
 
     """
 
@@ -207,13 +207,13 @@ class GroupedTable(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        base, cleanup = self._parent._process_joins(*(tuple(v for _, v in self._groups) + tuple(named_exprs.values())))
+        base, cleanup = self._parent._process_joins(*([v for _, v in self._groups] + named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
-            strs.append('`{}` = {}'.format(k, v._ast.to_hql()))
+            strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        group_strs = ',\n'.join('`{}` = {}'.format(k, v._ast.to_hql()) for k, v in self._groups)
+        group_strs = ',\n'.join('{} = {}'.format(escape_id(k), v._ast.to_hql()) for k, v in self._groups)
         return cleanup(
             Table(base._jt.aggregate(group_strs, ",\n".join(strs), joption(self._npartitions))))
 
@@ -223,13 +223,7 @@ class Table(TableTemplate):
 
     In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
 
-    .. testsetup ::
-
-        hc.stop()
-        from hail2 import *
-        hc = HailContext()
-
-    >>> table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+    >>> table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
     >>> table1.show()
 
     .. code-block:: text
@@ -245,7 +239,7 @@ class Table(TableTemplate):
         |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+--------+-------+-------+-------+-------+-------+
 
-    >>> table2 = hc.import_table('data/kt_example2.tsv', impute=True, key='ID')
+    >>> table2 = methods.import_table('data/kt_example2.tsv', impute=True, key='ID')
     >>> table2.show()
 
     .. code-block:: text
@@ -441,7 +435,7 @@ class Table(TableTemplate):
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze('Table.annotate_globals', v, self._global_indices)
-            exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
 
         m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
@@ -484,11 +478,11 @@ class Table(TableTemplate):
             Table with specified global fields.
         """
 
-        exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
+        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -499,7 +493,7 @@ class Table(TableTemplate):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
-            strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
+            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.selectGlobal(strs)))
 
@@ -513,7 +507,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table4 = hc.import_table('data/kt_example4.tsv', impute=True,
+            table4 = methods.import_table('data/kt_example4.tsv', impute=True,
                                   types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
                                  'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
                                  'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
@@ -569,14 +563,15 @@ class Table(TableTemplate):
         fields_referenced = set()
         for k, v in named_exprs.items():
             analyze('Table.transmute', v, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
+            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             for name, inds in v._refs:
                 if inds == self._row_indices:
                     fields_referenced.add(name)
-
         fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        return cleanup(Table(base._jt.annotate(",\n".join(exprs)).drop(list(fields_referenced))))
+        return cleanup(Table(base._jt
+                             .annotate(",\n".join(exprs))
+                             .drop(list(fields_referenced))))
 
     @handle_py4j
     def annotate(self, **named_exprs):
@@ -609,7 +604,7 @@ class Table(TableTemplate):
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze('Table.annotate', v, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
+            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
 
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
 
@@ -751,11 +746,11 @@ class Table(TableTemplate):
         :class:`.Table`
             Table with specified fields.
         """
-        exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
+        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -766,7 +761,7 @@ class Table(TableTemplate):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
-            strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
+            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.select(strs, False)))
 
@@ -826,15 +821,15 @@ class Table(TableTemplate):
         table = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = {k.name: table._fields[k.name] for k in table.global_schema.fields if
-                                 k.name not in fields_to_drop}
-            table = table.select_globals(**new_global_fields)
+            new_global_fields = [k.name for k in table.global_schema.fields if
+                                 k.name not in fields_to_drop]
+            table = table.select_globals(*new_global_fields)
 
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
-            new_row_fields = {k.name: table._fields[k.name] for k in table.schema.fields if
-                              k.name not in fields_to_drop}
-            table = table.select(**new_row_fields)
+            new_row_fields = [k.name for k in table.schema.fields if
+                                                  k.name not in fields_to_drop]
+            table = table.select(*new_row_fields)
 
         return table
 
@@ -1094,18 +1089,6 @@ class Table(TableTemplate):
         to_print = self._jt.showString(n, joption(truncate), types, width)
         print(to_print)
 
-    def to_hail1(self):
-        """Convert table to :class:`.hail.api1.KeyTable`.
-
-        Returns
-        -------
-        :class:`.hail.api1.KeyTable`
-        """
-        import hail
-        kt = hail.KeyTable(Env.hc(), self._jt)
-        kt._set_history(History('is a mystery'))
-        return kt
-
     @handle_py4j
     def view_join_rows(self, *exprs):
         if not len(exprs) > 0:
@@ -1116,17 +1099,26 @@ class Table(TableTemplate):
             raise ExpressionException('Key mismatch: table has {} keys, found {} index expressions'.format(
                 len(self.key), len(exprs)))
 
-        i = 0
-        for k, e in zip(self.key, exprs):
-            if not self[k]._type == e._type:
+        if len(exprs) == 1 and exprs[0]._type == TVariant():
+            rg = exprs[0]._type._rg
+            key_type = self[self.key[0]]._type
+            if not (key_type == TVariant(rg) or
+                    key_type == TLocus(rg) or
+                    key_type == TInterval(TLocus(rg))):
                 raise ExpressionException(
-                    'Type mismatch at index {} of Table index: expected key type {}, found {}'.format(
-                        i, str(self[k]._type), str(e._type)))
-            i += 1
+                    'Type mismatch: expected key type TVariant(), TLocus(), '
+                    'or TInterval(TLocus()), found {}'.format(key_type))
+        else:
+            for i, (k, e) in enumerate(zip(self.key, exprs)):
+                if not self[k]._type == e._type:
+                    raise ExpressionException(
+                        'Type mismatch at index {} of Table index: '
+                        'expected key type {}, found {}'
+                        .format(type_error_idx, expected_type, found_type))
 
         indices, aggregations, joins, refs = unify_all(*exprs)
 
-        from hail.api2.matrixtable import MatrixTable
+        from hail.matrixtable import MatrixTable
         uid = Env._get_uid()
 
         src = indices.source
@@ -1151,7 +1143,7 @@ class Table(TableTemplate):
 
             def joiner(left):
                 left = Table(left._jt.annotate(full_key_strs)).key_by(*uids)
-                left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
+                left = Table(left._jt.join(right._jt, 'left'))
                 return left
 
             all_uids = uids[:]
@@ -1230,7 +1222,7 @@ class Table(TableTemplate):
         uid = Env._get_uid()
 
         def joiner(obj):
-            from hail.api2.matrixtable import MatrixTable
+            from hail.matrixtable import MatrixTable
             if isinstance(obj, MatrixTable):
                 return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
             else:
@@ -1313,7 +1305,7 @@ class Table(TableTemplate):
         Notes
         -----
 
-        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.api2.Table.persist>`.
+        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.Table.persist>`.
 
         Returns
         -------
@@ -1492,7 +1484,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+            table = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
             other_table = table
 
         >>> union_table = table.union(other_table)
@@ -1588,6 +1580,37 @@ class Table(TableTemplate):
         """
 
         return Table(self._jt.head(n))
+
+    @handle_py4j
+    @typecheck_method(p=numeric,
+                      seed=integral)
+    def sample(self, p, seed=0):
+        """Downsample the table by keeping each row with probability ``p``.
+
+        Examples
+        --------
+
+        Downsample the table to approximately 1% of its rows.
+
+        >>> small_table1 = table1.sample(0.01)
+
+        Parameters
+        ----------
+        p : :obj:`float`
+            Probability of keeping each row.
+        seed : :obj:`int`
+            Random seed.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with approximately ``p * num_rows`` rows.
+        """
+
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
+
+        return Table(self._jt.sample(p, seed))
 
     @handle_py4j
     @typecheck_method(n=integral,
@@ -1936,7 +1959,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            people_table = hc.import_table('data/explode_example.tsv', delimiter='\\s+',
+            people_table = methods.import_table('data/explode_example.tsv', delimiter='\\s+',
                                      types={'Age': TInt32(), 'Children': TArray(TString())})
 
         .. doctest::
@@ -2011,7 +2034,7 @@ class Table(TableTemplate):
     @handle_py4j
     def to_matrix_table(self, row_key, col_key, **entry_exprs):
 
-        from hail.api2 import MatrixTable
+        from hail.matrixtable import MatrixTable
 
         all_exprs = []
         all_exprs.append(row_key)
@@ -2032,6 +2055,91 @@ class Table(TableTemplate):
                                                   col_key._ast.to_hql(),
                                                   ",\n".join(exprs),
                                                   joption(None)))
+
+    @property
+    @handle_py4j
+    def globals(self):
+        """Returns a struct expression including all global fields.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all global fields.
+        """
+        # FIXME: Impossible to correct a struct with the correct schema
+        # FIXME: need 'row' and 'globals' symbol in the Table parser, like VSM
+        raise NotImplementedError()
+        # return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
+
+    @property
+    @handle_py4j
+    def row(self):
+        """Returns a struct expression including all row-indexed fields.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all row fields.
+        """
+        # FIXME: Impossible to correct a struct with the correct schema
+        # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
+        raise NotImplementedError()
+
+    @handle_py4j
+    @typecheck_method(expand=bool,
+                      flatten=bool)
+    def to_spark(self, expand=True, flatten=True):
+        """Converts this key table to a Spark DataFrame.
+
+        Parameters
+        ----------
+        expand : :obj:`bool`
+            If True, expand_types before converting to Pandas DataFrame.
+
+        flatten : :obj:`bool`
+            If True, flatten before converting to Pandas DataFrame.
+            If `expand` and `flatten` are True, flatten is run after
+            expand so that expanded types are flattened.
+
+        Returns
+        -------
+        :class:`.pyspark.sql.DataFrame`
+            Spark DataFrame constructed from the table.
+        """
+        jt = self._jt
+        if expand:
+            jt = jt.expandTypes()
+        if flatten:
+            jt = jt.flatten()
+        return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.hc()._sql_context)
+
+    @handle_py4j
+    @typecheck_method(expand=bool,
+                      flatten=bool)
+    def to_pandas(self, expand=True, flatten=True):
+        """Converts this table into a Pandas DataFrame.
+
+        Parameters
+        ----------
+        expand : :obj:`bool`
+            If True, expand_types before converting to Pandas DataFrame.
+
+        flatten : :obj:`bool`
+            If True, flatten before converting to Pandas DataFrame.
+            If `expand` and `flatten` are True, flatten is run after
+            expand so that expanded types are flattened.
+
+        Returns
+        -------
+        :class:`.pandas.DataFrame`
+            Pandas DataFrame constructed from the table.
+        """
+        return self.to_spark(expand, flatten).toPandas()
+
+    @handle_py4j
+    @typecheck_method(other=table_type)
+    def _same(self, other):
+        return self._jt.same(other._jt)
 
 
 table_type.set(Table)

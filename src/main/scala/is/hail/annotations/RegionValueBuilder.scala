@@ -324,6 +324,26 @@ class RegionValueBuilder(var region: Region) {
     addField(t, rv.region, rv.offset, i)
   }
 
+  def skipFields(n: Int) {
+    var i = 0
+    while (i < n) {
+      setMissing()
+      i += 1
+    }
+  }
+
+  def addAllFields(t: TStruct, fromRegion: Region, fromOff: Long) {
+    var i = 0
+    while (i < t.size) {
+      addField(t, fromRegion, fromOff, i)
+      i += 1
+    }
+  }
+
+  def addAllFields(t: TStruct, fromRV: RegionValue) {
+    addAllFields(t, fromRV.region, fromRV.offset)
+  }
+
   def addFields(t: TStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]) {
     var i = 0
     while (i < fieldIdx.length) {

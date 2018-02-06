@@ -73,10 +73,10 @@ class OrderedRVD private(
       partitioner,
       rdd.filter(p))
 
-  def sample(withReplacement: Boolean, fraction: Double, seed: Long): OrderedRVD =
+  override def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
-      rdd.sample(withReplacement, fraction, seed))
+      rdd.sample(withReplacement, p, seed))
 
   override def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
@@ -110,8 +110,8 @@ class OrderedRVD private(
     if (lTyp.kType != rTyp.kType)
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ lTyp.kType.toPrettyString(compact = true) }
-           | Right key type: ${ rTyp.kType.toPrettyString(compact = true) }
+           | Left key type: ${ lTyp.kType.toString }
+           | Right key type: ${ rTyp.kType.toString }
          """.stripMargin)
 
     joinType match {

@@ -84,7 +84,7 @@ class AggregatorSuite extends SparkSuite {
     val nHet = vds.querySA("sa.test.nHet")._2
     val nHomVar = vds.querySA("sa.test.nHomVar")._2
 
-    vds.sampleIdsAndAnnotations
+    vds.stringSampleIds.zip(vds.sampleAnnotations)
       .foreach {
         case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))
@@ -96,18 +96,18 @@ class AggregatorSuite extends SparkSuite {
           })
       }
 
-    assert(vds.samplesKT().forall("sa.qc.nCalled == sa.test.nCalled"))
-    assert(vds.samplesKT().forall("sa.qc.nNotCalled == sa.test.nNotCalled"))
-    assert(vds.samplesKT().forall("sa.qc.callRate == sa.test.callrate"))
-    assert(vds.samplesKT().forall("sa.qc.nHet == sa.test.nHet"))
-    assert(vds.samplesKT().forall("sa.qc.nHomVar == sa.test.nHomVar"))
-    assert(vds.samplesKT().forall("sa.qc.nHomRef == sa.test.nHomRef"))
-    assert(vds.samplesKT().forall("sa.qc.nSNP == sa.test.nSNP"))
-    assert(vds.samplesKT().forall("sa.qc.nInsertion == sa.test.nInsertion"))
-    assert(vds.samplesKT().forall("sa.qc.nDeletion == sa.test.nDeletion"))
-    assert(vds.samplesKT().forall("sa.qc.nTransition == sa.test.nTi"))
-    assert(vds.samplesKT().forall("sa.qc.nTransversion == sa.test.nTv"))
-    assert(vds.samplesKT().forall("sa.qc.nStar == sa.test.nStar"))
+    assert(vds.samplesKT().forall("qc.nCalled == test.nCalled"))
+    assert(vds.samplesKT().forall("qc.nNotCalled == test.nNotCalled"))
+    assert(vds.samplesKT().forall("qc.callRate == test.callrate"))
+    assert(vds.samplesKT().forall("qc.nHet == test.nHet"))
+    assert(vds.samplesKT().forall("qc.nHomVar == test.nHomVar"))
+    assert(vds.samplesKT().forall("qc.nHomRef == test.nHomRef"))
+    assert(vds.samplesKT().forall("qc.nSNP == test.nSNP"))
+    assert(vds.samplesKT().forall("qc.nInsertion == test.nInsertion"))
+    assert(vds.samplesKT().forall("qc.nDeletion == test.nDeletion"))
+    assert(vds.samplesKT().forall("qc.nTransition == test.nTi"))
+    assert(vds.samplesKT().forall("qc.nTransversion == test.nTv"))
+    assert(vds.samplesKT().forall("qc.nStar == test.nStar"))
   }
 
   @Test def testSum() {
@@ -206,30 +206,6 @@ va.hist.nGreater == va.nGreater
     }
   }
 
-  @Test def testErrorMessages() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
-
-    val dummy = tmpDir.createTempFile("out")
-    TestUtils.interceptFatal("unrealizable type.*Aggregable")(
-      vds.annotateVariantsExpr("va = gs"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int32\\]")(
-      vds.annotateVariantsExpr("va = gs.map(g => 5)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable")(
-      vds.annotateVariantsExpr("va = gs.filter(g => true)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\(GRCh37\\)\\]")(
-      vds.queryVariants("variants")
-    )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(
-      vds.queryVariants("variants.map(v => v.contig)")
-    )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\(GRCh37\\)\\]")(
-      vds.queryVariants("variants.filter(v => false)")
-    )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(
-      vds.querySamples("samples.filter(s => false)")
-    )
-  }
-
   @Test def testCallStats() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
       .annotateVariantsExpr(
@@ -287,17 +263,17 @@ va.hist.nGreater == va.nGreater
           .filter(vds => vds.nSamples > 0);
         s <- Gen.choose(0, vds.nSamples - 1)
       } yield {
-        val s1 = vds.sampleIds(0)
-        assert(vds.querySamples(s"""samples.map(id => if (id == "$s1") (NA : String) else id).map(x => 1).sum()""")._1 == vds.nSamples)
-        assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == vds.nSamples)
-        assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
+        val s1 = vds.stringSampleIds(0)
+        assert(vds.querySamples(s"""samples.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.filter(r => true).map(id => 1).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.filter(r => false).map(id => 1).sum()")._1 == 0)
         assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == vds.nSamples)
         assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
         assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 3 * vds.nSamples)
         assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
         assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
 
-        vds.annotateVariantsExpr(s"""va.foo = gs.filter(g => s == "$s1").map(g => 1).sum()""")
+        vds.annotateVariantsExpr(s"""va.foo = gs.filter(g => sa.s == "$s1").map(g => 1).sum()""")
             .variantsKT()
             .forall("va.foo == 1")
       })
