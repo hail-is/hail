@@ -3,8 +3,12 @@ package is.hail.utils.richUtils
 import java.io.{DataInputStream, DataOutputStream}
 
 import breeze.linalg.DenseMatrix
+import is.hail.HailContext
 import is.hail.annotations.Memory
-import is.hail.utils.ArrayBuilder
+import is.hail.distributedmatrix.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
+import is.hail.utils._
+import org.apache.commons.lang3.StringUtils
+import org.json4s.jackson
 
 object RichDenseMatrixDouble {  
   // copies n doubles as bytes from data to dos
@@ -56,6 +60,10 @@ object RichDenseMatrixDouble {
     
     new DenseMatrix[Double](rows, cols, data,
       offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
+  }
+  
+  def read(hc: HailContext, path: String): DenseMatrix[Double] = {
+    hc.hadoopConf.readDataFile(path)(read)
   }
 }
 
@@ -128,4 +136,43 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       m
     else
       new DenseMatrix(m.rows, m.cols, m.t.toArray, 0, m.cols, isTranspose = true)
+  
+  def write(hc: HailContext, path: String) {
+    hc.hadoopConf.writeDataFile(path)(write)
+  }
+  
+  def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false) {
+    val hadoop = hc.hadoopConf
+    hadoop.mkDir(path)
+
+    hadoop.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, m.rows, m.cols),
+        os)
+    }
+
+    val gp = GridPartitioner(blockSize, m.rows, m.cols)    
+    val nParts = gp.numPartitions
+    val d = digitsNeeded(nParts)
+
+    (0 until nParts).par.foreach { pi =>
+      val pis = StringUtils.leftPad(pi.toString, d, "0")
+      val filename = path + "/parts/part-" + pis
+      
+      val (i, j) = gp.blockCoordinates(pi)
+      val (blockNRows, blockNCols) = gp.blockDims(pi)
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize      
+      var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
+    
+      if (forceRowMajor)
+        block.forceRowMajor().write(hc, filename)
+      else
+        block.copy.write(hc, filename)
+    }
+
+    info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")
+
+    hadoop.writeTextFile(path + "/_SUCCESS")(out => ())
+  }
 }
