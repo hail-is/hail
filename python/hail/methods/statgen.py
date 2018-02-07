@@ -169,7 +169,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     The returned column-key indexed :class:`.Table` has the following fields:
 
     - **s** -- The column key of `call`.
-    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined.
+    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female,
+      false if male, missing if undetermined.
     - **f_stat** (:class:`.TFloat64`) -- Inbreeding coefficient.
     - **n_called**  (:class:`.TInt64`) -- Number of variants with a genotype call.
     - **expected_homs** (:class:`.TFloat64`) -- Expected number of homozygotes.
