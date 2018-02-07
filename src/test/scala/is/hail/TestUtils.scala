@@ -74,14 +74,14 @@ object TestUtils {
   // missing is -1
   def vdsToMatrixInt(vds: MatrixTable): DenseMatrix[Int] =
     new DenseMatrix[Int](
-      vds.nSamples,
+      vds.numCols,
       vds.countVariants().toInt,
       vds.typedRDD[Locus].map(_._2._2.map(g => Genotype.unboxedGT(g))).collect().flatten)
 
   // missing is Double.NaN
   def vdsToMatrixDouble(vds: MatrixTable): DenseMatrix[Double] =
     new DenseMatrix[Double](
-      vds.nSamples,
+      vds.numCols,
       vds.countVariants().toInt,
       vds.rdd.map(_._2._2.map(x => Some(Genotype.unboxedGT(x)).filter(_ != -1).map(_.toDouble).getOrElse(Double.NaN))).collect().flatten)
 

@@ -99,11 +99,11 @@ object MatrixValue {
 case class MatrixValue(
   typ: MatrixType,
   localValue: MatrixLocalValue,
-  rdd2: OrderedRVD) {
+  rvd: OrderedRVD) {
 
-  def sparkContext: SparkContext = rdd2.sparkContext
+  def sparkContext: SparkContext = rvd.sparkContext
 
-  def nPartitions: Int = rdd2.partitions.length
+  def nPartitions: Int = rvd.partitions.length
 
   def nSamples: Int = localValue.nSamples
 
@@ -124,22 +124,21 @@ case class MatrixValue(
     val makeF = ir.Compile("row", ir.RegionValueRep[Long](rowType),
       "keep", ir.RegionValueRep[Long](keepType),
       ir.RegionValueRep[Long](rowType),
-      body = ir.insertStruct(ir.Ref("row"), rowType, "gs",
+      body = ir.insertStruct(ir.Ref("row"), rowType, MatrixType.entriesIdentifier,
         ir.ArrayMap(ir.Ref("keep"), "i",
-          ir.ArrayRef(ir.GetField(ir.In(0, rowType), "gs"),
+          ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
             ir.Ref("i")))))
 
     val keepBc = sparkContext.broadcast(keep)
     copy(localValue =
       localValue.copy(sampleAnnotations = keep.map(sampleAnnotations)),
-      rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
+      rvd = rvd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
         val f = makeF()
         val keep = keepBc.value
         var rv2 = RegionValue()
 
         it.map { rv =>
           val region = rv.region
-          val offset2 =
           rv2.set(region,
             f(region, rv.offset, false, region.appendArrayInt(keep), false))
           rv2
@@ -244,7 +243,8 @@ case class MatrixRead(
             hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
           hc.readRows(path, typ.rvRowType, nPartitions))
         if (dropSamples) {
-          val localRowType = typ.rvRowType
+          val localRVType = typ.rvRowType
+          val localEntriesIndex = typ.entriesIdx
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
             var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
@@ -252,14 +252,17 @@ case class MatrixRead(
             it.map { rv =>
               rv2b.set(rv.region)
 
-              rv2b.start(localRowType)
+              rv2b.start(localRVType)
               rv2b.startStruct()
 
-              rv2b.addField(localRowType, rv, 0)
-              rv2b.addField(localRowType, rv, 1)
-              rv2b.addField(localRowType, rv, 2)
+              var i = 0
+              while (i < localRVType.size) {
+                if (i != localEntriesIndex)
+                  rv2b.addField(localRVType, rv, i)
+                i += 1
+              }
 
-              rv2b.startArray(0) // gs
+              rv2b.startArray(0)
               rv2b.endArray()
 
               rv2b.endStruct()
@@ -299,8 +302,8 @@ case class FilterSamples(
     val prev = child.execute(hc)
 
     val localGlobalAnnotation = prev.localValue.globalAnnotation
-    val sas = typ.saType
-    val ec = typ.sampleEC
+    val sas = typ.colType
+    val ec = typ.colEC
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
@@ -332,28 +335,31 @@ case class FilterVariants(
     val prev = child.execute(hc)
 
     val localGlobalAnnotation = prev.localValue.globalAnnotation
-    val ec = prev.typ.variantEC
+    val ec = prev.typ.rowEC
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
     val aggregatorOption = Aggregators.buildVariantAggregations(
-      prev.rdd2.sparkContext, prev.typ, prev.localValue, ec)
+      prev.rvd.sparkContext, prev.typ, prev.localValue, ec)
 
-    val localPrevRowType = prev.typ.rvRowType
-    val p = (rv: RegionValue) => {
-      val ur = new UnsafeRow(localPrevRowType, rv.region.copy(), rv.offset)
+    val localRVType = prev.typ.rvRowType
+    val localRowType = prev.typ.rowType
+    val localEntriesIndex = prev.typ.entriesIdx
 
-      val v = ur.get(1)
-      val va = ur.get(2)
-      aggregatorOption.foreach(f => f(rv))
+    ec.set(0, prev.globalAnnotation)
 
-      ec.setAll(localGlobalAnnotation, v, va)
-
-      // null => false
-      f() == true
+    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orderedRVType) { it =>
+      val fullRow = new UnsafeRow(localRVType)
+      val row = fullRow.delete(localEntriesIndex)
+      it.filter { rv =>
+        fullRow.set(rv)
+        ec.set(1, row)
+        aggregatorOption.foreach(_(rv))
+        f() == true
+      }
     }
 
-    prev.copy(rdd2 = prev.rdd2.filter(p))
+    prev.copy(rvd = filteredRDD)
   }
 }
 

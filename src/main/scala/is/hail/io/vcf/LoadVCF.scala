@@ -22,40 +22,6 @@ import scala.io.Source
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
   filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes)
 
-object VCFLine {
-  def invalidRef(ref: String): Boolean = {
-    var i = 0
-    while (i < ref.length) {
-      val c = ref(i)
-      (c: @switch) match {
-        case 'A' | 'C' | 'G' | 'T' | 'N' |
-             'a' | 'c' | 'g' | 't' | 'n' =>
-        case _ =>
-          return true
-      }
-      i += 1
-    }
-    false
-  }
-
-  def symbolicAlt(alt: String): Boolean = {
-    assert(alt.length > 0)
-    val f = alt(0)
-    val l = alt(alt.length - 1)
-    if (f == '.' || l == '.' || (f == '<' && l == '>'))
-      return true
-
-    var i = 0
-    while (i < alt.length) {
-      val c = alt(i)
-      if (c == '[' || c == ']')
-        return true
-      i += 1
-    }
-    false
-  }
-}
-
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
 final class VCFLine(val line: String) {
@@ -243,48 +209,25 @@ final class VCFLine(val line: String) {
 
     // REF
     val ref = parseString()
-    if (VCFLine.invalidRef(ref)) {
-      warn(s"skipping variant with invalid REF field: $ref")
-      return false
-    }
     nextField()
 
     // ALT
     parseAltAlleles()
     nextField()
 
-    var i = 0
-    while (i < abs.length) {
-      val alt = abs(i)
-      if (alt.isEmpty)
-        parseError("empty alternate allele")
-      if (VCFLine.symbolicAlt(alt)) {
-        warn(s"skipping variant with symbolic alternate allele in ALT field: $alt")
-        return false
-      }
-      i += 1
-    }
-
     rvb.startStruct() // pk: Locus
     rvb.addString(recodedContig)
     rvb.addInt(start)
     rvb.endStruct()
 
-    rvb.startStruct() // v: Variant
-    rvb.addString(recodedContig)
-    rvb.addInt(start)
+    rvb.startArray(abs.length + 1) // ref plus alts
     rvb.addString(ref)
-    rvb.startArray(abs.length)
-    i = 0
+    var i = 0
     while (i < abs.length) {
-      rvb.startStruct()
-      rvb.addString(ref)
       rvb.addString(abs(i))
-      rvb.endStruct()
       i += 1
     }
     rvb.endArray()
-    rvb.endStruct() // v
 
     abs.clear()
 
@@ -884,15 +827,15 @@ object LoadVCF {
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val matrixType: MatrixType = MatrixType(
+    val matrixType: MatrixType = MatrixType.fromParts(
+      TStruct.empty(true),
       colType = TStruct("s" -> TString()),
       colKey = Array("s"),
-      vType = TVariant(gr),
-      vaType = vaSignature,
-      genotypeType = genotypeSignature)
+      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowKey = Array("locus", "alleles"),
+      rowPartitionKey = Array("locus"),
+      entryType = genotypeSignature)
 
-    val locusType = matrixType.locusType
-    val vType = matrixType.vType
     val kType = matrixType.orderedRVType.kType
     val rowType = matrixType.rvRowType
 

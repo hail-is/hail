@@ -117,7 +117,6 @@ def init(sc=None, app_name="Hail", master=None, local='local[*]',
     HailContext(sc, app_name, master, local, log, quiet, append, min_block_size, branching_factor, tmp_dir, default_reference)
 
 def stop():
-    """Stop the currently running HailContext."""
     Env.hc().stop()
 
 def default_reference():

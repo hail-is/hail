@@ -8,7 +8,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.utils._
-import is.hail.variant.{MatrixTable, Variant}
+import is.hail.variant.{MatrixTable, RegionValueVariant, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -298,7 +298,7 @@ object VEP {
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
     val localRowType = vsm.rvRowType
-    val annotations = vsm.rdd2
+    val annotations = vsm.rvd
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -307,9 +307,11 @@ object VEP {
         if (path != null)
           env.put("PATH", path)
 
+        val rvv = new RegionValueVariant(localRowType)
         it
           .map { rv =>
-            Variant.fromRegionValue(rv.region, localRowType.loadField(rv, 1))
+            rvv.setRegion(rv)
+            rvv.variantObject()
           }
           .grouped(localBlockSize)
           .flatMap { block =>
@@ -388,25 +390,22 @@ object VEP {
 
             r
           }
-      }
-      .persist(StorageLevel.MEMORY_AND_DISK)
+      }.persist(StorageLevel.MEMORY_AND_DISK)
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
     val vepOrderedRVType = new OrderedRVType(
-      Array("pk"), Array("pk", "v"),
+      Array("locus"), Array("locus", "alleles"),
       TStruct(
-        "pk" -> vsm.locusType,
-        "v" -> vsm.vSignature,
+        "locus" -> vsm.rowKeyTypes(0),
+        "alleles" -> vsm.rowKeyTypes(1),
         "vep" -> vepType))
 
     val vepRowType = vepOrderedRVType.rowType
-    val (t, pkProjection) = Type.partitionKeyProjection(vsm.vSignature)
-    assert(t == vsm.locusType)
 
     val vepRVD: OrderedRVD = OrderedRVD(
       vepOrderedRVType,
-      vsm.rdd2.partitioner,
+      vsm.rvd.partitioner,
       annotations.mapPartitions { it =>
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -415,8 +414,8 @@ object VEP {
         it.map { case (v, vep) =>
           rvb.start(vepRowType)
           rvb.startStruct()
-          rvb.addAnnotation(vepRowType.fieldType(0), pkProjection(v))
-          rvb.addAnnotation(vepRowType.fieldType(1), v)
+          rvb.addAnnotation(vepRowType.fieldType(0), v.locus)
+          rvb.addAnnotation(vepRowType.fieldType(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
           rvb.addAnnotation(vepRowType.fieldType(2), vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())
@@ -426,13 +425,8 @@ object VEP {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVAType, inserter) = vsm.vaSignature.structInsert(vepType, parsedRoot)
-
-    val newMatrixType = vsm.matrixType.copy(vaType = newVAType)
-    val newRDD2 = vsm.orderedRVDLeftJoinDistinctAndInsert(vsm.rdd2, vepRVD,
-      newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
-
-    vsm.copy2(rdd2 = newRDD2, vaSignature = newVAType)
+    vsm.orderedRVDLeftJoinDistinctAndInsert(vepRVD, "vep", product = false)
+      .annotateVariantsExpr("vep = vep.vep")
   }
 
   def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =

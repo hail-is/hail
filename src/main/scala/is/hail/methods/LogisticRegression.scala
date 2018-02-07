@@ -36,7 +36,7 @@ object LogisticRegression {
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
     info(s"logreg: running $test logistic regression on $n samples for response variable y,\n"
-       + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
+      + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
     var nullFit = nullModel.fit()
@@ -54,7 +54,7 @@ object LogisticRegression {
 
     val sc = vsm.sparkContext
 
-    val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
+    val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
@@ -63,44 +63,47 @@ object LogisticRegression {
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest)
 
-    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+    val (newRVType, inserter) = vsm.rvRowType.unsafeStructInsert(logRegTest.schema, List(root))
 
-    val (newRVDType, inserter) = vsm.rdd2.typ.insert(logRegTest.schema, "va" :: pathVA)
-    val newVAType = newRVDType.rowType.fieldType(2).asInstanceOf[TStruct]
+    val localRVType = vsm.rvRowType
+    val localRowType = vsm.rowType
+    val localEntriesIndex = vsm.entriesIndex
 
-    val localRowType = vsm.rvRowType
-    val newRVD = vsm.rdd2.mapPartitionsPreservesPartitioning(newRVDType) { it =>
+    val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
+
+    val newRVD = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
       val missingSamples = new ArrayBuilder[Int]()
 
+      val fullRow = new UnsafeRow(localRVType)
+      val row = fullRow.delete(localEntriesIndex)
+
       val X = XBc.value.copy
       it.map { rv =>
-        val ur = new UnsafeRow(localRowType, rv)
-        val v = ur.get(1)
-        val va = ur.get(2)
-        val gs = ur.getAs[IndexedSeq[Annotation]](3)
+        fullRow.set(rv)
 
         RegressionUtils.inputVector(X(::, -1),
-          localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+          localGlobalAnnotationBc.value, sampleAnnotationsBc.value, row,
+          fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex),
           ec, xf,
           completeSampleIndexBc.value, missingSamples)
 
         val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
 
         rvb.set(rv.region)
-        rvb.start(newRVDType.rowType)
-        inserter(rv.region, rv.offset, rvb, () =>
-          rvb.addAnnotation(logRegTest.schema, logregAnnot))
+        rvb.start(newRVType)
+        inserter(rv.region, rv.offset, rvb,
+          () => rvb.addAnnotation(logRegTest.schema, logregAnnot))
 
         rv2.set(rv.region, rvb.end())
         rv2
       }
     }
 
-    vsm.copy2(vaSignature = newVAType,
-      rdd2 = newRVD)
+    vsm.copyMT(matrixType = newMatrixType,
+      rvd = newRVD)
   }
 }
 

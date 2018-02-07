@@ -17,16 +17,16 @@ object PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   def scoresTable(vsm: MatrixTable, asArrays: Boolean, scores: DenseMatrix[Double]): Table = {
-    assert(vsm.nSamples == scores.rows)
+    assert(vsm.numCols == scores.rows)
     val k = scores.cols
     val hc = vsm.hc
     val sc = hc.sc
 
-    val rowType = TStruct(vsm.colKey.zip(vsm.sSignature) ++ Seq("scores" -> PCA.pcSchema(k, asArrays)): _*)
+    val rowType = TStruct(vsm.colKey.zip(vsm.colKeyTypes) ++ Seq("scores" -> PCA.pcSchema(k, asArrays)): _*)
     val rowTypeBc = sc.broadcast(rowType)
 
     val scoresBc = sc.broadcast(scores)
-    val localSSignature = vsm.sSignature
+    val localSSignature = vsm.colKeyTypes
 
     val scoresRDD = sc.parallelize(vsm.colKeys.zipWithIndex).mapPartitions[RegionValue] { it =>
       val region = Region()
@@ -67,20 +67,21 @@ object PCA {
            |  Expect componenents >= 1""".stripMargin)
 
     val sc = vsm.sparkContext
-    val (irm, optionVariants) = vsm.toIndexedRowMatrix(expr, computeLoadings)
+    val irm = vsm.toIndexedRowMatrix(expr)
 
     info(s"Running PCA with $k components...")
 
     val svd = irm.computeSVD(k, computeLoadings)
     if (svd.s.size < k)
       fatal(
-        s"""Found only ${ svd.s.size } non-zero (or nearly zero) eigenvalues, but user requested ${ k }
-           |principal components.""".stripMargin)
+        s"Found only ${ svd.s.size } non-zero (or nearly zero) eigenvalues, " +
+          s"but user requested ${ k } principal components.")
 
     val optionLoadings = someIf(computeLoadings, {
-      val rowType = TStruct("v" -> vsm.vSignature, "pcaLoadings" -> pcSchema(k, asArray))
+      val rowType = TStruct("v" -> vsm.rowKeyStruct) ++ (if (asArray) TStruct("loadings" -> pcSchema(k, asArray))
+      else pcSchema(k, asArray).asInstanceOf[TStruct])
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
-      val variantsBc = vsm.sparkContext.broadcast(optionVariants.get)
+      val variantsBc = vsm.sparkContext.broadcast(vsm.dMatrixRowKeys().values)
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
         val region = Region()
         val rv = RegionValue(region)
@@ -90,13 +91,15 @@ object PCA {
           rvb.start(rowTypeBc.value)
           rvb.startStruct()
           rvb.addAnnotation(rowTypeBc.value.fieldType(0), variantsBc.value(ir.index.toInt))
-          if (asArray) rvb.startArray(k) else rvb.startStruct()
+          if (asArray)
+            rvb.startArray(k)
           var i = 0
           while (i < k) {
             rvb.addDouble(ir.vector(i))
             i += 1
           }
-          if (asArray) rvb.endArray() else rvb.endStruct()
+          if (asArray)
+            rvb.endArray()
           rvb.endStruct()
           rv.setOffset(rvb.end())
           rv

@@ -5,6 +5,7 @@ import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
+import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
 class OrderedRVType(
@@ -37,6 +38,18 @@ class OrderedRVType(
   val kInRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
   val pkInKOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
   val kRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
+
+  // FIXME: replace when physical types arrive
+  // parameterized type is a hack to permit exclusion of entries
+  def makeValueStruct(t: TStruct = rowType): (RegionValue => Row) = {
+    val localRowType = t
+    val keepIndices = (0 until t.size).filter(i => !keySet.contains(t.fieldNames(i))).toArray
+
+    { (rv: RegionValue) =>
+      val ur = new UnsafeRow(localRowType, rv)
+      Row.fromSeq(keepIndices.map(ur.get))
+    }
+  }
 
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVType, UnsafeInserter) = {
     assert(path.nonEmpty)
@@ -72,6 +85,8 @@ class OrderedRVType(
     b.append(rowType)
     b.toHashCode
   }
+
+  override def toString: String = s"rowType: $rowType, key:${key.mkString(", ")}, partitionKey: ${partitionKey.mkString(", ")}"
 }
 
 object OrderedRVType {

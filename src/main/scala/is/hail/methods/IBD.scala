@@ -211,10 +211,10 @@ object IBD {
     sampleIds: IndexedSeq[String],
     bounded: Boolean): RDD[RegionValue] = {
 
-    val nSamples = vds.nSamples
+    val nSamples = vds.numCols
 
     val rowType = vds.rvRowType
-    val unnormalizedIbse = vds.rdd2.mapPartitions { it =>
+    val unnormalizedIbse = vds.rvd.mapPartitions { it =>
       val view = HardCallView(rowType)
       it.map { rv =>
         view.setRegion(rv)
@@ -224,7 +224,7 @@ object IBD {
 
     val ibse = unnormalizedIbse.normalized
 
-    val chunkedGenotypeMatrix = vds.rdd2.mapPartitions { it =>
+    val chunkedGenotypeMatrix = vds.rvd.mapPartitions { it =>
       val view = HardCallView(rowType)
       it.map { rv =>
         view.setRegion(rv)
@@ -345,25 +345,26 @@ object IBD {
   private[methods] def generateComputeMaf(vds: MatrixTable,
     computeMafExpr: String): (RegionValue) => Double = {
 
-    val mafSymbolTable = Map("v" -> (0, vds.vSignature), "va" -> (1, vds.vaSignature))
+    val mafSymbolTable = Map("va" -> (0, vds.rowType))
     val mafEc = EvalContext(mafSymbolTable)
     val computeMafThunk = RegressionUtils.parseExprAsDouble(computeMafExpr, mafEc)
     val rowType = vds.rvRowType
 
+    val rowKeysF = vds.rowKeysF
+    val localRowType = vds.rowType
+
     { (rv: RegionValue) =>
-      val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
-      val va = UnsafeRow.read(rowType.fieldType(2), rv.region, rowType.loadField(rv, 2))
-      mafEc.setAll(v, va)
+      val row = new UnsafeRow(localRowType, rv)
+      mafEc.setAll(row)
       val maf = computeMafThunk()
 
       if (maf == null)
-        fatal(s"The minor allele frequency expression evaluated to NA on variant $v.")
+        fatal(s"The minor allele frequency expression evaluated to NA at ${rowKeysF(row)}.")
 
       if (maf < 0.0 || maf > 1.0)
-        fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
+        fatal(s"The minor allele frequency expression for ${rowKeysF(row)} evaluated to $maf which is not in [0,1].")
 
       maf
     }
   }
-
 }

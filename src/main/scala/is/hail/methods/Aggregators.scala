@@ -11,6 +11,7 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
@@ -38,14 +39,13 @@ object Aggregators {
     val localNSamples = localValue.nSamples
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
-    val localRowType = typ.rvRowType
+
+    val localRVType = typ.rvRowType
+    val localEntriesIndex = typ.entriesIdx
 
     { (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
-
-      val v = ur.get(1)
-      val va = ur.get(2)
-      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+      val fullRow = new UnsafeRow(localRVType, rv)
+      val row = fullRow.delete(localEntriesIndex)
 
       val aggs = MultiArray2.fill[Aggregator](nKeys, aggregations.size)(null)
       var nk = 0
@@ -58,14 +58,14 @@ object Aggregators {
         nk += 1
       }
       localA(0) = localGlobalAnnotations
-      localA(1) = v
-      localA(2) = va
+      localA(1) = row
+      val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
       var i = 0
       while (i < localNSamples) {
-        localA(3) = gs(i)
+        localA(2) = is(i)
         if (keyMap(i) != -1) {
-          localA(5) = localAnnotationsBc.value(i)
+          localA(3) = localAnnotationsBc.value(i)
 
           var j = 0
           while (j < aggs.n2) {
@@ -99,26 +99,25 @@ object Aggregators {
 
     val localA = ec.a
     val localNSamples = localValue.nSamples
-    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
-    val localGlobalAnnotations = localValue.globalAnnotation
-    val localRowType = typ.rvRowType
+    val sampleAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
+    val localRVType = typ.rvRowType
+    val localEntriesIndex = typ.entriesIdx
 
     Some({ (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
 
-      val v = ur.get(1)
-      val va = ur.get(2)
-      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+      val fullRow = new UnsafeRow(localRVType, rv)
+      val row = fullRow.delete(localEntriesIndex)
 
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
-      localA(0) = localGlobalAnnotations
-      localA(1) = v
-      localA(2) = va
 
+      ec.set(1, row)
+
+      val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
       var i = 0
+
       while (i < localNSamples) {
-        localA(3) = gs(i)
-        localA(4) = localAnnotationsBc.value(i)
+        ec.set(2, is(i))
+        ec.set(3, sampleAnnotationsBc.value(i))
 
         var j = 0
         while (j < aggs.size) {
@@ -148,6 +147,7 @@ object Aggregators {
     val localNSamples = value.nSamples
     val localGlobalAnnotations = value.globalAnnotation
     val localSampleAnnotationsBc = value.sampleAnnotationsBc
+    localA(0) = localGlobalAnnotations
 
     val nAggregations = aggregations.length
     val nSamples = value.nSamples
@@ -158,18 +158,16 @@ object Aggregators {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val localRowType = value.typ.rvRowType
+    val localRVType = value.typ.rvRowType
+    val localEntriesIndex = value.typ.entriesIdx
 
-    val result = value.rdd2.treeAggregate(baseArray)({ case (arr, rv) =>
-      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+    val result = value.rvd.treeAggregate(baseArray)({ case (arr, rv) =>
+      val fullRow = new UnsafeRow(localRVType, rv)
+      val row = fullRow.delete(localEntriesIndex)
 
-      val v = ur.get(1)
-      val va = ur.get(2)
-      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+      localA(3) = row
 
-      localA(0) = localGlobalAnnotations
-      localA(3) = v
-      localA(4) = va
+      val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
       var i = 0
       while (i < localNSamples) {
@@ -208,12 +206,12 @@ object Aggregators {
   def makeSampleFunctions(vsm: MatrixTable, aggExpr: String): SampleFunctions = {
     val ec = vsm.sampleEC
 
-    val (resultNames, resultTypes, aggF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
+    val (resultNames, resultTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
 
-    val newType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
+    val newType = TStruct(resultNames.zip(resultTypes): _*)
 
-    val localNSamples = vsm.nSamples
-    val localGlobalAnnotations = vsm.globalAnnotation
+    val localNSamples = vsm.numCols
+    val localGlobalAnnotations = vsm.globals
     val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val aggregations = ec.aggregations
@@ -224,16 +222,22 @@ object Aggregators {
       zVal.update(i, j, aggregations(j)._3.copy())
     }
 
-    val seqOp = (ma: MultiArray2[Aggregator], ur: UnsafeRow) => {
-      ec.set(0, localGlobalAnnotations)
-      ec.set(3, ur.get(1))
-      ec.set(4, ur.get(2))
+    val localRVType = vsm.rvRowType
+    val localEntriesIndex = vsm.entriesIndex
 
-      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+
+    val seqOp = (ma: MultiArray2[Aggregator], rv: RegionValue) => {
+      val fullRow = new UnsafeRow(localRVType, rv)
+      val row = fullRow.delete(localEntriesIndex)
+
+      val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+
       var i = 0
       while (i < localNSamples) {
-        ec.set(1, localSampleAnnotationsBc.value(i))
-        ec.set(2, gs(i))
+        ec.setAll(localGlobalAnnotations,
+          localSampleAnnotationsBc.value(i),
+          is(i),
+          row)
 
         var j = 0
         while (j < nAggregations) {
@@ -283,7 +287,7 @@ object Aggregators {
 
   case class SampleFunctions(
     zero: MultiArray2[Aggregator],
-    seqOp: (MultiArray2[Aggregator], UnsafeRow) => MultiArray2[Aggregator],
+    seqOp: (MultiArray2[Aggregator], RegionValue) => MultiArray2[Aggregator],
     combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
     resultOp: (MultiArray2[Aggregator], RegionValueBuilder) => Unit,
     resultType: TStruct)
@@ -679,7 +683,7 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   def copy() = new MinAggregator[T, BoxedT]()
 }
 
-class CallStatsAggregator(variantF: (Any) => Any)
+class CallStatsAggregator(allelesF: (Any) => Any)
   extends TypedAggregator[Annotation] {
 
   var first = true
@@ -695,9 +699,9 @@ class CallStatsAggregator(variantF: (Any) => Any)
     if (first) {
       first = false
 
-      val v = variantF(x)
-      if (v != null)
-        combiner = new CallStatsCombiner(v.asInstanceOf[Variant])
+      val alleles = allelesF(x)
+      if (alleles != null)
+        combiner = new CallStatsCombiner(alleles.asInstanceOf[IndexedSeq[String]])
     }
 
     if (combiner != null && x != null)
@@ -707,12 +711,12 @@ class CallStatsAggregator(variantF: (Any) => Any)
   def combOp(agg2: this.type) {
     if (agg2.combiner != null) {
       if (combiner == null)
-        combiner = new CallStatsCombiner(agg2.combiner.v)
+        combiner = new CallStatsCombiner(agg2.combiner.alleles)
       combiner.merge(agg2.combiner)
     }
   }
 
-  def copy() = new CallStatsAggregator(variantF)
+  def copy() = new CallStatsAggregator(allelesF)
 }
 
 class InbreedingAggregator(getAF: (Call) => Any) extends TypedAggregator[Annotation] {

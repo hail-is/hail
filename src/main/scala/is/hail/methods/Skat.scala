@@ -217,30 +217,31 @@ object Skat {
     
     val sc = vsm.sparkContext
 
-    val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
+    val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
-    val localRowType = vsm.rvRowType
+    val localRVType = vsm.rvRowType
+    val localRowType = vsm.rowType
+    val localEntriesIndex = vsm.entriesIndex
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
-    (vsm.rdd2.rdd.flatMap { rv =>
-      val ur = new UnsafeRow(localRowType, rv)
-      val va = ur.get(2)
+    (vsm.rvd.rdd.flatMap { rv =>
+      val fullRow = new UnsafeRow(localRVType, rv)
+      val row = new UnsafeRow(localRowType, rv)
 
-      (Option(keyQuerier(va)), typedWeightQuerier(va)) match {
+      (Option(keyQuerier(row)), typedWeightQuerier(row)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
 
-          val v = ur.get(1)
-          val gs = ur.getAs[IndexedSeq[Annotation]](3)
+          val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           val n = completeSampleIndexBc.value.length
           val x = new DenseVector[Double](n)
           
           val missingSamples = new ArrayBuilder[Int]()
 
           RegressionUtils.inputVector(x,
-            localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+            localGlobalAnnotationBc.value, sampleAnnotationsBc.value, row, gs,
             ec, xf,
             completeSampleIndexBc.value, missingSamples)
 

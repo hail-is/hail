@@ -209,8 +209,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .collect()
 
     val itemCount = partitionCounts.sum
-    info(s"wrote $itemCount ${ plural(itemCount, "item") } " +
-      s"in $nPartitions ${ plural(nPartitions, "partition") }")
+    info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions")
     
     partitionCounts
   }

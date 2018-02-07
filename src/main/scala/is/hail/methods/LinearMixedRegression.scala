@@ -37,7 +37,6 @@ object LinearMixedRegression {
     optNEigs: Option[Int],
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
-    val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
     val ec = assocVSM.matrixType.genotypeEC
@@ -144,12 +143,10 @@ object LinearMixedRegression {
     if (runAssoc) {
       val sc = assocVSM.sparkContext
 
-      val localGlobalAnnotationBc = sc.broadcast(assocVSM.globalAnnotation)
+      val localGlobalAnnotationBc = sc.broadcast(assocVSM.globals)
       val sampleAnnotationsBc = assocVSM.sampleAnnotationsBc
 
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
-
-      val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       info(s"lmmreg: Computing statistics for each variant...")
 
@@ -165,22 +162,26 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      vds2.mapAnnotations(newVAS, { case (v, va, gs) =>
+      val localRVType = vds2.rvRowType
+      val localEntriesIndex = vds2.entriesIndex
+
+      val nComplete = completeSampleIndex.length
+      vds2.insertIntoRow(() => new DenseVector[Double](nComplete))(LinearMixedRegression.schema, rootVA, { case (x, rv, rvb) =>
         val n = completeSampleIndexBc.value.length
-        val x = new DenseVector[Double](n)
+        val fullRow = new UnsafeRow(localRVType, rv)
+        val row = fullRow.delete(localEntriesIndex)
 
         val missingSamples = new ArrayBuilder[Int]()
 
         RegressionUtils.inputVector(x,
-          localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+          localGlobalAnnotationBc.value,
+          sampleAnnotationsBc.value,
+          row,
+          fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex),
           ec, xf,
           completeSampleIndexBc.value, missingSamples)
 
-        val lmmregAnnot = scalerLMMBc.value.likelihoodRatioTest(x)
-
-        val newAnnotation = inserter(va, lmmregAnnot)
-        assert(newVAS.typeCheck(newAnnotation))
-        newAnnotation
+        scalerLMMBc.value.likelihoodRatioTest(x, rvb)
       })
     } else
       vds2
@@ -203,7 +204,7 @@ object LinearMixedRegression {
 }
 
 trait ScalerLMM {
-  def likelihoodRatioTest(v: Vector[Double]): Annotation
+  def likelihoodRatioTest(v: Vector[Double], rvb: RegionValueBuilder): Unit
 }
 
 // Handles full-rank case
@@ -220,7 +221,7 @@ class FullRankScalerLMM(
   val n = y.length
   val invDf = 1.0 / (if (useML) n else n - Qt.rows)
 
-  def likelihoodRatioTest(x0: Vector[Double]): Annotation = {
+  def likelihoodRatioTest(x0: Vector[Double], rvb: RegionValueBuilder): Unit = {
     val x = T * x0
     val n = y.length
     val Qtx = Qt * x
@@ -232,7 +233,12 @@ class FullRankScalerLMM(
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
-    Annotation(b, s2, chi2, p)
+    rvb.startStruct()
+    rvb.addDouble(b)
+    rvb.addDouble(s2)
+    rvb.addDouble(chi2)
+    rvb.addDouble(p)
+    rvb.endStruct()
   }
 }
 
@@ -259,7 +265,7 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
   val r1 = 0 to 0
   val r2 = 1 to d
 
-  def likelihoodRatioTest(x: Vector[Double]): Annotation = {
+  def likelihoodRatioTest(x: Vector[Double], rvb: RegionValueBuilder): Unit = {
 
     val CtC = DenseMatrix.zeros[Double](d + 1, d + 1)
     CtC(0, 0) = x dot x
@@ -287,7 +293,12 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
-    Annotation(b(0), s2, chi2, p)
+    rvb.startStruct()
+    rvb.addDouble(b(0))
+    rvb.addDouble(s2)
+    rvb.addDouble(chi2)
+    rvb.addDouble(p)
+    rvb.endStruct()
   }
 }
 

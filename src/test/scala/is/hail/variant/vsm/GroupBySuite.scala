@@ -10,53 +10,69 @@ import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
+import org.apache.spark.sql.Row
 
 class GroupBySuite extends SparkSuite {
 
   @Test def testGroupSamplesBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("sa.AC = gs.map(g => g.GT.gt).sum()")
-    val vds2 = vds.groupSamplesBy("sa.AC", "max = gs.map(g => g.GT.gt).max()").count()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("AC = gs.map(g => g.GT.gt).sum()")
+    val vds2 = vds.groupSamplesBy("AC = sa.AC", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
   @Test def testGroupSamplesStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("sa.foo = {str1: 1, str2: \"bar\"}")
-    val vds2 = vds.groupSamplesBy("sa.foo", "max = gs.map(g => g.GT.gt).max()").count()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("foo = {str1: 1, str2: \"bar\"}")
+    val vds2 = vds.groupSamplesBy("foo = sa.foo", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
   @Test def testGroupVariantsBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.GT.gt).sum()")
-    val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()").count()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("AC = gs.map(g => g.GT.gt).sum()")
+    val vds2 = vds.groupVariantsBy("AC = va.AC", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
   @Test def testGroupVariantsStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = {str1: \"foo\", str2: 1}")
-    val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()").count()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("AC = {str1: \"foo\", str2: 1}")
+    val vds2 = vds.groupVariantsBy("AC = va.AC", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
   @Test def testRandomVSMEquivalence() {
     var vSkipped = 0
     var sSkipped = 0
-    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vsm =>
+    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)
+      .map(_.unfilterEntries())
+    ) { vsm =>
       val variants = vsm.variants.collect()
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {
         vSkipped += 1
-        val grouped = vsm.groupVariantsBy("v", "first = gs.collect()[0]")
+        val grouped = vsm.groupVariantsBy("locus = va.locus, alleles = va.alleles",
+          "first = gs.collect()[0]",
+          Some(Array("locus")))
         grouped.countVariants() == uniqueVariants.size
       } else {
-        val grouped = vsm.groupVariantsBy("v", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
-        vsm.annotateVariantsExpr("va = {}").same(grouped)
+        val grouped = vsm
+          .groupVariantsBy("locus = va.locus, alleles = va.alleles",
+            "GT = gs.collect()[0].GT, " +
+              "AD = gs.collect()[0].AD, " +
+              "DP = gs.collect()[0].DP, " +
+              "GQ = gs.collect()[0].GQ, " +
+              "PL = gs.collect()[0].PL",
+            Some(Array("locus")))
+        assert(vsm.selectRows("va.locus", "va.alleles").same(grouped))
       }
 
       val uniqueSamples = vsm.stringSampleIds.toSet
       if (vsm.stringSampleIds.size != uniqueSamples.size) {
         sSkipped += 1
-        val grouped = vsm.groupSamplesBy("sa.s", "first = gs.collect()[0]")
-        grouped.countVariants() == uniqueVariants.size
+        val grouped = vsm.groupSamplesBy("s = sa.s", "first = gs.collect()[0]")
+        grouped.numCols == uniqueSamples.size
       } else {
-        val grouped = vsm.groupSamplesBy("sa.s", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
-        vsm.annotateSamplesExpr("sa = {s: sa.s}").same(grouped.reorderSamples(vsm.stringSampleIds.toArray.map(Annotation(_))))
+        val grouped = vsm.groupSamplesBy("s = sa.s", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
+        assert(vsm.selectCols("s")
+          .same(grouped
+            .reorderSamples(vsm.stringSampleIds.toArray.map(Annotation(_)))
+          ))
       }
+      true
     }
     p.check()
     if (sSkipped != 0)
@@ -73,22 +89,22 @@ class GroupBySuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateVariantsTable(intervals, expr="va.genes = table.map(x => x.target)", product=true)
-      .annotateVariantsExpr("va.weight = v.start.toFloat64")
-      .annotateSamplesTable(covariates, root = "sa.cov")
-      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .annotateVariantsTable(intervals, root = "genes", product = true)
+      .annotateVariantsExpr("genes = va.genes.map(x => x.target)")
+      .annotateVariantsExpr("weight = va.locus.position.toFloat64")
+      .annotateSamplesTable(covariates, root = "cov")
+      .annotateSamplesTable(phenotypes, root = "pheno")
 
-    val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("va.genes", "sum = gs.map(g => va.weight * g.GT.gt).sum()")
+    val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("genes = va.genes", "sum = gs.map(g => va.weight * g.GT.gt).sum()")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
-    val linregMap = resultsVSM.variantsKT().select("v", "va.linreg.beta", "va.linreg.se", "va.linreg.tstat", "va.linreg.pval")
+    val linregMap = resultsVSM.rowsTable().select("genes", "linreg.beta", "linreg.se", "linreg.tstat", "linreg.pval")
       .mapAnnotations { r => (r.getAs[String](0), (1 to 4).map{ i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }
       .collect()
       .toMap
-    val sampleMap = resultsVSM.unsafeRowRDD().map {ur =>
-      val k = ur.getAs[String](0)
-      val v = ur.getAs[IndexedSeq[UnsafeRow]](3)
-      k -> v.map{ ur => Double.box(ur.getAs[Double](0)) }
+    val sampleMap = resultsVSM.rdd.map { case (keys, (_, gs)) =>
+      val k = keys.asInstanceOf[Row].getAs[String](0)
+      k -> gs.asInstanceOf[IndexedSeq[Row]].map { r => Double.box(r.getAs[Double](0)) }
     }.collect().toMap
 
     /*

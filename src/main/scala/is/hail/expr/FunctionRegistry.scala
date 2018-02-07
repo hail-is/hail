@@ -719,6 +719,10 @@ object FunctionRegistry {
   registerMethod("nNonRefAlleles", { (c: Call) => Call.nNonRefAlleles(c) })(callHr, int32Hr)
   registerMethod("oneHotAlleles", { (c: Call, v: Variant) => Call.oneHotAlleles(c, v) })(callHr, variantHr(GR), arrayHr(int32Hr))
   registerMethod("oneHotGenotype", { (c: Call, v: Variant) => Call.oneHotGenotype(c, v) })(callHr, variantHr(GR), arrayHr(int32Hr))
+  registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) =>
+    Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
+  registerMethod("oneHotGenotype", { (c: Call, alleles: IndexedSeq[String]) =>
+    Call.oneHotGenotype(c, Variant.nGenotypes(alleles.length)) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
 
   private def intArraySumCode(a: Code[Array[Int]]): CM[Code[Int]] = for (
     (starr, arr) <- CM.memoize(a);
@@ -800,6 +804,36 @@ object FunctionRegistry {
   register("is_complex", { (ref: String, alt: String) => AltAlleleMethods.isComplex(ref, alt) })
   register("allele_type", { (ref: String, alt: String) => AltAlleleMethods.altAlleleType(ref, alt).toString })
   register("hamming", { (ref: String, alt: String) => AltAlleleMethods.hamming(ref, alt) })
+  registerMethodDependent("inXPar", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.inXPar(gr)
+  })(locusHr(GR), boolHr)
+  registerMethodDependent("inYPar", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.inYPar(gr)
+  })(locusHr(GR), boolHr)
+  registerMethodDependent("inXNonPar", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.inXNonPar(gr)
+  })(locusHr(GR), boolHr)
+  registerMethodDependent("inYNonPar", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.inYNonPar(gr)
+  })(locusHr(GR), boolHr)
+  registerMethodDependent("isAutosomal", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.isAutosomal(gr)
+  })(locusHr(GR), boolHr)
+  registerMethodDependent("isAutosomalOrPseudoAutosomal", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.isAutosomalOrPseudoAutosomal(gr)
+  })(locusHr(GR), boolHr)
+  registerMethodDependent("isMitochondrial", { () =>
+    val gr = GR.gr
+    (x: Locus) => x.isMitochondrial(gr)
+  })(locusHr(GR), boolHr)
+
+  register("triangle", { (i: Int) => triangle(i) })
 
   register("plDosage", { (pl: IndexedSeq[Int]) =>
     if (pl.length != 3)
@@ -1489,7 +1523,7 @@ object FunctionRegistry {
   })
 
   registerLambdaAggregator[Call, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf)
-  )(aggregableHr(callHr), unaryHr(callHr, variantHr(GR)), new HailRep[Any] {
+  )(aggregableHr(callHr), unaryHr(callHr, arrayHr(stringHr)), new HailRep[Any] {
       def typ = CallStats.schema
     })
 

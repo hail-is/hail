@@ -120,7 +120,7 @@ object TestRDDBuilder {
 
             b += Genotype(gt, ad, Some(dp), Some(gq), pl)
           }
-          (variant, (Annotation.empty, b.result(): Iterable[Annotation]))
+          (Annotation(variant), b.result(): Iterable[Annotation])
       }.toArray
     
     val variantRDD = hc.sc.parallelize(variantArray)
