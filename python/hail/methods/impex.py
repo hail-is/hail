@@ -42,7 +42,7 @@ def export_gen(dataset, output, precision=4):
     --------
     Import genotype probability data, filter variants based on INFO score, and
     export data to a GEN and SAMPLE file:
-    
+
     >>> ds = methods.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> ds = ds.filter_rows(agg.info_score(ds.GP).score >= 0.9) # doctest: +SKIP
     >>> methods.export_gen(ds, 'output/infoscore_filtered')
@@ -104,7 +104,7 @@ def export_plink(dataset, output, **fam_args):
     BED, BIM and FAM files.
 
     .. include:: ../_templates/req_tvariant.rst
-    
+
     .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_biallelic.rst
@@ -190,7 +190,7 @@ def export_plink(dataset, output, **fam_args):
            block_size=integral)
 def export_solr(table, zk_host, collection, block_size=100):
     """Export to Solr.
-    
+
     Warning
     -------
     :func:`export_solr` is EXPERIMENTAL.
@@ -260,12 +260,12 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     with the relevant information. See
     :func:`get_vcf_metadata` for how to obtain the
     dictionary corresponding to the original VCF, and for info on how this
-    dictionary should be structured. 
-    
+    dictionary should be structured.
+
     The output VCF header will also contain CONTIG lines
     with ID, length, and assembly fields derived from the reference genome of
     the dataset.
-    
+
     The output VCF header will `not` contain lines added by external tools
     (such as bcftools and GATK) unless they are explicitly inserted using the
     `append_to_header` parameter.
@@ -280,12 +280,12 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         annotations in `info` or overwrite existing annotations. For example, in
         order to produce an accurate `AC` field, one can run :func:`variant_qc` and
         copy the `variant_qc.AC` field to `info.AC` as shown below.
-    
+
         >>> ds = dataset.filter_entries(dataset.GQ >= 20)
         >>> ds = methods.variant_qc(ds)
         >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
         >>> methods.export_vcf(ds, 'output/example.vcf.bgz')
-    
+
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
@@ -642,10 +642,10 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
 
     from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
-    
+
     if contig_recoding:
         contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
-        
+
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     tolerance, joption(min_partitions), rg._jrep,
                                     joption(contig_recoding))
@@ -764,13 +764,179 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
            reference_genome=nullable(GenomeReference))
 def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
                  comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
+    """Import delimited text file (text table) as key table.
+
+    The resulting key table will have no key columns, use :meth:`.KeyTable.key_by`
+    to specify keys.
+
+    Examples
+    --------
+
+    Given this file
+
+    .. code-block:: text
+
+        $ cat data/samples1.tsv
+        Sample     Height  Status  Age
+        PT-1234    154.1   ADHD    24
+        PT-1236    160.9   Control 19
+        PT-1238    NA      ADHD    89
+        PT-1239    170.3   Control 55
+
+    The interesting thing about this table is that column ``Height`` is a
+    floating-point number, and column ``Age`` is an integer. Hail can impute
+    these types or we can state the explicitly:
+
+    Importing a table with explicit type annotations:
+
+    >>> table = hc1.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
+
+    Note that string columns like ``Sample`` and ``Status`` do not need to be
+    typed, because ``String`` is the default type.
+
+    Imputing a table with type imputation (the file must be read twice to
+    impute):
+
+    >>> table = hc1.import_table('data/samples1.tsv', impute=True)
+
+    **Detailed examples**
+
+    Let's import annotations from a CSV file with missing data and special characters:
+
+    .. code-block:: text
+
+        $ cat data/samples2.tsv
+        Batch,PT-ID
+        1kg,PT-0001
+        1kg,PT-0002
+        study1,PT-0003
+        study3,PT-0003
+        .,PT-0004
+        1kg,PT-0005
+        .,PT-0006
+        1kg,PT-0007
+
+    In this case, we should:
+
+    - Pass the non-default delimiter ``,``
+
+    - Pass the non-default missing value ``.``
+
+    >>> table = hc1.import_table('data/samples2.tsv', delimiter=',', missing='.')
+
+    Let's import annotations from a file with no header and sample IDs that need
+    to be transformed.  Suppose the vds sample IDs are of the form
+    ``NA#####``. This file has no header line, and the sample ID is hidden in a
+    field with other information.
+
+    .. code-block: text
+
+        $ cat data/samples3.tsv
+        1kg_NA12345   female
+        1kg_NA12346   male
+        1kg_NA12348   female
+        pgc_NA23415   male
+        pgc_NA23418   male
+
+    To import:
+
+    >>> annotations = (hc1.import_table('data/samples3.tsv', no_header=True)
+    ...                   .annotate('sample = f0.split("_")[1]')
+    ...                   .key_by('sample'))
+
+    **Notes**
+
+    The `impute` parameter tells Hail to scan the file an extra time to gather
+    information about possible field types. While this is a bit slower for large
+    files, (the file is parsed twice), the convenience is often worth this cost.
+
+    The `delimiter` parameter is either a delimiter character (if a single
+    character) or a field separator regex (2 or more characters). This regex
+    follows the `Java regex standard
+    <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
+
+    .. note::
+
+        Use ``delimiter='\\s+'`` to specify whitespace delimited files.
+
+    `comment` optionally causes Hail to skip any line that starts with the given
+    string. Passing ``comment='#'`` will skip any line beginning in a pound
+    sign, for example.
+
+    `missing` defines the representation of missing data in the table.
+
+    .. note::
+
+        The `comment` and `missing` parameters are **NOT** regexes.
+
+    The `no_header` parameter indicates that the file has no header line. If
+    this option is passed, then the column names will be `f0`, `f1`,
+    ... `fN` (0-indexed).
+
+    The `types` parameter allows the user to pass the types of columns in the
+    table. This is a dict keyed by :obj:`str`, with :class:`.Type`
+    values. See the examples above for a standard usage. Additionally, this
+    option can be used to override type imputation. For example, if a column in
+    a file refers to chromosome and does not contain any sex chromosomes, it
+    will be imputed as an integer, while most Hail methods expect chromosome to
+    be passed as a string. Using the ``impute=True`` mode and passing
+    ``types={'Chromosome': TString()}`` will solve this problem.
+
+    The `min_partitions` parameter sets the minimum number of partitions (level
+    of sharding) of an imported table. The default partition size depends on
+    file system and a number of other factors (including the ``min_block_size``
+    of the hail context), but usually is between 32M and 128M.
+
+    Parameters
+    ----------
+
+    paths: :obj:`str` or :obj:`list` of :obj:`str`
+        Files to import.
+
+    key: :obj:`str` or :obj:`list` of :obj:`str`
+        Key column(s).
+
+    min_partitions: :obj:`int` or :obj:`None`
+        Minimum number of partitions.
+
+    no_header: :obj:`bool`
+        File has no header and the N columns are named `f0`, `f1`,
+        ... `fN` (0-indexed).
+
+    impute: :obj:`bool`
+        Impute column types from the file.
+
+    comment: :obj:`str` or :obj:`None`
+        Skip lines beginning with the given pattern.
+
+    delimiter: :obj:`str`
+        Field delimiter regex.
+
+    missing: :obj:`str`
+        Specify identifier to be treated as missing
+
+    types: :obj:`dict` mapping :obj:`str` to :class:`.Type`
+        Define types of fields in annotations files
+
+    quote: :obj:`str` or :obj:`None`
+        Quote character
+
+    reference_genome: :class:`.GenomeReference`
+        Reference genome to use when imputing Variant or Locus columns. Default
+        is :class:`~.HailContext.default_reference`.
+
+    Returns
+    -------
+    :class:`.KeyTable`
+        Key table constructed from text table.
+    """
     key = wrap_to_list(key)
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
 
     from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
-    
+
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
                                    no_header, impute, quote, rg._jrep)
     return Table(jt)
@@ -975,7 +1141,7 @@ def get_vcf_metadata(path):
                                     'Type': 'Float'}}}
 
     which can be used with :meth:`.export_vcf` to fill in the relevant fields in the header.
-    
+
     Parameters
     ----------
     path : :obj:`str`
