@@ -830,35 +830,3 @@ class ColumnTests(unittest.TestCase):
                            'i1': TInterval(TLocus(rg)), 'i2': TInterval(TLocus(rg))}
 
         self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))
-
-class ContextTests(unittest.TestCase):
-    def test_imports(self):
-        methods.index_bgen(test_file('example.v11.bgen'))
-
-        bgen = methods.import_bgen(test_file('example.v11.bgen'),
-                              sample_file=test_file('example.sample'),
-                              contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(bgen.forall(bgen.v.contig == "1"))
-        self.assertEqual(bgen.count(), 199)
-
-        gen = methods.import_gen(test_file('example.gen'),
-                            sample_file=test_file('example.sample'),
-                            contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(gen.forall(gen.v.contig == "1"))
-        self.assertEqual(gen.count(), 199)
-
-        vcf = methods.split_multi_hts(
-            methods.import_vcf(test_file('sample2.vcf'),
-                               reference_genome=GenomeReference.GRCh38(),
-                               contig_recoding={"22": "chr22"}))
-
-        methods.export_plink(vcf, '/tmp/sample_plink')
-
-        vcf_table = vcf.rows_table()
-        self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
-
-        bfile = '/tmp/sample_plink'
-        plink = methods.import_plink(
-            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True, contig_recoding={'chr22': '22'}).rows_table()
-        self.assertTrue(plink.forall(plink.v.contig == "22"))
-        self.assertEqual(vcf_table.count(), plink.count())

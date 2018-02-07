@@ -38,6 +38,10 @@ Methods
     hail.methods.import_bed
     hail.methods.import_fam
     hail.methods.import_plink
+    hail.methods.import_bgen
+    hail.methods.import_gen
+    hail.methods.get_vcf_metadata
+    hail.methods.import_vcf
     hail.methods.nirvana
     hail.methods.tdt
     hail.methods.FilterAlleles
@@ -76,6 +80,10 @@ Methods
 .. autofunction:: hail.methods.import_bed
 .. autofunction:: hail.methods.import_fam
 .. autofunction:: hail.methods.import_plink
+.. autofunction:: hail.methods.import_bgen
+.. autofunction:: hail.methods.import_gen
+.. autofunction:: hail.methods.get_vcf_metadata
+.. autofunction:: hail.methods.import_vcf
 .. autofunction:: hail.methods.nirvana
 .. autofunction:: hail.methods.tdt
 .. autoclass:: hail.methods.FilterAlleles

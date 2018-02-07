@@ -9,9 +9,6 @@ on the Python programming interface.
 
 Use ``from hail import *`` to access this functionality.
 
-.. toctree::
-    :maxdepth: 2
-
 .. autosummary::
     :nosignatures:
     :template: class.rst
@@ -32,3 +29,8 @@ Use ``from hail import *`` to access this functionality.
     utils <utils/index>
     linalg <linalg/index>
     stats <stats/index>
+
+.. rubric:: Functions
+
+.. autofunction:: hail.stop
+.. autofunction:: hail.default_reference
