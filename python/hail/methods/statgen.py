@@ -2361,16 +2361,23 @@ class FilterAlleles(object):
 
     def subset_entries_hts(self):
         """Use the subset algorithm to update the matrix table entries for the
-        new, allele filtered variant.  This requires the entries have
-        the HTS genotype schema:
+        new, allele-filtered variant.  
+
+        Notes
+        -----
+
+        :meth:`.FilterAlleles.subset_entries_hts` requires the dataset
+        have the HTS schema, namely the following entry fields:
 
         .. code-block:: text
 
-            GT: Call,
-            AD: Array[!Int32],
-            DP: Int32,
-            GQ: Int32,
-            PL: Array[!Int32].
+            GT: Call
+            AD: Array[!Int32]
+            DP: Int32
+            GQ: Int32
+            PL: Array[!Int32]
+
+        **Subset algorithm**
 
         We will illustrate the behavior on the example genotype below
         when filtering the first alternate allele (allele 1) at a site
@@ -2387,8 +2394,6 @@ class FilterAlleles(object):
           2 | 1000   0     20
             +-----------------
                0     1     2
-
-        **The subset algorithm**
 
         The subset algorithm subsets the AD and PL arrays
         (i.e. removes entries corresponding to filtered alleles) and
@@ -2413,25 +2418,27 @@ class FilterAlleles(object):
                0      1
 
         In summary:
-
-        - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
-        - AD: The filtered alleles' columns are eliminated, e.g., filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
-        - DP: No change.
-        - PL: The filtered alleles' columns are eliminated and the remaining columns shifted so the minimum value is 0.
+        - GT: Set to most likely genotype based on the PLs ignoring
+          the filtered allele(s).
+        - AD: The filtered alleles' columns are eliminated, e.g.,
+          filtering alleles 1 and 2 transforms ``25,5,10,20`` to
+          ``25,20``.
+        - DP: Unchanged.
+        - PL: Columns involving filtered alleles are eliminated and
+          the remaining columns' values are shifted so the minimum
+          value is 0.
         - GQ: The second-lowest PL (after shifting).
-
         """
         ds = self._ds
-        newPL = functions.bind(
-            functions.cond(
-                functions.is_defined(ds.PL),
-                functions.range(0, self.new_v.num_genotypes()).map(
-                    lambda newi: functions.bind(
-                        functions.call(newi),
-                        lambda newc: ds.PL[functions.gt_index(
-                            self.new_to_old[newc.gtj()], self.new_to_old[newc.gtk()])])),
-                functions.null(TArray(TInt32()))),
-            lambda unnorm: unnorm - unnorm.min())
+        newPL = functions.cond(
+            functions.is_defined(ds.PL),
+            functions.bind(functions.range(0, self.new_v.num_genotypes()).map(
+                lambda newi: functions.bind(
+                    functions.call(newi),
+                    lambda newc: ds.PL[functions.gt_index(
+                        self.new_to_old[newc.gtj()], self.new_to_old[newc.gtk()])])),
+                lambda unnorm: unnorm - unnorm.min()),
+            functions.null(TArray(TInt32())))
         self.annotate_entries(
             GT = functions.call(functions.gt_from_pl(newPL)),
             AD = functions.cond(
@@ -2445,30 +2452,51 @@ class FilterAlleles(object):
 
     def downcode_entries_hts(self):
         """Use the downcode algorithm to update the matrix table entries for
-        the new, allele filtered variant.  This requires the entries
-        have the HTS genotype schema:
+        the new, allele filtered variant.  
 
-        **The downcode algorithm**
+        Notes
+        ------
+
+        :meth:`.FilterAlleles.downcode_entries_hts` requires the dataset have the
+        HTS schema, namely the following entry fields:
 
         .. code-block:: text
 
-            GT: Call,
-            AD: Array[!Int32],
-            DP: Int32,
-            GQ: Int32,
-            PL: Array[!Int32].
+            GT: Call
+            AD: Array[!Int32]
+            DP: Int32
+            GQ: Int32
+            PL: Array[!Int32]
+
+        **Downcode algorithm**
+
+        We will illustrate the behavior on the example genotype below
+        when filtering the first alternate allele (allele 1) at a site
+        with 1 reference allele and 2 alternate alleles.
+
+        .. code-block:: text
+
+          GT: 1/2
+          GQ: 10
+          AD: 0,50,35
+
+          0 | 1000
+          1 | 1000   10
+          2 | 1000   0     20
+            +-----------------
+               0     1     2
 
         The downcode algorithm recodes occurances of filtered alleles
         to occurances of the reference allele (e.g. 1 -> 0 in our
         example). So the depths of filtered alleles in the AD field
         are added to the depth of the reference allele. Where
-        downcodeing filtered alleles merges distinct genotypes, the
+        downcoding filtered alleles merges distinct genotypes, the
         minimum PL is used (since PL is on a log scale, this roughly
         corresponds to adding probabilities). The PLs are then
         re-normalized (shifted) so that the most likely genotype has a
         PL of 0, and GT is set to this genotype.  If an allele is
         filtered, this algorithm acts similarly to
-        :meth:`~hail.VariantDataset.split_multi`.
+        :func:`.split_multi_hts`.
 
         The downcoding algorithm would produce the following:
 
@@ -2486,9 +2514,9 @@ class FilterAlleles(object):
         In summary:
 
         - GT: Downcode filtered alleles to reference.
-        - AD: The filtered alleles' columns are eliminated and their
-          value is added to the reference, e.g., filtering alleles 1
-          and 2 transforms ``25,5,10,20`` to ``40,20``.
+        - AD: Columns of filtered alleles are eliminated and their
+          values are added to the reference column, e.g., filtering
+          alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
         - DP: No change.
         - PL: Downcode filtered alleles to reference, combine PLs
           using minimum for each overloaded genotype, and shift so the
@@ -2498,23 +2526,24 @@ class FilterAlleles(object):
         ds = self._ds
         newPL = functions.cond(
             functions.is_defined(ds.PL),
-            functions.range(0, self.new_v.num_genotypes()).map(
-                lambda newi: (functions.range(0, ds.v.num_genotypes()).filter(
-                    lambda oldi: bind(
-                        functions.call(newi),
-                        lambda oldc: functions.gt_index(self.old_to_new[oldc.gtj()],
-                                                        self.old_to_new[oldc.gtk()]) == newi))
-                              .map(lambda oldi: ds.PL[oldi]).min())),
+            (functions.range(0, self.new_v.num_genotypes())
+             .map(lambda newi: (functions.range(0, ds.v.num_genotypes())
+                                .filter(lambda oldi: functions.bind(
+                                    functions.call(newi),
+                                    lambda oldc: functions.gt_index(self.old_to_new[oldc.gtj()],
+                                                                    self.old_to_new[oldc.gtk()]) == newi))
+                                .map(lambda oldi: ds.PL[oldi]).min()))),
             functions.null(TArray(TInt32())))
         self.annotate_entries(
             GT = functions.gt_index(self.old_to_new[ds.GT.gtj()],
                                     self.old_to_new[ds.GT.gtk()]),
             AD = functions.cond(
                 functions.is_defined(ds.AD),
-                functions.range(0, self.new_v.num_alleles()).map(
-                    lambda newi: functions.range(0, ds.v.num_alleles()).filter(
-                        lambda oldi: self.old_to_new[oldi] == newi).map(
-                            lambda oldi: ds.AD[oldi]).sum()),
+                (functions.range(0, self.new_v.num_alleles())
+                 .map(lambda newi: (functions.range(0, ds.v.num_alleles())
+                                    .filter(lambda oldi: self.old_to_new[oldi] == newi)
+                                    .map(lambda oldi: ds.AD[oldi])
+                                    .sum()))),
                 functions.null(TArray(TInt32()))),
             # DP unchanged
             GQ = functions.gq_from_pl(newPL),

@@ -2052,16 +2052,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
                  |  $va2""".stripMargin)
             partSame = false
           }
-          val genotypesSame = gs1.iterator.zipWithIndex.zip(gs2.iterator).forall { case ((g1, i), g2) =>
+          gs1.iterator.zipWithIndex.zip(gs2.iterator).foreach { case ((g1, i), g2) =>
             val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
-            if (!gSame && !partSame) {
+            println(g1, g2, gSame)
+            if (!gSame && partSame) {
               println(
                 s"""at $v1, col $i, genotypes were not the same:
                    |  $g1
                    |  $g2
                    """.stripMargin)
+              partSame = false
             }
-            gSame
           }
         }
 

@@ -487,18 +487,24 @@ class Tests(unittest.TestCase):
         ds = methods.import_vcf(test_file('filter_alleles/input.vcf'))
 
         fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
-        fa.subset_entries_hts()
+        fa.downcode_entries_hts()
+        a = methods.import_vcf(test_file('filter_alleles/filter_allele1_downcode.vcf'))
+        b = fa.filter()
+        s = methods.import_vcf(test_file('filter_alleles/filter_allele1_downcode.vcf'))._same(fa.filter())
+        print(s)
+        a.entries_table().show()
+        b.entries_table().show()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/filter_allele1_downcode.vcf'))._same(fa.filter()))
 
         # also test keep=False
         fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"), keep=False)
-        fa.subset_entries_hts()
+        fa.downcode_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/filter_allele2_downcode.vcf'))._same(fa.filter()))
 
-        # test test fa.annotate_rows
         fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        # test fa.annotate_rows
         fa.annotate_rows(new_to_old = fa.new_to_old)
         fa.subset_entries_hts()
         self.assertTrue(
