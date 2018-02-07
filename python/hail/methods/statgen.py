@@ -236,7 +236,7 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
     call = call.filter_rows(aaf[call.v]._ > aaf_threshold)
     call = call.annotate_cols(ib=agg.inbreeding(call._, aaf[call.v]._))
     kt = call.select_cols(
-        s=call.s,
+        *ds.col_key,
         is_female=f.cond(call.ib.Fstat < female_threshold,
                          True,
                          f.cond(call.ib.Fstat > male_threshold,
