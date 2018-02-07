@@ -125,6 +125,7 @@ def maximal_independent_set(i, j, tie_breaker=None):
 
 @handle_py4j
 def require_variant(dataset, method):
+    # FIXME actually check when row_key exists
     # if (dataset.row_key != ['locus', 'alleles'] or
     #         not isinstance(dataset['locus'].dtype, TLocus) or
     #         not dataset['alleles'].dtype == TArray(TString())):
