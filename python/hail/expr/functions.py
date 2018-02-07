@@ -579,12 +579,36 @@ def fisher_exact_test(c1, c2, c3, c4):
 
 @typecheck(x=expr_numeric)
 def floor(x):
-    """The largest integral value that is less than or equal to `x`."""
+    """The largest integral value that is less than or equal to `x`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.floor(3.1))
+        3.0
+
+    Returns
+    -------
+    :obj:`.Float64Expression`
+    """
     return _func("floor", x.dtype, x)
 
 @typecheck(x=expr_numeric)
 def ceil(x):
-    """The smallest integral value that is greater than or equal to `x`."""
+    """The smallest integral value that is greater than or equal to `x`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.ceil(3.1))
+        4.0
+
+    Returns
+    -------
+    :obj:`.Float64Expression`
+    """
     return _func("ceil", x.dtype, x)
 
 @typecheck(j=expr_int32, k=expr_int32)
