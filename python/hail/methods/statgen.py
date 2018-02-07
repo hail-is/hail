@@ -1700,15 +1700,15 @@ def split_multi(ds, update_row, update_entry, keep_star=False, left_aligned=Fals
     ...        functions.is_defined(vds.PL),
     ...        (functions.range(0, 3)
     ...         .map(lambda i: (functions.range(0, vds.PL.length())
-    ...                         .filter(lambda j: functions.downcode(functions.call(j), ctx['a_index']) == functions.call(i))
+    ...                         .filter(lambda j: functions.downcode(functions.call(j), ctx.a_index) == functions.call(i))
     ...                         .map(lambda j: vds.PL[j])
     ...                         .min()))))
     >>> methods.split_multi(vds,
-    ...   lambda ctx: Struct(a_index=ctx['a_index'], was_split=ctx['was_split']),
+    ...   lambda ctx: Struct(a_index=ctx.a_index, was_split=ctx.was_split),
     ...   lambda ctx: functions.bind(calculate_pl(vds, ctx), lambda pl: Struct(
-    ...       GT=functions.downcode(vds.GT, ctx['a_index']),
+    ...       GT=functions.downcode(vds.GT, ctx.a_index),
     ...       AD=functions.or_missing(functions.is_defined(vds.AD),
-    ...              [vds.AD.sum() - vds.AD[ctx['a_index']], vds.AD[ctx['a_index']]]),
+    ...              [vds.AD.sum() - vds.AD[ctx.a_index], vds.AD[ctx.a_index]]),
     ...       DP=vds.DP,
     ...       PL=pl,
     ...       GQ=functions.gq_from_pl(pl)
@@ -1757,14 +1757,14 @@ def split_multi(ds, update_row, update_entry, keep_star=False, left_aligned=Fals
     """
 
     def make_ctx(ds):
-        return {
-            "new_v": construct_reference(
+        return Struct(
+            new_v=construct_reference(
                 "newV", type=TVariant(), indices=ds._row_indices),
-            "a_index": construct_reference(
+            a_index=construct_reference(
                 "aIndex", type=TInt32(), indices=ds._row_indices),
-            "was_split": construct_reference(
+            was_split=construct_reference(
                 "wasSplit", type=TBoolean(), indices=ds._row_indices)
-        }
+        )
 
     new_row_fields = update_row(make_ctx(ds))
     ds, _ = ds._process_joins(new_row_fields)
@@ -1931,16 +1931,16 @@ hint: Use `split_multi` to split entries with a non-HTS genotype schema.
            functions.is_defined(ds.PL),
            (functions.range(0, 3)
             .map(lambda i: (functions.range(0, ds.PL.length())
-                            .filter(lambda j: functions.downcode(functions.call(j), ctx['a_index']) == functions.call(i))
+                            .filter(lambda j: functions.downcode(functions.call(j), ctx.a_index) == functions.call(i))
                             .map(lambda j: ds.PL[j])
                             .min()))))
     return split_multi(
         ds,
-        lambda ctx: Struct(a_index=ctx['a_index'], was_split=ctx['was_split']),
+        lambda ctx: Struct(a_index=ctx.a_index, was_split=ctx.was_split),
         lambda ctx: functions.bind(calculate_pl(ds, ctx), lambda pl: Struct(
-            GT=functions.downcode(ds.GT, ctx['a_index']),
+            GT=functions.downcode(ds.GT, ctx.a_index),
             AD=functions.or_missing(functions.is_defined(ds.AD),
-                                    [ds.AD.sum() - ds.AD[ctx['a_index']], ds.AD[ctx['a_index']]]),
+                                    [ds.AD.sum() - ds.AD[ctx.a_index], ds.AD[ctx.a_index]]),
             DP=ds.DP,
             PL=pl,
             GQ=functions.gq_from_pl(pl)

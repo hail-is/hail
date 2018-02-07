@@ -2402,6 +2402,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
 
     if (overwrite)
+
       hadoopConf.delete(dirname, recursive = true)
     else if (hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
