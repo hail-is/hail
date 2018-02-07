@@ -184,18 +184,24 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .subsetPartitions((0 to idxLast).toArray)
   }
   
-  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long): Array[Long] = {
+  def writePartitions(path: String,
+    write: (Int, Iterator[T], OutputStream) => Long,
+    mapPartitionIDs: Option[Array[Int]] = None,
+    nPartsForString: Option[Int] = None): Array[Long] = {
+    
     val sc = r.sparkContext
     val hadoopConf = sc.hadoopConfiguration
     
     hadoopConf.mkDir(path + "/parts")
     
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
+    val mapPartitionIDsBc = sc.broadcast(mapPartitionIDs)
     
     val nPartitions = r.getNumPartitions
-    val d = digitsNeeded(nPartitions)
+    val d = digitsNeeded(nPartsForString.getOrElse(nPartitions))
 
-    val partitionCounts = r.mapPartitionsWithIndex { case (i, it) =>
+    val partitionCounts = r.mapPartitionsWithIndex { case (index, it) =>
+      val i = mapPartitionIDsBc.value.map(_(index)).getOrElse(index)
       val is = i.toString
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
