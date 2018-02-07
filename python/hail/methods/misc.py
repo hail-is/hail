@@ -131,7 +131,7 @@ def require_variant(dataset, method):
     #     raise TypeError("Method '{}' requires row keys 'locus' (Locus) and 'alleles' (Array[String])\n"
     #                     "  Found:{}".format(method, ''.join(
     #         "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
-    return true
+    return dataset
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)

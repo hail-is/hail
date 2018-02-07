@@ -1,6 +1,5 @@
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.tablify import tablify
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix, GenomeReference
 from hail.genetics.ldMatrix import LDMatrix
@@ -8,7 +7,7 @@ from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
-from .misc import require_biallelic
+from .misc import require_biallelic, require_variant
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
@@ -110,7 +109,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
            female_threshold=numeric,
            male_threshold=numeric,
            aaf=nullable(strlike))
-def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
+def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
     """Impute sex of samples by calculating inbreeding coefficient on the X
     chromosome.
 
@@ -203,32 +202,34 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     ds = call._indices.source
     ds, _ = ds._process_joins(call)
-    ds.annotate_rows(call = call)
+    ds = ds.annotate_entries(call = call)
     ds = require_biallelic(ds, 'impute_sex')
     ds = require_variant(ds, 'impute_sex')
-    locus = ds.row_key[0]
-    gr = ds[locus].dtype.reference_genome
+    def locus(ds):
+        # FIXME use keys
+        return ds.v.locus() # ds[ds.row_key[0]]
+    gr = locus(ds).dtype.reference_genome
 
     if (aaf is None):
         ds = ds.annotate_rows(
-            aaf=(agg.sum(call._.num_alt_alleles()).to_float64() /
-                 agg.count_where(f.is_defined(call._)) / 2))
+            aaf=(agg.sum(ds.call.num_alt_alleles()).to_float64() /
+                 agg.count_where(f.is_defined(ds.call)) / 2))
         aaf = 'aaf'
 
     # FIXME: filter_intervals
-    ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(ds[locus].contig))
+    ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(locus(ds).contig))
 
     if (not include_par):
-        ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(ds[locus])),
+        ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(locus(ds))),
                             keep=False)
 
     ds = ds.filter_rows(ds[aaf] > aaf_threshold)
     ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds[aaf]))
     kt = ds.select_cols(
         *ds.col_key,
-        is_female=f.cond(ds.ib.Fstat < female_threshold,
+        is_female=f.cond(ds.ib.f_stat < female_threshold,
                          True,
-                         f.cond(ds.ib.Fstat > male_threshold,
+                         f.cond(ds.ib.f_stat > male_threshold,
                                 False,
                                 f.null(TBoolean()))),
         **ds.ib).cols_table()

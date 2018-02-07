@@ -119,7 +119,7 @@ class Tests(unittest.TestCase):
 
         sex = sex.select(s=sex.s,
                          is_female=sex.is_female,
-                         f_stat=sex.Fstat)
+                         f_stat=sex.f_stat)
 
         self.assertTrue(plink_sex._same(sex, tolerance=1e-3))
 
