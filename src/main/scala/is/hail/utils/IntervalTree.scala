@@ -10,13 +10,12 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-// interval inclusive of start, exclusive of end: [start, end)
 case class Interval(start: Any, end: Any, includeStart: Boolean = true, includeEnd: Boolean = false) extends Serializable {
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
     val compareStart = pord.compare(position, start)
-    val compareEnd = pord.compare(end, position)
-    (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd > 0 || (includeEnd && compareEnd == 0))
+    val compareEnd = pord.compare(position, end)
+    (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
   }
 
   private def matchesEndpoint(pord: ExtendedOrdering, position: Any): Boolean = {
@@ -24,8 +23,8 @@ case class Interval(start: Any, end: Any, includeStart: Boolean = true, includeE
   }
 
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
-    (this.contains(pord, other.start) && (other.includeStart || this.matchesEndpoint(pord, other.start))) ||
-      (other.contains(pord, this.start) && (this.includeStart || other.matchesEndpoint(pord, this.start)))
+    (this.contains(pord, other.start) && (other.includeStart || !pord.equiv(this.end, other.start))) ||
+      (other.contains(pord, this.start) && (this.includeStart || !pord.equiv(other.end, this.start)))
   }
 
   // true indicates definitely-empty interval, but false does not guarantee
@@ -40,7 +39,8 @@ case class Interval(start: Any, end: Any, includeStart: Boolean = true, includeE
       "includeStart" -> TBoolean().toJSON(includeStart),
       "includeEnd" -> TBoolean().toJSON(includeEnd))
 
-  override def toString: String = start + "-" + end
+
+  override def toString: String = (if (includeStart) "[" else "(") + start + "-" + end + (if (includeEnd) "]" else ")")
 }
 
 object Interval {
@@ -68,7 +68,7 @@ object Interval {
       if (c2 != 0)
         return c2
       if (xi.includeEnd != yi.includeEnd)
-        if (xi.includeStart) -1 else 1
+        if (xi.includeEnd) 1 else -1
       else 0
     }
   }
@@ -118,7 +118,7 @@ object IntervalTree {
         if (c < 0 || (c == 0 && (interval.includeStart || tmp.includeEnd))) {
           tmp = if (pord.lt(interval.end, tmp.end))
             Interval(tmp.start, tmp.end, tmp.includeStart, tmp.includeEnd)
-          else if (pord.eq(interval.end, tmp.end))
+          else if (pord.equiv(interval.end, tmp.end))
             Interval(tmp.start, tmp.end, tmp.includeStart, tmp.includeEnd || interval.includeEnd)
           else
             Interval(tmp.start, interval.end, tmp.includeStart, interval.includeEnd)
@@ -168,7 +168,7 @@ case class IntervalTreeNode[U](i: Interval,
   minimum: Any, maximum: Any, value: U) extends Traversable[(Interval, U)] {
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    pord.lteq(position, maximum) && pord.gteq(position, minimum) &&
+    pord.gteq(position, minimum) && pord.lteq(position, maximum) &&
       (left.exists(_.contains(pord, position)) ||
         (pord.gteq(position, i.start) &&
           (i.contains(pord, position) ||
@@ -176,13 +176,13 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = {
-    pord.lteq(interval.start, maximum) && pord.gteq(interval.end, minimum) &&
+    pord.gteq(interval.end, minimum) && pord.lteq(interval.start, maximum) &&
       (left.exists(_.overlaps(pord, interval))) ||
       i.overlaps(pord, interval) || (right.exists(_.overlaps(pord, interval)))
   }
 
   def query(pord: ExtendedOrdering, b: mutable.Builder[Interval, _], position: Any) {
-    if (pord.lteq(position, maximum) && pord.gteq(position, minimum)) {
+    if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
       left.foreach(_.query(pord, b, position))
       if (pord.gteq(position, i.start)) {
         right.foreach(_.query(pord, b, position))
@@ -193,7 +193,7 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def queryValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], position: Any) {
-    if (pord.lteq(position, maximum) && pord.gteq(position, minimum)) {
+    if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
       left.foreach(_.queryValues(pord, b, position))
       if (pord.gteq(position, i.start)) {
         right.foreach(_.queryValues(pord, b, position))

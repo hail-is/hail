@@ -242,7 +242,34 @@ class IntervalSuite extends SparkSuite {
         val iTree = IntervalTree.apply(ord, Array(i1, i2))
         assert(iTree.contains(ord, 5) == (i1.includeEnd || i2.includeStart))
         assert(iTree.queryIntervals(ord, 5).length == (if (i1.includeEnd || i2.includeStart) 1 else 0))
+        assert(iTree.contains(ord, 1) == i1.includeStart)
+        assert(iTree.contains(ord, 10) == i2.includeEnd)
+
+        val i3 = Interval(2, 3, includeStart=s2, includeEnd=e2)
+        assert(i1.overlaps(ord, i3))
+        assert(i3.overlaps(ord, i1))
+
+        val i4 = Interval(1, 5, includeStart=s2, includeEnd=e2)
+        assert((Interval.ordering(ord).compare(i1, i4) < 0) == ((i1.includeStart && !i4.includeStart) || ((i1.includeStart == i4.includeStart) && i4.includeEnd && !i1.includeEnd)))
+        assert((Interval.ordering(ord).compare(i1, i4) == 0) == ((i1.includeStart == i4.includeStart) && (i4.includeEnd == i1.includeEnd)))
+        assert((Interval.ordering(ord).compare(i1, i4) > 0) == ((!i1.includeStart && i4.includeStart) || ((i1.includeStart == i4.includeStart) && !i4.includeEnd && i1.includeEnd)))
       }
     }
+
+    val itree = IntervalTree.apply(ord, Array(
+      Interval(1, 5, false, false),
+      Interval(1, 5, true, true),
+      Interval(10, 20, false, false),
+      Interval(10, 20, true, true)))
+    val itree2 = IntervalTree.apply(ord, Array(
+      Interval(1, 5, true, true),
+      Interval(10, 20, true, true)))
+    val pruned = new ArrayBuilder[Interval]()
+    val pruned2 = new ArrayBuilder[Interval]()
+    itree.foreach { case (interval, _) => pruned += interval}
+    itree2.foreach { case (interval, _) => pruned2 += interval}
+
+    assert(pruned.size == pruned2.size)
+    assert(pruned.result().zip(pruned2.result()).forall { case (i1, i2) => i1 == i2 })
   }
 }

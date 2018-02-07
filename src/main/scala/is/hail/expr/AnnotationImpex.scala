@@ -434,10 +434,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
           else
             s"${ i.start }-${ i.end }"
-          if (!i.includeStart || i.includeEnd)
-            s"${if (i.includeStart) "[" else "("}$bounds${if (i.includeEnd) "]" else ")"}"
-          else
-            bounds
+          s"${if (i.includeStart) "[" else "("}$bounds${if (i.includeEnd) "]" else ")"}"
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
         case _: TCall => Call.toString(a.asInstanceOf[Call])
