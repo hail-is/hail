@@ -22,35 +22,33 @@ import org.json4s._
 
 object BlockMatrix {
   type M = BlockMatrix
-  val defaultBlockSize: Int = 4096
+  val defaultBlockSize: Int = 1024
 
   def from(sc: SparkContext, lm: BDM[Double]): M =
     from(sc, lm, defaultBlockSize)
 
   def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
-    val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
-    val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
-      val (i, j) = gp.blockCoordinates(pi)
-      val (blockNRows, blockNCols) = gp.blockDims(pi)
-      val iOffset = i * blockSize
-      val jOffset = j * blockSize
-      
-      sc.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
-    }
-    
-    val blocks = new RDD[((Int, Int), BDM[Double])](sc, Nil) {
-      override val partitioner = Some(gp)
+    val part = GridPartitioner(blockSize, lm.rows, lm.cols)
+    val lmBc = sc.broadcast(lm)
+    new BlockMatrix(
+    new RDD[((Int, Int), BDM[Double])](sc, Nil) {
+      override val partitioner = Some(part)
 
-      def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(i => IntPartition(i))
+      def getPartitions: Array[Partition] = Array.tabulate(part.numPartitions)(i => IntPartition(i))
 
       def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-        val pi = split.index
-        Iterator((gp.blockCoordinates(pi), localBlocksBc(split.index).value))
+        val (i, j) = part.blockCoordinates(split.index)
+        val iOffset = i * blockSize
+        val jOffset = j * blockSize
+        val (blockNRows, blockNCols) = part.blockDims(split.index)
+        // FIXME return slice when write supports sliced blocks
+        val b = new BDM[Double](blockNRows, blockNCols)
+        b := lmBc.value(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
+        Iterator(((i, j), b))
       }
-    }
-    
-    new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
+    },
+    blockSize, lm.rows, lm.cols)
   }
 
   def from(irm: IndexedRowMatrix): M =
@@ -302,9 +300,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       assert(it.hasNext)
       var bdm = it.next()._2
       assert(!it.hasNext)
-       
+ 
+      if (forceRowMajor)
+        bdm = bdm.forceRowMajor()
+      
       val dos = new DataOutputStream(os)
-      bdm.write(dos, forceRowMajor)
+      bdm.write(dos)
       dos.close()
 
       1
@@ -991,8 +992,7 @@ case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) 
 class WriteBlocksRDD(path: String,
   rvd: RVD,
   sc: SparkContext,
-  rvRowType: TStruct,
-  sampleIdsBc: Broadcast[IndexedSeq[Annotation]],
+  matrixType: MatrixType,
   sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]],
   parentPartStarts: Array[Long],
   f: () => java.lang.Double,
@@ -1071,7 +1071,9 @@ class WriteBlocksRDD(path: String,
 
     val bytes = new Array[Byte](blockSize << 3)
 
-    val ur = new UnsafeRow(rvRowType)
+    val entriesIndex = matrixType.entriesIdx
+    val fullRow = new UnsafeRow(matrixType.rvRowType)
+    val row = fullRow.delete(entriesIndex)
 
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
@@ -1089,21 +1091,19 @@ class WriteBlocksRDD(path: String,
       var i = 0
       while (it.hasNext && i < nRowsInBlock) {
         val rv = it.next()
-        ur.set(rv)
-        ec.set(1, ur.get(1))
-        ec.set(2, ur.get(2))
-        val gs = ur.getAs[IndexedSeq[Any]](3)
+        fullRow.set(rv)
+        ec.set(1, row)
+        val gs = fullRow.getAs[IndexedSeq[Any]](entriesIndex)
         var blockCol = 0
         var sampleIndex = 0
         while (blockCol < gp.nBlockCols) {
           val n = gp.blockColNCols(blockCol)
           var j = 0
           while (j < n) {
-            ec.set(3, sampleIdsBc.value(sampleIndex))
-            ec.set(4, sampleAnnotationsBc.value(sampleIndex))
-            ec.set(5, gs(sampleIndex))
+            ec.set(2, sampleAnnotationsBc.value(sampleIndex))
+            ec.set(3, gs(sampleIndex))
             f() match {
-              case null => fatal(s"Entry expr must be non-missing. Found missing value for sample ${ sampleIdsBc.value(j) } and variant ${ ur.get(1) }")
+              case null => fatal(s"Entry expr must be non-missing. Found missing value for col $j and row $row}")
               case t => Memory.storeDouble(bytes, j << 3, t.toDouble)
             }
             sampleIndex += 1

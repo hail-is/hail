@@ -43,8 +43,6 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(gr.variantOrdering)
 
-  override val partitionKey: Type = TLocus(gr)
-
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
     val fundamentalComparators = representation.fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray

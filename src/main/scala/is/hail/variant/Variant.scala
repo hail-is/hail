@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Annotation, Region, RegionValue}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.types._
 import is.hail.utils._
@@ -96,6 +96,13 @@ object Variant {
   def fromRegionValue(rv: RegionValue): Variant =
     fromRegionValue(rv.region, rv.offset)
 
+  def variantID(contig: String, start: Int, alleles: IndexedSeq[String]): String = {
+    require(alleles.length >= 2)
+    s"$contig:$start:${alleles(0)}:${alleles.tail.mkString(",")}"
+  }
+
+  def variantID(view: RegionValueVariant): String = variantID(view.contig(), view.position(), view.alleles())
+
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
     nAlleles * (nAlleles + 1) / 2
@@ -120,6 +127,13 @@ object Variant {
       r.getSeq[Row](3)
         .map(s => AltAllele.fromRow(s))
         .toArray)
+
+  def fromLocusAlleles(a: Annotation): Variant = {
+    val r = a.asInstanceOf[Row]
+    val l = r.getAs[Locus](0)
+    val alleles = r.getAs[IndexedSeq[String]](1)
+    Variant(l.contig, l.position, alleles(0), alleles.tail.map(x => AltAllele(alleles(0), x)))
+  }
 
   def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
     sc.textFileLines(input)
@@ -305,4 +319,17 @@ case class Variant(contig: String,
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 
   override def minRep: Variant = super.minRep.asInstanceOf[Variant]
+
+  def toLocusAlleles: Row = Row(locus, IndexedSeq(ref) ++ altAlleles.map(_.alt))
+
+  def alleles: IndexedSeq[String] = {
+    val a = new Array[String](nAlleles)
+    a(0) = ref
+    var i = 1
+    while (i < a.length) {
+      a(i) = altAlleles(i - 1).alt
+      i += 1
+    }
+    a
+  }
 }

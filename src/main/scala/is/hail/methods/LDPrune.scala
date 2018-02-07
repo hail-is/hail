@@ -2,7 +2,7 @@ package is.hail.methods
 
 import java.util
 
-import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
@@ -15,16 +15,14 @@ import org.apache.spark.sql.Row
 object BitPackedVectorView {
   val bpvEltSize = TInt64Required.byteSize
 
-  def rvRowType(rpkTyp: Type, rkTyp: Type): TStruct = TStruct("pk" -> rpkTyp, "v" -> rkTyp,
+  def rvRowType(locusType: Type, allelesType: Type): TStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "sd" -> TFloat64Required)
 }
 
 class BitPackedVectorView(rvRowType: TStruct) {
-  val vView = new RegionValueVariant(rvRowType.fieldType(1).asInstanceOf[TVariant])
+  val vView = new RegionValueVariant(rvRowType)
 
   // All types are required!
-  private val pkIndex = 0
-  private val vIndex = 1
   private val bpvIndex = 2
   private val nSamplesIndex = 3
   private val meanIndex = 4
@@ -41,7 +39,6 @@ class BitPackedVectorView(rvRowType: TStruct) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    vOffset = rvRowType.loadField(m, offset, vIndex)
     bpvOffset = rvRowType.loadField(m, offset, bpvIndex)
     bpvLength = TArray(TInt64Required).loadLength(m, bpvOffset)
     bpvEltOffset = TArray(TInt64Required).elementOffset(bpvOffset, bpvLength, 0)
@@ -58,7 +55,7 @@ class BitPackedVectorView(rvRowType: TStruct) {
 
   def getContig: String = vView.contig()
 
-  def getStart: Int = vView.start()
+  def getStart: Int = vView.position()
 
   def getPack(idx: Int): Long = {
     if (idx < 0 || idx >= bpvLength)
@@ -427,11 +424,9 @@ object LDPrune {
     if (windowSize < 0)
       fatal(s"Window size must be greater than or equal to 0. Found `$windowSize'.")
 
-    assert(vsm.vSignature.isInstanceOf[TVariant])
-
     val nVariantsInitial = vsm.countVariants()
     val nPartitionsInitial = vsm.nPartitions
-    val nSamples = vsm.nSamples
+    val nSamples = vsm.numCols
 
     val minMemoryPerCore = math.ceil((1d / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, nCores, memoryPerCore)
@@ -441,15 +436,18 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
-    val localRowType = vsm.rvRowType
+    val localRVType = vsm.rvRowType
 
-    val bpvType = BitPackedVectorView.rvRowType(vsm.vSignature.partitionKey, vsm.vSignature)
+    val bpvType = BitPackedVectorView.rvRowType(vsm.rowKeyTypes(0), vsm.rowKeyTypes(1))
 
-    val typ = vsm.rdd2.typ
+    val locusIndex = vsm.rowType.fieldIdx("locus")
+    val allelesIndex = vsm.rowType.fieldIdx("alleles")
 
-    val standardizedRDD = vsm.rdd2
+    val typ = vsm.rvd.typ
+
+    val standardizedRDD = vsm.rvd
       .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
-        val hcView = HardCallView(localRowType)
+        val hcView = HardCallView(localRVType)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         val rv2 = RegionValue(region)
@@ -460,8 +458,8 @@ object LDPrune {
           rvb.set(region)
           rvb.start(bpvType)
           rvb.startStruct()
-          rvb.addField(localRowType, rv, 0) // l
-          rvb.addField(localRowType, rv, 1) // v
+          rvb.addField(localRVType, rv, locusIndex)
+          rvb.addField(localRVType, rv, allelesIndex)
 
           val keep = addBitPackedVector(rvb, hcView, nSamples) // add bit packed genotype vector with metadata
 
@@ -501,6 +499,6 @@ object LDPrune {
     val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
     info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
-    vsm.copy2(rdd2 = vsm.rdd2.copy(rdd = vsm.rdd2.orderedJoinDistinct(globalPrunedRDD, "inner").map(_.rvLeft)))
+    vsm.copy2(rvd = vsm.rvd.copy(rdd = vsm.rvd.orderedJoinDistinct(globalPrunedRDD, "inner").map(_.rvLeft)))
   }
 }

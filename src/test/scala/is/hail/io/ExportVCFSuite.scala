@@ -27,32 +27,6 @@ class ExportVCFSuite extends SparkSuite {
       tolerance = 1e-3))
   }
 
-  @Test def testSameAsOrigNoCompression() {
-    val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = tmpDir.createTempFile("export", "vcf")
-    val outFile2 = tmpDir.createTempFile("export2", "vcf")
-
-    val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
-
-    ExportVCF(vdsOrig, outFile)
-
-    val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
-
-    assert(vdsOrig.same(vdsNew))
-
-    val infoType = vdsNew.vaSignature.getAsOption[TStruct]("info").get
-    val infoSize = infoType.size
-    val toAdd = Annotation.fromSeq(Array.fill[Any](infoSize)(null))
-    val (newVASignature, inserter) = vdsNew.insertVA(infoType, "info")
-
-    val vdsNewMissingInfo = vdsNew.mapAnnotations(newVASignature,
-      (v, va, gs) => inserter(va, toAdd))
-
-    ExportVCF(vdsNewMissingInfo, outFile2)
-
-    assert(hc.importVCF(outFile2).same(vdsNewMissingInfo, 1e-2))
-  }
-
   @Test def testSorted() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val outFile = tmpDir.createTempFile("sort", "vcf.bgz")
@@ -150,7 +124,7 @@ class ExportVCFSuite extends SparkSuite {
     // cast Long to Int
     val out = tmpDir.createTempFile("out", "vcf")
     ExportVCF(vds
-      .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
+      .annotateVariantsExpr("info.AC_pass = gs.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
         "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()) >= 0.2 ) )).count()"),
       out)
 
@@ -168,10 +142,10 @@ class ExportVCFSuite extends SparkSuite {
     val out2 = tmpDir.createTempFile("out2", "vcf")
     ExportVCF(vds
       .annotateVariantsExpr(
-        "va.info.array = [\"foo\", \"bar\"]," +
-          "va.info.set = [4, 5].toSet, " +
-          "va.info.float = let x = 5.0 in x.toFloat64(), " +
-          "va.info.bool = true"), out2)
+        "info.array = [\"foo\", \"bar\"]," +
+          "info.set = [4, 5].toSet, " +
+          "info.float = let x = 5.0 in x.toFloat64(), " +
+          "info.bool = true"), out2)
 
     hadoopConf.readFile(out2) { in =>
       Source.fromInputStream(in)
@@ -201,37 +175,37 @@ class ExportVCFSuite extends SparkSuite {
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("va.info.foo = [[1]]"),
+        .annotateVariantsExpr("info.foo = [[1]]"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("va.info.foo = [Call(3)]"),
+        .annotateVariantsExpr("info.foo = [Call(3)]"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("va.info.foo = v"),
+        .annotateVariantsExpr("info.foo = va.locus"),
         out)
     }
 
     TestUtils.interceptSpark("Cannot convert Long to Int") {
       ExportVCF(vds
-        .annotateVariantsExpr("va.info.foo = 2147483648L"),
+        .annotateVariantsExpr("info.foo = 2147483648L"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("va.info.foo = [true]"),
+        .annotateVariantsExpr("info.foo = [true]"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("va.info.foo = {INT: 5}"),
+        .annotateVariantsExpr("info.foo = {INT: 5}"),
         out)
     }
 
@@ -250,7 +224,7 @@ class ExportVCFSuite extends SparkSuite {
 
   @Test def testInfoFieldSemicolons() {
     val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
-      .annotateVariantsExpr("va.info = {foo: 5, bar: NA: Int}")
+      .annotateVariantsExpr("info = {foo: 5, bar: NA: Int}")
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)

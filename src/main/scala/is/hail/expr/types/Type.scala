@@ -104,15 +104,6 @@ object Type {
   implicit def arbType = Arbitrary(genArb)
 
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
-
-  def partitionKeyProjection(vType: Type): (Type, (Annotation) => Annotation) = {
-    vType match {
-      case t: TVariant =>
-        (t.gr.locusType, (v: Annotation) => v.asInstanceOf[Variant].locus)
-      case _ =>
-        (vType, (a: Annotation) => a)
-    }
-  }
 }
 
 abstract class Type extends BaseType with Serializable {
@@ -231,8 +222,6 @@ abstract class Type extends BaseType with Serializable {
   def canCompare(other: Type): Boolean = this == other
 
   val ordering: ExtendedOrdering
-
-  val partitionKey: Type = this
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)

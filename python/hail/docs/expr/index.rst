@@ -16,7 +16,6 @@ language. It contains three submodules:
     functions <functions>
     aggregators <aggregators>
     types <types>
-    utils <utils>
 
 In addition, the following functions are provided as learning tools:
 

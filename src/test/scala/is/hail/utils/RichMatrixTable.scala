@@ -3,8 +3,9 @@ package is.hail.utils
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
 import is.hail.expr.{EvalContext, MatrixLocalValue, Parser}
 import is.hail.expr.types._
-import is.hail.variant.MatrixTable
+import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 
@@ -42,10 +43,8 @@ class RichMatrixTable(vsm: MatrixTable) {
     vsm.annotateSamples(t, i) { case (_, i) => annotation(sampleIds(i)) }
   }
 
-  def insertVA(sig: Type, args: String*): (Type, Inserter) = vsm.insertVA(sig, args.toList)
-
   def querySA(code: String): (Type, Querier) = {
-    val st = Map(Annotation.SAMPLE_HEAD -> (0, vsm.saSignature))
+    val st = Map(Annotation.SAMPLE_HEAD -> (0, vsm.colType))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -60,7 +59,7 @@ class RichMatrixTable(vsm: MatrixTable) {
   }
 
   def queryGA(code: String): (Type, Querier) = {
-    val st = Map(Annotation.GENOTYPE_HEAD -> (0, vsm.genotypeSignature))
+    val st = Map(Annotation.GENOTYPE_HEAD -> (0, vsm.entryType))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -74,16 +73,24 @@ class RichMatrixTable(vsm: MatrixTable) {
     (t, f2)
   }
 
-  def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.sampleAnnotations)
+  def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues)
 
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
-    val localRowType = vsm.rvRowType
-    vsm.rdd2.rdd.map { rv =>
-      val ur = new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
-      val v = ur.get(1)
-      val va = ur.get(2)
-      val gs = ur.getAs[IndexedSeq[Any]](3)
-      (v, (va, gs))
+    val localRVType = vsm.rvRowType
+    val localEntriesIndex = vsm.entriesIndex
+    val rowKeyF = vsm.rowKeysF
+    vsm.rvd.rdd.map { rv =>
+      val rvc = rv.copy()
+      val fullRow = new UnsafeRow(localRVType, rvc)
+      val row = fullRow.delete(localEntriesIndex)
+      (rowKeyF(fullRow), (row, fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)))
+    }
+  }
+
+  def variantRDD: RDD[(Variant, (Annotation, Iterable[Annotation]))] = {
+    rdd.map { case (v, (va, gs)) =>
+
+      Variant.fromLocusAlleles(v) -> (va, gs)
     }
   }
 
@@ -93,33 +100,8 @@ class RichMatrixTable(vsm: MatrixTable) {
     }
   }
 
-  def variants: RDD[Annotation] = rdd.keys
+  def variants: RDD[Variant] = variantRDD.keys
 
-  def variantsAndAnnotations: RDD[(Annotation, Annotation)] =
-    rdd.mapValuesWithKey { case (v, (va, gs)) => va }
-
-  def copy(rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = rdd,
-    sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
-    globalAnnotation: Annotation = vsm.globalAnnotation,
-    saSignature: TStruct = vsm.saSignature,
-    vSignature: Type = vsm.vSignature,
-    vaSignature: TStruct = vsm.vaSignature,
-    globalSignature: TStruct = vsm.globalSignature,
-    genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
-    MatrixTable.fromLegacy(vsm.hc,
-      MatrixType(globalSignature, saSignature, Array("s"), vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd)
-
-  def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
-    sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
-    globalAnnotation: Annotation = vsm.globalAnnotation,
-    saSignature: TStruct = vsm.saSignature,
-    vSignature: Type = vsm.vSignature,
-    vaSignature: TStruct = vsm.vaSignature,
-    globalSignature: TStruct = vsm.globalSignature,
-    genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
-    MatrixTable.fromLegacy(vsm.hc,
-      MatrixType(globalSignature, saSignature, Array("s"), vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleAnnotations),
-      rdd)
+  def variantsAndAnnotations: RDD[(Variant, Annotation)] =
+    variantRDD.map { case (v, (va, gs)) => (v, va) }
 }

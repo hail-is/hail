@@ -13,8 +13,6 @@ Functions
     chisq
     combine_variants
     cond
-    switch
-    case
     bind
     ctt
     dbeta
@@ -24,7 +22,6 @@ Functions
     exp
     fisher_exact_test
     gt_index
-    gp_dosage
     hardy_weinberg_p
     index
     parse_locus
@@ -78,8 +75,6 @@ Functions
 .. autofunction:: chisq
 .. autofunction:: combine_variants
 .. autofunction:: cond
-.. autofunction:: switch
-.. autofunction:: case
 .. autofunction:: bind
 .. autofunction:: ctt
 .. autofunction:: dbeta
@@ -88,7 +83,6 @@ Functions
 .. autofunction:: drop
 .. autofunction:: exp
 .. autofunction:: fisher_exact_test
-.. autofunction:: gp_dosage
 .. autofunction:: gt_index
 .. autofunction:: hardy_weinberg_p
 .. autofunction:: index

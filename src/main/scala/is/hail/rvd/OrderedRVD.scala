@@ -21,29 +21,19 @@ class OrderedRVD private(
   self =>
   def rowType: TStruct = typ.rowType
 
-  def insert[PC](newContext: () => PC)(typeToInsert: Type,
-    path: List[String],
-    // rv argument to add is the entire row
-    add: (PC, RegionValue, RegionValueBuilder) => Unit): OrderedRVD = {
-    val localTyp = typ
+  // should be totally generic, permitting any number of keys, but that requires more work
+  def downcastToPK(): OrderedRVD = {
+    val newType = new OrderedRVType(partitionKey = typ.partitionKey,
+      key = typ.partitionKey,
+      rowType = rowType)
+    OrderedRVD(newType, partitioner, rdd)
+  }
 
-    val (insTyp, inserter) = typ.insert(typeToInsert, path)
-    OrderedRVD(insTyp,
-      partitioner,
-      rdd.mapPartitions { it =>
-        val c = newContext()
-        val rv2b = new RegionValueBuilder()
-        val rv2 = RegionValue()
-
-        it.map { rv =>
-          val ur = new UnsafeRow(localTyp.rowType, rv)
-          rv2b.set(rv.region)
-          rv2b.start(insTyp.rowType)
-          inserter(rv.region, rv.offset, rv2b, () => add(c, rv, rv2b))
-          rv2.set(rv.region, rv2b.end())
-          rv2
-        }
-      })
+  def upcast(castKeys: Array[String]): OrderedRVD = {
+    val newType = new OrderedRVType(partitionKey = typ.partitionKey,
+      key = typ.key ++ castKeys,
+      rowType = rowType)
+    OrderedRVD(newType, partitioner, rdd)
   }
 
   def mapPreservesPartitioning(newTyp: OrderedRVType)(f: (RegionValue) => RegionValue): OrderedRVD =
@@ -107,7 +97,7 @@ class OrderedRVD private(
     val lTyp = typ
     val rTyp = right.typ
 
-    if (lTyp.kType != rTyp.kType)
+    if (!lTyp.kType.fieldType.sameElements(rTyp.kType.fieldType))
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
            | Left key type: ${ lTyp.kType.toString }
@@ -686,6 +676,7 @@ object OrderedRVD {
 
     new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
       val prevK = WritableRegionValue(typ.kType)
+      val anotherK = WritableRegionValue(typ.kType)
       val prevPK = WritableRegionValue(typ.pkType)
 
       new Iterator[RegionValue] {
@@ -708,7 +699,8 @@ object OrderedRVD {
           if (first)
             first = false
           else {
-            assert(typ.kRowOrd.compare(prevK.value, rv) <= 0)
+            anotherK.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
+            assert(typ.kRowOrd.compare(prevK.value, rv) <= 0, s"violation:\nold: ${new UnsafeRow(typ.kType, prevK.value)}\nnew: ${new UnsafeRow(typ.kType, anotherK.value)}")
             assert(typ.pkRowOrd.compare(prevPK.value, rv) <= 0)
           }
 

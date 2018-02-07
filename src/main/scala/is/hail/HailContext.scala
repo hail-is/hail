@@ -318,7 +318,8 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of variants in all GEN files: $nVariants")
     info(s"Number of samples in GEN files: $nSamples")
 
-    val signature = TStruct("rsid" -> TString(), "varid" -> TString())
+    val signature = TStruct("v" -> TVariant(gr),
+      "rsid" -> TString(), "varid" -> TString())
 
     val rdd = sc.union(results.map(_.rdd))
 

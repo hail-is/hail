@@ -90,26 +90,6 @@ class TextTableSuite extends SparkSuite {
       "qPhen" -> TInt32()))
   }
 
-  @Test def testAnnotationsReadWrite() {
-    val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
-    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: MatrixTable =>
-
-      GenomeReference.addReference(vds.genomeReference)
-      vds.variantsKT().export(outPath, typesFile = outPath + ".types")
-
-      val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
-
-      val kt = hc.importTable(outPath, types = types).keyBy("v")
-      val isSame = vds.annotateVariantsTable(kt, expr = "va = table.va").same(vds)
-
-      GenomeReference.removeReference(vds.genomeReference.name)
-      isSame
-    }
-
-    p.check()
-  }
-
   @Test def testPipeDelimiter() {
     assert(TextTableReader.splitLine("a|b", "|", '#').toSeq == Seq("a", "b"))
   }

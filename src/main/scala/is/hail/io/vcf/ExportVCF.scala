@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Genotype, MatrixTable, Variant}
+import is.hail.variant.{Genotype, MatrixTable, RegionValueVariant, Variant}
 
 import scala.io.Source
 
@@ -205,7 +205,7 @@ object ExportVCF {
     vsm.requireColKeyString("export_vcf")
     vsm.requireRowKeyVariant("export_vcf")
     
-    val tg = vsm.genotypeSignature match {
+    val tg = vsm.entryType match {
       case t: TStruct => t
       case t =>
         fatal(s"export_vcf requires g to have type TStruct, found $t")
@@ -219,29 +219,23 @@ object ExportVCF {
     }
     val formatFieldString = formatFieldOrder.map(i => tg.fields(i).name).mkString(":")
 
-    val tva = vsm.vaSignature match {
-      case t: TStruct => t.asInstanceOf[TStruct]
-      case _ =>
-        warn(s"export_vcf found va of type ${ vsm.vaSignature }, but expected type TStruct. " +
-          "Emitting missing RSID, QUAL, and INFO.")
-        TStruct.empty()
-    }
-    
     val tinfo =
-      if (tva.hasField("info")) {
-        tva.field("info").typ match {
+      if (vsm.rowType.hasField("info")) {
+        vsm.rowType.field("info").typ match {
           case t: TStruct => t.asInstanceOf[TStruct]
           case t =>
-            warn(s"export_vcf found va.info of type $t, but expected type TStruct. Emitting missing INFO.")
+            warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
             TStruct.empty()
         }
-      } else
+      } else {
+        warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
         TStruct.empty()
-    
+      }
+
     val gr = vsm.genomeReference
     val assembly = gr.name
     
-    val localNSamples = vsm.nSamples
+    val localNSamples = vsm.numCols
     val hasSamples = localNSamples > 0
 
     def header: String = {
@@ -321,17 +315,17 @@ object ExportVCF {
       }
       sb.result()
     }
-    
-    val fieldIdx = tva.fieldIdx
-    
+
+    val fieldIdx = vsm.rowType.fieldIdx
+
     def lookupVAField(fieldName: String, vcfColName: String, expectedTypeOpt: Option[Type]): (Boolean, Int) = {
       fieldIdx.get(fieldName) match {
         case Some(idx) =>
-          val t = tva.fields(idx).typ
+          val t = vsm.rowType.fieldType(idx)
           if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
             (true, idx)
           else {
-            warn(s"export_vcf found va.$fieldName with type `$t', but expected type ${ expectedTypeOpt.get }. " +
+            warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${ expectedTypeOpt.get }. " +
               s"Emitting missing $vcfColName.")
             (false, 0)
           }
@@ -344,52 +338,49 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
-    val localRowType = vsm.rvRowType
-    val tgs = localRowType.fields(3).typ.asInstanceOf[TArray]
-    
-    vsm.rdd2.mapPartitions { it =>
+    val localRVType = vsm.rvRowType
+    val localEntriesIndex = vsm.entriesIndex
+    val localEntriesType = vsm.matrixType.entryArrayType
+
+    vsm.rvd.mapPartitions { it =>
       val sb = new StringBuilder
       var m: Region = null
-      
+
+      val rvv = new RegionValueVariant(localRVType)
       it.map { rv =>
         sb.clear()
 
         m = rv.region
-        
-        val vOffset = localRowType.loadField(m, rv.offset, 1)
-        val vaOffset = localRowType.loadField(m, rv.offset, 2)
-        val gsOffset = localRowType.loadField(m, rv.offset, 3)
-        
-        val v = Variant.fromRegionValue(m, vOffset)
-        
-        sb.append(v.contig)
+        rvv.setRegion(rv)
+
+        sb.append(rvv.contig())
         sb += '\t'
-        sb.append(v.start)
+        sb.append(rvv.position())
         sb += '\t'
   
-        if (idExists && tva.isFieldDefined(m, vaOffset, idIdx)) {
-          val idOffset = tva.loadField(m, vaOffset, idIdx)
+        if (idExists && localRVType.isFieldDefined(rv, idIdx)) {
+          val idOffset = localRVType.loadField(rv, idIdx)
           sb.append(TString.loadString(m, idOffset))
         } else
           sb += '.'
   
         sb += '\t'
-        sb.append(v.ref)
+        sb.append(rvv.alleles()(0))
         sb += '\t'
-        v.altAlleles.foreachBetween(aa =>
-          sb.append(aa.alt))(sb += ',')
+        rvv.alleles().tail.foreachBetween(aa =>
+          sb.append(aa))(sb += ',')
         sb += '\t'
 
-        if (qualExists && tva.isFieldDefined(m, vaOffset, qualIdx)) {
-          val qualOffset = tva.loadField(m, vaOffset, qualIdx)
+        if (qualExists && localRVType.isFieldDefined(rv, qualIdx)) {
+          val qualOffset = localRVType.loadField(rv, qualIdx)
           sb.append(m.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
         
         sb += '\t'
         
-        if (filtersExists && tva.isFieldDefined(m, vaOffset, filtersIdx)) {
-          val filtersOffset = tva.loadField(m, vaOffset, filtersIdx)
+        if (filtersExists && localRVType.isFieldDefined(rv, filtersIdx)) {
+          val filtersOffset = localRVType.loadField(rv, filtersIdx)
           val filtersLength = TSet(TString()).loadLength(m, filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
@@ -397,13 +388,13 @@ object ExportVCF {
             iterableVCF(sb, TSet(TString()), m, filtersLength, filtersOffset)
         } else
           sb += '.'
-  
+
         sb += '\t'
         
         var wroteAnyInfo: Boolean = false
-        if (infoExists && tva.isFieldDefined(m, vaOffset, infoIdx)) {
+        if (infoExists && localRVType.isFieldDefined(rv, infoIdx)) {
           var wrote: Boolean = false
-          val infoOffset = tva.loadField(m, vaOffset, infoIdx)          
+          val infoOffset = localRVType.loadField(rv, infoIdx)
           var i = 0
           while (i < tinfo.size) {
             if (tinfo.isFieldDefined(m, infoOffset, i)) {
@@ -419,12 +410,13 @@ object ExportVCF {
         if (hasSamples) {
           sb += '\t'
           sb.append(formatFieldString)
-          
+
+          val gsOffset = localRVType.loadField(rv, localEntriesIndex)
           var i = 0
           while (i < localNSamples) {
             sb += '\t'
-            if (tgs.isElementDefined(m, gsOffset, i))
-              emitGenotype(sb, formatFieldOrder, tg, m, tgs.loadElement(m, gsOffset, localNSamples, i))
+            if (localEntriesType.isElementDefined(m, gsOffset, i))
+              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i))
             else
               sb.append("./.")
 

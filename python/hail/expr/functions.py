@@ -2,7 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics import Variant, Locus, Call, GenomeReference
+from hail.genetics import Locus, Call, GenomeReference
 
 
 def _func(name, ret_type, *args):
@@ -170,78 +170,16 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    t = unify_types_limited(consequent._type, alternate._type)
-    if not t:
-        raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
-                        "    consequent: type {}\n"
-                        "    alternate:  type {}".format(consequent._type, alternate._type))
+    if is_numeric(consequent._type) and is_numeric(alternate._type):
+        t = unify_types(consequent._type, alternate._type)
+    else:
+        if not consequent._type == alternate._type:
+            raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+                            "    consequent: type {}\n"
+                            "    alternate:  type {}".format(consequent._type, alternate._type))
+        t = consequent._type
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
-
-
-def case():
-    """Chain multiple if-else statements with a :class:`.CaseBuilder`.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> x = functions.capture('foo bar baz')
-        >>> expr = (functions.case()
-        ...                  .when(x[:3] == 'FOO', 1)
-        ...                  .when(x.length() == 11, 2)
-        ...                  .when(x == 'secret phrase', 3)
-        ...                  .default(0))
-        >>> eval_expr(expr)
-        2
-
-    See Also
-    --------
-    :class:`.CaseBuilder`
-
-    Returns
-    -------
-    :class:`.CaseBuilder`.
-    """
-    from hail.expr.utils import CaseBuilder
-    return CaseBuilder()
-
-
-@typecheck(expr=expr_any)
-def switch(expr):
-    """Build a conditional tree on the value of an expression.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> csq = functions.capture('loss of function')
-        >>> expr = (functions.switch(csq)
-        ...                  .when('synonymous', 1)
-        ...                  .when('SYN', 1)
-        ...                  .when('missense', 2)
-        ...                  .when('MIS', 2)
-        ...                  .when('loss of function', 3)
-        ...                  .when('LOF', 3)
-        ...                  .or_missing())
-        >>> eval_expr(expr)
-        3
-
-    See Also
-    --------
-    :class:`.SwitchBuilder`
-
-    Parameters
-    ----------
-    expr : :class:`.Expression`
-        Value to match against.
-
-    Returns
-    -------
-    :class:`.SwitchBuilder`
-    """
-    from hail.expr.utils import SwitchBuilder
-    return SwitchBuilder(expr)
 
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))
@@ -342,35 +280,6 @@ def chisq(c1, c2, c3, c4):
     return _func("chisq", ret_type, c1, c2, c3, c4)
 
 
-@typecheck(left=expr_variant, right=expr_variant)
-def combine_variants(left, right):
-    """Combines the alleles of two variants at the same locus to form a new variant.
-
-    This method ensures that the resulting alleles are represented uniformly and minimally.
-    In addition to the resulting variant containing all alleles, this function also returns
-    the mapping from the old to the new allele indices. Note that this mapping counts the
-    reference allele, always contains the reference allele mapping 0 -> 0.
-
-    Parameters
-    ----------
-    left : :class:`.Variant` or :class:`.VariantExpression`
-        First variant.
-    right : :class:`.Variant` or :class:`.VariantExpression`
-        Second variant.
-
-    Returns
-    -------
-    :class:`.StructExpression`
-        A struct expression with three fields, `variant` (``Variant``), `laIndices` (``Dict[Int32, Int32]``),
-        and `raIndices` (``Dict[Int32, Int32]``)
-    """
-    if not left._type._rg == right._type._rg:
-        raise TypeError('Reference genome mismatch: {}, {}'.format(left._type._rg, right._type._rg))
-    ret_type = TStruct(['variant', 'laIndices', 'raIndices'],
-                       [left._type, TDict(TInt32(), TInt32()), TDict(TInt32(), TInt32())])
-    return _func("combineVariants", ret_type, left, right)
-
-
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, min_cell_count=expr_int32)
 def ctt(c1, c2, c3, c4, min_cell_count):
     """Calculates p-value and odds ratio for 2x2 table.
@@ -447,6 +356,7 @@ def Dict(keys, values):
     ret_type = TDict(key_col._type, value_col._type)
     return _func("Dict", ret_type, keys, values)
 
+
 @typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
 def dbeta(x, a, b):
     """
@@ -474,6 +384,7 @@ def dbeta(x, a, b):
         for non-positive b.
     """
     return _func("dbeta", TFloat64(), x, a, b)
+
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
 def dpois(x, lamb, log_p=False):
@@ -732,36 +643,6 @@ def parse_locus(s, reference_genome=None):
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
-@typecheck(gp=expr_list)
-def gp_dosage(gp):
-    """
-    Return expected genotype dosage from array of genotype probabilities.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> eval_expr(functions.gp_dosage([0.0, 0.5, 0.5]))
-        1.5
-
-    Notes
-    -----
-    This function is only defined for bi-allelic variants. The `gp` argument
-    must be length 3. The value is ``gp[1] + 2 * gp[2]``.
-
-    Parameters
-    ----------
-    gp : :class:`.ArrayFloat64Expression`
-        Length 3 array of bi-allelic genotype probabilities
-
-    Returns
-    -------
-    :class:`.Float64Expression`
-    """
-    if not is_numeric(gp.dtype.element_type):
-        raise TypeError("'gp_dosage' expects an expression of type "
-                        "'Array[Float64]'. Found '{}'".format(gp.dtype))
-    return _func("dosage", TFloat64(), gp)
 
 @typecheck(pl=expr_list)
 def pl_dosage(pl):
@@ -780,7 +661,7 @@ def pl_dosage(pl):
     Parameters
     ----------
     pl : :class:`.ArrayInt32Expression`
-        Length 3 array of bi-allelic Phred-scaled genotype likelihoods
+        Length 3 list of bi-allelic Phred-scaled genotype likelihoods
 
     Returns
     -------
@@ -790,6 +671,7 @@ def pl_dosage(pl):
         raise TypeError("Function 'pl_dosage' expects an expression of type "
                         "'Array[TInt32]'. Found {}".format(pl.dtype))
     return _func("plDosage", TFloat64(), pl)
+
 
 @typecheck(start=expr_locus, end=expr_locus)
 def interval(start, end):
@@ -865,84 +747,6 @@ def parse_interval(s, reference_genome=None):
     return construct_expr(
         ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)
-
-
-@typecheck(contig=expr_str, pos=expr_int32, ref=expr_str, alts=oneof(listof(expr_str), expr_list),
-           reference_genome=nullable(GenomeReference))
-def variant(contig, pos, ref, alts, reference_genome=None):
-    """Construct a variant expression from fields.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> eval_expr(functions.variant('1', 1000, 'A', ['TC', 'T']))
-        Variant(contig=1, start=1000, ref=A,
-                alts=[AltAllele(ref=A, alt=TC), AltAllele(ref=A, alt=T)], reference_genome=GRCh37)
-
-    Parameters
-    ----------
-    contig : str or :class:`.StringExpression`
-        Chromosome.
-    pos : int or :class:`.Int32Expression`
-        Base position along the chromosome.
-    ref : str or :class:`.StringExpression`
-        Reference allele.
-    alts : :class:`.ArrayExpression` or list of str or :class:`.StringExpression`
-        List of alternate alleles.
-    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`.default_reference` if not passed).
-
-    Returns
-    -------
-    :class:`.VariantExpression`
-    """
-    contig = to_expr(contig)
-    pos = to_expr(pos)
-    ref = to_expr(ref)
-    alts = to_expr(alts)
-    if reference_genome is None:
-        reference_genome = Env.hc().default_reference
-    indices, aggregations, joins, refs = unify_all(contig, pos, ref, alts)
-    return VariantExpression(
-        ApplyMethod('Variant({})'.format(reference_genome.name),
-                    contig._ast, pos._ast, ref._ast, alts._ast),
-        TVariant(reference_genome), indices, aggregations, joins, refs)
-
-
-@typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
-def parse_variant(s, reference_genome=None):
-    """Construct a variant expression by parsing a string or string expression.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> eval_expr(functions.parse_variant('1:1000:A:TC,T'))
-        Variant(contig=1, start=1000, ref=A,
-                alts=[AltAllele(ref=A, alt=TC), AltAllele(ref=A, alt=T)], reference_genome=GRCh37)
-
-    Notes
-    -----
-    This method expects strings of the form ``chromosome:position:ref:alt1,alt2...``, like ``1:1:A:T``
-    or ``1:100:A:TC,C``.
-
-    Parameters
-    ----------
-    s : str or :class:`.StringExpression`
-        String to parse.
-    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`.default_reference` if not passed).
-
-    Returns
-    -------
-    :class:`.VariantExpression`
-    """
-    s = to_expr(s)
-    if reference_genome is None:
-        reference_genome = Env.hc().default_reference
-    return construct_expr(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
-                          TVariant(reference_genome), s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(i=expr_int32)
@@ -2003,6 +1807,7 @@ def to_str(x):
     """
     return _func("str", TString(), x)
 
+
 @typecheck(pl=ArrayInt32Expression)
 def gt_from_pl(pl):
     """Call genotype from Phred-scaled probability likelihoods.
@@ -2028,6 +1833,7 @@ def gt_from_pl(pl):
     :class:`.Int32Expression`
     """
     return _func("gtFromPL", TInt32(), pl)
+
 
 @typecheck(pl=ArrayInt32Expression)
 def gq_from_pl(pl):

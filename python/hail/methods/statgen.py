@@ -2,16 +2,16 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix, GenomeReference
-from hail.genetics.ldMatrix import LDMatrix
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
-from .misc import require_biallelic
+from hail.methods.misc import require_biallelic, require_variant
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from math import sqrt
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -102,6 +102,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               bounded,
                                               joption(min),
                                               joption(max)))
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -216,6 +217,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     )
 
     return cleanup(MatrixTable(jm))
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -452,6 +454,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
         'va.`{}`'.format(root))
 
     return cleanup(MatrixTable(jds))
+
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
@@ -1136,62 +1139,6 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
 
 @handle_py4j
-@typecheck(dataset=MatrixTable, force_local=bool)
-def ld_matrix(dataset, force_local=False):
-    """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
-
-    .. include:: ../_templates/req_tvariant.rst
-
-    .. include:: ../_templates/req_biallelic.rst
-
-    Examples
-    --------
-
-    >>> ld_matrix = methods.ld_matrix(dataset)
-
-    Notes
-    -----
-
-    Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as
-    `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
-    :math:`\\rho_{x_i,x_j}` between the two genotype vectors :math:`x_i` and :math:`x_j`.
-
-    .. math::
-
-        \\rho_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
-
-    Also note that variants with zero variance (:math:`\\sigma = 0`) will be dropped from the matrix.
-
-    .. caution::
-
-        The matrix returned by this function can easily be very large with most entries near zero
-        (for example, entries between variants on different chromosomes in a homogenous population).
-        Most likely you'll want to reduce the number of variants with methods like
-        :meth:`.sample_variants`, :meth:`.filter_variants_expr`, or :meth:`.ld_prune` before
-        calling this unless your dataset is very small.
-
-    Parameters
-    ----------
-    dataset : :class:`.MatrixTable`
-        Variant-keyed dataset.
-    force_local : `obj`:bool
-        If ``True``, the LD matrix is computed using local matrix
-        multiplication on the Spark driver.  This may improve
-        performance when the genotype matrix is small enough to easily
-        fit in local memory.  If false, the LD matrix is computed
-        using distributed matrix multiplication if the number of
-        entries exceeds :math:`5000^2` and locally otherwise.
-
-    Returns
-    -------
-    :class:`.LDMatrix`
-        Matrix of r values between pairs of variants.
-    """
-    jldm = Env.hail().methods.LDMatrix.apply(require_biallelic(dataset, 'ld_matrix')._jvds, force_local)
-    return LDMatrix(jldm)
-
-
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            k=integral,
            compute_loadings=bool,
@@ -1206,7 +1153,8 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     Notes
     -----
-    Variants that are all homozygous reference or all homozygous variant are removed before evaluation.
+    Variants that are all homozygous reference or all homozygous alternate
+    are removed before evaluation.
 
     Parameters
     ----------
@@ -1373,6 +1321,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     if loadings:
         loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -1597,7 +1546,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     Parameters
     ----------
     ds : :class:`.MatrixTable`
-        A biallelic-variant keyed :class:`.MatrixTable` containing
+        A variant-keyed :class:`.MatrixTable` containing
         genotype information.
     k : :obj:`int`
         The number of principal components to use to distinguish ancestries.
@@ -1642,6 +1591,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
                    min_kinship,
                    intstatistics))
 
+
 @handle_py4j
 @typecheck(dataset=MatrixTable,
            fraction=numeric,
@@ -1676,6 +1626,7 @@ def sample_rows(dataset, fraction, seed=1):
     """
 
     return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
+
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
@@ -1842,6 +1793,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         ds._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
     return MatrixTable(jds)
 
+
 @typecheck(dataset=MatrixTable)
 def grm(dataset):
     """Compute the Genetic Relatedness Matrix (GRM).
@@ -1928,9 +1880,10 @@ def grm(dataset):
     grm = bm.T.dot(bm)
 
     return KinshipMatrix._from_block_matrix(TString(),
-                                      grm,
-                                      [row.s for row in dataset.cols_table().select('s').collect()],
-                                      n_variants)
+                                            grm,
+                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            n_variants)
+
 
 @handle_py4j
 @typecheck(call_expr=CallExpression)
@@ -2033,6 +1986,7 @@ def rrm(call_expr):
                                             rrm,
                                             [row.s for row in dataset.cols_table().select('s').collect()],
                                             n_variants)
+
 
 @handle_py4j
 @typecheck(num_populations=integral,
@@ -2142,7 +2096,8 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Row fields:
 
-    - `v` (:class:`.TVariant`) -- Variant (key field).
+    - `locus` (:class:`.TLocus`) -- Variant locus (key field).
+    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles (key field).
     - `ancestral_af` (:class:`.TFloat64`) -- Ancestral allele frequency.
     - `af` (:class:`.TArray` of :class:`.TFloat64`) -- Modern allele frequencies indexed by
       population.
@@ -2181,7 +2136,6 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Random seed.
     reference_genome : :class:`.GenomeReference`, optional
         Reference genome to use. Default is :class:`~.HailContext.default_reference`.
-        The row key will have type `TVariant(reference_genome)`.
 
     Returns
     -------
@@ -2270,7 +2224,7 @@ class FilterAlleles(object):
         If ``True``, keep variants where the only unfiltered alternate
         alleles are ``*`` alleles.
     """
-    
+
     @typecheck_method(filter_expr=ArrayBooleanExpression, keep=bool, left_aligned=bool, keep_star=bool)
     def __init__(self, filter_expr, keep=True, left_aligned=False, keep_star=False):
         source = filter_expr._indices.source
@@ -2278,6 +2232,7 @@ class FilterAlleles(object):
             raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
                 "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
         ds = source
+        require_biallelic(ds, 'FilterAlleles')
 
         analyze('FilterAlleles', filter_expr, ds._row_indices)
 
@@ -2291,12 +2246,13 @@ class FilterAlleles(object):
 
         self._old_to_new = construct_reference('oldToNew', TArray(TInt32()), ds._row_indices)
         self._new_to_old = construct_reference('newToOld', TArray(TInt32()), ds._row_indices)
-        self._new_v = construct_reference('newV', ds._rowkey_schema, ds._row_indices)
+        self._new_locus = construct_reference('newLocus', ds['locus'].dtype, ds._row_indices)
+        self._new_alleles = construct_reference('newAlleles', ds['alleles'].dtype, ds._row_indices)
 
     @property
     def new_to_old(self):
         """The array of old allele indices, such that ``new_to_old[newIndex] =
-        oldIndex`` and ``newToOld[0] = 0``.  A row-indexed expression.
+        oldIndex`` and ``newToOld[0] = 0``. A row-indexed expression.
         
         Returns
         -------
@@ -2307,8 +2263,8 @@ class FilterAlleles(object):
 
     @property
     def old_to_new(self):
-        """The array of new allele indices.  All old filtered alleles have new
-        index 0.  A row-indexed expression.
+        """The array of new allele indices. All old filtered alleles have new
+        index 0. A row-indexed expression.
         
         Returns
         -------
@@ -2318,15 +2274,24 @@ class FilterAlleles(object):
         return self._old_to_new
 
     @property
-    def new_v(self):
-        """The new, allele-filtered variant.  A row-indexed expression.
-        
+    def new_locus(self):
+        """The new locus. A row-indexed expression.
+
         Returns
         -------
-        :class:`.VariantExpression`
-            The new, allele-filtered variant.
+        :class:`.LocusExpression`
         """
-        return self._new_v
+        return self._new_locus
+
+    @property
+    def new_alleles(self):
+        """The new alleles. A row-indexed expression.
+
+        Returns
+        -------
+        :class:`.ArrayStringExpression`
+        """
+        return self._new_alleles
 
     def annotate_rows(self, **named_exprs):
         """Create or update row-indexed fields for the new, allele filtered
@@ -2340,7 +2305,7 @@ class FilterAlleles(object):
         if self._row_exprs:
             raise RuntimeError('annotate_rows already called')
         for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, base._row_indices)
+            analyze('FilterAlleles', v, self._ds._row_indices)
         self._row_exprs = named_exprs
 
     def annotate_entries(self, **named_exprs):
@@ -2356,7 +2321,7 @@ class FilterAlleles(object):
         if self._entry_exprs:
             raise RuntimeError('annotate_entries already called')
         for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, base._entry_indices)
+            analyze('FilterAlleles', v, self._ds._entry_indices)
         self._entry_exprs = named_exprs
 
     def filter(self):
@@ -2371,12 +2336,12 @@ class FilterAlleles(object):
             self._row_exprs = {}
         if not self._entry_exprs:
             self._entry_exprs = {}
-        
+
         base, cleanup = self._ds._process_joins(*(
-            [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
-        
+                [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
+
         filter_hql = self._filter_expr._ast.to_hql()
-        
+
         row_hqls = []
         for k, v in self._row_exprs.items():
             row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
@@ -2391,8 +2356,10 @@ class FilterAlleles(object):
 
         m = MatrixTable(
             Env.hail().methods.FilterAlleles.apply(
-                base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep, self._left_aligned, self._keep_star))
+                base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep,
+                self._left_aligned, self._keep_star))
         return cleanup(m)
+
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
@@ -2403,6 +2370,7 @@ class FilterAlleles(object):
 def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
     jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)
+
 
 @handle_py4j
 @typecheck(ds=MatrixTable,

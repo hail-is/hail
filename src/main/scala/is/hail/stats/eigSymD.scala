@@ -35,7 +35,7 @@ object eigSymD extends UFunc {
 
   }
 
-  def doeigSymD(X: Matrix[Double], rightEigenvectors: Boolean): (DenseVector[Double], Option[DenseMatrix[Double]]) = {
+  private def doeigSymD(X: Matrix[Double], rightEigenvectors: Boolean): (DenseVector[Double], Option[DenseMatrix[Double]]) = {
     // assumes X is non-empty and symmetric, caller should check if necessary
 
     val JOBZ = if (rightEigenvectors) "V" else "N" /* eigenvalues N, eigenvalues & eigenvectors "V" */
