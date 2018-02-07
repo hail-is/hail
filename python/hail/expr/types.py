@@ -4,7 +4,7 @@ from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
 from hail.utils.java import scala_object, jset, jindexed_seq, Env
-import hail.genetics as genetics
+from hail import genetics
 
 
 class TypeCheckError(Exception):

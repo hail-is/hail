@@ -2029,6 +2029,11 @@ def gt_from_pl(pl):
     """
     return _func("gtFromPL", TInt32(), pl)
 
+@typecheck(gt=call_expr, i=expr_int32)
+def downcode(call, i):
+    return Call(functions.cond(functions.gtj() == i, 1, 0),
+                functions.cond(functions.gtk() == i, 1, 0))
+
 @typecheck(pl=ArrayInt32Expression)
 def gq_from_pl(pl):
     """Compute genotype quality from Phred-scaled probability likelihoods.
