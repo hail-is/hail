@@ -1677,109 +1677,108 @@ def sample_rows(dataset, fraction, seed=1):
 
     return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
 
-    @handle_py4j
-    @record_method
-    # FIXME: I need a lambda contract
-    # @typecheck(ds=MatrixTable,
-    #            variant=expr_,
-    #            genotype=strlike,
-    #            keep_star=bool,
-    #            left_aligned=bool)
-    def split_multi(ds, variant, genotype, keep_star=False, left_aligned=False):
-        """Split multiallelic variants.
+@handle_py4j
+@record_method
+@typecheck(ds=MatrixTable,
+           update_row=func_spec(1, expr_struct),
+           update_entry=func_spec(1, expr_struct),
+           keep_star=bool,
+           left_aligned=bool)
+def split_multi(ds, update_row, update_entry, keep_star=False, left_aligned=False):
+    """Split multiallelic variants.
 
-        Example
-        -------
+    Example
+    -------
 
-        :meth:`~hail.VariantDataset.split_multi_hts`, which splits
-        multiallelic variants for the HTS genotype schema and updates
-        the genotype annotations by downcoding the genotype, is
-        implemented as:
+    :meth:`~hail.VariantDataset.split_multi_hts`, which splits
+    multiallelic variants for the HTS genotype schema and updates
+    the genotype annotations by downcoding the genotype, is
+    implemented as:
 
-        >>> def calculate_pl(ctx):
-        ...    return functions.or_missing(
-        ...        functions.is_defined(g.PL),
-        ...        (range(3)
-        ...         .map(lambda i: (range(ctx.PL.length())
-        ...                         .filter(lambda j: functions.downcode(Call(j), ctx.aIndex) == Call(i))
-        ...                         .map(j => ctx.PL[j])
-        ...                         .min()))))
-        >>> methods.split_multi(multiallelic_generic_vds,
-        ...   lambda ctx: { aIndex: ctx.aIndex, wasSplit: ctx.wasSplit }
-        ...   lambda ctx: {
-        ...       GT: functions.downcode(ctx.GT, ctx.aIndex),
-        ...       AD: functions.or_missing(functions.is_defined(ctx.AD),
-        ...               [ctx.AD.sum() - ctx.AD[ctx.aIndex], ctx.AD[ctx.aIndex]]),
-        ...       DP: ctx.DP,
-        ...       PL: calculate_pl(ctx)
-        ...       GQ: functions.gq_from_pl(calculate_pl(ctx))
-        ...   })
+    >>> def calculate_pl(vds, ctx):
+    ...    return functions.or_missing(
+    ...        functions.is_defined(vds.PL),
+    ...        (functions.range(0, 3)
+    ...         .map(lambda i: (functions.range(0, vds.PL.length())
+    ...                         .filter(lambda j: functions.downcode(functions.call(j), ctx['a_index']) == functions.call(i))
+    ...                         .map(lambda j: vds.PL[j])
+    ...                         .min()))))
+    >>> methods.split_multi(vds,
+    ...   lambda ctx: Struct(a_index=ctx['a_index'], was_split=ctx['was_split']),
+    ...   lambda ctx: functions.bind(calculate_pl(vds, ctx), lambda pl: Struct(
+    ...       GT=functions.downcode(vds.GT, ctx['a_index']),
+    ...       AD=functions.or_missing(functions.is_defined(vds.AD),
+    ...              [vds.AD.sum() - vds.AD[ctx['a_index']], vds.AD[ctx['a_index']]]),
+    ...       DP=vds.DP,
+    ...       PL=pl,
+    ...       GQ=functions.gq_from_pl(pl)
+    ...   )))
 
-        Notes
-        -----
+    Notes
+    -----
 
-        `variant` and `genotype` are functions that produces expressions. In
-        both cases, the returned expression must produce a struct. The fields of
-        the struct returned by `variant` are annotated onto the existing row
-        fields. The fields of the struct returned by `genotype` are annotated
-        onto the existing entry fields.
+    `update_row` and `update_entry` are functions that produce
+    :class:`StructExpressions`. The fields of the struct returned by
+    `update_row` are annotated into the existing row fields. The fields of the
+    struct returned by `update_entry` are annotated into the existing entry
+    fields.
 
-        The argument to both functions is a dictionary with the following
-        fields:
+    The argument to both functions is a dictionary with the following
+    fields:
 
-        - `new_v` (:class:`.VariantExpression`) -- the new, split variant
-        - `a_index` (:class:`.Int32Expression`) -- the index of the input
-          allele to the output variant
-        - `was_split` (:class:`.BooleanExpression`) -- ``True`` if the original
-          variant was multiallelic
+    - `new_v` (:class:`.VariantExpression`) -- the new, split variant
+    - `a_index` (:class:`.Int32Expression`) -- the index of the input
+      allele to the output variant
+    - `was_split` (:class:`.BooleanExpression`) -- ``True`` if the original
+      variant was multiallelic
 
-        Note, the row and entry fields are updated even on rows that were
-        originally biallelic. This is necessary because the updates can change
-        the row and entry field _types_, which must be the same for every row.
+    Note, the row and entry fields are updated even on rows that were
+    originally biallelic. This is necessary because the updates can change
+    the row and entry field _types_, which must be the same for every row.
 
-        Parameters
-        ----------
-        update_row : a function returning :class:`.StructExpression`
-            The updated row fields.
-        update_genotype : a function returning :class:`.StructExpression`
-            The updated entry fields.
-        keep_star : :obj:`bool`
-            Do not filter out * alleles.
-        left_aligned : :obj:`bool`
-            If ``True``, variants are assumed to be left aligned and have unique
-            loci. This avoids a shuffle. If the assumption is violated, an error
-            is generated.
+    Parameters
+    ----------
+    update_row : a function returning :class:`.StructExpression`
+        The updated row fields.
+    update_genotype : a function returning :class:`.StructExpression`
+        The updated entry fields.
+    keep_star : :obj:`bool`
+        Do not filter out * alleles.
+    left_aligned : :obj:`bool`
+        If ``True``, variants are assumed to be left aligned and have unique
+        loci. This avoids a shuffle. If the assumption is violated, an error
+        is generated.
 
-        Returns
-        ------
-        :class:`.MatrixTable`
-            A split dataset.
+    Returns
+    ------
+    :class:`.MatrixTable`
+        A split dataset.
 
-        """
+    """
 
-        def make_ctx(ds):
-            return {
-                "new_v": construct_reference(
-                    "newV", type=TVariant(), indices=ds._row_indices),
-                "a_index": construct_reference(
-                    "aIndex", type=TInt32(), indices=ds._row_indices),
-                "was_split": construct_reference(
-                    "wasSplit", type=TBoolean(), indices=ds._row_indices)
-            }
+    def make_ctx(ds):
+        return {
+            "new_v": construct_reference(
+                "newV", type=TVariant(), indices=ds._row_indices),
+            "a_index": construct_reference(
+                "aIndex", type=TInt32(), indices=ds._row_indices),
+            "was_split": construct_reference(
+                "wasSplit", type=TBoolean(), indices=ds._row_indices)
+        }
 
-        ge = genotype(make_ctx(ds))
-        ds, cleanup1 = ds._process_joins(ge)
+    new_row_fields = update_row(make_ctx(ds))
+    ds, _ = ds._process_joins(new_row_fields)
 
-        ve = variant(make_ctx(ds))
-        ds, cleanup2 = ds._process_joins(ve)
+    new_entry_fields = update_entry(make_ctx(ds))
+    ds, _ = ds._process_joins(new_entry_fields)
 
-        jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
-            ds._jvds,
-            ge._ast.to_hql(),
-            ve._ast.to_hql(),
-            keep_star,
-            left_aligned)
-        return VariantDataset(self.hc, cleanup2(cleanup1(jvds)))
+    jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
+        ds._jvds,
+        'va = annotate(va, (' + new_row_fields._ast.to_hql() + '))',
+        'g = annotate(g, (' + new_entry_fields._ast.to_hql() + '))',
+        keep_star,
+        left_aligned)
+    return MatrixTable(jvds)
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
@@ -1927,24 +1926,25 @@ split_multi_hts: entry schema must be the HTS genotype schema
 hint: Use `split_multi` to split entries with a non-HTS genotype schema.
 """.format(ds.entry_schema, hts_genotype_schema))
 
-    variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
-    genotype_expr = '''
-g = let
-  newgt = downcode(g.GT, aIndex) and
-  newad = if (isDefined(g.AD))
-      let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
-    else
-      NA: Array[Int] and
-  newpl = if (isDefined(g.PL))
-      range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
-    else
-      NA: Array[Int] and
-  newgq = gqFromPL(newpl)
-in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
-'''
-    jds = scala_object(Env.hail().methods, 'SplitMulti').apply(
-        ds._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
-    return MatrixTable(jds)
+    def calculate_pl(ds, ctx):
+       return functions.or_missing(
+           functions.is_defined(ds.PL),
+           (functions.range(0, 3)
+            .map(lambda i: (functions.range(0, ds.PL.length())
+                            .filter(lambda j: functions.downcode(functions.call(j), ctx['a_index']) == functions.call(i))
+                            .map(lambda j: ds.PL[j])
+                            .min()))))
+    return split_multi(
+        ds,
+        lambda ctx: Struct(a_index=ctx['a_index'], was_split=ctx['was_split']),
+        lambda ctx: functions.bind(calculate_pl(ds, ctx), lambda pl: Struct(
+            GT=functions.downcode(ds.GT, ctx['a_index']),
+            AD=functions.or_missing(functions.is_defined(ds.AD),
+                                    [ds.AD.sum() - ds.AD[ctx['a_index']], ds.AD[ctx['a_index']]]),
+            DP=ds.DP,
+            PL=pl,
+            GQ=functions.gq_from_pl(pl)
+        )))
 
 @typecheck(dataset=MatrixTable)
 def grm(dataset):

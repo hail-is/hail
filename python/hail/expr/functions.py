@@ -1254,7 +1254,7 @@ def or_missing(predicate, value):
         This expression has the same type as `b`.
     """
     predicate = to_expr(predicate)
-    return _func("orMissing", predicate._type, predicate, value)
+    return _func("orMissing", value._type, predicate, value)
 
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
@@ -2029,10 +2029,9 @@ def gt_from_pl(pl):
     """
     return _func("gtFromPL", TInt32(), pl)
 
-@typecheck(gt=call_expr, i=expr_int32)
-def downcode(call, i):
-    return Call(functions.cond(functions.gtj() == i, 1, 0),
-                functions.cond(functions.gtk() == i, 1, 0))
+@typecheck(gt=expr_call, i=expr_int32)
+def downcode(gt, i):
+    return call(cond(gt.gtj() == i, 1, 0) + cond(gt.gtk() == i, 1, 0))
 
 @typecheck(pl=ArrayInt32Expression)
 def gq_from_pl(pl):
