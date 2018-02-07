@@ -1695,23 +1695,24 @@ def split_multi(ds, update_row, update_entry, keep_star=False, left_aligned=Fals
     the genotype annotations by downcoding the genotype, is
     implemented as:
 
+    >>> f = functions
     >>> def calculate_pl(vds, ctx):
-    ...    return functions.or_missing(
-    ...        functions.is_defined(vds.PL),
-    ...        (functions.range(0, 3)
-    ...         .map(lambda i: (functions.range(0, vds.PL.length())
-    ...                         .filter(lambda j: functions.downcode(functions.call(j), ctx.a_index) == functions.call(i))
+    ...    return f.or_missing(
+    ...        f.is_defined(vds.PL),
+    ...        (f.range(0, 3)
+    ...         .map(lambda i: (f.range(0, vds.PL.length())
+    ...                         .filter(lambda j: f.downcode(f.call(j), ctx.a_index) == f.call(i))
     ...                         .map(lambda j: vds.PL[j])
     ...                         .min()))))
     >>> methods.split_multi(vds,
     ...   lambda ctx: Struct(a_index=ctx.a_index, was_split=ctx.was_split),
-    ...   lambda ctx: functions.bind(calculate_pl(vds, ctx), lambda pl: Struct(
-    ...       GT=functions.downcode(vds.GT, ctx.a_index),
-    ...       AD=functions.or_missing(functions.is_defined(vds.AD),
+    ...   lambda ctx: f.bind(calculate_pl(vds, ctx), lambda pl: Struct(
+    ...       GT=f.downcode(vds.GT, ctx.a_index),
+    ...       AD=f.or_missing(f.is_defined(vds.AD),
     ...              [vds.AD.sum() - vds.AD[ctx.a_index], vds.AD[ctx.a_index]]),
     ...       DP=vds.DP,
     ...       PL=pl,
-    ...       GQ=functions.gq_from_pl(pl)
+    ...       GQ=f.gq_from_pl(pl)
     ...   )))
 
     Notes
@@ -1738,6 +1739,8 @@ def split_multi(ds, update_row, update_entry, keep_star=False, left_aligned=Fals
 
     Parameters
     ----------
+    ds : :class:`.MatrixTable`
+        An unsplit dataset.
     update_row : a function returning :class:`.StructExpression`
         The updated row fields.
     update_genotype : a function returning :class:`.StructExpression`
@@ -1755,6 +1758,8 @@ def split_multi(ds, update_row, update_entry, keep_star=False, left_aligned=Fals
         A split dataset.
 
     """
+
+    # ds = require_variant(ds, 'split_multi')
 
     def make_ctx(ds):
         return Struct(
@@ -1926,24 +1931,25 @@ split_multi_hts: entry schema must be the HTS genotype schema
 hint: Use `split_multi` to split entries with a non-HTS genotype schema.
 """.format(ds.entry_schema, hts_genotype_schema))
 
+    f = functions
+
     def calculate_pl(ds, ctx):
-       return functions.or_missing(
-           functions.is_defined(ds.PL),
-           (functions.range(0, 3)
-            .map(lambda i: (functions.range(0, ds.PL.length())
-                            .filter(lambda j: functions.downcode(functions.call(j), ctx.a_index) == functions.call(i))
-                            .map(lambda j: ds.PL[j])
-                            .min()))))
+       return f.or_missing(
+           f.is_defined(ds.PL),
+           (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
+               .filter(lambda j: f.downcode(f.call(j), ctx.a_index) == f.call(i))
+               .map(lambda j: ds.PL[j])
+               .min()))))
     return split_multi(
         ds,
         lambda ctx: Struct(a_index=ctx.a_index, was_split=ctx.was_split),
-        lambda ctx: functions.bind(calculate_pl(ds, ctx), lambda pl: Struct(
-            GT=functions.downcode(ds.GT, ctx.a_index),
-            AD=functions.or_missing(functions.is_defined(ds.AD),
-                                    [ds.AD.sum() - ds.AD[ctx.a_index], ds.AD[ctx.a_index]]),
+        lambda ctx: f.bind(calculate_pl(ds, ctx), lambda pl: Struct(
+            GT=f.downcode(ds.GT, ctx.a_index),
+            AD=f.or_missing(f.is_defined(ds.AD),
+                            [ds.AD.sum() - ds.AD[ctx.a_index], ds.AD[ctx.a_index]]),
             DP=ds.DP,
             PL=pl,
-            GQ=functions.gq_from_pl(pl)
+            GQ=f.gq_from_pl(pl)
         )))
 
 @typecheck(dataset=MatrixTable)
