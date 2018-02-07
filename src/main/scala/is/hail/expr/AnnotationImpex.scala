@@ -93,7 +93,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Locus(r.getAs[String](0), r.getAs[Int](1))
         case x: TInterval =>
           val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), x.pointType), importAnnotation(r.get(1), x.pointType))
+          Interval(importAnnotation(r.get(0), x.pointType),
+            importAnnotation(r.get(1), x.pointType),
+            importAnnotation(r.get(2), TBooleanRequired).asInstanceOf[Boolean],
+            importAnnotation(r.get(3), TBooleanRequired).asInstanceOf[Boolean])
         case TStruct(fields, _) =>
           if (fields.isEmpty)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
@@ -175,7 +178,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Row(l.contig, l.position)
         case TInterval(pointType, _) =>
           val i = a.asInstanceOf[Interval]
-          Row(exportAnnotation(i.start, pointType), exportAnnotation(i.end, pointType))
+          Row(exportAnnotation(i.start, pointType),
+            exportAnnotation(i.end, pointType),
+            exportAnnotation(i.includeStart, TBooleanRequired),
+            exportAnnotation(i.includeEnd, TBooleanRequired))
         case TStruct(fields, _) =>
           if (fields.isEmpty)
             a != null
@@ -382,9 +388,12 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         jv.extract[Locus]
       case (_, TInterval(pointType, _)) =>
         jv match {
-          case JObject(List(("start", sjv), ("end", ejv))) =>
+          case JObject(List(("start", sjv), ("end", ejv), ("includeStart", isjv), ("includeEnd", iejv))) =>
             Interval(importAnnotation(sjv, pointType, parent + ".start"),
-              importAnnotation(ejv, pointType, parent + ".end"))
+              importAnnotation(ejv, pointType, parent + ".end"),
+              importAnnotation(isjv, TBooleanRequired, parent + ".includeStart").asInstanceOf[Boolean],
+              importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd").asInstanceOf[Boolean]
+            )
           case _ =>
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
             null
@@ -421,10 +430,14 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
         case TInterval(TLocus(gr, _), _) =>
           val i = a.asInstanceOf[Interval]
-          if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
+          val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
           else
             s"${ i.start }-${ i.end }"
+          if (!i.includeStart || i.includeEnd)
+            s"${if (i.includeStart) "[" else "("}$bounds${if (i.includeEnd) "]" else ")"}"
+          else
+            bounds
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
         case _: TCall => Call.toString(a.asInstanceOf[Call])

@@ -224,7 +224,9 @@ object UnsafeRow {
             read(x.pointType, region, ft.loadField(region, offset, 1))
           else
             null
-        Interval(start, end)
+        val includeStart = read(TBooleanRequired, region, ft.loadField(region, offset, 2)).asInstanceOf[Boolean]
+        val includeEnd = read(TBooleanRequired, region, ft.loadField(region, offset, 3)).asInstanceOf[Boolean]
+        Interval(start, end, includeStart, includeEnd)
     }
   }
 }
