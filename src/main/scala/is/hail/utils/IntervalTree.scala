@@ -1,8 +1,8 @@
 package is.hail.utils
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{ExtendedOrdering, Region, RegionValue}
 import is.hail.check._
-import is.hail.expr.types.TBoolean
+import is.hail.expr.types.{TBoolean, TInterval}
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
@@ -10,15 +10,19 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boolean) extends Serializable {
+abstract class BaseInterval[T] extends Serializable {
+  def start: T
+  def end: T
+  def includeStart: Boolean
+  def includeEnd: Boolean
 
-  def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    val compareStart = pord.compare(position, start)
-    val compareEnd = pord.compare(position, end)
-    (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
+  def contains(pord: ExtendedOrdering, position: T): Boolean = {
+    val compareStart = pord.compare(start, position)
+    val compareEnd = pord.compare(end, position)
+    (compareStart < 0 || (includeStart && compareStart == 0)) && (compareEnd > 0 || (includeEnd && compareEnd == 0))
   }
 
-  def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
+  def overlaps(pord: ExtendedOrdering, other: BaseInterval[T]): Boolean = {
     (this.contains(pord, other.start) && (other.includeStart || !pord.equiv(this.end, other.start))) ||
       (other.contains(pord, this.start) && (this.includeStart || !pord.equiv(other.end, this.start)))
   }
@@ -28,6 +32,9 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   // e.g. (1,2) is an empty Interval(Int32), but we cannot guarantee distance
   // like that right now.
   def isEmpty(pord: ExtendedOrdering): Boolean = if (includeStart && includeEnd) pord.gt(start, end) else pord.gteq(start, end)
+}
+
+case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boolean) extends BaseInterval[Any] {
 
   def toJSON(f: (Any) => JValue): JValue =
     JObject("start" -> f(start),
@@ -37,6 +44,13 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
 
   override def toString: String = (if (includeStart) "[" else "(") + start + "-" + end + (if (includeEnd) "]" else ")")
+}
+
+case class RegionValueInterval(iType: TInterval, region: Region, offset: Long) extends BaseInterval[RegionValue] {
+  def start: RegionValue = RegionValue(region, iType.loadStart(region, offset))
+  def end: RegionValue = RegionValue(region, iType.loadEnd(region, offset))
+  def includeStart: Boolean = region.loadBoolean(iType.representation.loadField(region, offset, 2))
+  def includeEnd: Boolean = region.loadBoolean(iType.representation.loadField(region, offset, 3))
 }
 
 object Interval {
@@ -68,10 +82,28 @@ object Interval {
       else 0
     }
   }
+
+  //minimum interval containing this and others.
+  def minimumContaining(pord: ExtendedOrdering, ints: Seq[Interval]): Interval = {
+    var Interval(s, e, is, ie) = ints.head
+    ints.foreach { i =>
+      if (pord.lt(i.start, s)) {
+        s = i.start
+        is = i.includeStart
+      } else if (pord.equiv(i.start, s)) is = is || i.includeStart
+      if (pord.gt(i.end, e)) {
+        e = i.end
+        ie = i.includeEnd
+      } else if (pord.equiv(i.end, e)) ie = ie || i.includeEnd
+    }
+    Interval(s, e, is, ie)
+  }
 }
 
 case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
   Traversable[(Interval, U)] with Serializable {
+  override def size: Int = root.map(_.size).getOrElse(0)
+
   def contains(pord: ExtendedOrdering, position: Any): Boolean = root.exists(_.contains(pord, position))
 
   def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = root.exists(_.overlaps(pord, interval))
@@ -162,6 +194,9 @@ case class IntervalTreeNode[U](i: Interval,
   left: Option[IntervalTreeNode[U]],
   right: Option[IntervalTreeNode[U]],
   minimum: Any, maximum: Any, value: U) extends Traversable[(Interval, U)] {
+
+  override val size: Int =
+    left.map(_.size).getOrElse(0) + right.map(_.size).getOrElse(0) + 1
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
     pord.gteq(position, minimum) && pord.lteq(position, maximum) &&
