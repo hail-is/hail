@@ -566,3 +566,43 @@ class Tests(unittest.TestCase):
                      x=functions.pl_dosage(ds.PL),
                      covariates=[ds.cov.Cov1, ds.cov.Cov2],
                      logistic=True).count()
+
+    def test_import_gen(self):
+        gen = methods.import_gen(test_file('example.gen'),
+                                 sample_file=test_file('example.sample'),
+                                 contig_recoding={"01": "1"}).rows_table()
+        self.assertTrue(gen.forall(gen.v.contig == "1"))
+        self.assertEqual(gen.count(), 199)
+
+    def test_import_bgen(self):
+        methods.index_bgen(test_file('example.v11.bgen'))
+
+        bgen = methods.import_bgen(test_file('example.v11.bgen'),
+                                   sample_file=test_file('example.sample'),
+                                   contig_recoding={"01": "1"}).rows_table()
+        self.assertTrue(bgen.forall(bgen.v.contig == "1"))
+        self.assertEqual(bgen.count(), 199)
+
+    def test_import_vcf(self):
+        vcf = methods.split_multi_hts(
+            methods.import_vcf(test_file('sample2.vcf'),
+                               reference_genome=GenomeReference.GRCh38(),
+                               contig_recoding={"22": "chr22"}))
+
+        vcf_table = vcf.rows_table()
+        self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
+
+    def test_import_plink(self):
+        vcf = methods.split_multi_hts(
+            methods.import_vcf(test_file('sample2.vcf'),
+                               reference_genome=GenomeReference.GRCh38(),
+                               contig_recoding={"22": "chr22"}))
+
+        methods.export_plink(vcf, '/tmp/sample_plink')
+
+        bfile = '/tmp/sample_plink'
+        plink = methods.import_plink(
+            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True,
+            contig_recoding={'chr22': '22'}).rows_table()
+        self.assertTrue(plink.forall(plink.v.contig == "22"))
+        self.assertEqual(vcf.count_rows(), plink.count())

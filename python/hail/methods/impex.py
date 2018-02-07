@@ -366,14 +366,16 @@ def import_interval_list(path, reference_genome=None):
 
     reference_genome : :class:`.GenomeReference`
         Reference genome to use. Default is
-        :meth:`.HailContext.default_reference`.
+        :func:`~hail2.default_reference`.
 
     Returns
     -------
     :class:`.Table`
         Interval-keyed table.
     """
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
     t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
     return Table(t)
 
@@ -440,7 +442,7 @@ def import_bed(path, reference_genome=None):
 
     reference_genome : :class:`.GenomeReference`
         Reference genome to use. Default is
-        :meth:`.HailContext.default_reference`.
+        :func:`~hail2.default_reference`.
 
     Returns
     -------
@@ -460,7 +462,9 @@ def import_bed(path, reference_genome=None):
     # >>> bed = methods.import_bed('data/file2.bed')
     # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.v])
 
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
+
     jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
     return Table(jt)
 
@@ -505,9 +509,9 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     One of:
 
      - **is_case** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
-        non-numeric or the ``missing`` argument, if given.
-     - **quant_pheno** (*Float64*) -- Quantitative phenotype (missing = "NA" or the
-        ``missing`` argument, if given.
+       non-numeric or the ``missing`` argument, if given.
+     - **quant_pheno** (*Float64*) -- Quantitative phenotype (missing = "NA" or
+       the ``missing`` argument, if given.
 
     Parameters
     ----------
@@ -549,7 +553,95 @@ def grep(regex, path, max_count=100):
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None,
                 contig_recoding=None):
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+    """Import BGEN file(s) as matrix table.
+
+    Warning
+    -------
+
+    A BGEN file must have a corresponding index file which can be generated with
+    :func:`.index_bgen`.
+
+    Examples
+    --------
+
+    Import a BGEN file as a matrix table renaming contig name "01" to "1".
+
+    >>> ds_result = methods.import_bgen("data/example3.bgen",
+    ...                                 sample_file="data/example3.sample",
+    ...                                 contig_recoding={"01": "1"})
+
+    Notes
+    -----
+
+    Hail supports importing data in the BGEN file format. For more information
+    on the BGEN file format, see `here
+    <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__. Note that
+    only v1.1 and v1.2 BGEN files are supported at this time. For v1.2 files,
+    only **unphased** and **diploid** genotype probabilities are allowed and the
+    genotype probability blocks must be either compressed with zlib or
+    uncompressed.
+
+    To load multiple files at the same time, use :ref:`Hadoop Glob Patterns
+    <sec-hadoop-glob>`.
+
+    **Column Fields**
+
+    - `s` (:class:`.TString`) -- Column key. This is the sample ID imported
+      from the first column of the sample file if given. Otherwise, the sample
+      ID is taken from the sample identifying block in the first BGEN file if it
+      exists; else IDs are assigned from `_0`, `_1`, to `_N`.
+
+    **Row Fields**
+
+    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the
+      chromosome, position, reference allele (A allele in the v1.1 spec and
+      first allele in the v1.2 spec), and alternate alleles in each variant
+      identifying block.
+    - `varid` (:class:`.TString`) -- The variant identifier. The third field in
+      each variant identifying block.
+    - `rsid` (:class:`.TString`) -- The rsID for the variant. The fifth field in
+      each variant identifying block.
+
+    **Entry Fields**
+
+    - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
+      the highest probability.
+    - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
+      as defined by the BGEN file spec. For BGEN v1.1 files, the array is set to
+      missing if the sum of the probabilities is a distance greater than the
+      `tolerance` parameter from 1.0. Otherwise, the probabilities are
+      normalized to sum to 1.0. For example, the input ``[0.98, 0.0, 0.0]`` will
+      be normalized to ``[1.0, 0.0, 0.0]``. For BGEN v1.2 files, no
+      modifications are made to the genotype probabilities.
+
+
+    Parameters
+    ----------
+    path : :obj:`str` or :obj:`list` of :obj:`str`
+        BGEN file(s) to read.
+    tolerance : :obj:`float`
+        If the sum of the probabilities for an entry differ from 1.0 by more
+        than the tolerance, set the entry to missing. Only applicable if the
+        BGEN files are v1.1.
+    sample_file : :obj:`str`, optional
+        Sample file to read the sample ids from. If specified, the number of
+        samples in the file must match the number in the BGEN file(s).
+    min_partitions : :obj:`int`, optional
+        Number of partitions.
+    reference_genome : :class:`.GenomeReference`, optional
+        Reference genome to use. Default is :func:`~hail2.default_reference`.
+        The row key will have type ``TVariant(reference_genome)``.
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
     
     if contig_recoding:
         contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
@@ -570,7 +662,85 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
                contig_recoding=None):
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+    """
+    Import GEN file(s) as a matrix table.
+
+    Examples
+    --------
+
+    Import a GEN file as a matrix table.
+
+    >>> ds_result = methods.import_gen('data/example.gen',
+    ...                                sample_file='data/example.sample')
+
+    Notes
+    -----
+
+    For more information on the GEN file format, see `here
+    <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`__.
+
+    If the GEN file has only 5 columns before the start of the genotype
+    probability data (chromosome field is missing), you must specify the
+    chromosome using the `chromosome` parameter.
+
+    To load multiple files at the same time, use :ref:`Hadoop Glob Patterns
+    <sec-hadoop-glob>`.
+
+    **Column Fields**
+
+    - `s` (:class:`.TString`) -- Column key. This is the sample ID imported
+      from the first column of the sample file.
+
+    **Row Fields**
+
+    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the
+      contig (1st column if present, otherwise given by `chromosome`), position
+      (3rd column if chromosome is not present), reference allele (4th column if
+      chromosome is not present), and alternate allele (5th column if chromosome
+      is not present).
+    - `varid` (:class:`.TString`) -- The variant identifier. 2nd column of GEN
+      file if chromosome present, otherwise 1st column.
+    - `rsid` (:class:`.TString`) -- The rsID. 3rd column of GEN file if
+      chromosome present, otherwise 2nd column.
+
+    **Entry Fields**
+
+    - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
+      the highest probability.
+    - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
+      as defined by the GEN file spec. The array is set to missing if the
+      sum of the probabilities is a distance greater than the `tolerance`
+      parameter from 1.0. Otherwise, the probabilities are normalized to sum to
+      1.0. For example, the input ``[0.98, 0.0, 0.0]`` will be normalized to
+      ``[1.0, 0.0, 0.0]``.
+
+    Parameters
+    ----------
+    path : :obj:`str` or :obj:`list` of :obj:`str`
+        GEN files to import.
+    sample_file : :obj:`str`
+        Sample file to import.
+    tolerance : :obj:`float`
+        If the sum of the genotype probabilities for a genotype differ from 1.0
+        by more than the tolerance, set the genotype to missing.
+    min_partitions : :obj:`int`, optional
+        Number of partitions.
+    chromosome : :obj:`str`, optional
+        Chromosome if not included in the GEN file
+    reference_genome : :class:`.GenomeReference`
+        Reference genome to use. Default is :func:`~hail2.default_reference`.
+        The row key will have type ``TVariant(reference_genome)``.
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
         contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
@@ -597,7 +767,9 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     key = wrap_to_list(key)
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+
+    from hail import default_reference
+    rg = reference_genome if reference_genome else default_reference()
     
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
                                    no_header, impute, quote, rg._jrep)
@@ -806,13 +978,13 @@ def get_vcf_metadata(path):
     
     Parameters
     ----------
-    path : `obj`:str
+    path : :obj:`str`
         VCF file(s) to read. If more than one file is given, the first
         file is used.
 
     Returns
     -------
-    `obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to `obj`:str:))
+    :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
     typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
@@ -875,7 +1047,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         ``ds.filters.is_empty()`` is ``True``. Thus, filtering to PASS variants
         can be done with :meth:`.MatrixTable.filter_rows` as follows:
 
-        >>> pass_ds = dataset.filter_rows(ds.filters.is_empty())
+        >>> pass_ds = dataset.filter_rows(dataset.filters.length() == 0)
 
     **Column Fields**
 
@@ -924,7 +1096,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         a call automatically.
     reference_genome: :class:`.GenomeReference`, optional
         Reference genome to use. If ``None``, then the
-        :meth:`.HailContext.default_reference` is used.
+        :func:`~hail2.default_reference` is used.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
