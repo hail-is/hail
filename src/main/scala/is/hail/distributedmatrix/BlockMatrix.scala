@@ -9,7 +9,6 @@ import is.hail.annotations._
 import is.hail.expr.EvalContext
 import is.hail.expr.types._
 import is.hail.rvd.RVD
-import is.hail.sparkextras.SomePartitionsRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
@@ -295,7 +294,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   /**
     * Write {@code this} to a Hadoop sequence file at location {@code uri}.
     **/
-  def write(uri: String, forceRowMajor: Boolean = false) {
+  def write(uri: String, forceRowMajor: Boolean = false, optKeep: Option[Array[Int]] = None) {
     
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
@@ -318,20 +317,16 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         os)
     }
 
-    blocks match {
-      case rdd: SomePartitionsRDD[_] =>
-        blocks.writePartitions(uri, writeBlock, Some(rdd.keep), Some(partitioner.numPartitions))
-      case _ =>
+    optKeep match {
+      case Some(keep) =>
+        blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, optKeep, Some(partitioner.numPartitions))
+      case None =>
         blocks.writePartitions(uri, writeBlock)
     }
     
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
   }
-  
-  def writeWithSomePartitions(uri: String, forceRowMajor: Boolean = false, keep: Array[Int]) {
-    new BlockMatrix(new SomePartitionsRDD(blocks, keep), blockSize, nRows, nCols)
-      .write(uri, forceRowMajor)
-  }
+
 
   def cache(): this.type = {
     blocks.cache()

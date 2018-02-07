@@ -739,7 +739,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def writeWithFilterTest() {
+  def writeSubsetTest() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     def prefix(blockSize: Double): String = "/parts/part-" + (if (blockSize <= 3) "0" else "")
@@ -752,7 +752,7 @@ class BlockMatrixSuite extends SparkSuite {
       val someFile = tmpDir.createTempFile("some")
       
       bm.write(allFile)
-      bm.writeWithSomePartitions(someFile, keep = Array(1, 3))
+      bm.write(someFile, optKeep = Some(Array(1, 3)))
 
       assert(!hc.hadoopConf.exists(someFile + pre + "0"))
       assert( hc.hadoopConf.exists( allFile + pre + "0"))
