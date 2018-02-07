@@ -32,4 +32,5 @@ Use ``from hail import *`` to access this functionality.
 
 .. rubric:: Functions
 
-.. autofunction:: hail2.default_reference
+.. autofunction:: hail.stop
+.. autofunction:: hail.default_reference
