@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.utils.java import handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -374,7 +374,7 @@ def import_interval_list(path, reference_genome=None):
         Interval-keyed table.
     """
 
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
     t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
     return Table(t)
@@ -462,7 +462,7 @@ def import_bed(path, reference_genome=None):
     # >>> bed = methods.import_bed('data/file2.bed')
     # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.v])
 
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
     jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
@@ -640,7 +640,7 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
     :class:`.MatrixTable`
     """
 
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
     
     if contig_recoding:
@@ -739,7 +739,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     :class:`.MatrixTable`
     """
 
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
@@ -768,7 +768,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
 
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
     
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
