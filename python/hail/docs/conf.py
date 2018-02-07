@@ -21,7 +21,6 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath('./_ext'))
-sys.path.insert(0, os.path.abspath('../../hail2'))
 
 # sys.path.insert(0, os.path.abspath('.'))
 #import sphinx_rtd_theme
