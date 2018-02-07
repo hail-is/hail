@@ -592,7 +592,7 @@ def floor(x):
     -------
     :obj:`.Float64Expression`
     """
-    return _func("floor", x.dtype, x)
+    return _func("floor", unify_types(x.dtype, TFloat32()), x)
 
 @typecheck(x=expr_numeric)
 def ceil(x):
@@ -609,7 +609,7 @@ def ceil(x):
     -------
     :obj:`.Float64Expression`
     """
-    return _func("ceil", x.dtype, x)
+    return _func("ceil", unify_types(x.dtype, TFloat32()), x)
 
 @typecheck(j=expr_int32, k=expr_int32)
 def gt_index(j, k):

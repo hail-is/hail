@@ -180,24 +180,18 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
     locus : :class:`Expression`
         A locus for each row. This should be a Table-like expression with only
         one key. Will be keyed by `call`.
-
     call : :class:`Expression`
         A genotype call for each row and column. This should be a
         MatrixTable-like expression with two keys. The first key indexes
         `locus`.
-
     aaf_threshold : :obj:`float`
         Minimum minor allele frequency threshold.
-
     include_par : :obj:`bool`
         Include pseudoautosomal regions.
-
     female_threshold : :obj:`float`
         Samples are called females if F < female_threshold.
-
     male_threshold : :obj:`float`
         Samples are called males if F > male_threshold.
-
     aaf : :class:`Expression` or :obj:`None`
         The alternate allele frequency for each row. Must be a Table-like
         expression. Will be keyed by `call`. If ``None``, AAF will be computed
