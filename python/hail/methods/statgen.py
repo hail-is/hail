@@ -124,7 +124,7 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     Remove samples where imputed sex does not equal reported sex:
 
-    >>> imputed_sex = methods.impute_sex(ds.rows_table().v.locus(), ds.GT)
+    >>> imputed_sex = methods.impute_sex(ds.v.locus(), ds.GT)
     >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
 
     Notes
@@ -138,11 +138,11 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
 
-    4. Calculate alternate allele frequency (AAF) for each row from the dataset.
+    2. Calculate alternate allele frequency (AAF) for each row from the dataset.
 
-    2. Filter to variants with AAF above `aaf_threshold`.
+    3. Filter to variants with AAF above `aaf_threshold`.
 
-    3. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
+    4. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
        only if `include_par` is ``True`` (it defaults to ``False``)
 
     5. For each row and column with a non-missing genotype call, :math:`E`, the
@@ -170,13 +170,12 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     The returned column-key indexed :class:`.Table` has the following fields:
 
-    - **s** -- The column key of `call`
-    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined
-    - **Fstat** (:class:`.TFloat64`) -- Inbreeding coefficient
-    - **nTotal** (:class:`.TInt64`) -- Total number of variants considered
-    - **nCalled**  (:class:`.TInt64`) -- Number of variants with a genotype call
-    - **expectedHoms** (:class:`.TFloat64`) -- Expected number of homozygotes
-    - **observedHoms** (:class:`.TInt64`) -- Observed number of homozygotes
+    - **s** -- The column key of `call`.
+    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined.
+    - **Fstat** (:class:`.TFloat64`) -- Inbreeding coefficient.
+    - **nCalled**  (:class:`.TInt64`) -- Number of variants with a genotype call.
+    - **expectedHoms** (:class:`.TFloat64`) -- Expected number of homozygotes.
+    - **observedHoms** (:class:`.TInt64`) -- Observed number of homozygotes.
 
     locus : :class:`Expression`
         A locus for each row. This should be a Table-like expression with only
@@ -1286,11 +1285,6 @@ def ld_matrix(dataset, force_local=False):
     .. include:: ../_templates/req_tvariant.rst
 
     .. include:: ../_templates/req_biallelic.rst
-
-    .. testsetup::
-
-        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
-        from hail.methods import ld_matrix
 
     Examples
     --------
