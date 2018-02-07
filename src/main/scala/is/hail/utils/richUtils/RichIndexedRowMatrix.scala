@@ -87,16 +87,16 @@ private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double
     if (it.hasNext)
       it
     else
-      Iterator.single(p.coords -> BDM.zeros[Double](p.blockSize, p.blockSize))
+      Iterator.single(p.blockCoordinates -> BDM.zeros[Double](p.blockDims._1, p.blockDims._2))
   }
 
   protected def getPartitions: Array[Partition] =
     blocks.partitions.map { p =>
-      new BlockPartition(p.index, gp.blockSize, gp.blockCoordinates(p.index))
+      new BlockPartition(p.index, gp.blockCoordinates(p.index), gp.blockDims(p.index))
     }.toArray
 
   @transient override val partitioner: Option[Partitioner] =
     Some(gp)
 }
 
-private class BlockPartition(val index: Int, val blockSize: Int, val coords: (Int, Int)) extends Partition {}
+private class BlockPartition(val index: Int, val blockCoordinates: (Int, Int), val blockDims: (Int, Int)) extends Partition {}
