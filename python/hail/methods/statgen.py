@@ -104,13 +104,12 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               joption(max)))
 
 @handle_py4j
-@typecheck(locus=expr_locus,
-           call=expr_call,
+@typecheck(call=expr_call,
            aaf_threshold=numeric,
            include_par=bool,
            female_threshold=numeric,
            male_threshold=numeric,
-           aaf=nullable(expr_numeric))
+           aaf=nullable(strlike))
 def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
     """Impute sex of samples by calculating inbreeding coefficient on the X
     chromosome.
@@ -124,7 +123,7 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     Remove samples where imputed sex does not equal reported sex:
 
-    >>> imputed_sex = methods.impute_sex(ds.v.locus(), ds.GT)
+    >>> imputed_sex = methods.impute_sex(ds.GT)
     >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
 
     Notes
@@ -133,8 +132,8 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
     We have used the same implementation as `PLINK v1.7
     <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
 
-    Let `gr` be the the genome reference of the type of `locus` (as given by
-    :meth:`.TLocus.reference_genome`)
+    Let `gr` be the the genome reference of the type of the `locus` key (as
+    given by :meth:`.TLocus.reference_genome`)
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
 
@@ -164,7 +163,7 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
     10. A sex is assigned to each sample with the following criteria:
         - Female when ``F < 0.2``
         - Male when ``F > 0.8``
-        Use `female-threshold` and `male-threshold` to change this behavior.
+        Use `female_threshold` and `male_threshold` to change this behavior.
 
     **Annotations**
 
@@ -172,71 +171,67 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     - **s** -- The column key of `call`.
     - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined.
-    - **Fstat** (:class:`.TFloat64`) -- Inbreeding coefficient.
-    - **nCalled**  (:class:`.TInt64`) -- Number of variants with a genotype call.
-    - **expectedHoms** (:class:`.TFloat64`) -- Expected number of homozygotes.
-    - **observedHoms** (:class:`.TInt64`) -- Observed number of homozygotes.
+    - **f_stat** (:class:`.TFloat64`) -- Inbreeding coefficient.
+    - **n_called**  (:class:`.TInt64`) -- Number of variants with a genotype call.
+    - **expected_homs** (:class:`.TFloat64`) -- Expected number of homozygotes.
+    - **observed_homs** (:class:`.TInt64`) -- Observed number of homozygotes.
 
-    locus : :class:`Expression`
-        A locus for each row. This should be a Table-like expression with only
-        one key. Will be keyed by `call`.
-    call : :class:`Expression`
-        A genotype call for each row and column. This should be a
-        MatrixTable-like expression with two keys. The first key indexes
-        `locus`.
+    call : :class:`.CallExpression`
+        A genotype call for each row and column. The source dataset's row keys
+        must be [[locus], alleles] with types :class:`.TLocus` and
+        :class:`.ArrayStringExpression`. Moreover, the keys must all be biallelic.
     aaf_threshold : :obj:`float`
-        Minimum minor allele frequency threshold.
+        Minimum alternate allele frequency threshold.
     include_par : :obj:`bool`
         Include pseudoautosomal regions.
     female_threshold : :obj:`float`
         Samples are called females if F < female_threshold.
     male_threshold : :obj:`float`
         Samples are called males if F > male_threshold.
-    aaf : :class:`Expression` or :obj:`None`
-        The alternate allele frequency for each row. Must be a Table-like
-        expression. Will be keyed by `call`. If ``None``, AAF will be computed
-        from `call`.
+    aaf : :obj:`str` or :obj:`None`
+        A field defining the alternate allele frequency for each row. If
+        ``None``, AAF will be computed from `call`.
 
     Return
     ------
     :class:`.Table`
         Sex imputation statistics per sample.
+
     """
 
     f = functions
-    gr = locus.dtype.reference_genome
 
-    call = tablify(call)
-    locus = tablify(locus)
+    ds = call._indices.source
+    ds, _ = ds._process_joins(call)
+    ds.annotate_rows(call = call)
+    ds = require_biallelic(ds, 'impute_sex')
+    ds = require_variant(ds, 'impute_sex')
+    locus = ds.row_key[0]
+    gr = ds[locus].dtype.reference_genome
 
     if (aaf is None):
-        temp = call.select_rows(
+        ds = ds.annotate_rows(
             aaf=(agg.sum(call._.num_alt_alleles()).to_float64() /
                  agg.count_where(f.is_defined(call._)) / 2))
-        temp = temp.drop('_')
-        aaf = temp.aaf
-
-    aaf = tablify(aaf)
-
-    call = require_biallelic(call, 'impute_sex')
+        aaf = 'aaf'
 
     # FIXME: filter_intervals
-    call = call.filter_rows(f.capture(set(gr.x_contigs)).contains(locus[call.v]._.contig))
+    ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(ds[locus].contig))
 
     if (not include_par):
-        call = call.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(locus[call.v]._)),
-                                keep=False)
+        ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(ds[locus])),
+                            keep=False)
 
-    call = call.filter_rows(aaf[call.v]._ > aaf_threshold)
-    call = call.annotate_cols(ib=agg.inbreeding(call._, aaf[call.v]._))
-    kt = call.select_cols(
+    ds = ds.filter_rows(ds[aaf] > aaf_threshold)
+    ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds[aaf]))
+    kt = ds.select_cols(
         *ds.col_key,
-        is_female=f.cond(call.ib.Fstat < female_threshold,
+        is_female=f.cond(ds.ib.Fstat < female_threshold,
                          True,
-                         f.cond(call.ib.Fstat > male_threshold,
+                         f.cond(ds.ib.Fstat > male_threshold,
                                 False,
                                 f.null(TBoolean()))),
-        **call.ib).cols_table()
+        **ds.ib).cols_table()
 
     return kt
 

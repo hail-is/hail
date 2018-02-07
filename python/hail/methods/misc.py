@@ -124,6 +124,16 @@ def maximal_independent_set(i, j, tie_breaker=None):
                                                          joption(tie_breaker_hql)))
 
 @handle_py4j
+def require_variant(dataset, method):
+    # if (dataset.row_key != ['locus', 'alleles'] or
+    #         not isinstance(dataset['locus'].dtype, TLocus) or
+    #         not dataset['alleles'].dtype == TArray(TString())):
+    #     raise TypeError("Method '{}' requires row keys 'locus' (Locus) and 'alleles' (Array[String])\n"
+    #                     "  Found:{}".format(method, ''.join(
+    #         "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+    return true
+
+@handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
 def require_biallelic(dataset, method):
     from hail.expr.types import TVariant
