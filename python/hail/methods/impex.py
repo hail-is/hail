@@ -367,8 +367,7 @@ def import_interval_list(path, reference_genome=None):
         Path to file.
 
     reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is
-        :func:`~hail2.default_reference`.
+        Reference genome to use. Default is :func:`~hail.default_reference`.
 
     Returns
     -------
@@ -443,8 +442,7 @@ def import_bed(path, reference_genome=None):
         Path to .bed file.
 
     reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is
-        :func:`~hail2.default_reference`.
+        Reference genome to use. Default is :func:`~hail.default_reference`.
 
     Returns
     -------
@@ -631,7 +629,7 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
     min_partitions : :obj:`int`, optional
         Number of partitions.
     reference_genome : :class:`.GenomeReference`, optional
-        Reference genome to use. Default is :func:`~hail2.default_reference`.
+        Reference genome to use. Default is :func:`~hail.default_reference`
         The row key will have type ``TVariant(reference_genome)``.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
@@ -730,7 +728,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     chromosome : :obj:`str`, optional
         Chromosome if not included in the GEN file
     reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is :func:`~hail2.default_reference`.
+        Reference genome to use. Default is :func:`~hail.default_reference`
         The row key will have type ``TVariant(reference_genome)``.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
@@ -843,7 +841,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     To import:
 
     >>> t = (methods.import_table('data/samples3.tsv', no_header=True)
-    ...      .annotate('sample = f0.split("_")[1]')
+    ...      .annotate(sample = f0.split("_")[1])
     ...      .key_by('sample'))
 
     Notes
@@ -877,7 +875,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     this option is passed, then the field names will be `f0`, `f1`,
     ... `fN` (0-indexed).
 
-    The `types` parameter allows the user to pass the types of files in the
+    The `types` parameter allows the user to pass the types of fields in the
     table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.Type`
     values. See the examples above for a standard usage. Additionally, this
     option can be used to override type imputation. For example, if the field
@@ -889,7 +887,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     The `min_partitions` parameter sets the minimum number of partitions (level
     of sharding) of an imported table. The default partition size depends on
     file system and a number of other factors (including the `min_block_size`
-    parameter of :meth:`.HailContext.init`), but usually is between 32M and
+    parameter of :func:`~hail.init`), but usually is between 32M and
     128M.
 
     Parameters
@@ -897,44 +895,33 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     paths: :obj:`str` or :obj:`list` of :obj:`str`
         Files to import.
-
     key: :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s).
-
     min_partitions: :obj:`int` or :obj:`None`
         Minimum number of partitions.
-
     no_header: :obj:`bool`
         If ``True```, assume the file has no header and name the N fields `f0`,
         `f1`, ... `fN` (0-indexed).
-
     impute: :obj:`bool`
         If ``True``, Impute field types from the file.
-
     comment: :obj:`str` or :obj:`None`
         Skip lines beginning with the given string.
-
     delimiter: :obj:`str`
         Field delimiter regex.
-
     missing: :obj:`str`
         Identifier to be treated as missing.
-
     types: :obj:`dict` mapping :obj:`str` to :class:`.Type`
         Dictionary defining field types.
-
     quote: :obj:`str` or :obj:`None`
         Quote character.
-
     reference_genome: :class:`.GenomeReference`
         Reference genome to use when imputing Variant or Locus fields. Default
-        is :class:`~.HailContext.default_reference`.
+        is :func:`~hail.default_reference`
 
     Returns
     -------
     :class:`.Table`
         Table constructed from text table.
-
     """
     key = wrap_to_list(key)
     paths = wrap_to_list(paths)
@@ -1268,7 +1255,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         a call automatically.
     reference_genome: :class:`.GenomeReference`, optional
         Reference genome to use. If ``None``, then the
-        :func:`~hail2.default_reference` is used.
+        :func:`~hail.default_reference` is used.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
