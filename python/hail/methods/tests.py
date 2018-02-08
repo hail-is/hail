@@ -123,6 +123,10 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(plink_sex._same(sex, tolerance=1e-3))
 
+        ds = ds.annotate_rows(aaf=(agg.call_stats(ds.GT, ds.v)).AF)
+
+        self.assertTrue(methods.impute_sex(ds.GT)._same(methods.impute_sex(ds.GT, aaf='aaf')))
+
     def test_ld_matrix(self):
         dataset = self.get_dataset()
 

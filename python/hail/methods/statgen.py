@@ -166,9 +166,9 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
     **Annotations**
 
-    The returned column-key indexed :class:`.Table` has the following fields:
+    The returned column-key indexed :class:`.Table` has the following fields in
+    addition to the matrix table's column keys:
 
-    - **s** -- The column key of `call`.
     - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female,
       false if male, missing if undetermined.
     - **f_stat** (:class:`.TFloat64`) -- Inbreeding coefficient.
@@ -179,7 +179,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     call : :class:`.CallExpression`
         A genotype call for each row and column. The source dataset's row keys
         must be [[locus], alleles] with types :class:`.TLocus` and
-        :class:`.ArrayStringExpression`. Moreover, the keys must all be biallelic.
+        :class:`.ArrayStringExpression`. Moreover, the alleles array have
+        exactly two elements.
     aaf_threshold : :obj:`float`
         Minimum alternate allele frequency threshold.
     include_par : :obj:`bool`
@@ -196,8 +197,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     ------
     :class:`.Table`
         Sex imputation statistics per sample.
-
     """
+    assert(aaf_threshold >= 0.0 and aaf_threshold <= 1.0)
 
     f = functions
 
