@@ -2135,16 +2135,14 @@ def rrm(call_expr):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
             "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     dataset = source
-    base, _ = dataset._process_joins(call_expr)
     analyze('rrm', call_expr, dataset._entry_indices)
-
+    dataset = dataset.annotate_entries(call=call_expr)
     dataset = require_biallelic(dataset, 'rrm')
 
-    call_expr._indices = dataset._entry_indices
-    gt_expr = call_expr.num_alt_alleles()
+    gt_expr = dataset.call.num_alt_alleles()
     dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
                                     ACsq=agg.sum(gt_expr * gt_expr),
-                                    n_called=agg.count_where(functions.is_defined(call_expr)))
+                                    n_called=agg.count_where(functions.is_defined(dataset.call)))
 
     dataset = dataset.filter_rows((dataset.AC > 0) &
                                   (dataset.AC < 2 * dataset.n_called) &
@@ -2157,15 +2155,14 @@ def rrm(call_expr):
         raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing RRM using {} variants.".format(n_variants))
 
-    call_expr._indices = dataset._entry_indices
-    gt_expr = call_expr.num_alt_alleles()
+    gt_expr = dataset.call.num_alt_alleles()
     normalized_genotype_expr = functions.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: functions.bind(
             functions.sqrt((dataset.ACsq +
                             (n_samples - dataset.n_called) * mean_gt ** 2) /
                            n_samples - mean_gt ** 2),
-            lambda stddev: functions.cond(functions.is_defined(call_expr),
+            lambda stddev: functions.cond(functions.is_defined(dataset.call),
                                           (gt_expr - mean_gt) / stddev, 0)))
 
     bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)

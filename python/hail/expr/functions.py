@@ -2053,7 +2053,7 @@ def downcode(gt, i):
 
     Returns
     -------
-    :clas:`.CallExpression`
+    :class:`.CallExpression`
     """
     return call(cond(gt.gtj() == i, 1, 0) + cond(gt.gtk() == i, 1, 0))
 
