@@ -2031,6 +2031,30 @@ def gt_from_pl(pl):
 
 @typecheck(gt=expr_call, i=expr_int32)
 def downcode(gt, i):
+    """Create a biallelic call by sending all alleles other than i to ref
+
+    Examples
+    --------
+    Preserve the third allele and downcode all other alleles to reference. Note
+    that ``functions.call(4)`` is the call ``1/2``.
+
+    .. doctest::
+
+        >>> eval_expr(functions.downcode(functions.call(4), 2))
+        Call(gt=1)
+
+    Parameters
+    ----------
+    gt : :class:`.CallExpression`
+        A call.
+    i : :class:`.Int32Expression`
+        The index of the allele that will be sent to the alternate allele. All
+        other alleles will be downcoded to reference.
+
+    Returns
+    -------
+    :clas:`.CallExpression`
+    """
     return call(cond(gt.gtj() == i, 1, 0) + cond(gt.gtk() == i, 1, 0))
 
 @typecheck(pl=ArrayInt32Expression)
