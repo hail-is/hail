@@ -768,13 +768,13 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
                  comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
     """Import delimited text file (text table) as :class:`.Table`.
 
-    The resulting :class:`.Table` will have no key columns. Use
+    The resulting :class:`.Table` will have no key fields. Use
     :meth:`.Table.key_by` to specify keys.
 
     Examples
     --------
 
-    Consider this file
+    Consider this file:
 
     .. code-block:: text
 
@@ -790,16 +790,16 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     To import this table using field types:
 
-    >>> table = hc.import_table('data/samples1.tsv',
-    ...                         types={'Height': TFloat64(), 'Age': TInt32()})
+    >>> table = methods.import_table('data/samples1.tsv',
+    ...                              types={'Height': TFloat64(), 'Age': TInt32()})
 
     Note ``Sample`` and ``Status`` need no type, because :class:`.TString` is
     the default type.
 
-    To import a table using type imputation (the file must be read twice to
-    impute):
+    To import a table using type imputation (which causes the file to be parsed
+    twice):
 
-    >>> table = hc.import_table('data/samples1.tsv', impute=True)
+    >>> table = methods.import_table('data/samples1.tsv', impute=True)
 
     **Detailed examples**
 
@@ -824,7 +824,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     - Pass the non-default missing value ``.``
 
-    >>> table = hc.import_table('data/samples2.tsv', delimiter=',', missing='.')
+    >>> table = methods.import_table('data/samples2.tsv', delimiter=',', missing='.')
 
     Let's import a table from a file with no header and sample IDs that need to
     be transformed.  Suppose the sample IDs are of the form ``NA#####``. This
@@ -842,7 +842,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     To import:
 
-    >>> t = (hc.import_table('data/samples3.tsv', no_header=True)
+    >>> t = (methods.import_table('data/samples3.tsv', no_header=True)
     ...      .annotate('sample = f0.split("_")[1]')
     ...      .key_by('sample'))
 
@@ -863,7 +863,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
         Use ``delimiter='\\s+'`` to specify whitespace delimited files.
 
-    The `comment` parameter optionally causes Hail to skip any line that starts
+    If set, the `comment` parameter causes Hail to skip any line that starts
     with the given string. For example, passing ``comment='#'`` will skip any
     line beginning in a pound sign.
 
@@ -874,17 +874,17 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         The `comment` and `missing` parameters are **NOT** regexes.
 
     The `no_header` parameter indicates that the file has no header line. If
-    this option is passed, then the column names will be `f0`, `f1`,
+    this option is passed, then the field names will be `f0`, `f1`,
     ... `fN` (0-indexed).
 
-    The `types` parameter allows the user to pass the types of columns in the
+    The `types` parameter allows the user to pass the types of files in the
     table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.Type`
     values. See the examples above for a standard usage. Additionally, this
     option can be used to override type imputation. For example, if the field
     ``Chromosome`` only contains the values ``1`` through ``22``, it will be
     imputed to have type :class:.TInt32, whereas most Hail methods expect that a
     chromosome field will be of type :class:.TString.  Setting ``impute=True``
-    and ``types={'Chromosome': TString()}`` with solve this problem.
+    and ``types={'Chromosome': TString()}`` solves this problem.
 
     The `min_partitions` parameter sets the minimum number of partitions (level
     of sharding) of an imported table. The default partition size depends on
@@ -899,17 +899,17 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         Files to import.
 
     key: :obj:`str` or :obj:`list` of :obj:`str`
-        Key column(s).
+        Key fields(s).
 
     min_partitions: :obj:`int` or :obj:`None`
         Minimum number of partitions.
 
     no_header: :obj:`bool`
-        If ``True```, assume the file has no header and name the N columns `f0`,
+        If ``True```, assume the file has no header and name the N fields `f0`,
         `f1`, ... `fN` (0-indexed).
 
     impute: :obj:`bool`
-        If ``True``, Impute column types from the file.
+        If ``True``, Impute field types from the file.
 
     comment: :obj:`str` or :obj:`None`
         Skip lines beginning with the given string.
@@ -921,13 +921,13 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         Identifier to be treated as missing.
 
     types: :obj:`dict` mapping :obj:`str` to :class:`.Type`
-        Dictionary defining column types.
+        Dictionary defining field types.
 
     quote: :obj:`str` or :obj:`None`
         Quote character.
 
     reference_genome: :class:`.GenomeReference`
-        Reference genome to use when imputing Variant or Locus columns. Default
+        Reference genome to use when imputing Variant or Locus fields. Default
         is :class:`~.HailContext.default_reference`.
 
     Returns
