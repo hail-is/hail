@@ -2054,7 +2054,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           }
           gs1.iterator.zipWithIndex.zip(gs2.iterator).foreach { case ((g1, i), g2) =>
             val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
-            println(g1, g2, gSame)
             if (!gSame && partSame) {
               println(
                 s"""at $v1, col $i, genotypes were not the same:

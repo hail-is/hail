@@ -2529,10 +2529,11 @@ class FilterAlleles(object):
             (functions.range(0, self.new_v.num_genotypes())
              .map(lambda newi: (functions.range(0, ds.v.num_genotypes())
                                 .filter(lambda oldi: functions.bind(
-                                    functions.call(newi),
+                                    functions.call(oldi),
                                     lambda oldc: functions.gt_index(self.old_to_new[oldc.gtj()],
                                                                     self.old_to_new[oldc.gtk()]) == newi))
-                                .map(lambda oldi: ds.PL[oldi]).min()))),
+                                .map(lambda oldi: ds.PL[oldi])
+                                .min()))),
             functions.null(TArray(TInt32())))
         self.annotate_entries(
             GT = functions.gt_index(self.old_to_new[ds.GT.gtj()],
