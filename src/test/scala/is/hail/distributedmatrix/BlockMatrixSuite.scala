@@ -1,5 +1,6 @@
 package is.hail.distributedmatrix
 
+
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Arbitrary._
@@ -7,9 +8,15 @@ import is.hail.check.Prop._
 import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.distributedmatrix.BlockMatrix.ops._
+import is.hail.expr.types.{TFloat64Required, TInt64Required, TStruct}
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.testng.annotations.Test
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.language.implicitConversions
 
 class BlockMatrixSuite extends SparkSuite {
 
@@ -35,7 +42,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
     BlockMatrix.from(sc, lm, blockSize)
- 
+
   private val defaultBlockSize = choose(1, 1 << 6)
   private val defaultDims = nonEmptySquareOfAreaAtMostSize
   private val defaultElement = arbitrary[Double]
@@ -83,7 +90,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   private def findDoubleMatrixMismatchNaNEqualsNaN(x: BDM[Double], y: BDM[Double], relTolerance: Double = defaultRelTolerance): Option[(Int, Int)] = {
     assert(x.rows == y.rows && x.cols == y.cols,
-      s"dimension mismatch: ${x.rows} x ${x.cols} vs ${y.rows} x ${y.cols}")
+      s"dimension mismatch: ${ x.rows } x ${ x.cols } vs ${ y.rows } x ${ y.cols }")
     var j = 0
     while (j < x.cols) {
       var i = 0
@@ -91,7 +98,7 @@ class BlockMatrixSuite extends SparkSuite {
         if (D_==(x(i, j) - y(i, j), relTolerance) && !(x(i, j).isNaN && y(i, j).isNaN)) {
           println(x.toString(1000, 1000))
           println(y.toString(1000, 1000))
-          println(s"inequality found at ($i, $j): ${x(i, j)} and ${y(i, j)}")
+          println(s"inequality found at ($i, $j): ${ x(i, j) } and ${ y(i, j) }")
           return Some((i, j))
         }
         i += 1
@@ -104,16 +111,16 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def pointwiseSubtractCorrect() {
     val m = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
     val expected = toLM(4, 4, Array[Double](
       0, -3, -6, -9,
-      3, 0,  -3, -6,
-      6, 3,  0,  -3,
-      9, 6,  3,  0))
+      3, 0, -3, -6,
+      6, 3, 0, -3,
+      9, 6, 3, 0))
 
     val actual = (m :- m.t).toLocalMatrix()
     assert(actual == expected)
@@ -122,9 +129,9 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def multiplyByLocalMatrix() {
     val ll = toLM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
     val l = toBM(ll)
 
@@ -147,30 +154,30 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsBreeze() {
-    def randomLm(n: Int, m: Int) = denseMatrix[Double](n,m)
+    def randomLm(n: Int, m: Int) = denseMatrix[Double](n, m)
 
-    forAll(randomLm(4,4), randomLm(4,4)) { (ll, lr) =>
+    forAll(randomLm(4, 4), randomLm(4, 4)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
       sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), ll * lr)
     }.check()
 
-    forAll(randomLm(9,9), randomLm(9,9)) { (ll, lr) =>
+    forAll(randomLm(9, 9), randomLm(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
       sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), ll * lr)
     }.check()
 
-    forAll(randomLm(9,9), randomLm(9,9)) { (ll, lr) =>
+    forAll(randomLm(9, 9), randomLm(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
       sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), ll * lr)
     }.check()
 
-    forAll(randomLm(2,10), randomLm(10,2)) { (ll, lr) =>
+    forAll(randomLm(2, 10), randomLm(10, 2)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
@@ -193,11 +200,11 @@ class BlockMatrixSuite extends SparkSuite {
 
       findDoubleMatrixMismatchNaNEqualsNaN(actual, expected) match {
         case Some((i, j)) =>
-          println(s"blockSize: ${l.blockSize}")
-          println(s"${l.toLocalMatrix()}")
-          println(s"${r.toLocalMatrix()}")
-          println(s"row: ${l.toLocalMatrix()(i,::)}")
-          println(s"col: ${r.toLocalMatrix()(::,j)}")
+          println(s"blockSize: ${ l.blockSize }")
+          println(s"${ l.toLocalMatrix() }")
+          println(s"${ r.toLocalMatrix() }")
+          println(s"row: ${ l.toLocalMatrix()(i, ::) }")
+          println(s"col: ${ r.toLocalMatrix()(::, j) }")
           false
         case None =>
           true
@@ -208,17 +215,17 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def rowwiseMultiplication() {
     val l = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
-    val v = Array[Double](1,2,3,4)
+    val v = Array[Double](1, 2, 3, 4)
 
     val result = toLM(4, 4, Array[Double](
-      1,  4,   9, 16,
-      5,  12, 21, 32,
-      9,  20, 33, 48,
+      1, 4, 9, 16,
+      5, 12, 21, 32,
+      9, 20, 33, 48,
       13, 28, 45, 64))
 
     assert((l --* v).toLocalMatrix() == result)
@@ -244,15 +251,15 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def colwiseMultiplication() {
     val l = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
-    val v = Array[Double](1,2,3,4)
+    val v = Array[Double](1, 2, 3, 4)
 
     val result = toLM(4, 4, Array[Double](
-      1,  2,  3,  4,
+      1, 2, 3, 4,
       10, 12, 14, 16,
       27, 30, 33, 36,
       52, 56, 60, 64))
@@ -276,7 +283,7 @@ class BlockMatrixSuite extends SparkSuite {
       if (sameDoubleMatrixNaNEqualsNaN(actual, expected))
         true
       else {
-        println(s"${l.toLocalMatrix().toArray.toSeq}\n*\n${v.toSeq}")
+        println(s"${ l.toLocalMatrix().toArray.toSeq }\n*\n${ v.toSeq }")
         false
       }
     }.check()
@@ -285,16 +292,16 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def colwiseAddition() {
     val l = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
-    val v = Array[Double](1,2,3,4)
+    val v = Array[Double](1, 2, 3, 4)
 
     val result = toLM(4, 4, Array[Double](
-      2,  3,  4,  5,
-      7,  8,  9,  10,
+      2, 3, 4, 5,
+      7, 8, 9, 10,
       12, 13, 14, 15,
       17, 18, 19, 20))
 
@@ -304,16 +311,16 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def rowwiseAddition() {
     val l = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
-    val v = Array[Double](1,2,3,4)
+    val v = Array[Double](1, 2, 3, 4)
 
     val result = toLM(4, 4, Array[Double](
-      2,  4,  6,  8,
-      6,  8,  10, 12,
+      2, 4, 6, 8,
+      6, 8, 10, 12,
       10, 12, 14, 16,
       14, 16, 18, 20))
 
@@ -323,12 +330,12 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def diagonalTestTiny() {
     val m = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
-    assert(m.diag.toSeq == Seq(1,6,11,16))
+    assert(m.diag.toSeq == Seq(1, 6, 11, 16))
   }
 
   @Test
@@ -336,13 +343,13 @@ class BlockMatrixSuite extends SparkSuite {
     forAll(squareBlockMatrixGen()) { (m: BlockMatrix) =>
       val lm = m.toLocalMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
-      val diagonal = Array.tabulate(diagonalLength)(i => lm(i,i))
+      val diagonal = Array.tabulate(diagonalLength)(i => lm(i, i))
 
       if (m.diag.toSeq == diagonal.toSeq)
         true
       else {
         println(s"lm: $lm")
-        println(s"${m.diag.toSeq} != ${diagonal.toSeq}")
+        println(s"${ m.diag.toSeq } != ${ diagonal.toSeq }")
         false
       }
     }.check()
@@ -364,15 +371,15 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def readWriteIdentityTrivial() {
     val m = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
     val fname = tmpDir.createTempFile("test")
     m.write(fname)
     assert(m.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
-    
+
     val fname2 = tmpDir.createTempFile("test2")
     m.write(fname2, forceRowMajor = true)
     assert(m.toLocalMatrix() == BlockMatrix.read(hc, fname2).toLocalMatrix())
@@ -381,18 +388,18 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def readWriteIdentityTrivialTransposed() {
     val m = toBM(4, 4, Array[Double](
-      1,  2,  3,  4,
-      5,  6,  7,  8,
-      9,  10, 11, 12,
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
       13, 14, 15, 16))
 
     val fname = tmpDir.createTempFile("test")
     m.t.write(fname)
     assert(m.t.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
-    
+
     val fname2 = tmpDir.createTempFile("test2")
     m.t.write(fname2, forceRowMajor = true)
-    assert(m.t.toLocalMatrix() == BlockMatrix.read(hc, fname2).toLocalMatrix())    
+    assert(m.t.toLocalMatrix() == BlockMatrix.read(hc, fname2).toLocalMatrix())
   }
 
   @Test
@@ -439,14 +446,14 @@ class BlockMatrixSuite extends SparkSuite {
       val expected = l.toLocalMatrix() * r.toLocalMatrix()
 
       if (!sameDoubleMatrixNaNEqualsNaN(actual, expected)) {
-        println(s"${l.toLocalMatrix()}")
-        println(s"${r.toLocalMatrix()}")
+        println(s"${ l.toLocalMatrix() }")
+        println(s"${ r.toLocalMatrix() }")
         assert(false)
       }
 
       if (!sameDoubleMatrixNaNEqualsNaN(l.t.cache().t.toLocalMatrix(), l.toLocalMatrix())) {
-        println(s"${l.t.cache().t.toLocalMatrix()}")
-        println(s"${l.toLocalMatrix()}")
+        println(s"${ l.t.cache().t.toLocalMatrix() }")
+        println(s"${ l.toLocalMatrix() }")
         assert(false)
       }
 
@@ -475,31 +482,31 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def map2RespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,2,
-      3,4,
-      5,6,
-      7,8))
+      1, 2,
+      3, 4,
+      5, 6,
+      7, 8))
     val lmt = toLM(2, 4, Array[Double](
-      1,3,5,7,
-      2,4,6,8))
+      1, 3, 5, 7,
+      2, 4, 6, 8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
 
     assert(m.map2(mt.t, _ + _).toLocalMatrix() === lm + lm)
-    assert(mt.t.map2(m, _ + _).toLocalMatrix() === lm + lm, s"${mt.toLocalMatrix()}\n${mt.t.toLocalMatrix()}\n${m.toLocalMatrix()}")
+    assert(mt.t.map2(m, _ + _).toLocalMatrix() === lm + lm, s"${ mt.toLocalMatrix() }\n${ mt.t.toLocalMatrix() }\n${ m.toLocalMatrix() }")
   }
 
   @Test
   def map4RespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,2,
-      3,4,
-      5,6,
-      7,8))
+      1, 2,
+      3, 4,
+      5, 6,
+      7, 8))
     val lmt = toLM(2, 4, Array[Double](
-      1,3,5,7,
-      2,4,6,8))
+      1, 3, 5, 7,
+      2, 4, 6, 8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
@@ -511,13 +518,13 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def mapRespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,2,
-      3,4,
-      5,6,
-      7,8))
+      1, 2,
+      3, 4,
+      5, 6,
+      7, 8))
     val lmt = toLM(2, 4, Array[Double](
-      1,3,5,7,
-      2,4,6,8))
+      1, 3, 5, 7,
+      2, 4, 6, 8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
@@ -530,81 +537,81 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def mapWithIndexRespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,2,
-      3,4,
-      5,6,
-      7,8))
+      1, 2,
+      3, 4,
+      5, 6,
+      7, 8))
     val lmt = toLM(2, 4, Array[Double](
-      1,3,5,7,
-      2,4,6,8))
+      1, 3, 5, 7,
+      2, 4, 6, 8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === lm.t.map(_ * 4))
-    assert(m.t.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === lm.map(_ * 4))
-    assert(mt.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === lm.map(_ * 4))
+    assert(m.t.mapWithIndex((_, _, x) => x * 4).toLocalMatrix() === lm.t.map(_ * 4))
+    assert(m.t.t.mapWithIndex((_, _, x) => x * 4).toLocalMatrix() === lm.map(_ * 4))
+    assert(mt.t.mapWithIndex((_, _, x) => x * 4).toLocalMatrix() === lm.map(_ * 4))
 
-    assert(m.t.mapWithIndex((i,j,x) => i * 10 + j + x).toLocalMatrix() ===
-      mt.mapWithIndex((i,j,x) => i * 10 + j + x).toLocalMatrix())
-    assert(m.t.mapWithIndex((i,j,x) => x + j * 2 + i + 1).toLocalMatrix() ===
+    assert(m.t.mapWithIndex((i, j, x) => i * 10 + j + x).toLocalMatrix() ===
+      mt.mapWithIndex((i, j, x) => i * 10 + j + x).toLocalMatrix())
+    assert(m.t.mapWithIndex((i, j, x) => x + j * 2 + i + 1).toLocalMatrix() ===
       lm.t + lm.t)
-    assert(mt.mapWithIndex((i,j,x) => x + j * 2 + i + 1).toLocalMatrix() ===
+    assert(mt.mapWithIndex((i, j, x) => x + j * 2 + i + 1).toLocalMatrix() ===
       lm.t + lm.t)
-    assert(mt.t.mapWithIndex((i,j,x) => x + i * 2 + j + 1).toLocalMatrix() ===
+    assert(mt.t.mapWithIndex((i, j, x) => x + i * 2 + j + 1).toLocalMatrix() ===
       lm + lm)
   }
 
   @Test
   def map2WithIndexRespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,2,
-      3,4,
-      5,6,
-      7,8))
+      1, 2,
+      3, 4,
+      5, 6,
+      7, 8))
     val lmt = toLM(2, 4, Array[Double](
-      1,3,5,7,
-      2,4,6,8))
+      1, 3, 5, 7,
+      2, 4, 6, 8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.map2WithIndex(mt.t, (_,_,x,y) => x + y).toLocalMatrix() === lm + lm)
-    assert(mt.map2WithIndex(m.t, (_,_,x,y) => x + y).toLocalMatrix() === lm.t + lm.t)
-    assert(mt.t.map2WithIndex(m, (_,_,x,y) => x + y).toLocalMatrix() === lm + lm)
-    assert(m.t.t.map2WithIndex(mt.t, (_,_,x,y) => x + y).toLocalMatrix() === lm + lm)
+    assert(m.map2WithIndex(mt.t, (_, _, x, y) => x + y).toLocalMatrix() === lm + lm)
+    assert(mt.map2WithIndex(m.t, (_, _, x, y) => x + y).toLocalMatrix() === lm.t + lm.t)
+    assert(mt.t.map2WithIndex(m, (_, _, x, y) => x + y).toLocalMatrix() === lm + lm)
+    assert(m.t.t.map2WithIndex(mt.t, (_, _, x, y) => x + y).toLocalMatrix() === lm + lm)
 
-    assert(m.t.map2WithIndex(mt, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix() ===
-      mt.map2WithIndex(m.t, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix())
-    assert(m.t.map2WithIndex(m.t, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix() ===
-      mt.map2WithIndex(mt, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix())
-    assert(m.t.map2WithIndex(mt, (i,j,x,y) => x + 2 * y + j * 2 + i + 1).toLocalMatrix() ===
+    assert(m.t.map2WithIndex(mt, (i, j, x, y) => i * 10 + j + x + y).toLocalMatrix() ===
+      mt.map2WithIndex(m.t, (i, j, x, y) => i * 10 + j + x + y).toLocalMatrix())
+    assert(m.t.map2WithIndex(m.t, (i, j, x, y) => i * 10 + j + x + y).toLocalMatrix() ===
+      mt.map2WithIndex(mt, (i, j, x, y) => i * 10 + j + x + y).toLocalMatrix())
+    assert(m.t.map2WithIndex(mt, (i, j, x, y) => x + 2 * y + j * 2 + i + 1).toLocalMatrix() ===
       4.0 * lm.t)
-    assert(mt.map2WithIndex(m.t, (i,j,x,y) => x + 2 * y + j * 2 + i + 1).toLocalMatrix() ===
+    assert(mt.map2WithIndex(m.t, (i, j, x, y) => x + 2 * y + j * 2 + i + 1).toLocalMatrix() ===
       4.0 * lm.t)
-    assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
+    assert(mt.t.map2WithIndex(m.t.t, (i, j, x, y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
       9.0 * lm)
   }
-  
+
   @Test
   def readWriteBDM() {
     val lm = BDM.rand[Double](256, 129) // 33024 doubles
     val fname = tmpDir.createTempFile("test")
 
-    lm.write(hc, fname)    
+    lm.write(hc, fname)
     val lm2 = RichDenseMatrixDouble.read(hc, fname)
-    
+
     assert(lm === lm2)
   }
-  
+
   @Test
   def filterCols() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
+    for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)      
-      for { keep <- Seq(
+      val bm = BlockMatrix.from(sc, lm, blockSize)
+      for {keep <- Seq(
         Array(0),
         Array(1),
         Array(9),
@@ -614,61 +621,61 @@ class BlockMatrixSuite extends SparkSuite {
       } {
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lm(::, keep.toIndexedSeq).copy
-        
+
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
-  
+
   @Test
   def filterColsTranspose() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
-    for { blockSize <- Seq(2, 3)
+    for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize).transpose()   
-      for { keep <- Seq(
+      val bm = BlockMatrix.from(sc, lm, blockSize).transpose()
+      for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
       } {
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lmt(::, keep.toIndexedSeq).copy
-        
+
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
-  
+
   @Test
   def filterRows() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
-    
-    for { blockSize <- Seq(2, 3)
+
+    for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize) 
-      for { keep <- Seq(
+      val bm = BlockMatrix.from(sc, lm, blockSize)
+      for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
       } {
         val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lm(keep.toIndexedSeq, ::).copy
-        
+
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
-  
+
   @Test
   def filterSymmetric() {
     val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
+    for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)      
-      for { keep <- Seq(
+      val bm = BlockMatrix.from(sc, lm, blockSize)
+      for {keep <- Seq(
         Array(0),
         Array(1),
         Array(9),
@@ -678,62 +685,62 @@ class BlockMatrixSuite extends SparkSuite {
       } {
         val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lm(keep.toIndexedSeq, keep.toIndexedSeq).copy
-        
+
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
-  
+
   @Test
   def filter() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
+    for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)      
+      val bm = BlockMatrix.from(sc, lm, blockSize)
       for {
         keepRows <- Seq(
           Array(1),
           Array(0, 3, 4, 5, 7),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8))  
+          Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
         keepCols <- Seq(
           Array(2),
           Array(1, 4, 5, 7, 8, 9),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))  
+          Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lm(keepRows.toIndexedSeq, keepCols.toIndexedSeq).copy
-        
+
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
-  
+
   @Test
   def writeLocalAsBlockTest() {
     val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
-    
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
+
+    for {blockSize <- Seq(1, 2, 3, 5, 10, 11)} {
       val fname = tmpDir.createTempFile("test")
       lm.writeBlockMatrix(hc, fname, blockSize)
       assert(lm === BlockMatrix.read(hc, fname).toLocalMatrix())
     }
   }
-  
+
   @Test
   def randomTest() {
     var lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toLocalMatrix()
     var lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toLocalMatrix()
     var lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2).toLocalMatrix()
-    
+
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
     assert(lm1.data.forall(x => x >= 0 && x <= 1))
-    
+
     lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = true).toLocalMatrix()
     lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = true).toLocalMatrix()
     lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2, gaussian = true).toLocalMatrix()
-    
+
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
   }
@@ -763,6 +770,22 @@ class BlockMatrixSuite extends SparkSuite {
       assert(TestUtils.fileHaveSameBytes(someFile + pre + "1", allFile + pre + "1"))
       assert(TestUtils.fileHaveSameBytes(someFile + pre + "3", allFile + pre + "3"))
       assert(TestUtils.fileHaveSameBytes(someFile + "/metadata.json", allFile + "/metadata.json"))
+    }
+  }
+
+  @Test
+  def testEntriesTable(): Unit = {
+    val data = (0 until 90).map(_.toDouble).toArray
+    val lm = new BDM[Double](9, 10, data)
+    val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
+    val expectedSignature = TStruct("i" -> TInt64Required, "j" -> TInt64Required, "entry" -> TFloat64Required)
+
+    for {blockSize <- Seq(1, 4, 10)} {
+      val entriesTable = toBM(lm, blockSize).entriesTable(hc)
+      val entries = entriesTable.collect().map(row => (row.get(0), row.get(1), row.get(2))).toSet
+      // block size affects order of rows in table, but sets will be the same
+      assert(entries === expectedEntries)
+      assert(entriesTable.signature === expectedSignature)
     }
   }
 }
