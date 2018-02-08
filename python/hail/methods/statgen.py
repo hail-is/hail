@@ -179,8 +179,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     call : :class:`.CallExpression`
         A genotype call for each row and column. The source dataset's row keys
         must be [[locus], alleles] with types :class:`.TLocus` and
-        :class:`.ArrayStringExpression`. Moreover, the alleles array have
-        exactly two elements.
+        :class:`.ArrayStringExpression`. Moreover, the alleles array must have
+        exactly two elements (i.e. the variant must be biallelic).
     aaf_threshold : :obj:`float`
         Minimum alternate allele frequency threshold.
     include_par : :obj:`bool`
@@ -198,7 +198,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     :class:`.Table`
         Sex imputation statistics per sample.
     """
-    assert(aaf_threshold >= 0.0 and aaf_threshold <= 1.0)
+    if aaf_threshold < 0.0 or aaf_threshold > 1.0:
+        raise FatalError("Invalid argument for `aaf_threshold`. Must be in range [0, 1].")
 
     f = functions
 
@@ -213,7 +214,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     gr = locus(ds).dtype.reference_genome
 
     if (aaf is None):
-        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.v).AF[0])
+        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.v).AF[1])
         aaf = 'aaf'
 
     # FIXME: filter_intervals
