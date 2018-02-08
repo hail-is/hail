@@ -1122,6 +1122,28 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
+    """Index .bgen files as required by :meth:`.methods.import_bgen`.
+
+    The index file is generated in the same directory as `path` with the
+    filename of `path` appended by `.idx`.
+
+    Example
+    -------
+
+    >>> methods.index_bgen("data/example3.bgen")
+
+    Warning
+    -------
+
+    While this method parallelizes over a list of BGEN files, each file is
+    indexed serially by one core. Indexing several BGEN files on a large cluster
+    is a waste of resources, so indexing should generally be done once,
+    separately from large analyses.
+
+    path: :obj:`str` or :obj:`list` of :obj:`str`
+        .bgen files to index.
+
+    """
     Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
 
 
