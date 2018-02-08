@@ -482,6 +482,35 @@ class Tests(unittest.TestCase):
                 .filter()
                 .count_rows(), ds.count_rows())
 
+    def test_filter_alleles2(self):
+        # 1 variant: A:T,G
+        ds = methods.import_vcf(test_file('filter_alleles/input.vcf'))
+
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "T"))
+        fa.subset_entries_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/keep_allele1_subset.vcf'))._same(fa.filter()))
+
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        # test fa.annotate_rows
+        fa.annotate_rows(new_to_old = fa.new_to_old)
+        fa.subset_entries_hts()
+        self.assertTrue(
+            (methods.import_vcf(test_file('filter_alleles/keep_allele2_subset.vcf'))
+             .annotate_rows(new_to_old = [0, 2])
+             ._same(fa.filter())))
+
+        # also test keep=False
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"), keep=False)
+        fa.downcode_entries_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/keep_allele1_downcode.vcf'))._same(fa.filter()))
+
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa.downcode_entries_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/keep_allele2_downcode.vcf'))._same(fa.filter()))
+
     def test_ld_prune(self):
         ds = methods.split_multi_hts(
             methods.import_vcf(test_file('sample.vcf')))
