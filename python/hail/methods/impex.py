@@ -884,12 +884,6 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     chromosome field will be of type :class:.TString.  Setting ``impute=True``
     and ``types={'Chromosome': TString()}`` solves this problem.
 
-    The `min_partitions` parameter sets the minimum number of partitions (level
-    of sharding) of an imported table. The default partition size depends on
-    file system and a number of other factors (including the `min_block_size`
-    parameter of :func:`~hail.init`), but usually is between 32M and
-    128M.
-
     Parameters
     ----------
 
