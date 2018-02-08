@@ -21,7 +21,7 @@ object FilterIntervals {
       val pkIntervals = IntervalTree(
         vsm.matrixType.orvdType.pkType.ordering,
         intervals.map { case (i, _) =>
-          Interval(Row(i.start), Row(i.end))
+          Interval(Row(i.start), Row(i.end), true, false)
         }.toArray)
       vsm.copy2(rvd = vsm.rvd.filterIntervals(pkIntervals))
     } else {

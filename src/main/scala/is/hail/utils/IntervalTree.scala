@@ -10,7 +10,7 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-case class Interval(start: Any, end: Any, includeStart: Boolean = true, includeEnd: Boolean = false) extends Serializable {
+case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boolean) extends Serializable {
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
     val compareStart = pord.compare(position, start)

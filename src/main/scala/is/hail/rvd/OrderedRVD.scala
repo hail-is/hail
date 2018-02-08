@@ -273,7 +273,7 @@ class OrderedRVD private(
         val thisMax = rangeBounds(i)
         // FIXME: loads a partition if the lastMax == interval.start.  Can therefore load unnecessary partitions
         // the solution is to add a new Ordered trait Incrementable which lets us add epsilon to PK (add 1 to locus start)
-        intervals.overlaps(pkOrdering, Interval(lastMax, thisMax)) || intervals.contains(pkOrdering, thisMax)
+        intervals.overlaps(pkOrdering, Interval(lastMax, thisMax, true, false)) || intervals.contains(pkOrdering, thisMax)
       }
 
       if (include)
