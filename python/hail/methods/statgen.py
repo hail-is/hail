@@ -212,9 +212,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     gr = locus(ds).dtype.reference_genome
 
     if (aaf is None):
-        ds = ds.annotate_rows(
-            aaf=(agg.sum(ds.call.num_alt_alleles()).to_float64() /
-                 agg.count_where(f.is_defined(ds.call)) / 2))
+        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.v).AF[0])
         aaf = 'aaf'
 
     # FIXME: filter_intervals
