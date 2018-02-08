@@ -1130,7 +1130,7 @@ def index_bgen(path):
     Example
     -------
 
-    >>> hc.index_bgen("data/example3.bgen")
+    >>> methods.index_bgen("data/example3.bgen")
 
     Warning
     -------
