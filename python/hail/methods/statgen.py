@@ -2223,7 +2223,7 @@ class FilterAlleles(object):
     process: `old_to_new`, `new_to_old` and `new_v`.  Call
     :meth:`.FilterAlleles.annotate_rows` and/or
     :meth:`.FilterAlleles.annotate_entries` to update row-indexed and
-    row- and column-indexed fields for the new, allele filtered
+    row- and column-indexed fields for the new, allele-filtered
     variant.  Finally, call :meth:`.FilterAlleles.filter` to perform
     filter alleles.
 
@@ -2329,7 +2329,7 @@ class FilterAlleles(object):
         return self._new_v
 
     def annotate_rows(self, **named_exprs):
-        """Create or update row-indexed fields for the new, allele filtered
+        """Create or update row-indexed fields for the new, allele-filtered
         variant.
 
         Parameters
@@ -2345,7 +2345,7 @@ class FilterAlleles(object):
 
     def annotate_entries(self, **named_exprs):
         """Create or update row- and column-indexed fields (entry fields) for
-        the new, allele filtered variant.
+        the new, allele-filtered variant.
 
         Parameters
         ----------
@@ -2418,6 +2418,7 @@ class FilterAlleles(object):
                0      1
 
         In summary:
+
         - GT: Set to most likely genotype based on the PLs ignoring
           the filtered allele(s).
         - AD: The filtered alleles' columns are eliminated, e.g.,
@@ -2452,7 +2453,7 @@ class FilterAlleles(object):
 
     def downcode_entries_hts(self):
         """Use the downcode algorithm to update the matrix table entries for
-        the new, allele filtered variant.  
+        the new, allele-filtered variant.  
 
         Notes
         ------
@@ -2498,7 +2499,7 @@ class FilterAlleles(object):
         filtered, this algorithm acts similarly to
         :func:`.split_multi_hts`.
 
-        The downcoding algorithm would produce the following:
+        The downcode algorithm would produce the following:
 
         .. code-block:: text
 
