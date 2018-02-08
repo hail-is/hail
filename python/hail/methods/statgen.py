@@ -1683,7 +1683,7 @@ class SplitMulti(object):
     Example
     -------
 
-    :meth:`~hail.VariantDataset.split_multi_hts`, which splits
+    :func:`.methods.split_multi_hts`, which splits
     multiallelic variants for the HTS genotype schema and updates
     the genotype annotations by downcoding the genotype, is
     implemented as:
