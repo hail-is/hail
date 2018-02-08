@@ -2419,16 +2419,16 @@ class FilterAlleles(object):
 
         In summary:
 
-        - GT: Set to most likely genotype based on the PLs ignoring
-          the filtered allele(s).
-        - AD: The filtered alleles' columns are eliminated, e.g.,
-          filtering alleles 1 and 2 transforms ``25,5,10,20`` to
-          ``25,20``.
-        - DP: Unchanged.
-        - PL: Columns involving filtered alleles are eliminated and
-          the remaining columns' values are shifted so the minimum
-          value is 0.
-        - GQ: The second-lowest PL (after shifting).
+         - GT: Set to most likely genotype based on the PLs ignoring
+           the filtered allele(s).
+         - AD: The filtered alleles' columns are eliminated, e.g.,
+           filtering alleles 1 and 2 transforms ``25,5,10,20`` to
+           ``25,20``.
+         - DP: Unchanged.
+         - PL: Columns involving filtered alleles are eliminated and
+           the remaining columns' values are shifted so the minimum
+           value is 0.
+         - GQ: The second-lowest PL (after shifting).
         """
         ds = self._ds
         newPL = functions.cond(
@@ -2514,15 +2514,15 @@ class FilterAlleles(object):
 
         In summary:
 
-        - GT: Downcode filtered alleles to reference.
-        - AD: Columns of filtered alleles are eliminated and their
-          values are added to the reference column, e.g., filtering
-          alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
-        - DP: No change.
-        - PL: Downcode filtered alleles to reference, combine PLs
-          using minimum for each overloaded genotype, and shift so the
-          overall minimum PL is 0.
-        - GQ: The second-lowest PL (after shifting).
+         - GT: Downcode filtered alleles to reference.
+         - AD: Columns of filtered alleles are eliminated and their
+           values are added to the reference column, e.g., filtering
+           alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
+         - DP: No change.
+         - PL: Downcode filtered alleles to reference, combine PLs
+           using minimum for each overloaded genotype, and shift so
+           the overall minimum PL is 0.
+         - GQ: The second-lowest PL (after shifting).
         """
         ds = self._ds
         newPL = functions.cond(
