@@ -38,7 +38,7 @@ class IntervalSuite extends SparkSuite {
 
     val f = tmpDir.createTempFile("example", extension = "interval_list")
 
-    ex1.annotate("""interval = interval.start.contig + ":" + interval.start.position + "-" + interval.end.position""")
+    ex1.annotate("""interval = "[" + interval.start.contig + ":" + interval.start.position + "-" + interval.end.position + "]"""")
       .export(f)
 
     val ex1wr = hc.importTable(f).annotate("interval = LocusInterval(interval)").keyBy("interval")
@@ -165,26 +165,26 @@ class IntervalSuite extends SparkSuite {
     val yMax = gr.contigLength("Y")
     val chr22Max = gr.contigLength("22")
 
-    assert(Locus.parseInterval("1:100-1:101", gr) == Interval(Locus("1", 100), Locus("1", 101)))
-    assert(Locus.parseInterval("1:100-101", gr) == Interval(Locus("1", 100), Locus("1", 101)))
-    assert(Locus.parseInterval("X:100-101", gr) == Interval(Locus("X", 100), Locus("X", 101)))
-    assert(Locus.parseInterval("X:100-end", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
-    assert(Locus.parseInterval("X:100-End", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
-    assert(Locus.parseInterval("X:100-END", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
-    assert(Locus.parseInterval("X:start-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
-    assert(Locus.parseInterval("X:Start-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
-    assert(Locus.parseInterval("X:START-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
-    assert(Locus.parseInterval("X:START-Y:END", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
-    assert(Locus.parseInterval("X-Y", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
-    assert(Locus.parseInterval("1-22", gr) == Interval(Locus("1", 1), Locus("22", chr22Max)))
+    assert(Locus.parseInterval("[1:100-1:101)", gr) == Interval(Locus("1", 100), Locus("1", 101)))
+    assert(Locus.parseInterval("[1:100-101)", gr) == Interval(Locus("1", 100), Locus("1", 101)))
+    assert(Locus.parseInterval("[X:100-101)", gr) == Interval(Locus("X", 100), Locus("X", 101)))
+    assert(Locus.parseInterval("[X:100-end)", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("[X:100-End)", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("[X:100-END)", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("[X:start-101)", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("[X:Start-101)", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("[X:START-101)", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("[X:START-Y:END)", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
+    assert(Locus.parseInterval("[X-Y)", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
+    assert(Locus.parseInterval("[1-22)", gr) == Interval(Locus("1", 1), Locus("22", chr22Max)))
 
-    assert(Locus.parseInterval("16:29500000-30200000", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
-    assert(Locus.parseInterval("16:29.5M-30.2M", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
-    assert(Locus.parseInterval("16:29500K-30200K", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
-    assert(Locus.parseInterval("1:100K-2:200K", gr) == Interval(Locus("1", 100000), Locus("2", 200000)))
+    assert(Locus.parseInterval("[16:29500000-30200000)", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
+    assert(Locus.parseInterval("[16:29.5M-30.2M)", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
+    assert(Locus.parseInterval("[16:29500K-30200K)", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
+    assert(Locus.parseInterval("[1:100K-2:200K)", gr) == Interval(Locus("1", 100000), Locus("2", 200000)))
 
-    assert(Locus.parseInterval("1:1.111K-2000", gr) == Interval(Locus("1", 1111), Locus("1", 2000)))
-    assert(Locus.parseInterval("1:1.111111M-2000000", gr) == Interval(Locus("1", 1111111), Locus("1", 2000000)))
+    assert(Locus.parseInterval("[1:1.111K-2000)", gr) == Interval(Locus("1", 1111), Locus("1", 2000)))
+    assert(Locus.parseInterval("[1:1.111111M-2000000)", gr) == Interval(Locus("1", 1111111), Locus("1", 2000000)))
 
     TestUtils.interceptFatal("invalid interval expression") {
       Locus.parseInterval("4::start-5:end", gr)
@@ -205,15 +205,15 @@ class IntervalSuite extends SparkSuite {
     val gr37 = GenomeReference.GRCh37
     val gr38 = GenomeReference.GRCh38
 
-    val x = "GL000197.1:3739-GL000202.1:7538"
+    val x = "[GL000197.1:3739-GL000202.1:7538)"
     assert(Locus.parseInterval(x, gr37) ==
       Interval(Locus("GL000197.1", 3739), Locus("GL000202.1", 7538)))
 
-    val y = "HLA-DRB1*13:02:01:5-HLA-DRB1*14:05:01:100"
+    val y = "[HLA-DRB1*13:02:01:5-HLA-DRB1*14:05:01:100)"
     assert(Locus.parseInterval(y, gr38) ==
       Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*14:05:01", 100)))
 
-    val z = "HLA-DRB1*13:02:01:5-100"
+    val z = "[HLA-DRB1*13:02:01:5-100)"
     assert(Locus.parseInterval(z, gr38) ==
       Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100)))
   }
