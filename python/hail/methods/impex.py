@@ -272,19 +272,20 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Warning
     -------
-        INFO fields stored at VCF import are `not` automatically modified to
-        reflect filtering of samples or genotypes, which can affect the value of
-        AC (allele count), AF (allele frequency), AN (allele number), etc. If a
-        filtered dataset is exported to VCF without updating `info`, downstream
-        tools which may produce erroneous results. The solution is to create new
-        annotations in `info` or overwrite existing annotations. For example, in
-        order to produce an accurate `AC` field, one can run :func:`variant_qc` and
-        copy the `variant_qc.AC` field to `info.AC` as shown below.
 
-        >>> ds = dataset.filter_entries(dataset.GQ >= 20)
-        >>> ds = methods.variant_qc(ds)
-        >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
-        >>> methods.export_vcf(ds, 'output/example.vcf.bgz')
+    INFO fields stored at VCF import are `not` automatically modified to
+    reflect filtering of samples or genotypes, which can affect the value of
+    AC (allele count), AF (allele frequency), AN (allele number), etc. If a
+    filtered dataset is exported to VCF without updating `info`, downstream
+    tools which may produce erroneous results. The solution is to create new
+    fields in `info` or overwrite existing fields. For example, in order to
+    produce an accurate `AC` field, one can run :func:`variant_qc` and copy
+    the `variant_qc.AC` field to `info.AC` as shown below.
+
+    >>> ds = dataset.filter_entries(dataset.GQ >= 20)
+    >>> ds = methods.variant_qc(ds)
+    >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
+    >>> methods.export_vcf(ds, 'output/example.vcf.bgz')
 
     Parameters
     ----------
@@ -304,6 +305,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
+
     """
 
     typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
@@ -475,7 +477,7 @@ def import_bed(path, reference_genome=None):
            delimiter=strlike,
            missing=strlike)
 def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
-    """Import PLINK .fam file into a key table.
+    """Import PLINK .fam file into a :class:`.Table`.
 
     Examples
     --------
@@ -764,15 +766,15 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
            reference_genome=nullable(GenomeReference))
 def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
                  comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
-    """Import delimited text file (text table) as key table.
+    """Import delimited text file (text table) as :class:`.Table`.
 
-    The resulting key table will have no key columns, use :meth:`.KeyTable.key_by`
-    to specify keys.
+    The resulting :class:`.Table` will have no key columns. Use
+    :meth:`.Table.key_by` to specify keys.
 
     Examples
     --------
 
-    Given this file
+    Consider this file
 
     .. code-block:: text
 
@@ -783,25 +785,25 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         PT-1238    NA      ADHD    89
         PT-1239    170.3   Control 55
 
-    The interesting thing about this table is that column ``Height`` is a
-    floating-point number, and column ``Age`` is an integer. Hail can impute
-    these types or we can state the explicitly:
+    The field ``Height`` contains floating-point numbers and the field ``Age``
+    contains integers.
 
-    Importing a table with explicit type annotations:
+    To import this table using field types:
 
-    >>> table = hc1.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
+    >>> table = hc.import_table('data/samples1.tsv',
+    ...                         types={'Height': TFloat64(), 'Age': TInt32()})
 
-    Note that string columns like ``Sample`` and ``Status`` do not need to be
-    typed, because ``String`` is the default type.
+    Note ``Sample`` and ``Status`` need no type, because :class:`.TString` is
+    the default type.
 
-    Imputing a table with type imputation (the file must be read twice to
+    To import a table using type imputation (the file must be read twice to
     impute):
 
-    >>> table = hc1.import_table('data/samples1.tsv', impute=True)
+    >>> table = hc.import_table('data/samples1.tsv', impute=True)
 
     **Detailed examples**
 
-    Let's import annotations from a CSV file with missing data and special characters:
+    Let's import fields from a CSV file with missing data and special characters:
 
     .. code-block:: text
 
@@ -822,12 +824,12 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     - Pass the non-default missing value ``.``
 
-    >>> table = hc1.import_table('data/samples2.tsv', delimiter=',', missing='.')
+    >>> table = hc.import_table('data/samples2.tsv', delimiter=',', missing='.')
 
-    Let's import annotations from a file with no header and sample IDs that need
-    to be transformed.  Suppose the vds sample IDs are of the form
-    ``NA#####``. This file has no header line, and the sample ID is hidden in a
-    field with other information.
+    Let's import a table from a file with no header and sample IDs that need to
+    be transformed.  Suppose the sample IDs are of the form ``NA#####``. This
+    file has no header line, and the sample ID is hidden in a field with other
+    information.
 
     .. code-block: text
 
@@ -840,15 +842,17 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     To import:
 
-    >>> annotations = (hc1.import_table('data/samples3.tsv', no_header=True)
-    ...                   .annotate('sample = f0.split("_")[1]')
-    ...                   .key_by('sample'))
+    >>> t = (hc.import_table('data/samples3.tsv', no_header=True)
+    ...      .annotate('sample = f0.split("_")[1]')
+    ...      .key_by('sample'))
 
-    **Notes**
+    Notes
+    -----
 
     The `impute` parameter tells Hail to scan the file an extra time to gather
     information about possible field types. While this is a bit slower for large
-    files, (the file is parsed twice), the convenience is often worth this cost.
+    files because the file is parsed twice, the convenience is often worth this
+    cost.
 
     The `delimiter` parameter is either a delimiter character (if a single
     character) or a field separator regex (2 or more characters). This regex
@@ -859,11 +863,11 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
         Use ``delimiter='\\s+'`` to specify whitespace delimited files.
 
-    `comment` optionally causes Hail to skip any line that starts with the given
-    string. Passing ``comment='#'`` will skip any line beginning in a pound
-    sign, for example.
+    The `comment` parameter optionally causes Hail to skip any line that starts
+    with the given string. For example, passing ``comment='#'`` will skip any
+    line beginning in a pound sign.
 
-    `missing` defines the representation of missing data in the table.
+    The `missing` parameter defines the representation of missing data in the table.
 
     .. note::
 
@@ -874,13 +878,13 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     ... `fN` (0-indexed).
 
     The `types` parameter allows the user to pass the types of columns in the
-    table. This is a dict keyed by :obj:`str`, with :class:`.Type`
+    table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.Type`
     values. See the examples above for a standard usage. Additionally, this
-    option can be used to override type imputation. For example, if a column in
-    a file refers to chromosome and does not contain any sex chromosomes, it
-    will be imputed as an integer, while most Hail methods expect chromosome to
-    be passed as a string. Using the ``impute=True`` mode and passing
-    ``types={'Chromosome': TString()}`` will solve this problem.
+    option can be used to override type imputation. For example, if the field
+    ``Chromosome`` only contains the values ``1`` through ``22``, it will be
+    imputed to have type :class:.TInt32, whereas most Hail methods expect that a
+    chromosome field will be of type :class:.TString.  Setting ``impute=True``
+    and ``types={'Chromosome': TString()}`` with solve this problem.
 
     The `min_partitions` parameter sets the minimum number of partitions (level
     of sharding) of an imported table. The default partition size depends on
@@ -900,26 +904,26 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         Minimum number of partitions.
 
     no_header: :obj:`bool`
-        File has no header and the N columns are named `f0`, `f1`,
-        ... `fN` (0-indexed).
+        If ``True```, assume the file has no header and name the N columns `f0`,
+        `f1`, ... `fN` (0-indexed).
 
     impute: :obj:`bool`
-        Impute column types from the file.
+        If ``True``, Impute column types from the file.
 
     comment: :obj:`str` or :obj:`None`
-        Skip lines beginning with the given pattern.
+        Skip lines beginning with the given string.
 
     delimiter: :obj:`str`
         Field delimiter regex.
 
     missing: :obj:`str`
-        Specify identifier to be treated as missing
+        Identifier to be treated as missing.
 
     types: :obj:`dict` mapping :obj:`str` to :class:`.Type`
-        Define types of fields in annotations files
+        Dictionary defining column types.
 
     quote: :obj:`str` or :obj:`None`
-        Quote character
+        Quote character.
 
     reference_genome: :class:`.GenomeReference`
         Reference genome to use when imputing Variant or Locus columns. Default
@@ -927,8 +931,9 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     Returns
     -------
-    :class:`.KeyTable`
-        Key table constructed from text table.
+    :class:`.Table`
+        Table constructed from text table.
+
     """
     key = wrap_to_list(key)
     paths = wrap_to_list(paths)
