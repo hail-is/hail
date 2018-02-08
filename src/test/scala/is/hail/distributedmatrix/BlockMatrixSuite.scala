@@ -1,7 +1,7 @@
 package is.hail.distributedmatrix
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Gen._
@@ -721,7 +721,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def random() {
+  def randomTest() {
     var lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toLocalMatrix()
     var lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toLocalMatrix()
     var lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2).toLocalMatrix()
@@ -736,5 +736,33 @@ class BlockMatrixSuite extends SparkSuite {
     
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
+  }
+  
+  @Test
+  def writeSubsetTest() {
+    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+
+    def prefix(blockSize: Double): String = "/parts/part-" + (if (blockSize <= 3) "0" else "")
+    
+    for {blockSize <- Seq(2, 4, 8)} {
+      val bm = BlockMatrix.from(sc, lm, blockSize)
+      val pre = prefix(blockSize)
+
+      val allFile = tmpDir.createTempFile("all")
+      val someFile = tmpDir.createTempFile("some")
+      
+      bm.write(allFile)
+      bm.write(someFile, optKeep = Some(Array(1, 3)))
+
+      assert(!hc.hadoopConf.exists(someFile + pre + "0"))
+      assert( hc.hadoopConf.exists( allFile + pre + "0"))
+
+      assert(!hc.hadoopConf.exists(someFile + pre + "2"))
+      assert( hc.hadoopConf.exists( allFile + pre + "2"))
+
+      assert(TestUtils.fileHaveSameBytes(someFile + pre + "1", allFile + pre + "1"))
+      assert(TestUtils.fileHaveSameBytes(someFile + pre + "3", allFile + pre + "3"))
+      assert(TestUtils.fileHaveSameBytes(someFile + "/metadata.json", allFile + "/metadata.json"))
+    }
   }
 }

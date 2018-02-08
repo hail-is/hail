@@ -1,10 +1,13 @@
 package is.hail
 
+import java.net.URI
+import java.nio.file.{Files, Paths}
+
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{Genotype, Locus, Variant, MatrixTable}
+import is.hail.variant.{Genotype, Locus, MatrixTable}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
@@ -115,4 +118,7 @@ object TestUtils {
     }
     sb.result()
   }
+  
+  def fileHaveSameBytes(file1: String, file2: String): Boolean =
+    Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
 }
