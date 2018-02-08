@@ -160,7 +160,6 @@ class IntervalSuite extends SparkSuite {
   }
   
   @Test def testParser() {
-    val gr = GenomeReference.GRCh37
     val xMax = gr.contigLength("X")
     val yMax = gr.contigLength("Y")
     val chr22Max = gr.contigLength("22")
@@ -233,6 +232,9 @@ class IntervalSuite extends SparkSuite {
       assert(i1.contains(ord, 3))
       assert(i1.includeStart == i1.contains(ord, 1))
       assert(i1.includeEnd == i1.contains(ord, 5))
+
+      val iLocus = Interval(Locus("1", 100), Locus("1", 101), s1, e1)
+      assert(Locus.parseInterval(iLocus.toString, gr) == iLocus)
 
       for (s2 <- Array(true, false); e2 <- Array(true, false)) {
         val i2 = Interval(5, 10, includeStart=s2, includeEnd=e2)

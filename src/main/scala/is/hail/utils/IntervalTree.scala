@@ -18,10 +18,6 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
   }
 
-  private def matchesEndpoint(pord: ExtendedOrdering, position: Any): Boolean = {
-    pord.eq(position, start) || pord.eq(position, end)
-  }
-
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
     (this.contains(pord, other.start) && (other.includeStart || !pord.equiv(this.end, other.start))) ||
       (other.contains(pord, this.start) && (this.includeStart || !pord.equiv(other.end, this.start)))
