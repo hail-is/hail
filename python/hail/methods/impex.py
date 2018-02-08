@@ -888,8 +888,9 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     The `min_partitions` parameter sets the minimum number of partitions (level
     of sharding) of an imported table. The default partition size depends on
-    file system and a number of other factors (including the ``min_block_size``
-    of the hail context), but usually is between 32M and 128M.
+    file system and a number of other factors (including the `min_block_size`
+    parameter of :meth:`.HailContext.init`), but usually is between 32M and
+    128M.
 
     Parameters
     ----------
