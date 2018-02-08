@@ -760,9 +760,9 @@ class BlockMatrixSuite extends SparkSuite {
       assert(!hc.hadoopConf.exists(someFile + pre + "2"))
       assert( hc.hadoopConf.exists( allFile + pre + "2"))
 
-      assert(TestUtils.fileByteEquality(someFile + pre + "1", allFile + pre + "1"))
-      assert(TestUtils.fileByteEquality(someFile + pre + "3", allFile + pre + "3"))
-      assert(TestUtils.fileByteEquality(someFile + "/metadata.json", allFile + "/metadata.json"))
+      assert(TestUtils.fileHaveSameBytes(someFile + pre + "1", allFile + pre + "1"))
+      assert(TestUtils.fileHaveSameBytes(someFile + pre + "3", allFile + pre + "3"))
+      assert(TestUtils.fileHaveSameBytes(someFile + "/metadata.json", allFile + "/metadata.json"))
     }
   }
 }

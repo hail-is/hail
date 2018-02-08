@@ -119,6 +119,6 @@ object TestUtils {
     sb.result()
   }
   
-  def fileByteEquality(file1: String, file2: String): Boolean =
+  def fileHaveSameBytes(file1: String, file2: String): Boolean =
     Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
 }

@@ -319,7 +319,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     optKeep match {
       case Some(keep) =>
-        blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, optKeep, Some(partitioner.numPartitions))
+        blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, Some(keep, partitioner.numPartitions))
       case None =>
         blocks.writePartitions(uri, writeBlock)
     }

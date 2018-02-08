@@ -102,7 +102,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def subsetPartitions(keep: Array[Int])(implicit ct: ClassTag[T]): RDD[T] = {
     require(keep.length <= r.partitions.length, "tried to subset to more partitions than exist")
-    require(keep.isIncreasing && keep.head >= 0 && keep.last < r.partitions.length,
+    require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < r.partitions.length)),
       "values not sorted or not in range [0, number of partitions)")
     val parentPartitions = r.partitions
 
@@ -186,8 +186,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   
   def writePartitions(path: String,
     write: (Int, Iterator[T], OutputStream) => Long,
-    mapPartitionIDs: Option[Array[Int]] = None,
-    nPartsForString: Option[Int] = None): Array[Long] = {
+    remapPartitions: Option[(Array[Int], Int)] = None): Array[Long] = {
     
     val sc = r.sparkContext
     val hadoopConf = sc.hadoopConfiguration
@@ -195,13 +194,20 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     hadoopConf.mkDir(path + "/parts")
     
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
-    val mapPartitionIDsBc = sc.broadcast(mapPartitionIDs)
+
+    val nPartitionsToWrite = r.getNumPartitions
     
-    val nPartitions = r.getNumPartitions
-    val d = digitsNeeded(nPartsForString.getOrElse(nPartitions))
+    val (remap, nPartitions) = remapPartitions match {
+      case Some((map, n)) => (map.apply _, n)
+      case None => (identity[Int] _, nPartitionsToWrite)
+    }
+    
+    val d = digitsNeeded(nPartitions)
+    
+    val remapBc = sc.broadcast(remap)
 
     val partitionCounts = r.mapPartitionsWithIndex { case (index, it) =>
-      val i = mapPartitionIDsBc.value.map(_(index)).getOrElse(index)
+      val i = remapBc.value(index)
       val is = i.toString
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
@@ -213,10 +219,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       Iterator.single(write(i, it, os))
     }
       .collect()
-
+        
     val itemCount = partitionCounts.sum
+    assert(nPartitionsToWrite == partitionCounts.length)
+
     info(s"wrote $itemCount ${ plural(itemCount, "item") } " +
-      s"in $nPartitions ${ plural(nPartitions, "partition") }")
+      s"in ${ nPartitionsToWrite } ${ plural(nPartitionsToWrite, "partition") }")
     
     partitionCounts
   }
