@@ -86,7 +86,7 @@ object MendelErrors {
       warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: sex of child is missing.")
 
     val trioMatrix = vds.trioMatrix(Pedigree(trios), completeTrios = true)
-    val localRVType = trioMatrix.rvRowType
+    val fullRowType = trioMatrix.rvRowType
     val nTrios = trioMatrix.numCols
 
     val sc = vds.sparkContext
@@ -97,7 +97,7 @@ object MendelErrors {
     val localRowType = vds.rowType
     new MendelErrors(vds.hc, vds.rowKeyStruct, trios, vds.stringSampleIds,
       trioMatrix.rvd.mapPartitions { it =>
-        val view = new HardcallTrioGenotypeView(localRVType, "GT")
+        val view = new HardcallTrioGenotypeView(fullRowType, "GT")
         val variantView = new RegionValueVariant(localRowType)
         it.flatMap { rv =>
           view.setRegion(rv)

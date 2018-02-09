@@ -37,14 +37,14 @@ object ExportGen {
       }
 
       val localNSamples = vsm.numCols
-      val localRVType = vsm.rvRowType
+      val fullRowType = vsm.rvRowType
       val localRowType = vsm.rowType
       val localEntriesIndex = vsm.entriesIndex
 
       vsm.rvd.mapPartitions { it =>
         val sb = new StringBuilder
-        val view = new ArrayGenotypeView(localRVType)
-        val rvv = new RegionValueVariant(localRVType)
+        val view = new ArrayGenotypeView(fullRowType)
+        val rvv = new RegionValueVariant(fullRowType)
         val row = new UnsafeRow(localRowType)
 
         it.map { rv =>

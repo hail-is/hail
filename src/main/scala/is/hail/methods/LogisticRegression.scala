@@ -65,7 +65,7 @@ object LogisticRegression {
 
     val (newRVType, inserter) = vsm.rvRowType.unsafeStructInsert(logRegTest.schema, List(root))
 
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
     val localRowType = vsm.rowType
     val localEntriesIndex = vsm.entriesIndex
 
@@ -77,8 +77,8 @@ object LogisticRegression {
 
       val missingSamples = new ArrayBuilder[Int]()
 
-      val fullRow = new UnsafeRow(localRVType)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       val X = XBc.value.copy
       it.map { rv =>

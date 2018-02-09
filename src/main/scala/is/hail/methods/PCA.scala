@@ -81,7 +81,7 @@ object PCA {
       val rowType = TStruct("v" -> vsm.rowKeyStruct) ++ (if (asArray) TStruct("loadings" -> pcSchema(k, asArray))
       else pcSchema(k, asArray).asInstanceOf[TStruct])
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
-      val variantsBc = vsm.sparkContext.broadcast(vsm.dMatrixRowKeys().values)
+      val variantsBc = vsm.sparkContext.broadcast(vsm.collectRowKeys().values)
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
         val region = Region()
         val rv = RegionValue(region)

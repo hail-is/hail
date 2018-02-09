@@ -39,17 +39,7 @@ class OrderedRVType(
   val pkInKOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
   val kRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
 
-  // FIXME: replace when physical types arrive
-  // parameterized type is a hack to permit exclusion of entries
-  def makeValueStruct(t: TStruct = rowType): (RegionValue => Row) = {
-    val localRowType = t
-    val keepIndices = (0 until t.size).filter(i => !keySet.contains(t.fieldNames(i))).toArray
-
-    { (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRowType, rv)
-      Row.fromSeq(keepIndices.map(ur.get))
-    }
-  }
+  def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVType, UnsafeInserter) = {
     assert(path.nonEmpty)

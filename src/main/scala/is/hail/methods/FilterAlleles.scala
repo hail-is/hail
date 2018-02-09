@@ -94,7 +94,7 @@ object FilterAlleles {
         Some((filtv, newToOld, oldToNew))
       }
 
-      val localRVType = vsm.matrixType.rvRowType
+      val fullRowType = vsm.matrixType.rvRowType
       val newRVType = newMatrixType.rvRowType
       val localEntriesIndex = vsm.entriesIndex
 
@@ -102,9 +102,9 @@ object FilterAlleles {
 
       rdd.mapPartitions(newRVType) { it =>
         var prevLocus: Locus = null
-        val fullRow = new UnsafeRow(localRVType)
-        val row = fullRow.delete(localEntriesIndex)
-        val rvv = new RegionValueVariant(localRVType)
+        val fullRow = new UnsafeRow(fullRowType)
+        val row = fullRow.deleteField(localEntriesIndex)
+        val rvv = new RegionValueVariant(fullRowType)
 
         it.flatMap { rv =>
           val rvb = new RegionValueBuilder()

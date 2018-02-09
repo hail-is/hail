@@ -148,7 +148,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
           val r = a.asInstanceOf[Row]
 
           if (localDeleteFromRow)
-            r.delete(index)
+            r.deleteField(index)
           else
             r.update(index, d(r.get(index)))
         }

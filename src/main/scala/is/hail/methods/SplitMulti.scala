@@ -65,7 +65,7 @@ class SplitMultiPartitionContext(
     require(!(removeMoving && verifyLeftAligned))
 
     fullRow.set(rv)
-    val row = fullRow.delete(matrixType.entriesIdx)
+    val row = fullRow.deleteField(matrixType.entriesIdx)
     rvv.setRegion(rv)
 
     var isLeftAligned = true

@@ -30,11 +30,11 @@ object FilterIntervals {
       val locusField = vsm.rowType.fieldByName(vsm.rowKey(0))
       val locusIdx = locusField.index
 
-      val localRVType = vsm.rvRowType
+      val fullRowType = vsm.rvRowType
       val localLocusOrdering = locusField.typ.ordering
 
       vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ) { it =>
-        val ur = new UnsafeRow(localRVType)
+        val ur = new UnsafeRow(fullRowType)
         it.filter { rv =>
           ur.set(rv)
           !intervalsBc.value.contains(localLocusOrdering, ur.get(locusIdx))

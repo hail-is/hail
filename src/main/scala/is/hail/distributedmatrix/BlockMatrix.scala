@@ -1113,7 +1113,7 @@ class WriteBlocksRDD(path: String,
 
     val entriesIndex = matrixType.entriesIdx
     val fullRow = new UnsafeRow(matrixType.rvRowType)
-    val row = fullRow.delete(entriesIndex)
+    val row = fullRow.deleteField(entriesIndex)
 
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start

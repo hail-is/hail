@@ -162,14 +162,14 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      val localRVType = vds2.rvRowType
+      val fullRowType = vds2.rvRowType
       val localEntriesIndex = vds2.entriesIndex
 
       val nComplete = completeSampleIndex.length
       vds2.insertIntoRow(() => new DenseVector[Double](nComplete))(LinearMixedRegression.schema, rootVA, { case (x, rv, rvb) =>
         val n = completeSampleIndexBc.value.length
-        val fullRow = new UnsafeRow(localRVType, rv)
-        val row = fullRow.delete(localEntriesIndex)
+        val fullRow = new UnsafeRow(fullRowType, rv)
+        val row = fullRow.deleteField(localEntriesIndex)
 
         val missingSamples = new ArrayBuilder[Int]()
 

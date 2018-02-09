@@ -243,7 +243,7 @@ case class MatrixRead(
             hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
           hc.readRows(path, typ.rvRowType, nPartitions))
         if (dropSamples) {
-          val localRVType = typ.rvRowType
+          val fullRowType = typ.rvRowType
           val localEntriesIndex = typ.entriesIdx
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
             var rv2b = new RegionValueBuilder()
@@ -252,13 +252,13 @@ case class MatrixRead(
             it.map { rv =>
               rv2b.set(rv.region)
 
-              rv2b.start(localRVType)
+              rv2b.start(fullRowType)
               rv2b.startStruct()
 
               var i = 0
-              while (i < localRVType.size) {
+              while (i < fullRowType.size) {
                 if (i != localEntriesIndex)
-                  rv2b.addField(localRVType, rv, i)
+                  rv2b.addField(fullRowType, rv, i)
                 i += 1
               }
 
@@ -342,15 +342,15 @@ case class FilterVariants(
     val aggregatorOption = Aggregators.buildVariantAggregations(
       prev.rvd.sparkContext, prev.typ, prev.localValue, ec)
 
-    val localRVType = prev.typ.rvRowType
+    val fullRowType = prev.typ.rvRowType
     val localRowType = prev.typ.rowType
     val localEntriesIndex = prev.typ.entriesIdx
 
     ec.set(0, prev.globalAnnotation)
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orderedRVType) { it =>
-      val fullRow = new UnsafeRow(localRVType)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
       it.filter { rv =>
         fullRow.set(rv)
         ec.set(1, row)

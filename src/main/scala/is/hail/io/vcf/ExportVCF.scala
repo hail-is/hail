@@ -338,7 +338,7 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
     val localEntriesType = vsm.matrixType.entryArrayType
 
@@ -346,7 +346,7 @@ object ExportVCF {
       val sb = new StringBuilder
       var m: Region = null
 
-      val rvv = new RegionValueVariant(localRVType)
+      val rvv = new RegionValueVariant(fullRowType)
       it.map { rv =>
         sb.clear()
 
@@ -358,8 +358,8 @@ object ExportVCF {
         sb.append(rvv.position())
         sb += '\t'
   
-        if (idExists && localRVType.isFieldDefined(rv, idIdx)) {
-          val idOffset = localRVType.loadField(rv, idIdx)
+        if (idExists && fullRowType.isFieldDefined(rv, idIdx)) {
+          val idOffset = fullRowType.loadField(rv, idIdx)
           sb.append(TString.loadString(m, idOffset))
         } else
           sb += '.'
@@ -371,16 +371,16 @@ object ExportVCF {
           sb.append(aa))(sb += ',')
         sb += '\t'
 
-        if (qualExists && localRVType.isFieldDefined(rv, qualIdx)) {
-          val qualOffset = localRVType.loadField(rv, qualIdx)
+        if (qualExists && fullRowType.isFieldDefined(rv, qualIdx)) {
+          val qualOffset = fullRowType.loadField(rv, qualIdx)
           sb.append(m.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
         
         sb += '\t'
         
-        if (filtersExists && localRVType.isFieldDefined(rv, filtersIdx)) {
-          val filtersOffset = localRVType.loadField(rv, filtersIdx)
+        if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
+          val filtersOffset = fullRowType.loadField(rv, filtersIdx)
           val filtersLength = TSet(TString()).loadLength(m, filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
@@ -392,9 +392,9 @@ object ExportVCF {
         sb += '\t'
         
         var wroteAnyInfo: Boolean = false
-        if (infoExists && localRVType.isFieldDefined(rv, infoIdx)) {
+        if (infoExists && fullRowType.isFieldDefined(rv, infoIdx)) {
           var wrote: Boolean = false
-          val infoOffset = localRVType.loadField(rv, infoIdx)
+          val infoOffset = fullRowType.loadField(rv, infoIdx)
           var i = 0
           while (i < tinfo.size) {
             if (tinfo.isFieldDefined(m, infoOffset, i)) {
@@ -411,7 +411,7 @@ object ExportVCF {
           sb += '\t'
           sb.append(formatFieldString)
 
-          val gsOffset = localRVType.loadField(rv, localEntriesIndex)
+          val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
           var i = 0
           while (i < localNSamples) {
             sb += '\t'

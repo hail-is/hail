@@ -436,7 +436,7 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
 
     val bpvType = BitPackedVectorView.rvRowType(vsm.rowKeyTypes(0), vsm.rowKeyTypes(1))
 
@@ -447,7 +447,7 @@ object LDPrune {
 
     val standardizedRDD = vsm.rvd
       .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
-        val hcView = HardCallView(localRVType)
+        val hcView = HardCallView(fullRowType)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         val rv2 = RegionValue(region)
@@ -458,8 +458,8 @@ object LDPrune {
           rvb.set(region)
           rvb.start(bpvType)
           rvb.startStruct()
-          rvb.addField(localRVType, rv, locusIndex)
-          rvb.addField(localRVType, rv, allelesIndex)
+          rvb.addField(fullRowType, rv, locusIndex)
+          rvb.addField(fullRowType, rv, allelesIndex)
 
           val keep = addBitPackedVector(rvb, hcView, nSamples) // add bit packed genotype vector with metadata
 

@@ -350,7 +350,7 @@ object Nirvana {
         }})
 
     vds.orderedRVDLeftJoinDistinctAndInsert(nirvanaRVD, "nirvana", product = false)
-      .annotateVariantsExpr("vep = va.vep.vep")
+      .annotateVariantsExpr("nirvana = va.nirvana.nirvana")
   }
 
   def apply(vsm: MatrixTable, config: String, blockSize: Int = 500000, root: String): MatrixTable =

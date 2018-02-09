@@ -219,14 +219,14 @@ object Skat {
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
     val localRowType = vsm.rowType
     val localEntriesIndex = vsm.entriesIndex
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
     (vsm.rvd.rdd.flatMap { rv =>
-      val fullRow = new UnsafeRow(localRVType, rv)
+      val fullRow = new UnsafeRow(fullRowType, rv)
       val row = new UnsafeRow(localRowType, rv)
 
       (Option(keyQuerier(row)), typedWeightQuerier(row)) match {

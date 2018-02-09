@@ -833,13 +833,13 @@ class Table(val hc: HailContext, val ir: TableIR) {
     assert(rowKeys.startsWith(partitionKeys))
     assert(partitionKeys.nonEmpty)
 
-    val localRVType = signature
+    val fullRowType = signature
 
     val colKeyIndices = colKeys.map(signature.fieldIdx(_))
     val colValueIndices = colFields.map(signature.fieldIdx(_))
 
     val localColData = rvd.mapPartitions { it =>
-      val ur = new UnsafeRow(localRVType)
+      val ur = new UnsafeRow(fullRowType)
       it.map { rv =>
         val rvCopy = rv.copy()
         ur.set(rvCopy)
@@ -874,7 +874,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val rowEntryStruct = rowType ++ entryType ++ TStruct(INDEX_UID -> TInt32Optional)
 
     val rowEntryRVD = rvd.mapPartitions(rowEntryStruct) { it =>
-      val ur = new UnsafeRow(localRVType)
+      val ur = new UnsafeRow(fullRowType)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -887,7 +887,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
         // add all non-col fields
         var i = 0
         while (i < allFieldIndices.length) {
-          rvb.addField(localRVType, rv, allFieldIndices(i))
+          rvb.addField(fullRowType, rv, allFieldIndices(i))
           i += 1
         }
 

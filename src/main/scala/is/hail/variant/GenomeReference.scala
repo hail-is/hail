@@ -252,7 +252,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   def inY(contig: String): Boolean = yContigs.contains(contig)
 
   def copyState(sex: Sex, locus: Locus): CopyState = {
-      // FIXME This is totally wrong but I copied it from Variant
+      // FIXME this seems wrong (no MT); I copied it from Variant
       if (sex == Sex.Male)
         if (inX(locus.contig) && !inXPar(locus))
           CopyState.HemiX

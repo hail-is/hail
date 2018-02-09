@@ -76,13 +76,13 @@ class RichMatrixTable(vsm: MatrixTable) {
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues)
 
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
     val rowKeyF = vsm.rowKeysF
     vsm.rvd.rdd.map { rv =>
       val rvc = rv.copy()
-      val fullRow = new UnsafeRow(localRVType, rvc)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType, rvc)
+      val row = fullRow.deleteField(localEntriesIndex)
       (rowKeyF(fullRow), (row, fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)))
     }
   }

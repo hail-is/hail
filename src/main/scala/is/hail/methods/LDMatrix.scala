@@ -26,13 +26,13 @@ object LDMatrix {
     
     val nSamples = vds.numCols
 
-    val localRVType = vds.rvRowType
+    val fullRowType = vds.rvRowType
 
-    val locusIdx = localRVType.fieldIdx("locus")
-    val allelesIdx = localRVType.fieldIdx("alleles")
+    val locusIdx = fullRowType.fieldIdx("locus")
+    val allelesIdx = fullRowType.fieldIdx("alleles")
     val filteredNormalizedHardCalls = vds.rvd.mapPartitions { it =>
-      val view = HardCallView(localRVType)
-      val rvv = new RegionValueVariant(localRVType)
+      val view = HardCallView(fullRowType)
+      val rvv = new RegionValueVariant(fullRowType)
       it.flatMap { rv =>
         rvv.setRegion(rv)
         view.setRegion(rv)

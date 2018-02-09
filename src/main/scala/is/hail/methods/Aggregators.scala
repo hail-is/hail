@@ -40,12 +40,12 @@ object Aggregators {
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
 
-    val localRVType = typ.rvRowType
+    val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
 
     { (rv: RegionValue) =>
-      val fullRow = new UnsafeRow(localRVType, rv)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType, rv)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       val aggs = MultiArray2.fill[Aggregator](nKeys, aggregations.size)(null)
       var nk = 0
@@ -100,13 +100,13 @@ object Aggregators {
     val localA = ec.a
     val localNSamples = localValue.nSamples
     val sampleAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
-    val localRVType = typ.rvRowType
+    val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
 
     Some({ (rv: RegionValue) =>
 
-      val fullRow = new UnsafeRow(localRVType, rv)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType, rv)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
 
@@ -158,12 +158,12 @@ object Aggregators {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val localRVType = value.typ.rvRowType
+    val fullRowType = value.typ.rvRowType
     val localEntriesIndex = value.typ.entriesIdx
 
     val result = value.rvd.treeAggregate(baseArray)({ case (arr, rv) =>
-      val fullRow = new UnsafeRow(localRVType, rv)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType, rv)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       localA(3) = row
 
@@ -222,13 +222,13 @@ object Aggregators {
       zVal.update(i, j, aggregations(j)._3.copy())
     }
 
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
 
 
     val seqOp = (ma: MultiArray2[Aggregator], rv: RegionValue) => {
-      val fullRow = new UnsafeRow(localRVType, rv)
-      val row = fullRow.delete(localEntriesIndex)
+      val fullRow = new UnsafeRow(fullRowType, rv)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 

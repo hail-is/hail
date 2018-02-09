@@ -54,10 +54,10 @@ object LinearRegression {
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
 
-    val localRVType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
 
-    val (newRVType, ins) = localRVType.unsafeStructInsert(LinearRegression.schema, List(root))
+    val (newRVType, ins) = fullRowType.unsafeStructInsert(LinearRegression.schema, List(root))
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
@@ -75,12 +75,12 @@ object LinearRegression {
         val blockWRVs = new Array[WritableRegionValue](variantBlockSize)
         var i = 0
         while (i < variantBlockSize) {
-          blockWRVs(i) = WritableRegionValue(localRVType)
+          blockWRVs(i) = WritableRegionValue(fullRowType)
           i += 1
         }
 
-        val fullRow = new UnsafeRow(localRVType)
-        val row = fullRow.delete(localEntriesIndex)
+        val fullRow = new UnsafeRow(fullRowType)
+        val row = fullRow.deleteField(localEntriesIndex)
         it.trueGroupedIterator(variantBlockSize)
           .flatMap { git =>
             var i = 0
