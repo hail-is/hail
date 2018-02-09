@@ -328,9 +328,8 @@ class Tests(unittest.TestCase):
         ds1 = methods.import_vcf(test_file('split_test.vcf'))
         ds1 = methods.split_multi_hts(ds1)
         ds2 = methods.import_vcf(test_file('split_test_b.vcf'))
-        self.assertEqual(ds1.aggregate_entries(foo=agg.product((ds1.wasSplit == (ds1.v.start != 1180)).to_int32())).foo,
-                         1)
-        ds1 = ds1.drop('wasSplit', 'aIndex')
+        self.assertEqual(ds1.aggregate_entries(foo=agg.product((ds1.was_split == (ds1.v.start != 1180)).to_int32())).foo, 1)
+        ds1 = ds1.drop('was_split','a_index')
         # required python3
         # self.assertTrue(ds1._same(ds2))
 
