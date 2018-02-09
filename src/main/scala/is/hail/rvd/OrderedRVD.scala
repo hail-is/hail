@@ -178,7 +178,28 @@ class OrderedRVD private(
       return this
     if (shuffle) {
       val shuffled = rdd.coalesce(maxPartitions, shuffle = true)
-      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, shuffled), shuffled.getNumPartitions)
+
+      val localKType = typ.kType
+      val localKIndex = typ.kRowFieldIdx
+      val localRowType = typ.rowType
+      val shuffledKeyRDD = shuffled.mapPartitions { it =>
+        val rv2 = RegionValue()
+        val rvb = new RegionValueBuilder()
+        it.map { rv =>
+          rvb.set(rv.region)
+          rvb.start(localKType)
+          rvb.startStruct()
+          var i = 0
+          while (i < localKType.size) {
+            rvb.addField(localRowType, rv, localKIndex(i))
+            i += 1
+          }
+          rvb.endStruct()
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      }
+      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, shuffledKeyRDD), shuffled.getNumPartitions)
       OrderedRVD.shuffle(typ, new OrderedRVPartitioner(ranges.length + 1, typ.partitionKey, typ.kType, ranges), shuffled)
     } else {
 
