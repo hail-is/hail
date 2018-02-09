@@ -158,6 +158,26 @@ object Table {
         RVD(signature, rdd2))
     ))
   }
+
+  def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double): Boolean = {
+    val used = new Array[Boolean](r.length)
+    var i = 0
+    while (i < l.length) {
+      val li = l(i)
+      var matched = false
+      var j = 0
+      while (!matched && j < l.length && !used(j)) {
+        matched = t.valuesSimilar(li, r(j), tolerance)
+        if (matched)
+          used(j) = true
+        j += 1
+      }
+      if (!matched)
+        return false
+      i += 1
+    }
+    return true
+  }
 }
 
 class Table(val hc: HailContext, val ir: TableIR) {
@@ -254,7 +274,9 @@ class Table(val hc: HailContext, val ir: TableIR) {
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
-  def same(other: Table): Boolean = {
+  def same(other: Table, tolerance: Option[Double] = None): Boolean = {
+    val localValueSignature = valueSignature
+
     if (signature != other.signature) {
       info(
         s"""different signatures:
@@ -292,7 +314,9 @@ class Table(val hc: HailContext, val ir: TableIR) {
             val r2 = y.toArray
             val res = if (r1.length != r2.length)
               false
-            else r1.counter() == r2.counter()
+            else r1.counter() == r2.counter() ||
+              tolerance.fold(false)(
+                Table.sameWithinTolerance(localValueSignature, r1, r2, _))
             if (!res)
               info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ") }\n  right:\n    ${ r2.mkString("\n    ") }")
             res

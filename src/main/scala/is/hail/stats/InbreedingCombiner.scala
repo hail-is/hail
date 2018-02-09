@@ -7,10 +7,10 @@ import is.hail.variant.{Call, Genotype}
 
 object InbreedingCombiner {
   def signature = TStruct(
-    "Fstat" -> TFloat64(),
-    "nCalled" -> TInt64(),
-    "expectedHoms" -> TFloat64(),
-    "observedHoms" -> TInt64())
+    "f_stat" -> TFloat64(),
+    "n_called" -> TInt64(),
+    "expected_homs" -> TFloat64(),
+    "observed_homs" -> TInt64())
 }
 
 class InbreedingCombiner extends Serializable {
