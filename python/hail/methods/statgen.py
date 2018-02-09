@@ -7,10 +7,9 @@ from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
-from .misc import require_biallelic
+from .misc import require_biallelic, require_variant
 from hail.expr import functions
 import hail.expr.aggregators as agg
-from math import sqrt
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 @handle_py4j
@@ -104,6 +103,140 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               joption(max)))
 
 @handle_py4j
+@typecheck(call=expr_call,
+           aaf_threshold=numeric,
+           include_par=bool,
+           female_threshold=numeric,
+           male_threshold=numeric,
+           aaf=nullable(strlike))
+def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
+    """Impute sex of samples by calculating inbreeding coefficient on the X
+    chromosome.
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+
+    Remove samples where imputed sex does not equal reported sex:
+
+    >>> imputed_sex = methods.impute_sex(ds.GT)
+    >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
+
+    Notes
+    -----
+
+    We have used the same implementation as `PLINK v1.7
+    <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
+
+    Let `gr` be the the genome reference of the type of the `locus` key (as
+    given by :meth:`.TLocus.reference_genome`)
+
+    1. Filter the dataset to loci on the X contig defined by `gr`.
+
+    2. Calculate alternate allele frequency (AAF) for each row from the dataset.
+
+    3. Filter to variants with AAF above `aaf_threshold`.
+
+    4. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
+       only if `include_par` is ``True`` (it defaults to ``False``)
+
+    5. For each row and column with a non-missing genotype call, :math:`E`, the
+       expected number of homozygotes (from population AAF), is computed as
+       :math:`1.0 - (2.0*maf*(1.0-maf))`.
+
+    6. For each row and column with a non-missing genotype call, :math:`O`, the
+       observed number of homozygotes, is computed interpreting ``0`` as
+       heterozygote and ``1`` as homozygote`
+
+    7. For each row and column with a non-missing genotype call, :math:`N` is
+       incremented by 1
+
+    8. For each column, :math:`E`, :math:`O`, and :math:`N` are combined across
+       variants
+
+    9. For each column, :math:`F` is calculated by :math:`(O - E) / (N - E)`
+
+    10. A sex is assigned to each sample with the following criteria:
+        - Female when ``F < 0.2``
+        - Male when ``F > 0.8``
+        Use `female_threshold` and `male_threshold` to change this behavior.
+
+    **Annotations**
+
+    The returned column-key indexed :class:`.Table` has the following fields in
+    addition to the matrix table's column keys:
+
+    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female,
+      false if male, missing if undetermined.
+    - **f_stat** (:class:`.TFloat64`) -- Inbreeding coefficient.
+    - **n_called**  (:class:`.TInt64`) -- Number of variants with a genotype call.
+    - **expected_homs** (:class:`.TFloat64`) -- Expected number of homozygotes.
+    - **observed_homs** (:class:`.TInt64`) -- Observed number of homozygotes.
+
+    call : :class:`.CallExpression`
+        A genotype call for each row and column. The source dataset's row keys
+        must be [[locus], alleles] with types :class:`.TLocus` and
+        :class:`.ArrayStringExpression`. Moreover, the alleles array must have
+        exactly two elements (i.e. the variant must be biallelic).
+    aaf_threshold : :obj:`float`
+        Minimum alternate allele frequency threshold.
+    include_par : :obj:`bool`
+        Include pseudoautosomal regions.
+    female_threshold : :obj:`float`
+        Samples are called females if F < female_threshold.
+    male_threshold : :obj:`float`
+        Samples are called males if F > male_threshold.
+    aaf : :obj:`str` or :obj:`None`
+        A field defining the alternate allele frequency for each row. If
+        ``None``, AAF will be computed from `call`.
+
+    Return
+    ------
+    :class:`.Table`
+        Sex imputation statistics per sample.
+    """
+    if aaf_threshold < 0.0 or aaf_threshold > 1.0:
+        raise FatalError("Invalid argument for `aaf_threshold`. Must be in range [0, 1].")
+
+    f = functions
+
+    ds = call._indices.source
+    ds, _ = ds._process_joins(call)
+    ds = ds.annotate_entries(call = call)
+    ds = require_biallelic(ds, 'impute_sex')
+    ds = require_variant(ds, 'impute_sex')
+    def locus(ds):
+        # FIXME use keys
+        return ds.v.locus() # ds[ds.row_key[0]]
+    gr = locus(ds).dtype.reference_genome
+
+    if (aaf is None):
+        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.v).AF[1])
+        aaf = 'aaf'
+
+    # FIXME: filter_intervals
+    ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(locus(ds).contig))
+
+    if (not include_par):
+        ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(locus(ds))),
+                            keep=False)
+
+    ds = ds.filter_rows(ds[aaf] > aaf_threshold)
+    ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds[aaf]))
+    kt = ds.select_cols(
+        *ds.col_key,
+        is_female=f.cond(ds.ib.f_stat < female_threshold,
+                         True,
+                         f.cond(ds.ib.f_stat > male_threshold,
+                                False,
+                                f.null(TBoolean()))),
+        **ds.ib).cols_table()
+
+    return kt
+
 @typecheck(dataset=MatrixTable,
            ys=oneof(expr_numeric, listof(expr_numeric)),
            x=expr_numeric,
@@ -1556,13 +1689,13 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
 
     Note
     ----
-    The ``block_size`` controls memory usage and parallelism. If it is large
+    The `block_size` controls memory usage and parallelism. If it is large
     enough to hold an entire sample-by-sample matrix of 64-bit doubles in
     memory, then only one Spark worker node can be used to compute matrix
     operations. If it is too small, communication overhead will begin to
     dominate the computation's time. The author has found that on Google
-    Dataproc (where each core has about 3.75GB of memory), setting
-    ``block_size`` larger than 512 tends to cause memory exhaustion errors.
+    Dataproc (where each core has about 3.75GB of memory), setting `block_size`
+    larger than 512 tends to cause memory exhaustion errors.
 
     Note
     ----
