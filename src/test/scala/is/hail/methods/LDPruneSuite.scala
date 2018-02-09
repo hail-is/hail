@@ -41,22 +41,21 @@ case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevR
 
 object LDPruneSuite {
   val rvRowType = TStruct(
-    "pk" -> GenomeReference.GRCh37.locusType,
-    "v" -> GenomeReference.GRCh37.variantType,
-    "va" -> TStruct(),
-    "gs" -> TArray(Genotype.htsGenotypeType)
+    "locus" -> GenomeReference.GRCh37.locusType,
+    "alleles" -> TArray(TString()),
+    MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.fieldType(0), rvRowType.fieldType(1))
+  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.fieldByName("locus").typ,
+    rvRowType.fieldByName("alleles").typ)
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toIndexedSeq
     val rvb = new RegionValueBuilder(Region())
     rvb.start(rvRowType)
     rvb.startStruct()
-    rvb.setMissing()
-    rvb.setMissing()
-    rvb.setMissing()
+    rvb.addAnnotation(rvRowType.fieldType(0), Locus("1", 1))
+    rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq("A", "T"))
     rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
     rvb.endStruct()
     rvb.end()
@@ -89,8 +88,8 @@ object LDPruneSuite {
 
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
-    rvb.setMissing()
-    rvb.setMissing()
+    rvb.addAnnotation(rvRowType.fieldType(0), Locus("1", 1))
+    rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq("A", "T"))
     val keep = LDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {
@@ -128,7 +127,7 @@ class LDPruneSuite extends SparkSuite {
   }
 
   def isUncorrelated(vds: MatrixTable, r2Threshold: Double, windowSize: Int): Boolean = {
-    val nSamplesLocal = vds.nSamples
+    val nSamplesLocal = vds.numCols
     val r2Matrix = correlationMatrix(vds.typedRDD[Variant].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
     val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v.asInstanceOf[Variant]) }.collectAsMap()
 
@@ -215,12 +214,12 @@ class LDPruneSuite extends SparkSuite {
 
   object Spec extends Properties("LDPrune") {
     val compGen = for (r2: Double <- Gen.choose(0.5, 1.0);
-      windowSize: Int <- Gen.choose(0, 5000);
-      nPartitions: Int <- Gen.choose(5, 10)) yield (r2, windowSize, nPartitions)
+    windowSize: Int <- Gen.choose(0, 5000);
+    nPartitions: Int <- Gen.choose(5, 10)) yield (r2, windowSize, nPartitions)
 
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-      v1: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2));
-      v2: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2))
+    v1: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2));
+    v2: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2))
     ) yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
@@ -318,14 +317,8 @@ class LDPruneSuite extends SparkSuite {
 
   @Test def testNoPrune() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
-    val nSamples = vds.nSamples
-    val filteredVDS = vds.copyLegacy(
-      genotypeSignature = Genotype.htsGenotypeType,
-      rdd = vds.typedRDD[Variant]
-        .filter { case (v, (va, gs)) =>
-          v.isBiallelic &&
-            LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples).isDefined
-        })
+    val nSamples = vds.numCols
+    val filteredVDS = vds.filterVariantsExpr("gs.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countVariants() == filteredVDS.countVariants())
   }

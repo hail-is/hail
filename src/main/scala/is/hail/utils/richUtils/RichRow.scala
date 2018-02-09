@@ -30,15 +30,9 @@ class RichRow(r: Row) {
       Some(r.getAs[T](i))
   }
 
-  def delete(i: Int): Row = {
-    val ab = new ArrayBuilder[Any]()
-    (0 until i).foreach(ab += r.get(_))
-    (i + 1 until r.size).foreach(ab += r.get(_))
-    val result = ab.result()
-    if (result.isEmpty)
-      null
-    else
-      Row.fromSeq(result)
+  def deleteField(i: Int): Row = {
+    require(i >= 0 && i < r.length)
+    new RowWithDeletedField(r, i)
   }
 
   def append(a: Any): Row = {
@@ -55,6 +49,12 @@ class RichRow(r: Row) {
     (i until r.size).foreach(ab += r.get(_))
     Row.fromSeq(ab.result())
   }
+}
 
-  def getVariant(i: Int): Variant = Variant.fromRow(r.getAs[Row](i))
+class RowWithDeletedField(parent: Row, deleteIdx: Int) extends Row {
+  override def length: Int = parent.length - 1
+
+  override def get(i: Int): Any = if (i < deleteIdx) parent.get(i) else parent.get(i + 1)
+
+  override def copy(): Row = this
 }

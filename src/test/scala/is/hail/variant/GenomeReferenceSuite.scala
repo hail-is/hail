@@ -88,9 +88,9 @@ class GenomeReferenceSuite extends SparkSuite {
     GenomeReference.addReference(gr)
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("va.v = NA: Variant(foo), va.l = NA: Locus(foo), va.i = NA: Interval[Locus(foo)]")
+      .annotateVariantsExpr("v = NA: Variant(foo), l = NA: Locus(foo), i = NA: Interval[Locus(foo)]")
 
-    val vas = vds.vaSignature.asInstanceOf[TStruct]
+    val vas = vds.rowType.asInstanceOf[TStruct]
 
     assert(vas.field("v").typ == TVariant(gr))
     assert(vas.field("l").typ == TLocus(gr))
@@ -271,7 +271,7 @@ class GenomeReferenceSuite extends SparkSuite {
     val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
     kt.annotate("""v1 = Variant(foo)("1:3:A:T")""").write(outKT)
-    vds.annotateVariantsExpr("""va.v2 = Variant(foo)("1:3:A:T")""").write(outVDS)
+    vds.annotateVariantsExpr("""v2 = Variant(foo)("1:3:A:T")""").write(outVDS)
     GenomeReference.removeReference("foo")
 
     val gr2 = GenomeReference("foo", Array("1"), Map("1" -> 5))
@@ -280,7 +280,7 @@ class GenomeReferenceSuite extends SparkSuite {
     GenomeReference.removeReference("foo")
 
     assert(hc.readTable(outKT).signature.field("v1").typ == TVariant(gr))
-    assert(hc.read(outVDS).vaSignature.fieldOption("v2").get.typ == TVariant(gr))
+    assert(hc.read(outVDS).rowType.fieldOption("v2").get.typ == TVariant(gr))
     TestUtils.interceptFatal("`foo' already exists and is not identical to the imported reference from")(hc.readTable(outKT2))
     GenomeReference.removeReference("foo")
   }

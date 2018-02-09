@@ -5,15 +5,12 @@ from hail.stats import *
 if not os.path.isdir("output/"):
     os.mkdir("output/")
 
-files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds", "data/ld_matrix"]
+files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
 for f in files:
     if os.path.isdir(f):
         shutil.rmtree(f)
 
 init(log="output/hail.log", quiet=True)
-
-from hail.utils.java import Env
-hc = Env.hc()
 
 ds = methods.import_vcf('data/sample.vcf.bgz')
 ds = ds.sample_rows(0.03)
@@ -50,17 +47,16 @@ ds.write('data/example_lmmreg.vds', overwrite=True)
 ds = methods.import_vcf('data/example_burden.vcf')
 kt = methods.import_table('data/example_burden.tsv', key='Sample', impute=True)
 ds = ds.annotate_cols(burden = kt[ds.s])
-ds = ds.annotate_rows(weight = ds.v.start.to_float64())
+ds = ds.annotate_rows(weight = ds.locus.position.to_float64())
 ds = methods.variant_qc(ds)
 # geneskt = methods.import_interval_list('data/genes.interval_list')
 genekt = methods.import_interval_list('data/gene.interval_list')
 # ds = ds.annotate_rows(genes = ???)
-ds = ds.annotate_rows(gene = genekt[ds.v])
+ds = ds.annotate_rows(gene = genekt[ds.locus])
 ds.write('data/example_burden.vds', overwrite=True)
 
 ds = methods.read_matrix_table('data/example.vds')
-
-methods.ld_matrix(methods.split_multi_hts(ds)).write("data/ld_matrix")
+ds.write('/tmp/example.vds', overwrite=True)
 
 multiallelic_generic_ds = methods.read_matrix_table('data/example2.multi.generic.vds')
 

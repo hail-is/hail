@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.Type
+import is.hail.expr.types.{TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}
@@ -21,7 +21,7 @@ case class PersistedRVRDD(
 
 trait RVD {
   self =>
-  def rowType: Type
+  def rowType: TStruct
 
   def rdd: RDD[RegionValue]
 
@@ -98,7 +98,7 @@ trait RVD {
   def persist(level: StorageLevel): RVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
     new RVD {
-      val rowType: Type = self.rowType
+      val rowType: TStruct = self.rowType
 
       val rdd: RDD[RegionValue] = iterationRDD
 

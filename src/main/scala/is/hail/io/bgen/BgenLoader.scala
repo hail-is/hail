@@ -11,6 +11,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.io.Source
 
@@ -67,14 +68,19 @@ object BgenLoader {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("rsid" -> TString(), "varid" -> TString())
+    val signature = TStruct("locus" -> TLocus(gr),
+      "alleles" -> TArray(TStringRequired),
+      "rsid" -> TString(),
+      "varid" -> TString())
 
-    val matrixType = MatrixType(
+    val matrixType: MatrixType = MatrixType.fromParts(
+      globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
-      vType = TVariant(gr),
-      vaType = signature,
-      genotypeType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
+      rowType = signature,
+      rowKey = Array("locus", "alleles"),
+      rowPartitionKey = Array("locus"),
+      entryType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
 
     val kType = matrixType.orderedRVType.kType
     val rowType = matrixType.rvRowType
@@ -93,7 +99,7 @@ object BgenLoader {
         rvb.start(kType)
         rvb.startStruct()
         rvb.addAnnotation(kType.fieldType(0), vRecoded.locus) // locus/pk
-        rvb.addAnnotation(kType.fieldType(1), vRecoded)
+        rvb.addAnnotation(kType.fieldType(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
         rvb.endStruct()
 
         rv.setOffset(rvb.end())
@@ -108,7 +114,7 @@ object BgenLoader {
 
       it.map { case (_, record) =>
         val v = record.getKey
-        val va = record.getAnnotation
+        val va = record.getAnnotation.asInstanceOf[Row]
 
         val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
         gr.checkVariant(vRecoded)
@@ -116,9 +122,10 @@ object BgenLoader {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), vRecoded.locus) // locus/pk
-        rvb.addAnnotation(rowType.fieldType(1), vRecoded)
-        rvb.addAnnotation(rowType.fieldType(2), va)
+        rvb.addAnnotation(rowType.fieldType(0), vRecoded.locus)
+        rvb.addAnnotation(kType.fieldType(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
+        rvb.addAnnotation(rowType.fieldType(2), va.get(0))
+        rvb.addAnnotation(rowType.fieldType(3), va.get(1))
         record.getValue(rvb) // gs
         rvb.endStruct()
 

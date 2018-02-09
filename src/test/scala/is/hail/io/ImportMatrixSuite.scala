@@ -6,10 +6,11 @@ import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.variant.{MatrixTable, VSMSubgen}
+import is.hail.variant.{GenomeReference, MatrixTable, VSMSubgen}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
+import is.hail.testUtils._
 
 class ImportMatrixSuite extends SparkSuite {
 
@@ -25,7 +26,7 @@ class ImportMatrixSuite extends SparkSuite {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
       val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), "v")
-      vsm.rdd2.count()
+      vsm.rvd.count()
     }
     assert(e.getMessage.contains("number of elements"))
   }
@@ -44,20 +45,28 @@ class ImportMatrixSuite extends SparkSuite {
       saGen = (t: Type) => t.genNonmissingValue,
       vaGen = (t: Type) => t.genNonmissingValue,
       globalGen = (t: Type) => t.genNonmissingValue,
-      vGen = (t: Type) => Gen.identifier,
+      vGen = (t: Type) => t.genValue,
       tGen = (t: Type, v: Annotation) => t.genValue)
 
     forAll(MatrixTable.gen(hc, genMatrix)
       .filter(vsm => !vsm.stringSampleIds.contains("v"))) { vsm =>
       val actual: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
-        vsm.makeKT("v = v", "`` = g.x", Array("v")).export(f)
-        LoadMatrix(hc, Array(f), None, Array(TString()), "v", cellType = vsm.genotypeSignature)
+        vsm.makeKT("v = va.v", "`` = g.x", Array("v")).export(f)
+        LoadMatrix(hc, Array(f), None, Array(TString()), "v", cellType = vsm.entryType)
       }
-      assert(vsm.same(actual.annotateVariantsExpr("va = {}")))
+      assert(vsm.unfilterEntries().same(actual
+        .annotateSamplesExpr("s = sa.col_id")
+        .keyColsBy("s")
+        .selectCols("sa.s")
+        .annotateVariantsExpr("v = va.v")
+        .keyRowsBy(Array("v"), Array("v"))
+        .selectRows("va.v"),
+        // table impex outputs doubles with %.4e
+        tolerance = 1e-4))
 
       val tmp1 = tmpDir.createTempFile(extension = "vds")
-      vsm.write(tmp1, true)
+      vsm.write(tmp1, overwrite = true)
 
       val vsm2 = MatrixTable.read(hc, tmp1)
       assert(vsm.same(vsm2))

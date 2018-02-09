@@ -10,7 +10,6 @@ Expressions
     :nosignatures:
 
     Expression
-    AltAlleleExpression
     ArrayExpression
     ArrayFloat32Expression
     ArrayFloat64Expression
@@ -42,15 +41,11 @@ Expressions
     SetSetExpression
     StringExpression
     StructExpression
-    VariantExpression
 
 
 .. autoclass:: Expression
     :show-inheritance:
     :special-members: __eq__, __ne__
-
-.. autoclass:: AltAlleleExpression
-    :show-inheritance:
 
 .. autoclass:: ArrayExpression
     :show-inheritance:
@@ -151,6 +146,3 @@ Expressions
 .. autoclass:: StructExpression
     :show-inheritance:
     :special-members: __getitem__
-
-.. autoclass:: VariantExpression
-    :show-inheritance:

@@ -1,6 +1,6 @@
 package is.hail.io.plink
 
-import is.hail.sparkextras._
+import is.hail.utils._
 import is.hail.expr.types._
 import is.hail.annotations._
 import is.hail.variant._
@@ -40,21 +40,18 @@ object ExportBedBimFam {
   }
 
   def bimRowTransformer(rowType: TStruct): Iterator[RegionValue] => Iterator[String] = { it =>
-    val vIdx = rowType.fieldIdx("v")
-    val tVariant = rowType.fieldType(vIdx).asInstanceOf[TVariant]
-    val v = new RegionValueVariant(tVariant)
+    val v = new RegionValueVariant(rowType)
 
     it.map { rv =>
-      val region = rv.region
-      assert(rowType.isFieldDefined(rv, vIdx))
-      v.setRegion(region, rowType.loadField(rv, vIdx))
-      val contig = v.contig
-      val start = v.start
-      val ref = v.ref
-      val alt = v.alt
+      v.setRegion(rv)
+      val contig = v.contig()
+      val start = v.position()
+      val alleles = v.alleles()
+      if (alleles.length != 2)
+        fatal(s"expected 2 alleles, found ${alleles.length} at $contig:$start:${alleles.tail.mkString(",")}")
       // FIXME: NO STRINGS, go directly through writePartitions
-      val id = s"${contig}:${start}:${ref}:${alt}"
-      s"""${contig}\t$id\t0\t${start}\t${alt}\t${ref}"""
+      val id = s"${contig}:${start}:${alleles(0)}:${alleles(1)}"
+      s"""${contig}\t$id\t0\t${start}\t${alleles(1)}\t${alleles(0)}"""
     }
   }
 }

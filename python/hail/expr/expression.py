@@ -5,7 +5,7 @@ from hail.expr.types import *
 from hail.utils.java import *
 from hail.utils.misc import plural
 from hail.utils.linkedlist import LinkedList
-from hail.genetics import Locus, Variant, Interval, Call, AltAllele
+from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
 from collections import Mapping
 
@@ -33,8 +33,6 @@ class Indices(object):
                     raise ExpressionException()
 
             both = axes.intersection(ind.axes)
-            left_only = axes - both
-            right_only = ind.axes - both
 
             axes = axes.union(ind.axes)
 
@@ -96,16 +94,12 @@ def to_expr(e):
         return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), TInt64())
     elif isinstance(e, float):
         return construct_expr(Literal(str(e)), TFloat64())
-    elif isinstance(e, Variant):
-        return construct_expr(ApplyMethod('Variant', Literal('"{}"'.format(str(e)))), TVariant(e.reference_genome))
     elif isinstance(e, Locus):
         return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
     elif isinstance(e, Interval):
         return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))), TInterval(TLocus(e.reference_genome)))
     elif isinstance(e, Call):
         return construct_expr(ApplyMethod('Call', Literal(str(e.gt))), TCall())
-    elif isinstance(e, AltAllele):
-        return construct_expr(ApplyMethod('AltAllele', to_expr(e.ref)._ast, to_expr(e.alt)._ast), TAltAllele())
     elif isinstance(e, Struct):
         if len(e) == 0:
             return construct_expr(StructDeclaration([], []), TStruct([], []))
@@ -186,9 +180,7 @@ _lazy_set = lazy()
 _lazy_bool = lazy()
 _lazy_struct = lazy()
 _lazy_string = lazy()
-_lazy_variant = lazy()
 _lazy_locus = lazy()
-_lazy_altallele = lazy()
 _lazy_interval = lazy()
 _lazy_call = lazy()
 _lazy_expr = lazy()
@@ -208,12 +200,8 @@ expr_struct = transformed((Struct, to_expr),
                           (_lazy_struct, identity))
 expr_str = transformed((strlike, to_expr),
                        (_lazy_string, identity))
-expr_variant = transformed((Variant, to_expr),
-                           (_lazy_variant, identity))
 expr_locus = transformed((Locus, to_expr),
                          (_lazy_locus, identity))
-expr_altallele = transformed((AltAllele, to_expr),
-                             (_lazy_altallele, identity))
 expr_interval = transformed((Interval, to_expr),
                             (_lazy_interval, identity))
 expr_call = transformed((Call, to_expr),
@@ -3325,15 +3313,15 @@ class CallExpression(Expression):
         """
         return self._method("nNonRefAlleles", TInt32())
 
-    @typecheck_method(v=expr_variant)
-    def one_hot_alleles(self, v):
+    @typecheck_method(alleles=expr_list)
+    def one_hot_alleles(self, alleles):
         """Returns an array containing the summed one-hot encoding of the two alleles.
 
         Examples
         --------
         .. doctest::
 
-            >>> eval_expr(call.one_hot_alleles(Variant('1', 1, 'A', 'T')))
+            >>> eval_expr(call.one_hot_alleles(['A', 'T']))
             [1, 1]
 
         This one-hot representation is the positional sum of the one-hot
@@ -3345,44 +3333,15 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        v : :class:`.Variant` or :class:`.VariantExpression`
-            Variant, used to determine the number of possible alleles.
+        alleles: :class:`.ArrayStringExpression`
+            Variant alleles.
 
         Returns
         -------
         :class:`.ArrayInt32Expression`
             An array of summed one-hot encodings of allele indices.
         """
-        return self._method("oneHotAlleles", TArray(TInt32()), v)
-
-    @typecheck_method(v=expr_variant)
-    def one_hot_genotype(self, v):
-        """Returns the triangle number of the genotype one-hot encoded into an integer array.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(call.one_hot_genotype(Variant('1', 1, 'A', 'T')))
-            [0, 1, 0]
-
-        A one-hot encoding uses a vector to represent categorical data, like a
-        genotype call, by using an array with one ``1`` and many ``0`` s. In
-        this case, the array will have a ``1`` at the position of the triangle
-        number of the genotype (:meth:`.Call.gt`).
-
-        This is useful for manipulating counts of categorical variables.
-
-        Parameters
-        ----------
-        v : :class:`.Variant` or :class:`.VariantExpression`
-            Variant, used to determine the number of possible alleles.
-        Returns
-        -------
-        :class:`.ArrayInt32Expression`
-            An array with a one-hot encoding of the call.
-        """
-        return self._method("oneHotGenotype", TArray(TInt32()), v)
+        return self._method("oneHotAlleles", TArray(TInt32()), alleles)
 
 
 class LocusExpression(Expression):
@@ -3425,6 +3384,140 @@ class LocusExpression(Expression):
             This locus's position along its chromosome.
         """
         return self._field("position", TInt32())
+
+    def in_x_nonpar(self):
+        """Returns ``True`` if the locus is in a non-pseudoautosomal
+        region of chromosome X.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_x_nonpar())
+            False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("inXNonPar", TBoolean())
+
+    def in_x_par(self):
+        """Returns ``True`` if the locus is in a pseudoautosomal region
+        of chromosome X.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_x_par())
+            False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("inXPar", TBoolean())
+
+    def in_y_nonpar(self):
+        """Returns ``True`` if the locus is in a non-pseudoautosomal
+        region of chromosome Y.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_y_nonpar())
+            False
+
+        Note
+        ----
+        Many variant callers only generate variants on chromosome X for the
+        pseudoautosomal region. In this case, all loci mapped to chromosome
+        Y are non-pseudoautosomal.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("inYNonPar", TBoolean())
+
+    def in_y_par(self):
+        """Returns ``True`` if the locus is in a pseudoautosomal region
+        of chromosome Y.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_y_par())
+            False
+
+        Note
+        ----
+        Many variant callers only generate variants on chromosome X for the
+        pseudoautosomal region. In this case, all loci mapped to chromosome
+        Y are non-pseudoautosomal.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("inYPar", TBoolean())
+
+    def in_autosome(self):
+        """Returns ``True`` if the locus is on an autosome.
+
+        Notes
+        -----
+        All contigs are considered autosomal except those
+        designated as X, Y, or MT by :class:`.GenomeReference`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_autosome())
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("isAutosomal", TBoolean())
+
+    def in_autosome_or_par(self):
+        """Returns ``True`` if the locus is on an autosome or
+        a pseudoautosomal region of chromosome X or Y.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_autosome_or_par())
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("isAutosomalOrPseudoAutosomal", TBoolean())
+
+    def in_mito(self):
+        """Returns ``True`` if the locus is on mitochondrial DNA.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.in_mito())
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("isMitochondrial", TBoolean())
 
 
 class IntervalExpression(Expression):
@@ -3496,557 +3589,6 @@ class IntervalExpression(Expression):
         """
         return self._field("start", TLocus())
 
-
-class AltAlleleExpression(Expression):
-    """Expression of type :class:`.TAltAllele`.
-
-    >>> altallele = functions.capture(AltAllele('A', 'AAA'))
-    """
-    @property
-    def alt(self):
-        """Returns the alternate allele string.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.alt)
-            'AAA'
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Alternate base string.
-        """
-        return self._field("alt", TString())
-
-    @property
-    def ref(self):
-        """Returns the reference allele string.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.ref)
-            'A'
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Reference base string.
-        """
-        return self._field("ref", TString())
-
-    def category(self):
-        """Returns the string representation of the alternate allele class.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.category())
-            'Insertion'
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            One of ``"SNP"``, ``"MNP"``, ``"Insertion"``, ``"Deletion"``, ``"Star"``, ``"Complex"``.
-        """
-        return self._method("category", TString())
-
-    def is_complex(self):
-        """Returns ``True`` if the polymorphism is not a SNP, MNP, star, insertion, or deletion.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_complex())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the allele is a complex event.
-        """
-        return self._method("isComplex", TBoolean())
-
-    def is_deletion(self):
-        """Returns ``True`` if the polymorphism is a deletion.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_deletion())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is a a deletion.
-        """
-        return self._method("isDeletion", TBoolean())
-
-    def is_indel(self):
-        """Returns ``True`` if the polymorphism is an insertion or deletion.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_insertion())
-            True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is an insertion or deletion.
-        """
-        return self._method("isIndel", TBoolean())
-
-    def is_insertion(self):
-        """Returns ``True`` if the polymorphism is an insertion.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_insertion())
-            True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is an insertion.
-        """
-        return self._method("isInsertion", TBoolean())
-
-    def is_mnp(self):
-        """Returns ``True`` if the polymorphism is a MNP.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_mnp())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is a multiple nucleotide polymorphism.
-        """
-        return self._method("isMNP", TBoolean())
-
-    def is_snp(self):
-        """Returns ``True`` if the polymorphism is a SNP.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_snp())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is a single nucleotide polymorphism.
-        """
-        return self._method("isSNP", TBoolean())
-
-    def is_star(self):
-        """Returns ``True`` if the polymorphism is a star (upstream deletion) allele.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_star())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is a star (upstream deletion) allele.
-        """
-        return self._method("isStar", TBoolean())
-
-    def is_transition(self):
-        """Returns ``True`` if the polymorphism is a transition SNP.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_transition())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is a SNP and a transition.
-        """
-        return self._method("isTransition", TBoolean())
-
-    def is_transversion(self):
-        """Returns ``True`` if the polymorphism is a transversion SNP.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(altallele.is_transversion())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the event is a SNP and a transversion.
-        """
-        return self._method("isTransversion", TBoolean())
-
-
-class VariantExpression(Expression):
-    """Expression of type :class:`.TVariant`.
-
-    >>> variant = functions.capture(Variant('16', 123055, 'A', 'C'))
-    """
-    def alt(self):
-        """Returns the alternate allele string.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.alt())
-            'C'
-
-        Warning
-        -------
-        Assumes biallelic. If the variant is multiallelic, throws an error.
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Alternate allele base string.
-        """
-        return self._method("alt", TString())
-
-    def alt_allele(self):
-        """Returns the alternate allele.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.alt_allele())
-            AltAllele(ref='A', alt='C')
-
-        Warning
-        -------
-        Assumes biallelic. If the variant is multiallelic, throws an error.
-
-        Returns
-        -------
-        :class:`.AltAlleleExpression`
-            Alternate allele.
-        """
-        return self._method("altAllele", TAltAllele())
-
-    @property
-    def alt_alleles(self):
-        """Returns the alternate alleles in the polymorphism.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.alt_alleles)
-            [AltAllele(ref='A', alt='C')]
-
-        Returns
-        -------
-        :class:`.ArrayExpression` with element type :class:`.AltAlleleExpression`
-            Alternate alleles.
-        """
-        return self._field("altAlleles", TArray(TAltAllele()))
-
-    @property
-    def contig(self):
-        """Returns the contig (chromosome).
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.contig)
-            '16'
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Contig.
-        """
-        return self._field("contig", TString())
-
-    def in_x_nonpar(self):
-        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal
-        region of chromosome X.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_x_nonpar())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("inXNonPar", TBoolean())
-
-    def in_x_par(self):
-        """Returns ``True`` if the polymorphism is in a pseudoautosomal region
-        of chromosome X.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_x_par())
-            False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("inXPar", TBoolean())
-
-    def in_y_nonpar(self):
-        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal
-        region of chromosome Y.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_y_nonpar())
-            False
-
-        Note
-        ----
-        Many variant callers only generate variants on chromosome X for the
-        pseudoautosomal region. In this case, all variants mapped to chromosome
-        Y are non-pseudoautosomal.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("inYNonPar", TBoolean())
-
-    def in_y_par(self):
-        """Returns ``True`` if the polymorphism is in a pseudoautosomal region
-        of chromosome Y.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_y_par())
-            False
-
-        Note
-        ----
-        Many variant callers only generate variants on chromosome X for the
-        pseudoautosomal region. In this case, all variants mapped to chromosome
-        Y are non-pseudoautosomal.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("inYPar", TBoolean())
-
-    def in_autosome(self):
-        """Returns ``True`` if the polymorphism is on an autosome.
-
-        Notes
-        -----
-        All contigs are considered autosomal except those
-        designated as X, Y, or MT by :class:`.GenomeReference`.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_autosome())
-            True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("isAutosomal", TBoolean())
-
-    def in_autosome_or_par(self):
-        """Returns ``True`` if the polymorphism is on an autosome or
-        a pseudoautosomal region of chromosome X or Y.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_autosome_or_par())
-            True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("isAutosomalOrPseudoAutosomal", TBoolean())
-
-    def in_mito(self):
-        """Returns ``True`` if the polymorphism is on mitochondrial DNA.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.in_mito())
-            True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return self._method("isMitochondrial", TBoolean())
-
-    def is_biallelic(self):
-        """Returns ``True`` if there is only one alternate allele.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.is_biallelic())
-            True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the variant has only one alternate allele.
-        """
-        return self._method("isBiallelic", TBoolean())
-
-    def locus(self):
-        """Returns the locus at which the polymorphism occurs.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.locus())
-            Locus(contig=16, position=123055, reference_genome=GRCh37)
-
-        Returns
-        -------
-        :class:`.LocusExpression`
-            Locus associated with this variant.
-        """
-        return self._method("locus", TLocus())
-
-    def num_alleles(self):
-        """Returns the number of alleles in the polymorphism, including the reference.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.num_alleles())
-            2
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-            Total number of alleles, including the reference.
-        """
-        return self._method("nAlleles", TInt32())
-
-    def num_alt_alleles(self):
-        """Returns the number of alleles in the polymorphism, excluding the reference.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.num_alt_alleles())
-            1
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-            Total number of non-reference alleles.
-        """
-        return self._method("nAltAlleles", TInt32())
-
-    def num_genotypes(self):
-        """Returns the number of possible genotypes given the number of total alleles.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.num_genotypes())
-            3
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-            Total number of possible diploid genotype configurations.
-        """
-        return self._method("nGenotypes", TInt32())
-
-    @property
-    def ref(self):
-        """Returns the reference allele string.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.ref)
-            'A'
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Reference base string.
-        """
-        return self._field("ref", TString())
-
-    @property
-    def start(self):
-        """Returns the chromosomal position of the polymorphism.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(variant.start)
-            123055
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-        """
-        return self._field("start", TInt32())
-
-
 typ_to_expr = {
     TBoolean: BooleanExpression,
     TInt32: Int32Expression,
@@ -4055,9 +3597,7 @@ typ_to_expr = {
     TFloat32: Float32Expression,
     TLocus: LocusExpression,
     TInterval: IntervalExpression,
-    TVariant: VariantExpression,
     TCall: CallExpression,
-    TAltAllele: AltAlleleExpression,
     TString: StringExpression,
     TDict: DictExpression,
     TArray: ArrayExpression,
@@ -4276,9 +3816,7 @@ _lazy_set.set(SetExpression)
 _lazy_bool.set(BooleanExpression)
 _lazy_struct.set(StructExpression)
 _lazy_string.set(StringExpression)
-_lazy_variant.set(VariantExpression)
 _lazy_locus.set(LocusExpression)
-_lazy_altallele.set(AltAlleleExpression)
 _lazy_interval.set(IntervalExpression)
 _lazy_call.set(CallExpression)
 _lazy_expr.set(Expression)

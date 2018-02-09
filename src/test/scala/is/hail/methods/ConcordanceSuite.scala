@@ -4,10 +4,12 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types.{TString, TStruct, TVariant}
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMSubgen, Variant}
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.language._
@@ -30,13 +32,17 @@ class ConcordanceSuite extends SparkSuite {
     }
     scrambledVariants1 <- Gen.shuffle(vds1.variants.collect()).map(_.iterator)
     newVariantMapping <- Gen.parameterized { p =>
-      Gen.const(vds2.variants.collect().map { v =>
-        if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) (v, scrambledVariants1.next()) else (v, v)
-      }.toMap)
+      Gen.const(Table.parallelize(hc, vds2.variants.collect().map { v =>
+        if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) Row(v, scrambledVariants1.next()) else Row(v, v)
+      }, TStruct("v1" -> TVariant(gr),
+        "v2" -> TVariant(gr)), Array.empty[String], None)
+        .annotate("locus = v1.locus, alleles = [v1.ref].extend(v1.altAlleles.map(x => x.alt))")
+        .keyBy("locus", "alleles"))
     }
-  } yield (vds1, vds2.copyLegacy(sampleAnnotations = newIds2.map(Annotation(_)),
-    saSignature = TStruct("s" -> TString()),
-    rdd = vds2.rdd.map { case (v, (vaGS)) => (newVariantMapping(v), vaGS) }))
+  } yield (vds1, vds2.annotateVariantsTable(newVariantMapping, "newVariant")
+      .annotateVariantsExpr("locus = va.newVariant.v2.locus, " +
+        "alleles = [va.newVariant.v2.ref].extend(va.newVariant.v2.altAlleles.map(x => x.alt))")
+      .copy2(colValues = newIds2.map(Annotation(_)), colType = TStruct("s" -> TString())))
 
   //FIXME use SnpSift when it's fixed
   def readSampleConcordance(file: String): Map[String, IndexedSeq[IndexedSeq[Int]]] = {
@@ -143,8 +149,6 @@ class ConcordanceSuite extends SparkSuite {
 
   @Test def test() {
     Prop.forAll(gen(sc).filter { case (vds1, vds2) =>
-      println(vds1.saSignature, vds1.colKey)
-      println(vds2.saSignature, vds2.colKey)
       vds1.stringSampleIds.toSet.intersect(vds2.stringSampleIds.toSet).nonEmpty &&
         vds1.variants.intersection(vds2.variants).count() > 0
     }) { case (vds1, vds2) =>

@@ -24,7 +24,7 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     val qSingleton = vds.querySA("sa.qc.nSingleton")._2
 
-    val sCount = vds.sampleAnnotations.count(sa =>
+    val sCount = vds.colValues.count(sa =>
       qSingleton(sa).asInstanceOf[Long] > 2)
 
     assert(singStats == sCount)
@@ -50,7 +50,7 @@ class AnnotateGlobalSuite extends SparkSuite {
     assert(acDist == Annotation(acSC.mean, acSC.stdev, acSC.min, acSC.max, acSC.count, acSC.sum))
 
     val qCR = vds.querySA("sa.qc.callRate")._2
-    val crSC = vds.sampleAnnotations
+    val crSC = vds.colValues
       .aggregate(new StatCounter())({ case (statC, sa) =>
         val cr = Option(qCR(sa))
         cr.foreach(o => statC.merge(o.asInstanceOf[Double]))

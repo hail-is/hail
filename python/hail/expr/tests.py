@@ -5,11 +5,14 @@ import unittest
 from hail.expr import *
 from hail import *
 
+
 def setUpModule():
     init(master='local[2]', min_block_size=0)
 
+
 def tearDownModule():
     stop()
+
 
 class Tests(unittest.TestCase):
     def test_types(self):
@@ -30,10 +33,8 @@ class Tests(unittest.TestCase):
             TArray(TString()),
             TSet(TArray(TSet(TBoolean()))),
             TDict(TString(), TInt32()),
-            TVariant(),
             TLocus(),
             TCall(),
-            TAltAllele(),
             TInterval(TLocus()),
             TSet(TInterval(TLocus())),
             TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
@@ -50,10 +51,8 @@ class Tests(unittest.TestCase):
             TArray(TString()),
             TSet(TArray(TSet(TBoolean()))),
             TDict(TString(), TInt32()),
-            TVariant(),
             TLocus(),
             TCall(),
-            TAltAllele(),
             TInterval(TLocus()),
             TSet(TInterval(TLocus())),
             TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
@@ -82,11 +81,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(eval_expr(1.1e-15), 1.1e-15)
 
     def test_repr(self):
-        tv = TVariant()
         tl = TLocus()
         ti = TInterval(TLocus())
         tc = TCall()
-        taa = TAltAllele()
 
         ti32 = TInt32()
         ti64 = TInt64()
@@ -96,11 +93,11 @@ class Tests(unittest.TestCase):
         tb = TBoolean()
 
         tdict = TDict(TInterval(TLocus()), TFloat32())
+        tset = TArray(TLocus())
         tarray = TArray(TString())
-        tset = TSet(TVariant())
         tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])
 
-        for typ in [tv, tl, ti, tc, taa,
+        for typ in [tl, ti, tc,
                     ti32, ti64, tf32, tf64, ts, tb,
                     tdict, tarray, tset, tstruct]:
             self.assertEqual(eval(repr(typ)), typ)
@@ -119,18 +116,18 @@ class Tests(unittest.TestCase):
         r = table.aggregate(x=agg.count(),
                             y=agg.count_where(table.idx % 2 == 0),
                             z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
-                            arr_sum = agg.array_sum([1, 2, functions.null(TInt32())]))
+                            arr_sum=agg.array_sum([1, 2, functions.null(TInt32())]))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
         self.assertEqual(r.arr_sum, [10, 20, 0])
 
-        r = table.aggregate(fraction_odd = agg.fraction(table.idx % 2 == 0),
-                            lessthan6 = agg.fraction(table.idx < 6),
-                            gt6 = agg.fraction(table.idx > 6),
-                            assert1 = agg.fraction(table.idx > 6) < 0.50,
-                            assert2 = agg.fraction(table.idx < 6) >= 0.50)
+        r = table.aggregate(fraction_odd=agg.fraction(table.idx % 2 == 0),
+                            lessthan6=agg.fraction(table.idx < 6),
+                            gt6=agg.fraction(table.idx > 6),
+                            assert1=agg.fraction(table.idx > 6) < 0.50,
+                            assert2=agg.fraction(table.idx < 6) >= 0.50)
         self.assertEqual(r.fraction_odd, 0.50)
         self.assertEqual(r.lessthan6, 0.60)
         self.assertEqual(r.gt6, 0.30)
@@ -219,7 +216,7 @@ class Tests(unittest.TestCase):
 
         assert_typed(s.drop(),
                      Struct(f1=1, f2=2, f3=3),
-                     TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))
+                     TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
 
         assert_typed(s.select('f1', 'f2'),
                      Struct(f1=1, f2=2),
@@ -243,7 +240,7 @@ class Tests(unittest.TestCase):
 
         assert_typed(s.annotate(),
                      Struct(f1=1, f2=2, f3=3),
-                     TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))
+                     TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
 
     def test_iter(self):
         a = functions.capture([1, 2, 3])
@@ -857,3 +854,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.0, 1.0])), 2.0)
         self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.5, 0.5, 0.0])), 0.5)
         self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.5, 0.5])), 1.5)
+
+    def test_parse_variant(self):
+        self.assertEqual(eval_expr(functions.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),
+                                                                               alleles=['A', 'T']))
