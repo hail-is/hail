@@ -51,9 +51,10 @@ class Aggregation(object):
 
 
 class Join(object):
-    def __init__(self, join_function, temp_vars):
+    def __init__(self, join_function, temp_vars, uid):
         self.join_function = join_function
         self.temp_vars = temp_vars
+        self.uid = uid
 
 
 @typecheck(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
