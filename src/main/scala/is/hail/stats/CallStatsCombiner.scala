@@ -21,9 +21,9 @@ case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: Option[Index
   def asAnnotation: Annotation = Annotation(alleleCount, alleleFrequency.orNull, alleleNumber, genotypeCount)
 }
 
-class CallStatsCombiner(val v: Variant) extends Serializable {
-  val alleleCount = new Array[Int](v.nAlleles)
-  val genotypeCount = new Array[Int](v.nGenotypes)
+class CallStatsCombiner(val alleles: IndexedSeq[String]) extends Serializable {
+  val alleleCount = new Array[Int](alleles.length)
+  val genotypeCount = new Array[Int](Variant.nGenotypes(alleles.length))
 
   def merge(gt: Call): CallStatsCombiner = {
     val p = Genotype.gtPair(gt)

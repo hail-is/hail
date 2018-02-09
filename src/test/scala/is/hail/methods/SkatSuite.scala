@@ -134,12 +134,13 @@ class SkatSuite extends SparkSuite {
       types = Map("locus" -> TLocus(rg), "weight" -> TFloat64())).keyBy("locus")
 
     hc.importVCF("src/test/resources/sample2.vcf")
-      .filterVariantsExpr("v.isBiallelic")
-      .annotateVariantsTable(intervalsSkat, expr = "va.gene = table.target") // intervals do not overlap
-      .annotateVariantsTable(weightsSkat, expr = "va.weight = table.weight")
-      .annotateSamplesTable(covSkat, root = "sa.cov")
-      .annotateSamplesTable(phenoSkat, root = "sa.pheno")
-      .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
+      .filterVariantsExpr("va.alleles.length() == 2")
+      .annotateVariantsTable(intervalsSkat, "gene")
+      .annotateVariantsTable(weightsSkat, "weight")
+      .annotateVariantsExpr("gene = va.gene.target, weight = va.weight.weight")
+      .annotateSamplesTable(covSkat, root = "cov")
+      .annotateSamplesTable(phenoSkat, root = "pheno")
+      .annotateSamplesExpr("pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
   }
   
   // A larger deterministic example using the Balding-Nichols model (only hardcalls)
@@ -164,9 +165,9 @@ class SkatSuite extends SparkSuite {
       .annotateSamplesF(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
-      .annotateVariantsExpr("va.gene = v.start % 3") // three genes
-      .annotateVariantsExpr("va.AF = gs.map(g => g.GT).callStats(GT => v).AF")
-      .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
+      .annotateVariantsExpr("gene = va.locus.position % 3") // three genes
+      .annotateVariantsExpr("AF = gs.map(g => g.GT).callStats(GT => va.alleles).AF")
+      .annotateVariantsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
         "dbeta(af, 1.0, 25.0)**2")
   }
   
@@ -269,14 +270,14 @@ class SkatSuite extends SparkSuite {
     // annotations from table
     val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")
     val vds = vds0
-      .annotateVariantsTable(kt, expr = "va.key = table.map(x => x.target)", product = true)
-      .annotateVariantsExpr("va.key = va.key.toSet(), va.weight = v.start")
+      .annotateVariantsTable(kt, "key", product = true)
+      .annotateVariantsExpr("key = va.key.map(x => x.target).toSet(), weight = va.locus.position")
       .explodeVariants("va.key")
-      .annotateVariantsExpr("va.key = va.key.toInt32()")
+      .annotateVariantsExpr("key = va.key.toInt32()")
     
     // annotations from expr
     val vds2 = vds0
-      .annotateVariantsExpr("va.key = [9, v.start % 2, v.start // 2 + 1].toSet(), va.weight = v.start") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
+      .annotateVariantsExpr("key = [9, va.locus.position % 2, va.locus.position // 2 + 1].toSet(), weight = va.locus.position") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
       .explodeVariants("va.key") // 0 -> {v2}, 1 -> {v1, v3}, 2 -> {v2, v3}, 9 -> {v1, v2, v3}
     
     // table/explode and annotate/explode give same keys

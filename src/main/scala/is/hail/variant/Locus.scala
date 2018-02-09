@@ -86,5 +86,23 @@ case class Locus(contig: String, position: Int) {
     Locus(contig, position)
   }
 
+  def isAutosomalOrPseudoAutosomal(gr: GRBase): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
+
+  def isAutosomal(gr: GRBase): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
+
+  def isMitochondrial(gr: GRBase): Boolean = gr.isMitochondrial(contig)
+
+  def inXPar(gr: GRBase): Boolean = gr.inXPar(this)
+
+  def inYPar(gr: GRBase): Boolean = gr.inYPar(this)
+
+  def inXNonPar(gr: GRBase): Boolean = inX(gr) && !inXPar(gr)
+
+  def inYNonPar(gr: GRBase): Boolean = inY(gr) && !inYPar(gr)
+
+  private def inX(gr: GRBase): Boolean = gr.inX(contig)
+
+  private def inY(gr: GRBase): Boolean = gr.inY(contig)
+
   override def toString: String = s"$contig:$position"
 }

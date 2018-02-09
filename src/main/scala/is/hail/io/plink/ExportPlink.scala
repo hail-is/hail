@@ -10,10 +10,10 @@ object ExportPlink {
     vsm.requireColKeyString("export_plink")
 
     val ec = EvalContext(Map(
-      "sa" -> (0, vsm.saSignature),
-      "global" -> (1, vsm.globalSignature)))
+      "sa" -> (0, vsm.colType),
+      "global" -> (1, vsm.globalType)))
 
-    ec.set(1, vsm.globalAnnotation)
+    ec.set(1, vsm.globals)
 
     type Formatter = (Option[Any]) => String
 
@@ -70,16 +70,16 @@ object ExportPlink {
     val bedHeader = Array[Byte](108, 27, 1)
 
     // FIXME: don't reevaluate the upstream RDD twice
-    vsm.rdd2.mapPartitions(
-      ExportBedBimFam.bedRowTransformer(vsm.nSamples, vsm.rdd2.typ.rowType)
+    vsm.rvd.mapPartitions(
+      ExportBedBimFam.bedRowTransformer(vsm.numCols, vsm.rvd.typ.rowType)
     ).saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
 
-    vsm.rdd2.mapPartitions(
-      ExportBedBimFam.bimRowTransformer(vsm.rdd2.typ.rowType)
+    vsm.rvd.mapPartitions(
+      ExportBedBimFam.bimRowTransformer(vsm.rvd.typ.rowType)
     ).writeTable(path + ".bim", vsm.hc.tmpDir)
 
     val famRows = vsm
-      .sampleAnnotations
+      .colValues
       .map { sa =>
         ec.set(0, sa)
         val a = f().map(Option(_))

@@ -17,7 +17,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.samplesKT().select("Sample = s", "qc.*").export(out)
+    vds.colsTable().select("Sample = s", "qc.*").export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -48,12 +48,12 @@ class ExportSuite extends SparkSuite {
       "rTiTv" -> TFloat64(),
       "rHetHomVar" -> TFloat64(),
       "rInsertionDeletion" -> TFloat64())).keyBy("Sample"),
-      root = "sa.readBackQC")
+      root = "readBackQC")
 
     val (t, qcQuerier) = readBackAnnotated.querySA("sa.qc")
     val (t2, rbQuerier) = readBackAnnotated.querySA("sa.readBackQC")
     assert(t == t2)
-    readBackAnnotated.sampleAnnotations.foreach { annotation =>
+    readBackAnnotated.colValues.foreach { annotation =>
       t.valuesSimilar(qcQuerier(annotation), rbQuerier(annotation))
     }
   }
@@ -61,11 +61,11 @@ class ExportSuite extends SparkSuite {
   @Test def testExportSamples() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf")
       .filterSamplesExpr("""sa.s == "C469::HG02026""""))
-    assert(vds.nSamples == 1)
+    assert(vds.numCols == 1)
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.samplesKT().select("s").export(f, header = false)
+    vds.colsTable().select("s").export(f, header = false)
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -75,9 +75,9 @@ class ExportSuite extends SparkSuite {
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
-    vds.samplesKT().select("`S.A.M.P.L.E.ID` = s").export(f)
-    vds.samplesKT().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = s", "ANOTHERTHING = s").export(f2)
-    vds.samplesKT().select("`I have some spaces and tabs\\there` = s", "`more weird stuff here` = s").export(f3)
+    vds.colsTable().select("`S.A.M.P.L.E.ID` = s").export(f)
+    vds.colsTable().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = s", "ANOTHERTHING = s").export(f2)
+    vds.colsTable().select("`I have some spaces and tabs\\there` = s", "`more weird stuff here` = s").export(f3)
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -103,20 +103,8 @@ class ExportSuite extends SparkSuite {
     vds = SplitMulti(vds)
     vds = SampleQC(vds)
     vds
-      .samplesKT()
+      .colsTable()
       .select("computation = 5 * (if (qc.callRate < .95) 0 else 1)")
       .export(f)
-  }
-
-  @Test def testTypes() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
-    val out = tmpDir.createTempFile("export", ".out")
-
-    vds.variantsKT().export(out, typesFile = out + ".types")
-
-    val types = Parser.parseAnnotationTypes(hadoopConf.readFile(out + ".types")(Source.fromInputStream(_).mkString))
-    val readBack = vds.annotateVariantsTable(hc.importTable(out, types = types).keyBy("v"),
-      expr = "va = table.va")
-    assert(vds.same(readBack))
   }
 }

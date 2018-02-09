@@ -8,7 +8,7 @@ import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, Variant}
+import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
@@ -265,23 +265,27 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val oldSignature = vds.vaSignature
+    val oldSignature = vds.rowType
     val localBlockSize = blockSize
 
     implicit val variantOrd = vds.genomeReference.variantOrdering
 
     info("Running Nirvana")
 
+
     val localRowType = vds.rvRowType
-    val annotations = vds.rdd2
+    val annotations = vds.rvd
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
         if (path.orNull != null)
           env.put("PATH", path.get)
 
+        val rvv = new RegionValueVariant(localRowType)
+
         it.map { rv =>
-          Variant.fromRegionValue(rv.region, localRowType.loadField(rv, 1))
+          rvv.setRegion(rv)
+          rvv.variantObject()
         }
           .grouped(localBlockSize)
           .flatMap { block =>
@@ -316,19 +320,17 @@ object Nirvana {
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
     val nirvanaOrderedRVType = new OrderedRVType(
-      Array("pk"), Array("pk", "v"),
+      Array("locus"), Array("locus", "alleles"),
       TStruct(
-        "pk" -> vds.locusType,
-        "v" -> vds.vSignature,
+        "locus" -> vds.rowKeyTypes(0),
+        "alleles" -> vds.rowKeyTypes(1),
         "nirvana" -> nirvanaSignature))
 
     val nirvanaRowType = nirvanaOrderedRVType.rowType
-    val (t, pkProjection) = Type.partitionKeyProjection(vds.vSignature)
-    assert(t == vds.locusType)
 
     val nirvanaRVD: OrderedRVD = OrderedRVD(
       nirvanaOrderedRVType,
-      vds.rdd2.partitioner,
+      vds.rvd.partitioner,
       annotations.mapPartitions { it =>
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -337,8 +339,9 @@ object Nirvana {
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
           rvb.startStruct()
-          rvb.addAnnotation(nirvanaRowType.fieldType(0), pkProjection(v))
-          rvb.addAnnotation(nirvanaRowType.fieldType(1), v)
+          rvb.startStruct()
+          rvb.addAnnotation(nirvanaRowType.fieldType(0), v.locus)
+          rvb.addAnnotation(nirvanaRowType.fieldType(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
           rvb.addAnnotation(nirvanaRowType.fieldType(2), nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
@@ -346,13 +349,8 @@ object Nirvana {
           rv
         }})
 
-    val (newVAType, inserter) = vds.vaSignature.structInsert(nirvanaSignature, parsedRoot)
-
-    val newMatrixType = vds.matrixType.copy(vaType = newVAType)
-    val newRDD2 = vds.orderedRVDLeftJoinDistinctAndInsert(vds.rdd2, nirvanaRVD,
-      newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
-
-    vds.copy2(rdd2 = newRDD2, vaSignature = newVAType)
+    vds.orderedRVDLeftJoinDistinctAndInsert(nirvanaRVD, "nirvana", product = false)
+      .annotateVariantsExpr("nirvana = va.nirvana.nirvana")
   }
 
   def apply(vsm: MatrixTable, config: String, blockSize: Int = 500000, root: String): MatrixTable =

@@ -76,7 +76,7 @@ stop()
 if os.path.isdir("output/"):
     shutil.rmtree("output/")
 
-files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds", "data/ld_matrix"]
+files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
 for f in files:
     if os.path.isdir(f):
         shutil.rmtree(f)

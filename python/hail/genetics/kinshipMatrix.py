@@ -17,13 +17,13 @@ class KinshipMatrix(HistoryMixin):
 
     @classmethod
     @record_classmethod
-    def _from_block_matrix(cls, sample_schema, bm, sample_ids, n_variants):
+    def _from_block_matrix(cls, sample_schema, bm, sample_ids, n_rows):
         return cls(Env.hail().methods.KinshipMatrix.apply(
             Env.hc()._jhc,
             sample_schema._jtype,
             bm._jbm,
             sample_ids,
-            n_variants))
+            n_rows))
 
     @property
     @handle_py4j

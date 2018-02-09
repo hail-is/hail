@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.UnsafeRow
 import is.hail.expr.types.Type
 import is.hail.utils.{Interval, IntervalTree}
 import is.hail.variant.MatrixTable
@@ -10,7 +11,8 @@ import scala.collection.JavaConverters._
 object FilterIntervals {
   def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
     vsm.requireRowKeyVariant("filter_intervals")
-    val iList = IntervalTree(vsm.locusType.ordering, intervals.asScala.toArray)
+    val locusField = vsm.rowType.fieldByName(vsm.rowKey(0))
+    val iList = IntervalTree(locusField.typ.ordering, intervals.asScala.toArray)
     apply(vsm, iList, keep)
   }
 
@@ -21,13 +23,23 @@ object FilterIntervals {
         intervals.map { case (i, _) =>
           Interval(Row(i.start), Row(i.end))
         }.toArray)
-      vsm.copy2(rdd2 = vsm.rdd2.filterIntervals(pkIntervals))
+      vsm.copy2(rvd = vsm.rvd.filterIntervals(pkIntervals))
     } else {
       val intervalsBc = vsm.sparkContext.broadcast(intervals)
-      val (t, p) = Type.partitionKeyProjection(vsm.vSignature)
-      assert(t == vsm.locusType)
-      val localLocusOrdering = vsm.locusType.ordering
-      vsm.filterVariants { (v, va, gs) => !intervalsBc.value.contains(localLocusOrdering, p(v)) }
+
+      val locusField = vsm.rowType.fieldByName(vsm.rowKey(0))
+      val locusIdx = locusField.index
+
+      val fullRowType = vsm.rvRowType
+      val localLocusOrdering = locusField.typ.ordering
+
+      vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ) { it =>
+        val ur = new UnsafeRow(fullRowType)
+        it.filter { rv =>
+          ur.set(rv)
+          !intervalsBc.value.contains(localLocusOrdering, ur.get(locusIdx))
+        }
+      })
     }
   }
 }

@@ -87,7 +87,7 @@ class Tests(unittest.TestCase):
 
         ds = methods.import_vcf(test_file('x-chromosome.vcf'))
 
-        sex = methods.impute_sex(ds.GT, include_par = True)
+        sex = methods.impute_sex(ds.GT, include_par=True)
 
         vcf_file = utils.get_URI(utils.new_temp_file(prefix="plink", suffix="vcf"))
         out_file = utils.get_URI(utils.new_temp_file(prefix="plink"))
@@ -103,7 +103,7 @@ class Tests(unittest.TestCase):
             print(e.output)
             raise e
 
-        plink_sex = methods.import_table(out_file+'.sexcheck',
+        plink_sex = methods.import_table(out_file + '.sexcheck',
                                          delimiter=' +',
                                          types={'SNPSEX': TInt32(),
                                                 'F': TFloat64()})
@@ -121,16 +121,11 @@ class Tests(unittest.TestCase):
                          is_female=sex.is_female,
                          f_stat=sex.f_stat)
 
-        self.assertTrue(plink_sex._same(sex, tolerance=1e-3))
+        self.assertTrue(plink_sex._same(sex.select_globals(), tolerance=1e-3))
 
-        ds = ds.annotate_rows(aaf=(agg.call_stats(ds.GT, ds.v)).AF[1])
+        ds = ds.annotate_rows(aaf=(agg.call_stats(ds.GT, ds.alleles)).AF[1])
 
         self.assertTrue(methods.impute_sex(ds.GT)._same(methods.impute_sex(ds.GT, aaf='aaf')))
-
-    def test_ld_matrix(self):
-        dataset = self.get_dataset()
-
-        ldm = methods.ld_matrix(dataset, force_local=True)
 
     def test_linreg(self):
         dataset = methods.import_vcf(test_file('regressionLinear.vcf'))
@@ -153,7 +148,6 @@ class Tests(unittest.TestCase):
     def test_trio_matrix(self):
         ped = Pedigree.read(test_file('triomatrix.fam'))
         fam_table = methods.import_fam(test_file('triomatrix.fam'))
-
         dataset = methods.import_vcf(test_file('triomatrix.vcf'))
         dataset = dataset.annotate_cols(fam=fam_table[dataset.s])
 
@@ -373,8 +367,9 @@ class Tests(unittest.TestCase):
         ds1 = methods.import_vcf(test_file('split_test.vcf'))
         ds1 = methods.split_multi_hts(ds1)
         ds2 = methods.import_vcf(test_file('split_test_b.vcf'))
-        self.assertEqual(ds1.aggregate_entries(foo=agg.product((ds1.was_split == (ds1.v.start != 1180)).to_int32())).foo, 1)
-        ds1 = ds1.drop('was_split','a_index')
+        df = ds1.rows_table()
+        self.assertTrue(df.forall((df.locus.position == 1180) | df.was_split))
+        ds1 = ds1.drop('was_split', 'a_index')
         # required python3
         # self.assertTrue(ds1._same(ds2))
 
@@ -391,8 +386,8 @@ class Tests(unittest.TestCase):
         men.select('fam_id', 's', 'code')
         fam.select('pat_id', 'children')
         self.assertEqual(ind.key, ['s'])
-        self.assertEqual(var.key, ['v'])
-        dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
+        self.assertEqual(var.key, ['locus', 'alleles'])
+        dataset.annotate_rows(mendel=var[dataset.locus, dataset.alleles]).count_rows()
 
     def test_export_vcf(self):
         dataset = methods.import_vcf(test_file('sample.vcf.bgz'))
@@ -481,7 +476,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: methods.export_plink(ds, '/tmp/plink_example', is_case=0.0))
 
         # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
-        # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.v.contig))
+        # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.locus.contig))
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
 
     def test_tdt(self):
@@ -495,8 +490,9 @@ class Tests(unittest.TestCase):
             types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
                    'Chi2': TFloat64(), 'Pval': TFloat64()})
         truth = (truth
-            .transmute(v=functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
-            .key_by('v'))
+            .transmute(locus=functions.locus(truth.CHROM, truth.POSITION),
+                       alleles=[truth.REF, truth.ALT])
+            .key_by('locus', 'alleles'))
 
         if tdt_tab.count() != truth.count():
             self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
@@ -523,17 +519,17 @@ class Tests(unittest.TestCase):
 
     def test_filter_alleles(self):
         # poor man's Gen
-        paths = ['src/test/resources/sample.vcf',
-                 'src/test/resources/multipleChromosomes.vcf',
-                 'src/test/resources/sample2.vcf']
+        paths = [test_file('sample.vcf'),
+                 test_file('multipleChromosomes.vcf'),
+                 test_file('sample2.vcf')]
         for path in paths:
             ds = methods.import_vcf(path)
             self.assertEqual(
-                methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: False))
+                methods.FilterAlleles(functions.range(0, ds.alleles.length() - 1).map(lambda i: False))
                     .filter()
                     .count_rows(), 0)
             self.assertEqual(
-                methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: True))
+                methods.FilterAlleles(functions.range(0, ds.alleles.length() - 1).map(lambda i: True))
                     .filter()
                     .count_rows(), ds.count_rows())
 
@@ -541,27 +537,27 @@ class Tests(unittest.TestCase):
         # 1 variant: A:T,G
         ds = methods.import_vcf(test_file('filter_alleles/input.vcf'))
 
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "T"))
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "T"))
         fa.subset_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/keep_allele1_subset.vcf'))._same(fa.filter()))
 
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
         # test fa.annotate_rows
-        fa.annotate_rows(new_to_old = fa.new_to_old)
+        fa.annotate_rows(new_to_old=fa.new_to_old)
         fa.subset_entries_hts()
         self.assertTrue(
             (methods.import_vcf(test_file('filter_alleles/keep_allele2_subset.vcf'))
-             .annotate_rows(new_to_old = [0, 2])
-             ._same(fa.filter())))
+                .annotate_rows(new_to_old=[0, 2])
+                ._same(fa.filter())))
 
         # also test keep=False
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"), keep=False)
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"), keep=False)
         fa.downcode_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/keep_allele1_downcode.vcf'))._same(fa.filter()))
 
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
         fa.downcode_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/keep_allele2_downcode.vcf'))._same(fa.filter()))
@@ -639,8 +635,8 @@ class Tests(unittest.TestCase):
             .key_by("locus"))
 
         ds = methods.split_multi_hts(ds2)
-        ds = ds.annotate_rows(gene=intervalsSkat[ds.v],
-                              weight=weightsSkat[ds.v].weight)
+        ds = ds.annotate_rows(gene=intervalsSkat[ds.locus],
+                              weight=weightsSkat[ds.locus].weight)
         ds = ds.annotate_cols(pheno=phenotypesSkat[ds.s],
                               cov=covariatesSkat[ds.s])
         ds = ds.annotate_cols(pheno=functions.cond(ds.pheno == 1.0,
@@ -669,7 +665,7 @@ class Tests(unittest.TestCase):
         gen = methods.import_gen(test_file('example.gen'),
                                  sample_file=test_file('example.sample'),
                                  contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(gen.forall(gen.v.contig == "1"))
+        self.assertTrue(gen.forall(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
     def test_import_bgen(self):
@@ -678,7 +674,7 @@ class Tests(unittest.TestCase):
         bgen = methods.import_bgen(test_file('example.v11.bgen'),
                                    sample_file=test_file('example.sample'),
                                    contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(bgen.forall(bgen.v.contig == "1"))
+        self.assertTrue(bgen.forall(bgen.locus.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
     def test_import_vcf(self):
@@ -688,7 +684,7 @@ class Tests(unittest.TestCase):
                                contig_recoding={"22": "chr22"}))
 
         vcf_table = vcf.rows_table()
-        self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
+        self.assertTrue(vcf_table.forall(vcf_table.locus.contig == "chr22"))
 
     def test_import_plink(self):
         vcf = methods.split_multi_hts(
@@ -702,5 +698,5 @@ class Tests(unittest.TestCase):
         plink = methods.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True,
             contig_recoding={'chr22': '22'}).rows_table()
-        self.assertTrue(plink.forall(plink.v.contig == "22"))
+        self.assertTrue(plink.forall(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())

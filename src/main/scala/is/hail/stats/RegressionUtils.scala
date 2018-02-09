@@ -10,20 +10,20 @@ import is.hail.variant.{HardCallView, MatrixTable}
 object RegressionUtils {
   def inputVector(x: DenseVector[Double],
     globalAnnotation: Annotation, sampleAnnotations: IndexedSeq[Annotation],
-    row: (Annotation, (Annotation, Iterable[Annotation])),
+    row: Annotation,
+    entries: IndexedSeq[Annotation],
     ec: EvalContext,
     xf: () => java.lang.Double,
     completeSampleIndex: Array[Int],
     missingSamples: ArrayBuilder[Int]) {
     require(x.length == completeSampleIndex.length)
 
-    val (v, (va, gs)) = row
-
-    ec.setAll(globalAnnotation, v, va)
+    ec.set(0, globalAnnotation)
+    ec.set(1, row)
 
     missingSamples.clear()
     val n = completeSampleIndex.length
-    val git = gs.iterator
+    val git = entries.iterator
     var i = 0
     var j = 0
     var sum = 0d
@@ -35,8 +35,8 @@ object RegressionUtils {
       assert(completeSampleIndex(j) == i)
 
       val g = git.next()
-      ec.set(3, sampleAnnotations(i))
-      ec.set(4, g)
+      ec.set(2, sampleAnnotations(i))
+      ec.set(3, g)
       val dosage = xf()
       if (dosage != null) {
         sum += dosage
@@ -138,7 +138,7 @@ object RegressionUtils {
   def getSampleAnnotations(vds: MatrixTable, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val aQs = annots.map(parseExprAsDouble(_, ec))
 
-    vds.sampleAnnotations.map { sa =>
+    vds.colValues.map { sa =>
       ec.set(0, sa)
       aQs.map { aQ =>
         val a = aQ()
@@ -172,7 +172,7 @@ object RegressionUtils {
       fatal("No phenotypes present.")
 
     val symTab = Map(
-      "sa" -> (0, vsm.saSignature))
+      "sa" -> (0, vsm.colType))
 
     val ec = EvalContext(symTab)
 
@@ -180,7 +180,7 @@ object RegressionUtils {
     val covIS = getSampleAnnotations(vsm, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, 0 until vsm.nSamples)
+      (yIS, covIS, 0 until vsm.numCols)
         .zipped
         .filter((y, c, s) => y.forall(_.isDefined) && c.forall(_.isDefined))
 
@@ -194,8 +194,8 @@ object RegressionUtils {
     val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
-    if (n < vsm.nSamples)
-      warn(s"${ vsm.nSamples - n } of ${ vsm.nSamples } samples have a missing phenotype or covariate.")
+    if (n < vsm.numCols)
+      warn(s"${ vsm.numCols - n } of ${ vsm.numCols } samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples.toArray)
   }

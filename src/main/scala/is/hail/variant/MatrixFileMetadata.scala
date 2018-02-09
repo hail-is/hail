@@ -11,13 +11,14 @@ object MatrixFileMetadata {
     globalAnnotation: Annotation = Annotation.empty,
     saSignature: TStruct = TStruct("s" -> TString()),
     colKey: IndexedSeq[String] = Array("s"),
-    vSignature: Type = TVariant(GenomeReference.defaultReference),
-    vaSignature: TStruct = TStruct.empty(),
+    vaSignature: TStruct = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+    rowKey: IndexedSeq[String] = Array("v"),
+    rowPartitionKey: IndexedSeq[String] = Array("v"),
     globalSignature: TStruct = TStruct.empty(),
     // FIXME require
     genotypeSignature: TStruct = Genotype.htsGenotypeType): MatrixFileMetadata = {
     MatrixFileMetadata(
-      MatrixType(globalSignature, saSignature, colKey, vSignature, vaSignature, genotypeSignature),
+      MatrixType.fromParts(globalSignature, colKey, saSignature, rowPartitionKey, rowKey, vaSignature, genotypeSignature),
       MatrixLocalValue(globalAnnotation, sampleAnnotations))
   }
 }
