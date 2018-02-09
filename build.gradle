@@ -407,7 +407,7 @@ task copyPythonDirToTmp(type: Copy, dependsOn: setupDocsDirs) {
 
 task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
+    commandLine 'make', 'SPHINXOPTS="-tchecktutorial -W"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
@@ -417,7 +417,7 @@ task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'cop
 
 task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'clean', 'html'
+    commandLine 'make', 'SPHINXOPTS="-W"', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
