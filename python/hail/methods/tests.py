@@ -121,16 +121,11 @@ class Tests(unittest.TestCase):
                          is_female=sex.is_female,
                          f_stat=sex.f_stat)
 
-        self.assertTrue(plink_sex._same(sex, tolerance=1e-3))
+        self.assertTrue(plink_sex._same(sex.select_globals(), tolerance=1e-3))
 
-        ds = ds.annotate_rows(aaf=(agg.call_stats(ds.GT, ds.v)).AF[1])
+        ds = ds.annotate_rows(aaf=(agg.call_stats(ds.GT, ds.alleles)).AF[1])
 
         self.assertTrue(methods.impute_sex(ds.GT)._same(methods.impute_sex(ds.GT, aaf='aaf')))
-
-    def test_ld_matrix(self):
-        dataset = self.get_dataset()
-
-        ldm = methods.ld_matrix(dataset, force_local=True)
 
     def test_linreg(self):
         dataset = methods.import_vcf(test_file('regressionLinear.vcf'))

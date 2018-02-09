@@ -208,14 +208,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     ds, _ = ds._process_joins(call)
     ds = ds.annotate_entries(call = call)
     ds = require_biallelic(ds, 'impute_sex')
-    ds = require_variant(ds, 'impute_sex')
-    def locus(ds):
-        # FIXME use keys
-        return ds.v.locus() # ds[ds.row_key[0]]
-    gr = locus(ds).dtype.reference_genome
-
     if (aaf is None):
-        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.v).AF[1])
+        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.alleles).AF[1])
         aaf = 'aaf'
 
     # FIXME: filter_intervals
