@@ -223,7 +223,7 @@ class TableTests(unittest.TestCase):
                            ).take(1)[0])
 
         expected = {u'status': 0,
-                    u'x13': {u'nCalled': 2L, u'expectedHoms': 1.64, u'Fstat': -1.777777777777777, u'observedHoms': 1L},
+                    u'x13': {u'n_called': 2L, u'expected_homs': 1.64, u'f_stat': -1.777777777777777, u'observed_homs': 1L},
                     u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
                     u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
                     u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'nNotMissing': 2L, u'mean': 8.0},
