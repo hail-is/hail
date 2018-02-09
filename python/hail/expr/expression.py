@@ -295,6 +295,19 @@ def unify_types(*ts):
 class Expression(object):
     """Base class for Hail expressions."""
 
+    def _verify_sources(self):
+        from collections import defaultdict
+        sources = defaultdict(lambda: [])
+        for name, inds in self._refs:
+            sources[inds.source].append(str(name))
+
+        if (len(sources.keys()) > 1):
+            raise FatalError("verify: too many sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
+
+        if (len(sources.keys()) != 0 and sources.keys()[0] != self._indices.source):
+            raise FatalError("verify: incompatible sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
+
+
     @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
     def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join), refs=LinkedList(tuple)):
         self._ast = ast
@@ -305,6 +318,8 @@ class Expression(object):
         self._refs = refs
 
         self._init()
+
+        self._verify_sources()
 
     def __str__(self):
         return repr(self)

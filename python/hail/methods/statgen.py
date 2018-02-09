@@ -1677,6 +1677,147 @@ def sample_rows(dataset, fraction, seed=1):
 
     return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
 
+class SplitMulti(object):
+    """Split multiallelic variants.
+
+    Example
+    -------
+
+    :func:`.methods.split_multi_hts`, which splits
+    multiallelic variants for the HTS genotype schema and updates
+    the genotype annotations by downcoding the genotype, is
+    implemented as:
+
+    >>> f = functions
+    >>> sm = SplitMulti(ds)
+    >>> pl = f.or_missing(
+    ...      f.is_defined(ds.PL),
+    ...      (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
+    ...                                    .filter(lambda j: f.downcode(f.call(j), sm.a_index()) == f.call(i))
+    ...                                    .map(lambda j: ds.PL[j])
+    ...                                    .min()))))
+    >>> sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
+    >>> sm.update_entries(
+    ...     GT=f.downcode(ds.GT, sm.a_index()),
+    ...     AD=f.or_missing(f.is_defined(ds.AD),
+    ...                     [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
+    ...     DP=ds.DP,
+    ...     PL=pl,
+    ...     GQ=f.gq_from_pl(pl))
+    >>> split_ds = sm.result()
+    """
+    @handle_py4j
+    @record_method
+    @typecheck_method(ds=MatrixTable,
+                      keep_star=bool,
+                      left_aligned=bool)
+    def __init__(self, ds, keep_star=False, left_aligned=False):
+        """
+        Parameters
+        ----------
+        ds : :class:`.MatrixTable`
+            An unsplit dataset.
+        keep_star : :obj:`bool`
+            Do not filter out * alleles.
+        left_aligned : :obj:`bool`
+            If ``True``, variants are assumed to be left aligned and have unique
+            loci. This avoids a shuffle. If the assumption is violated, an error
+            is generated.
+
+        Returns
+        -------
+        :class:`.SplitMulti`
+        """
+        self._ds = ds
+        self._keep_star = keep_star
+        self._left_aligned = left_aligned
+        self._entry_fields = None
+        self._row_fields = None
+
+    def new_v(self):
+        """The new, split variant.
+
+        Returns
+        -------
+        :class:`.Expression`
+        """
+        return construct_reference(
+            "newV", type=TVariant(), indices=self._ds._row_indices)
+
+    def a_index(self):
+        """The index of the input allele to the output variant.
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+        """
+        return construct_reference(
+            "aIndex", type=TInt32(), indices=self._ds._row_indices)
+
+    def was_split(self):
+        """``True`` if the original variant was multiallelic.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return construct_reference(
+            "wasSplit", type=TBoolean(), indices=self._ds._row_indices)
+
+    def update_rows(self, **kwargs):
+        """Set the row field updates for this SplitMulti object.
+
+        Note
+        ----
+        May only be called once.
+        """
+        if self._row_fields is None:
+            self._row_fields = kwargs
+        else:
+            raise FatalError("You may only call update_rows once")
+
+    def update_entries(self, **kwargs):
+        """Set the entry field updates for this SplitMulti object.
+
+        Note
+        ----
+        May only be called once.
+        """
+        if self._entry_fields is None:
+            self._entry_fields = kwargs
+        else:
+            raise FatalError("You may only call update_entries once")
+
+    def result(self):
+        """Split the dataset.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            A split dataset.
+        """
+
+        if not self._row_fields:
+            self._row_fields = {}
+        if not self._entry_fields:
+            self._entry_fields = {}
+
+        base, _ = self._ds._process_joins(*(
+            self._row_fields.values() + self._entry_fields.values()))
+
+        annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
+                                  for k, v in self._row_fields.iteritems()])
+        annotate_entries = ','.join(['g.`{}` = {}'.format(k, v._ast.to_hql())
+                                     for k, v in self._entry_fields.iteritems()])
+
+        jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
+            self._ds._jvds,
+            annotate_rows,
+            annotate_entries,
+            self._keep_star,
+            self._left_aligned)
+        return MatrixTable(jvds)
+
 @handle_py4j
 @typecheck(ds=MatrixTable,
            keep_star=bool,
@@ -1823,24 +1964,26 @@ split_multi_hts: entry schema must be the HTS genotype schema
 hint: Use `split_multi` to split entries with a non-HTS genotype schema.
 """.format(ds.entry_schema, hts_genotype_schema))
 
-    variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
-    genotype_expr = '''
-g = let
-  newgt = downcode(g.GT, aIndex) and
-  newad = if (isDefined(g.AD))
-      let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
-    else
-      NA: Array[Int] and
-  newpl = if (isDefined(g.PL))
-      range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
-    else
-      NA: Array[Int] and
-  newgq = gqFromPL(newpl)
-in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
-'''
-    jds = scala_object(Env.hail().methods, 'SplitMulti').apply(
-        ds._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
-    return MatrixTable(jds)
+    f = functions
+
+    sm = SplitMulti(ds)
+    pl = f.or_missing(
+        f.is_defined(ds.PL),
+        (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
+                                      .filter(lambda j: f.downcode(f.call(j), sm.a_index()) == f.call(i))
+                                      .map(lambda j: ds.PL[j])
+                                      .min()))))
+    sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
+    sm.update_entries(
+        GT=f.downcode(ds.GT, sm.a_index()),
+        AD=f.or_missing(f.is_defined(ds.AD),
+                        [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
+        DP=ds.DP,
+        PL=pl,
+        GQ=f.gq_from_pl(pl)
+    )
+
+    return sm.result()
 
 @typecheck(dataset=MatrixTable)
 def grm(dataset):
@@ -1992,16 +2135,14 @@ def rrm(call_expr):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
             "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     dataset = source
-    base, _ = dataset._process_joins(call_expr)
     analyze('rrm', call_expr, dataset._entry_indices)
-
+    dataset = dataset.annotate_entries(call=call_expr)
     dataset = require_biallelic(dataset, 'rrm')
 
-    call_expr._indices = dataset._entry_indices
-    gt_expr = call_expr.num_alt_alleles()
+    gt_expr = dataset.call.num_alt_alleles()
     dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
                                     ACsq=agg.sum(gt_expr * gt_expr),
-                                    n_called=agg.count_where(functions.is_defined(call_expr)))
+                                    n_called=agg.count_where(functions.is_defined(dataset.call)))
 
     dataset = dataset.filter_rows((dataset.AC > 0) &
                                   (dataset.AC < 2 * dataset.n_called) &
@@ -2014,15 +2155,14 @@ def rrm(call_expr):
         raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing RRM using {} variants.".format(n_variants))
 
-    call_expr._indices = dataset._entry_indices
-    gt_expr = call_expr.num_alt_alleles()
+    gt_expr = dataset.call.num_alt_alleles()
     normalized_genotype_expr = functions.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: functions.bind(
             functions.sqrt((dataset.ACsq +
                             (n_samples - dataset.n_called) * mean_gt ** 2) /
                            n_samples - mean_gt ** 2),
-            lambda stddev: functions.cond(functions.is_defined(call_expr),
+            lambda stddev: functions.cond(functions.is_defined(dataset.call),
                                           (gt_expr - mean_gt) / stddev, 0)))
 
     bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
