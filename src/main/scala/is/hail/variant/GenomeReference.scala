@@ -3,9 +3,11 @@ package is.hail.variant
 import java.io.InputStream
 
 import is.hail.HailContext
+import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, JSONExtractGenomeReference, Parser}
+import is.hail.io.reference.FastaReader
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -14,6 +16,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
+
 import org.apache.hadoop.conf.Configuration
 
 abstract class GRBase extends Serializable {
@@ -84,6 +87,8 @@ abstract class GRBase extends Serializable {
   def clear(): Unit
 
   def subst(): GRBase
+
+  def lookupBase(l: Locus): String
 }
 
 case class GenomeReference(name: String, contigs: Array[String], lengths: Map[String, Int],
@@ -166,7 +171,46 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     Interval(start, end)
   }
 
+  val globalPosContigStarts = {
+    var pos = 0L
+    contigs.map { c =>
+      val x = (c, pos)
+      pos += contigLength(c)
+      x
+    }.toMap
+  }
+
+  val nBases = lengths.map(_._2.toLong).sum
+
+  val globalPosTree = IntervalTree.annotationTree(ExtendedOrdering.extendToNull(Ordering.Long), {
+    var pos = 0L
+    contigs.map { c =>
+      val x = Interval(pos, pos + contigLength(c)) // FIXME: make sure end not inclusive
+      pos += contigLength(c)
+      (x, c)
+    }
+  })
+
+  private var fastaReader: FastaReader = _
+
   def contigParser = Parser.oneOfLiteral(contigs)
+
+  def locusToGlobalIndex(l: Locus): Long = locusToGlobalIndex(l.contig, l.position)
+
+  def locusToGlobalIndex(contig: String, pos: Int): Long = globalPosContigStarts(contig) + (pos - 1)
+
+  val ord = TInt64().ordering
+
+  def globalPosToContig(idx: Long): String = {
+    val result = globalPosTree.queryValues(ord, idx)
+    assert(result.length == 1)
+    result(0)
+  }
+
+  def globalPosToLocus(idx: Long): Locus = {
+    val contig = globalPosToContig(idx)
+    Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
+  }
 
   def contigLength(contig: String): Int = lengths.get(contig) match {
     case Some(l) => l
@@ -283,6 +327,18 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     if (badContigs.nonEmpty)
       fatal(s"Found ${ badContigs.size } ${ plural(badContigs.size, "contig mapping") } that do not have remapped contigs in the reference genome `$name':\n  " +
         s"@1", contigMapping.truncatable("\n  "))
+  }
+
+  def addSequence(fastaFile: String, fastaIndex: String) {
+    if (fastaReader != null)
+      fatal(s"Fasta sequence has already been loaded for reference genome `$name'.")
+    fastaReader = new FastaReader(this, fastaFile, fastaIndex)
+  }
+
+  def lookupBase(l: Locus): String = {
+    if (fastaReader == null)
+      fatal(s"No FASTA file has been loaded for reference genome `$name'.")
+    fastaReader.lookupLocus(l)
   }
 
   override def equals(other: Any): Boolean = {
@@ -573,5 +629,7 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
   def compare(l1: Locus, l2: Locus): Int = ???
 
   def toJSON: JValue = ???
+
+  def lookupBase(l: Locus): String = ???
 }
 

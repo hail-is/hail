@@ -828,6 +828,11 @@ object FunctionRegistry {
     Genotype.gtFromPL(pl)
   })(arrayHr(int32Hr), boxedInt32Hr)
 
+  registerDependent("getBaseFromReference", () => {
+    val gr = GR.gr
+    (l: Locus) => gr.lookupBase(l)
+  })(locusHr(GR), stringHr)
+
   registerMethod("length", { (x: String) => x.length })
 
   registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Int]) => x.sum })
