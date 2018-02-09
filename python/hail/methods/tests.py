@@ -87,7 +87,7 @@ class Tests(unittest.TestCase):
 
         ds = methods.import_vcf(test_file('x-chromosome.vcf'))
 
-        sex = methods.impute_sex(ds.GT, include_par = True)
+        sex = methods.impute_sex(ds.GT, include_par=True)
 
         vcf_file = utils.get_URI(utils.new_temp_file(prefix="plink", suffix="vcf"))
         out_file = utils.get_URI(utils.new_temp_file(prefix="plink"))
@@ -103,7 +103,7 @@ class Tests(unittest.TestCase):
             print(e.output)
             raise e
 
-        plink_sex = methods.import_table(out_file+'.sexcheck',
+        plink_sex = methods.import_table(out_file + '.sexcheck',
                                          delimiter=' +',
                                          types={'SNPSEX': TInt32(),
                                                 'F': TFloat64()})
@@ -544,12 +544,12 @@ class Tests(unittest.TestCase):
 
         fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
         # test fa.annotate_rows
-        fa.annotate_rows(new_to_old = fa.new_to_old)
+        fa.annotate_rows(new_to_old=fa.new_to_old)
         fa.subset_entries_hts()
         self.assertTrue(
             (methods.import_vcf(test_file('filter_alleles/keep_allele2_subset.vcf'))
-             .annotate_rows(new_to_old = [0, 2])
-             ._same(fa.filter())))
+                .annotate_rows(new_to_old=[0, 2])
+                ._same(fa.filter())))
 
         # also test keep=False
         fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"), keep=False)
