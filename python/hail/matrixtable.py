@@ -2071,7 +2071,7 @@ class MatrixTable(object):
     def reorder_columns(self, order):
         """Reorder columns.
 
-        .. include:: ../_templates/req_tstring.rst
+        .. include:: _templates/req_tstring.rst
 
         Examples
         --------
