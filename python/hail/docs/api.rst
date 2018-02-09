@@ -11,6 +11,7 @@ Use ``from hail import *`` to access this functionality.
 
 .. autosummary::
     :nosignatures:
+    :toctree: ./
     :template: class.rst
 
     hail.Table
