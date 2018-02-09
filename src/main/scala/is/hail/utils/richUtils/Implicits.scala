@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Region, RegionValue, UnsafeRow}
 import is.hail.asm4s.Code
 import is.hail.io.RichRDDRegionValue
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}

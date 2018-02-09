@@ -14,15 +14,15 @@ class OrderedDependency(left: OrderedRVD, right: OrderedRVD) extends NarrowDepen
 
 object OrderedDependency {
   def getDependencies(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner)(partitionId: Int): Range = {
-    val lastPartition = if (partitionId == p1.rangeBounds.length)
+    val lastPartition = if (partitionId == p1.rangeBounds.length - 1)
       p2.numPartitions - 1
     else
-      p2.getPartitionPK(p1.rangeBounds(partitionId))
+      p2.getPartitionPK(p1.rangeBounds(partitionId).asInstanceOf[Interval].end)
 
     if (partitionId == 0)
       0 to lastPartition
     else {
-      val startPartition = p2.getPartitionPK(p1.rangeBounds(partitionId - 1))
+      val startPartition = p2.getPartitionPK(p1.rangeBounds(partitionId).asInstanceOf[Interval].start)
       startPartition to lastPartition
     }
   }

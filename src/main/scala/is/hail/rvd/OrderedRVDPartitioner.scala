@@ -18,18 +18,19 @@ class OrderedRVDPartitioner(
   assert(rangeBoundsType.typeCheck(rangeBounds))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
-    !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) < 0})
+    !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0}, s"hi")
 
-  val rangeTree: IntervalTree[Int] = new IntervalTree[Int](IntervalTree.fromSorted(pkType.ordering,
-    rangeBounds.map(_.asInstanceOf[Interval]).zipWithIndex.toArray, 0, rangeBounds.size))
+  val rangeTreeAnnotation: IntervalTree[Any, Int] = new IntervalTree[Any, Int](IntervalTree.fromSorted(pkType.ordering,
+    Array.tabulate[(BaseInterval[Any], Int)](numPartitions) { i =>
+      (rangeBounds(i).asInstanceOf[Interval], i)
+    }, 0, rangeBounds.size))
 
   val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
-  val pkKOrd: ExtendedOrdering = ExtendedOrdering.extendToNull(
-    OrderedRVDType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx))
+  val pkKOrd: ExtendedOrdering = OrderedRVDType.selectExtendedOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
 
   val ordering: Ordering[Annotation] = pkType.ordering.toOrdering
 
-  val region: Region = rangeBounds.region
+  def region: Region = rangeBounds.region
 
   def loadElement(i: Int): Long = rangeBoundsType.loadElement(region, rangeBounds.aoff, rangeBounds.length, i)
 
@@ -43,17 +44,17 @@ class OrderedRVDPartitioner(
   // needs to update the bounds
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
-    assert(pkType.typeCheck(pk))
-    val part = rangeTree.queryValues(pkType.ordering, pk)
+//    assert(pkType.typeCheck(pk))
+    val part = rangeTreeAnnotation.queryValues(pkType.ordering, pk)
     part.length match {
       case 0 =>
-        if (pkType.ordering.gt(rangeTree.root.get.maximum, pk))
+        if (pkType.ordering.gt(rangeTreeAnnotation.root.get.maximum, pk))
           numPartitions - 1
         else {
-          assert(pkType.ordering.lt(rangeTree.root.get.minimum, pk))
+          assert(pkType.ordering.lt(rangeTreeAnnotation.root.get.minimum, pk))
           0
         }
-      case 1 => part.head.asInstanceOf[Int]
+      case 1 => part.head
     }
   }
   // return the partition containing pk
@@ -61,18 +62,19 @@ class OrderedRVDPartitioner(
   // key: RegionValue
   def getPartition(key: Any): Int = {
     val keyrv = key.asInstanceOf[RegionValue]
+    val keyUR = new UnsafeRow(kType, keyrv)
 
-    val part = rangeTree.queryValues(pkKOrd, keyrv)
+    val part = rangeTreeAnnotation.queryValues(pkKOrd, keyUR)
 
     part.length match {
       case 0 =>
-        if (pkKOrd.gt(rangeTree.root.get.maximum, keyrv))
+        if (pkKOrd.gt(rangeTreeAnnotation.root.get.maximum, keyUR))
           numPartitions - 1
         else {
-          assert(pkKOrd.lt(rangeTree.root.get.minimum, keyrv))
+          assert(pkKOrd.lt(rangeTreeAnnotation.root.get.minimum, keyUR))
           0
         }
-      case 1 => part.head.asInstanceOf[Int]
+      case 1 => part.head
     }
   }
 
@@ -105,7 +107,7 @@ object OrderedRVDPartitioner {
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[Any]): UnsafeIndexedSeq = {
+  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq = {
     val newT = TArray(TInterval(pType))
 
     val region = Region()
@@ -115,15 +117,16 @@ object OrderedRVDPartitioner {
     var i = 0
     while (i < rangeBounds.length - 1) {
       rvb.startStruct()
-      rvb.addAnnotation(pType, rangeBounds(i))
-      rvb.addAnnotation(pType, rangeBounds(i + 1))
+      rvb.addRegionValue(pType, rangeBounds(i))
+      rvb.addRegionValue(pType, rangeBounds(i + 1))
       rvb.addBoolean(if (i == 0) true else false)
       rvb.addBoolean(true)
       rvb.endStruct()
       i += 1
     }
     rvb.endArray()
-    new UnsafeIndexedSeq(newT, region, rvb.end())
+    val r = new UnsafeIndexedSeq(newT, region, rvb.end())
+    r
   }
 
   def makeRangeBoundIntervals(rangeBounds: UnsafeIndexedSeq): UnsafeIndexedSeq = {

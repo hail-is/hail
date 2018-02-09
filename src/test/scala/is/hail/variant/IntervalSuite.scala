@@ -17,7 +17,7 @@ class IntervalSuite extends SparkSuite {
     Interval(Locus(contig, start), Locus(contig, end), true, false)
 
   @Test def test() {
-    val ilist = IntervalTree.apply(pord, Array(
+    val ilist = IntervalTree.apply[Any](pord, Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50)))
@@ -76,7 +76,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testNew() {
-    val a = Array(
+    val a: Array[BaseInterval[Any]] = Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50))
@@ -92,7 +92,7 @@ class IntervalSuite extends SparkSuite {
     assert(!t.contains(pord, Locus("5", 20)))
 
     // Test queries
-    val a2 = Array(
+    val a2: Array[BaseInterval[Any]] = Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("1", 30, 50),
@@ -241,7 +241,7 @@ class IntervalSuite extends SparkSuite {
         assert(i1.overlaps(ord, i2) == i2.overlaps(ord, i1))
         assert(i1.overlaps(ord, i2) == (i1.includeEnd && i2.includeStart))
 
-        val iTree = IntervalTree.apply(ord, Array(i1, i2))
+        val iTree = IntervalTree.apply(ord, Array[BaseInterval[Any]](i1, i2))
         assert(iTree.contains(ord, 5) == (i1.includeEnd || i2.includeStart))
         assert(iTree.queryIntervals(ord, 5).length == (if (i1.includeEnd || i2.includeStart) 1 else 0))
         assert(iTree.contains(ord, 1) == i1.includeStart)
@@ -258,18 +258,18 @@ class IntervalSuite extends SparkSuite {
       }
     }
 
-    val itree = IntervalTree.apply(ord, Array(
+    val itree = IntervalTree.apply(ord, Array[BaseInterval[Any]](
       Interval(1, 5, false, false),
       Interval(1, 5, true, true),
       Interval(10, 20, false, false),
       Interval(10, 20, true, true)))
-    val itree2 = IntervalTree.apply(ord, Array(
+    val itree2 = IntervalTree.apply(ord, Array[BaseInterval[Any]](
       Interval(1, 5, true, true),
       Interval(10, 20, true, true)))
     val pruned = new ArrayBuilder[Interval]()
     val pruned2 = new ArrayBuilder[Interval]()
-    itree.foreach { case (interval, _) => pruned += interval}
-    itree2.foreach { case (interval, _) => pruned2 += interval}
+    itree.foreach { case (interval: Interval, _) => pruned += interval}
+    itree2.foreach { case (interval: Interval, _) => pruned2 += interval}
 
     assert(pruned.size == pruned2.size)
     assert(pruned.result().zip(pruned2.result()).forall { case (i1, i2) => i1 == i2 })

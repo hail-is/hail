@@ -12,13 +12,13 @@ object FilterIntervals {
   def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
     vsm.requireRowKeyVariant("filter_intervals")
     val locusField = vsm.rowType.fieldByName(vsm.rowKey(0))
-    val iList = IntervalTree(locusField.typ.ordering, intervals.asScala.toArray)
+    val iList = IntervalTree[Any](locusField.typ.ordering, intervals.asScala.toArray)
     apply(vsm, iList, keep)
   }
 
-  def apply[U](vsm: MatrixTable, intervals: IntervalTree[U], keep: Boolean): MatrixTable = {
+  def apply[U](vsm: MatrixTable, intervals: IntervalTree[Any, U], keep: Boolean): MatrixTable = {
     if (keep) {
-      val pkIntervals = IntervalTree(
+      val pkIntervals = IntervalTree[Any](
         vsm.matrixType.orvdType.pkType.ordering,
         intervals.map { case (i, _) =>
           Interval(Row(i.start), Row(i.end), true, false)

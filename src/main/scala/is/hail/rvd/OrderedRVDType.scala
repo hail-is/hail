@@ -98,6 +98,16 @@ class OrderedRVDType(
 }
 
 object OrderedRVDType {
+  def selectExtendedOrdering(t1: TStruct, fields1: Array[Int],
+    t2: TStruct, fields2: Array[Int]): ExtendedOrdering = {
+
+    val uo = selectUnsafeOrdering(t1, fields1, t2, fields2)
+    ExtendedOrdering.extendToNull(new Ordering[UnsafeRow] {
+      def compare(v1: UnsafeRow, v2: UnsafeRow): Int =
+        uo.compare(v1.region, v1.offset, v2.region, v2.offset)
+    })
+  }
+
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
     t2: TStruct, fields2: Array[Int]): UnsafeOrdering = {
     require(fields1.length == fields2.length)
