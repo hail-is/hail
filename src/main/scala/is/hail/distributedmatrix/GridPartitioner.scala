@@ -1,16 +1,19 @@
 package is.hail.distributedmatrix
 
+import is.hail.utils.ArrayBuilder
 import org.apache.spark.Partitioner
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Partitioner {
   require(nRows > 0)
   require(nCols > 0)
-  require((nRows - 1) / blockSize + 1 < Int.MaxValue)
-  require((nCols - 1) / blockSize + 1 < Int.MaxValue)
+  require((nRows + blockSize - 1) / blockSize < Int.MaxValue)
+  require((nCols + blockSize - 1) / blockSize < Int.MaxValue)
 
-  val nBlockRows: Int = ((nRows - 1) / blockSize + 1).toInt
-  val nBlockCols: Int = ((nCols - 1) / blockSize + 1).toInt
+  val nBlockRows: Int = blockIndex(nRows)
+  val nBlockCols: Int = blockIndex(nCols)
 
+  def blockIndex(index: Long): Int = ((index + blockSize - 1) / blockSize).toInt
+  
   def blockRowNRows(i: Int): Int =
     if (i < nBlockRows - 1)
       blockSize
@@ -43,7 +46,36 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     require(0 <= j && j < nBlockCols, s"Block column $j out of range [0, $nBlockCols).")
     i + j * nBlockRows
   }
+  
+  // 0, 0 gives diagonal blocks
+  def bandedBlocks(lowerBandwidth: Long, upperBandwidth: Long): Array[Int] = {
+    assert(lowerBandwidth >= 0 && upperBandwidth >= 0)
+    
+    val lowerBlockBandwidth = blockIndex(lowerBandwidth)
+    val upperBlockBandwidth = blockIndex(upperBandwidth)
 
+    val blocks = new ArrayBuilder[Int]
+    
+    var j = 0
+    while (j < nBlockCols) {
+      val offset = j * nBlockRows
+      var i = (j - upperBlockBandwidth) max 0
+      while (i <= ((j + lowerBlockBandwidth) min (nBlockRows - 1))) {
+        blocks += offset + i
+        i += 1
+      }
+      j += 1
+    }
+    
+    blocks.result()
+  }
+  
+  def lowerTriangularBlocks(): Array[Int] = {
+    assert(nBlockRows <= nBlockCols)
+    
+    bandedBlocks(nRows, 0)
+  }
+  
   def transpose: GridPartitioner =
     GridPartitioner(this.blockSize, this.nCols, this.nRows)
 }
