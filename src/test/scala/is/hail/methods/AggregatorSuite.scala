@@ -17,14 +17,14 @@ class AggregatorSuite extends SparkSuite {
   @Test def testRows() {
     var vds = hc.importVCF("src/test/resources/sample2.vcf")
     vds = SplitMulti(vds)
-    vds = VariantQC(vds)
+    vds = VariantQC(vds, "qc")
     vds = vds
       .annotateVariantsExpr(
-        """va.test.callrate = gs.fraction(g => isDefined(g.GT)),
-          |va.test.AC = gs.map(g => g.GT.nNonRefAlleles()).sum(),
-          |va.test.AF = gs.map(g => g.GT.nNonRefAlleles()).stats().sum.toFloat64() / gs.filter(g => isDefined(g.GT)).count() / 2.0,
-          |va.test.gqstats = gs.map(g => g.GQ).stats(), va.test.gqhetstats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats(),
-          |va.lowGqGts = gs.filter(g => g.GQ < 60).collect()""".stripMargin)
+        """test.callrate = gs.fraction(g => isDefined(g.GT)),
+          |test.AC = gs.map(g => g.GT.nNonRefAlleles()).sum(),
+          |test.AF = gs.map(g => g.GT.nNonRefAlleles()).stats().sum.toFloat64() / gs.filter(g => isDefined(g.GT)).count() / 2.0,
+          |test.gqstats = gs.map(g => g.GQ).stats(), test.gqhetstats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats(),
+          |lowGqGts = gs.filter(g => g.GQ < 60).collect()""".stripMargin)
 
     val qCallRate = vds.queryVA("va.test.callrate")._2
     val qCallRateQC = vds.queryVA("va.qc.callRate")._2
@@ -57,20 +57,20 @@ class AggregatorSuite extends SparkSuite {
   @Test def testColumns() {
     val vds = SampleQC(hc.importVCF("src/test/resources/sample2.vcf"))
       .annotateSamplesExpr(
-        """sa.test.callrate = gs.fraction(g => isDefined(g.GT)),
-          |sa.test.nCalled = gs.filter(g => isDefined(g.GT)).count(),
-          |sa.test.nNotCalled = gs.filter(g => !isDefined(g.GT)).count(),
-          |sa.test.gqstats = gs.map(g => g.GQ).stats(),
-          |sa.test.gqhetstats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats(),
-          |sa.test.nHet = gs.filter(g => g.GT.isHet()).count(),
-          |sa.test.nHomRef = gs.filter(g => g.GT.isHomRef()).count(),
-          |sa.test.nHomVar = gs.filter(g => g.GT.isHomVar()).count(),
-          |sa.test.nSNP = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isSNP()) 1 else 0).sum()).sum(),
-          |sa.test.nInsertion = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isInsertion()) 1 else 0).sum()).sum(),
-          |sa.test.nDeletion = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isDeletion()) 1 else 0).sum()).sum(),
-          |sa.test.nTi = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isTransition()) 1 else 0).sum()).sum(),
-          |sa.test.nTv = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isTransversion()) 1 else 0).sum()).sum(),
-          |sa.test.nStar = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isStar()) 1 else 0).sum()).sum()""".stripMargin)
+        """test.callrate = gs.fraction(g => isDefined(g.GT)),
+          |test.nCalled = gs.filter(g => isDefined(g.GT)).count(),
+          |test.nNotCalled = gs.filter(g => !isDefined(g.GT)).count(),
+          |test.gqstats = gs.map(g => g.GQ).stats(),
+          |test.gqhetstats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats(),
+          |test.nHet = gs.filter(g => g.GT.isHet()).count(),
+          |test.nHomRef = gs.filter(g => g.GT.isHomRef()).count(),
+          |test.nHomVar = gs.filter(g => g.GT.isHomVar()).count(),
+          |test.nSNP = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_snp(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nInsertion = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_insertion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nDeletion = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_deletion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nTi = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_transition(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nTv = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_transversion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nStar = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_star(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum()""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
     val qCallRateQC = vds.querySA("sa.qc.callRate")._2
@@ -84,7 +84,7 @@ class AggregatorSuite extends SparkSuite {
     val nHet = vds.querySA("sa.test.nHet")._2
     val nHomVar = vds.querySA("sa.test.nHomVar")._2
 
-    vds.stringSampleIds.zip(vds.sampleAnnotations)
+    vds.stringSampleIds.zip(vds.colValues)
       .foreach {
         case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))
@@ -96,27 +96,27 @@ class AggregatorSuite extends SparkSuite {
           })
       }
 
-    assert(vds.samplesKT().forall("qc.nCalled == test.nCalled"))
-    assert(vds.samplesKT().forall("qc.nNotCalled == test.nNotCalled"))
-    assert(vds.samplesKT().forall("qc.callRate == test.callrate"))
-    assert(vds.samplesKT().forall("qc.nHet == test.nHet"))
-    assert(vds.samplesKT().forall("qc.nHomVar == test.nHomVar"))
-    assert(vds.samplesKT().forall("qc.nHomRef == test.nHomRef"))
-    assert(vds.samplesKT().forall("qc.nSNP == test.nSNP"))
-    assert(vds.samplesKT().forall("qc.nInsertion == test.nInsertion"))
-    assert(vds.samplesKT().forall("qc.nDeletion == test.nDeletion"))
-    assert(vds.samplesKT().forall("qc.nTransition == test.nTi"))
-    assert(vds.samplesKT().forall("qc.nTransversion == test.nTv"))
-    assert(vds.samplesKT().forall("qc.nStar == test.nStar"))
+    assert(vds.colsTable().forall("qc.nCalled == test.nCalled"))
+    assert(vds.colsTable().forall("qc.nNotCalled == test.nNotCalled"))
+    assert(vds.colsTable().forall("qc.callRate == test.callrate"))
+    assert(vds.colsTable().forall("qc.nHet == test.nHet"))
+    assert(vds.colsTable().forall("qc.nHomVar == test.nHomVar"))
+    assert(vds.colsTable().forall("qc.nHomRef == test.nHomRef"))
+    assert(vds.colsTable().forall("qc.nSNP == test.nSNP"))
+    assert(vds.colsTable().forall("qc.nInsertion == test.nInsertion"))
+    assert(vds.colsTable().forall("qc.nDeletion == test.nDeletion"))
+    assert(vds.colsTable().forall("qc.nTransition == test.nTi"))
+    assert(vds.colsTable().forall("qc.nTransversion == test.nTv"))
+    assert(vds.colsTable().forall("qc.nStar == test.nStar"))
   }
 
   @Test def testSum() {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       var vds2 = SplitMulti(vds)
-      vds2 = VariantQC(vds2)
+      vds2 = VariantQC(vds2, "qc")
       vds2 = vds2
-        .annotateVariantsExpr("va.oneHotAC = gs.map(g => g.GT.oneHotAlleles(v)).sum()")
-        .annotateVariantsExpr("va.same = (gs.filter(g => isDefined(g.GT)).count() == 0) || " +
+        .annotateVariantsExpr("oneHotAC = gs.map(g => g.GT.oneHotAlleles(va.alleles)).sum()")
+        .annotateVariantsExpr("same = (gs.filter(g => isDefined(g.GT)).count() == 0) || " +
           "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)")
       val (_, querier) = vds2.queryVA("va.same")
       vds2.variantsAndAnnotations
@@ -166,54 +166,40 @@ class AggregatorSuite extends SparkSuite {
   @Test def testHist() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
-    assert(vds.annotateVariantsExpr("""
-va.hist = gs.map(g => g.GQ).hist(0, 100, 20),
-va.bin0 = gs.filter(g => g.GQ < 5).count(),
-va.bin1 = gs.filter(g => g.GQ >= 5 && g.GQ < 10).count(),
-va.last = gs.filter(g => g.GQ >= 95).count()""")
-      .variantsKT()
-      .forall("""
-va.hist.binFrequencies[0] == va.bin0 &&
-va.hist.binFrequencies[1] == va.bin1 &&
-va.hist.binFrequencies[-1] == va.last"""))
+    assert(vds.annotateVariantsExpr(
+      """
+        hist = gs.map(g => g.GQ).hist(0, 100, 20),
+        bin0 = gs.filter(g => g.GQ < 5).count(),
+        bin1 = gs.filter(g => g.GQ >= 5 && g.GQ < 10).count(),
+        last = gs.filter(g => g.GQ >= 95).count()""")
+      .rowsTable()
+      .forall(
+        """
+        hist.binFrequencies[0] == bin0 &&
+        hist.binFrequencies[1] == bin1 &&
+        hist.binFrequencies[-1] == last"""))
 
     assert(vds
-      .annotateVariantsExpr("""
-va.hist = gs.map(g => g.GQ).hist(22, 80, 5),
-va.nLess = gs.filter(g => g.GQ < 22).count(),
-va.nGreater = gs.filter(g => g.GQ > 80).count()
-""")
-      .variantsKT()
-      .forall("""
-va.hist.nLess == va.nLess &&
-va.hist.nGreater == va.nGreater
-      """))
-
-    TestUtils.interceptFatal("""invalid bin size""") {
-      vds.annotateVariantsExpr("va = gs.map(g => g.GQ).hist(0, 0, 10)")
-    }
-
-    TestUtils.interceptFatal("""method `hist' expects `bins' argument to be > 0""") {
-      vds.annotateVariantsExpr("va = gs.map(g => g.GQ).hist(0, 10, 0)")
-    }
-
-    TestUtils.interceptFatal("""invalid bin size""") {
-      vds.annotateVariantsExpr("va = gs.map(g => g.GQ).hist(10, 0, 5)")
-    }
-
-    TestUtils.interceptFatal("""symbol.*va.*not found""") {
-      vds.annotateVariantsExpr("va = gs.map(g => g.GQ).hist(10, 0, va.info.AC[0])")
-    }
+      .annotateVariantsExpr(
+        """
+        hist = gs.map(g => g.GQ).hist(22, 80, 5),
+        nLess = gs.filter(g => g.GQ < 22).count(),
+        nGreater = gs.filter(g => g.GQ > 80).count()""")
+      .rowsTable()
+      .forall(
+        """
+        hist.nLess == nLess &&
+        hist.nGreater == nGreater"""))
   }
 
   @Test def testCallStats() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
       .annotateVariantsExpr(
-        """va.callStats = gs.map(g => g.GT).callStats(g => v),
-          |va.AC = gs.map(g => g.GT.oneHotAlleles(v)).sum(),
-          |va.GC = gs.map(g => g.GT.oneHotGenotype(v)).sum(),
-          |va.AN = gs.filter(g => isDefined(g.GT)).count() * 2""".stripMargin)
-      .annotateVariantsExpr("va.AF = va.AC / va.AN.toFloat64()")
+        """callStats = gs.map(g => g.GT).callStats(g => va.alleles),
+          |AC = gs.map(g => g.GT.oneHotAlleles(va.alleles)).sum(),
+          |GC = gs.map(g => g.GT.oneHotGenotype(va.alleles)).sum(),
+          |AN = gs.filter(g => isDefined(g.GT)).count() * 2""".stripMargin)
+      .annotateVariantsExpr("AF = va.AC / va.AN.toFloat64()")
     val (_, csAC) = vds.queryVA("va.callStats.AC")
     val (_, csAF) = vds.queryVA("va.callStats.AF")
     val (_, csAN) = vds.queryVA("va.callStats.AN")
@@ -235,7 +221,7 @@ va.hist.nGreater == va.nGreater
 
   @Test def testCounter() {
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
-      val (r, t) = vds.queryVariants("variants.map(v => v.contig).counter()")
+      val (r, t) = vds.queryVariants("variants.map(_ => va.locus.contig).counter()")
       val counterMap = r.asInstanceOf[Map[String, Long]]
       val aggMap = vds.variants.map(_.asInstanceOf[Variant].contig).countByValue()
       aggMap == counterMap
@@ -244,8 +230,8 @@ va.hist.nGreater == va.nGreater
 
   @Test def testTake() {
     val vds = hc.importVCF("src/test/resources/aggTake.vcf")
-      .annotateVariantsExpr("va.take = gs.map(g => g.DP).take(3)")
-      .annotateVariantsExpr("va.takeBy = gs.map(g => g.DP).takeBy(dp => g.GQ, 3)")
+      .annotateVariantsExpr("take = gs.map(g => g.DP).take(3)")
+      .annotateVariantsExpr("takeBy = gs.map(g => g.DP).takeBy(dp => g.GQ, 3)")
 
     val (_, qTake) = vds.queryVA("va.take")
     val (_, qTakeBy) = vds.queryVA("va.takeBy")
@@ -260,22 +246,22 @@ va.hist.nGreater == va.nGreater
       for {
         vds <- MatrixTable.gen(hc, VSMSubgen.random
           .copy(sGen = _ => Gen.oneOf("a", "b")))
-          .filter(vds => vds.nSamples > 0);
-        s <- Gen.choose(0, vds.nSamples - 1)
+          .filter(vds => vds.numCols > 0);
+        s <- Gen.choose(0, vds.numCols - 1)
       } yield {
         val s1 = vds.stringSampleIds(0)
-        assert(vds.querySamples(s"""samples.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.nSamples)
-        assert(vds.querySamples("samples.filter(r => true).map(id => 1).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples(s"""samples.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.numCols)
+        assert(vds.querySamples("samples.filter(r => true).map(id => 1).sum()")._1 == vds.numCols)
         assert(vds.querySamples("samples.filter(r => false).map(id => 1).sum()")._1 == 0)
-        assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == vds.numCols)
         assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
-        assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 3 * vds.nSamples)
-        assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
-        assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 3 * vds.numCols)
+        assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
+        assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
 
-        vds.annotateVariantsExpr(s"""va.foo = gs.filter(g => sa.s == "$s1").map(g => 1).sum()""")
-            .variantsKT()
-            .forall("va.foo == 1")
+        vds.annotateVariantsExpr(s"""foo = gs.filter(g => sa.s == "$s1").map(g => 1).sum()""")
+          .rowsTable()
+          .forall("foo == 1")
       })
 
     p.check()
@@ -287,8 +273,8 @@ va.hist.nGreater == va.nGreater
       val (queryResult, t) = vds.queryGenotypes("gs.fraction(g => isDefined(g.GT))")
       assert(t.valuesSimilar(countResult, queryResult))
 
-      val filterCountResult = vds.filterGenotypes("v.start % 2 == 1").summarize().callRate.getOrElse(null)
-      val (queryResult2, t2) = vds.queryGenotypes("gs.fraction(g => (v.start % 2 == 1) && isDefined(g.GT))")
+      val filterCountResult = vds.filterGenotypes("va.locus.position % 2 == 1").summarize().callRate.getOrElse(null)
+      val (queryResult2, t2) = vds.queryGenotypes("gs.fraction(g => (va.locus.position % 2 == 1) && isDefined(g.GT))")
       assert(t2.valuesSimilar(filterCountResult, queryResult2))
       true
     }.check()

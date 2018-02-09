@@ -130,14 +130,14 @@ object VariantQC {
     "rExpectedHetFrequency" -> TFloat64(),
     "pHWE" -> TFloat64())
 
-  def apply(vsm: MatrixTable, root: String = "va.qc"): MatrixTable = {
+  def apply(vsm: MatrixTable, root: String = "qc"): MatrixTable = {
     vsm.requireRowKeyVariant("variant_qc")
 
-    val localNSamples = vsm.nSamples
+    val localNSamples = vsm.numCols
     val localRowType = vsm.rvRowType
 
     vsm.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
-      "va" :: Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD), { (view, rv, rvb) =>
+      root, { (view, rv, rvb) =>
         view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
         var i = 0

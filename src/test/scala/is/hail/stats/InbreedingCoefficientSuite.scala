@@ -34,12 +34,9 @@ class InbreedingCoefficientSuite extends SparkSuite {
     val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds =>
-        val gr = vds.genomeReference
-        vds.filterVariants { case (v1, va, gs) =>
-        val v = v1.asInstanceOf[Variant]
-        v.isAutosomalOrPseudoAutosomal(gr) && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y"
-      }}
-      .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
+        vds.filterVariantsExpr("va.locus.isAutosomal()")
+      }
+      .filter(vds => vds.countVariants > 2 && vds.numCols >= 2)
 
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: MatrixTable) =>
@@ -47,7 +44,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
         val vds2 = VariantQC(vds)
           .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 
-        if (vds2.nSamples < 5 || vds2.countVariants() < 5) {
+        if (vds2.numCols < 5 || vds2.countVariants() < 5) {
           true
         } else {
           val localRoot = tmpDir.createLocalTempFile("ibcCheck")
@@ -58,7 +55,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val vcfFile = root + ".vcf"
           val ibcFile = root + ".het"
 
-          val vds3 = vds2.annotateSamplesExpr("sa.het = gs.map(g => g.GT).inbreeding(g => va.qc.AF)")
+          val vds3 = vds2.annotateSamplesExpr("het = gs.map(g => g.GT).inbreeding(g => va.qc.AF)")
 
           ExportVCF(vds3, vcfFile)
 
@@ -75,7 +72,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val (_, expHomQuery) = vds3.querySA("sa.het.expected_homs")
           val (_, nCalledQuery) = vds3.querySA("sa.het.n_called")
 
-          val hailResult = vds3.stringSampleIds.zip(vds3.sampleAnnotations).map { case (sample, sa) =>
+          val hailResult = vds3.stringSampleIds.zip(vds3.colValues).map { case (sample, sa) =>
             (sample, (Option(fQuery(sa)).map(_.asInstanceOf[Double]), Option(obsHomQuery(sa)).map(_.asInstanceOf[Long]), Option(expHomQuery(sa)).map(_.asInstanceOf[Double]), Option(nCalledQuery(sa)).map(_.asInstanceOf[Long])))
           }.toMap
 

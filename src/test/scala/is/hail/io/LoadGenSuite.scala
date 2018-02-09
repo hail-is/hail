@@ -31,7 +31,7 @@ class LoadGenSuite extends SparkSuite {
     val genVDS = hc.importGen(gen, sampleFile, contigRecoding = Some(Map("01" -> "1")))
     val genOrigData = makeRDD(gen)
 
-    val genQuery = genVDS.vaSignature.query("varid")
+    val genQuery = genVDS.rowType.query("varid")
     val newRDD: RDD[(String, Iterable[Annotation])] = genVDS.rdd.map { case (v, (va, gs)) => (genQuery(va).toString, gs) }
 
     val (_, qGP) = genVDS.queryGA("g.GP")

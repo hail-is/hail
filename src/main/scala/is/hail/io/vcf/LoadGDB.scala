@@ -16,6 +16,7 @@ import java.io.{File, FileWriter}
 import is.hail.expr.types._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.LoadVCF.headerSignature
+import is.hail.rvd.OrderedRVD
 
 import scala.collection.mutable
 
@@ -140,11 +141,13 @@ object LoadGDB {
     val formatHeader = header.getFormatHeaderLines
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
 
-    val variantAnnotationSignatures = TStruct(Array(
-      Field("rsid", TString(), 0),
-      Field("qual", TFloat64(), 1),
-      Field("filters", TSet(TString()), 2),
-      Field("info", infoSignature, 3)))
+    val variantAnnotationSignatures = TStruct(
+      "locus" -> TLocus(gr),
+      "alleles" -> TArray(TString()),
+      "rsid" -> TString(),
+      "qual" -> TFloat64(),
+      "filters" -> TSet(TString()),
+      "info" -> infoSignature)
 
     val sampleIds: Array[String] =
       if (dropSamples)
@@ -157,12 +160,15 @@ object LoadGDB {
           Array.empty
       }
 
-    val rowType = TStruct(
-      "v" -> TVariant(gr),
-      "va" -> variantAnnotationSignatures,
-      "gs" -> TArray(genotypeSignature))
-
-    val localRowType = rowType
+    val matrixType: MatrixType = MatrixType.fromParts(TStruct.empty(),
+      colKey = Array("s"),
+      colType = TStruct("s" -> TString()),
+      rowPartitionKey = Array("locus"),
+      rowKey = Array("locus", "alleles"),
+      rowType = variantAnnotationSignatures,
+      entryType = genotypeSignature
+    )
+    val localRowType = matrixType.rvRowType
 
     val region = Region()
     val rvb = new RegionValueBuilder(region)
@@ -171,34 +177,20 @@ object LoadGDB {
       .iterator
       .asScala
       .map { vc =>
+        rvb.clear()
         region.clear()
-        rvb.start(rowType.fundamentalType)
+        rvb.start(localRowType)
         reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags)
-
-        val ur = new UnsafeRow(localRowType, region.copy(), rvb.end())
-
-        val v = ur.getAs[Variant](0)
-        gr.checkVariant(v)
-
-        val va = ur.get(1)
-        val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
-
-        (v: Annotation, (va, gs: Iterable[Annotation]))
-      }
-      .toSeq
+        rvb.result().copy()
+      }.toArray
 
     val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     queryFile.delete()
 
-    MatrixTable.fromLegacy(hc, MatrixType(
-      colType = TStruct("s" -> TString()),
-      colKey = Array("s"),
-      vType = TVariant(gr),
-      vaType = variantAnnotationSignatures,
-      genotypeType = genotypeSignature),
+    new MatrixTable(hc, matrixType,
       MatrixLocalValue(Annotation.empty,
         sampleIds.map(x => Annotation(x))),
-      recordRDD)
+      OrderedRVD(matrixType.orderedRVType, hc.sc.parallelize(records), None, None))
   }
 }

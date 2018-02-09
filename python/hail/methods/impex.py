@@ -454,13 +454,13 @@ def import_bed(path, reference_genome=None):
     # at least one interval of the three-column BED file `file1.bed`:
 
     # >>> bed = methods.import_bed('data/file1.bed')
-    # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.v])
+    # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.locus])
 
     # Add a variant annotation **va.cnvRegion** (*String*) with value given by the
     # fourth column of ``file2.bed``:
 
     # >>> bed = methods.import_bed('data/file2.bed')
-    # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.v])
+    # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
 
     from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()

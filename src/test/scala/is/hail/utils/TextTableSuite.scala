@@ -17,9 +17,6 @@ class TextTableSuite extends SparkSuite {
     val badDoubleStrings = Seq("1ee1", "1e--2", "1ee2", "1e0.1", "1e-0.1", "1e1.")
     val intStrings = Seq("1", "0", "-1", "12312398", "-123098172398")
     val booleanStrings = Seq("true", "True", "TRUE", "false", "False", "FALSE")
-    val variantStrings = Seq("1:1:A:T", "MT:12309123:A:*", "22:1201092:ATTTAC:T,TACC,*")
-    val locusStrings = Seq("MT:123123", "1:1", "GRCH12.1:151515", ".")
-    val badVariantStrings = Seq("1:X:A:T", "1:1:*:T", "1:1:A", "1:1:A:T,", "1:1:AAAT:*A")
 
     doubleStrings.foreach(str => assert(str matches TextTableReader.doubleRegex))
     intStrings.foreach(str => assert(str matches TextTableReader.doubleRegex))
@@ -28,9 +25,6 @@ class TextTableSuite extends SparkSuite {
     intStrings.foreach(str => assert(str matches TextTableReader.intRegex))
 
     booleanStrings.foreach(str => assert(str matches TextTableReader.booleanRegex))
-
-    variantStrings.foreach(str => assert(str matches TextTableReader.variantRegex))
-    badVariantStrings.foreach(str => assert(!(str matches TextTableReader.variantRegex)))
 
     val rdd = sc.parallelize(Seq(
       "123 123 . gene1 1:1:A:T true MT:123123",
@@ -47,9 +41,9 @@ class TextTableSuite extends SparkSuite {
       Some(TFloat64()),
       None,
       Some(TString()),
-      Some(TVariant(GenomeReference.GRCh37)),
+      Some(TString()),
       Some(TBoolean()),
-      Some(TLocus(GenomeReference.GRCh37))
+      Some(TString())
     )))
 
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
@@ -77,7 +71,7 @@ class TextTableSuite extends SparkSuite {
     val (schema3, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
       impute = true)
     assert(schema3 == TStruct(
-      "Chromosome:Position:Ref:Alt" -> TVariant(GenomeReference.GRCh37),
+      "Chromosome:Position:Ref:Alt" -> TString(),
       "Rand1" -> TFloat64(),
       "Rand2" -> TFloat64(),
       "Gene" -> TString()))
@@ -88,26 +82,6 @@ class TextTableSuite extends SparkSuite {
       "Sample" -> TString(),
       "Status" -> TString(),
       "qPhen" -> TInt32()))
-  }
-
-  @Test def testAnnotationsReadWrite() {
-    val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
-    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: MatrixTable =>
-
-      GenomeReference.addReference(vds.genomeReference)
-      vds.variantsKT().export(outPath, typesFile = outPath + ".types")
-
-      val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
-
-      val kt = hc.importTable(outPath, types = types).keyBy("v")
-      val isSame = vds.annotateVariantsTable(kt, expr = "va = table.va").same(vds)
-
-      GenomeReference.removeReference(vds.genomeReference.name)
-      isSame
-    }
-
-    p.check()
   }
 
   @Test def testPipeDelimiter() {

@@ -64,20 +64,22 @@ class LoadBgenSuite extends SparkSuite {
 
       hc.indexBgen(bgen)
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10), contigRecoding = contigRecoding)
-      assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
+        .selectRows("va.locus", "va.alleles", "va.varid", "va.rsid")
+      assert(bgenVDS.numCols == nSamples && bgenVDS.countVariants() == nVariants)
 
       val genVDS = hc.importGen(gen, sampleFile, contigRecoding = contigRecoding)
+        .selectRows("va.locus", "va.alleles", "va.varid", "va.rsid")
 
-      val varidBgenQuery = bgenVDS.vaSignature.query("varid")
-      val varidGenQuery = genVDS.vaSignature.query("varid")
-
-      assert(bgenVDS.matrixType == genVDS.matrixType)
       assert(bgenVDS.stringSampleIds == genVDS.stringSampleIds)
+
+      val varidBgenQuery = bgenVDS.rowType.query("varid")
+      val varidGenQuery = genVDS.rowType.query("varid")
 
       val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va), va) }
       val genAnnotations = genVDS.variantsAndAnnotations.map { case (v, va) => (varidGenQuery(va), va) }
 
-      assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) => va1 == va2 })
+      assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) =>
+        va1 == va2 })
 
       val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va), s), gt) }
       val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va), s), gt) }
@@ -161,12 +163,12 @@ class LoadBgenSuite extends SparkSuite {
         hc.indexBgen(bgenFile)
         val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions), contigRecoding = contigRecoding)
 
-        assert(importedVds.nSamples == vds.nSamples)
+        assert(importedVds.numCols == vds.numCols)
         assert(importedVds.countVariants() == vds.countVariants())
         assert(importedVds.stringSampleIds == vds.stringSampleIds)
 
-        val varidQuery = importedVds.vaSignature.query("varid")
-        val rsidQuery = importedVds.vaSignature.query("rsid")
+        val varidQuery = importedVds.rowType.query("varid")
+        val rsidQuery = importedVds.rowType.query("rsid")
 
         assert(importedVds.variantsAndAnnotations.forall { case (v, va) => varidQuery(va) == v.toString && rsidQuery(va) == "." })
 
@@ -268,7 +270,7 @@ class LoadBgenSuite extends SparkSuite {
 
     assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => isDefined(g.GT))")
       .annotateVariantsExpr("va.cr2 = gs.fraction(g => isDefined(g.GT))")
-      .variantsKT()
+      .rowsTable()
       .forall("va.cr1 == va.cr2"))
   }
 }

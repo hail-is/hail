@@ -2,15 +2,11 @@ from .call import Call
 from .genomeref import GenomeReference
 from .interval import Interval
 from .kinshipMatrix import KinshipMatrix
-from .ldMatrix import LDMatrix
 from .pedigree import Pedigree, Trio
-from .variant import Variant, Locus, AltAllele
+from .locus import Locus
 
-__all__ = ['LDMatrix',
-           'KinshipMatrix',
-           'Variant',
+__all__ = ['KinshipMatrix',
            'Locus',
-           'AltAllele',
            'Call',
            'Pedigree',
            'Trio',

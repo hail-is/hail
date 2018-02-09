@@ -67,15 +67,15 @@ object CalculateConcordance {
     if (overlap.isEmpty)
       fatal("No overlapping samples between datasets")
 
-    if (left.vSignature != right.vSignature)
-      fatal(s"""Cannot compute concordance for datasets with different reference genomes:
-              |  left: ${ left.vSignature.toString }
-              |  right: ${ right.vSignature.toString }""")
+    if (!left.rowKeyTypes.sameElements(right.rowKeyTypes))
+      fatal(s"""Cannot compute concordance for datasets with different key types:
+              |  left: ${ left.rowKeyTypes.map(_.toString).mkString(", ") }
+              |  right: ${ right.rowKeyTypes.map(_.toString).mkString(", ") }""")
 
     info(
       s"""Found ${ overlap.size } overlapping samples
-         |  Left: ${ left.nSamples } total samples
-         |  Right: ${ right.nSamples } total samples""".stripMargin)
+         |  Left: ${ left.numCols } total samples
+         |  Right: ${ right.numCols } total samples""".stripMargin)
 
     val leftPreIds = left.stringSampleIds
     val rightPreIds = right.stringSampleIds
@@ -89,9 +89,8 @@ object CalculateConcordance {
     )
 
     val variantSchema = TStruct(
-      "v" -> left.vSignature,
-      "nDiscordant" -> TInt64(),
-      "concordance" -> ConcordanceCombiner.schema
+      left.rowKey.zip(left.rowKeyTypes) ++
+        Array("nDiscordant" -> TInt64(), "concordance" -> ConcordanceCombiner.schema): _*
     )
 
     val leftIds = leftFiltered.stringSampleIds
@@ -103,7 +102,7 @@ object CalculateConcordance {
     val leftToRight = leftIds.map(rightIdIndex).toArray
     val leftToRightBc = left.sparkContext.broadcast(leftToRight)
 
-    val join = leftFiltered.rdd2.orderedZipJoin(rightFiltered.rdd2)
+    val join = leftFiltered.rvd.orderedZipJoin(rightFiltered.rvd)
 
     val leftRowType = leftFiltered.rvRowType
     val rightRowType = rightFiltered.rvRowType
@@ -154,6 +153,8 @@ object CalculateConcordance {
       arr1
     }
 
+    val leftRowKeysF = left.rowKeysF
+    val rightRowKeysF = right.rowKeysF
     val variantRDD = join.mapPartitions { it =>
       val comb = new ConcordanceCombiner
 
@@ -168,13 +169,13 @@ object CalculateConcordance {
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
 
-        val v =
+        val rowKeys: Row =
           if (lrv != null) {
             lur.set(lrv)
-            lur.get(1)
+            leftRowKeysF(lur)
           } else {
             rur.set(rrv)
-            rur.get(1)
+            rightRowKeysF(rur)
           }
 
         if (lrv != null)
@@ -205,7 +206,7 @@ object CalculateConcordance {
               0)
           li += 1
         }
-        val r = Row(v, comb.nDiscordant, comb.toAnnotation)
+        val r = Row.fromSeq(rowKeys.toSeq ++ Array(comb.nDiscordant, comb.toAnnotation))
         assert(variantSchema.typeCheck(r))
         r
       }
@@ -219,9 +220,9 @@ object CalculateConcordance {
     val sampleRDD = left.hc.sc.parallelize(leftFiltered.stringSampleIds.zip(sampleResults)
       .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
 
-    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, Array("s"))
+    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, left.colKey.toArray)
 
-    val variantKT = Table(left.hc, variantRDD, variantSchema, Array("v"))
+    val variantKT = Table(left.hc, variantRDD, variantSchema, left.rowKey.toArray)
 
     (global.toAnnotation, sampleKT, variantKT)
   }

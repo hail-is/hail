@@ -25,9 +25,9 @@ class LDMatrixSuite extends SparkSuite {
     * that index i in the matrix corresponds to index i in the array.
     */
   @Test def testEntries() {
-    val nSamples = vds.nSamples
+    val nSamples = vds.numCols
 
-    val variantsTable = vds.typedRDD[Variant].map { case (v, (_, gs)) =>
+    val variantsTable = vds.variantRDD.map { case (v, (_, gs)) =>
       (v, LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples))}.collectAsMap()
 
     val indexToBPVV = distLDMatrix.variants.map(v => variantsTable(v).get)

@@ -140,37 +140,3 @@ class Call(HistoryMixin):
         :rtype: list of int or None
         """
         return jiterable_to_list(Call.call_jobject().oneHotAlleles(self._gt, num_alleles))
-
-    @handle_py4j
-    @typecheck_method(num_genotypes=integral)
-    def one_hot_genotype(self, num_genotypes):
-        """Returns a list containing the one-hot encoded representation of the genotype call.
-
-        A one-hot encoding is a vector with one '1' and many '0' values, like
-        [0, 0, 1, 0] or [1, 0, 0, 0].  This function is useful for transforming
-        the genotype call (gt) into a one-hot encoded array.  With the following
-        variables:
-
-        .. testcode::
-
-            num_genotypes = 3
-            hom_ref = Call(0)
-            het = Call(1)
-            hom_var = Call(2)
-
-        All the below statements are true:
-
-        .. testcode::
-
-            hom_ref.one_hot_genotype(num_genotypes) == [1, 0, 0]
-            het.one_hot_genotype(num_genotypes) == [0, 1, 0]
-            hom_var.one_hot_genotype(num_genotypes) == [0, 0, 1]
-
-        This function returns None if the call is missing.
-
-        :param int num_genotypes: number of possible genotypes
-        :rtype: list of int or None
-        """
-
-        return jiterable_to_list(Call.call_jobject().oneHotGenotype(self._gt, num_genotypes))
-    

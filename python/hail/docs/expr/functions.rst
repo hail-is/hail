@@ -11,7 +11,6 @@ Functions
     broadcast
     capture
     chisq
-    combine_variants
     cond
     switch
     case
@@ -28,9 +27,8 @@ Functions
     hardy_weinberg_p
     index
     parse_locus
-    locus
     parse_variant
-    variant
+    locus
     interval
     parse_interval
     call
@@ -76,7 +74,6 @@ Functions
 .. autofunction:: broadcast
 .. autofunction:: capture
 .. autofunction:: chisq
-.. autofunction:: combine_variants
 .. autofunction:: cond
 .. autofunction:: switch
 .. autofunction:: case
@@ -93,9 +90,8 @@ Functions
 .. autofunction:: hardy_weinberg_p
 .. autofunction:: index
 .. autofunction:: parse_locus
-.. autofunction:: locus
 .. autofunction:: parse_variant
-.. autofunction:: variant
+.. autofunction:: locus
 .. autofunction:: interval
 .. autofunction:: parse_interval
 .. autofunction:: call

@@ -21,29 +21,19 @@ class OrderedRVD private(
   self =>
   def rowType: TStruct = typ.rowType
 
-  def insert[PC](newContext: () => PC)(typeToInsert: Type,
-    path: List[String],
-    // rv argument to add is the entire row
-    add: (PC, RegionValue, RegionValueBuilder) => Unit): OrderedRVD = {
-    val localTyp = typ
+  // should be totally generic, permitting any number of keys, but that requires more work
+  def downcastToPK(): OrderedRVD = {
+    val newType = new OrderedRVType(partitionKey = typ.partitionKey,
+      key = typ.partitionKey,
+      rowType = rowType)
+    OrderedRVD(newType, partitioner, rdd)
+  }
 
-    val (insTyp, inserter) = typ.insert(typeToInsert, path)
-    OrderedRVD(insTyp,
-      partitioner,
-      rdd.mapPartitions { it =>
-        val c = newContext()
-        val rv2b = new RegionValueBuilder()
-        val rv2 = RegionValue()
-
-        it.map { rv =>
-          val ur = new UnsafeRow(localTyp.rowType, rv)
-          rv2b.set(rv.region)
-          rv2b.start(insTyp.rowType)
-          inserter(rv.region, rv.offset, rv2b, () => add(c, rv, rv2b))
-          rv2.set(rv.region, rv2b.end())
-          rv2
-        }
-      })
+  def upcast(castKeys: Array[String]): OrderedRVD = {
+    val newType = new OrderedRVType(partitionKey = typ.partitionKey,
+      key = typ.key ++ castKeys,
+      rowType = rowType)
+    OrderedRVD(newType, partitioner, rdd)
   }
 
   def mapPreservesPartitioning(newTyp: OrderedRVType)(f: (RegionValue) => RegionValue): OrderedRVD =
@@ -107,7 +97,7 @@ class OrderedRVD private(
     val lTyp = typ
     val rTyp = right.typ
 
-    if (lTyp.kType != rTyp.kType)
+    if (!lTyp.kType.fieldType.sameElements(rTyp.kType.fieldType))
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
            | Left key type: ${ lTyp.kType.toString }
@@ -188,7 +178,28 @@ class OrderedRVD private(
       return this
     if (shuffle) {
       val shuffled = rdd.coalesce(maxPartitions, shuffle = true)
-      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, shuffled), shuffled.getNumPartitions)
+
+      val localKType = typ.kType
+      val localKIndex = typ.kRowFieldIdx
+      val localRowType = typ.rowType
+      val shuffledKeyRDD = shuffled.mapPartitions { it =>
+        val rv2 = RegionValue()
+        val rvb = new RegionValueBuilder()
+        it.map { rv =>
+          rvb.set(rv.region)
+          rvb.start(localKType)
+          rvb.startStruct()
+          var i = 0
+          while (i < localKType.size) {
+            rvb.addField(localRowType, rv, localKIndex(i))
+            i += 1
+          }
+          rvb.endStruct()
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      }
+      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, shuffledKeyRDD), shuffled.getNumPartitions)
       OrderedRVD.shuffle(typ, new OrderedRVPartitioner(ranges.length + 1, typ.partitionKey, typ.kType, ranges), shuffled)
     } else {
 
@@ -708,7 +719,6 @@ object OrderedRVD {
           if (first)
             first = false
           else {
-            assert(typ.kRowOrd.compare(prevK.value, rv) <= 0)
             assert(typ.pkRowOrd.compare(prevPK.value, rv) <= 0)
           }
 

@@ -1,4 +1,3 @@
-
 from pyspark.sql import DataFrame
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
@@ -338,7 +337,7 @@ class Table(TableTemplate):
     @handle_py4j
     def columns(self):
         if self._column_names is None:
-            self._column_names = list(self._jt.columns())
+            self._column_names = list(self._jt.fieldNames())
         return self._column_names
 
     @property
@@ -828,7 +827,7 @@ class Table(TableTemplate):
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
             new_row_fields = [k.name for k in table.schema.fields if
-                                                  k.name not in fields_to_drop]
+                              k.name not in fields_to_drop]
             table = table.select(*new_row_fields)
 
         return table
@@ -1099,23 +1098,6 @@ class Table(TableTemplate):
             raise ExpressionException('Key mismatch: table has {} keys, found {} index expressions'.format(
                 len(self.key), len(exprs)))
 
-        if len(exprs) == 1 and exprs[0]._type == TVariant():
-            rg = exprs[0]._type._rg
-            key_type = self[self.key[0]]._type
-            if not (key_type == TVariant(rg) or
-                    key_type == TLocus(rg) or
-                    key_type == TInterval(TLocus(rg))):
-                raise ExpressionException(
-                    'Type mismatch: expected key type TVariant(), TLocus(), '
-                    'or TInterval(TLocus()), found {}'.format(key_type))
-        else:
-            for i, (k, e) in enumerate(zip(self.key, exprs)):
-                if not self[k]._type == e._type:
-                    raise ExpressionException(
-                        'Type mismatch at index {} of Table index: '
-                        'expected key type {}, found {}'
-                        .format(type_error_idx, expected_type, found_type))
-
         indices, aggregations, joins, refs = unify_all(*exprs)
 
         from hail.matrixtable import MatrixTable
@@ -1131,6 +1113,13 @@ class Table(TableTemplate):
             # FIXME: this should be OK: table[m.global_index_into_table]
             raise ExpressionException('found explicit join indexed by a scalar expression')
         elif isinstance(src, Table):
+            for i, (k, e) in enumerate(zip(self.key, exprs)):
+                if not self[k]._type == e._type:
+                    raise ExpressionException(
+                        "type mismatch at index {} of table key: "
+                        "expected type '{}', found '{}'"
+                            .format(i, k, e))
+
             for e in exprs:
                 analyze('Table.view_join_rows', e, src._row_indices)
 
@@ -1151,6 +1140,22 @@ class Table(TableTemplate):
             return construct_expr(Reference(uid), new_schema, indices, aggregations,
                                   joins.push(Join(joiner, all_uids)), refs)
         elif isinstance(src, MatrixTable):
+            if len(exprs) == 1:
+                key_type = self._fields[self.key[0]].dtype
+                expr_type = exprs[0].dtype
+                if not (key_type == expr_type or
+                        key_type == TInterval(expr_type)):
+                    raise ExpressionException(
+                        "type mismatch at index 0 of table key: expected type {expected}, found '{et}'"
+                            .format(expected="'{}'".format(key_type) if not isinstance(key_type, TInterval)
+                        else "'{}' or '{}'".format(key_type, key_type.point_type), et=expr_type))
+            else:
+                for i, (k, e) in enumerate(zip(self.key, exprs)):
+                    if not self[k]._type == e._type:
+                        raise ExpressionException(
+                            "type mismatch at index {} of table key: "
+                            "expected type '{}', found '{}'"
+                                .format(i, k, e))
             for e in exprs:
                 analyze('Table.view_join_rows', e, src._entry_indices)
 
@@ -1159,57 +1164,68 @@ class Table(TableTemplate):
             if indices == src._entry_indices:
                 raise NotImplementedError('entry-based matrix joins')
             elif indices == src._row_indices:
-                if len(exprs) == 1 and exprs[0] is src['v']:
+
+                is_row_key = len(exprs) == len(src.row_key) and all(
+                    exprs[i] is src._fields[src.row_key[i]] for i in range(len(exprs)))
+                is_partition_key = len(exprs) == len(src.partition_key) and all(
+                    exprs[i] is src._fields[src.partition_key[i]] for i in range(len(exprs)))
+
+                if is_row_key or is_partition_key:
                     # no vds_key (way faster)
                     def joiner(left):
                         return MatrixTable(left._jvds.annotateVariantsTable(
-                            right._jt, 'va.{}'.format(uid), None, False))
-                    
+                            right._jt, uid, False))
+
                     return construct_expr(Select(Reference('va'), uid), new_schema,
                                           indices, aggregations, joins.push(Join(joiner, [uid])))
                 else:
                     # use vds_key
-                    uids = [Env._get_uid() for i in range(len(exprs))]
+                    uids = [Env._get_uid() for _ in range(len(exprs))]
+
                     def joiner(left):
                         from hail.expr import functions, aggregators as agg
-                        
-                        v_uid = Env._get_uid()
+
+                        rk_uids = [Env._get_uid() for _ in left.row_key]
                         k_uid = Env._get_uid()
 
                         # extract v, key exprs
-                        left2 = left.select_rows(
-                            **{uid: e for uid, e in zip(uids, exprs)})
-                        lrt = left2.rows_table().rename({'v': v_uid}).key_by(*uids)
-                        
+                        left2 = left.select_rows(*left.row_key, **{uid: e for uid, e in zip(uids, exprs)})
+                        lrt = (left2.rows_table()
+                            .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
+                            .key_by(*uids))
+
                         vt = lrt.join(right)
                         # group uids
-                        vt = vt.annotate(**{
-                            k_uid: Struct(**{uid: vt[uid] for uid in uids})})
+                        od = OrderedDict()
+                        for u in uids:
+                            od[u] = vt[u]
+                        vt = vt.annotate(**{k_uid: Struct(**od)})
                         vt = vt.drop(*uids)
                         # group by v and index by the key exprs
-                        vt = (vt.group_by(v_uid)
-                              .aggregate(values = agg.collect(
-                                  Struct(**{c: vt[c] for c in vt.columns if c != v_uid}))))
-                        vt = vt.annotate(values = functions.index(vt.values, k_uid))
-                        
-                        return MatrixTable(
-                            left._jvds.annotateVariantsTable(
-                                vt._jt, 'va.{}'.format(uid), None, False))
+                        vt = (vt.group_by(*rk_uids)
+                            .aggregate(values=agg.collect(
+                            Struct(**{c: vt[c] for c in vt.columns if c not in rk_uids}))))
+                        vt = vt.annotate(values=functions.index(vt.values, k_uid))
 
-                    return construct_expr(
-                        ApplyMethod('get',
-                                    Select(Select(Reference('va'), uid), 'values'),
-                                    StructDeclaration(uids, [e._ast for e in exprs])),
-                        new_schema, indices, aggregations, joins.push(Join(joiner, [uid])))
+                        jl = left._jvds.annotateVariantsTable(vt._jt, uid, False)
+                        key_expr = '{uid} = va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
+                            '{}: {}'.format(u, e._ast.to_hql()) for u, e in
+                            zip(uids, exprs)))
+                        jl = jl.annotateVariantsExpr(key_expr)
+                        return MatrixTable(jl)
+
+                    return construct_expr(Select(Reference('va'), uid),
+                                          new_schema, indices, aggregations, joins.push(Join(joiner, [uid])))
+
             elif indices == src._col_indices:
-                if len(exprs) == 1 and exprs[0] is src['s']:
+                if len(exprs) == len(src.col_key) and all([exprs[i] is src[src.col_key[i]] for i in range(len(exprs))]):
                     # no vds_key (faster)
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
-                        right._jt, None, 'sa.{}'.format(uid), None, False))
+                        right._jt, None, uid, None, False))
                 else:
                     # use vds_key
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
-                        right._jt, [e._ast.to_hql() for e in exprs], 'sa.{}'.format(uid), None, False))
+                        right._jt, [e._ast.to_hql() for e in exprs], uid, None, False))
                 return construct_expr(Select(Reference('sa'), uid), new_schema,
                                       indices, aggregations, joins.push(Join(joiner, [uid])))
             else:
@@ -1229,7 +1245,8 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=LinkedList(Join).push(Join(joiner, [uid])))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema,
+                              joins=LinkedList(Join).push(Join(joiner, [uid])))
 
     @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
@@ -1802,7 +1819,6 @@ class Table(TableTemplate):
         Notes
         -----
         Expands the following types: :class:`.TLocus`, :class:`.TInterval`,
-        :class:`.TAltAllele`, :class:`.TVariant`, :class:`.TVariant`,
         :class:`.TSet`, :class:`.TDict`.
 
         The only types that will remain after this method are:

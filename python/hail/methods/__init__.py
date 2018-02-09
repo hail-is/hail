@@ -3,7 +3,7 @@ from .impex import export_cassandra, export_gen, export_plink, export_solr, expo
     import_interval_list, import_bed, import_fam, grep, import_bgen, import_gen, import_table, \
     import_plink, read_matrix_table, read_table, get_vcf_metadata, import_vcf, index_bgen
 from .statgen import linreg, logreg, lmmreg, skat, sample_rows, ibd, impute_sex, \
-    ld_matrix, grm, rrm, pca, hwe_normalized_pca, pc_relate, SplitMulti, \
+    grm, rrm, pca, hwe_normalized_pca, pc_relate, SplitMulti, \
     split_multi_hts, balding_nichols_model, FilterAlleles, ld_prune, min_rep
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana
 from .summarize import summarize
@@ -17,7 +17,6 @@ __all__ = ['trio_matrix',
            'sample_rows',
            'ibd',
            'impute_sex',
-           'ld_matrix',
            'sample_qc',
            'variant_qc',
            'grm',

@@ -2,7 +2,8 @@ package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
-import is.hail.variant.Variant
+import is.hail.variant.{Locus, Variant}
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class MendelErrorsSuite extends SparkSuite {
@@ -22,13 +23,13 @@ class MendelErrorsSuite extends SparkSuite {
     val dad2 = "Dad2"
     val mom2 = "Mom2"
 
-    val variant1 = Variant("1", 1, "C", "CT")
-    val variant2 = Variant("1", 2, "C", "T")
-    val variant3 = Variant("X", 1, "C", "T")
-    val variant4 = Variant("X", 3, "C", "T")
-    val variant5 = Variant("Y", 1, "C", "T")
-    val variant6 = Variant("Y", 3, "C", "T")
-    val variant7 = Variant("20", 1, "C", "T")
+    val variant1 = Row(Locus("1", 1), IndexedSeq("C", "CT"))
+    val variant2 = Row(Locus("1", 2), IndexedSeq("C", "T"))
+    val variant3 = Row(Locus("X", 1), IndexedSeq("C", "T"))
+    val variant4 = Row(Locus("X", 3), IndexedSeq("C", "T"))
+    val variant5 = Row(Locus("Y", 1), IndexedSeq("C", "T"))
+    val variant6 = Row(Locus("Y", 3), IndexedSeq("C", "T"))
+    val variant7 = Row(Locus("20", 1), IndexedSeq("C", "T"))
 
     assert(nPerFam.size == 2)
     assert(nPerIndiv.size == 7)

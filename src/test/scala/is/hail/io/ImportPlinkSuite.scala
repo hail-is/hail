@@ -7,6 +7,7 @@ import is.hail.io.plink.{ExportPlink, PlinkLoader}
 import is.hail.methods.{SplitMulti, VariantQC}
 import is.hail.expr.types.Type
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
@@ -19,7 +20,7 @@ class ImportPlinkSuite extends SparkSuite {
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
       vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => SplitMulti(vds).cache())
-      nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.countVariants()).toInt.min(10))
+      nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.numCols, vds.countVariants()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
@@ -30,7 +31,7 @@ class ImportPlinkSuite extends SparkSuite {
 
         ExportPlink(vds, truthRoot)
 
-        if (vds.nSamples == 0) {
+        if (vds.numCols == 0) {
           TestUtils.interceptFatal("Empty .fam file") {
             hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference)
           }
@@ -78,23 +79,23 @@ class ImportPlinkSuite extends SparkSuite {
 
     val a2ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = true)
 
-    val a1kt = VariantQC(a1ref)
-      .variantsKT()
-      .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
-      .rename(Map("v" -> "vA1", "nNotCalled" -> "nNotCalledA1",
+    val a1kt = VariantQC(a1ref, "variant_qc")
+      .rowsTable()
+      .select("rsid", "alleles", "variant_qc.nNotCalled", "variant_qc.nHomRef", "variant_qc.nHet", "variant_qc.nHomVar")
+      .rename(Map("alleles" -> "vA1", "nNotCalled" -> "nNotCalledA1",
         "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
       .keyBy("rsid")
 
-    val a2kt = VariantQC(a2ref)
-      .variantsKT()
-      .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
-      .rename(Map("v" -> "vA2", "nNotCalled" -> "nNotCalledA2",
+    val a2kt = VariantQC(a2ref, "variant_qc")
+      .rowsTable()
+      .select("rsid", "alleles", "variant_qc.nNotCalled", "variant_qc.nHomRef", "variant_qc.nHet", "variant_qc.nHomVar")
+      .rename(Map("alleles" -> "vA2", "nNotCalled" -> "nNotCalledA2",
         "nHomRef" -> "nHomRefA2", "nHet" -> "nHetA2", "nHomVar" -> "nHomVarA2"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")
 
-    assert(joined.forall("vA1.ref == vA2.alt && vA1.alt == vA2.ref && nNotCalledA1 == nNotCalledA2 && " +
+    assert(joined.forall("vA1[0] == vA2[1] && vA1[1] == vA2[0] && nNotCalledA1 == nNotCalledA2 && " +
       "nHetA1 == nHetA2 && nHomRefA1 == nHomVarA2 && nHomVarA1 == nHomRefA2"))
   }
 

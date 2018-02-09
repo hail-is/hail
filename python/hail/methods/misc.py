@@ -7,6 +7,7 @@ from hail.typecheck.check import typecheck, strlike
 from hail.expr.expression import *
 from hail.expr.ast import Reference
 
+
 @handle_py4j
 @typecheck(i=Expression,
            j=Expression,
@@ -123,26 +124,23 @@ def maximal_independent_set(i, j, tie_breaker=None):
                                                          j._ast.to_hql(),
                                                          joption(tie_breaker_hql)))
 
-@handle_py4j
+
 def require_variant(dataset, method):
-    # FIXME actually check when row_key exists
-    # if (dataset.row_key != ['locus', 'alleles'] or
-    #         not isinstance(dataset['locus'].dtype, TLocus) or
-    #         not dataset['alleles'].dtype == TArray(TString())):
-    #     raise TypeError("Method '{}' requires row keys 'locus' (Locus) and 'alleles' (Array[String])\n"
-    #                     "  Found:{}".format(method, ''.join(
-    #         "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
-    return dataset
+    if (dataset.row_key != ['locus', 'alleles'] or
+            not isinstance(dataset['locus'].dtype, TLocus) or
+            not dataset['alleles'].dtype == TArray(TString())):
+        raise TypeError("Method '{}' requires row keys 'locus' (Locus) and 'alleles' (Array[String])\n"
+                        "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
 @handle_py4j
+
 @typecheck(dataset=MatrixTable, method=strlike)
 def require_biallelic(dataset, method):
-    from hail.expr.types import TVariant
-    if not isinstance(dataset.rowkey_schema, TVariant):
-        raise TypeError("Method '{}' requires the row key to be of type 'TVariant', found '{}'".format(
-            method, dataset.rowkey_schema))
+    require_variant(dataset, method)
     dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
     return dataset
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, name=strlike)
@@ -181,6 +179,7 @@ def rename_duplicates(dataset, name='unique_id'):
     """
 
     return MatrixTable(dataset._jvds.renameDuplicates(name))
+
 
 @handle_py4j
 @typecheck(ds=MatrixTable,

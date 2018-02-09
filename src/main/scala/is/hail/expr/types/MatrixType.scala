@@ -6,37 +6,17 @@ import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype}
 
 object MatrixType {
-  def locusType(vType: Type): Type = {
-    vType match {
-      case t: TVariant => TLocus(t.gr)
-      case _ => vType
-    }
-  }
+  val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
 
-  def apply(
-    globalType: TStruct = TStruct.empty(),
-    colType: TStruct = TStruct.empty(),
-    colKey: IndexedSeq[String] = Array.empty[String],
-    vType: Type = TVariant(GenomeReference.defaultReference),
-    vaType: TStruct = TStruct.empty(),
-    genotypeType: TStruct = Genotype.htsGenotypeType): MatrixType = {
-    val lType = locusType(vType)
-
-    val vField = vaType.uniqueFieldName("v")
-    val pkField = vaType.uniqueFieldName("pk")
-    val t = MatrixType(
-      globalType,
-      colKey,
-      colType,
-      Array(pkField),
-      Array(pkField, vField),
-      TStruct(pkField -> lType, vField -> vType) ++ vaType,
-      genotypeType)
-    assert(t.saType == colType)
-    assert(t.vType == vType)
-    assert(t.vaType == vaType)
-    assert(t.locusType == lType)
-    t
+  def fromParts(globalType: TStruct,
+    colKey: IndexedSeq[String],
+    colType: TStruct,
+    rowPartitionKey: IndexedSeq[String],
+    rowKey: IndexedSeq[String],
+    rowType: TStruct,
+    entryType: TStruct): MatrixType = {
+    MatrixType(globalType, colKey,
+      colType, rowPartitionKey, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
   }
 }
 
@@ -46,87 +26,63 @@ case class MatrixType(
   colType: TStruct,
   rowPartitionKey: IndexedSeq[String],
   rowKey: IndexedSeq[String],
-  rowType: TStruct,
-  entryType: TStruct) extends BaseType {
+  rvRowType: TStruct) extends BaseType {
   assert({
     val colFields = colType.fieldNames.toSet
     colKey.forall(colFields.contains)
   }, s"$colKey: $colType")
 
-  assert(rowPartitionKey.length == 1)
-  val pkField: String = rowPartitionKey(0)
+  val entriesIdx = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
+  val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
+  val entryArrayType: TArray = rvRowType.fieldType(entriesIdx).asInstanceOf[TArray]
+  val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
-  assert(rowKey.length == 2)
-  assert(rowKey(0) == pkField)
-  val vField = rowKey(1)
+  assert({
+    val rowFields = rowType.fieldNames.toSet
+    rowKey.forall(rowFields.contains)
+  }, s"$rowKey: $rowType")
 
-  val vType: Type = rowType.field(vField).typ
+  assert(rowKey.startsWith(rowPartitionKey))
 
-  val locusType: Type = MatrixType.locusType(vType)
-
-  val (vaType, _) = rowType.filter(f => f.name != pkField && f.name != vField)
-
-  val saType = colType
-
-  def genotypeType: TStruct = entryType
-
-  // FIXME needs to be rowType ++ TStruct(entriesField -> TArray(entryType))
-  val rvRowType: TStruct =
-  TStruct(
-    "pk" -> locusType,
-    "v" -> vType,
-    "va" -> vaType,
-    "gs" -> TArray(genotypeType))
+  val rowKeyStruct = TStruct(rowKey.map(k => k -> rowType.fieldByName(k).typ): _*)
 
   def orderedRVType: OrderedRVType = {
-    new OrderedRVType(Array("pk"),
-      Array("pk", "v"),
+    new OrderedRVType(rowPartitionKey.toArray,
+      rowKey.toArray,
       rvRowType)
   }
 
-  def sampleEC: EvalContext = {
+  def colEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "sa" -> (1, saType),
-      "g" -> (2, genotypeType),
-      "v" -> (3, vType),
-      "va" -> (4, vaType))
+      "sa" -> (1, colType),
+      "g" -> (2, entryType),
+      "va" -> (3, rowType))
     EvalContext(Map(
       "global" -> (0, globalType),
-      "sa" -> (1, saType),
-      "gs" -> (2, TAggregable(genotypeType, aggregationST))))
+      "sa" -> (1, colType),
+      "gs" -> (2, TAggregable(entryType, aggregationST))))
   }
 
-  def variantEC: EvalContext = {
+  def rowEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "v" -> (1, vType),
-      "va" -> (2, vaType),
-      "g" -> (3, genotypeType),
-      "sa" -> (4, saType))
+      "va" -> (1, rowType),
+      "g" -> (2, entryType),
+      "sa" -> (3, colType))
     EvalContext(Map(
       "global" -> (0, globalType),
-      "v" -> (1, vType),
-      "va" -> (2, vaType),
-      "gs" -> (3, TAggregable(genotypeType, aggregationST))))
+      "va" -> (1, rowType),
+      "gs" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def genotypeEC: EvalContext = {
     EvalContext(Map(
       "global" -> (0, globalType),
-      "v" -> (1, vType),
-      "va" -> (2, vaType),
-      "sa" -> (3, saType),
-      "g" -> (4, genotypeType)))
+      "va" -> (1, rowType),
+      "sa" -> (2, colType),
+      "g" -> (3, entryType)))
   }
-
-  def copy(globalType: TStruct = globalType,
-    saType: TStruct = saType,
-    colKey: IndexedSeq[String] = colKey,
-    vType: Type = vType,
-    vaType: TStruct = vaType,
-    genotypeType: TStruct = genotypeType): MatrixType =
-    MatrixType(globalType, saType, colKey, vType, vaType, genotypeType)
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0
@@ -183,5 +139,20 @@ case class MatrixType(
     indent -= 4
     newline()
     sb += '}'
+  }
+
+  def copyParts(globalType: TStruct = globalType,
+    colKey: IndexedSeq[String] = colKey,
+    colType: TStruct = colType,
+    rowPartitionKey: IndexedSeq[String] = rowPartitionKey,
+    rowKey: IndexedSeq[String] = rowKey,
+    rowType: TStruct = rowType,
+    entryType: TStruct = entryType): MatrixType = {
+    if (this.rowPartitionKey.nonEmpty && rowPartitionKey.isEmpty) {
+      warn(s"deleted row partition key [${this.rowPartitionKey.mkString(", ")}], " +
+        s"all downstream operations will be single-threaded")
+    }
+
+    MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey, rowKey, rowType, entryType)
   }
 }

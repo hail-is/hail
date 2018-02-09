@@ -24,14 +24,14 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val bnm2 = BaldingNicholsModel(hc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9))
 
     assert(bnm1.rdd.collect().toSeq == bnm2.rdd.collect().toSeq)
-    assert(bnm1.globalAnnotation == bnm2.globalAnnotation)
-    assert(bnm1.sampleAnnotations == bnm2.sampleAnnotations)
+    assert(bnm1.globals == bnm2.globals)
+    assert(bnm1.colValues == bnm2.colValues)
 
     bnm1.typecheck()
     bnm2.typecheck()
   }
 
-  @Test def testDimensions()  {
+  @Test def testDimensions() {
     val K = 5
     val N = 10
     val M = 100
@@ -57,8 +57,8 @@ class BaldingNicholsModelSuite extends SparkSuite {
       val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
 
       //Test population distribution
-      val popArray = bnm.sampleAnnotations.toArray.map(_.asInstanceOf[Row](1).toString.toDouble)
-      val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_(0)).map(_.size)
+      val popArray = bnm.colValues.toArray.map(_.asInstanceOf[Row](1).toString.toDouble)
+      val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_ (0)).map(_.size)
 
       popCounts.indices.foreach(index => {
         assertEquals(popCounts(index) / N, popDist(index), Math.ceil(N / K * .1))
@@ -66,15 +66,18 @@ class BaldingNicholsModelSuite extends SparkSuite {
 
       //Test AF distributions
       val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[Row]]
-      val arrayOfVATuples = arrayOfVARows.map(row => (row.get(0), row.get(1)).asInstanceOf[(Double, Vector[Double])])
+      val arrayOfVATuples = arrayOfVARows.map(row => (row.get(2), row.get(3)).asInstanceOf[(Double, Vector[Double])])
 
       val AFStats = arrayOfVATuples.map(tuple => meanAndVariance(tuple._2))
 
-      arrayOfVATuples.map(_._1).zip(AFStats).foreach{
-        case (p, mv) =>
-          assertEquals(p, mv.mean, .2) //Consider alternatives to .2
-          assertEquals(.1 * p * (1 - p), mv.variance, .1)
-      }
+      arrayOfVATuples
+        .map(_._1)
+        .zip(AFStats)
+        .foreach {
+          case (p, mv) =>
+            assertEquals(p, mv.mean, .2) //Consider alternatives to .2
+            assertEquals(.1 * p * (1 - p), mv.variance, .1)
+        }
 
       //Test genotype distributions
       val meanGeno_mk = bnm.typedRDD[Variant]
@@ -101,7 +104,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
       val bnm = BaldingNicholsModel(hc, 3, 400, 400, None, None, seed, Some(4), dist)
 
       val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2.asInstanceOf[Row]).toSeq
-      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[Double])
+      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(2).asInstanceOf[Double])
 
       assert(arrayOfAncestralAFs.forall(af => af > min && af < max))
     }

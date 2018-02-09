@@ -26,8 +26,8 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, Some(vcf), Array(vcf))
 
-    val vcfGA = vcfVariantSampleMatrix.globalAnnotation
-    val gdbGA = gdbVariantSampleMatrix.globalAnnotation
+    val vcfGA = vcfVariantSampleMatrix.globals
+    val gdbGA = gdbVariantSampleMatrix.globals
 
     assert(vcfGA == gdbGA)
   }
@@ -38,10 +38,10 @@ class ImportGDBSuite extends SparkSuite {
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, Some(vcf), Array(vcf))
 
     val vcfVAS = vcfVariantSampleMatrix
-      .vaSignature
+      .rowType
 
     val gdbVAS = gdbVariantSampleMatrix
-      .vaSignature
+      .rowType
 
     assert(vcfVAS.equals(gdbVAS))
   }
@@ -52,12 +52,12 @@ class ImportGDBSuite extends SparkSuite {
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, Some(vcf), Array(vcf))
 
     val vcfGenotypeSignature = vcfVariantSampleMatrix
-      .genotypeSignature
+      .entryType
       .asInstanceOf[TStruct]
       .fields
 
     val gdbGenotypeSignature = gdbVariantSampleMatrix
-      .genotypeSignature
+      .entryType
       .asInstanceOf[TStruct]
       .fields
 
@@ -120,8 +120,8 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, Some(vcf), Array(vcf))
 
-    val vcfSA = vcfVariantSampleMatrix.sampleAnnotations
-    val gdbSA = gdbVariantSampleMatrix.sampleAnnotations
+    val vcfSA = vcfVariantSampleMatrix.colValues
+    val gdbSA = gdbVariantSampleMatrix.colValues
 
     assert(vcfSA.equals(gdbSA))
   }

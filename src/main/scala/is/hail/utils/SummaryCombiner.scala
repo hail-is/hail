@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Annotation, RegionValue}
 import is.hail.expr.types.TStruct
-import is.hail.variant.{AltAllele, AltAlleleType, HardCallView, IVariant, Variant}
+import is.hail.variant.{AltAllele, AltAlleleMethods, AltAlleleType, HardCallView, IVariant, RegionValueVariant, Variant}
 
 import scala.collection.mutable
 
@@ -40,19 +40,22 @@ class SummaryCombiner extends Serializable {
     this
   }
 
-  def merge(view: HardCallView, variant: IVariant): SummaryCombiner = {
+  def merge(view: HardCallView, variant: RegionValueVariant): SummaryCombiner = {
 
     nVariants += 1
-    contigs += variant.contig
+    contigs += variant.contig()
 
-    val nAlleles = variant.nAlleles
+    val alleles = variant.alleles()
+    val nAlleles = alleles.length
+    assert(nAlleles >= 2)
     if (nAlleles > 2)
       multiallelics += 1
     if (nAlleles > maxAlleles)
       maxAlleles = nAlleles
 
-    for (altAllele <- variant.altAlleles()) {
-      altAllele.altAlleleType match {
+    val ref = alleles(0)
+    for (alt <- (1 until nAlleles).view.map(alleles)) {
+      AltAlleleMethods.altAlleleType(ref, alt) match {
         case AltAlleleType.SNP => snps += 1
         case AltAlleleType.MNP => mnps += 1
         case AltAlleleType.Insertion => insertions += 1

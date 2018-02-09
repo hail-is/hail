@@ -23,10 +23,10 @@ class ComputeRRMSuite extends SparkSuite {
 
     val vds = stats.vdsFromGtMatrix(hc)(G0)
 
-    val n = vds.nSamples
+    val n = vds.numCols
 
     val rt = vds.rvRowType
-    val gtVects = vds.rdd2.mapPartitions {it =>
+    val gtVects = vds.rvd.mapPartitions {it =>
       val view = HardCallView(rt)
       it.flatMap { rv =>
         view.setRegion(rv)

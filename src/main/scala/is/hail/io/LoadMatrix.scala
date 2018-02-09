@@ -68,7 +68,7 @@ object LoadMatrix {
     val symTab = annotationNames.zip(annotationTypes)
     val annotationType = TStruct(symTab: _*)
     val ec = EvalContext(symTab: _*)
-    val (t, f) = Parser.parseExpr(keyExpr, ec)
+    val (keyType, keyF) = Parser.parseExpr(keyExpr, ec)
 
     val header1Bc = sc.broadcast(header1)
 
@@ -89,14 +89,14 @@ object LoadMatrix {
       case (name, partition) => partition == 0 || fileByPartition(partition - 1) != name
     }.map { case (_, partition) => partition }.toSet
 
-    val matrixType = MatrixType(
-      colType = TStruct("s" -> TString()),
-      colKey = Array("s"),
-      vType = t,
-      vaType = annotationType,
-      genotypeType = cellType)
-
-    val keyType = matrixType.orderedRVType.kType
+    val matrixType = MatrixType.fromParts(
+      TStruct.empty(),
+      colType = TStruct("col_id" -> TString()),
+      colKey = Array("col_id"),
+      rowType = TStruct("row_id" -> keyType) ++ annotationType,
+      rowKey = Array("row_id"),
+      rowPartitionKey = Array("row_id"),
+      entryType = cellType)
 
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
@@ -131,7 +131,7 @@ object LoadMatrix {
           }
         }
 
-        val at = matrixType.vaType.asInstanceOf[TStruct]
+        val at = matrixType.rowType.asInstanceOf[TStruct]
 
         it.map { v =>
           val line = v.value
@@ -156,7 +156,7 @@ object LoadMatrix {
             var v = 0
             var isNegative = false
             if (line(off) == sep) {
-              fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
             }
             if (line(off) == '-' || line(off) == '+') {
               isNegative = line(off) == '-'
@@ -177,13 +177,13 @@ object LoadMatrix {
                 missing = true
                 0
               } else {
-                fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+                fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
               }
             } else if (line.length == newoff || line(newoff) == sep) {
               off = newoff + 1
               if (isNegative) -v else v
             } else {
-              fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
             }
           }
 
@@ -192,7 +192,7 @@ object LoadMatrix {
             var v = 0L
             var isNegative = false
             if (line(off) == sep) {
-              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
             }
             if (line(off) == '-' || line(off) == '+') {
               isNegative = line(off) == '-'
@@ -213,13 +213,13 @@ object LoadMatrix {
                 missing = true
                 0L
               } else {
-                fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+                fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
               }
             } else if (line.length == newoff || line(newoff) == sep) {
               off = newoff + 1
               if (isNegative) -v else v
             } else {
-              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
             }
           }
 
@@ -236,7 +236,7 @@ object LoadMatrix {
               try {
               v.toFloat
               } catch {
-                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: ${ t.str(rowID) } in file: $file")
+                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
               }
             }
           }
@@ -254,7 +254,7 @@ object LoadMatrix {
               try {
                 v.toDouble
               } catch {
-                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: ${ t.str(rowID) } in file: $file")
+                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
               }
             }
           }
@@ -272,20 +272,17 @@ object LoadMatrix {
             ii += 1
           }
 
-          val rowKey = f()
+          val rowKey = keyF()
 
           region.clear()
           rvb.start(matrixType.rvRowType)
           rvb.startStruct()
-          rvb.addAnnotation(t, rowKey)
-          rvb.addAnnotation(t, rowKey)
-          rvb.startStruct()
-          ii = 0
+          rvb.addAnnotation(keyType, rowKey)
+          ii = 1 // start at 1 because we include the one key
           while (ii < at.size) {
-            rvb.addAnnotation(at.fieldType(ii), ec.a(ii))
+            rvb.addAnnotation(at.fieldType(ii), ec.a(ii - 1)) // subtract 1 for the key
             ii += 1
           }
-          rvb.endStruct()
 
           rvb.startArray(nSamples)
           if (nSamples > 0) {

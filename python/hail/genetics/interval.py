@@ -1,5 +1,5 @@
 from hail.genetics.genomeref import GenomeReference
-from hail.genetics.variant import Locus
+from hail.genetics.locus import Locus
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *

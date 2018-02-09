@@ -2,7 +2,7 @@ package is.hail.io.gen
 
 import is.hail.annotations.{Querier, UnsafeRow}
 import is.hail.expr.types.TString
-import is.hail.variant.{ArrayGenotypeView, MatrixTable, Variant}
+import is.hail.variant.{ArrayGenotypeView, MatrixTable, RegionValueVariant, Variant}
 import is.hail.utils._
 
 object ExportGen {
@@ -14,7 +14,7 @@ object ExportGen {
     }
 
     def writeGenFile() {
-      val varidSignature = vsm.vaSignature.getOption("varid")
+      val varidSignature = vsm.rowType.getOption("varid")
       val varidQuery: Querier = varidSignature match {
         case Some(_) =>
           val (t, q) = vsm.queryVA("va.varid")
@@ -25,7 +25,7 @@ object ExportGen {
         case None => a => null
       }
 
-      val rsidSignature = vsm.vaSignature.getOption("rsid")
+      val rsidSignature = vsm.rowType.getOption("rsid")
       val rsidQuery: Querier = rsidSignature match {
         case Some(_) =>
           val (t, q) = vsm.queryVA("va.rsid")
@@ -36,30 +36,35 @@ object ExportGen {
         case None => a => null
       }
 
-      val localNSamples = vsm.nSamples
-      val localRowType = vsm.rvRowType
-      vsm.rdd2.mapPartitions { it =>
+      val localNSamples = vsm.numCols
+      val fullRowType = vsm.rvRowType
+      val localRowType = vsm.rowType
+      val localEntriesIndex = vsm.entriesIndex
+
+      vsm.rvd.mapPartitions { it =>
         val sb = new StringBuilder
-        val view = new ArrayGenotypeView(localRowType)
+        val view = new ArrayGenotypeView(fullRowType)
+        val rvv = new RegionValueVariant(fullRowType)
+        val row = new UnsafeRow(localRowType)
+
         it.map { rv =>
           view.setRegion(rv)
-          val ur = new UnsafeRow(localRowType, rv)
 
-          val v = ur.getAs[Variant](1)
-          val va = ur.get(2)
+          row.set(rv)
+          rvv.setRegion(rv)
 
           sb.clear()
-          sb.append(v.contig)
+          sb.append(rvv.contig())
           sb += ' '
-          sb.append(Option(varidQuery(va)).getOrElse(v.toString))
+          sb.append(Option(varidQuery(row)).getOrElse(rvv.variantObject().toString))
           sb += ' '
-          sb.append(Option(rsidQuery(va)).getOrElse("."))
+          sb.append(Option(rsidQuery(row)).getOrElse("."))
           sb += ' '
-          sb.append(v.start)
+          sb.append(rvv.position())
           sb += ' '
-          sb.append(v.ref)
+          sb.append(rvv.alleles()(0))
           sb += ' '
-          sb.append(v.alt)
+          sb.append(rvv.alleles()(1))
 
           var i = 0
           while (i < localNSamples) {

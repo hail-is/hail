@@ -4,66 +4,65 @@ import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr.types._
 
-class RegionValueVariant(tv: TVariant) extends IVariant with View {
-  private val t: TStruct = tv.representation.asInstanceOf[TStruct]
+class RegionValueVariant(rowType: TStruct) extends View {
+  private val locusField = rowType.fieldByName("locus")
+  private val allelesField = rowType.fieldByName("alleles")
+  private val locusIdx = locusField.index
+  private val allelesIdx = allelesField.index
+  private val tl: TStruct = locusField.typ.fundamentalType.asInstanceOf[TStruct]
+  private val taa: TArray = allelesField.typ.asInstanceOf[TArray]
   private var region: Region = _
-  private var offset: Long = _
-  private val contigIdx: Int = t.fieldIdx("contig")
-  private val startIdx: Int = t.fieldIdx("start")
-  private val refIdx: Int = t.fieldIdx("ref")
-  private val altAllelesIdx: Int = t.fieldIdx("altAlleles")
-  private val tAltAlleles: TArray = t.fieldType(altAllelesIdx).asInstanceOf[TArray]
-  private val tAltAllele: TAltAllele = tAltAlleles.elementType.asInstanceOf[TAltAllele]
-  private val altAllelesView = new ArrayView(tAltAlleles, new RegionValueAltAllele(tAltAllele))
+  private var locusOffset: Long = _
+  private var allelesOffset: Long = _
 
-  assert(t.fieldType(contigIdx).required)
-  assert(t.fieldType(startIdx).required)
-  assert(t.fieldType(refIdx).required)
-  assert(tAltAlleles.required)
-  assert(tAltAlleles.elementType.required)
+  private var cachedContig: String = null
+  private var cachedAlleles: Array[String] = null
+  private var cachedLocus: Locus = null
 
   def setRegion(region: Region, offset: Long) {
     this.region = region
-    this.offset = offset
+
+    assert(rowType.isFieldDefined(region, offset, locusIdx))
+    assert(rowType.isFieldDefined(region, offset, allelesIdx))
+    this.locusOffset = rowType.loadField(region, offset, locusIdx)
+    this.allelesOffset = rowType.loadField(region, offset, allelesIdx)
     cachedContig = null
-    cachedRef = null
-    cachedAltAlleles = null
+    cachedAlleles = null
+    cachedLocus = null
   }
 
-  def getOffset(): Long = offset
-
-  private var cachedContig: String = null
-  private var cachedRef: String = null
-  private var cachedAltAlleles: IndexedSeq[AltAllele] = null
-
-  override def contig(): String = {
+  def contig(): String = {
     if (cachedContig == null)
-      cachedContig = TString.loadString(region, t.loadField(region, offset, contigIdx))
+      cachedContig = TString.loadString(region, tl.loadField(region, locusOffset, 0))
     cachedContig
   }
 
-  override def start(): Int = {
-    region.loadInt(t.loadField(region, offset, startIdx))
+  def position(): Int = {
+    region.loadInt(tl.loadField(region, locusOffset, 1))
   }
 
-  override def ref(): String = {
-    if (cachedRef == null)
-      cachedRef = TString.loadString(region, t.loadField(region, offset, refIdx))
-    cachedRef
-  }
-
-  override def altAlleles(): IndexedSeq[AltAllele] = {
-    if (cachedAltAlleles == null) {
-      altAllelesView.setRegion(region, t.loadField(region, offset, altAllelesIdx))
-      val a = new Array[AltAllele](altAllelesView.length)
+  def alleles(): Array[String] = {
+    if (cachedAlleles == null) {
+      val nAlleles = taa.loadLength(region, allelesOffset)
+      cachedAlleles = new Array[String](nAlleles)
       var i = 0
-      while (i < altAllelesView.length) {
-        altAllelesView.set(i)
-        a(i) = altAllelesView.elementView.reify()
+      while (i < nAlleles) {
+        if (taa.isElementDefined(region, allelesOffset, i))
+         cachedAlleles(i) = TString.loadString(region, taa.loadElement(region, allelesOffset, i))
         i += 1
       }
-      cachedAltAlleles = a
     }
-    cachedAltAlleles
+    cachedAlleles
+  }
+
+  def locus(): Locus = {
+    if (cachedLocus == null) {
+      cachedLocus = new Locus(contig(), position())
+    }
+    cachedLocus
+  }
+
+  def variantObject(): Variant = {
+    Variant(contig(), position(), alleles()(0), alleles().tail)
   }
 }

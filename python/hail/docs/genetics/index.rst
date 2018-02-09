@@ -14,13 +14,10 @@ genetics
     :toctree: ./
     :template: class.rst
 
-    AltAllele
     Call
     GenomeReference
     Interval
     Locus
     Pedigree
     Trio
-    Variant
-    LDMatrix
     KinshipMatrix

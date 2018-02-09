@@ -9,7 +9,7 @@ import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Variant, MatrixTable}
+import is.hail.variant.{HardCallView, Locus, MatrixTable, RegionValueVariant, Variant}
 import org.apache.hadoop.io._
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
@@ -24,16 +24,19 @@ object LDMatrix {
   def apply(vds : MatrixTable, optForceLocal: Option[Boolean]): LDMatrix = {
     val maxEntriesForLocalProduct = 25e6 // 5000 * 5000
     
-    val nSamples = vds.nSamples
+    val nSamples = vds.numCols
 
-    val rowType = vds.rvRowType
+    val fullRowType = vds.rvRowType
 
-    val filteredNormalizedHardCalls = vds.rdd2.mapPartitions { it =>
-      val view = HardCallView(rowType)
+    val locusIdx = fullRowType.fieldIdx("locus")
+    val allelesIdx = fullRowType.fieldIdx("alleles")
+    val filteredNormalizedHardCalls = vds.rvd.mapPartitions { it =>
+      val view = HardCallView(fullRowType)
+      val rvv = new RegionValueVariant(fullRowType)
       it.flatMap { rv =>
-        val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
+        rvv.setRegion(rv)
         view.setRegion(rv)
-        RegressionUtils.normalizedHardCalls(view, nSamples).map(x => (v, x))
+        RegressionUtils.normalizedHardCalls(view, nSamples).map(x => (rvv.variantObject(), x))
       }
     }.persist()
 
@@ -68,7 +71,7 @@ object LDMatrix {
     val scaledIRM = new IndexedRowMatrix(irm.rows
       .map{case IndexedRow(idx, vec) => IndexedRow(idx, vec.map(d => d * nSamplesInverse))})
 
-    LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples, vds.vSignature.asInstanceOf[TVariant])
+    LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples, TVariant(vds.genomeReference))
   }
 
   def apply(vds: MatrixTable, forceLocal: Boolean = false): LDMatrix =

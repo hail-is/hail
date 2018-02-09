@@ -80,8 +80,6 @@ object TextTableReader {
   }
 
   val booleanRegex = """^([Tt]rue)|([Ff]alse)|(TRUE)|(FALSE)$"""
-  val variantRegex = """^.+:\d+:[ATGC]+:([ATGC]+|\*)(,([ATGC]+|\*))*$"""
-  val locusRegex = """^.+:\d+$"""
   val doubleRegex = """^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$"""
   val intRegex = """^-?\d+$"""
 
@@ -89,9 +87,9 @@ object TextTableReader {
     delimiter: String, missing: String, quote: java.lang.Character,
     gr: GenomeReference = GenomeReference.defaultReference): Array[Option[Type]] = {
     val nFields = header.length
-    val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
+    val regexes = Array(booleanRegex, intRegex, doubleRegex).map(Pattern.compile)
 
-    val regexTypes: Array[Type] = Array(TBoolean(), TVariant(gr), TLocus(gr), TInt32(), TFloat64())
+    val regexTypes: Array[Type] = Array(TBoolean(), TInt32(), TFloat64())
     val nRegex = regexes.length
 
     val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>

@@ -35,7 +35,7 @@ object ComputeRRM {
     info(s"rrm: Computing Realized Relationship Matrix...")
 
     val useBlock = (forceBlock, forceGramian) match {
-      case (false, false) => vds.nSamples > 3000 // for small matrices, computeGramian fits in memory and runs faster than BlockMatrix product
+      case (false, false) => vds.numCols > 3000 // for small matrices, computeGramian fits in memory and runs faster than BlockMatrix product
       case (true, true) => fatal("Cannot force both Block and Gramian")
       case (b, _) => b
     }
@@ -73,10 +73,10 @@ object LocalDenseMatrixToIndexedRowMatrix {
 // each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
 object ToNormalizedRowMatrix {
   def apply(vds: MatrixTable): RowMatrix = {
-    val n = vds.nSamples
+    val n = vds.numCols
 
     val rowType = vds.rvRowType
-    val rows = vds.rdd2.mapPartitions { it =>
+    val rows = vds.rvd.mapPartitions { it =>
       val view = HardCallView(rowType)
 
       it.flatMap { rv =>
@@ -93,15 +93,15 @@ object ToNormalizedRowMatrix {
 // each row has mean 0, norm sqrt(n), variance 1
 object ToNormalizedIndexedRowMatrix {
   def apply(vds: MatrixTable): IndexedRowMatrix = {
-    val n = vds.nSamples
+    val n = vds.numCols
 
     val partStarts = vds.partitionStarts()
 
-    assert(partStarts.length == vds.rdd2.getNumPartitions + 1)
+    assert(partStarts.length == vds.rvd.getNumPartitions + 1)
     val partStartsBc = vds.sparkContext.broadcast(partStarts)
 
     val rowType = vds.rvRowType
-    val indexedRows = vds.rdd2.mapPartitionsWithIndex { case (i, it) =>
+    val indexedRows = vds.rvd.mapPartitionsWithIndex { case (i, it) =>
       val view = HardCallView(rowType)
 
       val start = partStartsBc.value(i)

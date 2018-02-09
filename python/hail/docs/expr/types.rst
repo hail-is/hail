@@ -19,9 +19,7 @@ Types
     TArray
     TSet
     TDict
-    TVariant
     TCall
-    TAltAllele
     TLocus
     TInterval
     TStruct
@@ -39,9 +37,7 @@ Types
 .. autoclass:: TArray
 .. autoclass:: TSet
 .. autoclass:: TDict
-.. autoclass:: TVariant
 .. autoclass:: TCall
-.. autoclass:: TAltAllele
 .. autoclass:: TLocus
 .. autoclass:: TInterval
 .. autoclass:: TStruct

@@ -101,8 +101,6 @@ class Type(HistoryMixin):
             return TDict._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TStruct':
             return TStruct._from_java(jtype)
-        elif class_name == 'is.hail.expr.types.TVariant':
-            return TVariant._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TLocus':
             return TLocus._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TInterval':
@@ -694,103 +692,6 @@ class TStruct(Type):
     def _select(self, *identifiers):
         return TStruct._from_java(self._jtype.filter(jset(list(identifiers)), True)._1())
 
-
-class TVariant(Type):
-    """Hail type for a genomic variant with a coordinate and list of alleles.
-
-    In Python, these are represented by :class:`.Variant`.
-
-    Parameters
-    ----------
-    reference_genome: :class:`.GenomeReference`
-        Reference genome to use. Default is
-        :meth:`hail.default_reference`.
-    """
-
-    @record_init
-    @typecheck_method(reference_genome=nullable(genetics.GenomeReference),
-                      required=bool)
-    def __init__(self, reference_genome=None, required=False):
-        self._rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr.types, 'TVariant').apply(self._rg._jrep, required)
-        super(TVariant, self).__init__(jtype)
-
-    @classmethod
-    def _from_java(cls, jtype):
-        v = TVariant.__new__(cls)
-        v._jtype = jtype
-        v._rg = genetics.GenomeReference._from_java(jtype.gr())
-        v.required = jtype.required()
-        super(Type, v).__init__()
-        return v
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return genetics.Variant._from_java(annotation, self._rg)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
-        else:
-            return None
-
-    def _typecheck(self, annotation):
-        if annotation and not isinstance(annotation, genetics.Variant):
-            raise TypeCheckError('TVariant expected type hail.genetics.Variant, but found %s' %
-                                 type(annotation))
-
-    def _repr(self):
-        return "TVariant()"
-
-    @property
-    @record_property
-    def reference_genome(self):
-        """Reference genome.
-
-        Returns
-        -------
-        :class:`.GenomeReference`
-            Reference genome.
-        """
-        return self._rg
-
-
-class TAltAllele(Type):
-    """Hail type for a reference/alternate polymorphism.
-
-    In Python, these are represented by :class:`.AltAllele`.
-    """
-    __metaclass__ = InternType
-
-    @record_init
-    def __init__(self, required=False):
-        super(TAltAllele, self).__init__(scala_object(Env.hail().expr.types, 'TAltAllele').apply(required))
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return genetics.AltAllele._from_java(annotation)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
-        else:
-            return None
-
-    def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError('!TAltAllele cannot be missing')
-        if annotation and not isinstance(annotation, genetics.AltAllele):
-            raise TypeCheckError('TAltAllele expected type hail.genetics.AltAllele, but found %s' %
-                                 type(annotation))
-
-    def _repr(self):
-        return "TAltAllele()"
-
-
 class TCall(Type):
     """Hail type for a diploid genotype.
 
@@ -972,8 +873,6 @@ _intern_classes = {'is.hail.expr.types.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.types.TBooleanRequired$': (TBoolean, True),
                    'is.hail.expr.types.TStringOptional$': (TString, False),
                    'is.hail.expr.types.TStringRequired$': (TString, True),
-                   'is.hail.expr.types.TAltAlleleOptional$': (TAltAllele, False),
-                   'is.hail.expr.types.TAltAlleleRequired$': (TAltAllele, True),
                    'is.hail.expr.types.TCallOptional$': (TCall, False),
                    'is.hail.expr.types.TCallRequired$': (TCall, True)}
 

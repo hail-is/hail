@@ -90,7 +90,7 @@ def get_nice_attr_error(obj, item):
             dd[f.lower()].append(f)
 
         obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
-        methods = {x for x in obj_namespace if callable(cls.__dict__[x])}
+        methods = {x for x in obj_namespace if x in cls.__dict__ and callable(cls.__dict__[x])}
         props = obj_namespace - methods
 
         item_lower = item.lower()

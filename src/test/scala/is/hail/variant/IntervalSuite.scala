@@ -50,8 +50,8 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAll() {
-    val vds = MatrixTable.fromLegacy[Variant, Annotation](hc, MatrixFileMetadata(Array.empty[String]),
-      sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Annotation])))))
+    val vds = MatrixTable.fromLegacy[Annotation](hc, MatrixFileMetadata(Array.empty[String]),
+      sc.parallelize(Seq((Annotation(Variant("1", 100, "A", "T")), Iterable.empty[Annotation]))))
 
     val intervalFile = tmpDir.createTempFile("intervals")
     hadoopConf.writeTextFile(intervalFile) { out =>
@@ -62,8 +62,9 @@ class IntervalSuite extends SparkSuite {
       out.write("1\t50\t150\t+\tTHING5")
     }
 
-    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), expr = "va.foo = table.map(x => x.target)", product = true)
-        .variantsKT().query("va.map(x => x.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
+      .annotateVariantsExpr("foo = va.foo.map(x => x.target)")
+      .rowsTable().query("foo.collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testNew() {
@@ -131,13 +132,13 @@ class IntervalSuite extends SparkSuite {
   @Test def testAnnotateIntervalsAll() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .annotateVariantsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
-        expr = "va.annot = table.map(x => x.target)",
-        product = true)
+        "annot", product = true)
+      .annotateVariantsExpr("annot = va.annot.map(x => x.target)")
 
     val (t, q) = vds.queryVA("va.annot")
     assert(t == TArray(TString()))
 
-    vds.rdd.foreach { case (v1, (va, gs)) =>
+    vds.variantRDD.foreach { case (v1, (va, gs)) =>
       val v = v1.asInstanceOf[Variant]
       val a = q(va).asInstanceOf[IndexedSeq[String]].toSet
 
@@ -148,49 +149,6 @@ class IntervalSuite extends SparkSuite {
       else
         simpleAssert(a == Set())
     }
-  }
-
-  @Test def testFilter() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf", nPartitions = Some(4)).cache()
-    val iList = tmpDir.createTempFile("input", ".interval_list")
-    val tmp1 = tmpDir.createTempFile("output", ".tsv")
-
-    val startPos = 16050036 - 250000
-    val endPos = 17421565 + 250000
-    val intervalGen = for (start <- Gen.choose(startPos, endPos);
-      end <- Gen.choose(start, endPos))
-      yield Interval(Locus("22", start), Locus("22", end))
-    val intervalsGen = for (nIntervals <- Gen.choose(0, 10);
-      g <- Gen.buildableOfN[Array](nIntervals, intervalGen)) yield g
-
-    Prop.forAll(intervalsGen.filter(_.nonEmpty)) { intervals =>
-      hadoopConf.writeTextFile(iList) { out =>
-        intervals.foreach { i =>
-          out.write(s"22\t${ i.start.asInstanceOf[Locus].position }\t${ i.end.asInstanceOf[Locus].position }\n")
-        }
-      }
-
-      val localPOrd = pord
-
-      val vdsKeep = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = true)
-      val vdsRemove = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = false)
-
-      val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
-          intervals.exists(_.contains(localPOrd, v.asInstanceOf[Variant].locus))
-      }))
-
-      val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
-        intervals.forall(!_.contains(localPOrd, v.asInstanceOf[Variant].locus))
-      }))
-
-      val p = p1 && p2
-      if (!p)
-        println(
-          s"""ASSERTION FAILED
-            |  p1: $p1
-            |  p2: $p2""".stripMargin)
-      p
-    }.check()
   }
 
   @Test def testParser() {

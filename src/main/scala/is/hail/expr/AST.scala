@@ -440,6 +440,7 @@ case class GenomeReferenceDependentConstructor(posn: Position, fName: String, gr
     case "Variant" => gr.variantType
     case "Locus" => gr.locusType
     case "LocusInterval" => gr.intervalType
+    case "LocusAlleles" => TStruct("locus" -> gr.locusType, "alleles" -> TArray(TString()))
     case _ => throw new UnsupportedOperationException
   }
 

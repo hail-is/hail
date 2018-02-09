@@ -66,23 +66,20 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testToMatrixTable() {
-    forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateSamplesExpr("sa = {col_id: sa.s}").keyColsBy("col_id"))) { vds =>
-      var expr = ""
-      vds.genotypeSignature.fieldNames.foreachBetween { n =>
-        expr += n
-        expr += " = "
-        expr += n
-      } { expr += ", "}
-      val original = vds
-        .annotateVariantsExpr("va = {}")
-        .annotateGlobalExpr("global = {}")
-        .filterSamplesExpr("gs.exists(g => isDefined(g))")
-        .filterVariantsExpr("gs.exists(g => isDefined(g))")
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val gkt = vds.entriesTable()
 
-      val actual = vds.genotypeKT().toMatrixTable("v", "col_id", expr)
-        .reorderSamples(original.colKeys.toArray)
-      actual.same(original)
-    }.check()
+    val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
+      Array("s"),
+      vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
+      vds.colType.fieldNames.filter(_ != "s"),
+      Array("locus"))
+
+    val sampleOrder = vds.colKeys.toArray
+
+    assert(reVDS.rowsTable().same(vds.rowsTable()))
+    assert(reVDS.colsTable().same(vds.colsTable()))
+    assert(reVDS.reorderSamples(sampleOrder).same(vds))
   }
 
   @Test def testAnnotate() {
@@ -90,10 +87,10 @@ class TableSuite extends SparkSuite {
     val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
-    val kt4 = kt3.select(kt3.columns).keyBy("qPhen", "NotStatus")
+    val kt4 = kt3.select(kt3.fieldNames).keyBy("qPhen", "NotStatus")
 
-    val kt1columns = kt1.columns.toSet
-    val kt2columns = kt2.columns.toSet
+    val kt1columns = kt1.fieldNames.toSet
+    val kt2columns = kt2.fieldNames.toSet
 
     assert(kt1.nKeys == 1)
     assert(kt2.nKeys == 1)
@@ -103,7 +100,7 @@ class TableSuite extends SparkSuite {
     assert(kt2 same kt3)
 
     def getDataAsMap(kt: Table) = {
-      val columns = kt.columns
+      val columns = kt.fieldNames
       kt.rdd.map { a => columns.zip(a.toSeq).toMap }.collect().toSet
     }
 
@@ -111,7 +108,7 @@ class TableSuite extends SparkSuite {
     val kt4data = getDataAsMap(kt4)
 
     assert(kt4.key.toSet == Set("qPhen", "NotStatus") &&
-      kt4.columns.toSet -- kt4.key == Set("qPhen2", "X", "Sample", "Status") &&
+      kt4.fieldNames.toSet -- kt4.key == Set("qPhen2", "X", "Sample", "Status") &&
       kt3data == kt4data
     )
 
@@ -206,7 +203,7 @@ class TableSuite extends SparkSuite {
     val ktRight = hc.importTable(inputFile2, impute = true)
       .keyBy("Sample")
       .rename(Map("Sample" -> "sample"))
-    val ktBad = ktRight.select(ktRight.columns).keyBy("qPhen2")
+    val ktBad = ktRight.select(ktRight.fieldNames).keyBy("qPhen2")
 
     intercept[HailException] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
@@ -270,10 +267,10 @@ class TableSuite extends SparkSuite {
     kt.typeCheck()
 
     val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
-    assert(rename1.columns sameElements Array("ID1", "ID2", "ID3"))
+    assert(rename1.fieldNames sameElements Array("ID1", "ID2", "ID3"))
 
     val rename2 = kt.rename(Map("field1" -> "ID1"))
-    assert(rename2.columns sameElements Array("Sample", "ID1", "field2"))
+    assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
 
     intercept[HailException](kt.rename(Array("ID1")))
 
@@ -295,16 +292,16 @@ class TableSuite extends SparkSuite {
     kt.typeCheck()
 
     val select1 = kt.select("field1").keyBy("field1")
-    assert((select1.key sameElements Array("field1")) && (select1.columns sameElements Array("field1")))
+    assert((select1.key sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
     val select2 = kt.select("Sample", "field2", "field1").keyBy("Sample")
-    assert((select2.key sameElements Array("Sample")) && (select2.columns sameElements Array("Sample", "field2", "field1")))
+    assert((select2.key sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
     val select3 = kt.select("field2", "field1", "Sample").keyBy()
-    assert((select3.key sameElements Array.empty[String]) && (select3.columns sameElements Array("field2", "field1", "Sample")))
+    assert((select3.key sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
     val select4 = kt.select()
-    assert((select4.key sameElements Array.empty[String]) && (select4.columns sameElements Array.empty[String]))
+    assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
     val select5 = kt.select(Array("field3.*", "A = field1 + field2"), qualifiedName = true)
     assert(select5.signature == TStruct(("field3.A", TInt32()), ("field3.B", TString()), ("A", TInt32())))
@@ -332,21 +329,21 @@ class TableSuite extends SparkSuite {
     val kt = Table(hc, rdd, signature, Array("Sample"))
     kt.typeCheck()
     val drop0 = kt.drop(Array.empty[String])
-    assert((drop0.key sameElements Array("Sample")) && (drop0.columns sameElements Array("Sample", "field1", "field2")))
+    assert((drop0.key sameElements Array("Sample")) && (drop0.fieldNames sameElements Array("Sample", "field1", "field2")))
     val drop1 = kt.drop(Array("Sample"))
-    assert((drop1.key sameElements Array.empty[String]) && (drop1.columns sameElements Array("field1", "field2")))
+    assert((drop1.key sameElements Array.empty[String]) && (drop1.fieldNames sameElements Array("field1", "field2")))
     val drop2 = kt.drop(Array("field1", "field2"))
-    assert((drop2.key sameElements Array("Sample")) && (drop2.columns sameElements Array("Sample")))
+    assert((drop2.key sameElements Array("Sample")) && (drop2.fieldNames sameElements Array("Sample")))
     val drop3 = kt.drop(Array("Sample", "field1"))
-    assert((drop3.key sameElements Array.empty[String]) && (drop3.columns sameElements Array("field2")))
+    assert((drop3.key sameElements Array.empty[String]) && (drop3.fieldNames sameElements Array("field2")))
     val drop4 = kt.drop(Array("Sample", "field2"))
-    assert((drop4.key sameElements Array.empty[String]) && (drop4.columns sameElements Array("field1")))
+    assert((drop4.key sameElements Array.empty[String]) && (drop4.fieldNames sameElements Array("field1")))
     val drop5 = kt.drop(Array("Sample", "field1", "field2"))
-    assert((drop5.key sameElements Array.empty[String]) && (drop5.columns sameElements Array.empty[String]))
+    assert((drop5.key sameElements Array.empty[String]) && (drop5.fieldNames sameElements Array.empty[String]))
 
     val kt2 = Table(hc, rdd, signature, Array("field1", "field2"))
     val drop6 = kt2.drop(Array("field1"))
-    assert((drop6.key sameElements Array("field2")) && (drop6.columns sameElements Array("Sample", "field2")))
+    assert((drop6.key sameElements Array("field2")) && (drop6.fieldNames sameElements Array("Sample", "field2")))
 
     for (drop <- Array(drop0, drop1, drop2, drop3, drop4, drop5, drop6)) {
       drop.export(tmpDir.createTempFile("drop", "tsv"))
@@ -384,14 +381,13 @@ class TableSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
     val kt = vds
-      .variantsKT()
+      .rowsTable()
       .expandTypes()
       .flatten()
-      .select("`va.info.MQRankSum`")
+      .select("`info.MQRankSum`")
+      .copy2(globalSignature = TStruct.empty())
 
     val df = kt.toDF(sqlContext)
-    df.printSchema()
-    df.show()
     assert(Table.fromDF(hc, df).same(kt))
   }
 
@@ -399,12 +395,13 @@ class TableSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
     val kt = vds
-      .variantsKT()
-      .annotate("v = str(v), va.filters = va.filters.toArray()")
+      .rowsTable()
+      .annotate("locus = str(locus), alleles = str(alleles), filters = filters.toArray()")
       .flatten()
+      .copy2(globalSignature = TStruct.empty())
 
     val df = kt.toDF(sqlContext)
-    val kt2 = Table.fromDF(hc, df, key = Array("v"))
+    val kt2 = Table.fromDF(hc, df, key = Array("locus", "alleles"))
     assert(kt2.same(kt))
   }
 
@@ -433,20 +430,6 @@ class TableSuite extends SparkSuite {
     val ktCounter = kt.query("Status.counter()")._1.asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
-  }
-
-  @Test def test1725() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val kt = vds.annotateVariantsExpr("va.id = str(v)")
-      .variantsKT()
-      .flatten()
-      .select("v", "`va.id`")
-      .keyBy("va.id")
-
-    val kt2 = Table(hc, vds.variants.map(v => Row(v.toString, 5)),
-      TStruct("v" -> TString(), "value" -> TInt32()), Array("v"))
-
-    kt.join(kt2, "inner").toDF(sqlContext).count()
   }
 
   @Test def testKeyOrder() {

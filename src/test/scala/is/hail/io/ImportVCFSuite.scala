@@ -4,11 +4,12 @@ import is.hail.check.Prop._
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.io.vcf.{ExportVCF, LoadVCF}
-import is.hail.variant.{Call, Genotype, MatrixTable, VSMSubgen, Variant}
+import is.hail.variant.{Call, Genotype, Locus, MatrixTable, VSMSubgen, Variant}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
 import is.hail.testUtils._
+import org.apache.spark.sql.Row
 
 class ImportVCFSuite extends SparkSuite {
 
@@ -34,13 +35,6 @@ class ImportVCFSuite extends SparkSuite {
     assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
   }
 
-  @Test def symbolicOrSV() {
-    val vds = hc.importVCF("src/test/resources/symbolicVariant.vcf")
-    val n = vds.countVariants()
-
-    assert(n == 1)
-  }
-
   @Test def testGlob() {
     val n1 = hc.importVCF("src/test/resources/sample.vcf").countVariants()
     val n2 = hc.importVCF("src/test/resources/samplepart*.vcf").countVariants()
@@ -50,10 +44,10 @@ class ImportVCFSuite extends SparkSuite {
   @Test def testUndeclaredInfo() {
     val vds = hc.importVCF("src/test/resources/undeclaredinfo.vcf")
 
-    assert(vds.vaSignature.getOption("info").isDefined)
-    assert(vds.vaSignature.getOption("info", "undeclared").isEmpty)
-    assert(vds.vaSignature.getOption("info", "undeclaredFlag").isEmpty)
-    val infoQuerier = vds.vaSignature.query("info")
+    assert(vds.rowType.getOption("info").isDefined)
+    assert(vds.rowType.getOption("info", "undeclared").isEmpty)
+    assert(vds.rowType.getOption("info", "undeclaredFlag").isEmpty)
+    val infoQuerier = vds.rowType.query("info")
 
     val anno = vds
       .rdd
@@ -80,8 +74,8 @@ class ImportVCFSuite extends SparkSuite {
       .map { case (v, s, g) => ((v, s), g) }
       .toMap
 
-    val v1 = Variant("X", 16050036, "A", "C")
-    val v2 = Variant("X", 16061250, "T", Array("A", "C"))
+    val v1 = Row(Locus("X", 16050036), IndexedSeq("A", "C"))
+    val v2 = Row(Locus("X", 16061250), IndexedSeq("T", "A", "C"))
 
     val s1 = "C1046::HG02024"
     val s2 = "C1046::HG02025"
@@ -128,8 +122,8 @@ class ImportVCFSuite extends SparkSuite {
     val gds2 = hc.importVCF(vcf2, callFields = Set("GT", "GTA", "GTZ"))
     gds2.write(path2)
 
-    val v1 = Variant("X", 16050036, "A", "C")
-    val v2 = Variant("X", 16061250, "T", Array("A", "C"))
+    val v1 = Row(Locus("X", 16050036), IndexedSeq("A", "C"))
+    val v2 = Row(Locus("X", 16061250), IndexedSeq("T", "A", "C"))
 
     val s1 = "C1046::HG02024"
     val s2 = "C1046::HG02025"
@@ -166,15 +160,15 @@ class ImportVCFSuite extends SparkSuite {
   @Test def testMissingInfo() {
     val vds = hc.importVCF("src/test/resources/missingInfoArray.vcf")
 
-    val variants = vds.queryVariants("variants.collect()")._1.asInstanceOf[IndexedSeq[Variant]]
+    val variants = vds.queryVariants("variants.map(_ => va.locus).collect()")._1.asInstanceOf[IndexedSeq[Locus]]
     val foo = vds.queryVariants("variants.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
     val bar = vds.queryVariants("variants.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
 
     val vMap = (variants, foo, bar).zipped.map { case (v, f, b) => (v, (f, b)) }.toMap
 
     assert(vMap == Map(
-      Variant("X", 16050036, "A", "C") -> (IndexedSeq(1, null), IndexedSeq(2, null, null)),
-      Variant("X", 16061250, "T", Array("A", "C")) -> (IndexedSeq(null, 2, null), IndexedSeq(null, 1.0, null))
+      Locus("X", 16050036) -> (IndexedSeq(1, null), IndexedSeq(2, null, null)),
+      Locus("X", 16061250) -> (IndexedSeq(null, 2, null), IndexedSeq(null, 1.0, null))
     ))
   }
 

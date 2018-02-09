@@ -14,7 +14,7 @@ object PCRelateReferenceImplementation {
       (i, a.map { case Some(v) => v.toDouble ; case None => mean })
     }.collect().sortBy(_._1).flatMap(_._2)
 
-    val mat = new DenseMatrix[Double](vds.nSamples, vds.countVariants().toInt, gts)
+    val mat = new DenseMatrix[Double](vds.numCols, vds.countVariants().toInt, gts)
 
     val (foo, ibs0, mu_si) = forMatrices(mat, new DenseMatrix[Double](pcs.rows, pcs.cols, pcs.toArray), maf=0.01)
 

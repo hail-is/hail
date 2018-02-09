@@ -23,10 +23,10 @@ class gqDpStatsSuite extends SparkSuite {
     // DP test first
     val dpVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray = Some(arr), gqArray = None)
     val dpVariantR = VariantQC(dpVds
-      .filterVariantsExpr("v.isBiallelic"))
-      .variantsKT()
-      .query(Array("index(v.map(v => {v: v, dpMean: va.qc.dpMean, dpStDev: va.qc.dpStDev}).collect(), v)"))
-      .apply(0)._1.asInstanceOf[Map[Variant, Row]]
+      .filterVariantsExpr("va.alleles.length() == 2"))
+      .rowsTable()
+      .query(Array("index(locus.map(v => {pos: locus.position - 1, dpMean: qc.dpMean, dpStDev: qc.dpStDev}).collect(), pos)"))
+      .apply(0)._1.asInstanceOf[Map[Int, Row]]
 
     val dpSampleR = dpVds.stringSampleIds.zip(SampleQC.results(dpVds)).toMap
 
@@ -37,8 +37,8 @@ class gqDpStatsSuite extends SparkSuite {
         //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(mean.asInstanceOf[Double], variantMeans(v.asInstanceOf[Variant].start - 1), stdev
         //          .asInstanceOf[Double], variantDevs(v.asInstanceOf[Variant].start - 1)))
 
-        simpleAssert(D_==(mean.asInstanceOf[Double], variantMeans(v.asInstanceOf[Variant].start - 1)))
-        simpleAssert(D_==(stdev.asInstanceOf[Double], variantDevs(v.asInstanceOf[Variant].start - 1)))
+        simpleAssert(D_==(mean.asInstanceOf[Double], variantMeans(v)))
+        simpleAssert(D_==(stdev.asInstanceOf[Double], variantDevs(v)))
     }
 
     dpSampleR.foreach {
@@ -51,18 +51,18 @@ class gqDpStatsSuite extends SparkSuite {
     // now test GQ
     val gqVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray = None, gqArray = Some(arr))
     val gqVariantR = VariantQC(gqVds
-      .filterVariantsExpr("v.isBiallelic"))
-      .variantsKT()
-      .query(Array("index(v.map(v => {v: v, gqMean: va.qc.gqMean, gqStDev: va.qc.gqStDev}).collect(), v)"))
-      .apply(0)._1.asInstanceOf[Map[Variant, Row]]
+      .filterVariantsExpr("va.alleles.length() == 2"))
+      .rowsTable()
+      .query(Array("index(locus.map(v => {pos: locus.position - 1, gqMean: qc.gqMean, gqStDev: qc.gqStDev}).collect(), pos)"))
+      .apply(0)._1.asInstanceOf[Map[Int, Row]]
     val gqSampleR = gqVds.stringSampleIds.zip(SampleQC.results(gqVds)).toMap
 
     gqVariantR.foreach {
       case (v, Row(mean, stdev)) =>
         //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(mean.asInstanceOf[Double], variantMeans(v.asInstanceOf[Variant].start - 1), stdev
         //          .asInstanceOf[Double], variantDevs(v.asInstanceOf[Variant].start - 1)))
-        simpleAssert(D_==(mean.asInstanceOf[Double], variantMeans(v.asInstanceOf[Variant].start - 1)))
-        simpleAssert(D_==(stdev.asInstanceOf[Double], variantDevs(v.asInstanceOf[Variant].start - 1)))
+        simpleAssert(D_==(mean.asInstanceOf[Double], variantMeans(v)))
+        simpleAssert(D_==(stdev.asInstanceOf[Double], variantDevs(v)))
     }
 
     gqSampleR.foreach {

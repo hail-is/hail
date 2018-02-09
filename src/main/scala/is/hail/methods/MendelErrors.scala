@@ -10,16 +10,18 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
+case class MendelError(contig: String, position: Int, alleles: IndexedSeq[String], trio: CompleteTrio, code: Int,
   gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType) {
+  val ref = alleles(0)
+  val alt = alleles(1)
 
-  def gtString(v: Variant, gt: GenotypeType): String =
+  def gtString(gt: GenotypeType): String =
     if (gt == HomRef)
-      v.ref + "/" + v.ref
+      ref + "/" + ref
     else if (gt == Het)
-      v.ref + "/" + v.alt
+      ref + "/" + alt
     else if (gt == HomVar)
-      v.alt + "/" + v.alt
+      alt + "/" + alt
     else
       "./."
 
@@ -29,40 +31,51 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else if (code == 4 || code == 7 || code == 9 || code == 10) Iterator(trio.kid, trio.knownMom)
     else Iterator(trio.kid)
   }
-    .map((_, (1L, if (variant.altAllele.isSNP) 1L else 0L)))
+    .map((_, (1L, if (AltAlleleMethods.isSNP(alleles(0), alleles(1))) 1L else 0L)))
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
-    val v = variant
     val t = trio
-    t.fam.getOrElse("0") + "\t" + t.kid + "\t" + v.contig + "\t" +
-      v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + code + "\t" + errorString
+    val sb = new StringBuilder()
+    sb.append(t.fam.getOrElse("0"))
+    sb.append('\t')
+    sb.append(t.kid)
+    sb.append('\t')
+    sb.append(contig)
+    sb.append('\t')
+    sb.append(Variant.variantID(contig, position, alleles))
+    sb.append('\t')
+    sb.append(code)
+    sb.append('\t')
+    sb.append(errorString)
+    sb.result()
   }
 
   def errorString: String =
-    gtString(variant, gtDad) + " x " + gtString(variant, gtMom) + " -> " + gtString(variant, gtKid)
+    s"${ gtString(gtDad) } x ${ gtString(gtMom) } -> ${ gtString(gtKid) }"
 }
 
 object MendelErrors {
 
   def getCode(probandGt: Int, motherGt: Int, fatherGt: Int, copyState: CopyState): Int =
     (fatherGt, motherGt, probandGt, copyState) match {
-    case (0, 0, 1, Auto)  => 2  // Kid is Het
-    case (2, 2, 1, Auto)  => 1
-    case (0, 0, 2, Auto)  => 5  // Kid is HomVar
-    case (0, _, 2, Auto)  => 3
-    case (_, 0, 2, Auto)  => 4
-    case (2, 2, 0, Auto)  => 8  // Kid is HomRef
-    case (2, _, 0, Auto)  => 6
-    case (_, 2, 0, Auto)  => 7
-    case (_, 2, 0, HemiX) => 9  // Kid is hemizygous
-    case (_, 0, 2, HemiX) => 10
-    case (2, _, 0, HemiY) => 11
-    case (0, _, 2, HemiY) => 12
-    case _ => 0 // No error
-  }
+      case (0, 0, 1, Auto) => 2 // Kid is Het
+      case (2, 2, 1, Auto) => 1
+      case (0, 0, 2, Auto) => 5 // Kid is HomVar
+      case (0, _, 2, Auto) => 3
+      case (_, 0, 2, Auto) => 4
+      case (2, 2, 0, Auto) => 8 // Kid is HomRef
+      case (2, _, 0, Auto) => 6
+      case (_, 2, 0, Auto) => 7
+      case (_, 2, 0, HemiX) => 9 // Kid is hemizygous
+      case (_, 0, 2, HemiX) => 10
+      case (2, _, 0, HemiY) => 11
+      case (0, _, 2, HemiY) => 12
+      case _ => 0 // No error
+    }
 
   def apply(vds: MatrixTable, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
     vds.requireUniqueSamples("mendel_errors")
+    vds.requireRowKeyVariant("mendel_errors")
 
     val grLocal = vds.genomeReference
 
@@ -73,28 +86,31 @@ object MendelErrors {
       warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: sex of child is missing.")
 
     val trioMatrix = vds.trioMatrix(Pedigree(trios), completeTrios = true)
-    val rowType = trioMatrix.rvRowType
-    val nTrios = trioMatrix.nSamples
+    val fullRowType = trioMatrix.rvRowType
+    val nTrios = trioMatrix.numCols
 
     val sc = vds.sparkContext
     val triosBc = sc.broadcast(trios)
     // all trios have defined sex, see filter above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
-    new MendelErrors(vds.hc, vds.vSignature, trios, vds.stringSampleIds,
-      trioMatrix.rdd2.mapPartitions { it =>
-        val view = new HardcallTrioGenotypeView(rowType, "GT")
+    val localRowType = vds.rowType
+    new MendelErrors(vds.hc, vds.rowKeyStruct, trios, vds.stringSampleIds,
+      trioMatrix.rvd.mapPartitions { it =>
+        val view = new HardcallTrioGenotypeView(fullRowType, "GT")
+        val variantView = new RegionValueVariant(localRowType)
         it.flatMap { rv =>
           view.setRegion(rv)
-          val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
+          variantView.setRegion(rv)
           Iterator.range(0, nTrios).flatMap { i =>
             view.setGenotype(i)
             val probandGt = if (view.hasProbandGT) view.getProbandGT else -1
             val motherGt = if (view.hasMotherGT) view.getMotherGT else -1
             val fatherGt = if (view.hasFatherGT) view.getFatherGT else -1
-            val code = getCode(probandGt, motherGt, fatherGt, v.copyState(trioSexBc.value(i), grLocal))
+            val code = getCode(probandGt, motherGt, fatherGt, grLocal.copyState(trioSexBc.value(i), Locus(variantView.contig(), variantView.position())))
             if (code != 0)
-              Some(MendelError(v, triosBc.value(i), code,
+              Some(MendelError(variantView.contig(), variantView.position(), variantView.alleles(),
+                triosBc.value(i), code,
                 GenotypeType(probandGt), GenotypeType(fatherGt), GenotypeType(motherGt)))
             else
               None
@@ -106,7 +122,7 @@ object MendelErrors {
   }
 }
 
-case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteTrio],
+case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[CompleteTrio],
   sampleIds: IndexedSeq[String],
   mendelErrors: RDD[MendelError]) {
 
@@ -114,16 +130,16 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
   private val trioFam = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
   private val nuclearFams = Pedigree.nuclearFams(trios)
 
-  def nErrorPerVariant: RDD[(Variant, Int)] = {
+  def nErrorPerVariant: RDD[(Row, Int)] = {
     mendelErrors
-      .map(_.variant)
+      .map(me => Row(Locus(me.contig, me.position), me.alleles))
       .countByValueRDD()
   }
 
   def nErrorPerNuclearFamily: RDD[((String, String), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((me.trio.knownDad, me.trio.knownMom), (1, if (me.variant.altAllele.isSNP) 1 else 0)))
+      .map(me => ((me.trio.knownDad, me.trio.knownMom), (1, if (AltAlleleMethods.isSNP(me.ref, me.alt)) 1 else 0)))
       .union(parentsRDD.map((_, (0, 0))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
@@ -140,13 +156,15 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
     val signature = TStruct(
       "fam_id" -> TString(),
       "s" -> TString(),
-      "v" -> vSig,
+      "locus" -> vSig.fieldType(0),
+      "alleles" -> vSig.fieldType(1),
       "code" -> TInt32(),
       "error" -> TString())
 
-    val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, e.variant, e.code, e.errorString) }
+    val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, Locus(e.contig, e.position),
+      e.alleles, e.code, e.errorString) }
 
-    Table(hc, rdd, signature, Array("s", "v"))
+    Table(hc, rdd, signature, Array("s", "locus", "alleles"))
   }
 
   def fMendelKT(): Table = {
@@ -193,12 +211,13 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
   def lMendelKT(): Table = {
     val signature = TStruct(
-      "v" -> vSig,
+      "locus" -> vSig.fieldType(0),
+      "alleles" -> vSig.fieldType(1),
       "errors" -> TInt32()
     )
 
-    val rdd = nErrorPerVariant.map { case (v, l) => Row(v, l.toInt) }
+    val rdd = nErrorPerVariant.map { case (v, l) => Row(v.getAs[Locus](0), v.getAs[IndexedSeq[String]](1), l.toInt) }
 
-    Table(hc, rdd, signature, Array("v"))
+    Table(hc, rdd, signature, Array("locus", "alleles"))
   }
 }

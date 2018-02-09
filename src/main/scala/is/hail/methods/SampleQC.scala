@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, Genotype, HTSGenotypeView, MatrixTable, Variant}
+import is.hail.variant.{AltAlleleMethods, AltAlleleType, Genotype, HTSGenotypeView, MatrixTable, RegionValueVariant, Variant}
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
@@ -36,18 +36,22 @@ object SampleQCCombiner {
   val del = 3
   val star = 4
 
-  def alleleIndices(v: Variant): Array[Int] = {
-    val alleleTypes = v.altAlleles.map { a =>
-      a.altAlleleType match {
-        case AltAlleleType.SNP => if (a.isTransition) ti else tv
+  def alleleIndices(rvv: RegionValueVariant): Array[Int] = {
+    val alleles = rvv.alleles()
+    assert(alleles.length >= 2)
+    val a = new Array[Int](alleles.length - 1)
+    var i = 0
+    while (i < a.length) {
+      a(i) = AltAlleleMethods.altAlleleType(alleles(0), alleles(i + 1)) match {
+        case AltAlleleType.SNP => if (AltAlleleMethods.isTransition(alleles(0), alleles(i + 1))) ti else tv
         case AltAlleleType.Insertion => ins
         case AltAlleleType.Deletion => del
         case AltAlleleType.Star => star
         case _ => -1
       }
-    }.toArray
-
-    alleleTypes
+      i += 1
+    }
+    a
   }
 }
 
@@ -159,62 +163,63 @@ class SampleQCCombiner extends Serializable {
 object SampleQC {
   def results(vsm: MatrixTable): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
-    val rowType = vsm.rvRowType
-    val nSamples = vsm.nSamples
-    if (vsm.rdd2.partitions.nonEmpty)
-      vsm.rdd2
-          .mapPartitions { it =>
-            val view = HTSGenotypeView(rowType)
-            val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
+    val rvRowType = vsm.rvRowType
+    val localEntriesIndex = vsm.entriesIndex
+    val nSamples = vsm.numCols
+    if (vsm.rvd.partitions.nonEmpty)
+      vsm.rvd
+        .mapPartitions { it =>
+          val view = HTSGenotypeView(rvRowType)
+          val rvv = new RegionValueVariant(rvRowType)
+          val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
 
-            it.foreach { rv =>
-              view.setRegion(rv)
-              val v = Variant.fromRegionValue(rv.region,
-                rowType.loadField(rv, 1))
-              val ais = SampleQCCombiner.alleleIndices(v)
-              val acs = Array.fill(v.asInstanceOf[Variant].nAlleles)(0)
+          it.foreach { rv =>
+            view.setRegion(rv)
+            rvv.setRegion(rv)
+            val ais = SampleQCCombiner.alleleIndices(rvv)
+            val acs = Array.fill(rvv.alleles().length)(0)
 
-              // first pass to compute allele counts
-              var i = 0
-              while (i < nSamples) {
-                view.setGenotype(i)
+            // first pass to compute allele counts
+            var i = 0
+            while (i < nSamples) {
+              view.setGenotype(i)
 
-                if (view.hasGT) {
-                  val gt = view.getGT
-                  val gtPair = Genotype.gtPair(gt)
-                  acs(gtPair.j) += 1
-                  acs(gtPair.k) += 1
-                }
-
-                i += 1
+              if (view.hasGT) {
+                val gt = view.getGT
+                val gtPair = Genotype.gtPair(gt)
+                acs(gtPair.j) += 1
+                acs(gtPair.k) += 1
               }
 
-              // second pass to add to sample statistics
-              i = 0
-              while (i < nSamples) {
-                view.setGenotype(i)
-                acc(i).merge(ais, acs, view)
-                i += 1
-              }
+              i += 1
             }
 
-            Iterator.single(acc)
-          }.treeReduce({ case (accs1, accs2) =>
-          assert(accs1.length == accs2.length)
-          var i = 0
-          while (i < accs1.length) {
-            accs1(i) = accs1(i).merge(accs2(i))
-            i += 1
+            // second pass to add to sample statistics
+            i = 0
+            while (i < nSamples) {
+              view.setGenotype(i)
+              acc(i).merge(ais, acs, view)
+              i += 1
+            }
           }
-          accs1
-        }, depth)
+
+          Iterator.single(acc)
+        }.treeReduce({ case (accs1, accs2) =>
+        assert(accs1.length == accs2.length)
+        var i = 0
+        while (i < accs1.length) {
+          accs1(i) = accs1(i).merge(accs2(i))
+          i += 1
+        }
+        accs1
+      }, depth)
     else
       Array.fill(nSamples)(new SampleQCCombiner)
   }
 
-  def apply(vsm: MatrixTable, root: String = "sa.qc"): MatrixTable = {
+  def apply(vsm: MatrixTable, root: String = "qc"): MatrixTable = {
     vsm.requireRowKeyVariant("sample_qc")
     val r = results(vsm).map(_.asAnnotation)
-    vsm.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
+    vsm.annotateSamples(SampleQCCombiner.signature, List(root), r)
   }
 }

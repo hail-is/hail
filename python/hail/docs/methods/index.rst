@@ -13,7 +13,6 @@ Methods
     hail.methods.sample_rows
     hail.methods.sample_qc
     hail.methods.variant_qc
-    hail.methods.ld_matrix
     hail.methods.trio_matrix
     hail.methods.grm
     hail.methods.rrm
@@ -55,7 +54,6 @@ Methods
 .. autofunction:: hail.methods.sample_rows
 .. autofunction:: hail.methods.sample_qc
 .. autofunction:: hail.methods.variant_qc
-.. autofunction:: hail.methods.ld_matrix
 .. autofunction:: hail.methods.trio_matrix
 .. autofunction:: hail.methods.grm
 .. autofunction:: hail.methods.rrm

@@ -11,7 +11,7 @@ import org.apache.spark.SparkContext
 
 import scala.collection.mutable
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))])
+case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext, gr: GenomeReference,
@@ -30,8 +30,6 @@ object GenLoader {
         readGenLine(l, nSamples, tolerance, gr, chromosome, contigRecoding)
       }.value)
 
-    val signatures = TStruct("rsid" -> TString(), "varid" -> TString())
-
     GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
   }
 
@@ -39,7 +37,7 @@ object GenLoader {
     tolerance: Double,
     gr: GenomeReference,
     chromosome: Option[String] = None,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): (Annotation, (Annotation, Iterable[Annotation])) = {
+    contigRecoding: Map[String, String] = Map.empty[String, String]): (Annotation, Iterable[Annotation]) = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
@@ -80,8 +78,8 @@ object GenLoader {
       gsb += a
     }
 
-    val annotations = Annotation(rsid, varid)
+    val annotations = Annotation(variant, rsid, varid)
 
-    (variant: Annotation, (annotations, gsb.result()))
+    (annotations, gsb.result())
   }
 }
