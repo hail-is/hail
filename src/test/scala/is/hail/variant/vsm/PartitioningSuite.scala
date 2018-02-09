@@ -29,7 +29,7 @@ class PartitioningSuite extends SparkSuite {
 
       vds.typecheck()
       val orig = vds.coalesce(nPar)
-        orig.write(out)
+      orig.write(out)
       val problem = hc.readVDS(out)
 
       hc.readVDS(out).annotateVariantsExpr("va = va").countVariants()

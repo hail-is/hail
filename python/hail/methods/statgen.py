@@ -2774,7 +2774,7 @@ class FilterAlleles(object):
         newPL = functions.cond(
             functions.is_defined(ds.PL),
             (functions.range(0, functions.triangle(self.new_alleles.length()))
-             .map(lambda newi: (functions.range(0, ds.v.num_genotypes())
+             .map(lambda newi: (functions.range(0, functions.triangle(ds.alleles.length()))
                                 .filter(lambda oldi: functions.bind(
                                     functions.call(oldi),
                                     lambda oldc: functions.gt_index(self.old_to_new[oldc.gtj()],

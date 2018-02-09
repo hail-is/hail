@@ -1267,22 +1267,23 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val dropSet = fields.toSet
     val allRowFields = rowType.fieldNames.toSet
     assert(fields.forall(allRowFields.contains))
+    assert(!dropSet.contains(MatrixType.entriesIdentifier))
 
-    val keepIndices = rowType.fields
+    // treat the entries like any other field
+    val keepIndices = rvRowType.fields
       .filter(f => !dropSet.contains(f.name))
       .map(f => f.index)
       .toArray
-    val newRowType = TStruct(keepIndices.map(rowType.fields(_)).map(f => f.name -> f.typ): _*)
+    val newRVType = TStruct(keepIndices.map(rvRowType.fields(_)).map(f => f.name -> f.typ): _*)
 
     val localRVType = rvRowType
     val localEntriesIndex = entriesIndex
     val newRowKey = rowKey.filter(f => !dropSet.contains(f))
     val newPartitionKey = rowPartitionKey.filter(f => !dropSet.contains(f))
     val touchesKeys = newRowKey != rowKey
-    val newMatrixType = matrixType.copyParts(rowType = newRowType,
+    val newMatrixType = matrixType.copy(rvRowType = newRVType,
       rowKey = newRowKey,
       rowPartitionKey = newPartitionKey)
-    val newRVType = newMatrixType.rvRowType
 
     // FIXME: replace with physical type
     val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
@@ -1297,7 +1298,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           rvb.addField(localRVType, rv, keepIndices(i))
           i += 1
         }
-        rvb.addField(localRVType, rv, localEntriesIndex)
         rvb.endStruct()
         rv2.set(rv.region, rvb.end())
         rv2
@@ -2143,10 +2143,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     if (!metadataSame)
       println("metadata were not the same")
 
-    val localRVType = rvRowType
-    assert(localRVType == that.rvRowType)
+    val leftRVType = rvRowType
+    val rightRVType = that.rvRowType
     val localRowType = rowType
-    val localEntriesIndex = entriesIndex
+    val localLeftEntriesIndex = entriesIndex
+    val localRightEntriesIndex = that.entriesIndex
     val localEntryType = entryType
     val localRKF = rowKeysF
     val localColKeys = colKeys
@@ -2158,8 +2159,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
           that.rvd.rdd)
           .rdd) { (it1, it2) =>
-        val fullRow1 = new UnsafeRow(localRVType)
-        val fullRow2 = new UnsafeRow(localRVType)
+        val fullRow1 = new UnsafeRow(leftRVType)
+        val fullRow2 = new UnsafeRow(rightRVType)
         var partSame = true
         while (it1.hasNext && it2.hasNext) {
           val rv1 = it1.next()
@@ -2167,8 +2168,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
           fullRow1.set(rv1)
           fullRow2.set(rv2)
-          val row1 = fullRow1.delete(localEntriesIndex)
-          val row2 = fullRow2.delete(localEntriesIndex)
+          val row1 = fullRow1.delete(localLeftEntriesIndex)
+          val row2 = fullRow2.delete(localRightEntriesIndex)
 
           if (!localRowType.valuesSimilar(row1, row2, tolerance)) {
             println(
@@ -2178,8 +2179,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
             partSame = false
           }
 
-          val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-          val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+          val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
+          val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
 
           var i = 0
           while (partSame && i < gs1.length) {

@@ -524,17 +524,17 @@ class Tests(unittest.TestCase):
 
     def test_filter_alleles(self):
         # poor man's Gen
-        paths = ['src/test/resources/sample.vcf',
-                 'src/test/resources/multipleChromosomes.vcf',
-                 'src/test/resources/sample2.vcf']
+        paths = [test_file('sample.vcf'),
+                 test_file('multipleChromosomes.vcf'),
+                 test_file('sample2.vcf')]
         for path in paths:
             ds = methods.import_vcf(path)
             self.assertEqual(
-                methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: False))
+                methods.FilterAlleles(functions.range(0, ds.alleles.length() - 1).map(lambda i: False))
                     .filter()
                     .count_rows(), 0)
             self.assertEqual(
-                methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: True))
+                methods.FilterAlleles(functions.range(0, ds.alleles.length() - 1).map(lambda i: True))
                     .filter()
                     .count_rows(), ds.count_rows())
 
@@ -542,12 +542,12 @@ class Tests(unittest.TestCase):
         # 1 variant: A:T,G
         ds = methods.import_vcf(test_file('filter_alleles/input.vcf'))
 
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "T"))
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "T"))
         fa.subset_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/keep_allele1_subset.vcf'))._same(fa.filter()))
 
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
         # test fa.annotate_rows
         fa.annotate_rows(new_to_old = fa.new_to_old)
         fa.subset_entries_hts()
@@ -557,12 +557,12 @@ class Tests(unittest.TestCase):
              ._same(fa.filter())))
 
         # also test keep=False
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"), keep=False)
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"), keep=False)
         fa.downcode_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/keep_allele1_downcode.vcf'))._same(fa.filter()))
 
-        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa = methods.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
         fa.downcode_entries_hts()
         self.assertTrue(
             methods.import_vcf(test_file('filter_alleles/keep_allele2_downcode.vcf'))._same(fa.filter()))
