@@ -373,7 +373,7 @@ class Tests(unittest.TestCase):
         ds1 = methods.split_multi_hts(ds1)
         ds2 = methods.import_vcf(test_file('split_test_b.vcf'))
         df = ds1.rows_table()
-        self.assertTrue(df.forall((df.locus.position == 1180) | df.wasSplit))
+        self.assertTrue(df.forall((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
         # required python3
         # self.assertTrue(ds1._same(ds2))
