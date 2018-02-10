@@ -114,9 +114,10 @@ class SplitMultiPartitionContext(
         rvb.start(newRVRowType)
         rvb.startStruct()
 
-        val laj = svj.toLocusAlleles
+        val newLocus = svj.locus
+        val newAlleles = svj.alleles
 
-        vAnnotator.ec.setAll(globalAnnotation, laj, row, i, wasSplit)
+        vAnnotator.ec.setAll(globalAnnotation, newLocus, newAlleles, row, i, wasSplit)
         val newRow = allelesInserter(
           locusInserter(
             vAnnotator.insert(row),
@@ -130,11 +131,11 @@ class SplitMultiPartitionContext(
         }
 
         rvb.startArray(nSamples) // gs
-        gAnnotator.ec.setAll(globalAnnotation, laj, row, i, wasSplit)
+        gAnnotator.ec.setAll(globalAnnotation, newLocus, newAlleles, row, i, wasSplit)
         var k = 0
         while (k < nSamples) {
           val g = gs(k)
-          gAnnotator.ec.set(5, g)
+          gAnnotator.ec.set(6, g)
           rvb.addAnnotation(gAnnotator.newT, gAnnotator.insert(g))
           k += 1
         }
@@ -183,19 +184,21 @@ object SplitMulti {
 class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalType),
-    "newV" -> (1, vsm.rowKeyStruct),
-    "va" -> (2, vsm.rowType),
-    "aIndex" -> (3, TInt32()),
-    "wasSplit" -> (4, TBoolean())))
+    "newLocus" -> (1, vsm.rowKeyStruct.fieldType(0)),
+    "newAlleles" -> (2, vsm.rowKeyStruct.fieldType(1)),
+    "va" -> (3, vsm.rowType),
+    "aIndex" -> (4, TInt32()),
+    "wasSplit" -> (5, TBoolean())))
   val vAnnotator = new ExprAnnotator(vEC, vsm.rowType, variantExpr, Some(Annotation.VARIANT_HEAD))
 
   val gEC = EvalContext(Map(
     "global" -> (0, vsm.globalType),
-    "newV" -> (1, vsm.rowKeyStruct),
-    "va" -> (2, vsm.rowType),
-    "aIndex" -> (3, TInt32()),
-    "wasSplit" -> (4, TBoolean()),
-    "g" -> (5, vsm.entryType)))
+    "newLocus" -> (1, vsm.rowKeyStruct.fieldType(0)),
+    "newAlleles" -> (2, vsm.rowKeyStruct.fieldType(1)),
+    "va" -> (3, vsm.rowType),
+    "aIndex" -> (4, TInt32()),
+    "wasSplit" -> (5, TBoolean()),
+    "g" -> (6, vsm.entryType)))
   val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 
   val newMatrixType = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = gAnnotator.newT)

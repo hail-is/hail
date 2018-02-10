@@ -2055,7 +2055,7 @@ hint: Use `split_multi` to split entries with a non-HTS genotype schema.
     sm = SplitMulti(ds)
     pl = f.or_missing(
         f.is_defined(ds.PL),
-        (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
+        (f.range(0, 3).map(lambda i: (f.range(0, functions.triangle(ds.alleles.length()))
                                       .filter(lambda j: f.downcode(f.call(j), sm.a_index()) == f.call(i))
                                       .map(lambda j: ds.PL[j])
                                       .min()))))

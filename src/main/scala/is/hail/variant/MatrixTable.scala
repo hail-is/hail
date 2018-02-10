@@ -1099,12 +1099,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       rowPartitionKeyTypes.length == 1 &&
       keyTypes(0) == TInterval(rowPartitionKeyTypes(0))) {
       annotateVariantsIntervalTable(kt, root, product)
-    }
-    //      case `rowPartitionKeyTypes` =>
-    //        annotateVariantsLocusTable(kt, product, newRowType,  valueType, inserter)
-    //      case Array(TInterval(`locusType`, _)) =>
-    //        annotateVariantsIntervalTable(kt, product, newRowType,  valueType, inserter)
-    else {
+    } else {
       fatal(
         s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
            |  [ ${ rowKeyTypes.mkString(", ") } ]
