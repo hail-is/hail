@@ -71,7 +71,7 @@ doctest_global_setup = setup_str
 
 doctest_global_cleanup = """import shutil, os
 
-stop()
+hl.stop()
 
 if os.path.isdir("output/"):
     shutil.rmtree("output/")
