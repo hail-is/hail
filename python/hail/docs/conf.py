@@ -71,15 +71,13 @@ doctest_global_setup = setup_str
 
 doctest_global_cleanup = """import shutil, os
 
-hl.stop()
-
-if os.path.isdir("output/"):
-    shutil.rmtree("output/")
-
-files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-for f in files:
-    if os.path.isdir(f):
-        shutil.rmtree(f)
+# if os.path.isdir("output/"):
+#     shutil.rmtree("output/")
+# 
+# files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
+# for f in files:
+#     if os.path.isdir(f):
+#         shutil.rmtree(f)
 
 """
 

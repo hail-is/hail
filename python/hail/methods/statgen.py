@@ -609,6 +609,15 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     Compute a :class:`.KinshipMatrix`, and use it to test variants for
     association using a linear mixed model:
 
+    .. testsetup::
+
+        lmmreg_ds = hl.variant_qc(hl.split_multi_hts(hl.import_vcf('data/sample.vcf.bgz')))
+        lmmreg_tsv = hl.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
+        lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
+        lmmreg_ds = lmmreg_ds.annotate_rows(useInKinship = lmmreg_ds.variant_qc.AF > 0.05)
+        lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
+
+
     >>> ds = hl.read_matrix_table("data/example_lmmreg.vds")
     >>> kinship_matrix = hl.rrm(ds.filter_rows(ds.useInKinship)['GT'])
     >>> lmm_ds = hl.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
@@ -1104,13 +1113,24 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
+    .. testsetup::
+
+        burden_ds = hl.import_vcf('data/example_burden.vcf')
+        burden_kt = hl.import_table('data/example_burden.tsv', key='Sample', impute=True)
+        burden_ds = burden_ds.annotate_cols(burden = burden_kt[burden_ds.s])
+        burden_ds = burden_ds.annotate_rows(weight = burden_ds.locus.position.to_float64())
+        burden_ds = hl.variant_qc(burden_ds)
+        genekt = hl.import_interval_list('data/gene.interval_list')
+        burden_ds = burden_ds.annotate_rows(gene = genekt[burden_ds.locus])
+        burden_ds.write('data/example_burden.vds', overwrite=True)
+
     >>> ds = hl.read_matrix_table('data/example_burden.vds')
     >>> skat_table = hl.skat(ds,
-    ...                           key_expr=ds.gene,
-    ...                           weight_expr=ds.weight,
-    ...                           y=ds.burden.pheno,
-    ...                           x=ds.GT.num_alt_alleles(),
-    ...                           covariates=[ds.burden.cov1, ds.burden.cov2])
+    ...                      key_expr=ds.gene,
+    ...                      weight_expr=ds.weight,
+    ...                      y=ds.burden.pheno,
+    ...                      x=ds.GT.num_alt_alleles(),
+    ...                      covariates=[ds.burden.cov1, ds.burden.cov2])
 
     .. caution::
 

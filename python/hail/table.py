@@ -508,9 +508,9 @@ class Table(TableTemplate):
         .. testsetup::
 
             table4 = hl.import_table('data/kt_example4.tsv', impute=True,
-                                  types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
-                                 'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
-                                 'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+                                  types={'B': hl.TStruct(['B0', 'B1'], [hl.TBoolean(), hl.TString()]),
+                                 'D': hl.TStruct(['cat', 'dog'], [hl.TInt32(), hl.TInt32()]),
+                                 'E': hl.TStruct(['A', 'B'], [hl.TInt32(), hl.TInt32()])})
 
         .. doctest::
 
@@ -713,7 +713,7 @@ class Table(TableTemplate):
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = Struct(x=table1.X, z=table1.Z))
+        >>> table3 = table1.annotate(s = hl.Struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, producing a table with one field, `x`.:
 
@@ -921,7 +921,7 @@ class Table(TableTemplate):
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = Struct(x=table1.X, z=table1.Z))
+        >>> table3 = table1.annotate(s = hl.Struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, grouping by one field, `x`:
 
@@ -1909,9 +1909,9 @@ class Table(TableTemplate):
 
         >>> sorted_table = table1.order_by('HT')
 
-        >>> sorted_table = table1.order_by(asc(table1.HT))
+        >>> sorted_table = table1.order_by(hl.asc(table1.HT))
 
-        >>> sorted_table = table1.order_by(asc('HT'))
+        >>> sorted_table = table1.order_by(hl.asc('HT'))
 
         Notes
         -----
@@ -1977,7 +1977,7 @@ class Table(TableTemplate):
         .. testsetup::
 
             people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                     types={'Age': TInt32(), 'Children': TArray(TString())})
+                                     types={'Age': hl.TInt32(), 'Children': hl.TArray(hl.TString())})
 
         .. doctest::
 
