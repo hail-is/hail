@@ -3935,7 +3935,7 @@ def eval_expr_typed(expression):
     .. doctest::
 
         >>> x = 6
-        >>> eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> hl.eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
         ('Odd', TString())
 
     Parameters
