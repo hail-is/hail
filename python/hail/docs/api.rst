@@ -33,5 +33,6 @@ Use ``import hail as hl`` to access this functionality.
 
 .. rubric:: Functions
 
+.. autofunction:: hail.init
 .. autofunction:: hail.stop
 .. autofunction:: hail.default_reference
