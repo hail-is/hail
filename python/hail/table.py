@@ -1246,7 +1246,7 @@ class Table(TableTemplate):
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
         return construct_expr(GlobalJoinReference(uid), self.global_schema,
-                              joins=LinkedList(Join).push(Join(joiner, [uid])))
+                              joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
