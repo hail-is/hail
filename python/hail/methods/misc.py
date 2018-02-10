@@ -24,17 +24,17 @@ def maximal_independent_set(i, j, tie_breaker=None):
     Prune individuals from a dataset until no close relationships remain with
     respect to a PC-Relate measure of kinship.
 
-    >>> pc_rel = methods.pc_relate(dataset, 2, 0.001)
+    >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> related_samples = pairs.aggregate(
     ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
-    >>> related_samples_to_keep = methods.maximal_independent_set(pairs.i, pairs.j)
-    >>> related_samples_to_remove = functions.broadcast(related_samples - set(related_samples_to_keep))
+    >>> related_samples_to_keep = hl.maximal_independent_set(pairs.i, pairs.j)
+    >>> related_samples_to_remove = hl.broadcast(related_samples - set(related_samples_to_keep))
     >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
-    >>> pc_rel = methods.pc_relate(dataset, 2, 0.001)
+    >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> related_samples = pairs.aggregate(
     ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
@@ -43,13 +43,13 @@ def maximal_independent_set(i, j, tie_breaker=None):
     ...     i = Struct(id = pairs.i, is_case = samples[pairs.i].isCase),
     ...     j = Struct(id = pairs.j, is_case = samples[pairs.j].isCase))
     >>> def tie_breaker(l, r):
-    ...     return functions.cond(l.is_case & ~r.is_case, -1,
-    ...         functions.cond(~l.is_case & r.is_case, 1, 0))
-    >>> related_samples_to_keep = methods.maximal_independent_set(
+    ...     return hl.cond(l.is_case & ~r.is_case, -1,
+    ...         hl.cond(~l.is_case & r.is_case, 1, 0))
+    >>> related_samples_to_keep = hl.maximal_independent_set(
     ...         pairs_with_case.i,
     ...         pairs_with_case.j,
     ...         tie_breaker)
-    >>> related_samples_to_remove = functions.broadcast(related_samples - {x.id for x in related_samples_to_keep})
+    >>> related_samples_to_remove = hl.broadcast(related_samples - {x.id for x in related_samples_to_keep})
     >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
 
     Notes
@@ -152,7 +152,7 @@ def rename_duplicates(dataset, name='unique_id'):
     Examples
     --------
 
-    >>> renamed = methods.rename_duplicates(dataset).cols_table()
+    >>> renamed = hl.rename_duplicates(dataset).cols_table()
     >>> duplicate_samples = (renamed.filter(renamed.s != renamed.unique_id)
     ...                             .select('s')
     ...                             .collect())

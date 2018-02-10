@@ -7,7 +7,7 @@ Python API
 This is the API documentation for ``Hail``, and provides detailed information
 on the Python programming interface.
 
-Use ``from hail import *`` to access this functionality.
+Use ``import hail as hl`` to access this functionality.
 
 .. autosummary::
     :nosignatures:
