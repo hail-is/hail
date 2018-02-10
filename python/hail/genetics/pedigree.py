@@ -202,7 +202,7 @@ class Pedigree(HistoryMixin):
 
         **Examples**
 
-        >>> ped = Pedigree.read('data/test.fam')
+        >>> ped = hl.Pedigree.read('data/test.fam')
 
         Notes
         -------
@@ -269,7 +269,7 @@ class Pedigree(HistoryMixin):
 
         **Examples**
 
-        >>> ped = Pedigree.read('data/test.fam')
+        >>> ped = hl.Pedigree.read('data/test.fam')
         >>> ped.write('out.fam')
 
         **Notes**

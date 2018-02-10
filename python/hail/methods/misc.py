@@ -40,8 +40,8 @@ def maximal_independent_set(i, j, tie_breaker=None):
     ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
     >>> samples = dataset.cols_table()
     >>> pairs_with_case = pairs.select(
-    ...     i = Struct(id = pairs.i, is_case = samples[pairs.i].isCase),
-    ...     j = Struct(id = pairs.j, is_case = samples[pairs.j].isCase))
+    ...     i = hl.Struct(id = pairs.i, is_case = samples[pairs.i].isCase),
+    ...     j = hl.Struct(id = pairs.j, is_case = samples[pairs.j].isCase))
     >>> def tie_breaker(l, r):
     ...     return hl.cond(l.is_case & ~r.is_case, -1,
     ...         hl.cond(~l.is_case & r.is_case, 1, 0))

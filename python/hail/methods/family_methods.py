@@ -22,7 +22,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
     Create a trio matrix:
 
-    >>> pedigree = Pedigree.read('data/case_control_study.fam')
+    >>> pedigree = hl.Pedigree.read('data/case_control_study.fam')
     >>> trio_dataset = hl.trio_matrix(dataset, pedigree, complete_trios=True)
 
     Notes
@@ -82,7 +82,7 @@ def mendel_errors(dataset, pedigree):
     a pedigree and return four tables (all errors, errors by family, errors by
     individual, errors by variant):
 
-    >>> ped = Pedigree.read('data/trios.fam')
+    >>> ped = hl.Pedigree.read('data/trios.fam')
     >>> all_errors, per_fam, per_sample, per_variant = hl.mendel_errors(dataset, ped)
 
     Export all mendel errors to a text file:
@@ -231,7 +231,7 @@ def tdt(dataset, pedigree):
 
     .. doctest::
     
-        >>> pedigree = Pedigree.read('data/tdt_trios.fam')
+        >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
         >>> tdt_table = hl.tdt(tdt_dataset, pedigree)
         >>> tdt_table.show(2)
         +------------------+-------+-------+-------------+-------------+

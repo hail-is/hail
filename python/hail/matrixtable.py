@@ -2498,7 +2498,7 @@ class MatrixTable(object):
         Import a text table and construct a rows-only matrix table:
 
         >>> table = hl.import_table('data/variant-lof.tsv', key='v')
-        >>> sites_vds = MatrixTable.from_rows_table(table)
+        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
 
         Notes
         -----

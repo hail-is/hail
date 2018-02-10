@@ -1284,11 +1284,11 @@ class Table(TableTemplate):
         --------
         Construct a table with 100 rows:
 
-        >>> range_table = Table.range(100)
+        >>> range_table = hl.Table.range(100)
 
         Construct a table with one million rows and twenty partitions:
 
-        >>> range_table = Table.range(1000000, 20)
+        >>> range_table = hl.Table.range(1000000, 20)
 
         Notes
         -----

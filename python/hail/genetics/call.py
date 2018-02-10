@@ -185,42 +185,38 @@ class Call(HistoryMixin):
         """Returns a list containing the one-hot encoded representation of the
         called alleles.
 
+        Examples
+        --------
+        .. doctest::
+
+            num_alleles = 2
+            hom_ref = hl.Call([0, 0])
+            het = hl.Call([0, 1])
+            hom_var = hl.Call([1, 1])
+
+            >>> het.one_hot_alleles(num_alleles)
+            [1, 1]
+
+            >>> hom_var.one_hot_alleles(num_alleles)
+            [0, 2]
+
+        Notes
+        -----
         This one-hot representation is the positional sum of the one-hot
         encoding for each called allele.  For a biallelic variant, the
         one-hot encoding for a reference allele is [1, 0] and the one-hot
-        encoding for an alternate allele is [0, 1].  Thus, with the
-        following variables:
+        encoding for an alternate allele is [0, 1].
 
-        .. testcode::
-
-            num_alleles = 2
-            hom_ref = Call([0, 0])
-            het = Call([0, 1])
-            hom_var = Call([1, 1])
-
-        All the below statements are true:
-
-        .. testcode::
-
-            hom_ref.one_hot_alleles(num_alleles) == [2, 0]
-            het.one_hot_alleles(num_alleles) == [1, 1]
-            hom_var.one_hot_alleles(num_alleles) == [0, 2]
-
-        :param int num_alleles: number of possible alternate alleles
-        :rtype: list of int
-        """
-
-        return jiterable_to_list(Call.call_jobject().oneHotAlleles(self._call, num_alleles))
-
-    @handle_py4j
-    def unphased_diploid_gt_index(self):
-        """Return the genotype index for unphased, diploid calls.
+        Parameters
+        ----------
+        num_alleles : :obj:`int`
+            Number of total alleles, including the reference.
 
         Returns
         -------
-        :obj:`int`
+        :obj:`list` of :obj:`int`
         """
 
         if self.ploidy != 2 or self.phased:
-            raise FatalError("`unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
+            raise FatalError("'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
         return Call.call_jobject().unphasedDiploidGtIndex(self._call)

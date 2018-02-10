@@ -9,6 +9,7 @@ from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
 from collections import Mapping
 
+
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(strlike))
     def __init__(self, source=None, axes=set()):
@@ -44,6 +45,7 @@ class Indices(object):
     def __repr__(self):
         return 'Indices(axes={}, source={})'.format(repr(self.axes), repr(self.source))
 
+
 class Aggregation(object):
     def __init__(self, indices, refs):
         self.indices = indices
@@ -68,6 +70,7 @@ def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggrega
     else:
         raise NotImplementedError(type)
 
+
 @typecheck(name=strlike, type=Type, indices=Indices, prefix=nullable(strlike))
 def construct_reference(name, type, indices, prefix=None):
     if prefix is not None:
@@ -75,6 +78,7 @@ def construct_reference(name, type, indices, prefix=None):
     else:
         ast = Reference(name, True)
     return construct_expr(ast, type._deep_optional(), indices, refs=LinkedList(tuple).push((name, indices)))
+
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -97,7 +101,8 @@ def to_expr(e):
     elif isinstance(e, Locus):
         return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
     elif isinstance(e, Interval):
-        return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))), TInterval(TLocus(e.reference_genome)))
+        return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))),
+                              TInterval(TLocus(e.reference_genome)))
     elif isinstance(e, Call):
         if e.ploidy == 0:
             return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), TCall())
@@ -162,7 +167,7 @@ def to_expr(e):
         vt = unify_types(*value_types)
         if not vt:
             raise ExpressionException('Cannot convert dictionary with heterogeneous value types to expression.'
-                             '\n    Found types: {}.'.format(value_types))
+                                      '\n    Found types: {}.'.format(value_types))
         kc = to_expr(keys)
         vc = to_expr(values)
 
@@ -215,6 +220,7 @@ expr_call = transformed((Call, to_expr),
                         (_lazy_call, identity))
 expr_any = transformed((_lazy_expr, identity),
                        (anytype, to_expr))
+
 
 def unify_all(*exprs):
     assert len(exprs) > 0
@@ -302,9 +308,9 @@ class Expression(object):
         if (len(sources.keys()) != 0 and sources.keys()[0] != self._indices.source):
             raise FatalError("verify: incompatible sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
-
     @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
-    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join), refs=LinkedList(tuple)):
+    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join),
+                 refs=LinkedList(tuple)):
         self._ast = ast
         self._type = type
         self._indices = indices
@@ -370,12 +376,14 @@ class Expression(object):
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations, joins, refs = unify_all(self, other)
-        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations, joins, refs)
+        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations, joins,
+                              refs)
 
     def _bin_op_reverse(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations, joins, refs = unify_all(self, other)
-        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations, joins, refs)
+        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations, joins,
+                              refs)
 
     def _field(self, name, ret_type):
         return construct_expr(Select(self._ast, name), ret_type, self._indices,
@@ -416,7 +424,8 @@ class Expression(object):
         args = (to_expr(arg) for arg in args)
         new_id = Env._get_uid()
         lambda_result = to_expr(
-            f(construct_expr(Reference(new_id), input_type, self._indices, self._aggregations, self._joins, self._refs)))
+            f(construct_expr(Reference(new_id), input_type, self._indices, self._aggregations, self._joins,
+                             self._refs)))
         indices, aggregations, joins, refs = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
         return construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins, refs)
@@ -552,10 +561,12 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'exists' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
             return t
+
         return self._bin_lambda_method("exists", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -589,6 +600,7 @@ class CollectionExpression(Expression):
         :class:`.CollectionExpression`
             Expression of the same type as the callee.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'filter' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
@@ -625,6 +637,7 @@ class CollectionExpression(Expression):
         :class:`.Expression`
             Expression whose type is the element type of the collection.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'find' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
@@ -658,10 +671,12 @@ class CollectionExpression(Expression):
         :class:`.CollectionExpression`
         """
         expected_type, s = (TArray, 'Array') if isinstance(self._type, TArray) else (TSet, 'Set')
+
         def unify_ret(t):
             if not isinstance(t, expected_type):
                 raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
             return t
+
         return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -690,6 +705,7 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'forall' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
@@ -892,9 +908,7 @@ class CollectionNumericExpression(CollectionExpression):
         :class:`.NumericExpression`
             The product of the collection.
         """
-        return self._method("product",
-                            TInt64() if isinstance(self._type.element_type, TInt32) or
-                                        isinstance(self._type.element_type, TInt64) else TFloat64())
+        return self._method("product", self._type.element_type)
 
     def sum(self):
         """Returns the sum of all elements in the collection.
@@ -923,6 +937,7 @@ class ArrayExpression(CollectionExpression):
 
     >>> a = hl.capture(['Alice', 'Bob', 'Charlie'])
     """
+
     def __getitem__(self, item):
         """Index into or slice the array.
 
@@ -1076,11 +1091,13 @@ class ArrayExpression(CollectionExpression):
         -------
         :class:`.ArrayExpression`
         """
+
         def check_f(t):
             if not (is_numeric(t) or isinstance(t, TString)):
                 raise TypeError("'sort_by' expects 'f' to return an ordered type, found type '{}'\n"
                                 "    Ordered types are 'Int32', 'Int64', 'Float32', 'Float64', 'String'".format(t))
             return self._type
+
         return self._bin_lambda_method("sortBy", f, self._type.element_type, check_f, ascending)
 
     def to_set(self):
@@ -1255,6 +1272,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         :class:`.ArrayNumericExpression`
             Array of positional quotients.
         """
+
         def ret_type_f(t):
             assert isinstance(t, TArray)
             assert is_numeric(t.element_type)
@@ -1263,6 +1281,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rdiv__(self, other):
@@ -1274,6 +1293,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __floordiv__(self, other):
@@ -1386,13 +1406,13 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             >>> pl = functions.capture([10, 0, 100])
             [10, 0, 100]
 
-            >>> eval_expr(pl.unique_min_index())
+            >>> hl.eval_expr(pl.unique_min_index())
             1
 
             >>> pl2 = functions.capture([0, 0, 100])
             [0, 0, 100]
 
-            >>> eval_expr(pl2.unique_min_index())
+            >>> hl.eval_expr(pl2.unique_min_index())
             None
 
         Returns
@@ -1416,13 +1436,13 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             >>> gp = functions.capture([0.2, 0.2, 0.6])
             [0.2, 0.2, 0.6]
 
-            >>> eval_expr(gp.unique_max_index())
+            >>> hl.eval_expr(gp.unique_max_index())
             2
 
             >>> gp2 = functions.capture([0.4, 0.4, 0.2])
             [0.4, 0.4, 0.2]
 
-            >>> eval_expr(gp2.unique_max_index())
+            >>> hl.eval_expr(gp2.unique_max_index())
             None
 
         Returns
@@ -1462,6 +1482,7 @@ class ArrayStringExpression(ArrayExpression):
 
     >>> a = hl.capture(['Alice', 'Bob', 'Charles'])
     """
+
     @typecheck_method(delimiter=expr_str)
     def mkstring(self, delimiter):
         """Joins the elements of the array into a single string delimited by `delimiter`.
@@ -1519,6 +1540,7 @@ class ArrayArrayExpression(ArrayExpression):
 
     >>> a = hl.capture([[1, 2], [3, 4]])
     """
+
     def flatten(self):
         """Flatten the nested array by concatenating subarrays.
 
@@ -1543,6 +1565,7 @@ class SetExpression(CollectionExpression):
     >>> s1 = hl.capture({1, 2, 3})
     >>> s2 = hl.capture({1, 3, 5})
     """
+
     @typecheck_method(item=expr_any)
     def add(self, item):
         """Returns a new set including `item`.
@@ -1788,6 +1811,7 @@ class SetStringExpression(SetExpression):
 
     >>> s = hl.capture({'Alice', 'Bob', 'Charles'})
     """
+
     @typecheck_method(delimiter=expr_str)
     def mkstring(self, delimiter):
         """Joins the elements of the set into a single string delimited by `delimiter`.
@@ -1821,6 +1845,7 @@ class SetSetExpression(SetExpression):
 
     >>> s = hl.capture({1, 2, 3}).map(lambda s: {s, 2 * s})
     """
+
     def flatten(self):
         """Flatten the nested set by concatenating subsets.
 
@@ -1844,6 +1869,7 @@ class DictExpression(Expression):
 
     >>> d = hl.capture({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
+
     def _init(self):
         self._key_typ = self._type.key_type
         self._value_typ = self._type.value_type
@@ -2039,6 +2065,7 @@ class Aggregable(object):
     methods. These objects can be aggregated using aggregator functions, but
     cannot otherwise be used in expressions.
     """
+
     def __init__(self, ast, type, indices, aggregations, joins, refs):
         self._ast = ast
         self._type = type
@@ -2060,7 +2087,7 @@ class Aggregable(object):
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
 
-    >>> s = hl.capture(Struct(a=5, b='Foo'))
+    >>> s = hl.capture(hl.Struct(a=5, b='Foo'))
 
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
@@ -2084,6 +2111,7 @@ class StructExpression(Mapping, Expression):
     to access fields that are not valid Python identifiers, like fields with
     spaces or symbols.
     """
+
     def _init(self):
         self._fields = OrderedDict()
 
@@ -2462,6 +2490,7 @@ class NumericExpression(AtomicExpression):
 
     >>> y = hl.capture(4.5)
     """
+
     def _bin_op_ret_typ(self, other):
         if isinstance(other._type, TArray):
             t = other._type.element_type
@@ -2586,7 +2615,6 @@ class NumericExpression(AtomicExpression):
             ``True`` if the left side is greater than or equal to the right side.
         """
         return self._bin_op(">=", other, TBoolean())
-
 
     def __pos__(self):
         return self
@@ -2715,6 +2743,7 @@ class NumericExpression(AtomicExpression):
         :class:`.NumericExpression`
             The left number divided by the left.
         """
+
         def ret_type_f(t):
             assert is_numeric(t)
             if isinstance(t, TInt32) or isinstance(t, TInt64):
@@ -2722,6 +2751,7 @@ class NumericExpression(AtomicExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rdiv__(self, other):
@@ -2732,6 +2762,7 @@ class NumericExpression(AtomicExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __floordiv__(self, other):
@@ -2871,7 +2902,7 @@ class NumericExpression(AtomicExpression):
             Maximum value.
         """
         t = unify_types(self._type, other._type)
-        assert(t is not None)
+        assert (t is not None)
         return self._method("max", t, other)
 
     @typecheck_method(other=expr_numeric)
@@ -2889,7 +2920,7 @@ class NumericExpression(AtomicExpression):
             Minimum value.
         """
         t = unify_types(self._type, other._type)
-        assert(t is not None)
+        assert (t is not None)
         return self._method("min", t, other)
 
 
@@ -2918,6 +2949,7 @@ class StringExpression(AtomicExpression):
 
     >>> s = hl.capture('The quick brown fox')
     """
+
     def __getitem__(self, item):
         """Slice or index into the string.
 
@@ -3203,14 +3235,11 @@ class StringExpression(AtomicExpression):
 
         return self._method("toBoolean", TBoolean())
 
+
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
 
-<<<<<<< 77b544f820505078ec6357d8d2e17bb8dc869658
-    >>> call = functions.capture(Call([0, 1]))
-=======
-    >>> call = hl.capture(Call(1))
->>>>>>> from hail import * -> import hail as hl
+    >>> call = hl.call(False, 0, 1)
     """
 
     def __getitem__(self, item):
@@ -3223,14 +3252,10 @@ class CallExpression(Expression):
 
         .. doctest::
 
-<<<<<<< 77b544f820505078ec6357d8d2e17bb8dc869658
-            >>> eval_expr(call[0])
+            >>> hl.eval_expr(call[0])
             0
 
-            >>> eval_expr(call[1])
-=======
-            >>> hl.eval_expr(call.gt)
->>>>>>> from hail import * -> import hail as hl
+            >>> hl.eval_expr(call[1])
             1
 
         Parameters
@@ -3259,13 +3284,8 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-<<<<<<< 77b544f820505078ec6357d8d2e17bb8dc869658
-            >>> eval_expr(call.ploidy)
+            >>> hl.eval_expr(call.ploidy)
             2
-=======
-            >>> hl.eval_expr(call.gtj())
-            0
->>>>>>> from hail import * -> import hail as hl
 
         Returns
         -------
@@ -3281,13 +3301,8 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-<<<<<<< 77b544f820505078ec6357d8d2e17bb8dc869658
-            >>> eval_expr(call.phased)
+            >>> hl.eval_expr(call.phased)
             False
-=======
-            >>> hl.eval_expr(call.gtk())
-            1
->>>>>>> from hail import * -> import hail as hl
 
         Returns
         -------
@@ -3302,7 +3317,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_haploid())
+            >>> hl.eval_expr(call.is_haploid())
             False
 
         Returns
@@ -3318,7 +3333,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_diploid())
+            >>> hl.eval_expr(call.is_diploid())
             True
 
         Returns
@@ -3484,7 +3499,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.unphased_diploid_gt_index())
+            >>> hl.eval_expr(call.unphased_diploid_gt_index())
             1
 
         Returns
@@ -3496,8 +3511,9 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.TLocus`.
 
-    >>> locus = hl.capture(Locus('1', 100))
+    >>> locus = hl.capture(hl.Locus('1', 100))
     """
+
     @property
     def contig(self):
         """Returns the chromosome.
@@ -3672,8 +3688,9 @@ class LocusExpression(Expression):
 class IntervalExpression(Expression):
     """Expression of type :class:`.TInterval`.
 
-    >>> interval = hl.capture(Interval.parse('X:1M-2M'))
+    >>> interval = hl.capture(hl.Interval.parse('X:1M-2M'))
     """
+
     @typecheck_method(locus=expr_locus)
     def contains(self, locus):
         """Tests whether a locus is contained in the interval.
@@ -3682,10 +3699,10 @@ class IntervalExpression(Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(interval.contains(Locus('X', 3000000)))
+            >>> hl.eval_expr(interval.contains(hl.Locus('X', 3000000)))
             False
 
-            >>> hl.eval_expr(interval.contains(Locus('X', 1500000)))
+            >>> hl.eval_expr(interval.contains(hl.Locus('X', 1500000)))
             True
 
         Parameters
@@ -3737,6 +3754,7 @@ class IntervalExpression(Expression):
             Start locus.
         """
         return self._field("start", TLocus())
+
 
 typ_to_expr = {
     TBoolean: BooleanExpression,
@@ -3916,6 +3934,7 @@ def eval_expr(expression):
         Result of evaluating `expression`.
     """
     return eval_expr_typed(expression)[0]
+
 
 @handle_py4j
 @typecheck(expression=expr_any)

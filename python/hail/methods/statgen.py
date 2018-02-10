@@ -8,7 +8,6 @@ from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
 from hail.methods.misc import require_biallelic, require_variant
-from hail.expr import functions
 import hail.expr.aggregators as agg
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
@@ -2055,25 +2054,23 @@ split_multi_hts: entry schema must be the HTS genotype schema
 hint: Use `split_multi` to split entries with a non-HTS genotype schema.
 """.format(ds.entry_schema, hts_genotype_schema))
 
-    f = functions
-
     sm = SplitMulti(ds)
-    pl = f.or_missing(
-        f.is_defined(ds.PL),
-        (f.range(0, 3).map(lambda i: (f.range(0, functions.triangle(ds.alleles.length()))
+    pl = hl.or_missing(
+        hl.is_defined(ds.PL),
+        (hl.range(0, 3).map(lambda i: (hl.range(0, hl.triangle(ds.alleles.length()))
             .filter(
-            lambda j: f.downcode(f.unphased_diploid_gt_index_call(j), sm.a_index()) == f.unphased_diploid_gt_index_call(
+            lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(
                 i))
             .map(lambda j: ds.PL[j])
             .min()))))
     sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
     sm.update_entries(
-        GT=f.downcode(ds.GT, sm.a_index()),
-        AD=f.or_missing(f.is_defined(ds.AD),
+        GT=hl.downcode(ds.GT, sm.a_index()),
+        AD=hl.or_missing(hl.is_defined(ds.AD),
                         [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
         DP=ds.DP,
         PL=pl,
-        GQ=f.gq_from_pl(pl)
+        GQ=hl.gq_from_pl(pl)
     )
 
     return sm.result()
@@ -2478,14 +2475,14 @@ class FilterAlleles(object):
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
     ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
-    ...     hl.null(TArray(TInt32())))
+    ...     hl.null(hl.TArray(hl.TInt32())))
     ... fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(newPL.unique_min_index()),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
     ...         hl.range(0, fa.new_alleles.length()).map(
     ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
-    ...         hl.null(TArray(TInt32()))),
+    ...         hl.null(hl.TArray(hl.TInt32()))),
     ...     GQ = hl.gq_from_pl(newPL),
     ...     PL = newPL)
     ... filtered_result = fa.filter()

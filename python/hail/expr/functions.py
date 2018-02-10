@@ -18,7 +18,7 @@ def null(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.null(TString()))
+        >>> hl.eval_expr(hl.null(hl.TString()))
         None
 
     Notes
@@ -77,7 +77,7 @@ def broadcast(x):
     --------
     .. doctest::
 
-        >>> table = Table.range(8)
+        >>> table = hl.Table.range(8)
         >>> greetings = hl.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
         >>> table.annotate(greeting = greetings.get(table.idx)).show()
         +-------+----------------+
@@ -351,11 +351,11 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     .. doctest::
 
         >>> hl.eval_expr(hl.ctt(10, 10,
-        ...                 10, 10, min_cell_count=15))
+        ...              10, 10, min_cell_count=15))
         Struct(oddsRatio=1.0, pValue=1.0)
 
         >>> hl.eval_expr(hl.ctt(30, 30,
-        ...                 50, 10, min_cell_count=15))
+        ...              50, 10, min_cell_count=15))
         Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
 
     Notes
@@ -515,11 +515,11 @@ def fisher_exact_test(c1, c2, c3, c4):
     .. doctest::
 
         >>> hl.eval_expr(hl.fisher_exact_test(10, 10,
-        ...                               10, 10))
+        ...                                   10, 10))
         Struct(oddsRatio=1.0, pValue=1.0)
 
         >>> hl.eval_expr(hl.fisher_exact_test(30, 30,
-        ...                               50, 10))
+        ...                                   50, 10))
         Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
 
     Notes
@@ -891,7 +891,7 @@ def call(phased, *alleles): # FIXME: Python 3 allows optional kwarg after vararg
     --------
     .. doctest::
 
-        >>> eval_expr(hl.call(True, 1, 0))
+        >>> hl.eval_expr(hl.call(True, 1, 0))
         Call(alleles=[1, 0], phased=True)
 
     Parameters
@@ -920,7 +920,7 @@ def unphased_diploid_gt_index_call(gt_index):
     --------
     .. doctest::
 
-        >>> eval_expr(hl.unphased_diploid_gt_index_call(4))
+        >>> hl.eval_expr(hl.unphased_diploid_gt_index_call(4))
         Call(alleles=[1, 2], phased=False)
 
     Parameters
@@ -944,7 +944,7 @@ def parse_call(s):
     --------
     .. doctest::
 
-        >>> eval_expr(hl.parse_call('0|2'))
+        >>> hl.eval_expr(hl.parse_call('0|2'))
         Call([0, 2], phased=True)
 
     Notes
@@ -989,10 +989,10 @@ def is_defined(expression):
         >>> hl.eval_expr(hl.is_defined(5))
         True
 
-        >>> hl.eval_expr(hl.is_defined(hl.null(TString())))
+        >>> hl.eval_expr(hl.is_defined(hl.null(hl.TString())))
         False
 
-        >>> hl.eval_expr(hl.is_defined(hl.null(TBoolean()) & True))
+        >>> hl.eval_expr(hl.is_defined(hl.null(hl.TBoolean()) & True))
         False
 
     Parameters
@@ -1019,10 +1019,10 @@ def is_missing(expression):
         >>> hl.eval_expr(hl.is_missing(5))
         False
 
-        >>> hl.eval_expr(hl.is_missing(hl.null(TString())))
+        >>> hl.eval_expr(hl.is_missing(hl.null(hl.TString())))
         True
 
-        >>> hl.eval_expr(hl.is_missing(hl.null(TBoolean()) & True))
+        >>> hl.eval_expr(hl.is_missing(hl.null(hl.TBoolean()) & True))
         True
 
     Parameters
@@ -1052,7 +1052,7 @@ def is_nan(x):
         >>> hl.eval_expr(hl.is_nan(hl.capture(0) / 0))
         True
 
-        >>> hl.eval_expr(hl.is_nan(hl.capture(0) / hl.null(TFloat64())))
+        >>> hl.eval_expr(hl.is_nan(hl.capture(0) / hl.null(hl.TFloat64())))
         None
 
     Notes
@@ -1085,7 +1085,7 @@ def json(x):
         >>> hl.eval_expr(hl.json([1,2,3,4,5]))
         '[1,2,3,4,5]'
 
-        >>> hl.eval_expr(hl.json(Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
+        >>> hl.eval_expr(hl.json(hl.Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
         '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -1177,7 +1177,7 @@ def logical_not(b):
         >>> hl.eval_expr(hl.logical_not(True))
         False
 
-        >>> hl.eval_expr(hl.logical_not(hl.null(TBoolean())))
+        >>> hl.eval_expr(hl.logical_not(hl.null(hl.TBoolean())))
         None
 
     Notes
@@ -1213,7 +1213,7 @@ def or_else(a, b):
         >>> hl.eval_expr(hl.or_else(5, 7))
         5
 
-        >>> hl.eval_expr(hl.or_else(hl.null(TInt32()), 7))
+        >>> hl.eval_expr(hl.or_else(hl.null(hl.TInt32()), 7))
         7
 
     Parameters
@@ -1994,7 +1994,7 @@ def to_str(x):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.to_str(Struct(a=5, b=7)))
+        >>> hl.eval_expr(hl.to_str(hl.Struct(a=5, b=7)))
         '{"a":5,"b":7}'
 
     Parameters
@@ -2018,7 +2018,7 @@ def downcode(c, i):
 
     .. doctest::
 
-        >>> eval_expr(hl.downcode(hl.call([1, 2]), 2))
+        >>> hl.eval_expr(hl.downcode(hl.call([1, 2]), 2))
         Call(alleles=[0, 2], phased=False)
 
     Parameters
