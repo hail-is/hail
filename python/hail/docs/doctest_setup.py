@@ -2,7 +2,7 @@ import os, shutil
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.stats import *
-from hail.utils.java import warn, _d
+from hail.utils.java import warn
 
 if not os.path.isdir("output/"):
     os.mkdir("output/")
@@ -11,8 +11,6 @@ files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
 for f in files:
     if os.path.isdir(f):
         shutil.rmtree(f)
-
-# hl.init(log="output/hail.log", quiet=True)
 
 ds = hl.import_vcf('data/sample.vcf.bgz')
 ds = ds.sample_rows(0.03)
