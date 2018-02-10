@@ -95,8 +95,9 @@ class GroupBySuite extends SparkSuite {
       .annotateVariantsExpr("weight = va.locus.position.toFloat64")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
-    
+
     val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("genes = va.genes", "sum = gs.map(g => va.weight * g.GT.nNonRefAlleles()).sum()")
+      .annotateSamplesExpr("pheno = sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select("genes", "linreg.beta", "linreg.se", "linreg.tstat", "linreg.pval")

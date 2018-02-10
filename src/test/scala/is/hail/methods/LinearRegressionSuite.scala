@@ -38,7 +38,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
     
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -102,7 +102,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -159,7 +159,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -213,7 +213,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateSamplesTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno"), "g.GT.nNonRefAlleles()", Array.empty[String])
+      .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array.empty[String])
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -363,8 +363,8 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
 
-    interceptFatal("`sa.pheno' must be numeric or Boolean, got String") {
-      vds.linreg(Array("sa.pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    interceptFatal("`sa.pheno.Pheno' must be numeric or Boolean, got String") {
+      vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 
@@ -379,7 +379,7 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(phenotypes, root = "pheno")
 
     interceptFatal("`sa.cov.Cov2' must be numeric or Boolean, got String") {
-      vds.linreg(Array("sa.pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 
@@ -396,11 +396,11 @@ class LinearRegressionSuite extends SparkSuite {
     for (i <- Seq(0, 1);
       d <- Seq(false, true)) {
       val result = inputVDS
-        .linreg(Array("sa.pheno"),
+        .linreg(Array("sa.pheno.Pheno"),
           if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
           Array("sa.cov.Cov1", "sa.cov.Cov2"))
         .annotateVariantsVDS(
-          inputVDS.linreg(Array("sa.pheno", "sa.pheno"),
+          inputVDS.linreg(Array("sa.pheno.Pheno", "sa.pheno.Pheno"),
             if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
             Array("sa.cov.Cov1", "sa.cov.Cov2"))
             .annotateVariantsExpr(
