@@ -43,6 +43,7 @@ Methods
     hail.methods.import_vcf
     hail.methods.nirvana
     hail.methods.tdt
+    hail.methods.SplitMulti
     hail.methods.FilterAlleles
     hail.methods.min_rep
     hail.methods.balding_nichols_model
@@ -85,5 +86,6 @@ Methods
 .. autofunction:: hail.methods.nirvana
 .. autofunction:: hail.methods.tdt
 .. autoclass:: hail.methods.FilterAlleles
+.. autoclass:: hail.methods.SplitMulti
 .. autofunction:: hail.methods.min_rep
 .. autofunction:: hail.methods.balding_nichols_model
