@@ -1765,7 +1765,7 @@ class SplitMulti(object):
     implemented as:
 
     >>> f = functions
-    >>> sm = SplitMulti(ds)
+    >>> sm = methods.SplitMulti(ds)
     >>> pl = f.or_missing(
     ...      f.is_defined(ds.PL),
     ...      (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
