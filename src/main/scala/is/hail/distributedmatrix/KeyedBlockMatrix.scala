@@ -181,6 +181,6 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
 
     rowKeys.foreach(_.write(sc, uri + "/rowkeys"))
     colKeys.foreach(_.write(sc, uri + "/colkeys"))
-    bm.write(uri + "/blockmatrix", forceRowMajor)
+    bm.write(uri + "/blockmatrix", forceRowMajor = forceRowMajor)
   }
 }

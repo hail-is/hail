@@ -107,12 +107,12 @@ class BlockMatrix(object):
 
     @handle_py4j
     @typecheck_method(path=strlike,
-                      force_row_major=bool,
-                      blocks_to_keep=nullable(listof(integral)))
-    def write(self, path, force_row_major=False, blocks_to_keep=None):
+                      blocks_to_keep=nullable(listof(integral)),
+                      force_row_major=bool)
+    def write(self, path, blocks_to_keep=None, force_row_major=False):
         if blocks_to_keep is not None:
             blocks_to_keep=jarray(Env.jvm().int, blocks_to_keep)
-        self._jbm.write(path, force_row_major, joption(blocks_to_keep))
+        self._jbm.write(path, joption(blocks_to_keep), force_row_major)
     
     @handle_py4j
     @typecheck_method(path=strlike,

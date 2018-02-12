@@ -300,7 +300,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   /**
     * Write {@code this} to a Hadoop sequence file at location {@code uri}.
     **/
-  def write(uri: String, forceRowMajor: Boolean = false, optKeep: Option[Array[Int]] = None) {
+  def write(uri: String, optKeep: Option[Array[Int]] = None, forceRowMajor: Boolean = false) {
     
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
@@ -335,7 +335,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   def writeBand(uri: String, lowerBandwidth: Long, upperBandwidth: Long, forceRowMajor: Boolean) {
     val keep = partitioner.bandedBlocks(lowerBandwidth, upperBandwidth)
-    write(uri, forceRowMajor, Some(keep))
+    write(uri, Some(keep), forceRowMajor)
   }
 
   def cache(): this.type = {
