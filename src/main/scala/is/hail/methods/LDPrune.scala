@@ -293,7 +293,7 @@ object LDPrune {
     require(inputRDD.storageLevel == StorageLevel.MEMORY_AND_DISK)
 
     val partitioner = inputRDD.partitioner
-    val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Row].getAs[Locus](0)).toArray
+    val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Interval]).toArray
     val partitionIndices = inputRDD.partitions.map(_.index)
     val nPartitions = inputRDD.partitions.length
 
@@ -303,7 +303,7 @@ object LDPrune {
       if (partitionId == partitionIndices(0))
         Array(partitionId)
       else {
-        val startLocus = rangeBounds(partitionId - 1) // this is the best estimate of the first locus of the partition
+        val startLocus = rangeBounds(partitionId).start.asInstanceOf[UnsafeRow].getAs[Locus](0)
         val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
         val minPart = partitioner.getPartitionPK(Annotation(minLocus))
         partitionIndices.filter(idx => idx >= minPart && idx <= partitionId).reverse
@@ -342,7 +342,7 @@ object LDPrune {
 
     val contigStartPartitions =
       partitionIndices.filter { i =>
-        i == partitionIndices(0) || i == partitionIndices.last || rangeBounds(i).contig != rangeBounds(i - 1).contig
+        i == partitionIndices(0) || i == partitionIndices.last || rangeBounds(i).start.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
       }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)

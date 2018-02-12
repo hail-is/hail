@@ -233,7 +233,7 @@ class OrderedRVD private(
   }
 
   def filterIntervals(intervals: IntervalTree[Any, _]): OrderedRVD = {
-    val pkOrdering = typ.pkRowEOrd
+    val pkOrdering = typ.pkType.ordering
     val intervalsBc = rdd.sparkContext.broadcast(intervals)
     val rowType = typ.rowType
     val pkRowFieldIdx = typ.pkRowFieldIdx
@@ -242,18 +242,26 @@ class OrderedRVD private(
       val ur = new UnsafeRow(rowType, rv)
       val pk = Row.fromSeq(
         pkRowFieldIdx.map(i => ur.get(i)))
-      intervalsBc.value.contains(pkOrdering, rv)
+      intervalsBc.value.contains(pkOrdering, pk)
     }
 
     val nPartitions = partitions.length
     if (nPartitions <= 1)
       return filter(pred)
 
+    val rangeTree = partitioner.rangeTreeAnnotation
+
     val intervalArray = intervals.toArray
     val newPartitionIndices = intervalArray.flatMap { case (i, _) =>
-      val start = partitioner.rangeTreeAnnotation.queryValues(pkOrdering, i.start)(0)
-      val end = partitioner.rangeTreeAnnotation.queryValues(pkOrdering, i.end)(0)
-      start to end
+      if (!rangeTree.overlaps(pkOrdering, i))
+        IndexedSeq()
+      else {
+        val containsStart = rangeTree.queryValues(pkOrdering, i.start)
+        val containsEnd = rangeTree.queryValues(pkOrdering, i.end)
+        val start = if (containsStart.isEmpty) 0 else containsStart(0)
+        val end = if (containsStart.isEmpty) partitioner.numPartitions - 1 else containsEnd(0)
+        start to end
+      }
     }.distinct.sorted[Int]
 
     assert(newPartitionIndices.isEmpty ==> intervalArray.isEmpty)
@@ -597,6 +605,35 @@ object OrderedRVD {
     OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, min +: partitionMaxes :+ max)
   }
 
+  def shuffleAndAdjustBounds(typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    rdd: RDD[RegionValue]): OrderedRVD = {
+    if (rdd.isEmpty())
+      return shuffle(typ, partitioner, rdd)
+
+    val pkType = partitioner.pkType
+    val pkOrdUnsafe = pkType.unsafeOrdering(true)
+    val pkOrd = pkType.ordering.toOrdering
+    val pki = getPartitionKeyInfo(typ, rdd)
+    val min = new UnsafeRow(pkType, pki.map(_.min).min(pkOrdUnsafe))
+    val max = new UnsafeRow(pkType, pki.map(_.max).max(pkOrdUnsafe))
+
+    val newRangeBounds = partitioner.rangeBounds.zipWithIndex.map { case (int: Interval, i: Int) =>
+      if (i == 0)
+        int.copy(start=pkOrd.min(int.start, min))
+      else if (i == partitioner.numPartitions - 1)
+        int.copy(end=pkOrd.max(int.end, max))
+      else
+        int.copy()
+    }
+
+    val newPartitioner = new OrderedRVDPartitioner(partitioner.numPartitions,
+    partitioner.partitionKey, partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+
+    shuffle(typ, newPartitioner, rdd)
+
+  }
+
   def shuffle(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): OrderedRVD = {
@@ -706,7 +743,7 @@ object OrderedRVD {
         def next(): RegionValue = {
           val rv = it.next()
 
-          assert(RegionValueInterval(partitioner.pkIntType, partitioner.region, partitioner.loadElement(i)).contains(typ.pkRowEOrd, rv), s"${ rv.pretty(typ.rowType) } not in ${RegionValue(partitioner.region, partitioner.loadElement(i)).pretty(partitioner.pkIntType)}")
+          assert(RegionValueInterval(partitioner.pkIntType, partitioner.region, partitioner.loadElement(i)).contains(typ.pkRowEOrd, rv), s"$i: ${RegionValue(partitioner.region, partitioner.loadElement(i)).pretty(partitioner.pkIntType)} doesn't contain ${ rv.pretty(typ.rowType) }")
 
           if (first)
             first = false

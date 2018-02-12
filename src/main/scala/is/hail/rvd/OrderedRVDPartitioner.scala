@@ -48,10 +48,10 @@ class OrderedRVDPartitioner(
     val part = rangeTreeAnnotation.queryValues(pkType.ordering, pk)
     part.length match {
       case 0 =>
-        if (pkType.ordering.gt(rangeTreeAnnotation.root.get.maximum, pk))
+        if (pkType.ordering.gt(pk, rangeTreeAnnotation.root.get.maximum))
           numPartitions - 1
         else {
-          assert(pkType.ordering.lt(rangeTreeAnnotation.root.get.minimum, pk))
+          assert(pkType.ordering.lt(pk, rangeTreeAnnotation.root.get.minimum))
           0
         }
       case 1 => part.head
@@ -68,10 +68,10 @@ class OrderedRVDPartitioner(
 
     part.length match {
       case 0 =>
-        if (pkKOrd.gt(rangeTreeAnnotation.root.get.maximum, keyUR))
+        if (pkKOrd.gt(keyUR, rangeTreeAnnotation.root.get.maximum))
           numPartitions - 1
         else {
-          assert(pkKOrd.lt(rangeTreeAnnotation.root.get.minimum, keyUR))
+          assert(pkKOrd.lt(keyUR, rangeTreeAnnotation.root.get.minimum))
           0
         }
       case 1 => part.head
