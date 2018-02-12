@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.expr.types.{TArray, TStruct, TStructSerializer}
-import is.hail.io.{CodecSpec, RichRDDRegionValue}
+import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
 import org.apache.spark.{Partition, SparkContext}
@@ -19,7 +19,10 @@ import scala.reflect.ClassTag
 object RVDSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[RVDSpec], classOf[UnpartitionedRVDSpec], classOf[OrderedRVDSpec]))
+      classOf[RVDSpec], classOf[UnpartitionedRVDSpec], classOf[OrderedRVDSpec],
+      classOf[CodecSpec], classOf[DirectCodecSpec], classOf[PackCodecSpec],
+      classOf[BlockBufferSpec], classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
+      classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec]))
     override val typeHintFieldName = "name" } +
     new TStructSerializer +
     new OrderedRVDTypeSerializer

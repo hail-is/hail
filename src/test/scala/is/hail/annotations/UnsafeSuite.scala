@@ -27,10 +27,7 @@ class UnsafeSuite extends SparkSuite {
     val p = Prop.forAll(g) { case (t, a) =>
       t.typeCheck(a)
 
-      println("loop")
       CodecSpec.codecSpecs.foreach { codecSpec =>
-        println(JsonMethods.compact(JsonMethods.render(codecSpec.toJSON)))
-
         region.clear()
         rvb.start(t)
         rvb.addRow(t, a.asInstanceOf[Row])

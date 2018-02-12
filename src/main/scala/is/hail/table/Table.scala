@@ -1124,8 +1124,9 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
     val codecSpec =
       if (codecSpecJSONStr != null) {
+        implicit val formats = RVDSpec.formats
         val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-        CodecSpec.extract(codecSpecJSON)
+        codecSpecJSON.extract[CodecSpec]
       } else
         CodecSpec.default
 

@@ -2556,8 +2556,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null): Unit = {
     val codecSpec =
       if (codecSpecJSONStr != null) {
+        implicit val formats = RVDSpec.formats
         val codecSpecJSON = parse(codecSpecJSONStr)
-        CodecSpec.extract(codecSpecJSON)
+        codecSpecJSON.extract[CodecSpec]
       } else
         CodecSpec.default
 

@@ -5,103 +5,41 @@ import java.io.{Closeable, InputStream, OutputStream}
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, UnpartitionedRVDSpec}
+import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
 import org.apache.spark.rdd.RDD
-import org.json4s.JValue
-import org.json4s.JsonAST.{JInt, JObject, JString}
+import org.json4s.{Extraction, JValue}
 import org.json4s.jackson.JsonMethods
-
-object BufferSpec {
-  def extract(jv: JValue): BufferSpec = {
-    jv \ "name" match {
-      case JString("LEB128Buffer") =>
-        LEB128BufferSpec.extract(jv \ "args")
-      case JString("BlockingBuffer") =>
-        BlockingBufferSpec.extract(jv \ "args")
-    }
-  }
-}
 
 abstract class BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
-
-  def toJSON: JValue
-
-  override def toString: String = JsonMethods.compact(JsonMethods.render(toJSON))
-}
-
-object LEB128BufferSpec {
-  def extract(jv: JValue): LEB128BufferSpec = new LEB128BufferSpec(BufferSpec.extract(jv \ "child"))
 }
 
 final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new LEB128InputBuffer(child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new LEB128OutputBuffer(child.buildOutputBuffer(out))
-
-  def toJSON: JValue = JObject("name" -> JString("LEB128Buffer"),
-    "args" -> JObject("child" -> child.toJSON))
-}
-
-object BlockingBufferSpec {
-  def extract(jv: JValue): BlockingBufferSpec = new BlockingBufferSpec(
-    jv \ "block_size" match {
-      case JInt(x) => x.toInt
-    },
-    BlockBufferSpec.extract(jv \ "child"))
 }
 
 final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
-
-  def toJSON: JValue = JObject("name" -> JString("BlockingBuffer"),
-    "args" -> JObject("block_size" -> JInt(blockSize),
-      "child" -> child.toJSON))
-}
-
-object BlockBufferSpec {
-  def extract(jv: JValue): BlockBufferSpec = {
-    jv \ "name" match {
-      case JString("LZ4BlockBuffer") =>
-        LZ4BlockBufferSpec.extract(jv \ "args")
-      case JString("StreamBlockBuffer") =>
-        StreamBlockBufferSpec.extract(jv \ "args")
-    }
-  }
 }
 
 abstract class BlockBufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBlockBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
-
-  def toJSON: JValue
-
-  override def toString: String = JsonMethods.compact(JsonMethods.render(toJSON))
-}
-
-object LZ4BlockBufferSpec {
-  def extract(jv: JValue): LZ4BlockBufferSpec = new LZ4BlockBufferSpec(
-    jv \ "block_size" match {
-      case JInt(x) => x.toInt
-    },
-    BlockBufferSpec.extract(jv \ "child"))
 }
 
 final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
-
-  def toJSON: JValue = JObject("name" -> JString("LZ4BlockBuffer"),
-    "args" -> JObject("block_size" -> JInt(blockSize),
-      "child" -> child.toJSON))
 }
 
 object StreamBlockBufferSpec {
@@ -112,9 +50,6 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer(in)
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new StreamBlockOutputBuffer(out)
-
-  def toJSON: JValue = JObject("name" -> JString("StreamBlockBuffer"),
-    "args" -> JObject())
 }
 
 object CodecSpec {
@@ -140,15 +75,6 @@ object CodecSpec {
     Array(new DirectCodecSpec(bufferSpec),
       new PackCodecSpec(bufferSpec))
   }
-
-  def extract(jv: JValue): CodecSpec = {
-    jv \ "name" match {
-      case JString("PackCodec") =>
-        PackCodecSpec.extract(jv \ "args")
-      case JString("DirectCodec") =>
-        DirectCodecSpec.extract(jv \ "args")
-    }
-  }
 }
 
 abstract class CodecSpec extends Serializable {
@@ -156,35 +82,23 @@ abstract class CodecSpec extends Serializable {
 
   def buildDecoder(in: InputStream): Decoder
 
-  def toJSON: JValue
-
-  override def toString: String = JsonMethods.compact(JsonMethods.render(toJSON))
-}
-
-object PackCodecSpec {
-  def extract(jv: JValue): PackCodecSpec = new PackCodecSpec(BufferSpec.extract(jv \ "child"))
+  override def toString: String = {
+    implicit val formats = RVDSpec.formats
+    val jv = Extraction.decompose(this)
+    JsonMethods.compact(JsonMethods.render(jv))
+  }
 }
 
 final class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   def buildEncoder(out: OutputStream): Encoder = new PackEncoder(child.buildOutputBuffer(out))
 
   def buildDecoder(in: InputStream): Decoder = new PackDecoder(child.buildInputBuffer(in))
-
-  def toJSON: JValue = JObject("name" -> JString("PackCodec"),
-    "args" -> JObject("child" -> child.toJSON))
-}
-
-object DirectCodecSpec {
-  def extract(jv: JValue): DirectCodecSpec = new DirectCodecSpec(BufferSpec.extract(jv \ "child"))
 }
 
 final class DirectCodecSpec(child: BufferSpec) extends CodecSpec {
   def buildEncoder(out: OutputStream): Encoder = new DirectEncoder(child.buildOutputBuffer(out))
 
   def buildDecoder(in: InputStream): Decoder = new DirectDecoder(child.buildInputBuffer(in))
-
-  def toJSON: JValue = JObject("name" -> JString("DirectCodec"),
-    "args" -> JObject("child" -> child.toJSON))
 }
 
 abstract class OutputBlockBuffer extends Closeable {
