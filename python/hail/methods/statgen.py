@@ -1786,27 +1786,25 @@ class SplitMulti(object):
     the genotype annotations by downcoding the genotype, is
     implemented as:
 
-    >>> f = functions
-    >>> sm = methods.SplitMulti(ds)
-    >>> pl = f.or_missing(
-    ...      f.is_defined(ds.PL),
-    ...      (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
-    ...                                    .filter(lambda j: f.downcode(f.unphased_diploid_gt_index_call(j), sm.a_index()) == f.unphased_diploid_gt_index_call(i))
-    ...                                    .map(lambda j: ds.PL[j])
-    ...                                    .min()))))
+    >>> sm = hl.SplitMulti(ds)
+    >>> pl = hl.or_missing(
+    ...      hl.is_defined(ds.PL),
+    ...      (hl.range(0, 3).map(lambda i: (hl.range(0, ds.PL.length())
+    ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(i))
+    ...                     .map(lambda j: ds.PL[j])
+    ...                     .min()))))
     >>> sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
     >>> sm.update_entries(
-    ...     GT=f.downcode(ds.GT, sm.a_index()),
-    ...     AD=f.or_missing(f.is_defined(ds.AD),
+    ...     GT=hl.downcode(ds.GT, sm.a_index()),
+    ...     AD=hl.or_missing(hl.is_defined(ds.AD),
     ...                     [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
     ...     DP=ds.DP,
     ...     PL=pl,
-    ...     GQ=f.gq_from_pl(pl))
+    ...     GQ=hl.gq_from_pl(pl))
     >>> split_ds = sm.result()
     """
 
     @handle_py4j
-    @record_method
     @typecheck_method(ds=MatrixTable,
                       keep_star=bool,
                       left_aligned=bool)
@@ -2079,7 +2077,8 @@ hint: Use `split_multi` to split entries with a non-HTS genotype schema.
         hl.is_defined(ds.PL),
         (hl.range(0, 3).map(lambda i: (hl.range(0, hl.triangle(ds.alleles.length()))
             .filter(
-            lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(
+            lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
+                                  sm.a_index()) == hl.unphased_diploid_gt_index_call(
                 i))
             .map(lambda j: ds.PL[j])
             .min()))))
@@ -2087,7 +2086,7 @@ hint: Use `split_multi` to split entries with a non-HTS genotype schema.
     sm.update_entries(
         GT=hl.downcode(ds.GT, sm.a_index()),
         AD=hl.or_missing(hl.is_defined(ds.AD),
-                        [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
+                         [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
         DP=ds.DP,
         PL=pl,
         GQ=hl.gq_from_pl(pl)
