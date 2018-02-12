@@ -1976,10 +1976,9 @@ class MatrixTable(object):
         else:
             raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
 
-    @typecheck_method(name=strlike, indices=Indices)
     def _check_field_name(self, name, indices):
         if name in set(self._fields.keys()) and not self._fields[name]._indices == indices:
-            msg = 'name collision with field indexed by {}: {}'.format(indices, name)
+            msg = 'name collision with field indexed by {}: {}'.format(list(self._fields[name]._indices.axes), name)
             error('Analysis exception: {}'.format(msg))
             raise ExpressionException(msg)
 
