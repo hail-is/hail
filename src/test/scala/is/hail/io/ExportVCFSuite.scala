@@ -277,7 +277,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val out = tmpDir.createTempFile("foo", "vcf.bgz")
     val p = forAll(MatrixTable.gen(hc, genericFormatFieldVCF)) { vsm =>
-      val schema = vsm.rvRowType.field("gs").typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+      val schema = vsm.entryType
       val callFields = schema.fields.filter(fd => fd.typ == TCall()).map(_.name)
       val callArrayFields = schema.fields.filter(fd => fd.typ == TArray(TCall())).map(_.name)
       val callSetFields = schema.fields.filter(fd => fd.typ == TSet(TCall())).map(_.name)

@@ -1769,7 +1769,7 @@ class SplitMulti(object):
     >>> pl = f.or_missing(
     ...      f.is_defined(ds.PL),
     ...      (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
-    ...                                    .filter(lambda j: f.downcode(f.call(j), sm.a_index()) == f.call(i))
+    ...                                    .filter(lambda j: f.downcode(f.unphased_diploid_gt_index_call(j), sm.a_index()) == f.unphased_diploid_gt_index_call(i))
     ...                                    .map(lambda j: ds.PL[j])
     ...                                    .min()))))
     >>> sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())

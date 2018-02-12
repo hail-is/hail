@@ -487,7 +487,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   val randomNorms = (1 to 10).map(x => rand.nextGaussian())
 
   lazy val vdsSmall = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(smallMat))
-    .annotateSamplesExpr("culprit = gs.filter(g => va.locus.position == 2).map(g => g.nNonRefAlleles()).collect()[0]")
+    .annotateSamplesExpr("culprit = gs.filter(g => va.locus.position == 2).map(g => g.GT.nNonRefAlleles()).collect()[0]")
     .annotateGlobal(randomNorms, TArray(TFloat64()), "global.randNorms")
     .annotateSamplesExpr("pheno = sa.culprit + global.randNorms[sa.s.toInt32()]")
 

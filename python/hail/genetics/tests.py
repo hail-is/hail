@@ -116,7 +116,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_zeroploid.is_het_ref())
 
         self.assertRaisesRegexp(NotImplementedError,
-                                "Calls with greater than 2 alleles is not supported.",
+                                "Calls with greater than 2 alleles are not supported.",
                                 Call,
                                 [1, 1, 1, 1])
 
