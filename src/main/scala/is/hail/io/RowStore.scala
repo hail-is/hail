@@ -1,7 +1,5 @@
 package is.hail.io
 
-import java.io.{Closeable, InputStream, OutputStream}
-
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
@@ -11,8 +9,9 @@ import is.hail.variant.LZ4Utils
 import org.apache.spark.rdd.RDD
 import org.json4s.{Extraction, JValue}
 import org.json4s.jackson.JsonMethods
+import java.io.{Closeable, InputStream, OutputStream}
 
-abstract class BufferSpec extends Serializable {
+trait BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
@@ -30,7 +29,7 @@ final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
 }
 
-abstract class BlockBufferSpec extends Serializable {
+trait BlockBufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBlockBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
@@ -77,7 +76,7 @@ object CodecSpec {
   }
 }
 
-abstract class CodecSpec extends Serializable {
+trait CodecSpec extends Serializable {
   def buildEncoder(out: OutputStream): Encoder
 
   def buildDecoder(in: InputStream): Decoder
@@ -101,11 +100,11 @@ final class DirectCodecSpec(child: BufferSpec) extends CodecSpec {
   def buildDecoder(in: InputStream): Decoder = new DirectDecoder(child.buildInputBuffer(in))
 }
 
-abstract class OutputBlockBuffer extends Closeable {
+trait OutputBlockBuffer extends Closeable {
   def writeBlock(buf: Array[Byte], len: Int): Unit
 }
 
-abstract class InputBlockBuffer extends Closeable {
+trait InputBlockBuffer extends Closeable {
   def close(): Unit
 
   def readBlock(buf: Array[Byte]): Int
@@ -125,7 +124,7 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   }
 }
 
-class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
+final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
 
   def close() {
@@ -212,7 +211,7 @@ class ArrayOutputStream(sizeHint: Int = 32) extends OutputStream {
   }
 }
 
-abstract class OutputBuffer extends Closeable {
+trait OutputBuffer extends Closeable {
   def flush(): Unit
 
   def close(): Unit
@@ -272,7 +271,7 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
 }
 
-class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
   private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
 
   def close() {
@@ -286,7 +285,7 @@ class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends Outpu
   }
 }
 
-class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
+final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
   private val buf: Array[Byte] = new Array[Byte](blockSize)
   private var off: Int = 0
 
@@ -358,7 +357,7 @@ class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends Outpu
   }
 }
 
-abstract class InputBuffer extends Closeable {
+trait InputBuffer extends Closeable {
   def close(): Unit
 
   def readByte(): Byte
@@ -432,7 +431,7 @@ final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   }
 }
 
-class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuffer {
+final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuffer {
   private val buf = new Array[Byte](blockSize)
   private var end: Int = 0
   private var off: Int = 0
@@ -505,7 +504,7 @@ class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuf
   }
 }
 
-abstract class Decoder extends Closeable {
+trait Decoder extends Closeable {
   def close()
 
   def readRegionValue(t: Type, region: Region): Long
@@ -632,7 +631,7 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
   }
 }
 
-abstract class Encoder extends Closeable {
+trait Encoder extends Closeable {
   def flush(): Unit
 
   def close(): Unit
