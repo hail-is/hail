@@ -67,9 +67,9 @@ final class HTSGenotypeView(rvType: TStruct) {
 
   def hasPL: Boolean = plExists && gIsDefined && tg.isFieldDefined(m, gOffset, plIndex)
 
-  def getGT: Int = {
+  def getGT: Call = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    Call(m.loadInt(callOffset))
+    m.loadInt(callOffset)
   }
 
   def getADLength: Int = {
@@ -168,9 +168,9 @@ final class ArrayGenotypeView(rvType: TStruct) {
 
   def hasGP: Boolean = gpExists && gIsDefined && tg.isFieldDefined(m, gOffset, gpIndex)
 
-  def getGT: Int = {
+  def getGT: Call = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    Call(m.loadInt(callOffset))
+    m.loadInt(callOffset)
   }
 
   def getGP(idx: Int): Double = {
@@ -235,13 +235,10 @@ final class HardCallView(rvType: TStruct, callField: String) {
 
   def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
 
-  def getGT: Int = {
+  def getGT: Call = {
     assert(gtExists && gIsDefined)
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    val gt = m.loadInt(callOffset)
-    if (gt < 0)
-      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
-    gt
+    m.loadInt(callOffset)
   }
 
   def getLength: Int = gsLength
@@ -310,27 +307,18 @@ final class HardcallTrioGenotypeView(rvType: TStruct, callField: String) {
   def hasAllGTs: Boolean =
     hasProbandGT && hasMotherGT && hasFatherGT
 
-  def getProbandGT: Int = {
+  def getProbandGT: Call = {
     val callOffset = tg.loadField(m, probandOffset, gtIndex)
-    val gt = m.loadInt(callOffset)
-    if (gt < 0)
-      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
-    gt
+    m.loadInt(callOffset)
   }
 
-  def getMotherGT: Int = {
+  def getMotherGT: Call = {
     val callOffset = tg.loadField(m, motherOffset, gtIndex)
-    val gt = m.loadInt(callOffset)
-    if (gt < 0)
-      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
-    gt
+    m.loadInt(callOffset)
   }
 
-  def getFatherGT: Int = {
+  def getFatherGT: Call = {
     val callOffset = tg.loadField(m, fatherOffset, gtIndex)
-    val gt = m.loadInt(callOffset)
-    if (gt < 0)
-      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
-    gt
+    m.loadInt(callOffset)
   }
 }

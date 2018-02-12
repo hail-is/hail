@@ -9,7 +9,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils.{Interval, _}
-import is.hail.variant.{Call, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.json4s._
@@ -121,7 +121,7 @@ class ExprSuite extends SparkSuite {
     a(6) = IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
     a(7) = null // m
     a(8) = Array[Any](Annotation(23, "foo"), null): IndexedSeq[Any]
-    a(9) = Annotation(null, 0, 1, 2, Genotype.gtIndex(3, 5))
+    a(9) = Annotation(null, Call2(0, 0), Call2(0, 1), Call2(1, 1), Call2(3, 5))
     a(10) = true
     a(11) = false
     a(12) = null // mb
@@ -136,7 +136,7 @@ class ExprSuite extends SparkSuite {
     a(19) = null
     a(20) = IndexedSeq[Int]()
     a(21) = Set[Int]()
-    a(22) = Annotation(null, Call(0), Call(1), Call(2))
+    a(22) = Annotation(null, Call2(0, 0), Call2(0, 1), Call2(1, 1))
 
     assert(a.length == symTab.size)
 
@@ -240,14 +240,12 @@ class ExprSuite extends SparkSuite {
       assert(eval[Boolean](s"0.0/0.0 != $x").contains(true))
     }
 
-    assert(eval[Boolean]("isMissing(gs.noCall.gt)").contains(true))
-    assert(eval[Boolean]("gs.noCall.gt").isEmpty)
+    assert(eval[Boolean]("isMissing(gs.noCall)").contains(true))
+    assert(eval[Boolean]("gs.noCall.ploidy").isEmpty)
+    assert(eval[Boolean]("gs.noCall[0]").isEmpty)
 
-    assert(eval[Boolean]("isMissing(gs.noCall.gtj())").contains(true))
-    assert(eval[Boolean]("gs.noCall.gtj()").isEmpty)
-
-    assert(eval[Boolean]("isMissing(gs.noCall.gtk())").contains(true))
-    assert(eval[Boolean]("gs.noCall.gtk()").isEmpty)
+    assert(eval[Boolean]("isMissing(gs.noCall[1])").contains(true))
+    assert(eval[Boolean]("gs.noCall[1]").isEmpty)
 
     assert(eval[Int]("let a = i and b = j in a + b").contains(-2))
     assert(eval[Int]("let a = i and b = a + j in b").contains(-2))
@@ -259,14 +257,14 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isMissing(false || mb)").contains(true))
     assert(eval[Boolean]("isMissing(mb || false)").contains(true))
 
-    assert(eval[Int]("gs.homRef.gtj()").contains(0)
-      && eval[Int]("gs.homRef.gtk()").contains(0))
-    assert(eval[Int]("gs.het.gtj()").contains(0)
-      && eval[Int]("gs.het.gtk()").contains(1))
-    assert(eval[Int]("gs.homVar.gtj()").contains(1)
-      && eval[Int]("gs.homVar.gtk()").contains(1))
-    assert(eval[Int]("gs.hetNonRef35.gtj()").contains(3)
-      && eval[Int]("gs.hetNonRef35.gtk()").contains(5))
+    assert(eval[Int]("gs.homRef[0]").contains(0)
+      && eval[Int]("gs.homRef[1]").contains(0))
+    assert(eval[Int]("gs.het[0]").contains(0)
+      && eval[Int]("gs.het[1]").contains(1))
+    assert(eval[Int]("gs.homVar[0]").contains(1)
+      && eval[Int]("gs.homVar[1]").contains(1))
+    assert(eval[Int]("gs.hetNonRef35[0]").contains(3)
+      && eval[Int]("gs.hetNonRef35[1]").contains(5))
 
     assert(eval[Int]("orElse(i, 3)").contains(5))
     assert(eval[Int]("orElse(m, 3)").contains(3))
@@ -782,10 +780,6 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Any]("if (true) NA: Float64 else 0.0").isEmpty)
 
-    assert(eval[Int]("gtIndex(3, 5)").contains(18))
-    assert(eval[Int]("gtj(18)").contains(3))
-    assert(eval[Int]("gtk(18)").contains(5))
-
     assert(eval[Long]("0L").contains(0L))
     assert(eval[Long]("-1L").contains(-1L))
     assert(eval[Long]("1L").contains(1L))
@@ -811,10 +805,9 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isMissing(calls.noCall.isHetNonRef())").contains(true))
     assert(eval[Boolean]("isMissing(calls.noCall.isHetRef())").contains(true))
     assert(eval[Boolean]("isMissing(calls.noCall.nNonRefAlleles())").contains(true))
-    assert(eval[Boolean]("isMissing(calls.noCall.gtj())").contains(true))
-    assert(eval[Boolean]("isMissing(calls.noCall.gt())").contains(true))
-    assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") in isMissing(c.oneHotAlleles(v))""").contains(true))
-    assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") in isMissing(c.oneHotGenotype(v))""").contains(true))
+    assert(eval[Boolean]("isMissing(calls.noCall[0])").contains(true))
+    assert(eval[Boolean]("isMissing(calls.noCall.ploidy)").contains(true))
+    assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") in isMissing(c.oneHotAlleles(v))""").contains(true)) // FIXME
 
     assert(eval[Boolean]("isDefined(calls.homRef)").contains(true))
     assert(eval[Boolean]("calls.homRef.isHomRef()").contains(true))
@@ -829,7 +822,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("calls.het.isHomVar()").contains(false))
     assert(eval[Boolean]("calls.het.nNonRefAlleles() == 1").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(1, 1)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") in c.oneHotGenotype(v)""").contains(IndexedSeq(0, 1, 0)))
 
     assert(eval[Boolean]("isDefined(calls.homVar)").contains(true))
     assert(eval[Boolean]("calls.homVar.isHomRef()").contains(false))
@@ -837,7 +829,12 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("calls.homVar.isHomVar()").contains(true))
     assert(eval[Boolean]("calls.homVar.nNonRefAlleles() == 2").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(0, 2)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") in c.oneHotGenotype(v)""").contains(IndexedSeq(0, 0, 1)))
+
+    assert(eval[Int]("let x = Call(true, 1, 2) in x.ploidy").contains(2))
+    assert(eval[Int]("let x = Call(true, 1, 2) in x[1]").contains(2))
+    assert(eval[Int]("let x = Call(false, 3) in x.ploidy").contains(1))
+    assert(eval[Int]("let x = Call(false, 3) in x[0]").contains(3))
+    assert(eval[Int]("let x = Call(false) in x.ploidy").contains(0))
 
     {
       val x = eval[Map[String, IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")

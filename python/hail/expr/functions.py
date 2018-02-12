@@ -567,6 +567,7 @@ def floor(x):
     """
     return _func("floor", unify_types(x.dtype, TFloat32()), x)
 
+
 @typecheck(x=expr_numeric)
 def ceil(x):
     """The smallest integral value that is greater than or equal to `x`.
@@ -583,38 +584,6 @@ def ceil(x):
     :obj:`.Float64Expression`
     """
     return _func("ceil", unify_types(x.dtype, TFloat32()), x)
-
-@typecheck(j=expr_int32, k=expr_int32)
-def gt_index(j, k):
-    """Convert from `j`/`k` pair to call index (the triangular number).
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> eval_expr(functions.gt_index(0, 1))
-        1
-
-        >>> eval_expr(functions.gt_index(1, 2))
-        4
-
-    Notes
-    -----
-    The call index is given by ``(k * (k + 1) / 2) + j`` if ``j <= k`` and
-    ``(j * (j + 1)) / 2 + k`` if ``k <= j``.
-
-    Parameters
-    ----------
-    j : int or :class:`.Int32Expression`
-        First diploid allele index.
-    k : int or :class:`.Int32Expression`
-        Second diploid allele index.
-
-    Returns
-    -------
-    :class:`.Int32Expression`
-    """
-    return _func("gtIndex", TInt32(), j, k)
 
 
 @typecheck(num_hom_ref=expr_int32, num_het=expr_int32, num_hom_var=expr_int32)
@@ -913,33 +882,100 @@ def parse_interval(s, reference_genome=None):
         s._indices, s._aggregations, s._joins, s._refs)
 
 
-@typecheck(i=expr_int32)
-def call(i):
-    """Construct a call expression from an integer or integer expression.
+@typecheck(phased=expr_bool,
+           alleles=expr_int32)
+def call(phased, *alleles): # FIXME: Python 3 allows optional kwarg after varargs
+    """Construct a call expression.
 
     Examples
     --------
     .. doctest::
 
-        >>> eval_expr(functions.call(1))
-        Call(gt=1)
-
-    Notes
-    -----
-    This method expects one argument, the triangular number of the two allele
-    indices. In order to construct a call expression from two allele indices, first
-    use :meth:`.gt_index`.
+        >>> eval_expr(functions.call(True, 1, 0))
+        Call(alleles=[1, 0], phased=True)
 
     Parameters
     ----------
-    i : int or :class:`.Int32Expression`
-        Triangular number of new call.
+    phased : :obj:`bool`
+        If ``True``, preserve the order of `alleles`.
+    alleles : variable-length args of :obj:`int` or :class:`.Int32Expression`
+        List of allele indices.
 
     Returns
     -------
     :class:`.CallExpression`
     """
-    return construct_expr(ApplyMethod('Call', i._ast), TCall(), i._indices, i._aggregations, i._joins, i._refs)
+
+    indices, aggregations, joins, refs = unify_all(phased, *alleles)
+    if len(alleles) > 2:
+        raise NotImplementedError("`call' supports a maximum of 2 alleles.")
+    return construct_expr(ApplyMethod('Call', phased._ast, *[a._ast for a in alleles]), TCall(), indices, aggregations, joins, refs)
+
+
+@typecheck(gt_index=expr_int32)
+def unphased_diploid_gt_index_call(gt_index):
+    """Construct an unphased, diploid call from a genotype index.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.unphased_diploid_gt_index_call(4))
+        Call(alleles=[1, 2], phased=False)
+
+    Parameters
+    ----------
+    gt_index : :obj:`int` or :class:`.Int32Expression`
+        Unphased, diploid genotype index.
+
+    Returns
+    -------
+    :class:`.CallExpression`
+    """
+    gt_index = to_expr(gt_index)
+    return construct_expr(ApplyMethod('UnphasedDiploidGtIndexCall', gt_index._ast), TCall(), gt_index._indices, gt_index._aggregations, gt_index._joins, gt_index._refs)
+
+
+@typecheck(s=expr_str)
+def parse_call(s):
+    """Construct a call expression by parsing a string or string expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.parse_call('0|2'))
+        Call([0, 2], phased=True)
+
+    Notes
+    -----
+    This method expects strings in the following format:
+
+    +--------+-------------------------+--------------+
+    | ploidy | Phased                  | Unphased     |
+    +========+=========================+==============+
+    |   0    | &#124;-                 |  -           |
+    +--------+-------------------------+--------------+
+    |   1    | &#124;i                 |  i           |
+    +--------+-------------------------+--------------+
+    |   2    | i&#124;j                |  i/j         |
+    +--------+-------------------------+--------------+
+    |   3    | i&#124;j&#124;k         |  i/j/k       |
+    +--------+-------------------------+--------------+
+    |   N    | i&#124;j&#124;...&#124;N| i/j/k/.../N  |
+    +------+------+-----------------------------------+
+
+    Parameters
+    ----------
+    s : str or :class:`.StringExpression`
+        String to parse.
+
+    Returns
+    -------
+    :class:`.CallExpression`
+    """
+    s = to_expr(s)
+    return construct_expr(ApplyMethod('Call', s._ast), TCall(), s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(expression=expr_any)
@@ -1972,48 +2008,22 @@ def to_str(x):
     return _func("str", TString(), x)
 
 
-@typecheck(pl=ArrayInt32Expression)
-def gt_from_pl(pl):
-    """Call genotype from Phred-scaled probability likelihoods.
-
-    Notes
-    -----
-    Returns the index of the smallest PL value if it is unique, and
-    missing otherwise.
+@typecheck(c=expr_call, i=expr_int32)
+def downcode(c, i):
+    """Create a new call by setting all alleles other than i to ref
 
     Examples
     --------
-    .. doctest::
-
-        >>> eval_expr(functions.gt_from_pl([69,0,1035]))
-        1
-
-    Parameters
-    ----------
-    pl : :class:`.ArrayInt32Expression`
-
-    Returns
-    -------
-    :class:`.Int32Expression`
-    """
-    return _func("gtFromPL", TInt32(), pl)
-
-def downcode(gt, i):
-    """Create a biallelic call by sending all alleles other than i to ref
-
-    Examples
-    --------
-    Preserve the third allele and downcode all other alleles to reference. Note
-    that ``functions.call(4)`` is the call ``1/2``.
+    Preserve the third allele and downcode all other alleles to reference.
 
     .. doctest::
 
-        >>> eval_expr(functions.downcode(functions.call(4), 2))
-        Call(gt=1)
+        >>> eval_expr(functions.downcode(functions.call([1, 2]), 2))
+        Call(alleles=[0, 2], phased=False)
 
     Parameters
     ----------
-    gt : :class:`.CallExpression`
+    c : :class:`.CallExpression`
         A call.
     i : :class:`.Int32Expression`
         The index of the allele that will be sent to the alternate allele. All
@@ -2023,7 +2033,8 @@ def downcode(gt, i):
     -------
     :class:`.CallExpression`
     """
-    return call(cond(gt.gtj() == i, 1, 0) + cond(gt.gtk() == i, 1, 0))
+    return _func("downcode", TCall(), c, i)
+
 
 @typecheck(pl=ArrayInt32Expression)
 def gq_from_pl(pl):

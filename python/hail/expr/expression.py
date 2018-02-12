@@ -99,7 +99,14 @@ def to_expr(e):
     elif isinstance(e, Interval):
         return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))), TInterval(TLocus(e.reference_genome)))
     elif isinstance(e, Call):
-        return construct_expr(ApplyMethod('Call', Literal(str(e.gt))), TCall())
+        if e.ploidy == 0:
+            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), TCall())
+        elif e.ploidy == 1:
+            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast), TCall())
+        elif e.ploidy == 2:
+            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast, to_expr(e[1])._ast), TCall())
+        else:
+            raise NotImplementedError("Do not support calls with ploidy == {}.".format(e.ploidy))
     elif isinstance(e, Struct):
         if len(e) == 0:
             return construct_expr(StructDeclaration([], []), TStruct([], []))
@@ -1093,7 +1100,6 @@ class ArrayExpression(CollectionExpression):
         """
         return self._method("toSet", TSet(self._type.element_type))
 
-
 class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     """Expression of type :class:`.TArray` with a numeric type.
 
@@ -1364,6 +1370,66 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             Sorted array.
         """
         return self._method("sort", self._type, ascending)
+
+    def unique_min_index(self):
+        """Return the index of the minimum value in the array.
+
+        Notes
+        -----
+        If the minimum value is not unique, returns missing.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> pl = functions.capture([10, 0, 100])
+            [10, 0, 100]
+
+            >>> eval_expr(pl.unique_min_index())
+            1
+
+            >>> pl2 = functions.capture([0, 0, 100])
+            [0, 0, 100]
+
+            >>> eval_expr(pl2.unique_min_index())
+            None
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+        """
+        return self._method("uniqueMinIndex", TInt32())
+
+    def unique_max_index(self):
+        """Return the index of the maximum value in the array.
+
+        Notes
+        -----
+        If the maximum value is not unique, returns missing.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> gp = functions.capture([0.2, 0.2, 0.6])
+            [0.2, 0.2, 0.6]
+
+            >>> eval_expr(gp.unique_max_index())
+            2
+
+            >>> gp2 = functions.capture([0.4, 0.4, 0.2])
+            [0.4, 0.4, 0.2]
+
+            >>> eval_expr(gp2.unique_max_index())
+            None
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+        """
+        return self._method("uniqueMinIndex", TInt32())
 
 
 class ArrayBooleanExpression(ArrayExpression):
@@ -3140,59 +3206,108 @@ class StringExpression(AtomicExpression):
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
 
-    >>> call = functions.capture(Call(1))
+    >>> call = functions.capture(Call([0, 1]))
     """
-    @property
-    def gt(self):
-        """Returns the triangle number of :meth:`.Call.gtj` and :meth:`.Call.gtk`.
+
+    def __getitem__(self, item):
+        """Get the i*th* allele.
 
         Examples
         --------
+
+        Index with a single integer:
+
         .. doctest::
 
-            >>> eval_expr(call.gt)
-            1
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-            Triangle number of the two alleles.
-        """
-        return self._field("gt", TInt32())
-
-    def gtj(self):
-        """Returns the allele index of the first allele.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> eval_expr(call.gtj())
+            >>> eval_expr(call[0])
             0
 
+            >>> eval_expr(call[1])
+            1
+
+        Parameters
+        ----------
+        item : int or :class:`.Int32Expression`
+            Allele index.
+
         Returns
         -------
         :class:`.Int32Expression`
-            First allele index.
         """
-        return self._method("gtj", TInt32())
+        if isinstance(item, slice):
+            raise NotImplementedError("CallExpression does not support indexing with a slice.")
+        else:
+            item = to_expr(item)
+            if not isinstance(item._type, TInt32):
+                raise TypeError("Call expects allele index to be an expression of type 'Int32', "
+                                "found expression of type '{}'".format(item._type))
+            return self._index(TInt32(), item)
 
-    def gtk(self):
-        """Returns the allele index of the second allele.
+    @property
+    def ploidy(self):
+        """Return the number of alleles of this call.
 
         Examples
         --------
         .. doctest::
 
-            >>> eval_expr(call.gtk())
-            1
+            >>> eval_expr(call.ploidy)
+            2
 
         Returns
         -------
         :class:`.Int32Expression`
-            Second allele index.
         """
-        return self._method("gtk", TInt32())
+        return self._method("ploidy", TInt32())
+
+    @property
+    def phased(self):
+        """True if the call is phased.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.phased)
+            False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("isPhased", TBoolean())
+
+    def is_haploid(self):
+        """True if the call has ploidy equal to 1.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_haploid())
+            False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self.ploidy == 1
+
+    def is_diploid(self):
+        """True if the call has ploidy equal to 2.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_diploid())
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self.ploidy == 2
 
     def is_non_ref(self):
         """Evaluate whether the call includes one or more non-reference alleles.
@@ -3297,7 +3412,7 @@ class CallExpression(Expression):
         return self._method("isHomVar", TBoolean())
 
     def num_alt_alleles(self):
-        """Returns the number of non-reference alleles (0, 1, or 2).
+        """Returns the number of non-reference alleles.
 
         Examples
         --------
@@ -3309,13 +3424,14 @@ class CallExpression(Expression):
         Returns
         -------
         :class:`.Int32Expression`
-            The number of non-reference alleles (0, 1, or 2).
+            The number of non-reference alleles.
         """
         return self._method("nNonRefAlleles", TInt32())
 
     @typecheck_method(alleles=expr_list)
     def one_hot_alleles(self, alleles):
-        """Returns an array containing the summed one-hot encoding of the two alleles.
+        """Returns an array containing the summed one-hot encoding of the
+        alleles.
 
         Examples
         --------
@@ -3343,6 +3459,21 @@ class CallExpression(Expression):
         """
         return self._method("oneHotAlleles", TArray(TInt32()), alleles)
 
+    def unphased_diploid_gt_index(self):
+        """Return the genotype index for unphased, diploid calls.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.unphased_diploid_gt_index())
+            1
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+        """
+        return self._method("unphasedDiploidGtIndex", TInt32())
 
 class LocusExpression(Expression):
     """Expression of type :class:`.TLocus`.

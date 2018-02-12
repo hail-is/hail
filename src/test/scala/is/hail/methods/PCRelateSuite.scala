@@ -1,13 +1,13 @@
 package is.hail.methods
 
 import breeze.linalg.DenseMatrix
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr.types._
 import is.hail.io.plink.ExportPlink
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
-import is.hail.variant.MatrixTable
+import is.hail.variant.{Call2, MatrixTable}
 import is.hail.methods.PCASuite.samplePCA
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -101,7 +101,7 @@ class PCRelateSuite extends SparkSuite {
   @Test
   def trivialReference() {
     val genotypeMatrix = new DenseMatrix(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
-    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
+    val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(genotypeMatrix))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val pcs = new DenseMatrix(4,2,pcsArray)
     val us = runPcRelateHail(vds, pcs, maf=0.0)
@@ -112,7 +112,7 @@ class PCRelateSuite extends SparkSuite {
   @Test(enabled = false)
   def trivialReferenceMatchesR() {
     val genotypeMatrix = new DenseMatrix(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
-    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
+    val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(genotypeMatrix), Some(Array("s1","s2","s3","s4")))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val pcs = new DenseMatrix(4,2,pcsArray)
     val usRef = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1

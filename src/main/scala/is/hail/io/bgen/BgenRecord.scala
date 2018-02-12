@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant}
+import is.hail.variant.{Call, Call2, Genotype, Variant}
 
 abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
   var ann: Annotation = _
@@ -47,12 +47,14 @@ class BgenRecordV11(compressed: Boolean,
         t(1) = d1
         t(2) = d2
         rvb.startStruct()
+
         // GT
         val gt = Genotype.unboxedGTFromLinear(t)
         if (gt != -1)
-          rvb.addInt(gt)
+          rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
         else
           rvb.setMissing()
+
         rvb.startArray(3) // GP
         rvb.addDouble(d0.toDouble / dsum)
         rvb.addDouble(d1.toDouble / dsum)
@@ -168,7 +170,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           sampleProbs(2) = d2
           val gt = Genotype.unboxedGTFromLinear(sampleProbs)
           if (gt != -1)
-            rvb.addInt(gt)
+            rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
           else
             rvb.setMissing()
 
@@ -206,12 +208,14 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
             lastProb -= p
           }
           sampleProbs(j) = lastProb
+
           // GT
           val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
           if (gt != -1)
-            rvb.addInt(gt)
+            rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
           else
             rvb.setMissing()
+
           // GP
           rvb.startArray(nGenotypes)
           j = 0

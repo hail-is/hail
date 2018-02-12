@@ -3,9 +3,9 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.table.Table
-import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder, UnsafeRow}
+import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.variant.{GenomeReference, Genotype, HardCallView, MatrixTable, Variant}
+import is.hail.variant.{Call, GenomeReference, Genotype, HardCallView, MatrixTable, Variant}
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.rvd.RVD
 import is.hail.stats.RegressionUtils
@@ -119,7 +119,7 @@ object IBD {
   def indicator(b: Boolean): Int = if (b) 1 else 0
 
   def countRefs(gtIdx: Int): Int = {
-    val gt = Genotype.gtPair(gtIdx)
+    val gt = Genotype.allelePair(gtIdx)
     indicator(gt.j == 0) + indicator(gt.k == 0)
   }
 
@@ -148,7 +148,7 @@ object IBD {
         gs.setGenotype(i)
         if (gs.hasGT) {
           na += 2
-          x += countRefs(gs.getGT)
+          x += countRefs(Call.unphasedDiploidGtIndex(gs.getGT))
         }
         i += 1
       }
@@ -231,7 +231,7 @@ object IBD {
         Array.tabulate[Byte](view.getLength) { i =>
           view.setGenotype(i)
           if (view.hasGT)
-            IBSFFI.gtToCRep(view.getGT)
+            IBSFFI.gtToCRep(Call.unphasedDiploidGtIndex(view.getGT))
           else
             IBSFFI.missingGTCRep
         }

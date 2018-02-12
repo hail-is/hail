@@ -3,7 +3,7 @@ package is.hail.expr
 import is.hail.expr.types._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant.{GRBase, GenomeReference, Locus}
+import is.hail.variant._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -344,6 +344,13 @@ object Parser extends JavaTokenParsers {
     parseAll[Interval](locusInterval(gr), input) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
+    }
+  }
+
+  def parseCall(input: String): Call = {
+    parseAll[Call](call, input) match {
+      case Success(r, _) => r
+      case NoSuccess(msg, next) => fatal(s"invalid call expression: `$input': $msg")
     }
   }
 
@@ -707,6 +714,17 @@ object Parser extends JavaTokenParsers {
       val f = evalNoTypeCheck(ast, ec)
       (id, spec, t, f)
     }
+  }
+
+  def call: Parser[Call] = {
+    wholeNumber ~ "/" ~ rep1sep(wholeNumber, "/") ^^ { case a0 ~ _ ~ arest =>
+      CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = false) } |
+      wholeNumber ~ "|" ~ rep1sep(wholeNumber, "|") ^^ { case a0 ~ _ ~ arest =>
+        CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = true) } |
+      wholeNumber ^^ { a => Call1(coerceInt(a), phased = false) } |
+      "|" ~ wholeNumber ^^ { case _ ~ a => Call1(coerceInt(a), phased = true) } |
+      "-" ^^ { _ => Call0(phased = false) } |
+      "|-" ^^ { _ => Call0(phased = true) }
   }
 
   def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "LocusAlleles" | "Locus"

@@ -2,6 +2,7 @@ package is.hail.io.plink
 
 import is.hail.annotations.RegionValueBuilder
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
+import is.hail.variant.{Call, Call2}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
@@ -19,10 +20,10 @@ class PlinkRecord(nSamples: Int, a2Reference: Boolean) extends KeySerializedValu
       rvb.startStruct() // g
       val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
       (x: @switch @unchecked) match {
-        case 0 => rvb.addInt(if (a2Reference) 2 else 0)
+        case 0 => rvb.addInt(if (a2Reference) Call2.fromUnphasedDiploidGtIndex(2) else Call2.fromUnphasedDiploidGtIndex(0))
         case 1 => rvb.setMissing()
-        case 2 => rvb.addInt(1)
-        case 3 => rvb.addInt(if (a2Reference) 0 else 2)
+        case 2 => rvb.addInt(Call2.fromUnphasedDiploidGtIndex(1))
+        case 3 => rvb.addInt(if (a2Reference) Call2.fromUnphasedDiploidGtIndex(0) else Call2.fromUnphasedDiploidGtIndex(2))
       }
       rvb.endStruct() // g
       i += 1

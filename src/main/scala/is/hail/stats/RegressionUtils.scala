@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{HardCallView, MatrixTable}
+import is.hail.variant.{Call, HardCallView, MatrixTable}
 
 object RegressionUtils {
   def inputVector(x: DenseVector[Double],
@@ -70,7 +70,7 @@ object RegressionUtils {
     while (row < nSamples) {
       view.setGenotype(row)
       if (view.hasGT) {
-        val gt = view.getGT
+        val gt = Call.unphasedDiploidGtIndex(view.getGT)
         vals(row) = gt
         (gt: @unchecked) match {
           case 0 =>

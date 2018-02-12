@@ -42,15 +42,15 @@ object TestRDDBuilder {
     result
   }
 
-  def pullGT(): Int = {
+  def pullCall(): Call = {
     // pulls a genotype call according to HWE and defaultMAF
     val pull = Random.nextFloat()
     val homVarThreshold = defaultAF * defaultAF
     val hetThreshold = homVarThreshold + 2 * defaultAF * (1 - defaultAF)
     pull match {
-      case x if x < homVarThreshold => 2
-      case x if x < hetThreshold => 1
-      case _ => 0
+      case x if x < homVarThreshold => Call2.fromUnphasedDiploidGtIndex(2)
+      case x if x < hetThreshold => Call2.fromUnphasedDiploidGtIndex(1)
+      case _ => Call2.fromUnphasedDiploidGtIndex(0)
     }
   }
 
@@ -80,13 +80,14 @@ object TestRDDBuilder {
   def buildRDD(nSamples: Int, nVariants: Int, hc: HailContext,
                       gqArray: Option[Array[Array[Int]]] = None,
                       dpArray: Option[Array[Array[Int]]] = None,
-                      gtArray: Option[Array[Array[Int]]] = None): MatrixTable = {
+                      callArray: Option[Array[Array[Call]]] = None): MatrixTable = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
     sc(SparkContext) -- spark context in which to operate
     gqArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     dpArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
+    callArray(Array[Array[Call]]] -- Call array of dimension (nVariants x nSamples)
     Returns a test VDS of the given parameters */
 
     // create list of dummy sample IDs
@@ -96,16 +97,16 @@ object TestRDDBuilder {
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
       (Variant("1", i + 1, defaultRef, defaultAlt),
-        (gtArray.map(_(i)),
+        (callArray.map(_(i)),
           gqArray.map(_(i)),
           dpArray.map(_(i)))))
       .map {
-        case (variant, (gtArr, gqArr, dpArr)) =>
+        case (variant, (callArr, gqArr, dpArr)) =>
           val b = new ArrayBuilder[Annotation]()
           for (sample <- 0 until nSamples) {
-            val gt = gtArr match {
+            val c = callArr match {
               case Some(arr) => Some(arr(sample))
-              case None => Some(pullGT())
+              case None => Some(pullCall())
             }
             val gq = gqArr match {
               case Some(arr) => arr(sample)
@@ -115,10 +116,10 @@ object TestRDDBuilder {
               case Some(arr) => arr(sample)
               case None => normInt(dpMean, dpStDev, floor = dpMin, ceil = dpMax)
             }
-            val ad = adFromDP(dp, gt)
-            val pl = plFromGQ(gq, gt)
+            val ad = adFromDP(dp, c)
+            val pl = plFromGQ(gq, c)
 
-            b += Genotype(gt, ad, Some(dp), Some(gq), pl)
+            b += Genotype(c, ad, Some(dp), Some(gq), pl)
           }
           (Annotation(variant), b.result(): Iterable[Annotation])
       }.toArray

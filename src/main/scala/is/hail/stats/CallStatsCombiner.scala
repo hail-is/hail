@@ -25,11 +25,11 @@ class CallStatsCombiner(val alleles: IndexedSeq[String]) extends Serializable {
   val alleleCount = new Array[Int](alleles.length)
   val genotypeCount = new Array[Int](Variant.nGenotypes(alleles.length))
 
-  def merge(gt: Call): CallStatsCombiner = {
-    val p = Genotype.gtPair(gt)
+  def merge(c: Call): CallStatsCombiner = {
+    val p = Call.allelePair(c)
     alleleCount(p.j) += 1
     alleleCount(p.k) += 1
-    genotypeCount(gt) += 1
+    genotypeCount(Call.unphasedDiploidGtIndex(c)) += 1
     this
   }
 

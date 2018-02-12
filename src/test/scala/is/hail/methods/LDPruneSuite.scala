@@ -62,11 +62,9 @@ object LDPruneSuite {
     rvb.result()
   }
 
-  def convertGtsToGs(gts: Array[Int]): Iterable[Annotation] = gts.map(Genotype(_)).toIterable
+  def convertCallsToGs(calls: Array[BoxedCall]): Iterable[Annotation] = calls.map(Genotype(_)).toIterable
 
-  def toBitPackedVectorView(gs: HailIterator[Int], nSamples: Int): Option[BitPackedVectorView] =
-    toBitPackedVectorView(convertGtsToGs(gs.toArray), nSamples)
-
+  // expecting iterable of Genotype with htsjdk schema
   def toBitPackedVectorView(gs: Iterable[Annotation], nSamples: Int): Option[BitPackedVectorView] = {
     val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
     toBitPackedVectorRegionValue(gs, nSamples) match {
@@ -77,6 +75,7 @@ object LDPruneSuite {
     }
   }
 
+  // expecting iterable of Genotype with htsjdk schema
   def toBitPackedVectorRegionValue(gs: Iterable[Annotation], nSamples: Int): Option[RegionValue] = {
     toBitPackedVectorRegionValue(makeRV(gs), nSamples)
   }
@@ -101,9 +100,9 @@ object LDPruneSuite {
       None
   }
 
-  def toBitPackedVector(gts: Array[Int]): Option[BitPackedVector] = {
-    val nSamples = gts.length
-    toBitPackedVectorView(convertGtsToGs(gts), nSamples).map { bpvv =>
+  def toBitPackedVector(calls: Array[BoxedCall]): Option[BitPackedVector] = {
+    val nSamples = calls.length
+    toBitPackedVectorView(convertCallsToGs(calls), nSamples).map { bpvv =>
       BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getStdDevRecip)
     }
   }
@@ -112,6 +111,8 @@ object LDPruneSuite {
 class LDPruneSuite extends SparkSuite {
   val bytesPerCoreMB = 256
   val nCores = 4
+
+  def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
   def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int) = {
     val bvi = gts.map { gs => LDPruneSuite.toBitPackedVectorView(gs, nSamples) }
@@ -144,33 +145,33 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testBitPackUnpack() {
-    val gts1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1)
-    val gts2 = Array(0, 1, 2, 2, 2, 0, -1, -1)
-    val gts3 = gts1 ++ Array.ofDim[Int](32 - gts1.length) ++ gts2
+    val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
+    val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
+    val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
 
-    for (gts <- Array(gts1, gts2, gts3)) {
-      assert(LDPruneSuite.toBitPackedVector(gts).forall { bpv =>
-        bpv.unpack() sameElements gts
+    for (calls <- Array(calls1, calls2, calls3)) {
+      assert(LDPruneSuite.toBitPackedVector(calls).forall { bpv =>
+        bpv.unpack().map(toC2) sameElements calls
       })
     }
   }
 
   @Test def testR2() {
-    val gts = Array(
-      Array(1, 0, 0, 0, 0, 0, 0, 0),
-      Array(1, 1, 1, 1, 1, 1, 1, 1),
-      Array(1, 2, 2, 2, 2, 2, 2, 2),
-      Array(1, 0, 0, 0, 1, 1, 1, 1),
-      Array(1, 0, 0, 0, 1, 1, 2, 2),
-      Array(1, 0, 1, 1, 2, 2, 0, 1),
-      Array(1, 0, 1, 0, 2, 2, 1, 1)
+    val calls = Array(
+      Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
+      Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
+      Array(1, 2, 2, 2, 2, 2, 2, 2).map(toC2),
+      Array(1, 0, 0, 0, 1, 1, 1, 1).map(toC2),
+      Array(1, 0, 0, 0, 1, 1, 2, 2).map(toC2),
+      Array(1, 0, 1, 1, 2, 2, 0, 1).map(toC2),
+      Array(1, 0, 1, 0, 2, 2, 1, 1).map(toC2)
     )
 
     val actualR2 = new MultiArray2(7, 7, hadoopConf.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 
-    val computedR2 = correlationMatrix(gts.map(LDPruneSuite.convertGtsToGs), 8)
+    val computedR2 = correlationMatrix(calls.map(LDPruneSuite.convertCallsToGs), 8)
 
     val isSame = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
@@ -191,9 +192,9 @@ class LDPruneSuite extends SparkSuite {
 
     assert(isSame)
 
-    val input = Array(0, 1, 2, 2, 2, 0, -1, -1)
-    val bvi1 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertGtsToGs(input), input.length).get
-    val bvi2 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertGtsToGs(input), input.length).get
+    val input = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
+    val bvi1 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertCallsToGs(input), input.length).get
+    val bvi2 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertCallsToGs(input), input.length).get
 
     assert(D_==(LDPrune.computeR2(bvi1, bvi2), 1d))
   }
@@ -218,24 +219,24 @@ class LDPruneSuite extends SparkSuite {
     nPartitions: Int <- Gen.choose(5, 10)) yield (r2, windowSize, nPartitions)
 
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-    v1: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2));
-    v2: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2))
+      v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
+      v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
     ) yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
-      forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], _) =>
+      forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], _) =>
         val bpv = LDPruneSuite.toBitPackedVector(v1)
 
         bpv match {
-          case Some(x) => LDPruneSuite.toBitPackedVector(x.unpack()).get.gs sameElements x.gs
+          case Some(x) => LDPruneSuite.toBitPackedVector(x.unpack().map(toC2)).get.gs sameElements x.gs
           case None => true
         }
       }
 
     property("R2 bitPacked same as BVector") =
-      forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
-        val v1Ann = LDPruneSuite.convertGtsToGs(v1)
-        val v2Ann = LDPruneSuite.convertGtsToGs(v2)
+      forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
+        val v1Ann = LDPruneSuite.convertCallsToGs(v1)
+        val v2Ann = LDPruneSuite.convertCallsToGs(v2)
 
         val bv1 = LDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)

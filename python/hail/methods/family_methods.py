@@ -375,7 +375,10 @@ def tdt(dataset, pedigree):
 
     copy_state = functions.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
 
-    config = [tri.proband_entry.GT.gt, tri.father_entry.GT.gt, tri.mother_entry.GT.gt, copy_state]
+    config = [tri.proband_entry.GT.num_alt_alleles(),
+              tri.father_entry.GT.num_alt_alleles(),
+              tri.mother_entry.GT.num_alt_alleles(),
+              copy_state]
 
     tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
 

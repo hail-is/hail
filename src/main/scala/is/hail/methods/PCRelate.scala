@@ -7,7 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{HardCallView, MatrixTable, Variant}
+import is.hail.variant.{Call, HardCallView, MatrixTable, Variant}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -135,7 +135,7 @@ object PCRelate {
         while (i < nSamples) {
           view.setGenotype(i)
           if (view.hasGT) {
-            val gt = view.getGT
+            val gt = Call.unphasedDiploidGtIndex(view.getGT)
             sum += gt
             a(i) = gt
             nNonMissing += 1

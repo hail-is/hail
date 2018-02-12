@@ -132,14 +132,14 @@ object CalculateConcordance {
           comb(li).merge(
             if (lrv != null) {
               if (lview.hasGT)
-                lview.getGT + 2
+                Call.unphasedDiploidGtIndex(lview.getGT) + 2
               else
                 1
             } else
               0,
             if (rrv != null) {
               if (rview.hasGT)
-                rview.getGT + 2
+                Call.unphasedDiploidGtIndex(rview.getGT) + 2
               else
                 1
             } else
@@ -192,14 +192,14 @@ object CalculateConcordance {
           comb.merge(
             if (lrv != null) {
               if (lview.hasGT)
-                lview.getGT + 2
+                Call.unphasedDiploidGtIndex(lview.getGT) + 2
               else
                 1
             } else
               0,
             if (rrv != null) {
               if (rview.hasGT)
-                rview.getGT + 2
+                Call.unphasedDiploidGtIndex(rview.getGT) + 2
               else
                 1
             } else

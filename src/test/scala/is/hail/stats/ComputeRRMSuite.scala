@@ -3,7 +3,8 @@ package is.hail.stats
 import breeze.linalg._
 import breeze.stats.mean
 import is.hail.utils._
-import is.hail.variant.HardCallView
+import is.hail.TestUtils.unphasedDiploidGtIndicesToBoxedCall
+import is.hail.variant.{BoxedCall, Call2, HardCallView}
 import is.hail.{SparkSuite, TestUtils, stats}
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.testng.annotations.Test
@@ -21,7 +22,7 @@ class ComputeRRMSuite extends SparkSuite {
                         (2.0, 1.5),
                         (0.0, 2.0))
 
-    val vds = stats.vdsFromGtMatrix(hc)(G0)
+    val vds = stats.vdsFromCallMatrix(hc)(unphasedDiploidGtIndicesToBoxedCall(G0))
 
     val n = vds.numCols
 

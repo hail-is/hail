@@ -1,10 +1,9 @@
 package is.hail.methods
 
 import is.hail.annotations.Annotation
-import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{AltAlleleMethods, AltAlleleType, Genotype, HTSGenotypeView, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{AltAlleleMethods, AltAlleleType, Call, HTSGenotypeView, MatrixTable, RegionValueVariant}
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
@@ -71,11 +70,11 @@ class SampleQCCombiner extends Serializable {
   def merge(aTypes: Array[Int], acs: Array[Int], view: HTSGenotypeView): SampleQCCombiner = {
 
     if (view.hasGT) {
-      val gt = view.getGT
-      if (gt == 0)
+      val c = view.getGT
+      if (Call.isHomRef(c))
         nHomRef += 1
       else {
-        val gtPair = Genotype.gtPair(gt)
+        val gtPair = Call.allelePair(c)
         val j = gtPair.j
         val k = gtPair.k
 
@@ -185,8 +184,8 @@ object SampleQC {
               view.setGenotype(i)
 
               if (view.hasGT) {
-                val gt = view.getGT
-                val gtPair = Genotype.gtPair(gt)
+                val c = view.getGT
+                val gtPair = Call.allelePair(c)
                 acs(gtPair.j) += 1
                 acs(gtPair.k) += 1
               }

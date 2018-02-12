@@ -1,14 +1,13 @@
 package is.hail.methods
 
 import is.hail.annotations.Annotation
-import is.hail.expr._
 import is.hail.io.annotators.IntervalList
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.stats.RegressionUtils._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
-import is.hail.stats.vdsFromGtMatrix
+import is.hail.stats.vdsFromCallMatrix
 import breeze.linalg._
 import breeze.numerics.sigmoid
 import is.hail.expr.types._
@@ -265,7 +264,7 @@ class SkatSuite extends SparkSuite {
     val v2 = Array(0, 2, 1, 0)
     val v3 = Array(1, 0, 0, 1)
 
-    val vds0 = vdsFromGtMatrix(hc)(new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3))
+    val vds0 = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3)))
     
     // annotations from table
     val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")

@@ -8,20 +8,4 @@ import scala.language.implicitConversions
 package object variant {
   type Call = Int
   type BoxedCall = java.lang.Integer
-
-  class RichIterableGenotype(val ig: Iterable[Annotation]) extends AnyVal {
-    def hardCallIterator: HailIterator[Int] =
-      new HailIterator[Int] {
-        val it: Iterator[Annotation] = ig.iterator
-
-        override def hasNext: Boolean = it.hasNext
-
-        override def next(): Int = {
-          val g = it.next()
-          Genotype.unboxedGT(g)
-        }
-      }
-  }
-
-  implicit def toRichIterableGenotype(ig: Iterable[Annotation]): RichIterableGenotype = new RichIterableGenotype(ig)
 }

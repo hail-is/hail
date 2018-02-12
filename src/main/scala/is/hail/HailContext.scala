@@ -16,7 +16,7 @@ import is.hail.table.Table
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, MatrixFileMetadata, VSMSubgen, Variant}
+import is.hail.variant.{Call2, GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixFileMetadata, MatrixTable, VSMSubgen, Variant}
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -597,7 +597,7 @@ class HailContext private(val sc: SparkContext,
 
     val v = Variant("16", 19200405, "C", Array("G", "CCC"))
     val s = "NA12878"
-    val g = Genotype(1, Array(14, 0, 12), 26, 60, Array(60, 65, 126, 0, 67, 65))
+    val g = Genotype(Call2.fromUnphasedDiploidGtIndex(1), Array(14, 0, 12), 26, 60, Array(60, 65, 126, 0, 67, 65))
     val sa = Annotation("1KG", Annotation(0.102312, -0.61512, 0.3166666, 34, true))
     val va = Annotation(
       Annotation(IndexedSeq(40, 1), 5102, IndexedSeq(0.00784, 0.000196)),

@@ -855,6 +855,74 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.5, 0.5, 0.0])), 0.5)
         self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.5, 0.5])), 1.5)
 
-    def test_parse_variant(self):
-        self.assertEqual(eval_expr(functions.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),
-                                                                               alleles=['A', 'T']))
+    def test_call(self):
+        c2_homref = functions.capture(Call([0, 0]))
+        c2_het = functions.capture(Call([1, 0], phased=True))
+        c2_homvar = functions.capture(Call([1, 1]))
+        c2_hetvar = functions.capture(Call([2, 1], phased=True))
+        c1 = functions.capture(Call([1]))
+        c0 = functions.capture(Call([]))
+        cNull = functions.capture(functions.null(TCall()))
+        
+        self.check_expr(c2_homref.ploidy, 2, TInt32())
+        self.check_expr(c2_homref[0], 0, TInt32())
+        self.check_expr(c2_homref[1], 0, TInt32())
+        self.check_expr(c2_homref.phased, False, TBoolean())
+        self.check_expr(c2_homref.is_hom_ref(), True, TBoolean())
+        
+        self.check_expr(c2_het.ploidy, 2, TInt32())
+        self.check_expr(c2_het[0], 1, TInt32())
+        self.check_expr(c2_het[1], 0, TInt32())
+        self.check_expr(c2_het.phased, True, TBoolean())
+        self.check_expr(c2_het.is_het(), True, TBoolean())
+        
+        self.check_expr(c2_homvar.ploidy, 2, TInt32())
+        self.check_expr(c2_homvar[0], 1, TInt32())
+        self.check_expr(c2_homvar[1], 1, TInt32())
+        self.check_expr(c2_homvar.phased, False, TBoolean())
+        self.check_expr(c2_homvar.is_hom_var(), True, TBoolean())
+        self.check_expr(c2_homvar.unphased_diploid_gt_index(), 2, TInt32())
+        
+        self.check_expr(c2_hetvar.ploidy, 2, TInt32())
+        self.check_expr(c2_hetvar[0], 2, TInt32())
+        self.check_expr(c2_hetvar[1], 1, TInt32())
+        self.check_expr(c2_hetvar.phased, True, TBoolean())
+        self.check_expr(c2_hetvar.is_hom_var(), False, TBoolean())
+        self.check_expr(c2_hetvar.is_het_nonref(), True, TBoolean())
+        
+        self.check_expr(c1.ploidy, 1, TInt32())
+        self.check_expr(c1[0], 1, TInt32())
+        self.check_expr(c1.phased, False, TBoolean())
+        self.check_expr(c1.is_hom_var(), True, TBoolean())
+        
+        self.check_expr(c0.ploidy, 0, TInt32())
+        self.check_expr(c0.phased, False, TBoolean())
+        self.check_expr(c0.is_hom_var(), False, TBoolean())
+        
+        self.check_expr(cNull.ploidy, None, TInt32())
+        self.check_expr(cNull[0], None, TInt32())
+        self.check_expr(cNull.phased, None, TBoolean())
+        self.check_expr(cNull.is_hom_var(), None, TBoolean())
+
+        call_expr = functions.call(True, 1, 2)
+        self.check_expr(call_expr[0], 1, TInt32())
+        self.check_expr(call_expr[1], 2, TInt32())
+        self.check_expr(call_expr.ploidy, 2, TInt32())
+
+        a0 = functions.capture(1)
+        a1 = 2
+        phased = functions.capture(True)
+        call_expr = functions.call(phased, a0, a1)
+        self.check_expr(call_expr[0], 1, TInt32())
+        self.check_expr(call_expr[1], 2, TInt32())
+        self.check_expr(call_expr.ploidy, 2, TInt32())
+
+        call_expr = functions.parse_call("1|2")
+        self.check_expr(call_expr[0], 1, TInt32())
+        self.check_expr(call_expr[1], 2, TInt32())
+        self.check_expr(call_expr.ploidy, 2, TInt32())
+
+        call_expr = functions.unphased_diploid_gt_index_call(2)
+        self.check_expr(call_expr[0], 1, TInt32())
+        self.check_expr(call_expr[1], 1, TInt32())
+        self.check_expr(call_expr.ploidy, 2, TInt32())

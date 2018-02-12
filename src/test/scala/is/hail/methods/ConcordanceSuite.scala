@@ -7,7 +7,7 @@ import is.hail.expr.types.{TString, TStruct, TVariant}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMSubgen, Variant}
+import is.hail.variant._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -164,9 +164,15 @@ class ConcordanceSuite extends SparkSuite {
       val innerJoin = vds1.expand().map { case (v, s, g) => ((v, s), g) }
         .join(vds2.expand().map { case (v, s, g) => ((v, s), g) })
 
+      def getIndex(g: Annotation): Int = {
+        Genotype.call(g)
+          .map(Call.nNonRefAlleles)
+          .getOrElse(-1)
+      }
+
       val innerJoinSamples = innerJoin.map { case (k, v) => (k._2, v) }
         .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.merge(Genotype.unboxedGT(g1) + 2, Genotype.unboxedGT(g2) + 2)
+          comb.merge(getIndex(g1) + 2, getIndex(g2) + 2)
           comb
         }, { case (comb1, comb2) => comb1.merge(comb2) })
         .map { case (s, comb) => (s, comb.toAnnotation.tail.map(_.tail)) }
@@ -174,7 +180,7 @@ class ConcordanceSuite extends SparkSuite {
 
       val innerJoinVariants = innerJoin.map { case (k, v) => (k._1, v) }
         .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.merge(Genotype.unboxedGT(g1) + 2, Genotype.unboxedGT(g2) + 2)
+          comb.merge(getIndex(g1) + 2, getIndex(g2) + 2)
           comb
         }, { case (comb1, comb2) => comb1.merge(comb2) })
         .collectAsMap

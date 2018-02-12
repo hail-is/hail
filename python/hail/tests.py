@@ -198,8 +198,8 @@ class TableTests(unittest.TestCase):
         schema = TStruct(['status', 'GT', 'qPheno'],
                          [TInt32(), TCall(), TInt32()])
 
-        rows = [{'status': 0, 'GT': Call(0), 'qPheno': 3},
-                {'status': 0, 'GT': Call(1), 'qPheno': 13}]
+        rows = [{'status': 0, 'GT': Call([0, 0]), 'qPheno': 3},
+                {'status': 0, 'GT': Call([0, 1]), 'qPheno': 13}]
 
         kt = Table.parallelize(rows, schema)
 
@@ -237,9 +237,9 @@ class TableTests(unittest.TestCase):
         schema = TStruct(['status', 'gt', 'qPheno'],
                          [TInt32(), TCall(), TInt32()])
 
-        rows = [{'status': 0, 'gt': Call(0), 'qPheno': 3},
-                {'status': 0, 'gt': Call(1), 'qPheno': 13},
-                {'status': 1, 'gt': Call(1), 'qPheno': 20}]
+        rows = [{'status': 0, 'gt': Call([0, 0]), 'qPheno': 3},
+                {'status': 0, 'gt': Call([0, 1]), 'qPheno': 13},
+                {'status': 1, 'gt': Call([0, 1]), 'qPheno': 20}]
 
         kt = Table.parallelize(rows, schema)
 
@@ -652,7 +652,6 @@ class FunctionsTests(unittest.TestCase):
             drop=functions.drop(kt.h, 'b', 'c'),
             exp=functions.exp(kt.c),
             fet=functions.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
-            gt_index=functions.gt_index(kt.a, kt.b),
             hwe=functions.hardy_weinberg_p(1, 2, 1),
             index=functions.index(kt.g, 'z'),
             is_defined=functions.is_defined(kt.i),

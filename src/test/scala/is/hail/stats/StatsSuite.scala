@@ -1,10 +1,10 @@
 package is.hail.stats
 
 import breeze.linalg.DenseMatrix
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{Genotype, Locus, Variant}
+import is.hail.variant._
 import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
 import org.testng.annotations.Test
 
@@ -51,11 +51,11 @@ class StatsSuite extends SparkSuite {
 
   @Test def vdsFromMatrixTest() {
     val G = DenseMatrix((0, 1), (2, -1), (0, 1))
-    val vds = vdsFromGtMatrix(hc)(G)
+    val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(G))
 
     val G1 = DenseMatrix.zeros[Int](3, 2)
 
-    vds.variantRDD.collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = Genotype.gt(g).getOrElse(-1) } }
+    vds.variantRDD.collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = Genotype.call(g).map(Call.nNonRefAlleles).getOrElse(-1) } }
 
     assert(vds.stringSampleIds == IndexedSeq("0", "1", "2"))
     assert(vds.variants.collect().toSet == Set(Variant("1", 1, "A", "C"), Variant("1", 2, "A", "C")))

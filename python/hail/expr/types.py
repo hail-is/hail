@@ -706,14 +706,14 @@ class TCall(Type):
     @typecheck_method(annotation=nullable(integral))
     def _convert_to_py(self, annotation):
         if annotation is not None:
-            return genetics.Call(annotation)
+            return genetics.Call._from_java(annotation)
         else:
             return None
 
     @typecheck_method(annotation=nullable(genetics.Call))
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return annotation.gt
+            return annotation._call
         else:
             return None
 
