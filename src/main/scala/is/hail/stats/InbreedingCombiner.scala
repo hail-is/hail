@@ -18,11 +18,11 @@ class InbreedingCombiner extends Serializable {
   var expectedHoms = 0d
   var observedHoms = 0L
 
-  def merge(gt: Call, af: Double): InbreedingCombiner = {
+  def merge(c: Call, af: Double): InbreedingCombiner = {
     nCalled += 1
     expectedHoms += 1 - (2 * af * (1 - af))
 
-    if (Call.isHomRef(gt) || Call.isHomVar(gt))
+    if (Call.isHomRef(c) || Call.isHomVar(c))
       observedHoms += 1
 
     this

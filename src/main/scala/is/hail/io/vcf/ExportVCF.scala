@@ -2,11 +2,10 @@ package is.hail.io.vcf
 
 import is.hail
 import is.hail.annotations.Region
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Genotype, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
 
 import scala.io.Source
 
@@ -44,10 +43,8 @@ object ExportVCF {
       case TString(_) =>
         sb.append(TString.loadString(m, offset))
       case TCall(_) =>
-        val p = Genotype.gtPair(m.loadInt(offset))
-        sb.append(p.j)
-        sb += '/'
-        sb.append(p.k)
+        val c = m.loadInt(offset)
+        Call.vcfString(c, sb)
       case _ =>
         fatal(s"VCF does not support type $elementType")
     }

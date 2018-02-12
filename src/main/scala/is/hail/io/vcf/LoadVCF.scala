@@ -263,13 +263,13 @@ final class VCFLine(val line: String) {
       if (mj)
         rvb.setMissing()
       else
-        rvb.addInt(
-          Genotype.gtIndex(j, j))
+        rvb.addInt(Call1(j, phased = false))
       return
     }
 
     if (line(pos) != '|' && line(pos) != '/')
       parseError("parse error in call")
+    val isPhased = line(pos) == '|'
     pos += 1
 
     var k = 0
@@ -282,7 +282,7 @@ final class VCFLine(val line: String) {
 
     if (!endFormatField()) {
       if (line(pos) == '/' || line(pos) == '|')
-        parseError("ploidy > 2 not supported")
+        parseError("ploidy > 2 not supported") // FIXME: Allow N-ploidy when supported
       else
         parseError("parse error in call")
     }
@@ -291,7 +291,7 @@ final class VCFLine(val line: String) {
     if (mj || mk)
       rvb.setMissing()
     else {
-      rvb.addInt(Genotype.gtIndexWithSwap(j, k))
+      rvb.addInt(Call2(j, k, phased = isPhased))
     }
   }
 

@@ -65,12 +65,12 @@ class AggregatorSuite extends SparkSuite {
           |test.nHet = gs.filter(g => g.GT.isHet()).count(),
           |test.nHomRef = gs.filter(g => g.GT.isHomRef()).count(),
           |test.nHomVar = gs.filter(g => g.GT.isHomVar()).count(),
-          |test.nSNP = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_snp(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nInsertion = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_insertion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nDeletion = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_deletion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nTi = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_transition(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nTv = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_transversion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nStar = gs.map(g => [g.GT.gtj, g.GT.gtk].map(x => if (x > 0 && is_star(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum()""".stripMargin)
+          |test.nSNP = gs.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_snp(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nInsertion = gs.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_insertion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nDeletion = gs.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_deletion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nTi = gs.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_transition(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nTv = gs.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_transversion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |test.nStar = gs.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_star(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum()""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
     val qCallRateQC = vds.querySA("sa.qc.callRate")._2
@@ -197,17 +197,14 @@ class AggregatorSuite extends SparkSuite {
       .annotateVariantsExpr(
         """callStats = gs.map(g => g.GT).callStats(g => va.alleles),
           |AC = gs.map(g => g.GT.oneHotAlleles(va.alleles)).sum(),
-          |GC = gs.map(g => g.GT.oneHotGenotype(va.alleles)).sum(),
           |AN = gs.filter(g => isDefined(g.GT)).count() * 2""".stripMargin)
       .annotateVariantsExpr("AF = va.AC / va.AN.toFloat64()")
     val (_, csAC) = vds.queryVA("va.callStats.AC")
     val (_, csAF) = vds.queryVA("va.callStats.AF")
     val (_, csAN) = vds.queryVA("va.callStats.AN")
-    val (_, csGC) = vds.queryVA("va.callStats.GC")
     val (_, ac) = vds.queryVA("va.AC")
     val (_, af) = vds.queryVA("va.AF")
     val (_, an) = vds.queryVA("va.AN")
-    val (_, gc) = vds.queryVA("va.GC")
 
     vds.variantsAndAnnotations
       .collect()
@@ -215,7 +212,6 @@ class AggregatorSuite extends SparkSuite {
         assert(csAC(va) == ac(va), s"AC was different")
         assert(csAN(va) == an(va), s"AN was different")
         assert(csAF(va) == af(va), s"AF was different")
-        assert(csGC(va) == gc(va), s"GC was different")
       }
   }
 

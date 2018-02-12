@@ -486,6 +486,50 @@ package object utils extends Logging
       }.sortBy(_._1).map(_._2.toInt)
   }
 
+  def uniqueMinIndex(a: Array[Int]): java.lang.Integer = {
+    def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
+      if (i == a.length) {
+        assert(count >= 1)
+        if (count == 1)
+          mi
+        else
+          null
+      } else if (a(i) < m)
+        f(i + 1, a(i), i, 1)
+      else if (a(i) == m)
+        f(i + 1, m, mi, count + 1)
+      else
+        f(i + 1, m, mi, count)
+    }
+
+    if (a.isEmpty)
+      null
+    else
+      f(1, a(0), 0, 1)
+  }
+
+  def uniqueMaxIndex(a: Array[Int]): java.lang.Integer = {
+    def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
+      if (i == a.length) {
+        assert(count >= 1)
+        if (count == 1)
+          mi
+        else
+          null
+      } else if (a(i) > m)
+        f(i + 1, a(i), i, 1)
+      else if (a(i) == m)
+        f(i + 1, m, mi, count + 1)
+      else
+        f(i + 1, m, mi, count)
+    }
+
+    if (a.isEmpty)
+      null
+    else
+      f(1, a(0), 0, 1)
+  }
+
   def digitsNeeded(i: Int): Int = {
     assert(i >= 0)
     if (i < 10)

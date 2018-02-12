@@ -4,7 +4,7 @@ import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, MatrixTable, MatrixFileMetadata, Variant}
+import is.hail.variant._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
@@ -328,24 +328,21 @@ package object stats {
 
   def uninitialized[T]: T = null.asInstanceOf[T]
 
-  // genotypes(i,j) is genotype of variant j in sample i encoded as one of {-1, 0, 1, 2}; i and j are 0-based indices
-  // sample i is "i" by default
-  // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
-  def vdsFromGtMatrix(hc: HailContext)(
-    gtMat: Matrix[Int],
+  def vdsFromCallMatrix(hc: HailContext)(
+    callMat: Matrix[BoxedCall],
     samplesIdsOpt: Option[Array[String]] = None,
     nPartitions: Int = hc.sc.defaultMinPartitions): MatrixTable = {
 
-    require(samplesIdsOpt.forall(_.length == gtMat.rows))
+    require(samplesIdsOpt.forall(_.length == callMat.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
 
-    val sampleIds = samplesIdsOpt.getOrElse((0 until gtMat.rows).map(_.toString).toArray)
+    val sampleIds = samplesIdsOpt.getOrElse((0 until callMat.rows).map(_.toString).toArray)
 
     val rdd = hc.sc.parallelize(
-      (0 until gtMat.cols).map { j =>
+      (0 until callMat.cols).map { j =>
         (Annotation(Variant("1", j + 1, "A", "C")),
-          (0 until gtMat.rows).map { i =>
-            Genotype(gtMat(i, j))
+          (0 until callMat.rows).map { i =>
+            Genotype(callMat(i, j))
           }: Iterable[Annotation]
         )
       },

@@ -156,12 +156,12 @@ class VSMSuite extends SparkSuite {
       val vsm = hc.baldingNicholsModel(1, 6, 9, Some(numSlices), seed = blockSize + numSlices)
         .indexRows("rowIdx")
         .indexCols("colIdx")
-      vsm.writeBlockMatrix(dirname, "g.GT.gt + va.rowIdx + sa.colIdx + 1", blockSize)
+      vsm.writeBlockMatrix(dirname, "g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1", blockSize)
 
       vsm.rowsTable().select("locus", "rowIdx").show(1000)
       vsm.colsTable().select("s", "colIdx").show(1000)
       val data = vsm.entriesTable()
-          .select("x = GT.gt + rowIdx + 1 + colIdx.toFloat64()")
+          .select("x = GT.nNonRefAlleles() + rowIdx + 1 + colIdx.toFloat64()")
           .collect()
           .map(_.getAs[Double](0))
 
@@ -182,7 +182,7 @@ class VSMSuite extends SparkSuite {
 
     val data = vsm
       .entriesTable()
-      .select("x = GT.gt + rowIdx + 1 + colIdx.toFloat64()")
+      .select("x = GT.unphasedDiploidGtIndex() + rowIdx + 1 + colIdx.toFloat64()")
       .collect()
       .map(_.getAs[Double](0))
     val lm = new DenseMatrix[Double](nSamples, nVariants, data.asInstanceOf[IndexedSeq[Double]].toArray).t // data is row major
@@ -190,7 +190,7 @@ class VSMSuite extends SparkSuite {
       Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
     val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
     
-    vsm.writeKeyedBlockMatrix(dirname, "g.GT.gt + va.rowIdx + sa.colIdx + 1", blockSize = 3)
+    vsm.writeKeyedBlockMatrix(dirname, "g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1", blockSize = 3)
     
     val kbm = KeyedBlockMatrix.read(hc, dirname)
     

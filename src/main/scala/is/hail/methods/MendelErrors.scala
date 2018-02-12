@@ -104,9 +104,9 @@ object MendelErrors {
           variantView.setRegion(rv)
           Iterator.range(0, nTrios).flatMap { i =>
             view.setGenotype(i)
-            val probandGt = if (view.hasProbandGT) view.getProbandGT else -1
-            val motherGt = if (view.hasMotherGT) view.getMotherGT else -1
-            val fatherGt = if (view.hasFatherGT) view.getFatherGT else -1
+            val probandGt = if (view.hasProbandGT) Call.unphasedDiploidGtIndex(view.getProbandGT) else -1
+            val motherGt = if (view.hasMotherGT) Call.unphasedDiploidGtIndex(view.getMotherGT) else -1
+            val fatherGt = if (view.hasFatherGT) Call.unphasedDiploidGtIndex(view.getFatherGT) else -1
             val code = getCode(probandGt, motherGt, fatherGt, grLocal.copyState(trioSexBc.value(i), Locus(variantView.contig(), variantView.position())))
             if (code != 0)
               Some(MendelError(variantView.contig(), variantView.position(), variantView.alleles(),

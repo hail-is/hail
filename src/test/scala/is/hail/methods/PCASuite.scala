@@ -12,11 +12,11 @@ import org.testng.annotations.Test
 object PCASuite {
   def samplePCA(vsm: MatrixTable, k: Int = 10, computeLoadings: Boolean = false,
     asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
-    
-    val prePCA = vsm.annotateVariantsExpr("AC = gs.map(g => g.GT.gt).sum(), nCalled = gs.filter(g => isDefined(g.GT)).count()")
+
+    val prePCA = vsm.annotateVariantsExpr("AC = gs.map(g => g.GT.nNonRefAlleles()).sum(), nCalled = gs.filter(g => isDefined(g.GT)).count()")
       .filterVariantsExpr("va.AC > 0 && va.AC < 2 * va.nCalled").persist()
     val nVariants = prePCA.countVariants()
-    val expr = s"let mean = va.AC / va.nCalled in if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * $nVariants / 2) else 0"
+    val expr = s"let mean = va.AC / va.nCalled in if (isDefined(g.GT)) (g.GT.nNonRefAlleles() - mean) / sqrt(mean * (2 - mean) * $nVariants / 2) else 0"
     
     PCA(prePCA, expr, k, computeLoadings, asArray)
   }
@@ -76,6 +76,6 @@ class PCASuite extends SparkSuite {
   @Test def testExpr() {
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf")
         .filterVariantsExpr("va.alleles.length() == 2")
-    val (eigenvalues, scores, loadings) = PCA(vds, "if (isDefined(g.GT)) g.GT.gt else 0", 3, true, true)
+    val (eigenvalues, scores, loadings) = PCA(vds, "if (isDefined(g.GT)) g.GT.nNonRefAlleles() else 0", 3, true, true)
   }
 }

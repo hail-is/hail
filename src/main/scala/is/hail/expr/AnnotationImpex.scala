@@ -3,7 +3,7 @@ package is.hail.expr
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.utils.{Interval, _}
-import is.hail.variant.{AltAllele, GenomeReference, Locus, Variant}
+import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
@@ -32,7 +32,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType, _) => requiresConversion(elementType)
-    case TSet(_, _) | TDict(_, _, _) | TAltAllele(_) | TVariant(_, _) | TLocus(_, _) | TInterval(_, _) => true
+    case TSet(_, _) | TDict(_, _, _) | TAltAllele(_) | TVariant(_, _) | TLocus(_, _) | TInterval(_, _) | TCall(_) => true
     case TStruct(fields, _) =>
       fields.isEmpty || fields.exists(f => requiresConversion(f.typ))
     case _ => false
@@ -78,6 +78,8 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             .map(_.asInstanceOf[Row])
             .map(r => (importAnnotation(r.get(0), keyType), importAnnotation(r.get(1), valueType)))
             .toMap
+        case TCall(_) =>
+          Call.parse(a.asInstanceOf[String])
         case TAltAllele(_) =>
           val r = a.asInstanceOf[Row]
           AltAllele(r.getAs[String](0), r.getAs[String](1))
@@ -127,7 +129,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case _: TInterval => StructType(Array(
       StructField("start", Locus.sparkSchema, nullable = false),
       StructField("end", Locus.sparkSchema, nullable = false)))
-    case _: TCall => IntegerType
+    case _: TCall => StringType
     case TStruct(fields, _) =>
       if (fields.isEmpty)
         BooleanType //placeholder
@@ -160,6 +162,8 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             .map { case (k, v) =>
               Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
             }.toIndexedSeq
+        case TCall(_) =>
+          Call.toString(a.asInstanceOf[Call])
         case TAltAllele(_) =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
@@ -283,7 +287,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             "key" -> exportAnnotation(k, keyType),
             "value" -> exportAnnotation(v, valueType))
           }.toList)
-        case _: TCall => JInt(a.asInstanceOf[Int])
+        case _: TCall => JString(Call.toString(a.asInstanceOf[Call]))
         case _: TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant(_, _) => a.asInstanceOf[Variant].toJSON
         case TLocus(_, _) => a.asInstanceOf[Locus].toJSON
@@ -385,7 +389,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
             null
         }
-      case (JInt(x), _: TCall) => x.toInt
+      case (JString(x), _: TCall) => Call.parse(x)
 
       case (JArray(a), TArray(elementType, _)) =>
         a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
@@ -401,8 +405,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 }
 
 object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
-
-  private val sb = new StringBuilder
 
   // Tables have no schema
   def exportType(t: Type): Unit = ()
@@ -425,6 +427,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
             s"${ i.start }-${ i.end }"
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
+        case _: TCall => Call.toString(a.asInstanceOf[Call])
         case _ => a.toString
       }
     }
@@ -446,7 +449,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case _: TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }
-      case _: TCall => a.toInt
+      case _: TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

@@ -181,7 +181,7 @@ class ExportVCFSuite extends SparkSuite {
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = [Call(3)]"),
+        .annotateVariantsExpr("info.foo = [UnphasedDiploidGtIndexCall(3)]"),
         out)
     }
 
@@ -277,9 +277,23 @@ class ExportVCFSuite extends SparkSuite {
 
     val out = tmpDir.createTempFile("foo", "vcf.bgz")
     val p = forAll(MatrixTable.gen(hc, genericFormatFieldVCF)) { vsm =>
-      hadoopConf.delete(out, recursive = true)
-      ExportVCF(vsm, out)
+      val schema = vsm.entryType
+      val callFields = schema.fields.filter(fd => fd.typ == TCall()).map(_.name)
+      val callArrayFields = schema.fields.filter(fd => fd.typ == TArray(TCall())).map(_.name)
+      val callSetFields = schema.fields.filter(fd => fd.typ == TSet(TCall())).map(_.name)
 
+      val callAnnots = callFields.map(name => s"g.$name = let c = g.$name in " +
+        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased()) Call(false, 0, 0) else c")
+
+      val callContainerAnnots = (callArrayFields ++ callSetFields).map(name => s"g.$name = " +
+        s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(false, 0, 0) else c)")
+
+      val annots = callAnnots ++ callContainerAnnots
+
+      val vsmAnn = if (annots.nonEmpty) vsm.annotateGenotypesExpr(annots.mkString(",")) else vsm
+
+      hadoopConf.delete(out, recursive = true)
+      ExportVCF(vsmAnn, out)
       true
     }
 
