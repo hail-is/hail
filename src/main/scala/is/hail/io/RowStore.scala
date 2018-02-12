@@ -539,11 +539,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val nPartitions = rdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
-    val partFiles = Array.tabulate[String](nPartitions) { i =>
-      val is = i.toString
-      assert(is.length <= d)
-      "part-" + StringUtils.leftPad(is, d, "0")
-    }
+    val partFiles = Array.tabulate[String](nPartitions) { i => partFile(d, i) }
 
     val fullRowType = t.rvRowType
     val rowsRVType = t.rowType
@@ -555,14 +551,12 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val partitionCounts = rdd.mapPartitionsWithIndex { case (i, it) =>
       val hConf = sHConfBc.value.value
 
-      val is = i.toString
-      assert(is.length <= d)
-      val pis = StringUtils.leftPad(is, d, "0")
+      val f = partFile(d, i)
 
-      val rowsPartPath = path + "/rows/rows/parts/part-" + pis
+      val rowsPartPath = path + "/rows/rows/parts/" + f
       val rowsOS = hConf.unsafeWriter(rowsPartPath)
 
-      val entriesPartPath = path + "/entries/rows/parts/part-" + pis
+      val entriesPartPath = path + "/entries/rows/parts/" + f
       val entriesOS = sHConfBc.value.value.unsafeWriter(entriesPartPath)
 
       val rowsEN = new Encoder(new LZ4OutputBuffer(rowsOS))

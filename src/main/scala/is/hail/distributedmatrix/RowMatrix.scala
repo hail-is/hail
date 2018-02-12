@@ -204,10 +204,8 @@ class ReadBlocksAsRowsRDD(path: String,
           val nRowsInBlock = gp.blockRowNRows(blockRow)
           
           disPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
-            val is = gp.coordinatesBlock(blockRow, blockCol).toString
-            assert(is.length <= d)
-            val pis = StringUtils.leftPad(is, d, "0")
-            val filename = path + "/parts/part-" + pis
+            val i = gp.coordinatesBlock(blockRow, blockCol)
+            val filename = path + "/parts/" + partFile(d, i)
 
             val dis = new DataInputStream(sHadoopBc.value.value.unsafeReader(filename))
 

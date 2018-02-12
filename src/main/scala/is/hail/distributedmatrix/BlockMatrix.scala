@@ -128,11 +128,7 @@ object BlockMatrix {
 
     val nPartitions = gp.numPartitions
     val d = digitsNeeded(nPartitions)
-    val partFiles = Array.tabulate[String](nPartitions) { i =>
-      val is = i.toString
-      assert(is.length <= d)
-      "part-" + StringUtils.leftPad(is, d, "0")
-    }
+    val partFiles = Array.tabulate[String](nPartitions) { i => partFile(d, i) }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
@@ -1107,10 +1103,8 @@ class WriteBlocksRDD(path: String,
     val dosPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
-      val is = gp.coordinatesBlock(blockRow, blockCol).toString
-      assert(is.length <= d)
-      val pis = StringUtils.leftPad(is, d, "0")
-      val filename = path + "/parts/part-" + pis
+      val i = gp.coordinatesBlock(blockRow, blockCol)
+      val filename = path + "/parts/" + partFile(d, i)
 
       val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))
       dos.writeInt(nRowsInBlock)

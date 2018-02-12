@@ -166,8 +166,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     val d = digitsNeeded(nParts)
 
     (0 until nParts).par.foreach { pi =>
-      val pis = StringUtils.leftPad(pi.toString, d, "0")
-      val filename = path + "/parts/part-" + pis
+      val filename = path + "/parts/" + partFile(d, pi)
       
       val (i, j) = gp.blockCoordinates(pi)
       val (blockNRows, blockNCols) = gp.blockDims(pi)

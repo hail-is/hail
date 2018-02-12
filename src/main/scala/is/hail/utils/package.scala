@@ -7,6 +7,7 @@ import java.util.zip.Inflater
 
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
@@ -528,6 +529,12 @@ package object utils extends Logging
       1
     else
       1 + digitsNeeded(i / 10)
+  }
+
+  def partFile(d: Int, i: Int): String = {
+    val is = i.toString
+    assert(is.length <= d)
+    "part-" + StringUtils.leftPad(is, d, "0")
   }
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
