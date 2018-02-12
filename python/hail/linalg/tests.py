@@ -3,10 +3,9 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 import unittest
 
 from hail import *
-from subprocess import call as syscall
-import numpy as np
 import hail.utils as utils
-from hail.linalg import BlockMatrix # FIXME: needed?
+from hail.utils.misc import test_file
+from hail.linalg import BlockMatrix
 
 def setUpModule():
     init(master='local[2]', min_block_size=0)
@@ -24,11 +23,12 @@ class Tests(unittest.TestCase):
             Tests._dataset = methods.split_multi_hts(methods.import_vcf(test_file('sample.vcf')))
         return Tests._dataset
     
-    def test_matrix(self):
-        filename = utils.new_temp_file()
-
-        ds = self.get_dataset()
-        bm = BlockMatrix.from_matrix_table('ds.GT.numAltAlleles()', 10)
-        gram = bm.dot(bm.T)
-        gram.write_band(filename, lower_bandwidth=100, upper_bandwidth=0, force_row_major=True)
+    def test_write(self):
+        file1 = utils.new_temp_file()
+        file2 = utils.new_temp_file()
         
+        ds = self.get_dataset()
+        bm = BlockMatrix.from_matrix_table(functions.or_else(ds.GT.num_alt_alleles(), 0), block_size=50)
+        gram = bm.dot(bm.T).cache()
+        gram.write(file1, blocks_to_keep=[1, 3, 5])
+        gram.write_band(file2, lower_bandwidth=25, upper_bandwidth=0, force_row_major=True)
