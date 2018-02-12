@@ -42,7 +42,9 @@ class OrderedRVDType(
   val kInRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
   val pkInKOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
   val kRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
-  
+
+  val pkRowEOrd: ExtendedOrdering = ExtendedOrdering.extendToNull(pkRowOrd)
+
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {

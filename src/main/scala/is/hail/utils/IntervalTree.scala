@@ -230,9 +230,9 @@ case class IntervalTreeNode[T: ClassTag, U](i: BaseInterval[T],
     left.map(_.size).getOrElse(0) + right.map(_.size).getOrElse(0) + 1
 
   def contains(pord: ExtendedOrdering, position: T): Boolean = {
-    pord.gteq(position, minimum) && pord.lteq(position, maximum) &&
+    pord.lteq(minimum, position) && pord.gteq(maximum, position) &&
       (left.exists(_.contains(pord, position)) ||
-        (pord.gteq(position, i.start) &&
+        (pord.lteq(i.start, position) &&
           (i.contains(pord, position) ||
             right.exists(_.contains(pord, position)))))
   }
@@ -244,9 +244,9 @@ case class IntervalTreeNode[T: ClassTag, U](i: BaseInterval[T],
   }
 
   def query(pord: ExtendedOrdering, b: mutable.Builder[BaseInterval[T], _], position: T) {
-    if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
+    if (pord.lteq(minimum, position) && pord.gteq(maximum, position)) {
       left.foreach(_.query(pord, b, position))
-      if (pord.gteq(position, i.start)) {
+      if (pord.lteq(i.start, position)) {
         right.foreach(_.query(pord, b, position))
         if (i.contains(pord, position))
           b += i
@@ -255,9 +255,9 @@ case class IntervalTreeNode[T: ClassTag, U](i: BaseInterval[T],
   }
 
   def queryValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], position: T) {
-    if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
+    if (pord.lteq(minimum, position) && pord.gteq(maximum, position)) {
       left.foreach(_.queryValues(pord, b, position))
-      if (pord.gteq(position, i.start)) {
+      if (pord.lteq(i.start, position)) {
         right.foreach(_.queryValues(pord, b, position))
         if (i.contains(pord, position))
           b += value

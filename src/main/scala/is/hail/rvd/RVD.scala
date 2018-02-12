@@ -3,7 +3,7 @@ package is.hail.rvd
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.expr.types.{TArray, TStruct, TStructSerializer}
+import is.hail.expr.types.{TArray, TInterval, TStruct, TStructSerializer}
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
@@ -77,11 +77,11 @@ case class OrderedRVDSpec(
   partFiles: Array[String],
   jRangeBounds: JValue) extends RVDSpec {
   def read(hc: HailContext, path: String): OrderedRVD = {
-    val rangeBoundsType = TArray(orvdType.pkType)
+    val rangeBoundsType = TArray(TInterval(orvdType.pkType))
     OrderedRVD(orvdType,
       new OrderedRVDPartitioner(partFiles.length, orvdType.partitionKey, orvdType.kType,
         UnsafeIndexedSeq(rangeBoundsType,
-          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])),
+          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]])),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles))
   }
 

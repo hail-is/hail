@@ -20,7 +20,7 @@ class OrderedRVDPartitioner(
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0}, s"hi")
 
-  val rangeTreeAnnotation: IntervalTree[Any, Int] = new IntervalTree[Any, Int](IntervalTree.fromSorted(pkType.ordering,
+  val rangeTree: IntervalTree[Any, Int] = new IntervalTree[Any, Int](IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(BaseInterval[Any], Int)](numPartitions) { i =>
       (rangeBounds(i).asInstanceOf[Interval], i)
     }, 0, rangeBounds.size))
@@ -38,20 +38,16 @@ class OrderedRVDPartitioner(
 
   def loadEnd(i: Int): Long = pkIntType.loadStart(region, loadElement(i))
 
-//  def loadElement(i: Int): Long = rangeBoundsType.loadElement(rangeBounds.region, rangeBounds.aoff, rangeBounds.length, i)
-
-  // return the partition containing pk
-  // needs to update the bounds
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
-//    assert(pkType.typeCheck(pk))
-    val part = rangeTreeAnnotation.queryValues(pkType.ordering, pk)
+    assert(pkType.typeCheck(pk))
+    val part = rangeTree.queryValues(pkType.ordering, pk)
     part.length match {
       case 0 =>
-        if (pkType.ordering.gt(pk, rangeTreeAnnotation.root.get.maximum))
+        if (pkType.ordering.gt(pk, rangeTree.root.get.maximum))
           numPartitions - 1
         else {
-          assert(pkType.ordering.lt(pk, rangeTreeAnnotation.root.get.minimum))
+          assert(pkType.ordering.lt(pk, rangeTree.root.get.minimum))
           0
         }
       case 1 => part.head
@@ -64,14 +60,14 @@ class OrderedRVDPartitioner(
     val keyrv = key.asInstanceOf[RegionValue]
     val keyUR = new UnsafeRow(kType, keyrv)
 
-    val part = rangeTreeAnnotation.queryValues(pkKOrd, keyUR)
+    val part = rangeTree.queryValues(pkKOrd, keyUR)
 
     part.length match {
       case 0 =>
-        if (pkKOrd.gt(keyUR, rangeTreeAnnotation.root.get.maximum))
+        if (pkKOrd.lt(rangeTree.root.get.maximum, keyUR))
           numPartitions - 1
         else {
-          assert(pkKOrd.lt(keyUR, rangeTreeAnnotation.root.get.minimum))
+          assert(pkKOrd.gt(rangeTree.root.get.minimum, keyUR))
           0
         }
       case 1 => part.head

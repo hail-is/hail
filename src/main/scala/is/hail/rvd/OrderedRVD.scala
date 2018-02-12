@@ -175,28 +175,7 @@ class OrderedRVD private(
       return this
     if (shuffle) {
       val shuffled = rdd.coalesce(maxPartitions, shuffle = true)
-
-      val localKType = typ.kType
-      val localKIndex = typ.kRowFieldIdx
-      val localRowType = typ.rowType
-      val shuffledKeyRDD = shuffled.mapPartitions { it =>
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(localKType)
-          rvb.startStruct()
-          var i = 0
-          while (i < localKType.size) {
-            rvb.addField(localRowType, rv, localKIndex(i))
-            i += 1
-          }
-          rvb.endStruct()
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      }
-      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, shuffled), shuffled.getNumPartitions)
+      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)), shuffled.getNumPartitions)
       OrderedRVD.shuffle(typ, new OrderedRVDPartitioner(ranges.length, typ.partitionKey, typ.kType, ranges), shuffled)
     } else {
 
@@ -249,7 +228,7 @@ class OrderedRVD private(
     if (nPartitions <= 1)
       return filter(pred)
 
-    val rangeTree = partitioner.rangeTreeAnnotation
+    val rangeTree = partitioner.rangeTree
 
     val intervalArray = intervals.toArray
     val newPartitionIndices = intervalArray.flatMap { case (i, _) =>
@@ -614,7 +593,7 @@ object OrderedRVD {
     val pkType = partitioner.pkType
     val pkOrdUnsafe = pkType.unsafeOrdering(true)
     val pkOrd = pkType.ordering.toOrdering
-    val pki = getPartitionKeyInfo(typ, rdd)
+    val pki = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
     val min = new UnsafeRow(pkType, pki.map(_.min).min(pkOrdUnsafe))
     val max = new UnsafeRow(pkType, pki.map(_.max).max(pkOrdUnsafe))
 
@@ -743,7 +722,7 @@ object OrderedRVD {
         def next(): RegionValue = {
           val rv = it.next()
 
-          assert(RegionValueInterval(partitioner.pkIntType, partitioner.region, partitioner.loadElement(i)).contains(typ.pkRowEOrd, rv), s"$i: ${RegionValue(partitioner.region, partitioner.loadElement(i)).pretty(partitioner.pkIntType)} doesn't contain ${ rv.pretty(typ.rowType) }")
+          assert(RegionValueInterval(partitioner.pkIntType, partitioner.region, partitioner.loadElement(i)).contains(typ.pkRowEOrd, rv))
 
           if (first)
             first = false
