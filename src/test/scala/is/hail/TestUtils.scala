@@ -7,9 +7,8 @@ import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{Genotype, Locus, MatrixTable}
+import is.hail.variant._
 import org.apache.spark.SparkException
-import org.apache.spark.sql.Row
 
 object TestUtils {
 
@@ -79,14 +78,27 @@ object TestUtils {
     new DenseMatrix[Int](
       vds.numCols,
       vds.countVariants().toInt,
-      vds.typedRDD[Locus].map(_._2._2.map(g => Genotype.unboxedGT(g))).collect().flatten)
+      vds.typedRDD[Locus].map(_._2._2.map{ g =>
+        Genotype.call(g)
+          .map(Call.nNonRefAlleles)
+          .getOrElse(-1)
+      }).collect().flatten)
 
   // missing is Double.NaN
   def vdsToMatrixDouble(vds: MatrixTable): DenseMatrix[Double] =
     new DenseMatrix[Double](
       vds.numCols,
       vds.countVariants().toInt,
-      vds.rdd.map(_._2._2.map(x => Some(Genotype.unboxedGT(x)).filter(_ != -1).map(_.toDouble).getOrElse(Double.NaN))).collect().flatten)
+      vds.rdd.map(_._2._2.map{ g =>
+        Genotype.call(g)
+          .map(Call.nNonRefAlleles)
+          .map(_.toDouble)
+          .getOrElse(Double.NaN)
+      }).collect().flatten)
+
+  def unphasedDiploidGtIndicesToBoxedCall(m: DenseMatrix[Int]): DenseMatrix[BoxedCall] = {
+    m.map(g => if (g == -1) null: BoxedCall else Call2.fromUnphasedDiploidGtIndex(g): BoxedCall)
+  }
 
   def indexedSeqBoxedDoubleEquals(tol: Double)
     (xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =
@@ -99,7 +111,7 @@ object TestUtils {
 
   def keyTableBoxedDoubleToMap[T](kt: Table): Map[T, IndexedSeq[java.lang.Double]] =
     kt.collect().map { r =>
-      val s = r.asInstanceOf[Row].toSeq
+      val s = r.toSeq
       s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
     }.toMap
   

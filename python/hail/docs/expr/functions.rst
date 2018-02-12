@@ -22,7 +22,6 @@ Functions
     drop
     exp
     fisher_exact_test
-    gt_index
     gp_dosage
     hardy_weinberg_p
     index
@@ -32,6 +31,8 @@ Functions
     interval
     parse_interval
     call
+    unphased_diploid_gt_index_call
+    parse_call
     is_defined
     is_missing
     is_nan
@@ -86,7 +87,6 @@ Functions
 .. autofunction:: exp
 .. autofunction:: fisher_exact_test
 .. autofunction:: gp_dosage
-.. autofunction:: gt_index
 .. autofunction:: hardy_weinberg_p
 .. autofunction:: index
 .. autofunction:: parse_locus
@@ -95,6 +95,8 @@ Functions
 .. autofunction:: interval
 .. autofunction:: parse_interval
 .. autofunction:: call
+.. autofunction:: unphased_diploid_gt_index_call
+.. autofunction:: parse_call
 .. autofunction:: is_defined
 .. autofunction:: is_missing
 .. autofunction:: is_nan

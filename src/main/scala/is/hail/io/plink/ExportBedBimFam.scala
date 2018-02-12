@@ -23,7 +23,8 @@ object ExportBedBimFam {
       var k = 0
       while (k < nSamples) {
         hcv.setGenotype(k)
-        val gt = if (hcv.hasGT) gtMap(hcv.getGT) else 1
+        val gt = if (hcv.hasGT) gtMap(Call.unphasedDiploidGtIndex(hcv.getGT)) else 1
+
         b |= gt << ((k & 3) * 2)
         if ((k & 3) == 3) {
           a(k >> 2) = b.toByte

@@ -23,6 +23,8 @@ class TCall(override val required: Boolean) extends ComplexType {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
+  override def str(a: Annotation): String = if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])
+
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
 }

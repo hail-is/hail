@@ -10,7 +10,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, AltAlleleMethods, Call, GRVariable, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, AltAlleleMethods, Call, Call0, Call1, Call2, CallN, GRVariable, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -21,6 +21,8 @@ import scala.reflect.ClassTag
 import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.commons.math3.special.Gamma
 import org.json4s.jackson.JsonMethods
+
+import scala.annotation.switch
 
 object FunctionRegistry {
 
@@ -707,9 +709,10 @@ object FunctionRegistry {
     (stx, x) <- CM.memoize(v)
   ) yield Code(stx, check(x).mux(Code._null[U], ifPresent(x)))
 
-  registerField("gt", { (c: Call) => c })(callHr, int32Hr)
-  registerMethod("gtj", { (c: Call) => Call.gtj(c) })(callHr, int32Hr)
-  registerMethod("gtk", { (c: Call) => Call.gtk(c) })(callHr, int32Hr)
+  registerMethod("ploidy", { (c: Call) => Call.ploidy(c) })(callHr, int32Hr)
+  registerMethod("isPhased", { (c: Call) => Call.isPhased(c) })(callHr, boolHr)
+  // FIXME: Add this when arrays are efficient
+  // registerMethod("alleles", { (c: Call) => Call.alleles(c).toFastIndexedSeq })(callHr, arrayHr(int32Hr))
   registerMethod("isHomRef", { (c: Call) => Call.isHomRef(c) })(callHr, boolHr)
   registerMethod("isHet", { (c: Call) => Call.isHet(c) })(callHr, boolHr)
   registerMethod("isHomVar", { (c: Call) => Call.isHomVar(c) })(callHr, boolHr)
@@ -717,24 +720,10 @@ object FunctionRegistry {
   registerMethod("isHetNonRef", { (c: Call) => Call.isHetNonRef(c) })(callHr, boolHr)
   registerMethod("isHetRef", { (c: Call) => Call.isHetRef(c) })(callHr, boolHr)
   registerMethod("nNonRefAlleles", { (c: Call) => Call.nNonRefAlleles(c) })(callHr, int32Hr)
+  registerMethod("unphasedDiploidGtIndex", { (c: Call) => Call.unphasedDiploidGtIndex(c) })(callHr, int32Hr)
+  registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
+  registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
   registerMethod("oneHotAlleles", { (c: Call, v: Variant) => Call.oneHotAlleles(c, v) })(callHr, variantHr(GR), arrayHr(int32Hr))
-  registerMethod("oneHotGenotype", { (c: Call, v: Variant) => Call.oneHotGenotype(c, v) })(callHr, variantHr(GR), arrayHr(int32Hr))
-  registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) =>
-    Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
-  registerMethod("oneHotGenotype", { (c: Call, alleles: IndexedSeq[String]) =>
-    Call.oneHotGenotype(c, Variant.nGenotypes(alleles.length)) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
-
-  private def intArraySumCode(a: Code[Array[Int]]): CM[Code[Int]] = for (
-    (starr, arr) <- CM.memoize(a);
-    i <- CM.newLocal[Int];
-    s <- CM.newLocal[Int]
-  ) yield Code(
-    starr,
-    i.store(0),
-    s.store(0),
-    Code.whileLoop(i < arr.length(), Code(s.store(s + arr(i)), i.store(i + 1))),
-    s
-  )
 
   registerFieldCode("contig", { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) })(variantHr(GR), stringHr)
   registerFieldCode("start", { (x: Code[Variant]) => CM.ret(boxInt(x.invoke[Int]("start"))) })(variantHr(GR), boxedInt32Hr)
@@ -848,19 +837,22 @@ object FunctionRegistry {
   })
 
   register("downcode", { (c: Call, i: Int) =>
-    val p = Genotype.gtPair(c)
-    Call((if (p.j == i) 1 else 0) +
-      (if (p.k == i) 1 else 0))
+    (Call.ploidy(c): @switch) match {
+      case 0 => c
+      case 1 =>
+        Call1(if (Call.alleleByIndex(c, 0) == i) 1 else 0, Call.isPhased(c))
+      case 2 =>
+        val p = Call.allelePair(c)
+        Call2(if (p.j == i) 1 else 0, if (p.k == i) 1 else 0, Call.isPhased(c))
+      case _ =>
+        CallN(Call.alleles(c).map(a => if (a == i) 1 else 0), Call.isPhased(c))
+    }
   })(callHr, int32Hr, callHr)
 
   register("gqFromPL", { pl: IndexedSeq[Int] =>
     // FIXME toArray
     Genotype.gqFromPL(pl.toArray)
   })(arrayHr(int32Hr), int32Hr)
-
-  register[IndexedSeq[Int], java.lang.Integer]("gtFromPL", { pl: IndexedSeq[Int] =>
-    Genotype.gtFromPL(pl)
-  })(arrayHr(int32Hr), boxedInt32Hr)
 
   registerMethod("length", { (x: String) => x.length })
 
@@ -925,7 +917,12 @@ object FunctionRegistry {
   })
   register("range", { (x: Int, y: Int, step: Int) => (x until y by step).toArray: IndexedSeq[Int] })
 
-  registerCode("Call", (gt: Code[Int]) => CM.ret(gt))(int32Hr, callHr)
+  register("Call", { (phased: Boolean) => Call0(phased) })(boolHr, callHr)
+  register("Call", { (phased: Boolean, i: Int) => Call1(i, phased) })(boolHr, int32Hr, callHr)
+  register("Call", { (phased: Boolean, i: Int, j: Int) => Call2(i, j, phased) })(boolHr, int32Hr, int32Hr, callHr)
+  register("Call", { (alleles: IndexedSeq[Int], phased: Boolean) => CallN(alleles.toArray, phased) })(arrayHr(int32Hr), boolHr, callHr)
+  register("Call", { (s: String) => Call.parse(s) })(stringHr, callHr)
+  register("UnphasedDiploidGtIndexCall", { (gt: Int) => Call2.fromUnphasedDiploidGtIndex(gt) })(int32Hr, callHr)
 
   register("AltAllele", { (ref: String, alt: String) => AltAllele(ref, alt) })(stringHr, stringHr, altAlleleHr)
 
@@ -1021,7 +1018,6 @@ object FunctionRegistry {
     val LH = LeveneHaldane(n, nA)
     Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
   })
-
 
   def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): (Option[Double], Option[Double]) = {
 
@@ -1200,10 +1196,6 @@ object FunctionRegistry {
   }, { (x: Code[IndexedSeq[java.lang.Float]]) =>
     CM.mapIS(x, (xi: Code[java.lang.Float]) => xi.mapNull(fToD _))
   })(arrayHr(boxedFloat32Hr), arrayHr(boxedFloat64Hr))
-
-  register("gtj", (i: Int) => Genotype.gtPair(i).j)
-  register("gtk", (i: Int) => Genotype.gtPair(i).k)
-  register("gtIndex", (j: Int, k: Int) => Genotype.gtIndexWithSwap(j, k))
 
   registerConversion({ (x: java.lang.Integer) =>
     if (x != null)
@@ -1802,6 +1794,50 @@ object FunctionRegistry {
 
     registerMethod("min", (x: Any, y: Any) => ord.min(x, y))
     registerMethod("max", (x: Any, y: Any) => ord.max(x, y))
+
+    registerMethod("uniqueMinIndex", (a: IndexedSeq[Any]) => {
+      def f(i: Int, m: Any, mi: Int, count: Int): java.lang.Integer = {
+        if (i == a.length) {
+          assert(count >= 1)
+          if (count == 1)
+            mi
+          else
+            null
+        } else if (ord.lt(a(i), m))
+          f(i + 1, a(i), i, 1)
+        else if (a(i) == m)
+          f(i + 1, m, mi, count + 1)
+        else
+          f(i + 1, m, mi, count)
+      }
+
+      if (a.isEmpty)
+        null
+      else
+        f(1, a(0), 0, 1)
+    })
+
+    registerMethod("uniqueMaxIndex", (a: IndexedSeq[Any]) => {
+      def f(i: Int, m: Any, mi: Int, count: Int): java.lang.Integer = {
+        if (i == a.length) {
+          assert(count >= 1)
+          if (count == 1)
+            mi
+          else
+            null
+        } else if (ord.gt(a(i), m))
+          f(i + 1, a(i), i, 1)
+        else if (a(i) == m)
+          f(i + 1, m, mi, count + 1)
+        else
+          f(i + 1, m, mi, count)
+      }
+
+      if (a.isEmpty)
+        null
+      else
+        f(1, a(0), 0, 1)
+    })
 
     registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(ord.toOrdering))(arrayHr(hrboxedt), arrayHr(hrboxedt))
     registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>

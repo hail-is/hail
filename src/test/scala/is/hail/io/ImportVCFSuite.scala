@@ -4,7 +4,7 @@ import is.hail.check.Prop._
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.io.vcf.{ExportVCF, LoadVCF}
-import is.hail.variant.{Call, Genotype, Locus, MatrixTable, VSMSubgen, Variant}
+import is.hail.variant._
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -81,28 +81,28 @@ class ImportVCFSuite extends SparkSuite {
     val s2 = "C1046::HG02025"
 
     assert(r(v1, s1) == Genotype(
-      0,
+      Call2(0, 0),
       Array(10, 0),
       10,
       44,
       Array(0, 44, 180)
     ))
     assert(r(v1, s2) == Genotype(
-      2,
+      Call1(1),
       Array(0, 6),
       7,
       70,
       Array(70, 0)
     ))
     assert(r(v2, s1) == Genotype(
-      5,
+      Call2(2, 2),
       Array(0, 0, 11),
       11,
       33,
       Array(396, 402, 411, 33, 33, 0)
     ))
     assert(r(v2, s2) == Genotype(
-      5,
+      Call1(2),
       Array(0, 0, 9),
       9,
       24,
@@ -135,25 +135,28 @@ class ImportVCFSuite extends SparkSuite {
     val r2 = gds2
       .expand()
       .collect()
-      .map { case (v, s, g) => ((v, s), (querierGT(g), querierGTA(g), querierGTZ(g))) }
-      .toMap
+      .map { case (v, s, g) =>
+        ((v, s), (querierGT(g), querierGTA(g), querierGTZ(g)))
+      }.toMap
 
-    assert(r2(v1, s1) == (0, null, 1))
-    assert(r2(v1, s2) == (2, null, 0))
-    assert(r2(v2, s1) == (5, 4, 2))
-    assert(r2(v2, s2) == (5, null, 2))
+    assert(r2(v1, s1) == (Call2(0, 0), null, Call2(0, 1)))
+    assert(r2(v1, s2) == (Call1(1), null, Call1(0)))
+    assert(r2(v2, s1) == (Call2(2, 2), Call2(2, 1), Call2(1, 1)))
+    assert(r2(v2, s2) == (Call1(2), null, Call1(1)))
 
     import is.hail.io.vcf.HtsjdkRecordReader._
-    assert(parseCall("0/0", 2) == Call(0))
-    assert(parseCall("1/0", 2) == Call(1))
-    assert(parseCall("0", 2) == Call(0))
+    assert(parseCall("0/0", 2) == Call2(0, 0))
+    assert(parseCall("1/0", 2) == Call2(1, 0))
+    assert(parseCall("0", 2) == Call1(0))
     assert(parseCall(".", 2) == null)
     assert(parseCall("./.", 2) == null)
+    assert(parseCall("1|0", 2) == Call2(1, 0, phased = true))
+    assert(parseCall("0|1", 2) == Call2(0, 1, phased = true))
     intercept[HailException] {
-      parseCall("./0", 2) == Call(0)
+      parseCall("./0", 2) == Call2(0, 0)
     }
     intercept[HailException] {
-      parseCall("""0\0""", 2) == Call(0)
+      parseCall("""0\0""", 2) == Call2(0, 0)
     }
   }
 

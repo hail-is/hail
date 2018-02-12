@@ -8,7 +8,7 @@ import is.hail.expr.types._
 import is.hail.expr.MatrixLocalValue
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, MatrixTable}
+import is.hail.variant.{Call, Call2, GenomeReference, MatrixTable}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -169,16 +169,16 @@ object BaldingNicholsModel {
             val p = popAF_k(popOfSample_nBc.value(i))
             val pSq = p * p
             val x = unif.draw()
-            val gt =
+            val c =
               if (x < pSq)
-                2
+                Call2.fromUnphasedDiploidGtIndex(2)
               else if (x > 2 * p - pSq)
-                0
+                Call2.fromUnphasedDiploidGtIndex(0)
               else
-                1
+                Call2.fromUnphasedDiploidGtIndex(1)
 
             rvb.startStruct()
-            rvb.addInt(gt)
+            rvb.addInt(c)
             rvb.endStruct()
             i += 1
           }

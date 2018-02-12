@@ -104,8 +104,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
         if (hasGT) {
           val i = vc.getAlleleIndex(a0)
           val j = vc.getAlleleIndex(a1)
-          val gt = Genotype.gtIndexWithSwap(i, j)
-          rvb.addInt(gt)
+          rvb.addInt(Call2(i, j))
         } else
           rvb.setMissing()
       }
@@ -185,19 +184,19 @@ object HtsjdkRecordReader {
   val haploidNonsensePL = 1000
 
   private val haploidRegex = """^[0-9]+$""".r
-  private val diploidRegex = """^([0-9]+)[|/]([0-9]+)$""".r
+  private val diploidRegex = """^([0-9]+)([|/])([0-9]+)$""".r
 
   def parseCall(gt: String, nAlleles: Int): BoxedCall = {
     gt match {
-      case diploidRegex(a0, a1) =>
-        val c = Call(Genotype.gtIndexWithSwap(a0.toInt, a1.toInt))
+      case diploidRegex(a0, phase, a1) =>
+        val c = Call2(a0.toInt, a1.toInt, phased = (phase == "|"))
         Call.check(c, nAlleles)
         c
       case VCFConstants.EMPTY_GENOTYPE => null
       case VCFConstants.EMPTY_ALLELE => null
       case haploidRegex() =>
         val i = gt.toInt
-        val c = Call(Genotype.gtIndexWithSwap(i, i))
+        val c = Call1(i)
         Call.check(c, nAlleles)
         c
       case _ => fatal(s"Invalid input format for Call type. Found `$gt'.")
