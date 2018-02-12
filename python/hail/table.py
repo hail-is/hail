@@ -1413,15 +1413,11 @@ class Table(TableTemplate):
         """
         return TArray(self.schema)._convert_to_py(self._jt.collect())
 
-    @typecheck_method(truncate_at=integral)
     def describe(self, truncate_at=60):
-        """Print information about the fields in the table."""
+        """Print information about the fields in the matrix."""
 
         def format_type(typ):
-            typ_str = str(typ)
-            if len(typ_str) > truncate_at - 3:
-                typ_str = typ_str[:truncate_at - 3] + '...'
-            return typ_str
+            return typ.pretty(indent=4)
 
         if len(self.global_schema.fields) == 0:
             global_fields = '\n    None'
@@ -1429,15 +1425,21 @@ class Table(TableTemplate):
             global_fields = ''.join("\n    '{name}': {type} ".format(
                 name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
 
-        key_set = set(self.key)
-        if len(self.schema.fields) == 0:
-            row_fields = '\n    None'
-        else:
-            row_fields = ''.join("\n    '{name}'{is_key}: {type} ".format(
-                name=fd.name, is_key='' if fd.name not in key_set else ' [key field]',
-                type=format_type(fd.typ)) for fd in self.schema.fields)
+        row_fields = ''.join("\n    '{name}': {type} ".format(
+            name=fd.name, type=format_type(fd.typ)) for fd in self.schema.fields)
 
-        s = 'Global fields:{}\n\nRow fields:{}'.format(global_fields, row_fields)
+        row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
+                          for f in self.key) if self.key else '\n    None'
+
+        s = '----------------------------------------\n' \
+            'Global fields:{g}\n' \
+            '----------------------------------------\n' \
+            'Row fields:{r}\n' \
+            '----------------------------------------\n' \
+            'Key:{rk}\n' \
+            '----------------------------------------'.format(g=global_fields,
+                                                              rk=row_key,
+                                                              r=row_fields)
         print(s)
 
     @handle_py4j
