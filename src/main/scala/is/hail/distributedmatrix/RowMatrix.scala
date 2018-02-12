@@ -29,6 +29,7 @@ object RowMatrix {
     
     val BlockMatrixMetadata(blockSize, nRows, nCols) =
       hadoop.readTextFile(uri + BlockMatrix.metadataRelativePath) { isr  =>
+        implicit val formats = defaultJSONFormats
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
     

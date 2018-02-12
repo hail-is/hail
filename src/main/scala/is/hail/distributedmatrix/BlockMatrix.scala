@@ -21,6 +21,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
+import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 
@@ -111,6 +112,7 @@ object BlockMatrix {
 
     val BlockMatrixMetadata(blockSize, nRows, nCols) =
       hadoop.readTextFile(uri + metadataRelativePath) { isr =>
+        implicit val formats = defaultJSONFormats
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
 
@@ -326,6 +328,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, nCols),
         os)

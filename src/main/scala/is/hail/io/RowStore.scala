@@ -3,8 +3,9 @@ package is.hail.io
 import java.io.{InputStream, OutputStream}
 
 import is.hail.annotations._
-import is.hail.expr._
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
+import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, OrderedRVDType, UnpartitionedRVDSpec}
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
 import org.apache.commons.lang3.StringUtils
@@ -526,12 +527,12 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t))
   }
 
-  def writeRowsSplit(path: String, t: MatrixType): (Array[String], Array[Long]) = {
+  def writeRowsSplit(path: String, t: MatrixType, partitioner: OrderedRVDPartitioner): Array[Long] = {
     val sc = rdd.sparkContext
     val hConf = sc.hadoopConfiguration
 
-    hConf.mkDir(path + "/rows/parts")
-    hConf.mkDir(path + "/entries/parts")
+    hConf.mkDir(path + "/rows/rows/parts")
+    hConf.mkDir(path + "/entries/rows/parts")
 
     val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
@@ -558,10 +559,10 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
 
-      val rowsPartPath = path + "/rows/parts/part-" + pis
+      val rowsPartPath = path + "/rows/rows/parts/part-" + pis
       val rowsOS = hConf.unsafeWriter(rowsPartPath)
 
-      val entriesPartPath = path + "/entries/parts/part-" + pis
+      val entriesPartPath = path + "/entries/rows/parts/part-" + pis
       val entriesOS = sHConfBc.value.value.unsafeWriter(entriesPartPath)
 
       val rowsEN = new Encoder(new LZ4OutputBuffer(rowsOS))
@@ -606,9 +607,17 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     }
       .collect()
 
+    val rowsSpec = OrderedRVDSpec(t.rowORVDType,
+      partFiles,
+      JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))
+    rowsSpec.write(hConf, path + "/rows/rows")
+
+    val entriesSpec = UnpartitionedRVDSpec(entriesRVType, partFiles)
+    entriesSpec.write(hConf, path + "/entries/rows")
+
     val itemCount = partitionCounts.sum
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions")
 
-    (partFiles, partitionCounts)
+    partitionCounts
   }
 }

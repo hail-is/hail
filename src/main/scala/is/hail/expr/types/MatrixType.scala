@@ -1,9 +1,14 @@
 package is.hail.expr.types
 
-import is.hail.expr.EvalContext
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype}
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
+
+class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
+  { case JString(s) => Parser.parseMatrixType(s) },
+  { case mt: MatrixType => JString(mt.toString) }))
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
@@ -32,7 +37,7 @@ case class MatrixType(
     colKey.forall(colFields.contains)
   }, s"$colKey: $colType")
 
-  val entriesIdx = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
+  val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
   val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
   val entryArrayType: TArray = rvRowType.fieldType(entriesIdx).asInstanceOf[TArray]
   val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
@@ -55,11 +60,13 @@ case class MatrixType(
     Array.empty[String],
     globalType)
 
-  def orderedRVType: OrderedRVDType = {
+  def orvdType: OrderedRVDType = {
     new OrderedRVDType(rowPartitionKey.toArray,
       rowKey.toArray,
       rvRowType)
   }
+
+  def rowORVDType: OrderedRVDType = new OrderedRVDType(rowPartitionKey.toArray, rowKey.toArray, rowType)
 
   def colEC: EvalContext = {
     val aggregationST = Map(

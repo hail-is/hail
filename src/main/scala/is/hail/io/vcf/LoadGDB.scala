@@ -45,6 +45,7 @@ object LoadGDB {
                       callsets_mapping_file: String,
                       vcfHeaderPath: Option[String]): File = {
     val tempFile = File.createTempFile("sample2query", ".json")
+    implicit val formats = defaultJSONFormats
     jackson.Serialization.write(QueryJSON(tiledbworkspace,
       arrayName,
       vid_mapping_file,
@@ -190,6 +191,6 @@ object LoadGDB {
     new MatrixTable(hc, matrixType,
       Annotation.empty,
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orderedRVType, hc.sc.parallelize(records), None, None))
+      OrderedRVD(matrixType.orvdType, hc.sc.parallelize(records), None, None))
   }
 }

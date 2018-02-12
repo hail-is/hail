@@ -1836,7 +1836,7 @@ class MatrixTable(object):
         :class:`.Table`
             Table with the globals from the matrix, with a single row.
         """
-        return Table(self._jvds.globalsKT())
+        return Table(self._jvds.globalsTable())
 
     @handle_py4j
     def rows_table(self):

@@ -24,8 +24,7 @@ class SplitSuite extends SparkSuite {
     property("splitMulti maintains variants") = forAll(MatrixTable.gen(hc,
       VSMSubgen.random.copy(vGen = _ => splittableVariantGen))) { vds =>
       val method1 = SplitMulti(vds).variants.collect().toSet
-      val method2 = vds.variants.flatMap { v1 =>
-        val v = v1.asInstanceOf[Variant]
+      val method2 = vds.variants.flatMap { v =>
         v.altAlleles.iterator
           .map { aa =>
             Variant(v.contig, v.start, v.ref, Array(aa)).minRep

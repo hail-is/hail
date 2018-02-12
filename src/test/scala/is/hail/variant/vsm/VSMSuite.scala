@@ -105,7 +105,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testInvalidMetadata() {
-    TestUtils.interceptFatal("file not found") {
+    TestUtils.interceptFatal("metadata does not contain file version") {
       hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
     }
   }

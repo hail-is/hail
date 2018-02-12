@@ -336,6 +336,6 @@ object LoadMatrix {
       matrixType,
       Annotation.empty,
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orderedRVType, rdd, None, None))
+      OrderedRVD(matrixType.orvdType, rdd, None, None))
   }
 }

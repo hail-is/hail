@@ -9,18 +9,14 @@ import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
-import is.hail.rvd.RVDSpec
 import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{FileFormat, GenomeReference, MatrixTable, SemanticVersion}
+import is.hail.variant.{ComponentSpec, FileFormat, GenomeReference, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -39,57 +35,16 @@ object SortColumn {
 
 case class SortColumn(column: String, sortOrder: SortOrder)
 
-object TableMetadata {
-  def read(hc: HailContext, path: String): TableMetadata = {
-    val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
-
-    val fileVersion = jv \ "file_version" match {
-      case JInt(rep) => SemanticVersion(rep.toInt)
-      case _ =>
-        fatal(s"metadata does not contain file version: $metadataFile")
-    }
-
-    if (!FileFormat.version.supports(fileVersion))
-      fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
-
-    val jmetadata = jv.extract[JSONTableMetadata]
-
-    TableMetadata(
-      Parser.parseTableType(jmetadata.table_type),
-      jmetadata.globals_path,
-      RVDSpec.extract(jmetadata.globals_rvd_spec),
-      RVDSpec.extract(jmetadata.rows_rvd_spec),
-      jmetadata.partition_counts)
-  }
-}
-
-case class TableMetadata(typ: TableType, globalsPath: String, globalsRVDSpec: RVDSpec, rowsRVDSpec: RVDSpec, partitionCounts: Option[Array[Long]]) {
-  def write(hc: HailContext, path: String) {
-    val metadata = JSONTableMetadata(FileFormat.version.rep,
-      hc.version,
-      typ.toString,
-      globalsPath,
-      globalsRVDSpec.toJSON,
-      rowsRVDSpec.toJSON,
-      partitionCounts)
-    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
-      Serialization.write(metadata, out))
-  }
-}
-
-case class JSONTableMetadata(
+case class TableSpec(
   file_version: Int,
   hail_version: String,
-  table_type: String,
-  globals_path: String,
-  globals_rvd_spec: JValue,
-  rows_rvd_spec: JValue,
-  partition_counts: Option[Array[Long]])
+  references_rel_path: String,
+  table_type: TableType,
+  components: Map[String, ComponentSpec]) extends RelationalSpec {
+  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+}
 
 object Table {
-  final val fileVersion: Int = 0x101
-
   def range(hc: HailContext, n: Int, name: String = "index", partitions: Option[Int] = None): Table = {
     val range = Range(0, n).view.map(Row(_))
     val rdd = partitions match {
@@ -116,10 +71,8 @@ object Table {
     if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
-    GenomeReference.importReferences(hc.hadoopConf, path + "/references/")
-
-    val metadata = TableMetadata.read(hc, path)
-    new Table(hc, TableRead(path, metadata, dropRows = false))
+    val spec = RelationalSpec.read(hc, path).asInstanceOf[TableSpec]
+    new Table(hc, TableRead(path, spec, dropRows = false))
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -944,7 +897,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val newRVType = matrixType.rvRowType
     val orderedRKStruct = matrixType.rowKeyStruct
 
-    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orderedRVType) { it =>
+    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
       new Iterator[RegionValue] {
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -1166,18 +1119,26 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val globalsPath = "globals"
-    val (globalsRVDSpec, _) = RVD.writeLocalUnpartitioned(hc, path + "/" + globalsPath, globalSignature, Array(globals))
+    val globalsPath = path + "/globals"
+    hc.hadoopConf.mkDir(globalsPath)
+    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, Array(globals))
 
-    val (rowsRVDSpec, partitionCounts) = rvd.write(path)
+    val partitionCounts = rvd.write(path + "/rows")
 
-    val refPath = path + "/references/"
-    hc.hadoopConf.mkDir(refPath)
-    GenomeReference.exportReferences(hc, refPath, signature)
-    GenomeReference.exportReferences(hc, refPath, globalSignature)
+    val referencesPath = path + "/references"
+    hc.hadoopConf.mkDir(referencesPath)
+    GenomeReference.exportReferences(hc, referencesPath, signature)
+    GenomeReference.exportReferences(hc, referencesPath, globalSignature)
 
-    val metadata = TableMetadata(ir.typ, globalsPath, globalsRVDSpec, rowsRVDSpec, Some(partitionCounts))
-    metadata.write(hc, path)
+    val spec = TableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "references",
+      ir.typ,
+      Map("globals" -> RVDComponentSpec("globals"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }

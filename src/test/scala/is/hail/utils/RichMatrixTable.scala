@@ -18,11 +18,11 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
-    val localSampleAnnotationsBc = vsm.colValuesBc
+    val localColValuesBc = vsm.colValuesBc
 
     rdd
       .flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g)
+        localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](localColValuesBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g)
         })
       }
   }
@@ -97,8 +97,8 @@ class RichMatrixTable(vsm: MatrixTable) {
       (v.asInstanceOf[RK], (va, gs))
     }
 
-  def variants: RDD[Annotation] = variantRDD.map(_._1)
+  def variants: RDD[Variant] = variantRDD.keys
 
   def variantsAndAnnotations: RDD[(Variant, Annotation)] =
-    variantRDD.mapValuesWithKey { case (v, (va, gs)) => va }
+    variantRDD.map { case (v, (va, gs)) => (v, va) }
 }

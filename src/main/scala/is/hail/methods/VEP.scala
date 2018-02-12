@@ -395,17 +395,17 @@ object VEP {
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepOrderedRVType = new OrderedRVDType(
+    val vepORVDType = new OrderedRVDType(
       Array("locus"), Array("locus", "alleles"),
       TStruct(
         "locus" -> vsm.rowKeyTypes(0),
         "alleles" -> vsm.rowKeyTypes(1),
         "vep" -> vepType))
 
-    val vepRowType = vepOrderedRVType.rowType
+    val vepRowType = vepORVDType.rowType
 
     val vepRVD: OrderedRVD = OrderedRVD(
-      vepOrderedRVType,
+      vepORVDType,
       vsm.rvd.partitioner,
       annotations.mapPartitions { it =>
         val region = Region()

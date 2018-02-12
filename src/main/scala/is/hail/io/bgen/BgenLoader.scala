@@ -81,7 +81,7 @@ object BgenLoader {
       rowPartitionKey = Array("locus"),
       entryType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
 
-    val kType = matrixType.orderedRVType.kType
+    val kType = matrixType.orvdType.kType
     val rowType = matrixType.rvRowType
 
     val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
@@ -136,7 +136,7 @@ object BgenLoader {
     new MatrixTable(hc, matrixType,
       Annotation.empty,
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
+      OrderedRVD(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

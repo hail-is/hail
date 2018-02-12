@@ -5,8 +5,12 @@ import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
-import org.apache.spark.sql.Row
+import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
+
+class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format => (
+  { case JString(s) => Parser.parseOrderedRVDType(s) },
+  { case orvdType: OrderedRVDType => JString(orvdType.toString) }))
 
 class OrderedRVDType(
   val partitionKey: Array[String],
@@ -128,13 +132,5 @@ object OrderedRVDType {
         0
       }
     }
-  }
-
-  def apply(jv: JValue): OrderedRVDType = {
-    case class Extract(partitionKey: Array[String],
-      key: Array[String],
-      rowType: String)
-    val ex = jv.extract[Extract]
-    new OrderedRVDType(ex.partitionKey, ex.key, Parser.parseType(ex.rowType).asInstanceOf[TStruct])
   }
 }

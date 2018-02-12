@@ -2,27 +2,32 @@ package is.hail.rvd
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.expr.types.{TArray, TStruct}
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.types.{TArray, TStruct, TStructSerializer}
 import is.hail.io.RichRDDRegionValue
 import is.hail.utils._
+import org.apache.hadoop
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.json4s.JValue
-import org.json4s.JsonAST.{JArray, JObject, JString}
+import org.json4s.{CustomSerializer, DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.reflect.ClassTag
 
 object RVDSpec {
-  def extract(jv: JValue): RVDSpec = {
-    jv \ "name" match {
-      case JString("UnpartitionedRVDSpec") =>
-        UnpartitionedRVDSpec.extract(jv \ "args")
-      case JString("OrderedRVDSpec") =>
-        OrderedRVDSpec.extract(jv \ "args")
-    }
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[RVDSpec], classOf[UnpartitionedRVDSpec], classOf[OrderedRVDSpec]))
+    override val typeHintFieldName = "name" } +
+    new TStructSerializer +
+    new OrderedRVDTypeSerializer
+
+  def read(hc: HailContext, path: String): RVDSpec = {
+    val metadataFile = path + "/metadata.json.gz"
+    val jv = hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    jv.extract[RVDSpec]
   }
 
   def readLocal(hc: HailContext, path: String, rowType: TStruct, partFiles: Array[String]): IndexedSeq[Row] = {
@@ -44,16 +49,11 @@ abstract class RVDSpec {
 
   def readLocal(hc: HailContext, path: String): IndexedSeq[Row]
 
-  def toJSON: JValue
-}
-
-object UnpartitionedRVDSpec {
-
-  case class JSONArgs(row_type: String, part_files: Array[String])
-
-  def extract(jargs: JValue): UnpartitionedRVDSpec = {
-    val args = jargs.extract[JSONArgs]
-    UnpartitionedRVDSpec(Parser.parseStructType(args.row_type), args.part_files)
+  def write(hadoopConf: hadoop.conf.Configuration, path: String) {
+    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+      implicit val formats = RVDSpec.formats
+      Serialization.write(this, out)
+    }
   }
 }
 
@@ -65,46 +65,23 @@ case class UnpartitionedRVDSpec(
 
   def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
     RVDSpec.readLocal(hc, path, rowType, partFiles)
-
-  def toJSON: JValue = JObject("name" -> JString("UnpartitionedRVDSpec"),
-    "args" -> JObject("row_type" -> JString(rowType.toString),
-      "part_files" -> JArray(partFiles.map(JString).toList)))
-}
-
-object OrderedRVDSpec {
-
-  case class JSONArgs(ordered_row_type: String, part_files: Array[String], partition_bounds: JValue)
-
-  def extract(jv: JValue): OrderedRVDSpec = {
-    val args = jv.extract[JSONArgs]
-    val orvdType: OrderedRVDType = Parser.parseOrderedRVDType(args.ordered_row_type)
-    val rangeBoundsType = TArray(orvdType.pkType)
-    val partitionBounds = UnsafeIndexedSeq(rangeBoundsType,
-      JSONAnnotationImpex.importAnnotation(args.partition_bounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])
-
-    OrderedRVDSpec(orvdType, args.part_files, partitionBounds)
-  }
 }
 
 case class OrderedRVDSpec(
   orvdType: OrderedRVDType,
   partFiles: Array[String],
-  partitionBounds: UnsafeIndexedSeq) extends RVDSpec {
-  def read(hc: HailContext, path: String): OrderedRVD =
+  jRangeBounds: JValue) extends RVDSpec {
+  def read(hc: HailContext, path: String): OrderedRVD = {
+    val rangeBoundsType = TArray(orvdType.pkType)
     OrderedRVD(orvdType,
-      new OrderedRVDPartitioner(partFiles.length, orvdType.partitionKey, orvdType.kType, partitionBounds),
+      new OrderedRVDPartitioner(partFiles.length, orvdType.partitionKey, orvdType.kType,
+        UnsafeIndexedSeq(rangeBoundsType,
+          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])),
       hc.readRows(path, orvdType.rowType, partFiles))
+  }
 
   def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
     RVDSpec.readLocal(hc, path, orvdType.rowType, partFiles)
-
-  def toJSON: JValue = {
-    val rangeBoundsType = TArray(orvdType.pkType)
-    JObject("name" -> JString("OrderedRVDSpec"),
-      "args" -> JObject("ordered_row_type" -> JString(orvdType.toString),
-        "part_files" -> JArray(partFiles.map(JString).toList),
-        "partition_bounds" -> JSONAnnotationImpex.exportAnnotation(partitionBounds, rangeBoundsType)))
-  }
 }
 
 case class PersistedRVRDD(
@@ -112,7 +89,7 @@ case class PersistedRVRDD(
   iterationRDD: RDD[RegionValue])
 
 object RVD {
-  def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, rows: IndexedSeq[Annotation]): (RVDSpec, Array[Long]) = {
+  def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, rows: IndexedSeq[Annotation]): Array[Long] = {
     val hConf = hc.hadoopConf
     hConf.mkDir(path + "/parts")
 
@@ -127,10 +104,10 @@ object RVD {
         RegionValue(region, rvb.end())
       }.iterator, os)
 
-    val rvdSpec = UnpartitionedRVDSpec(rowType, Array("part-0"))
-    val partitionCounts = Array(part0Count)
+    val spec = UnpartitionedRVDSpec(rowType, Array("part-0"))
+    spec.write(hConf, path)
 
-    (rvdSpec, partitionCounts)
+    Array(part0Count)
   }
 }
 
@@ -220,5 +197,5 @@ trait RVD {
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
-  def write(path: String): (RVDSpec, Array[Long])
+  def write(path: String): Array[Long]
 }

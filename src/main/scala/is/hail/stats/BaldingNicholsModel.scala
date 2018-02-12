@@ -191,7 +191,7 @@ object BaldingNicholsModel {
     val sampleAnnotations = (0 until N).map { i => Annotation(i.toString, popOfSample_n(i)) }.toArray
 
     // FIXME: should use fast keys
-    val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
+    val ordrdd = OrderedRVD(matrixType.orvdType, rdd, None, None)
 
     new MatrixTable(hc,
       matrixType,

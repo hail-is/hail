@@ -3,6 +3,7 @@ package is.hail.rvd
 import java.util
 
 import is.hail.annotations._
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -413,13 +414,14 @@ class OrderedRVD private(
     OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
   }
 
-  def write(path: String): (RVDSpec, Array[Long]) = {
+  def write(path: String): Array[Long] = {
     val (partFiles, partitionCounts) = rdd.writeRows(path, rowType)
-    (OrderedRVDSpec(
+    val spec = OrderedRVDSpec(
       typ,
       partFiles,
-      partitioner.rangeBounds),
-      partitionCounts)
+      JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))
+    spec.write(sparkContext.hadoopConfiguration, path)
+    partitionCounts
   }
 }
 

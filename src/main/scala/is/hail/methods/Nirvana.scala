@@ -319,17 +319,17 @@ object Nirvana {
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
-    val nirvanaOrderedRVType = new OrderedRVDType(
+    val nirvanaORVDType = new OrderedRVDType(
       Array("locus"), Array("locus", "alleles"),
       TStruct(
         "locus" -> vds.rowKeyTypes(0),
         "alleles" -> vds.rowKeyTypes(1),
         "nirvana" -> nirvanaSignature))
 
-    val nirvanaRowType = nirvanaOrderedRVType.rowType
+    val nirvanaRowType = nirvanaORVDType.rowType
 
     val nirvanaRVD: OrderedRVD = OrderedRVD(
-      nirvanaOrderedRVType,
+      nirvanaORVDType,
       vds.rvd.partitioner,
       annotations.mapPartitions { it =>
         val region = Region()

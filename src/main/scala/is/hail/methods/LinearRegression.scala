@@ -61,7 +61,7 @@ object LinearRegression {
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
-    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
 
         val region2 = Region()
         val rvb = new RegionValueBuilder(region2)

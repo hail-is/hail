@@ -1,8 +1,14 @@
 package is.hail.expr.types
 
-import is.hail.expr.EvalContext
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.utils._
 import is.hail.expr.ir._
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
+
+class TableTypeSerializer extends CustomSerializer[TableType](format => (
+  { case JString(s) => Parser.parseTableType(s) },
+  { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
   def rowEC: EvalContext = EvalContext(rowType.fields.map { f => f.name -> f.typ } ++

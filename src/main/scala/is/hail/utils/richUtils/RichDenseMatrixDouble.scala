@@ -155,6 +155,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     hadoop.mkDir(path)
 
     hadoop.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, m.rows, m.cols),
         os)

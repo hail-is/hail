@@ -6,15 +6,13 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.methods.Aggregators
 import is.hail.rvd._
-import is.hail.table.TableMetadata
-import is.hail.variant.MatrixTableMetadata
+import is.hail.table.TableSpec
+import is.hail.variant.MatrixTableSpec
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
-import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.parse
 
 object BaseIR {
   def genericRewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
@@ -113,7 +111,7 @@ case class MatrixValue(
 
     val keepBc = sparkContext.broadcast(keep)
     copy(colValues = keep.map(colValues),
-      rvd = rvd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
+      rvd = rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
         val f = makeF()
         val keep = keepBc.value
         var rv2 = RegionValue()
@@ -192,12 +190,12 @@ case class MatrixLiteral(
 
 case class MatrixRead(
   path: String,
-  metadata: MatrixTableMetadata,
+  spec: MatrixTableSpec,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixIR {
-  def typ: MatrixType = metadata.matrixType
+  def typ: MatrixType = spec.matrix_type
 
-  override def partitionCounts: Option[Array[Long]] = metadata.partitionCounts
+  override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -209,24 +207,24 @@ case class MatrixRead(
   def execute(hc: HailContext): MatrixValue = {
     val hConf = hc.hadoopConf
 
-    val globals = metadata.globalsRVDSpec.readLocal(hc, path + "/globals")(0)
+    val globals = spec.globalsComponent.readLocal(hc, path)(0)
 
     val colAnnotations =
       if (dropSamples)
         IndexedSeq.empty[Annotation]
       else
-        metadata.colsRVDSpec.readLocal(hc, path + "/cols")
+        spec.colsComponent.readLocal(hc, path)
 
     val rvd =
       if (dropVariants)
-        OrderedRVD.empty(hc.sc, typ.orderedRVType)
+        OrderedRVD.empty(hc.sc, typ.orvdType)
       else {
         val fullRowType = typ.rvRowType
         val localEntriesIndex = typ.entriesIdx
 
-        val rowsRVD = metadata.rowsRVDSpec.read(hc, path + "/rows").asInstanceOf[OrderedRVD]
+        val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
         if (dropSamples) {
-          rowsRVD.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
+          rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
             var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
 
@@ -252,9 +250,9 @@ case class MatrixRead(
             }
           }
         } else {
-          val entriesRVD = metadata.entriesRVDSpec.read(hc, path + "/entries")
+          val entriesRVD = spec.entriesComponent.read(hc, path)
           val entriesRowType = entriesRVD.rowType
-          OrderedRVD(typ.orderedRVType,
+          OrderedRVD(typ.orvdType,
             rowsRVD.partitioner,
             rowsRVD.rdd.zipPartitions(entriesRVD.rdd) { case (it1, it2) =>
               val rvb = new RegionValueBuilder()
@@ -366,7 +364,7 @@ case class FilterVariants(
 
     ec.set(0, prev.globals)
 
-    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orderedRVType) { it =>
+    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
       val fullRow = new UnsafeRow(fullRowType)
       val row = fullRow.deleteField(localEntriesIndex)
       it.filter { rv =>
@@ -444,10 +442,10 @@ case class TableLiteral(value: TableValue) extends TableIR {
   def execute(hc: HailContext): TableValue = value
 }
 
-case class TableRead(path: String, metadata: TableMetadata, dropRows: Boolean) extends TableIR {
-  def typ: TableType = metadata.typ
+case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends TableIR {
+  def typ: TableType = spec.table_type
 
-  override def partitionCounts: Option[Array[Long]] = metadata.partitionCounts
+  override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -457,13 +455,13 @@ case class TableRead(path: String, metadata: TableMetadata, dropRows: Boolean) e
   }
 
   def execute(hc: HailContext): TableValue = {
-    val globals = metadata.globalsRVDSpec.readLocal(hc, path + "/" + metadata.globalsPath)(0)
+    val globals = spec.globalsComponent.readLocal(hc, path)(0)
     TableValue(typ,
       globals,
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
-        metadata.rowsRVDSpec.read(hc, path))
+        spec.rowsComponent.read(hc, path))
   }
 }
 

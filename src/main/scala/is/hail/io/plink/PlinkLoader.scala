@@ -138,7 +138,7 @@ object PlinkLoader {
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))
 
-    val kType = matrixType.orderedRVType.kType
+    val kType = matrixType.orvdType.kType
     val rvRowType = matrixType.rvRowType
 
     val fastKeys = rdd.mapPartitions { it =>
@@ -197,7 +197,7 @@ object PlinkLoader {
     new MatrixTable(hc, matrixType,
       Annotation.empty,
       sampleAnnotations,
-      OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
+      OrderedRVD(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,

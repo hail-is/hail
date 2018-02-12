@@ -836,14 +836,14 @@ object LoadVCF {
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)
 
-    val kType = matrixType.orderedRVType.kType
+    val kType = matrixType.orvdType.kType
     val rowType = matrixType.rvRowType
 
     // nothing after the key
     val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, gr, contigRecoding)
 
     val rdd = OrderedRVD(
-      matrixType.orderedRVType,
+      matrixType.orvdType,
       parseLines { () =>
         new ParseLineContext(genotypeSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
