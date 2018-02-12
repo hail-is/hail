@@ -10,27 +10,30 @@ import scala.annotation.switch
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
-object Call0 extends Serializable {
+object Call0 {
   def apply(phased: Boolean = false): Call = {
     Call(0, phased, ploidy = 0)
   }
 }
 
-object Call1 extends Serializable {
+object Call1 {
   def apply(aj: Int, phased: Boolean = false): Call = {
-    require(aj >= 0, s"allele index must be >= 0. Found $aj.")
+    if (aj < 0)
+      fatal(s"allele index must be >= 0. Found $aj.")
     Call(aj, phased, ploidy = 1)
   }
 }
 
-object Call2 extends Serializable {
+object Call2 {
   def fromUnphasedDiploidGtIndex(gt: Int): Call = {
-    require(gt >= 0, s"gt must be >= 0. Found $gt.")
+    if (gt < 0)
+      fatal(s"gt must be >= 0. Found $gt.")
     Call(gt, phased = false, ploidy = 2)
   }
 
   def apply(aj: Int, ak: Int, phased: Boolean = false): Call = {
-    require(aj >= 0 && ak >= 0, s"allele indices must be >= 0. Found j=$aj and k=$ak.")
+    if (aj < 0 || ak < 0)
+      fatal(s"allele indices must be >= 0. Found j=$aj and k=$ak.")
 
     val alleleRepr =
       if (phased)
@@ -42,7 +45,7 @@ object Call2 extends Serializable {
   }
 }
 
-object CallN extends Serializable {
+object CallN {
   def apply(alleles: java.util.ArrayList[Int], phased: Boolean): Call = apply(alleles.asScala.toArray, phased)
 
   def apply(alleles: Array[Int], phased: Boolean = false): Call = {
@@ -58,8 +61,10 @@ object CallN extends Serializable {
 
 object Call extends Serializable {
   def apply(ar: Int, phased: Boolean, ploidy: Int): Call = {
-    require(ploidy >= 0 && ploidy <= 2, s"invalid ploidy: $ploidy. Only support ploidy in range [0, 2]")
-    require(ar >= 0, s"invalid allele representation: $ar. Must be positive.")
+    if (ploidy < 0 || ploidy > 2)
+      fatal(s"invalid ploidy: $ploidy. Only support ploidy in range [0, 2]")
+    if (ar < 0)
+      fatal(s"invalid allele representation: $ar. Must be positive.")
 
     var c = 0
     c |= phased.toInt
@@ -69,9 +74,10 @@ object Call extends Serializable {
     else
       c |= (ploidy << 1)
 
-    require((ar >>> 29) == 0, s"invalid allele representation: $ar. Max value is 2^29 - 1")
-    c |= ar << 3
+    if ((ar >>> 29) != 0)
+      fatal(s"invalid allele representation: $ar. Max value is 2^29 - 1")
 
+    c |= ar << 3
     c
   }
 
@@ -90,7 +96,8 @@ object Call extends Serializable {
   def alleleRepr(c: Call): Int = c >>> 3
 
   def allelePair(c: Call): AllelePair = {
-    require(isDiploid(c), s"invalid ploidy: ${ ploidy(c) }. Only support ploidy == 2")
+    if (!isDiploid(c))
+      fatal(s"invalid ploidy: ${ ploidy(c) }. Only support ploidy == 2")
 
     if (isPhased(c)) {
         val p = Genotype.allelePair(alleleRepr(c))
@@ -100,7 +107,8 @@ object Call extends Serializable {
   }
 
   def unphasedDiploidGtIndex(c: Call): Int = {
-    require(isUnphasedDiploid(c), s"Only support ploidy == 2 and unphased. Found ${ Call.toString(c) }.")
+    if (!isUnphasedDiploid(c))
+      fatal(s"Only support ploidy == 2 and unphased. Found ${ Call.toString(c) }.")
     alleleRepr(c)
   }
 
@@ -148,27 +156,33 @@ object Call extends Serializable {
     }
   }
 
-  def vcfString(c: Call): String = {
+  def vcfString(c: Call, sb: StringBuilder): Unit = {
     val phased = isPhased(c)
     val sep = if (phased) "|" else "/"
 
     (ploidy(c): @switch) match {
-      case 0 => throw new UnsupportedOperationException("VCF spec does not support 0-ploid calls.")
+      case 0 =>
+        throw new UnsupportedOperationException("VCF spec does not support 0-ploid calls.")
       case 1 =>
         if (phased)
           throw new UnsupportedOperationException("VCF spec does not support phased haploid calls.")
         else
-          s"${ alleleByIndex(c, 0) }"
+          sb.append(alleleByIndex(c, 0))
       case 2 =>
         val p = allelePair(c)
-        s"${ p.j }$sep${ p.k }"
+        sb.append(p.j)
+        sb.append(sep)
+        sb.append(p.k)
       case _ =>
-        alleles(c).mkString(sep)
+        var i = 0
+        val nAlleles = ploidy(c)
+        while (i < nAlleles) {
+          sb.append(alleleByIndex(c, i))
+          if (i != nAlleles - 1)
+            sb.append(sep)
+          i += 1
+        }
     }
-  }
-
-  def addToStringBuilder(c: Call, f: (Call) => String, sb: StringBuilder) {
-    sb.append(f(c))
   }
 
   def isHomRef(c: Call): Boolean = {
@@ -312,7 +326,7 @@ object Call extends Serializable {
 
   def genNonmissingValue: Gen[Call] = for {
     nAlleles <- Gen.choose(2, 5)
-    c <- gen(nAlleles) // .filter(c => Call.ploidy(c) >= 2 || (Call.ploidy(c) == 1 && !isPhased(c)))
+    c <- gen(nAlleles)
   } yield {
     check(c, nAlleles)
     c

@@ -30,7 +30,7 @@ class Call(HistoryMixin):
                       phased=bool)
     def __init__(self, alleles, phased=False):
         if len(alleles) > 2:
-            raise NotImplementedError("Calls with greater than 2 alleles is not supported.")
+            raise NotImplementedError("Calls with greater than 2 alleles are not supported.")
         self._phased = phased
         self._alleles = alleles
         self._ploidy = len(alleles)

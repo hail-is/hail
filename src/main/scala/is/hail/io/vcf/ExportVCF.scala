@@ -44,7 +44,7 @@ object ExportVCF {
         sb.append(TString.loadString(m, offset))
       case TCall(_) =>
         val c = m.loadInt(offset)
-        Call.addToStringBuilder(c, Call.vcfString, sb)
+        Call.vcfString(c, sb)
       case _ =>
         fatal(s"VCF does not support type $elementType")
     }
