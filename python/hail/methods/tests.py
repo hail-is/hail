@@ -700,15 +700,3 @@ class Tests(unittest.TestCase):
             contig_recoding={'chr22': '22'}).rows_table()
         self.assertTrue(plink.forall(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
-
-    def test_import_table_w_call(self):
-        rows = [{'c': Call([])}, {'c': Call([], True)},
-                {'c': Call([1])}, {'c': Call([1], True)},
-                {'c': Call([0, 1])}, {'c': Call([1, 0], True)}]
-
-        t = Table.parallelize(rows, TStruct(['c'], [TCall()]))
-        f = test_file("export_call.tsv")
-        t.export(f)
-
-        t_imported = methods.import_table(f, impute=True)
-        self.assertTrue(t._same(t_imported))
