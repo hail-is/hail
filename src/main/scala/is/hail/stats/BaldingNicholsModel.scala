@@ -5,7 +5,6 @@ import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.MatrixLocalValue
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant.{Call, Call2, GenomeReference, MatrixTable}
@@ -192,11 +191,11 @@ object BaldingNicholsModel {
     val sampleAnnotations = (0 until N).map { i => Annotation(i.toString, popOfSample_n(i)) }.toArray
 
     // FIXME: should use fast keys
-    val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
+    val ordrdd = OrderedRVD(matrixType.orvdType, rdd, None, None)
 
     new MatrixTable(hc,
       matrixType,
-      MatrixLocalValue(globalAnnotation, sampleAnnotations),
+      globalAnnotation, sampleAnnotations,
       ordrdd)
   }
 }

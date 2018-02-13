@@ -43,8 +43,6 @@ object Locus {
     pos <- Gen.choose(1, length)
   } yield Locus(contig, pos)
 
-  implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
-
   def parse(str: String, gr: GRBase): Locus = {
     val elts = str.split(":")
     val size = elts.length

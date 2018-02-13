@@ -8,18 +8,15 @@ import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
-import is.hail.methods.{Aggregators, Filter}
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
+import is.hail.methods.Aggregators
+import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, MatrixTable}
+import is.hail.variant.{ComponentSpec, FileFormat, GenomeReference, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -38,34 +35,30 @@ object SortColumn {
 
 case class SortColumn(column: String, sortOrder: SortOrder)
 
-case class TableMetadata(
+case class TableSpec(
   file_version: Int,
   hail_version: String,
-  key: Array[String],
-  table_type: String,
-  globals: JValue,
-  n_partitions: Int,
-  partition_counts: Array[Long])
-
-case class TableLocalValue(globals: Row)
+  references_rel_path: String,
+  table_type: TableType,
+  components: Map[String, ComponentSpec]) extends RelationalSpec {
+  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+}
 
 object Table {
-  final val fileVersion: Int = 0x101
-
   def range(hc: HailContext, n: Int, name: String = "index", partitions: Option[Int] = None): Table = {
     val range = Range(0, n).view.map(Row(_))
     val rdd = partitions match {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    Table(hc, rdd, TStruct(name -> TInt32()), Array(name))
+    Table(hc, rdd, TStruct(name -> TInt32()), IndexedSeq(name))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
-    fromDF(hc, df, key.asScala.toArray)
+    fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)
   }
 
-  def fromDF(hc: HailContext, df: DataFrame, key: Array[String] = Array.empty[String]): Table = {
+  def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[String] = Array.empty[String]): Table = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     Table(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
@@ -74,32 +67,12 @@ object Table {
   }
 
   def read(hc: HailContext, path: String): Table = {
-    if (!hc.hadoopConf.exists(path))
-      fatal(s"$path does not exist")
-    else if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
-      fatal(s"key table files must end in '.kt', but found '$path'")
+    val successFile = path + "/_SUCCESS"
+    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
+      fatal(s"write failed: file not found: $successFile")
 
-    GenomeReference.importReferences(hc.hadoopConf, path + "/references/")
-
-    val metadataFile = path + "/metadata.json.gz"
-    if (!hc.hadoopConf.exists(metadataFile))
-      fatal(
-        s"corrupt Table: metadata file does not exist: $metadataFile")
-
-    val metadata = hc.hadoopConf.readFile(metadataFile) { in =>
-      // FIXME why doesn't this work?  Serialization.read[KeyTableMetadata](in)
-      val json = parse(in)
-      json.extract[TableMetadata]
-    }
-
-    val tableType = Parser.parseTableType(metadata.table_type)
-    val globals = JSONAnnotationImpex.importAnnotation(metadata.globals, tableType.globalType).asInstanceOf[Row]
-    new Table(hc, TableRead(path,
-      tableType,
-      TableLocalValue(globals),
-      dropRows = false,
-      metadata.n_partitions,
-      Some(metadata.partition_counts)))
+    val spec = RelationalSpec.read(hc, path).asInstanceOf[TableSpec]
+    new Table(hc, TableRead(path, spec, dropRows = false))
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -115,7 +88,7 @@ object Table {
           hc.sc.parallelize(rows, n)
         case None =>
           hc.sc.parallelize(rows)
-      }, signature, key.toArray)
+      }, signature, key.toArray.toFastIndexedSeq)
   }
 
   def importIntervalList(hc: HailContext, filename: String,
@@ -141,7 +114,7 @@ object Table {
     Table(hc, rdd, typ, Array("id"))
   }
 
-  def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty,
+  def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): Table = {
     val rdd2 = rdd.mapPartitions { it =>
       val region = Region()
@@ -158,8 +131,8 @@ object Table {
 
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
-        TableLocalValue(globals),
-        RVD(signature, rdd2))
+        globals,
+        new UnpartitionedRVD(signature, rdd2))
     ))
   }
 
@@ -186,9 +159,9 @@ object Table {
 
 class Table(val hc: HailContext, val ir: TableIR) {
 
-  def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
+  def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
-    TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), RVD(signature, rdd))
+    TableValue(TableType(signature, key, globalSignature), globals, new UnpartitionedRVD(signature, rdd))
   ))
 
   lazy val value: TableValue = {
@@ -196,7 +169,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     opt.execute(hc)
   }
 
-  lazy val TableValue(ktType, TableLocalValue(globals), rvd) = value
+  lazy val TableValue(ktType, globals, rvd) = value
 
   val TableType(signature, key, globalSignature) = ir.typ
 
@@ -223,9 +196,9 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def fields: Array[Field] = signature.fields.toArray
 
-  val keyFieldIdx: Array[Int] = key.map(signature.fieldIdx)
+  val keyFieldIdx: Array[Int] = key.toArray.map(signature.fieldIdx)
 
-  def keyFields: Array[Field] = key.map(signature.fieldIdx).map(i => fields(i))
+  def keyFields: Array[Field] = key.toArray.map(signature.fieldIdx).map(i => fields(i))
 
   val valueFieldIdx: Array[Int] = signature.fields.filter(f => !key.contains(f.name)).map(_.index).toArray
 
@@ -240,7 +213,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def nPartitions: Int = rvd.partitions.length
 
   def keySignature: TStruct = {
-    val (t, _) = signature.select(key)
+    val (t, _) = signature.select(key.toArray)
     t
   }
 
@@ -576,7 +549,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
         s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
-    copy(key = key.toArray)
+    copy(key = key.toArray[String])
   }
 
   def select(exprs: Array[String], qualifiedName: Boolean = false): Table = {
@@ -903,7 +876,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       }
     }
 
-    val ordType = new OrderedRVType(partitionKeys, rowKeys ++ Array(INDEX_UID), rowEntryStruct)
+    val ordType = new OrderedRVDType(partitionKeys, rowKeys ++ Array(INDEX_UID), rowEntryStruct)
     val ordered = OrderedRVD(ordType, rowEntryRVD.rdd, None, None)
 
     val matrixType: MatrixType = MatrixType.fromParts(globalSignature,
@@ -924,7 +897,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val newRVType = matrixType.rvRowType
     val orderedRKStruct = matrixType.rowKeyStruct
 
-    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orderedRVType) { it =>
+    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
       new Iterator[RegionValue] {
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -992,8 +965,10 @@ class Table(val hc: HailContext, val ir: TableIR) {
         }
       }
     }
-    new MatrixTable(hc, matrixType,
-      MatrixLocalValue(globals: Annotation, colDataConcat: IndexedSeq[Annotation]),
+    new MatrixTable(hc,
+      matrixType,
+      globals: Annotation,
+      colDataConcat,
       newRVD)
   }
 
@@ -1137,33 +1112,33 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def collect(): IndexedSeq[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false) {
-    if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
-      fatal(s"write path must end in '.kt', but found '$path'")
-
     if (overwrite)
       hc.hadoopConf.delete(path, recursive = true)
     else if (hc.hadoopConf.exists(path))
-      fatal(s"$path already exists")
+      fatal(s"file already exists: $path")
 
     hc.hadoopConf.mkDir(path)
 
-    val partitionCounts = rvd.rdd.writeRows(path, signature)
+    val globalsPath = path + "/globals"
+    hc.hadoopConf.mkDir(globalsPath)
+    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, Array(globals))
 
-    val refPath = path + "/references/"
-    hc.hadoopConf.mkDir(refPath)
-    GenomeReference.exportReferences(hc, refPath, signature)
-    GenomeReference.exportReferences(hc, refPath, globalSignature)
+    val partitionCounts = rvd.write(path + "/rows")
 
-    val metadata = TableMetadata(Table.fileVersion,
+    val referencesPath = path + "/references"
+    hc.hadoopConf.mkDir(referencesPath)
+    GenomeReference.exportReferences(hc, referencesPath, signature)
+    GenomeReference.exportReferences(hc, referencesPath, globalSignature)
+
+    val spec = TableSpec(
+      FileFormat.version.rep,
       hc.version,
-      key,
-      ir.typ.toString,
-      JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
-      nPartitions,
-      partitionCounts)
-
-    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
-      Serialization.write(metadata, out))
+      "references",
+      ir.typ,
+      Map("globals" -> RVDComponentSpec("globals"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
@@ -1437,7 +1412,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def copy(rdd: RDD[Row] = rdd,
     signature: TStruct = signature,
-    key: Array[String] = key,
+    key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
     globals: Row = globals): Table = {
     Table(hc, rdd, signature, key, globalSignature, globals)
@@ -1445,18 +1420,18 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
-    key: Array[String] = key,
+    key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
     globals: Row = globals): Table = {
     new Table(hc, TableLiteral(
-      TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), rvd)
+      TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
   }
 
-  def toOrderedRVD(hintPartitioner: Some[OrderedRVPartitioner], partitionKeys: Int): OrderedRVD = {
+  def toOrderedRVD(hintPartitioner: Some[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
     val localSignature = signature
 
-    val orderedKTType = new OrderedRVType(key.take(partitionKeys), key, signature)
+    val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.fieldType.sameElements(orderedKTType.pkType.fieldType)))
     OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)
   }

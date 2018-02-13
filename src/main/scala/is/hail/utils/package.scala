@@ -5,19 +5,18 @@ import java.lang.reflect.Method
 import java.net.URI
 import java.util.zip.Inflater
 
-import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
 import org.apache.spark.Partition
-import org.json4s.Extraction.decompose
 import org.json4s.JsonAST.JArray
 import org.json4s.jackson.Serialization
 import org.json4s.reflect.TypeInfo
-import org.json4s.{Extraction, Formats, JValue, NoTypeHints, Serializer}
+import org.json4s.{Extraction, Formats, NoTypeHints, Serializer}
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -404,13 +403,7 @@ package object utils extends Logging
     }
   }
 
-  implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints) + GenericIndexedSeqSerializer
-
-  def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {
-    def toJSON(x: T): JValue = decompose(x)
-
-    def fromJSON(jv: JValue): T = jv.extract[T]
-  }
+  val defaultJSONFormats: Formats = Serialization.formats(NoTypeHints) + GenericIndexedSeqSerializer
 
   def splitWarning(leftSplit: Boolean, left: String, rightSplit: Boolean, right: String) {
     val msg =
@@ -538,6 +531,12 @@ package object utils extends Logging
       1 + digitsNeeded(i / 10)
   }
 
+  def partFile(d: Int, i: Int): String = {
+    val is = i.toString
+    assert(is.length <= d)
+    "part-" + StringUtils.leftPad(is, d, "0")
+  }
+
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
     val b = new ArrayBuilder[String]
 
@@ -564,6 +563,15 @@ package object utils extends Logging
   def lift[T, S](pf: PartialFunction[T, S]): (T) => Option[S] = pf.lift
   def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift
   def optMatch[T, S](a: T)(pf : PartialFunction[T, S]): Option[S] = lift(pf)(a)
+
+
+  def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
+    try {
+      consume(r)
+    } finally {
+      r.close()
+    }
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

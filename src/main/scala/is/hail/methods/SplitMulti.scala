@@ -233,12 +233,12 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     val newRDD2: OrderedRVD =
       if (leftAligned)
         OrderedRVD(
-          newMatrixType.orderedRVType,
+          newMatrixType.orvdType,
           vsm.rvd.partitioner,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       else
         SplitMulti.unionMovedVariants(OrderedRVD(
-          newMatrixType.orderedRVType,
+          newMatrixType.orvdType,
           vsm.rvd.partitioner,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))

@@ -50,7 +50,15 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAll() {
-    val vds = MatrixTable.fromLegacy[Annotation](hc, MatrixFileMetadata(Array.empty[String]),
+    val vds = MatrixTable.fromLegacy[Annotation](hc,
+      MatrixType.fromParts(
+        globalType = TStruct.empty(),
+        colKey = Array("s"),
+        colType = TStruct("s" -> TString()),
+        rowPartitionKey = Array("v"), rowKey = Array("v"),
+        rowType = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+        entryType = Genotype.htsGenotypeType),
+      Annotation.empty, IndexedSeq.empty[Annotation],
       sc.parallelize(Seq((Annotation(Variant("1", 100, "A", "T")), Iterable.empty[Annotation]))))
 
     val intervalFile = tmpDir.createTempFile("intervals")

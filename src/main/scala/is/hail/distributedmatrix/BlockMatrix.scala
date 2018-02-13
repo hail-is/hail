@@ -9,7 +9,7 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.EvalContext
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVType, RVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
@@ -21,6 +21,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
+import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 
@@ -111,6 +112,7 @@ object BlockMatrix {
 
     val BlockMatrixMetadata(blockSize, nRows, nCols) =
       hadoop.readTextFile(uri + metadataRelativePath) { isr =>
+        implicit val formats = defaultJSONFormats
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
 
@@ -124,7 +126,11 @@ object BlockMatrix {
       Iterator.single(gp.blockCoordinates(i), bdm)
     }
 
-    val blocks = hc.readPartitions(uri, gp.numPartitions, readBlock, Some(gp))
+    val nPartitions = gp.numPartitions
+    val d = digitsNeeded(nPartitions)
+    val partFiles = Array.tabulate[String](nPartitions) { i => partFile(d, i) }
+
+    val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
@@ -318,6 +324,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, nCols),
         os)
@@ -1096,10 +1103,8 @@ class WriteBlocksRDD(path: String,
     val dosPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
-      val is = gp.coordinatesBlock(blockRow, blockCol).toString
-      assert(is.length <= d)
-      val pis = StringUtils.leftPad(is, d, "0")
-      val filename = path + "/parts/part-" + pis
+      val i = gp.coordinatesBlock(blockRow, blockCol)
+      val filename = path + "/parts/" + partFile(d, i)
 
       val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))
       dos.writeInt(nRowsInBlock)

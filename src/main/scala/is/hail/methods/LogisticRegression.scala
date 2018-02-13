@@ -55,7 +55,7 @@ object LogisticRegression {
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
-    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val sampleAnnotationsBc = vsm.colValuesBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
@@ -71,7 +71,7 @@ object LogisticRegression {
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
-    val newRVD = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+    val newRVD = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 

@@ -5,7 +5,6 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.table.TableLocalValue
 import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
@@ -21,12 +20,13 @@ import scala.reflect.ClassTag
 object Aggregators {
 
   def buildVariantAggregationsByKey(vsm: MatrixTable, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
-    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, nKeys, keyMap, ec)
+    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, nKeys, keyMap, ec)
 
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
   def buildVariantAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
-    localValue: MatrixLocalValue,
+    globals: Annotation,
+    colValues: IndexedSeq[Annotation],
     nKeys: Int,
     keyMap: Array[Int],
     ec: EvalContext): (RegionValue) => Array[() => Unit] = {
@@ -36,9 +36,9 @@ object Aggregators {
       return { rv => Array.fill[() => Unit](nKeys) { () => Unit } }
 
     val localA = ec.a
-    val localNSamples = localValue.nSamples
-    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
-    val localGlobalAnnotations = localValue.globalAnnotation
+    val localNSamples = colValues.length
+    val localAnnotationsBc = sc.broadcast(colValues)
+    val localGlobals = globals
 
     val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
@@ -57,7 +57,7 @@ object Aggregators {
         }
         nk += 1
       }
-      localA(0) = localGlobalAnnotations
+      localA(0) = localGlobals
       localA(1) = row
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
@@ -86,11 +86,12 @@ object Aggregators {
   }
 
   def buildVariantAggregations(vsm: MatrixTable, ec: EvalContext): Option[(RegionValue) => Unit] =
-    buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
+    buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, ec)
 
   def buildVariantAggregations(sc: SparkContext,
     typ: MatrixType,
-    localValue: MatrixLocalValue,
+    globals: Annotation,
+    colValues: IndexedSeq[Annotation],
     ec: EvalContext): Option[(RegionValue) => Unit] = {
 
     val aggregations = ec.aggregations
@@ -98,8 +99,8 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localNSamples = localValue.nSamples
-    val sampleAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
+    val localNSamples = colValues.length
+    val colValuesBc = sc.broadcast(colValues)
     val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
 
@@ -117,7 +118,7 @@ object Aggregators {
 
       while (i < localNSamples) {
         ec.set(2, is(i))
-        ec.set(3, sampleAnnotationsBc.value(i))
+        ec.set(3, colValuesBc.value(i))
 
         var j = 0
         while (j < aggs.size) {
@@ -145,9 +146,9 @@ object Aggregators {
 
     val localA = ec.a
     val localNSamples = value.nSamples
-    val localGlobalAnnotations = value.globalAnnotation
-    val localSampleAnnotationsBc = value.sampleAnnotationsBc
-    localA(0) = localGlobalAnnotations
+    val localGlobals = value.globals
+    val localColValuesBc = value.colValuesBc
+    localA(0) = localGlobals
 
     val nAggregations = aggregations.length
     val nSamples = value.nSamples
@@ -171,7 +172,7 @@ object Aggregators {
 
       var i = 0
       while (i < localNSamples) {
-        localA(1) = localSampleAnnotationsBc.value(i)
+        localA(1) = localColValuesBc.value(i)
         localA(2) = gs(i)
 
         var j = 0
@@ -211,8 +212,8 @@ object Aggregators {
     val newType = TStruct(resultNames.zip(resultTypes): _*)
 
     val localNSamples = vsm.numCols
-    val localGlobalAnnotations = vsm.globals
-    val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val localGlobals = vsm.globals
+    val localColValuesBc = vsm.colValuesBc
 
     val aggregations = ec.aggregations
     val nAggregations = aggregations.size
@@ -234,8 +235,8 @@ object Aggregators {
 
       var i = 0
       while (i < localNSamples) {
-        ec.setAll(localGlobalAnnotations,
-          localSampleAnnotationsBc.value(i),
+        ec.setAll(localGlobals,
+          localColValuesBc.value(i),
           is(i),
           row)
 
@@ -258,12 +259,12 @@ object Aggregators {
     }
 
     val resultOp = (ma: MultiArray2[Aggregator], rvb: RegionValueBuilder) => {
-      ec.set(0, localGlobalAnnotations)
+      ec.set(0, localGlobals)
       rvb.startArray(localNSamples)
 
       var i = 0
       while (i < localNSamples) {
-        ec.set(2, localSampleAnnotationsBc.value(i))
+        ec.set(2, localColValuesBc.value(i))
         var j = 0
         while (j < nAggregations) {
           aggregations(j)._1.v = ma(i, j).result
