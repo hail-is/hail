@@ -2847,11 +2847,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           ec.set(2, localSampleAnnotationsBc.value(k))
           ec.set(3, entries(k))
           a(k) = f() match {
-            case null => fatal(s"Entry expr must be non-missing. Found missing value for col $k and row ${ localRKF(row) }")
+            case null => fatal(s"entry_expr must be non-missing. Found missing value for col $k and row ${ localRKF(row) }")
             case t =>
               val td = t.toDouble
               if (td.isNaN || td.isInfinite)
-                fatal(s"Entry expr cannot be NaN or infinite. Found ${ if (td.isNaN) "NaN" else "infinite" } value for col $k and row ${ localRKF(row) }")
+                fatal(s"entry_expr cannot be NaN or infinite. Found ${ if (td.isNaN) "NaN" else "infinite" } value for col $k and row ${ localRKF(row) }")
               td
           }
           k += 1
@@ -2862,7 +2862,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }
 
-    new IndexedRowMatrix(indexedRows, partStarts.last, numCols)
+    new IndexedRowMatrix(indexedRows.cache(), partStarts.last, numCols)
   }
 
   def collectRowKeys(): Keys = {
