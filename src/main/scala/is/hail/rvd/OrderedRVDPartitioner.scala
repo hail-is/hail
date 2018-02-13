@@ -6,10 +6,11 @@ import is.hail.utils._
 import org.apache.spark.Partitioner
 
 class OrderedRVDPartitioner(
-  val numPartitions: Int,
   val partitionKey: Array[String], val kType: TStruct,
+  // rangeBounds: Array[Interval[pkType]]
+  // rangeBounds is interval containing all partition keys within a partition
   val rangeBounds: UnsafeIndexedSeq) extends Partitioner {
-  require(numPartitions == rangeBounds.size, s"nPartitions = $numPartitions, ranges = ${ rangeBounds.size }")
+  val numPartitions: Int = rangeBounds.length
 
   val (pkType, _) = kType.select(partitionKey)
   val pkIntType = TInterval(pkType)
@@ -19,7 +20,7 @@ class OrderedRVDPartitioner(
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0
-  }, s"hi")
+  })
 
   val rangeTree: IntervalTree[Int] = new IntervalTree[Int](IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(BaseInterval, Int)](numPartitions) { i =>
@@ -77,14 +78,14 @@ class OrderedRVDPartitioner(
   }
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
-    val newPart = new OrderedRVDPartitioner(numPartitions, newPartitionKey, newKType, rangeBounds)
+    val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, rangeBounds)
     assert(newPart.pkType == pkType)
     newPart
   }
 
   def copy(numPartitions: Int = numPartitions, partitionKey: Array[String] = partitionKey,
     kType: TStruct = kType, rangeBounds: UnsafeIndexedSeq = rangeBounds): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(numPartitions, partitionKey, kType, rangeBounds)
+    new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
   def remapRanges(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
@@ -101,31 +102,12 @@ class OrderedRVDPartitioner(
 
 object OrderedRVDPartitioner {
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(0, typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(typ.pkType)))
+    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(typ.pkType)))
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq = {
-    val newT = TArray(TInterval(pType))
-
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(newT)
-    rvb.startArray(rangeBounds.length - 1)
-    var i = 0
-    while (i < rangeBounds.length - 1) {
-      rvb.startStruct()
-      rvb.addRegionValue(pType, rangeBounds(i))
-      rvb.addRegionValue(pType, rangeBounds(i + 1))
-      rvb.addBoolean(if (i == 0) true else false)
-      rvb.addBoolean(true)
-      rvb.endStruct()
-      i += 1
-    }
-    rvb.endArray()
-    val r = new UnsafeIndexedSeq(newT, region, rvb.end())
-    r
-  }
+  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq =
+    makeRangeBoundIntervals(UnsafeIndexedSeq(TArray(TInterval(pType)), rangeBounds))
 
   def makeRangeBoundIntervals(rangeBounds: UnsafeIndexedSeq): UnsafeIndexedSeq = {
     val pType = rangeBounds.t.elementType

@@ -80,7 +80,7 @@ case class OrderedRVDSpec(
   def read(hc: HailContext, path: String): OrderedRVD = {
     val rangeBoundsType = TArray(TInterval(orvdType.pkType))
     OrderedRVD(orvdType,
-      new OrderedRVDPartitioner(partFiles.length, orvdType.partitionKey, orvdType.kType,
+      new OrderedRVDPartitioner(orvdType.partitionKey, orvdType.kType,
         UnsafeIndexedSeq(rangeBoundsType,
           JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]])),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles))

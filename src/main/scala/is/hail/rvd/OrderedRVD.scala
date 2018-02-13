@@ -151,7 +151,7 @@ class OrderedRVD private(
   }
 
   def blockCoalesce(partitionEnds: Array[Int]): OrderedRVD = {
-    assert(partitionEnds.last == partitioner.numPartitions - 1)
+    assert(partitionEnds.last == partitioner.numPartitions - 1 && partitionEnds(0) >= 0)
     assert(partitionEnds.zip(partitionEnds.tail).forall { case (i, inext) => i < inext })
     OrderedRVD(typ, partitioner.remapRanges(partitionEnds), new BlockedRDD(rdd, partitionEnds))
   }
@@ -176,7 +176,7 @@ class OrderedRVD private(
     if (shuffle) {
       val shuffled = rdd.coalesce(maxPartitions, shuffle = true)
       val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)), shuffled.getNumPartitions)
-      OrderedRVD.shuffle(typ, new OrderedRVDPartitioner(ranges.length, typ.partitionKey, typ.kType, ranges), shuffled)
+      OrderedRVD.shuffle(typ, new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges), shuffled)
     } else {
 
       val partSize = rdd.context.runJob(rdd, getIteratorSize _)
@@ -253,7 +253,7 @@ class OrderedRVD private(
       val newRDD = new AdjustedPartitionsRDD(rdd, newPartitionIndices.map(i => Array(Adjustment(i, (it: Iterator[RegionValue]) => it.filter(pred)))))
       OrderedRVD(typ,
         partitioner.copy(numPartitions = newPartitionIndices.length,
-          rangeBounds = UnsafeIndexedSeq(TArray(TInterval(typ.pkType)), newPartitionIndices.map(partitioner.rangeBounds))),
+          rangeBounds = UnsafeIndexedSeq(partitioner.rangeBoundsType, newPartitionIndices.map(partitioner.rangeBounds))),
         newRDD)
     }
   }
@@ -269,8 +269,7 @@ class OrderedRVD private(
     assert(newNParts > 0)
 
     val newRangeBounds = (0 until newNParts).map(partitioner.rangeBounds)
-    val newPartitioner = new OrderedRVDPartitioner(newNParts,
-      partitioner.partitionKey,
+    val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
       partitioner.kType,
       UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
@@ -363,7 +362,6 @@ class OrderedRVD private(
 
     val newRangeBounds = keep.map(partitioner.rangeBounds)
     val newPartitioner = new OrderedRVDPartitioner(
-      keep.length,
       partitioner.partitionKey,
       partitioner.kType,
       UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
@@ -508,8 +506,7 @@ object OrderedRVD {
     if (partitionsSorted && sortedness >= OrderedRVPartitionInfo.TSORTED) {
       val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, pkis, sortedness)
 
-      val partitioner = new OrderedRVDPartitioner(adjustedPartitions.length,
-        typ.partitionKey,
+      val partitioner = new OrderedRVDPartitioner(typ.partitionKey,
         typ.kType,
         rangeBounds)
 
@@ -536,7 +533,7 @@ object OrderedRVD {
         .filter(_.numPartitions >= rdd.partitions.length)
         .getOrElse {
           val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
-          new OrderedRVDPartitioner(ranges.length, typ.partitionKey, typ.kType, ranges)
+          new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges)
         }
       (SHUFFLE, shuffle(typ, p, rdd))
     }
@@ -571,16 +568,6 @@ object OrderedRVD {
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
 
-    //    var pBounds = if (partitionMaxes.isEmpty)
-    //      Array(min)
-    //    else if (pkOrd.equiv(min, partitionMaxes.head))
-    //      partitionMaxes
-    //    else
-    //      min +: partitionMaxes
-    //    pBounds = if (partitionMaxes.isEmpty)
-    //      pBounds :+ max
-    //    else if (pkOrd.equiv(min, partitionMaxes.last)) pBounds else pBounds :+ max
-
     OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, min +: partitionMaxes :+ max)
   }
 
@@ -606,8 +593,8 @@ object OrderedRVD {
         int.copy()
     }
 
-    val newPartitioner = new OrderedRVDPartitioner(partitioner.numPartitions,
-      partitioner.partitionKey, partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+    val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
+      partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
     shuffle(typ, newPartitioner, rdd)
 
