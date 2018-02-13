@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType}
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
@@ -13,7 +13,7 @@ class OrderedDependency(left: OrderedRVD, right: OrderedRVD) extends NarrowDepen
 }
 
 object OrderedDependency {
-  def getDependencies(p1: OrderedRVPartitioner, p2: OrderedRVPartitioner)(partitionId: Int): Range = {
+  def getDependencies(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner)(partitionId: Int): Range = {
     val lastPartition = if (partitionId == p1.rangeBounds.length)
       p2.numPartitions - 1
     else
@@ -65,11 +65,11 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
 }
 
 class OrderedZipJoinIterator(
-  leftTyp: OrderedRVType, rightTyp: OrderedRVType,
+  leftTyp: OrderedRVDType, rightTyp: OrderedRVDType,
   lit: Iterator[RegionValue], rit: Iterator[RegionValue])
   extends Iterator[JoinedRegionValue] {
 
-  private val lrKOrd = OrderedRVType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
+  private val lrKOrd = OrderedRVDType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
 
   val jrv = JoinedRegionValue()
   var present: Boolean = false
@@ -141,7 +141,7 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
   extends RDD[JoinedRegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left.rdd),
       new OrderedDependency(left, right))) {
-  private val leftPartitionForRightRow = new OrderedRVPartitioner(
+  private val leftPartitionForRightRow = new OrderedRVDPartitioner(
     left.partitioner.numPartitions,
     right.typ.partitionKey,
     right.typ.rowType,

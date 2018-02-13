@@ -56,7 +56,7 @@ object PCA {
         rv
       }
     }
-    new Table(hc, scoresRDD, rowType, vsm.colKey.toArray)
+    new Table(hc, scoresRDD, rowType, vsm.colKey)
   }
 
   // returns (eigenvalues, sample scores, optional variant loadings)

@@ -45,6 +45,7 @@ object LoadGDB {
                       callsets_mapping_file: String,
                       vcfHeaderPath: Option[String]): File = {
     val tempFile = File.createTempFile("sample2query", ".json")
+    implicit val formats = defaultJSONFormats
     jackson.Serialization.write(QueryJSON(tiledbworkspace,
       arrayName,
       vid_mapping_file,
@@ -166,8 +167,7 @@ object LoadGDB {
       rowPartitionKey = Array("locus"),
       rowKey = Array("locus", "alleles"),
       rowType = variantAnnotationSignatures,
-      entryType = genotypeSignature
-    )
+      entryType = genotypeSignature)
     val localRowType = matrixType.rvRowType
 
     val region = Region()
@@ -189,8 +189,8 @@ object LoadGDB {
     queryFile.delete()
 
     new MatrixTable(hc, matrixType,
-      MatrixLocalValue(Annotation.empty,
-        sampleIds.map(x => Annotation(x))),
-      OrderedRVD(matrixType.orderedRVType, hc.sc.parallelize(records), None, None))
+      Annotation.empty,
+      sampleIds.map(x => Annotation(x)),
+      OrderedRVD(matrixType.orvdType, hc.sc.parallelize(records), None, None))
   }
 }

@@ -220,9 +220,9 @@ object CalculateConcordance {
     val sampleRDD = left.hc.sc.parallelize(leftFiltered.stringSampleIds.zip(sampleResults)
       .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
 
-    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, left.colKey.toArray)
+    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, left.colKey)
 
-    val variantKT = Table(left.hc, variantRDD, variantSchema, left.rowKey.toArray)
+    val variantKT = Table(left.hc, variantRDD, variantSchema, left.rowKey)
 
     (global.toAnnotation, sampleKT, variantKT)
   }

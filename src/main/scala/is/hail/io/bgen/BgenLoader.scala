@@ -3,7 +3,6 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.MatrixLocalValue
 import is.hail.io.vcf.LoadVCF
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
 import is.hail.rvd.OrderedRVD
@@ -82,7 +81,7 @@ object BgenLoader {
       rowPartitionKey = Array("locus"),
       entryType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
 
-    val kType = matrixType.orderedRVType.kType
+    val kType = matrixType.orvdType.kType
     val rowType = matrixType.rvRowType
 
     val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
@@ -135,9 +134,9 @@ object BgenLoader {
     }))
 
     new MatrixTable(hc, matrixType,
-      MatrixLocalValue(globalAnnotation = Annotation.empty,
-        sampleAnnotations = sampleIds.map(x => Annotation(x))),
-      OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
+      Annotation.empty,
+      sampleIds.map(x => Annotation(x)),
+      OrderedRVD(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

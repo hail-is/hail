@@ -96,14 +96,15 @@ class UnsafeIndexedSeq(
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
     input.readFully(a, 0, smallInOff)
-    val dec = new Decoder(
+    using(new Decoder(
       new LZ4InputBuffer(
-        new ArrayInputStream(a)))
+        new ArrayInputStream(a)))) { dec =>
 
-    region = Region()
-    aoff = dec.readRegionValue(t, region)
+      region = Region()
+      aoff = dec.readRegionValue(t, region)
 
-    length = region.loadInt(aoff)
+      length = region.loadInt(aoff)
+    }
   }
 
   private def readObject(in: ObjectInputStream) {
@@ -112,14 +113,15 @@ class UnsafeIndexedSeq(
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)
     in.readFully(a, 0, smallInOff)
-    val dec = new Decoder(
+    using(new Decoder(
       new LZ4InputBuffer(
-        new ArrayInputStream(a)))
+        new ArrayInputStream(a)))) { dec =>
 
-    region = Region()
-    aoff = dec.readRegionValue(t, region)
+      region = Region()
+      aoff = dec.readRegionValue(t, region)
 
-    length = region.loadInt(aoff)
+      length = region.loadInt(aoff)
+    }
   }
 }
 
@@ -325,12 +327,13 @@ class UnsafeRow(var t: TStruct,
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
     input.readFully(a, 0, smallInOff)
-    val dec = new Decoder(
+    using(new Decoder(
       new LZ4InputBuffer(
-        new ArrayInputStream(a)))
+        new ArrayInputStream(a)))) { dec =>
 
-    region = Region()
-    offset = dec.readRegionValue(t, region)
+      region = Region()
+      offset = dec.readRegionValue(t, region)
+    }
   }
 
   private def readObject(in: ObjectInputStream) {
@@ -339,11 +342,11 @@ class UnsafeRow(var t: TStruct,
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)
     in.readFully(a, 0, smallInOff)
-    val dec = new Decoder(
+    using(new Decoder(
       new LZ4InputBuffer(
-        new ArrayInputStream(a)))
-
-    region = Region()
-    offset = dec.readRegionValue(t, region)
+        new ArrayInputStream(a)))) { dec =>
+      region = Region()
+      offset = dec.readRegionValue(t, region)
+    }
   }
 }

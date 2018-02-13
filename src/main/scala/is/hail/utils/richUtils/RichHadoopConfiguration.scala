@@ -234,14 +234,6 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
   def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
 
-  private def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
-    try {
-      consume(r)
-    } finally {
-      r.close()
-    }
-  }
-
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
     using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
 

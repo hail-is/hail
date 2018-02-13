@@ -1,23 +1,115 @@
 package is.hail.rvd
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.{TStruct, Type}
+import is.hail.HailContext
+import is.hail.annotations._
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.types.{TArray, TStruct, TStructSerializer}
+import is.hail.io.RichRDDRegionValue
 import is.hail.utils._
+import org.apache.hadoop
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.json4s.{CustomSerializer, DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.reflect.ClassTag
 
-object RVD {
-  def apply(rowType: Type, rdd: RDD[RegionValue]): ConcreteRVD = new ConcreteRVD(rowType, rdd)
+object RVDSpec {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[RVDSpec], classOf[UnpartitionedRVDSpec], classOf[OrderedRVDSpec]))
+    override val typeHintFieldName = "name" } +
+    new TStructSerializer +
+    new OrderedRVDTypeSerializer
 
-  def empty(sc: SparkContext, rowType: Type) = ConcreteRVD.empty(sc, rowType)
+  def read(hc: HailContext, path: String): RVDSpec = {
+    val metadataFile = path + "/metadata.json.gz"
+    val jv = hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    jv.extract[RVDSpec]
+  }
+
+  def readLocal(hc: HailContext, path: String, rowType: TStruct, partFiles: Array[String]): IndexedSeq[Row] = {
+    assert(partFiles.length == 1)
+
+    val hConf = hc.hadoopConf
+    partFiles.flatMap { p =>
+      val f = path + "/parts/" + p
+      val in = hConf.unsafeReader(f)
+      HailContext.readRowsPartition(rowType)(0, in)
+        .map(rv => new UnsafeRow(rowType, rv.region.copy(), rv.offset))
+    }
+      .toFastIndexedSeq
+  }
+}
+
+abstract class RVDSpec {
+  def read(hc: HailContext, path: String): RVD
+
+  def readLocal(hc: HailContext, path: String): IndexedSeq[Row]
+
+  def write(hadoopConf: hadoop.conf.Configuration, path: String) {
+    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+      implicit val formats = RVDSpec.formats
+      Serialization.write(this, out)
+    }
+  }
+}
+
+case class UnpartitionedRVDSpec(
+  rowType: TStruct,
+  partFiles: Array[String]) extends RVDSpec {
+  def read(hc: HailContext, path: String): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, hc.readRows(path, rowType, partFiles))
+
+  def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
+    RVDSpec.readLocal(hc, path, rowType, partFiles)
+}
+
+case class OrderedRVDSpec(
+  orvdType: OrderedRVDType,
+  partFiles: Array[String],
+  jRangeBounds: JValue) extends RVDSpec {
+  def read(hc: HailContext, path: String): OrderedRVD = {
+    val rangeBoundsType = TArray(orvdType.pkType)
+    OrderedRVD(orvdType,
+      new OrderedRVDPartitioner(partFiles.length, orvdType.partitionKey, orvdType.kType,
+        UnsafeIndexedSeq(rangeBoundsType,
+          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])),
+      hc.readRows(path, orvdType.rowType, partFiles))
+  }
+
+  def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
+    RVDSpec.readLocal(hc, path, orvdType.rowType, partFiles)
 }
 
 case class PersistedRVRDD(
   persistedRDD: RDD[RegionValue],
   iterationRDD: RDD[RegionValue])
+
+object RVD {
+  def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, rows: IndexedSeq[Annotation]): Array[Long] = {
+    val hConf = hc.hadoopConf
+    hConf.mkDir(path + "/parts")
+
+    val os = hConf.unsafeWriter(path + "/parts/part-0")
+    val rvb = new RegionValueBuilder()
+    val part0Count = RichRDDRegionValue.writeRowsPartition(rowType)(0,
+      rows.map { a =>
+        val region = Region()
+        rvb.set(region)
+        rvb.start(rowType)
+        rvb.addAnnotation(rowType, a)
+        RegionValue(region, rvb.end())
+      }.iterator, os)
+
+    val spec = UnpartitionedRVDSpec(rowType, Array("part-0"))
+    spec.write(hConf, path)
+
+    Array(part0Count)
+  }
+}
 
 trait RVD {
   self =>
@@ -31,19 +123,19 @@ trait RVD {
 
   def partitions: Array[Partition] = rdd.partitions
 
-  def filter(f: (RegionValue) => Boolean): RVD = RVD(rowType, rdd.filter(f))
+  def filter(f: (RegionValue) => Boolean): RVD
 
-  def map(newRowType: Type)(f: (RegionValue) => RegionValue): RVD = RVD(newRowType, rdd.map(f))
+  def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD = new UnpartitionedRVD(newRowType, rdd.map(f))
 
-  def mapWithContext[C](newRowType: Type)(makeContext: () => C)(f: (C, RegionValue) => RegionValue) =
-    RVD(newRowType, rdd.mapPartitions { it =>
+  def mapWithContext[C](newRowType: TStruct)(makeContext: () => C)(f: (C, RegionValue) => RegionValue): UnpartitionedRVD =
+    new UnpartitionedRVD(newRowType, rdd.mapPartitions { it =>
       val c = makeContext()
       it.map { rv => f(c, rv) }
     })
 
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(f)
 
-  def mapPartitions(newRowType: Type)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD = RVD(newRowType, rdd.mapPartitions(f))
+  def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD = new UnpartitionedRVD(newRowType, rdd.mapPartitions(f))
 
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitionsWithIndex(f)
 
@@ -95,37 +187,15 @@ trait RVD {
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def persist(level: StorageLevel): RVD = {
-    val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
-    new RVD {
-      val rowType: TStruct = self.rowType
-
-      val rdd: RDD[RegionValue] = iterationRDD
-
-      override def storageLevel: StorageLevel = persistedRDD.getStorageLevel
-
-      override def persist(newLevel: StorageLevel): RVD = {
-        if (newLevel == StorageLevel.NONE)
-          unpersist()
-        else {
-          persistedRDD.persist(newLevel)
-          this
-        }
-      }
-
-      override def unpersist(): RVD = {
-        persistedRDD.unpersist()
-        self
-      }
-    }
-  }
+  def persist(level: StorageLevel): RVD
 
   def cache(): RVD = persist(StorageLevel.MEMORY_ONLY)
 
   def unpersist(): RVD = this
 
-  def coalesce(maxPartitions: Int, shuffle: Boolean): RVD = RVD(rowType, rdd.coalesce(maxPartitions, shuffle = shuffle))
+  def coalesce(maxPartitions: Int, shuffle: Boolean): RVD
 
-  def sample(withReplacement: Boolean, p: Double, seed: Long): RVD =
-    RVD(rowType, rdd.sample(withReplacement, p, seed))
+  def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
+
+  def write(path: String): Array[Long]
 }

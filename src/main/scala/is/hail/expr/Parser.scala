@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.expr.types._
+import is.hail.rvd.OrderedRVDType
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
@@ -292,6 +293,10 @@ object Parser extends JavaTokenParsers {
   }
 
   def parseType(code: String): Type = parse(type_expr, code)
+
+  def parseStructType(code: String): TStruct = parse(struct_expr, code)
+
+  def parseOrderedRVDType(code: String): OrderedRVDType = parse(ordered_rvd_type_expr, code)
 
   def parseTableType(code: String): TableType = parse(table_type_expr, code)
 
@@ -656,6 +661,12 @@ object Parser extends JavaTokenParsers {
   def key: Parser[Array[String]] = "[" ~> (repsep(identifier, ",") ^^ { _.toArray }) <~ "]"
 
   def trailing_keys: Parser[Array[String]] = rep("," ~> identifier) ^^ { _.toArray }
+
+  def ordered_rvd_type_expr: Parser[OrderedRVDType] =
+    (("OrderedRVDType" ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
+      (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case partitionKey ~ restKey ~ rowType =>
+      new OrderedRVDType(partitionKey, partitionKey ++ restKey, rowType)
+    }
 
   def table_type_expr: Parser[TableType] =
     (("Table" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~

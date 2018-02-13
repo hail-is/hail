@@ -45,7 +45,7 @@ object LinearRegression {
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
-    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val sampleAnnotationsBc = vsm.colValuesBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
@@ -61,7 +61,7 @@ object LinearRegression {
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
-    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
 
         val region2 = Region()
         val rvb = new RegionValueBuilder(region2)

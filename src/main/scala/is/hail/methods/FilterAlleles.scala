@@ -98,7 +98,7 @@ object FilterAlleles {
       val newRVType = newMatrixType.rvRowType
       val localEntriesIndex = vsm.entriesIndex
 
-      val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
+      val localSampleAnnotationsBc = vsm.colValuesBc
 
       rdd.mapPartitions(newRVType) { it =>
         var prevLocus: Locus = null
@@ -172,15 +172,15 @@ object FilterAlleles {
 
     val newRDD2: OrderedRVD =
       if (leftAligned) {
-        OrderedRVD(newMatrixType.orderedRVType,
+        OrderedRVD(newMatrixType.orvdType,
           vsm.rvd.partitioner,
           filter(vsm.rvd, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       } else {
-        val leftAlignedVariants = OrderedRVD(newMatrixType.orderedRVType,
+        val leftAlignedVariants = OrderedRVD(newMatrixType.orvdType,
           vsm.rvd.partitioner,
           filter(vsm.rvd, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
 
-        val movingVariants = OrderedRVD.shuffle(newMatrixType.orderedRVType,
+        val movingVariants = OrderedRVD.shuffle(newMatrixType.orvdType,
           vsm.rvd.partitioner,
           filter(vsm.rvd, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 

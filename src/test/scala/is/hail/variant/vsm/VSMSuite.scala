@@ -22,6 +22,7 @@ import scala.language.postfixOps
 import scala.util.Random
 
 class VSMSuite extends SparkSuite {
+
   @Test def testWriteRead() {
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateVariantsExpr("foo = 5"))) { vds =>
       GenomeReference.addReference(vds.genomeReference)
@@ -104,7 +105,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testInvalidMetadata() {
-    TestUtils.interceptFatal("""invalid metadata""") {
+    TestUtils.interceptFatal("metadata does not contain file version") {
       hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
     }
   }

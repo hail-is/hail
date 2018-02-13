@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.rvd.{OrderedRVD, OrderedRVType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
 import org.apache.spark.storage.StorageLevel
@@ -319,17 +319,17 @@ object Nirvana {
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
-    val nirvanaOrderedRVType = new OrderedRVType(
+    val nirvanaORVDType = new OrderedRVDType(
       Array("locus"), Array("locus", "alleles"),
       TStruct(
         "locus" -> vds.rowKeyTypes(0),
         "alleles" -> vds.rowKeyTypes(1),
         "nirvana" -> nirvanaSignature))
 
-    val nirvanaRowType = nirvanaOrderedRVType.rowType
+    val nirvanaRowType = nirvanaORVDType.rowType
 
     val nirvanaRVD: OrderedRVD = OrderedRVD(
-      nirvanaOrderedRVType,
+      nirvanaORVDType,
       vds.rvd.partitioner,
       annotations.mapPartitions { it =>
         val region = Region()

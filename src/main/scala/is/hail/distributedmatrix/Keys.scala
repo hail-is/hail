@@ -26,6 +26,7 @@ object Keys {
     val KeysImpex(typeStr, values) =  sc.hadoopConfiguration.readTextFile(uri)(in =>
       try {
         val json = parse(in)
+        implicit val formats = defaultJSONFormats
         json.extract[KeysImpex]
       } catch {
         case e: Exception => fatal(
@@ -75,7 +76,9 @@ class Keys(val typ: Type, val values: Array[Annotation]) {
   def write(sc: SparkContext, uri: String) {
     val typeStr = typ.toString
 
-    sc.hadoopConfiguration.writeTextFile(uri)(out =>
-      Serialization.write(KeysImpex(typeStr, values.map(typ.toJSON)), out))
+    sc.hadoopConfiguration.writeTextFile(uri) { out =>
+      implicit val formats = defaultJSONFormats
+      Serialization.write(KeysImpex(typeStr, values.map(typ.toJSON)), out)
+    }
   }
 }

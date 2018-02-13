@@ -261,9 +261,9 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testWriteGR() {
-    val outKT = tmpDir.createTempFile("grWrite", ".kt")
-    val outKT2 = tmpDir.createTempFile("grWrite", ".kt")
-    val outVDS = tmpDir.createTempFile("grWrite", ".vds")
+    val outKT = tmpDir.createTempFile("grWrite", "kt")
+    val outKT2 = tmpDir.createTempFile("grWrite", "kt")
+    val outVDS = tmpDir.createTempFile("grWrite", "vds")
 
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
     val vds = hc.importVCF("src/test/resources/sample.vcf")
@@ -279,6 +279,7 @@ class GenomeReferenceSuite extends SparkSuite {
     kt.annotate("""v1 = Variant(foo)("1:3:A:T")""").write(outKT2)
     GenomeReference.removeReference("foo")
 
+    println("here")
     assert(hc.readTable(outKT).signature.field("v1").typ == TVariant(gr))
     assert(hc.read(outVDS).rowType.fieldOption("v2").get.typ == TVariant(gr))
     TestUtils.interceptFatal("`foo' already exists and is not identical to the imported reference from")(hc.readTable(outKT2))

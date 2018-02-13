@@ -218,7 +218,7 @@ object Skat {
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
-    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val sampleAnnotationsBc = vsm.colValuesBc
     val fullRowType = vsm.rvRowType
     val localRowType = vsm.rowType
     val localEntriesIndex = vsm.entriesIndex

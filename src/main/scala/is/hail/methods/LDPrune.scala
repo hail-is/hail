@@ -7,7 +7,7 @@ import is.hail.expr.types._
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVType, RVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, UnpartitionedRVD}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -363,7 +363,7 @@ object LDPrune {
     for (i <- partitionIndices) {
       val (rvds, inputs) = generalRDDInputs(i)
       pruneIntermediates(i) = GlobalPruneIntermediate(
-        rvd = RVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),
+        rvd = new UnpartitionedRVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),
         rvRowType = localRowType,
         index = 0,
         persist = false) // creating single partition RDDs with partition index = 0
@@ -446,7 +446,7 @@ object LDPrune {
     val typ = vsm.rvd.typ
 
     val standardizedRDD = vsm.rvd
-      .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
+      .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType))({ it =>
         val hcView = HardCallView(fullRowType)
         val region = Region()
         val rvb = new RegionValueBuilder(region)

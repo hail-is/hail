@@ -2,6 +2,7 @@ from pyspark.sql import DataFrame
 import hail as hl
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
+from hail.utils.java import jiterable_to_list
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
 
 table_type = lazy()
@@ -112,7 +113,7 @@ class TableTemplate(HistoryMixin):
     @handle_py4j
     def key(self):
         if self._key is None:
-            self._key = list(self._jt.key())
+            self._key = jiterable_to_list(self._jt.key())
         return self._key
 
 

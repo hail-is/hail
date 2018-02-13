@@ -5,7 +5,7 @@ import java.io.InputStream
 import is.hail.HailContext
 import is.hail.check.Gen
 import is.hail.expr.types._
-import is.hail.expr.{JSONAnnotationImpex, JSONExtractGenomeReference, Parser}
+import is.hail.expr.{JSONAnnotationImpex, JSONExtractContig, JSONExtractGenomeReference, JSONExtractIntervalLocus, Parser}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -76,8 +76,6 @@ abstract class GRBase extends Serializable {
   def compare(v1: IVariant, v2: IVariant): Int
 
   def compare(l1: Locus, l2: Locus): Int
-
-  def toJSON: JValue
 
   def unify(concrete: GRBase): Boolean
 
@@ -278,15 +276,6 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   def compare(l1: Locus, l2: Locus): Int = GenomeReference.compare(contigsIndex, l1, l2)
 
-  def toJSON: JValue = JObject(
-    ("name", JString(name)),
-    ("contigs", JArray(contigs.map(c => JObject(("name", JString(c)), ("length", JInt(lengths(c))))).toList)),
-    ("xContigs", JArray(xContigs.map(JString(_)).toList)),
-    ("yContigs", JArray(yContigs.map(JString(_)).toList)),
-    ("mtContigs", JArray(mtContigs.map(JString(_)).toList)),
-    ("par", JArray(par.map(i => JSONAnnotationImpex.exportAnnotation(i, intervalType)).toList))
-  )
-
   def validateContigRemap(contigMapping: Map[String, String]) {
     val badContigs = mutable.Set[(String, String)]()
 
@@ -325,7 +314,14 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   override def toString: String = name
 
   def write(hc: HailContext, file: String): Unit =
-    hc.hadoopConf.writeTextFile(file)(out => Serialization.write(toJSON, out))
+    hc.hadoopConf.writeTextFile(file) { out =>
+      val jgr = JSONExtractGenomeReference(name,
+        contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
+        xContigs, yContigs, mtContigs,
+        par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
+      implicit val formats = defaultJSONFormats
+      Serialization.write(jgr, out)
+    }
 }
 
 object GenomeReference {
@@ -379,18 +375,19 @@ object GenomeReference {
         fromFile(hc, grSource)
   }
 
-  def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
+  def read(is: InputStream): GenomeReference = {
+    implicit val formats = defaultJSONFormats
+    JsonMethods.parse(is).extract[JSONExtractGenomeReference].toGenomeReference
+  }
 
   def fromResource(file: String): GenomeReference = {
-    val gr = loadFromResource[GenomeReference](file) {
-      (is: InputStream) => fromJSON(JsonMethods.parse(is))
-    }
+    val gr = loadFromResource[GenomeReference](file)(read)
     addReference(gr)
     gr
   }
 
   def fromFile(hc: HailContext, file: String): GenomeReference = {
-    val gr = hc.hadoopConf.readFile(file) { (is: InputStream) => fromJSON(JsonMethods.parse(is)) }
+    val gr = hc.hadoopConf.readFile(file)(read)
     addReference(gr)
     gr
   }
@@ -400,7 +397,7 @@ object GenomeReference {
       val refs = hConf.listStatus(path)
       refs.foreach { fs =>
         val grPath = fs.getPath.toString
-        val gr = hConf.readFile(grPath) { (is: InputStream) => fromJSON(JsonMethods.parse(is)) }
+        val gr = hConf.readFile(grPath)(read)
         val name = gr.name
         if (!GenomeReference.hasReference(name))
           addReference(gr)
@@ -413,7 +410,7 @@ object GenomeReference {
   }
 
   private def writeReference(hc: HailContext, path: String, gr: GRBase) {
-    val grPath = path + gr.name + ".json.gz"
+    val grPath = path + "/" + gr.name + ".json.gz"
     if (!hailReferences.contains(gr.name) && !hc.hadoopConf.exists(grPath))
       gr.asInstanceOf[GenomeReference].write(hc, grPath)
   }
@@ -586,7 +583,5 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
   def compare(v1: IVariant, v2: IVariant): Int = ???
 
   def compare(l1: Locus, l2: Locus): Int = ???
-
-  def toJSON: JValue = ???
 }
 

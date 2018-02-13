@@ -144,7 +144,7 @@ object LinearMixedRegression {
       val sc = assocVSM.sparkContext
 
       val localGlobalAnnotationBc = sc.broadcast(assocVSM.globals)
-      val sampleAnnotationsBc = assocVSM.sampleAnnotationsBc
+      val sampleAnnotationsBc = assocVSM.colValuesBc
 
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 

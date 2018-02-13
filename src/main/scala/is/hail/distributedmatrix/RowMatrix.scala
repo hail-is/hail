@@ -29,6 +29,7 @@ object RowMatrix {
     
     val BlockMatrixMetadata(blockSize, nRows, nCols) =
       hadoop.readTextFile(uri + BlockMatrix.metadataRelativePath) { isr  =>
+        implicit val formats = defaultJSONFormats
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
     
@@ -203,10 +204,8 @@ class ReadBlocksAsRowsRDD(path: String,
           val nRowsInBlock = gp.blockRowNRows(blockRow)
           
           disPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
-            val is = gp.coordinatesBlock(blockRow, blockCol).toString
-            assert(is.length <= d)
-            val pis = StringUtils.leftPad(is, d, "0")
-            val filename = path + "/parts/part-" + pis
+            val pi = gp.coordinatesBlock(blockRow, blockCol)
+            val filename = path + "/parts/" + partFile(d, pi)
 
             val dis = new DataInputStream(sHadoopBc.value.value.unsafeReader(filename))
 

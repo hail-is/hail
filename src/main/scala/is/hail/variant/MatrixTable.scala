@@ -4,16 +4,13 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.distributedmatrix._
 import is.hail.expr._
-import is.hail.io.VCFMetadata
-import is.hail.table.Table
-import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
-import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType}
+import is.hail.rvd._
+import is.hail.table.{Table, TableSpec}
+import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
-import breeze.linalg.DenseMatrix
 import is.hail.expr.types._
 import org.apache.hadoop
 import org.apache.spark.mllib.linalg.Vectors
@@ -29,31 +26,108 @@ import org.json4s.jackson.Serialization
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
-import scala.reflect.ClassTag
 
-case class VDSMetadata(
+abstract class ComponentSpec
+
+object RelationalSpec {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
+      classOf[RelationalSpec], classOf[TableSpec], classOf[MatrixTableSpec]))
+    override val typeHintFieldName = "name"
+  } +
+    new TableTypeSerializer +
+    new MatrixTypeSerializer
+
+  def read(hc: HailContext, path: String): RelationalSpec = {
+    val metadataFile = path + "/metadata.json.gz"
+    val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
+
+    val fileVersion = jv \ "file_version" match {
+      case JInt(rep) => SemanticVersion(rep.toInt)
+      case _ =>
+        fatal(s"metadata does not contain file version: $metadataFile")
+    }
+
+    if (!FileFormat.version.supports(fileVersion))
+      fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
+
+    val referencesRelPath = jv \ "references_rel_path" match {
+      case JString(p) => p
+    }
+
+    GenomeReference.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
+
+    jv.extract[RelationalSpec]
+  }
+}
+
+abstract class RelationalSpec {
+  def file_version: Int
+
+  def hail_version: String
+
+  def components: Map[String, ComponentSpec]
+
+  def getComponent[T <: ComponentSpec](name: String): T = components(name).asInstanceOf[T]
+
+  def globalsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("globals")
+
+  def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts
+
+  def write(hc: HailContext, path: String) {
+    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+      implicit val formats = RelationalSpec.formats
+      Serialization.write(this, out)
+    }
+  }
+}
+
+case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
+  def read(hc: HailContext, path: String): RVD = {
+    val rvdPath = path + "/" + rel_path
+    RVDSpec.read(hc, rvdPath)
+      .read(hc, rvdPath)
+  }
+
+  def readLocal(hc: HailContext, path: String): IndexedSeq[Row] = {
+    val rvdPath = path + "/" + rel_path
+    RVDSpec.read(hc, rvdPath)
+      .readLocal(hc, rvdPath)
+  }
+}
+
+case class PartitionCountsComponentSpec(counts: Array[Long]) extends ComponentSpec
+
+case class MatrixTableSpec(
   file_version: Int,
   hail_version: String,
-  matrix_type: String,
-  global_annotation: JValue,
-  sample_annotations: JValue,
-  n_partitions: Int,
-  partition_counts: Array[Long])
+  references_rel_path: String,
+  matrix_type: MatrixType,
+  components: Map[String, ComponentSpec]) extends RelationalSpec {
+  def colsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("cols")
+
+  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+
+  def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
+}
+
+object FileFormat {
+  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+}
 
 object MatrixTable {
-  final val fileVersion: Int = 0x101
-
-  def read(hc: HailContext, dirname: String,
+  def read(hc: HailContext, path: String,
     dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {
-    // FIXME check _SUCCESS next time we force reimport
-    val (fileMetadata, nPartitions) = readFileMetadata(hc.hadoopConf, dirname)
+    val spec = RelationalSpec.read(hc, path).asInstanceOf[MatrixTableSpec]
     new MatrixTable(hc,
-      MatrixRead(dirname, nPartitions, fileMetadata, dropSamples, dropVariants))
+      MatrixRead(path, spec, dropSamples, dropVariants))
   }
 
   def fromLegacy[T](hc: HailContext,
     matrixType: MatrixType,
-    localValue: MatrixLocalValue,
+    globals: Annotation,
+    colValues: IndexedSeq[Annotation],
     rdd: RDD[(Annotation, Iterable[T])]): MatrixTable = {
 
     val localGType = matrixType.entryType
@@ -61,10 +135,10 @@ object MatrixTable {
 
     assert(matrixType.rowPartitionKey == IndexedSeq("v"))
     assert(matrixType.rowKey == IndexedSeq("v"))
-    val localNSamples = localValue.nSamples
+    val localNSamples = colValues.length
 
-    var ds = new MatrixTable(hc, matrixType, localValue,
-      OrderedRVD(matrixType.orderedRVType,
+    var ds = new MatrixTable(hc, matrixType, globals, colValues,
+      OrderedRVD(matrixType.orvdType,
         rdd.mapPartitions { it =>
           val region = Region()
           val rvb = new RegionValueBuilder(region)
@@ -99,73 +173,6 @@ object MatrixTable {
     ds
   }
 
-  def fromLegacy[T](hc: HailContext,
-    fileMetadata: MatrixFileMetadata,
-    rdd: RDD[(Annotation, Iterable[T])]): MatrixTable =
-    fromLegacy(hc, fileMetadata.matrixType, fileMetadata.localValue, rdd)
-
-  def readFileMetadata(hConf: hadoop.conf.Configuration, dirname: String,
-    requireParquetSuccess: Boolean = true): (MatrixFileMetadata, Int) = {
-    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"input path ending in `.vds' required, found `$dirname'")
-
-    if (!hConf.exists(dirname))
-      fatal(s"no VDS found at `$dirname'")
-
-    val metadataFile = dirname + "/metadata.json.gz"
-    if (!hConf.exists(metadataFile))
-      fatal(
-        s"""corrupt or outdated VDS: invalid metadata
-           |  No `metadata.json.gz' file found in VDS directory
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-
-    val metadata = hConf.readFile(metadataFile) { in =>
-      try {
-        val json = parse(in)
-        json.extract[VDSMetadata]
-      } catch {
-        case e: Exception => fatal(
-          s"""corrupt or outdated VDS: invalid metadata
-             |  Recreate VDS with current version of Hail.
-             |  Detailed exception:
-             |  ${ e.getMessage }""".stripMargin)
-      }
-    }
-
-    if (metadata.file_version != MatrixTable.fileVersion)
-      fatal(
-        s"""Invalid VDS: old version [${ metadata.file_version }]
-           |  Recreate VDS with current version of Hail.
-         """.stripMargin)
-
-    GenomeReference.importReferences(hConf, dirname + "/references/")
-
-    val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
-
-    val saType = matrixType.colType
-    val globalType = matrixType.globalType
-
-    val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
-      .arr
-      .map {
-        case jv: JObject => JSONAnnotationImpex.importAnnotation(jv, saType, "sample_annotations")
-        case other => fatal(
-          s"""corrupt VDS: invalid metadata
-             |  Invalid sample annotation metadata
-             |  Recreate VDS with current version of Hail.""".stripMargin)
-      }
-      .toArray
-
-    val globalAnnotation = JSONAnnotationImpex.importAnnotation(metadata.global_annotation,
-      globalType, "global")
-
-
-    (MatrixFileMetadata(matrixType,
-      MatrixLocalValue(globalAnnotation, sampleInfo),
-      Some(metadata.partition_counts)),
-      metadata.n_partitions)
-  }
-
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
 
@@ -180,7 +187,7 @@ object MatrixTable {
       sGen = (t: Type) => t.genNonmissingValue,
       saGen = (t: Type) => t.genValue,
       vaGen = (t: Type) => t.genValue,
-      globalGen = (t: Type) => t.genValue,
+      globalGen = (t: Type) => t.genNonmissingValue,
       vGen = (t: Type) => t.genNonmissingValue,
       tGen = (t: Type, v: Annotation) => t.genValue.resize(20))
       .gen(hc)
@@ -295,10 +302,8 @@ object MatrixTable {
       }
     }
 
-    val localValue = MatrixLocalValue(Annotation.empty, Array.empty[Annotation])
-    val rdd2 = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
-
-    new MatrixTable(kt.hc, matrixType, localValue, rdd2)
+    new MatrixTable(kt.hc, matrixType, Annotation.empty, Array.empty[Annotation],
+      OrderedRVD(matrixType.orvdType, rdd, None, None))
   }
 }
 
@@ -318,34 +323,35 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
-    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
-    vSig <- vSigGen.resize(3);
-    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-    sSig <- sSigGen.resize(3);
-    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-    globalSig <- globalSigGen.resize(5);
-    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-    global <- globalGen(globalSig).resize(25);
-    nPartitions <- Gen.choose(1, 10);
+      vSig <- vSigGen.resize(3);
+      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+      sSig <- sSigGen.resize(3);
+      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+      globalSig <- globalSigGen.resize(5);
+      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
+      global <- globalGen(globalSig).resize(25);
+      nPartitions <- Gen.choose(1, 10);
 
-    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-      .map(ids => ids.distinct);
-    nSamples = sampleIds.length;
-    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-    rows <- Gen.buildableOfN[Array](l,
-      for (
-        v <- vGen(vSig).resize(3);
-        va <- vaGen(vaSig).resize(5);
-        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-        yield (v, (va, ts: Iterable[Annotation]))))
+      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+        .map(ids => ids.distinct);
+      nSamples = sampleIds.length;
+      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+      rows <- Gen.buildableOfN[Array](l,
+        for (
+          v <- vGen(vSig).resize(3);
+          va <- vaGen(vaSig).resize(5);
+          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
+          yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))
         val (finalSaSchema, ins) = saSig.structInsert(sSig, List("s"))
         val (finalVaSchema, ins2) = vaSig.structInsert(vSig, List("v"))
         MatrixTable.fromLegacy(hc,
           MatrixType.fromParts(globalSig, Array("s"), finalSaSchema, Array("v"), Array("v"), finalVaSchema, tSig),
-          MatrixLocalValue(global, sampleIds.zip(saValues).map { case (id, sa) => ins(sa, id) }),
+          global,
+          sampleIds.zip(saValues).map { case (id, sa) => ins(sa, id) },
           hc.sc.parallelize(rows.map { case (v, (va, gs)) => (ins2(va, v), gs) }, nPartitions))
           .deduplicate()
       }
@@ -362,7 +368,7 @@ object VSMSubgen {
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
-    globalGen = (t: Type) => t.genValue,
+    globalGen = (t: Type) => t.genNonmissingValue,
     vGen = (t: Type) => t.genNonmissingValue,
     tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant]))
 
@@ -392,16 +398,17 @@ object VSMSubgen {
     tGen = (t: Type, v: Annotation) => Genotype.genRealistic(v.asInstanceOf[Variant]))
 }
 
-class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator {
+class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def this(hc: HailContext,
     matrixType: MatrixType,
-    localValue: MatrixLocalValue,
+    globals: Annotation,
+    colValues: IndexedSeq[Annotation],
     rdd2: OrderedRVD) =
     this(hc,
       MatrixLiteral(
         matrixType,
-        MatrixValue(matrixType, localValue, rdd2)))
+        MatrixValue(matrixType, globals, colValues, rdd2)))
 
   def requireRowKeyVariant(method: String) {
     rowKey.zip(rowKeyTypes) match {
@@ -459,11 +466,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
     val v = opt.execute(hc)
-    assert(v.rvd.typ == matrixType.orderedRVType, s"\n${ v.rvd.typ }\n${ matrixType.orderedRVType }")
+    assert(v.rvd.typ == matrixType.orvdType, s"\n${ v.rvd.typ }\n${ matrixType.orvdType }")
     v
   }
 
-  lazy val MatrixValue(_, MatrixLocalValue(globals, colValues), rvd) = value
+  lazy val MatrixValue(_, globals, colValues, rvd) = value
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {
@@ -500,7 +507,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       rowPartitionKey = partitionKeys)
 
     copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD(newMatrixType.orderedRVType, rvd.rdd, None, None))
+      rvd = OrderedRVD(newMatrixType.orvdType, rvd.rdd, None, None))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
@@ -519,7 +526,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
-  lazy val sampleAnnotationsBc = {
+  lazy val colValuesBc = {
     val saArrayType = TArray(colType, required = true)
     sparkContext.broadcast(UnsafeIndexedSeq(saArrayType, colValues))
   }
@@ -649,7 +656,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         }
       }
 
-    copyMT(rvd = OrderedRVD(newMatrixType.orderedRVType, rdd, None, None),
+    copyMT(rvd = OrderedRVD(newMatrixType.orvdType, rdd, None, None),
       matrixType = newMatrixType)
   }
 
@@ -853,7 +860,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
   def annotateVariantsExpr(expr: String): MatrixTable = {
-    val localGlobalAnnotation = globals
+    val localGlobals = globals
 
     val ec = variantEC
     ec.set(0, globals)
@@ -925,9 +932,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       warn("modified row key, rescanning to compute ordering...")
       val newRDD = rvd.mapPartitions(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD(newMatrixType.orderedRVType, newRDD, None, None))
+        rvd = OrderedRVD(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType)(mapPartitionsF))
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
@@ -962,7 +969,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     copyMT(matrixType = newMatrixType,
       rvd = OrderedRVD(
-        newMatrixType.orderedRVType,
+        newMatrixType.orvdType,
         leftRVD.partitioner,
         leftRVD.orderedJoinDistinct(rightRVD, "left")
           .mapPartitions { it =>
@@ -1080,7 +1087,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
 
     val newRVD = OrderedRVD(
-      newMatrixType.orderedRVType,
+      newMatrixType.orvdType,
       rvd.partitioner,
       newRDD)
 
@@ -1232,9 +1239,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       warn("modified row key, rescanning to compute ordering...")
       val newRDD = rvd.mapPartitions(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD(newMatrixType.orderedRVType, newRDD, None, None))
+        rvd = OrderedRVD(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType)(mapPartitionsF))
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
   def dropRows(fields: java.util.ArrayList[String]): MatrixTable = dropRows(fields.asScala.toArray: _*)
@@ -1286,9 +1293,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       warn("modified row key, rescanning to compute ordering...")
       val newRDD = rvd.mapPartitions(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD(newMatrixType.orderedRVType, newRDD, None, None))
+        rvd = OrderedRVD(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType)(mapPartitionsF))
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
   def selectEntries(selectExprs: java.util.ArrayList[String]): MatrixTable = selectEntries(selectExprs.asScala.toArray: _*)
@@ -1318,7 +1325,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
     val localNCols = numCols
-    val localColValuesBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
 
     insertEntries(() => {
       val fullRow = new UnsafeRow(fullRowType)
@@ -1399,7 +1406,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def annotateVariantsVDS(right: MatrixTable, root: String): MatrixTable = {
     // need to strip entries!
     // FIXME: HACK
-    val rTyp = new OrderedRVType(right.rowPartitionKey.toArray, right.rowKey.toArray, right.rowType)
+    val rTyp = new OrderedRVDType(right.rowPartitionKey.toArray, right.rowKey.toArray, right.rowType)
     val rightRVD = OrderedRVD(rTyp, right.rvd.partitioner, right.rowsTable().rvd)
     orderedRVDLeftJoinDistinctAndInsert(rightRVD, root, product = false)
   }
@@ -1419,7 +1426,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def dropSamples(): MatrixTable =
     copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean())))
 
-  def dropVariants(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orderedRVType))
+  def dropVariants(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orvdType))
 
   def explodeVariants(root: String): MatrixTable = {
     val path = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
@@ -1436,7 +1443,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val localEntriesIndex = entriesIndex
 
-    val explodedRDD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+    val explodedRDD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
       val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
@@ -1482,15 +1489,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val (newColType, inserter) = colType.structInsert(keyType, path)
 
     val sampleMap = new Array[Int](size)
-    val newSampleAnnotations = new Array[Annotation](size)
-    val newNCols = newSampleAnnotations.length
+    val newColValues = new Array[Annotation](size)
+    val newNCols = newColValues.length
 
     var i = 0
     var j = 0
     while (i < numCols) {
       keys(i).foreach { e =>
         sampleMap(j) = i
-        newSampleAnnotations(j) = inserter(colValues(i), e)
+        newColValues(j) = inserter(colValues(i), e)
         j += 1
       }
       i += 1
@@ -1502,7 +1509,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val fullRowType = rvRowType
 
     insertEntries(noOp, newColType = newColType,
-      newColValues = newSampleAnnotations)(entryType, { case (_, rv, rvb) =>
+      newColValues = newColValues)(entryType, { case (_, rv, rvb) =>
 
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
       rvb.startArray(newNCols)
@@ -1539,7 +1546,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val localNSamples = numCols
     val fullRowType = rvRowType
-    val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
     val localEntriesIndex = entriesIndex
 
     insertEntries(() => {
@@ -1556,7 +1563,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       while (i < localNSamples) {
         val entry = entries(i)
         ec.setAll(row,
-          localSampleAnnotationsBc.value(i),
+          localColValuesBc.value(i),
           entry)
 
         val newEntry = f().zip(inserters)
@@ -1660,7 +1667,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     copyMT(matrixType = newMatrixType,
       globals = newGlobals,
       colValues = newColValues,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
 
         val pc = makePartitionContext()
 
@@ -1813,9 +1820,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }).toSeq: _*)
 
     val localNSamples = numCols
-    val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
     val localRVRowType = rvRowType
-    val localGlobalAnnotations = globals
+    val localGlobals = globals
     val localEntriesIndex = entriesIndex
 
     val n = vNames.length + gNames.length * localNSamples
@@ -1831,7 +1838,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           val a = new Array[Any](n)
 
           var j = 0
-          vEC.setAll(localGlobalAnnotations, row)
+          vEC.setAll(localGlobals, row)
           vf().foreach { x =>
             a(j) = x
             j += 1
@@ -1839,8 +1846,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
           var i = 0
           while (i < localNSamples) {
-            val sa = localSampleAnnotationsBc.value(i)
-            gEC.setAll(localGlobalAnnotations, row, sa, gs(i))
+            val sa = localColValuesBc.value(i)
+            gEC.setAll(localGlobals, row, sa, gs(i))
             gf().foreach { x =>
               a(j) = x
               j += 1
@@ -1884,13 +1891,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
-    val localGlobalAnnotation = globals
+    val localGlobals = globals
     val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, g) =>
       ec.set(1, g)
     })
 
     val globalBc = sparkContext.broadcast(globals)
-    val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
     val localRVRowType = rvRowType
     val localRowType = rowType
     val localEntriesIndex = entriesIndex
@@ -1909,7 +1916,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         var i = 0
         ec.set(2, row)
         gs.foreach { g =>
-          ec.set(4, localSampleAnnotationsBc.value(i))
+          ec.set(4, localColValuesBc.value(i))
           seqOp(zv, g)
           i += 1
         }
@@ -1918,7 +1925,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }.fold(zVal.map(_.copy()))(combOp)
     resOp(result)
 
-    ec.set(0, localGlobalAnnotation)
+    ec.set(0, localGlobals)
     ts.map { case (t, f) => (f(), t) }
   }
 
@@ -1953,15 +1960,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
-    val localGlobalAnnotation = globals
+    val localGlobals = globals
     val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, (sa)) =>
-      ec.setAll(localGlobalAnnotation, sa)
+      ec.setAll(localGlobals, sa)
     })
 
     val results = colValues
       .aggregate(zVal)(seqOp, combOp)
     resOp(results)
-    ec.set(0, localGlobalAnnotation)
+    ec.set(0, localGlobals)
 
     ts.map { case (t, f) => (f(), t) }
   }
@@ -2097,7 +2104,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
            |  left:  ${ globalType.toString }
            |  right: ${ that.globalType.toString }""".stripMargin)
     }
-    if (!sampleAnnotationsSimilar(that, tolerance)) {
+    if (!colValuesSimilar(that, tolerance)) {
       metadataSame = false
       println(
         s"""different sample annotations:
@@ -2195,7 +2202,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       "gs" -> (2, TAggregable(entryType, aggregationST))))
   }
 
-  def sampleAnnotationsSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
+  def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
     require(colType == that.colType, s"\n${ colType }\n${ that.colType }")
     colValues.zip(that.colValues)
       .forall { case (s1, s2) => colType.valuesSimilar(s1, s2, tolerance)
@@ -2226,17 +2233,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       rvRowType = rvRowType)
     new MatrixTable(hc,
       newMatrixType,
-      MatrixLocalValue(globals, colValues), rvd)
+      globals, colValues, rvd)
   }
 
   def copyMT(rvd: OrderedRVD = rvd,
     matrixType: MatrixType = matrixType,
     globals: Annotation = globals,
     colValues: IndexedSeq[Annotation] = colValues): MatrixTable = {
-    assert(rvd.typ == matrixType.orderedRVType,
-      s"mismatch in orderedRVType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.orderedRVType }")
+    assert(rvd.typ == matrixType.orvdType,
+      s"mismatch in orvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.orvdType }")
     new MatrixTable(hc,
-      matrixType, MatrixLocalValue(globals, colValues), rvd)
+      matrixType, globals, colValues, rvd)
   }
 
   def copyAST(ast: MatrixIR = ast): MatrixTable =
@@ -2245,7 +2252,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def colsTable(): Table = {
     Table(hc, sparkContext.parallelize(colValues.map(_.asInstanceOf[Row])),
       colType,
-      colKey.toArray,
+      colKey,
       globalType,
       globals.asInstanceOf[Row])
   }
@@ -2323,6 +2330,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       "gs" -> (2, TAggregable(entryType, aggregationST))))
   }
 
+  def globalsTable(): Table = {
+    Table(hc,
+      sparkContext.parallelize[Row](Array(globals.asInstanceOf[Row])),
+      globalType,
+      Array.empty[String])
+  }
+
   def rowsTable(): Table = {
     val localRowType = rowType
     val fullRowType = rvRowType
@@ -2346,7 +2360,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     },
       localRowType,
-      rowKey.toArray,
+      rowKey,
       globalType,
       globals.asInstanceOf[Row])
   }
@@ -2370,10 +2384,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val rowSize = rowType.size
 
-    val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
     new Table(hc, rvd.mapPartitions { it =>
 
-      val colValues = localSampleAnnotationsBc.value
+      val colValues = localColValuesBc.value
 
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -2411,42 +2425,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     },
       resultStruct,
-      (rowKey ++ colKey).toArray,
+      rowKey ++ colKey,
       globalSignature = globalType,
       globals = globals.asInstanceOf[Row])
-  }
-
-  def writeMetadata(dirname: String, partitionCounts: Array[Long]) {
-    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"output path ending in `.vds' required, found `$dirname'")
-
-    val sqlContext = hc.sqlContext
-    val hConf = hc.hadoopConf
-    hConf.mkDir(dirname)
-
-    val sampleAnnotationsJ = JArray(
-      colValues
-        .map { annotation => JSONAnnotationImpex.exportAnnotation(annotation, colType) }
-        .toList)
-    val globalJ = JSONAnnotationImpex.exportAnnotation(globals, globalType)
-
-    val metadata = VDSMetadata(
-      file_version = MatrixTable.fileVersion,
-      hail_version = hc.version,
-      matrix_type = matrixType.toString,
-      sample_annotations = sampleAnnotationsJ,
-      global_annotation = globalJ,
-      n_partitions = partitionCounts.length,
-      partition_counts = partitionCounts)
-
-    hConf.writeTextFile(dirname + "/metadata.json.gz")(out =>
-      Serialization.write(metadata, out))
-
-    val refPath = dirname + "/references/"
-    hc.hadoopConf.mkDir(refPath)
-    Array(colType, rowType, entryType, globalType).foreach { t =>
-      GenomeReference.exportReferences(hc, refPath, t)
-    }
   }
 
   def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))
@@ -2514,7 +2495,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val localRVRowType = rvRowType
     val localNSamples = numCols
     val localEntryType = entryType
-    val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
     val localEntriesIndex = entriesIndex
 
     copy2(
@@ -2542,7 +2523,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           rvb.startArray(localNSamples)
           i = 0
           while (i < localNSamples) {
-            val sa = localSampleAnnotationsBc.value(i)
+            val sa = localColValuesBc.value(i)
             val g = gs(i)
             ec.setAll(row, sa, g)
             if (Filter.boxedKeepThis(f(), localKeep))
@@ -2561,52 +2542,100 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
 
-  def write(dirname: String, overwrite: Boolean = false): Unit = {
-    require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
+  def writeCols(path: String) {
+    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.colType, colValues)
 
+    val colsSpec = TableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "../references",
+      matrixType.colsTableType,
+      Map("globals" -> RVDComponentSpec("../globals/rows"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    colsSpec.write(hc, path)
+
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+  }
+
+  def writeGlobals(path: String) {
+    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.globalType, Array(globals))
+
+    RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), Array[Annotation](Row()))
+
+    val globalsSpec = TableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "../references",
+      TableType(globalType, Array.empty[String], TStruct.empty()),
+      Map("globals" -> RVDComponentSpec("globals"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    globalsSpec.write(hc, path)
+
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+  }
+
+  def write(path: String, overwrite: Boolean = false): Unit = {
     if (overwrite)
-      hadoopConf.delete(dirname, recursive = true)
-    else if (hadoopConf.exists(dirname))
-      fatal(s"file already exists at `$dirname'")
+      hadoopConf.delete(path, recursive = true)
+    else if (hadoopConf.exists(path))
+      fatal(s"file already exists: $path")
 
-    val (entriesAtEndRDD, rvType) = if (entriesIndex == rowType.size)
-      (rvd.rdd, rvRowType)
-    else {
-      val fullRowType = rvRowType
-      val newRVType = rowType ++ TStruct(MatrixType.entriesIdentifier -> matrixType.entryArrayType)
-      val localEntriesIndex = entriesIndex
-      (rvd.rdd.mapPartitions { it =>
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(newRVType)
-          rvb.startStruct()
+    hc.hadoopConf.mkDir(path)
 
-          var i = 0
-          while (i < fullRowType.size) {
-            if (i != localEntriesIndex)
-              rvb.addField(fullRowType, rv, i)
-            i += 1
-          }
-          rvb.addField(fullRowType, rv, localEntriesIndex)
+    val partitionCounts = rvd.rdd.writeRowsSplit(path, matrixType, rvd.partitioner)
 
-          rvb.endStruct()
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      }, newRVType)
+    val globalsPath = path + "/globals"
+    hadoopConf.mkDir(globalsPath)
+    writeGlobals(globalsPath)
+
+    val rowsSpec = TableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "../references",
+      matrixType.rowsTableType,
+      Map("globals" -> RVDComponentSpec("../globals/rows"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    rowsSpec.write(hc, path + "/rows")
+
+    hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
+
+    val entriesSpec = TableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "../references",
+      matrixType.rowsTableType,
+      Map("globals" -> RVDComponentSpec("../globals/rows"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    entriesSpec.write(hc, path + "/entries")
+
+    hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
+
+    hadoopConf.mkDir(path + "/cols")
+    writeCols(path + "/cols")
+
+    val refPath = path + "/references"
+    hc.hadoopConf.mkDir(refPath)
+    Array(colType, rowType, entryType, globalType).foreach { t =>
+      GenomeReference.exportReferences(hc, refPath, t)
     }
 
-    val partitionCounts = entriesAtEndRDD.writeRows(dirname, rvType)
+    val spec = MatrixTableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "references",
+      matrixType,
+      Map("globals" -> RVDComponentSpec("globals/rows"),
+        "cols" -> RVDComponentSpec("cols/rows"),
+        "rows" -> RVDComponentSpec("rows/rows"),
+        "entries" -> RVDComponentSpec("entries/rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    spec.write(hc, path)
 
-    writeMetadata(dirname, partitionCounts)
-
-    hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      Serialization.write(rvd.partitioner.toJSON, out)
-    }
-
-    hadoopConf.writeTextFile(dirname + "/_SUCCESS")(out => ())
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
   def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", variantBlockSize: Int = 16): MatrixTable = {
@@ -2732,7 +2761,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       "fam_id" -> TStringOptional
     )
 
-    val newSampleAnnotations = new Array[Annotation](nTrios)
+    val newColValues = new Array[Annotation](nTrios)
 
     var i = 0
     while (i < nTrios) {
@@ -2763,7 +2792,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
       val famID = t.fam.orNull
 
-      newSampleAnnotations(i) = Row(t.kid, kidAnnotation, dadAnnotation, momAnnotation, isFemale, famID)
+      newColValues(i) = Row(t.kid, kidAnnotation, dadAnnotation, momAnnotation, isFemale, famID)
       i += 1
     }
 
@@ -2778,7 +2807,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val localEntriesType = matrixType.entryArrayType
 
     insertEntries(noOp, newColType = newColType, newColKey = Array("id"),
-      newColValues = newSampleAnnotations)(newEntryType, { case (_, rv, rvb) =>
+      newColValues = newColValues)(newEntryType, { case (_, rv, rvb) =>
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
       rvb.startArray(nTrios)
@@ -2818,7 +2847,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val partStartsBc = sparkContext.broadcast(partStarts)
 
     val fullRowType = rvRowType
-    val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localColValuesBc = colValuesBc
     val localEntriesIndex = entriesIndex
     val rowKeyQuerier = colKeys
     val localRKF = rowKeysF
@@ -2844,7 +2873,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         var k = 0
         ec.set(1, row)
         while (k < ns) {
-          ec.set(2, localSampleAnnotationsBc.value(k))
+          ec.set(2, localColValuesBc.value(k))
           ec.set(3, entries(k))
           a(k) = f() match {
             case null => fatal(s"entry_expr must be non-missing. Found missing value for col $k and row ${ localRKF(row) }")
@@ -2914,6 +2943,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     // write metadata
     hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, localNCols),
         os)
@@ -2939,7 +2969,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val partStarts = partitionStarts()
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
     val localEntriesIndex = entriesIndex
-    val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orderedRVType) { case (i, it) =>
+    val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType) { case (i, it) =>
       val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
@@ -2963,10 +2993,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def indexCols(name: String): MatrixTable = {
     val (newColType, inserter) = colType.structInsert(TInt32(), List(name))
-    val newSampleAnnotations = Array.tabulate(numCols) { i =>
+    val newColValues = Array.tabulate(numCols) { i =>
       inserter(colValues(i), i)
     }
-    copy2(colType = newColType, colValues = newSampleAnnotations)
+    copy2(colType = newColType, colValues = newColValues)
   }
 
   def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =
