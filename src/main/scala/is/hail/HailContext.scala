@@ -177,27 +177,48 @@ object HailContext {
 
   def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
-      val region = Region()
-      val rv = RegionValue(region)
+      private val region = Region()
+      private val rv = RegionValue(region)
 
-      val dec = new Decoder(new LZ4InputBuffer(in))
+      private val dec =
+        try {
+          new Decoder(new LZ4InputBuffer(in))
+        } catch {
+          case e: Exception =>
+            in.close()
+            throw e
+        }
 
-      var cont: Byte = dec.readByte()
+      private var cont: Byte = dec.readByte()
+      if (cont == 0)
+        dec.close()
 
+      // can't throw
       def hasNext: Boolean = cont != 0
 
       def next(): RegionValue = {
+        // !hasNext => cont == 0 => dec has been closed
         if (!hasNext)
           throw new NoSuchElementException("next on empty iterator")
 
-        region.clear()
-        rv.setOffset(dec.readRegionValue(t, region))
+        try {
+          region.clear()
+          rv.setOffset(dec.readRegionValue(t, region))
 
-        cont = dec.readByte()
-        if (cont == 0)
-          dec.close()
+          cont = dec.readByte()
+          if (cont == 0)
+            dec.close()
 
-        rv
+          rv
+        } catch {
+          case e: Exception =>
+            dec.close()
+            throw e
+        }
+      }
+      
+      override def finalize(): Unit = {
+        dec.close()
       }
     }
   }
