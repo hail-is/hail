@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.utils.ArrayBuilder
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -91,9 +92,16 @@ case class CM[+T](mt: (E, S) => (T, S)) {
 
 object CM {
   def sequence[T](mts: TraversableOnce[CM[T]])(implicit tct: ClassTag[T]): CM[IndexedSeq[T]] = {
-    var mresult = CM.ret(Array[T](): IndexedSeq[T])
-    mts.foreach(mt => mresult = mresult.flatMap(r => mt.map(t => t +: r)))
-    mresult.map(_.reverse)
+    CM { (e, s1) =>
+      var a = new ArrayBuilder[T]()
+      var s = s1
+      mts.foreach { mt =>
+        val (t, s2) = mt.mt(e, s)
+        s = s2
+        a += t
+      }
+      (a.result(), s)
+    }
   }
 
   def ret[T](t: T): CM[T] = CM((e, a) => (t, a))
