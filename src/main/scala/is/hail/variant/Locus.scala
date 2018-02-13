@@ -61,12 +61,12 @@ object Locus {
 
   def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval = {
     gr.checkInterval(start, end)
-    Interval(start, end)
+    Interval(start, end, true, false)
   }
 
   def makeInterval(contig: String, start: Int, end: Int, gr: GRBase): Interval = {
     gr.checkInterval(contig, start, end)
-    Interval(Locus(contig, start), Locus(contig, end))
+    Interval(Locus(contig, start), Locus(contig, end), true, false)
   }
 }
 

@@ -163,7 +163,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
       (!xContigs.contains(end.contig) && !yContigs.contains(end.contig)))
       fatal(s"The contig name for PAR interval `$start-$end' was not found in xContigs `${ xContigs.mkString(",") }' or in yContigs `${ yContigs.mkString(",") }'.")
 
-    Interval(start, end)
+    Interval(start, end, true, false)
   }
 
   def contigParser = Parser.oneOfLiteral(contigs)
