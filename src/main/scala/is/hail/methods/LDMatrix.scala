@@ -89,6 +89,7 @@ object LDMatrix {
 
     val LDMatrixMetadata(variants, nSamples, vTyp) =
       hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
+        implicit val formats = defaultJSONFormats
         jackson.Serialization.read[LDMatrixMetadata](isr)
       }
 
@@ -117,6 +118,7 @@ case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[V
       .saveAsSequenceFile(uri + matrixRelativePath)
 
     hadoop.writeTextFile(uri + metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         LDMatrixMetadata(variants, nSamples, vTyp.toString),
         os)

@@ -5,10 +5,14 @@ import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
-import org.apache.spark.sql.Row
+import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
-class OrderedRVType(
+class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format => (
+  { case JString(s) => Parser.parseOrderedRVDType(s) },
+  { case orvdType: OrderedRVDType => JString(orvdType.toString) }))
+
+class OrderedRVDType(
   val partitionKey: Array[String],
   val key: Array[String], // full key
   val rowType: TStruct) extends Serializable {
@@ -32,22 +36,22 @@ class OrderedRVType(
   val pkOrd: UnsafeOrdering = pkType.unsafeOrdering(missingGreatest = true)
   val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
 
-  val pkRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, rowType, pkRowFieldIdx)
-  val pkKOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
-  val pkInRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(rowType, pkRowFieldIdx, rowType, pkRowFieldIdx)
-  val kInRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
-  val pkInKOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
-  val kRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
+  val pkRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, rowType, pkRowFieldIdx)
+  val pkKOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
+  val pkInRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(rowType, pkRowFieldIdx, rowType, pkRowFieldIdx)
+  val kInRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
+  val pkInKOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
+  val kRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
-  def insert(typeToInsert: Type, path: List[String]): (OrderedRVType, UnsafeInserter) = {
+  def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
 
     val (newRowType, inserter) = rowType.unsafeInsert(typeToInsert, path)
 
-    (new OrderedRVType(partitionKey, key, newRowType.asInstanceOf[TStruct]), inserter)
+    (new OrderedRVDType(partitionKey, key, newRowType.asInstanceOf[TStruct]), inserter)
   }
 
   def toJSON: JValue =
@@ -57,7 +61,7 @@ class OrderedRVType(
       "rowType" -> JString(rowType.toString)))
 
   override def equals(that: Any): Boolean = that match {
-    case that: OrderedRVType =>
+    case that: OrderedRVDType =>
       (partitionKey sameElements that.partitionKey) &&
         (key sameElements that.key) &&
         rowType == that.rowType
@@ -76,10 +80,24 @@ class OrderedRVType(
     b.toHashCode
   }
 
-  override def toString: String = s"rowType: $rowType, key:${key.mkString(", ")}, partitionKey: ${partitionKey.mkString(", ")}"
+  override def toString: String = {
+    val sb = new StringBuilder()
+    sb.append("OrderedRVDType{key:[[")
+    partitionKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    sb += ']'
+    val rowRestKey = key.drop(partitionKey.length)
+    if (rowRestKey.nonEmpty) {
+      sb += ','
+      rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    }
+    sb.append("],row:")
+    sb.append(rowType)
+    sb += '}'
+    sb.result()
+  }
 }
 
-object OrderedRVType {
+object OrderedRVDType {
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
     t2: TStruct, fields2: Array[Int]): UnsafeOrdering = {
     require(fields1.length == fields2.length)
@@ -114,13 +132,5 @@ object OrderedRVType {
         0
       }
     }
-  }
-
-  def apply(jv: JValue): OrderedRVType = {
-    case class Extract(partitionKey: Array[String],
-      key: Array[String],
-      rowType: String)
-    val ex = jv.extract[Extract]
-    new OrderedRVType(ex.partitionKey, ex.key, Parser.parseType(ex.rowType).asInstanceOf[TStruct])
   }
 }

@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
-import is.hail.expr.{EvalContext, MatrixLocalValue, Parser}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.expr.types._
 import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.rdd.RDD
@@ -18,11 +18,11 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
-    val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val localColValuesBc = vsm.colValuesBc
 
     rdd
       .flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g)
+        localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](localColValuesBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g)
         })
       }
   }
@@ -87,18 +87,15 @@ class RichMatrixTable(vsm: MatrixTable) {
     }
   }
 
-  def variantRDD: RDD[(Variant, (Annotation, Iterable[Annotation]))] = {
+  def variantRDD: RDD[(Variant, (Annotation, Iterable[Annotation]))] =
     rdd.map { case (v, (va, gs)) =>
-
       Variant.fromLocusAlleles(v) -> (va, gs)
     }
-  }
 
-  def typedRDD[RK](implicit rkct: ClassTag[RK]): RDD[(RK, (Annotation, Iterable[Annotation]))] = {
+  def typedRDD[RK](implicit rkct: ClassTag[RK]): RDD[(RK, (Annotation, Iterable[Annotation]))] =
     rdd.map { case (v, (va, gs)) =>
       (v.asInstanceOf[RK], (va, gs))
     }
-  }
 
   def variants: RDD[Variant] = variantRDD.keys
 

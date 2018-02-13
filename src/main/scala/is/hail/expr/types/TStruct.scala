@@ -6,11 +6,17 @@ import is.hail.check.Gen
 import is.hail.expr.{EvalContext, HailRep, Parser}
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.{ClassTag, classTag}
+
+class TStructSerializer extends CustomSerializer[TStruct](format => (
+  { case JString(s) => Parser.parseStructType(s) },
+  { case t: TStruct => JString(t.toString) }))
 
 object TStruct {
   private val requiredEmpty = TStruct(Array.empty[Field], true)

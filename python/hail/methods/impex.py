@@ -1303,7 +1303,7 @@ def index_bgen(path):
 @handle_py4j
 @typecheck(path=strlike)
 def read_table(path):
-    """Read a `.kt` file as a :class:`.Table`.
+    """Read in a :class:`.Table`.
 
     Parameters
     ----------
@@ -1314,4 +1314,4 @@ def read_table(path):
     -------
     :class:`.Table`
     """
-    Table(Env.hc()._jhc.readTable(path))
+    return Table(Env.hc()._jhc.readTable(path))
