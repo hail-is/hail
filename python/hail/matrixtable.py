@@ -156,7 +156,8 @@ class GroupedMatrixTable(object):
         key_strs = ['{} = {}'.format(escape_id(id), e._ast.to_hql()) for id, e in self._groups]
         if self._grouped_indices == self._parent._row_indices:
             # group rows
-            return cleanup(MatrixTable(base._jvds.groupVariantsBy(','.join(key_strs), ',\n'.join(strs), self._partition_key)))
+            return cleanup(
+                MatrixTable(base._jvds.groupVariantsBy(','.join(key_strs), ',\n'.join(strs), self._partition_key)))
         else:
             assert self._grouped_indices == self._parent._col_indices
             # group cols
@@ -1993,8 +1994,7 @@ class MatrixTable(object):
 
         return left, cleanup
 
-    @typecheck_method(truncate_at=integral)
-    def describe(self, truncate_at=60):
+    def describe(self):
         """Print information about the fields in the matrix."""
 
         def format_type(typ):

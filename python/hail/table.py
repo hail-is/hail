@@ -1413,8 +1413,8 @@ class Table(TableTemplate):
         """
         return TArray(self.schema)._convert_to_py(self._jt.collect())
 
-    def describe(self, truncate_at=60):
-        """Print information about the fields in the matrix."""
+    def describe(self):
+        """Print information about the fields in the table."""
 
         def format_type(typ):
             return typ.pretty(indent=4)
