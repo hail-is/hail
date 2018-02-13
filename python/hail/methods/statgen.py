@@ -1289,7 +1289,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
            compute_loadings=bool,
            as_array=bool)
 def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
-    """Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
+    r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
     genotype call matrix.
 
     Examples
@@ -1313,11 +1313,11 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     .. math::
     
-      \\frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)
+      \frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
 
-    where :math:`\mathcal{C}_i = \{l \mid C_{il} \\text{ is non-missing}\}`. In
+    where :math:`\mathcal{C}_i = \{l \mid C_{il} \text{ is non-missing}\}`. In
     PLINK/GCTA the denominator :math:`m` is replaced with the number of terms in
-    the sum :math:`\\lvert\mathcal{C}_i\cap\\mathcal{C}_j\\rvert`, i.e. the
+    the sum :math:`\lvert\mathcal{C}_i\cap\mathcal{C}_j\rvert`, i.e. the
     number of variants where both samples have non-missing genotypes. While this
     is arguably a better estimator of the true GRM (trading shrinkage for
     noise), it has the drawback that one loses the clean interpretation of the
@@ -1380,7 +1380,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
            compute_loadings=bool,
            as_array=bool)
 def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
-    """Run principal component analysis (PCA) on numeric columns derived from a
+    r"""Run principal component analysis (PCA) on numeric columns derived from a
     matrix table.
 
     Examples
@@ -1421,7 +1421,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     Typically one computes only the first :math:`k` singular vectors and values,
     yielding the best rank :math:`k` approximation :math:`U_k S_k V_k^T` of
     :math:`M`; the truncations :math:`U_k`, :math:`S_k` and :math:`V_k` are
-    :math:`n \\times k`, :math:`k \\times k` and :math:`m \\times k`
+    :math:`n \times k`, :math:`k \times k` and :math:`m \times k`
     respectively.
 
     From the perspective of the rows of :math:`M` as samples (data points),
