@@ -139,27 +139,27 @@ class SkatSuite extends SparkSuite {
       .annotateVariantsExpr("gene = va.gene.target, weight = va.weight.weight")
       .annotateSamplesTable(covSkat, root = "cov")
       .annotateSamplesTable(phenoSkat, root = "pheno")
-      .annotateSamplesExpr("pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
+      .annotateSamplesExpr("pheno = if (sa.pheno.Pheno == 1.0) false else if (sa.pheno.Pheno == 2.0) true else NA: Boolean")
   }
-  
+
   // A larger deterministic example using the Balding-Nichols model (only hardcalls)
   lazy val vdsBN: MatrixTable = {
     val seed = 0
     val nSamples = 500
     val nVariants = 50
-  
+
     val rand = scala.util.Random
     rand.setSeed(seed)
-    
+
     val cov1Array: Array[Double] = Array.fill[Double](nSamples)(rand.nextGaussian())
     val cov2Array: Array[Double] = Array.fill[Double](nSamples)(rand.nextGaussian())
-  
+
     val vdsBN0 = hc.baldingNicholsModel(1, nSamples, nVariants, seed = seed)
-  
+
     val G: DenseMatrix[Double] = TestUtils.vdsToMatrixDouble(vdsBN0)
     val pi: DenseVector[Double] = sigmoid(sum(G(*, ::)) - nVariants.toDouble)
     val phenoArray: Array[Boolean] = pi.toArray.map(_ > rand.nextDouble())
-    
+
     vdsBN0
       .annotateSamplesF(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
@@ -169,20 +169,20 @@ class SkatSuite extends SparkSuite {
       .annotateVariantsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
         "dbeta(af, 1.0, 25.0)**2")
   }
-  
+
   def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
     displayValues: Boolean = false, qstatTol: Double = 1e-5) {
-    
+
     require(!(useBN && useDosages))
-    
+
     val vds = if (useBN) vdsBN else vdsSkat
-    
+
     val hailKT = vds.skat("va.gene", "va.weight", "sa.pheno",
       if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic)
 
     hailKT.typeCheck()
-    
+
     val resultHail = hailKT.rdd.collect()
 
     val resultsR = skatInR(vds, "va.gene", "va.weight", "sa.pheno",
@@ -197,7 +197,7 @@ class SkatSuite extends SparkSuite {
 
       val qstatR = resultsR(i).getAs[Double](1)
       val pvalR = resultsR(i).getAs[Double](2)
-      
+
       if (displayValues) {
         println(f"HAIL qstat: $qstat%2.9f  pval: $pval  fault: $fault  size: $size")
         println(f"   R qstat: $qstatR%2.9f  pval: $pvalR")
@@ -206,25 +206,25 @@ class SkatSuite extends SparkSuite {
       assert(fault == 0)
       assert(D_==(qstat, qstatR, qstatTol))
       assert(math.abs(pval - pvalR) < math.max(qstatTol, 2e-6)) // R Davies accuracy is only up to 1e-6
-      
+
       i += 1
     }
   }
-  
+
   // testing linear
   @Test def linear() { hailVsRTest() }
   @Test def linearDosages() { hailVsRTest(useDosages = true) }
   @Test def linearBN() { hailVsRTest(useBN = true) }
-  
+
   // testing logistic
   @Test def logistic() { hailVsRTest(logistic = true) }
   @Test def logisticDosages() { hailVsRTest(useDosages = true, logistic = true) }
   @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true, qstatTol = 1e-4) }
-  
+
   //testing size and maxSize
   @Test def maxSizeTest() {
     val maxSize = 27
-    
+
     val kt = vdsSkat.skat("va.gene", y = "sa.pheno", x = "g.GT.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 

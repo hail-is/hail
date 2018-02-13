@@ -98,6 +98,7 @@ class FisherExactTestSuite extends SparkSuite {
         }
 
         val vds2 = vds.annotateSamplesTable(hc.importTable(phenotypeFile).keyBy("Sample"), root = "pheno")
+          .annotateSamplesExpr("pheno = sa.pheno.Pheno1")
           .annotateVariantsExpr(
             """macCase = gs.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
               |2 * gs.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
