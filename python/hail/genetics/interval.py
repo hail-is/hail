@@ -10,10 +10,8 @@ class Interval(HistoryMixin):
     """
     A genomic interval marked by start and end loci.
 
-    .. testsetup::
-
-        interval1 = Interval.parse('X:100005-X:150020')
-        interval2 = Interval.parse('16:29500000-30200000')
+    >>> interval1 = hl.Interval.parse('X:100005-X:150020')
+    >>> interval2 = hl.Interval.parse('16:29500000-30200000')
 
     :param start: inclusive start locus
     :type start: :class:`.Locus`
@@ -74,13 +72,13 @@ class Interval(HistoryMixin):
 
         **Examples**:
 
-        >>> interval_1 = Interval.parse('X:100005-X:150020')
-        >>> interval_2 = Interval.parse('16:29500000-30200000')
-        >>> interval_3 = Interval.parse('16:29.5M-30.2M')  # same as interval_2
-        >>> interval_4 = Interval.parse('16:30000000-END')
-        >>> interval_5 = Interval.parse('16:30M-END')  # same as interval_4
-        >>> interval_6 = Interval.parse('1-22')  # autosomes
-        >>> interval_7 = Interval.parse('X')  # all of chromosome X
+        >>> interval_1 = hl.Interval.parse('X:100005-X:150020')
+        >>> interval_2 = hl.Interval.parse('16:29500000-30200000')
+        >>> interval_3 = hl.Interval.parse('16:29.5M-30.2M')  # same as interval_2
+        >>> interval_4 = hl.Interval.parse('16:30000000-END')
+        >>> interval_5 = hl.Interval.parse('16:30M-END')  # same as interval_4
+        >>> interval_6 = hl.Interval.parse('1-22')  # autosomes
+        >>> interval_7 = hl.Interval.parse('X')  # all of chromosome X
 
 
         There are several acceptable representations.

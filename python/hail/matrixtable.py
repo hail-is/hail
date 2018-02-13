@@ -186,7 +186,7 @@ class MatrixTable(object):
     >>> dataset = dataset.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
     ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
-    >>> dataset = dataset.annotate_cols(pop = dataset.populations[functions.rand_unif(0, 6).to_int32()],
+    >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.rand_unif(0, 6).to_int32()],
     ...                                 sample_gq = agg.mean(dataset.GQ),
     ...                                 sample_dp = agg.mean(dataset.DP))
 
@@ -214,7 +214,7 @@ class MatrixTable(object):
     >>> row_stats = dataset.aggregate_rows(het_dist = agg.stats(dataset.sas_hets))
     >>> print(row_stats.het_dist)
 
-    >>> entry_stats = dataset.aggregate_entries(call_rate = agg.fraction(functions.is_defined(dataset.GT)),
+    >>> entry_stats = dataset.aggregate_entries(call_rate = agg.fraction(hl.is_defined(dataset.GT)),
     ...                                         global_gq_mean = agg.mean(dataset.GQ))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
@@ -1502,7 +1502,7 @@ class MatrixTable(object):
         .. doctest::
 
             >>> dataset.aggregate_entries(global_gq_mean = agg.mean(dataset.GQ),
-            ...                           call_rate = agg.fraction(functions.is_defined(dataset.GT)))
+            ...                           call_rate = agg.fraction(hl.is_defined(dataset.GT)))
             Struct(global_gq_mean=31.16200, call_rate=0.981682)
 
         Notes
@@ -1512,7 +1512,7 @@ class MatrixTable(object):
 
         >>> entries_table = dataset.entries_table()
         >>> entries_table.aggregate(global_gq_mean = agg.mean(entries_table.GQ),
-        ...                         call_rate = agg.fraction(functions.is_defined(entries_table.GT)))
+        ...                         call_rate = agg.fraction(hl.is_defined(entries_table.GT)))
 
         Note
         ----
@@ -1702,7 +1702,7 @@ class MatrixTable(object):
             dataset = dataset.annotate_cols(cohort = 'cohort')
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate(call_rate = agg.fraction(functions.is_defined(dataset.GT))))
+        ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
 
         Notes
         -----
@@ -2362,7 +2362,7 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset_to_union_1.union_rows(dataset_to_union_2)
         >>> dataset_result = all_datasets[0].union_rows(*all_datasets[1:])
-        >>> dataset_result = MatrixTable.union_rows(*all_datasets)
+        >>> dataset_result = hl.MatrixTable.union_rows(*all_datasets)
 
         Notes
         -----
@@ -2497,8 +2497,8 @@ class MatrixTable(object):
         --------
         Import a text table and construct a rows-only matrix table:
 
-        >>> table = methods.import_table('data/variant-lof.tsv', key='v')
-        >>> sites_vds = MatrixTable.from_rows_table(table)
+        >>> table = hl.import_table('data/variant-lof.tsv', key='v')
+        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
 
         Notes
         -----

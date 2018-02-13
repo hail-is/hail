@@ -2,13 +2,14 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import *
+import hail as hl
+from hail.genetics import *
 
 def setUpModule():
-    init(master='local[2]', min_block_size=0)
+    hl.init(master='local[2]', min_block_size=0)
 
 def tearDownModule():
-    stop()
+    hl.stop()
 
 class Tests(unittest.TestCase):
     def test_classes(self):
@@ -17,7 +18,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(l, Locus('1', 100))
         self.assertEqual(l, Locus(1, 100))
-        self.assertEqual(l.reference_genome, default_reference())
+        self.assertEqual(l.reference_genome, hl.default_reference())
 
         interval = Interval.parse('1:100-110')
 
@@ -26,7 +27,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(interval.contains(Locus("1", 100)))
         self.assertTrue(interval.contains(Locus("1", 109)))
         self.assertFalse(interval.contains(Locus("1", 110)))
-        self.assertEqual(interval.reference_genome, default_reference())
+        self.assertEqual(interval.reference_genome, hl.default_reference())
 
         interval2 = Interval.parse("1:109-200")
         interval3 = Interval.parse("1:110-200")

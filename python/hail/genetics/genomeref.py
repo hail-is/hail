@@ -30,7 +30,7 @@ class GenomeReference(HistoryMixin):
     >>> contigs = ["1", "X", "Y", "MT"]
     >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
     >>> par = [("X", 60001, 2699521)]
-    >>> my_ref = GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
+    >>> my_ref = hl.GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
     """
 
     @handle_py4j
@@ -191,7 +191,7 @@ class GenomeReference(HistoryMixin):
 
         Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__.
 
-        >>> grch37 = GenomeReference.GRCh37()
+        >>> grch37 = hl.GenomeReference.GRCh37()
 
         :rtype: :class:`.GenomeReference`
         """
@@ -205,7 +205,7 @@ class GenomeReference(HistoryMixin):
 
         Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
 
-        >>> grch38 = GenomeReference.GRCh38()
+        >>> grch38 = hl.GenomeReference.GRCh38()
 
         :rtype: :class:`.GenomeReference`
         """
@@ -256,7 +256,7 @@ class GenomeReference(HistoryMixin):
 
         **Examples**
 
-        >>> my_gr = GenomeReference("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
+        >>> my_gr = hl.GenomeReference("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
         >>> my_gr.write("output/new_reference.json")
 
         **Notes**

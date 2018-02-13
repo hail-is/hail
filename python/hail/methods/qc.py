@@ -16,7 +16,7 @@ def sample_qc(dataset, name='sample_qc'):
 
     Compute sample QC metrics and remove low-quality samples:
 
-    >>> dataset = methods.sample_qc(dataset, name='sample_qc')
+    >>> dataset = hl.sample_qc(dataset, name='sample_qc')
     >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dpMean > 20) & (dataset.sample_qc.rTiTv > 1.5))
 
     Notes
@@ -100,7 +100,7 @@ def variant_qc(dataset, name='variant_qc'):
     Examples
     --------
 
-    >>> dataset_result = methods.variant_qc(dataset)
+    >>> dataset_result = hl.variant_qc(dataset)
 
     Notes
     -----
@@ -187,7 +187,7 @@ def concordance(left, right):
     statistics and two tables with concordance computed per column key and per
     row key:
 
-    >>> global_conc, cols_conc, rows_conc = methods.concordance(dataset, dataset2)
+    >>> global_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset2)
 
     Notes
     -----
@@ -225,7 +225,7 @@ def concordance(left, right):
     the state in the right dataset. Typical uses of the summary list are shown
     below.
 
-    >>> summary, samples, variants = methods.concordance(dataset, dataset2)
+    >>> summary, samples, variants = hl.concordance(dataset, dataset2)
     >>> left_homref_right_homvar = summary[2][4]
     >>> left_het_right_missing = summary[3][1]
     >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
@@ -312,7 +312,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     Add VEP annotations to the dataset:
 
-    >>> result = methods.vep(dataset, "data/vep.properties") # doctest: +SKIP
+    >>> result = hl.vep(dataset, "data/vep.properties") # doctest: +SKIP
 
     Notes
     -----
@@ -565,7 +565,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
 
     Add Nirvana annotations to the dataset:
 
-    >>> result = methods.nirvana(dataset, "data/nirvana.properties") # doctest: +SKIP
+    >>> result = hl.nirvana(dataset, "data/nirvana.properties") # doctest: +SKIP
 
     Notes
     -----

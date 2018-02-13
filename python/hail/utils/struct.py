@@ -7,7 +7,7 @@ class Struct(Mapping, HistoryMixin):
     """
     Nested annotation structure.
 
-    >>> bar = Struct(**{'foo': 5, '1kg': 10})
+    >>> bar = hl.Struct(**{'foo': 5, '1kg': 10})
 
     Struct elements are treated as both 'items' and 'attributes', which
     allows either syntax for accessing the element "foo" of struct "bar":

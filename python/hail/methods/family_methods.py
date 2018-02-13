@@ -1,6 +1,6 @@
+import hail as hl
 from hail.genetics.pedigree import Pedigree
 from hail.typecheck import *
-from hail.expr import functions
 import hail.expr.aggregators as agg
 from hail.utils.java import handle_py4j
 from hail.matrixtable import MatrixTable
@@ -22,8 +22,8 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
     Create a trio matrix:
 
-    >>> pedigree = Pedigree.read('data/case_control_study.fam')
-    >>> trio_dataset = methods.trio_matrix(dataset, pedigree, complete_trios=True)
+    >>> pedigree = hl.Pedigree.read('data/case_control_study.fam')
+    >>> trio_dataset = hl.trio_matrix(dataset, pedigree, complete_trios=True)
 
     Notes
     -----
@@ -82,12 +82,12 @@ def mendel_errors(dataset, pedigree):
     a pedigree and return four tables (all errors, errors by family, errors by
     individual, errors by variant):
 
-    >>> ped = Pedigree.read('data/trios.fam')
-    >>> all, per_fam, per_sample, per_variant = methods.mendel_errors(dataset, ped)
+    >>> ped = hl.Pedigree.read('data/trios.fam')
+    >>> all_errors, per_fam, per_sample, per_variant = hl.mendel_errors(dataset, ped)
 
     Export all mendel errors to a text file:
 
-    >>> all.export('output/all_mendel_errors.tsv')
+    >>> all_errors.export('output/all_mendel_errors.tsv')
 
     Annotate columns with the number of Mendel errors:
 
@@ -227,12 +227,12 @@ def tdt(dataset, pedigree):
 
     .. testsetup::
 
-        tdt_dataset = methods.import_vcf('data/tdt_tiny.vcf')
+        tdt_dataset = hl.import_vcf('data/tdt_tiny.vcf')
 
     .. doctest::
     
-        >>> pedigree = Pedigree.read('data/tdt_trios.fam')
-        >>> tdt_table = methods.tdt(tdt_dataset, pedigree)
+        >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
+        >>> tdt_table = hl.tdt(tdt_dataset, pedigree)
         >>> tdt_table.show(2)
         +------------------+-------+-------+-------------+-------------+
         | v                |     t |     u |        chi2 |        pval |
@@ -363,17 +363,17 @@ def tdt(dataset, pedigree):
                      (hom_var, hom_ref,     het, hemi_x, 1, 0),
                      (hom_var, hom_var,     het, hemi_x, 1, 0)]
 
-    count_map = functions.broadcast({functions.capture([c[0], c[1], c[2], c[3]]): [c[4], c[5]] for c in config_counts})
+    count_map = hl.broadcast({hl.capture([c[0], c[1], c[2], c[3]]): [c[4], c[5]] for c in config_counts})
 
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
 
     # this filter removes mendel error of het father in x_nonpar. It also avoids
     #   building and looking up config in common case that neither parent is het
-    parent_is_valid_het = functions.bind(tri.father_entry.GT.is_het(),
+    parent_is_valid_het = hl.bind(tri.father_entry.GT.is_het(),
         lambda father_is_het: (father_is_het & tri.auto_or_x_par) | 
                               (tri.mother_entry.GT.is_het() & ~father_is_het))
 
-    copy_state = functions.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
+    copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
 
     config = [tri.proband_entry.GT.num_alt_alleles(),
               tri.father_entry.GT.num_alt_alleles(),
@@ -385,6 +385,6 @@ def tdt(dataset, pedigree):
     tab = tri.rows_table().select('locus', 'alleles', 'counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
-    tab = tab.annotate(pval = functions.pchisqtail(tab.chi2, 1.0))
+    tab = tab.annotate(pval = hl.pchisqtail(tab.chi2, 1.0))
 
     return tab.cache()
