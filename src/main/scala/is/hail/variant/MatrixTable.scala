@@ -421,6 +421,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
+  def requirePartitionKeyLocus(method: String) {
+    rowPartitionKeyTypes match {
+      case Array(_: TLocus) =>
+      case t =>
+        fatal(s"in $method: partition key schema must be Locus, found: $t")
+    }
+  }
+
   def requireColKeyString(method: String) {
     colKeyTypes match {
       case Array(_: TString) =>
