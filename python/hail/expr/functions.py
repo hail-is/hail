@@ -123,7 +123,7 @@ def broadcast(x):
             assert isinstance(obj, MatrixTable)
             return MatrixTable(obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
 
-    return construct_expr(GlobalJoinReference(uid), expr._type, joins=LinkedList(Join).push(Join(joiner, [uid])))
+    return construct_expr(GlobalJoinReference(uid), expr._type, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
