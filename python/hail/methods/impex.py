@@ -541,6 +541,38 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
            path=oneof(str, listof(str)),
            max_count=int)
 def grep(regex, path, max_count=100):
+    """Searches given paths for all lines containing regex matches.
+
+        Examples
+        --------
+
+        Print all lines containing the string ``hello`` in *file.txt*:
+
+        >>> hl.grep('hello','data/file.txt')
+
+        Print all lines containing digits in *file1.txt* and *file2.txt*:
+
+        >>> hl.grep('\d', ['data/file1.txt','data/file2.txt'])
+
+        Notes
+        -----
+        :meth:`grep` mimics the basic functionality of Unix ``grep`` in
+        parallel, printing results to screen. This command is provided as a
+        convenience to those in the statistical genetics community who often
+        search enormous text files like VCFs. Hail uses `Java regular expression
+        patterns
+        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+        The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
+
+        Parameters
+        ----------
+        regex : :obj:`str`
+            The regular expression to match.
+        path : :obj:`str` or :obj:`list` of :obj:`str`
+            The files to search.
+        max_count : :obj:`int`
+            The maximum number of matches to return
+        """
     Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
