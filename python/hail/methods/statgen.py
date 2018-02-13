@@ -1289,7 +1289,8 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
            compute_loadings=bool,
            as_array=bool)
 def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
-    """Run principal component analysis (PCA) on the Hardy-Weinberg-normalized call matrix.
+    r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
+    genotype call matrix.
 
     Examples
     --------
@@ -1298,8 +1299,37 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     Notes
     -----
-    Variants that are all homozygous reference or all homozygous alternate
-    are removed before evaluation.
+
+    This is a specialization of :func:`.pca` for the common use case
+    of PCA in statistical genetics, that of projecting samples to a small
+    number of ancestry coordinates. Variants that are all homozygous reference
+    or all homozygous alternate are unnormalizable and removed before
+    evaluation.
+
+    Users of PLINK/GCTA should be aware that Hail computes the GRM slightly
+    differently with regard to missing data. In Hail, the
+    :math:`ij` entry of the GRM :math:`MM^T` is simply the dot product of rows
+    :math:`i` and :math:`j` of :math:`M`; in terms of :math:`C` it is
+
+    .. math::
+    
+      \frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
+
+    where :math:`\mathcal{C}_i = \{l \mid C_{il} \text{ is non-missing}\}`. In
+    PLINK/GCTA the denominator :math:`m` is replaced with the number of terms in
+    the sum :math:`\lvert\mathcal{C}_i\cap\mathcal{C}_j\rvert`, i.e. the
+    number of variants where both samples have non-missing genotypes. While this
+    is arguably a better estimator of the true GRM (trading shrinkage for
+    noise), it has the drawback that one loses the clean interpretation of the
+    loadings and scores as features and projections
+
+    Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM, i.e.
+    the left singular vectors :math:`U_k` instead of the component scores
+    :math:`U_k S_k`. The scores have the advantage of representing true
+    projections of the data onto features with the variance of a score
+    reflecting the variance explained by the corresponding feature. In PC
+    bi-plots this amounts to a change in aspect ratio; for use of PCs as
+    covariates in regression it is immaterial.
 
     Parameters
     ----------
@@ -1321,8 +1351,9 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     dataset = require_biallelic(dataset, 'hwe_normalized_pca')
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
                                     n_called=agg.count_where(hl.is_defined(dataset.GT)))
-    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
+    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
 
+    # once count_rows() adds partition_counts we can avoid annotating and filtering twice
     n_variants = dataset.count_rows()
     if n_variants == 0:
         raise FatalError(
@@ -1339,7 +1370,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
                  k,
                  compute_loadings,
                  as_array)
-    dataset.unpersist()
+
     return result
 
 
@@ -1349,18 +1380,33 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
            compute_loadings=bool,
            as_array=bool)
 def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
-    """Run principal Component Analysis (PCA) on a matrix table, using `entry_expr` as the numerical entry.
+    r"""Run principal component analysis (PCA) on numeric columns derived from a
+    matrix table.
 
     Examples
     --------
 
-    Compute the top 2 principal component scores and eigenvalues of the call missingness matrix.
+    For a matrix table with variant rows, sample columns, and genotype entries,
+    compute the top 2 PC sample scores and eigenvalues of the matrix of 0s and
+    1s encoding missingness of genotype calls.
 
     >>> eigenvalues, scores, _ = hl.pca(hl.is_defined(dataset.GT).to_int32(),
     ...                                      k=2)
 
+    Warning
+    -------
+      This method does **not** automatically mean-center or normalize each column.
+      If desired, such transformations should be incorporated in `entry_expr`.
+
+      Hail will return an error if `entry_expr` evaluates to missing, NaN, or
+      infinity on any entry.
+
     Notes
     -----
+
+    PCA is run on the columns of the numeric matrix obtained by evaluating
+    `entry_expr` on each entry of the matrix table, or equivalently on the rows
+    of the **transposed** numeric matrix :math:`M` referenced below.
 
     PCA computes the SVD
 
@@ -1375,46 +1421,18 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     Typically one computes only the first :math:`k` singular vectors and values,
     yielding the best rank :math:`k` approximation :math:`U_k S_k V_k^T` of
     :math:`M`; the truncations :math:`U_k`, :math:`S_k` and :math:`V_k` are
-    :math:`n \\times k`, :math:`k \\times k` and :math:`m \\times k`
+    :math:`n \times k`, :math:`k \times k` and :math:`m \times k`
     respectively.
 
-    From the perspective of the samples or rows of :math:`M` as data,
-    :math:`V_k` contains the variant loadings for the first :math:`k` PCs while
+    From the perspective of the rows of :math:`M` as samples (data points),
+    :math:`V_k` contains the loadings for the first :math:`k` PCs while
     :math:`MV_k = U_k S_k` contains the first :math:`k` PC scores of each
     sample. The loadings represent a new basis of features while the scores
-    represent the projected data on those features. The eigenvalues of the GRM
+    represent the projected data on those features. The eigenvalues of the Gramian
     :math:`MM^T` are the squares of the singular values :math:`s_1^2, s_2^2,
     \ldots`, which represent the variances carried by the respective PCs. By
     default, Hail only computes the loadings if the ``loadings`` parameter is
     specified.
-
-    Note
-    ----
-    In PLINK/GCTA the GRM is taken as the starting point and it is
-    computed slightly differently with regard to missing data. Here the
-    :math:`ij` entry of :math:`MM^T` is simply the dot product of rows :math:`i`
-    and :math:`j` of :math:`M`; in terms of :math:`C` it is
-
-    .. math::
-
-      \\frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
-
-    where :math:`\mathcal{C}_i = \{l \mid C_{il} \\text{ is non-missing}\}`. In
-    PLINK/GCTA the denominator :math:`m` is replaced with the number of terms in
-    the sum :math:`\\lvert\mathcal{C}_i\cap\\mathcal{C}_j\\rvert`, i.e. the
-    number of variants where both samples have non-missing genotypes. While this
-    is arguably a better estimator of the true GRM (trading shrinkage for
-    noise), it has the drawback that one loses the clean interpretation of the
-    loadings and scores as features and projections.
-
-    Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even
-    ignoring the above discrepancy that means the left singular vectors
-    :math:`U_k` instead of the component scores :math:`U_k S_k`. While this is
-    just a matter of the scale on each PC, the scores have the advantage of
-    representing true projections of the data onto features with the variance of
-    a score reflecting the variance explained by the corresponding feature. (In
-    PC bi-plots this amounts to a change in aspect ratio; for use of PCs as
-    covariates in regression it is immaterial.)
 
     Scores are stored in a :class:`.Table` with the column keys of the matrix,
     and the following additional field:
@@ -1431,7 +1449,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
      - **v**: Row key of the dataset.
 
-     - **pcaLoadings**: Row loadings (same type as the scores)
+     - **pcaLoadings**: Row loadings (same type as the scores).
 
     Parameters
     ----------
