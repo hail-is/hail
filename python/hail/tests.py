@@ -633,7 +633,7 @@ class MatrixTests(unittest.TestCase):
         ds = ds.annotate_globals(x = 'foo')
         f = new_temp_file(suffix='vds')
         ds.write(f)
-        t = methods.read_table(f + '/cols')
+        t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols_table()._same(t))
 
     def test_read_stored_globals(self):
@@ -641,7 +641,7 @@ class MatrixTests(unittest.TestCase):
         ds = ds.annotate_globals(x = 5, baz = 'foo')
         f = new_temp_file(suffix='vds')
         ds.write(f)
-        t = methods.read_table(f + '/globals')
+        t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
 
 class FunctionsTests(unittest.TestCase):
