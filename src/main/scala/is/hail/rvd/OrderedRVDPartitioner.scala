@@ -18,7 +18,8 @@ class OrderedRVDPartitioner(
   assert(rangeBoundsType.typeCheck(rangeBounds))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
-    !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0}, s"hi")
+    !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0
+  }, s"hi")
 
   val rangeTree: IntervalTree[Any, Int] = new IntervalTree[Any, Int](IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(BaseInterval[Any], Int)](numPartitions) { i =>
@@ -53,6 +54,7 @@ class OrderedRVDPartitioner(
       case 1 => part.head
     }
   }
+
   // return the partition containing pk
   // needs to update the bounds
   // key: RegionValue
@@ -89,7 +91,7 @@ class OrderedRVDPartitioner(
     val newRangeBounds = UnsafeIndexedSeq(
       TArray(TInterval(pkType)),
       (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
-        val i1 = rangeBounds(s+1).asInstanceOf[Interval]
+        val i1 = rangeBounds(s + 1).asInstanceOf[Interval]
         val i2 = rangeBounds(e).asInstanceOf[Interval]
         Interval(i1.start, i2.end, i1.includeStart, i2.includeEnd)
       })

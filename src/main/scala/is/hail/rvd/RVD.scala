@@ -23,7 +23,8 @@ object RVDSpec {
       classOf[CodecSpec], classOf[DirectCodecSpec], classOf[PackCodecSpec],
       classOf[BlockBufferSpec], classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
       classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec]))
-    override val typeHintFieldName = "name" } +
+    override val typeHintFieldName = "name"
+  } +
     new TStructSerializer +
     new OrderedRVDTypeSerializer
 

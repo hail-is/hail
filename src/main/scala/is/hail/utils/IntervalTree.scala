@@ -12,9 +12,13 @@ import scala.reflect.ClassTag
 
 abstract class BaseInterval[T: ClassTag] extends Serializable {
   def start: T
+
   def end: T
+
   def includeStart: Boolean
+
   def includeEnd: Boolean
+
   def copy(start: T = start, end: T = end, includeStart: Boolean = includeStart, includeEnd: Boolean = includeEnd): BaseInterval[T]
 
   def contains(pord: ExtendedOrdering, position: T): Boolean = {
@@ -65,8 +69,11 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
 case class RegionValueInterval(iType: TInterval, region: Region, offset: Long) extends BaseInterval[RegionValue] {
   def start: RegionValue = RegionValue(region, iType.loadStart(region, offset))
+
   def end: RegionValue = RegionValue(region, iType.loadEnd(region, offset))
+
   def includeStart: Boolean = region.loadBoolean(iType.representation.loadField(region, offset, 2))
+
   def includeEnd: Boolean = region.loadBoolean(iType.representation.loadField(region, offset, 3))
 
   def copy(start: RegionValue = start, end: RegionValue = end, includeStart: Boolean = includeStart, includeEnd: Boolean = includeEnd): RegionValueInterval = {
@@ -178,9 +185,9 @@ object IntervalTree {
           tmp = if (pord.lt(interval.end, tmp.end))
             tmp
           else if (pord.equiv(interval.end, tmp.end))
-            tmp.copy(includeEnd=tmp.includeEnd || interval.includeEnd)
+            tmp.copy(includeEnd = tmp.includeEnd || interval.includeEnd)
           else
-            tmp.copy(end=interval.end, includeEnd=interval.includeEnd)
+            tmp.copy(end = interval.end, includeEnd = interval.includeEnd)
           pruned += 1
         } else {
           ab += tmp
@@ -210,9 +217,9 @@ object IntervalTree {
         rt.map(x => pord.min(x.minimum, min1).asInstanceOf[T]).getOrElse(min1)
       },
         {
-        val max1 = lft.map(x => pord.max(x.maximum, i.end).asInstanceOf[T]).getOrElse(i.end)
-        rt.map(x => pord.max(x.maximum, max1).asInstanceOf[T]).getOrElse(max1)
-      }, v))
+          val max1 = lft.map(x => pord.max(x.maximum, i.end).asInstanceOf[T]).getOrElse(i.end)
+          rt.map(x => pord.max(x.maximum, max1).asInstanceOf[T]).getOrElse(max1)
+        }, v))
     }
   }
 

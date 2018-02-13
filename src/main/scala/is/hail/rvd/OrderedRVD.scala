@@ -57,7 +57,7 @@ class OrderedRVD private(
     OrderedRVD(newTyp,
       partitioner,
       rdd.zipPartitions(rdd2) { case (it, it2) =>
-          f(it, it2)
+        f(it, it2)
       })
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
@@ -571,15 +571,15 @@ object OrderedRVD {
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
 
-//    var pBounds = if (partitionMaxes.isEmpty)
-//      Array(min)
-//    else if (pkOrd.equiv(min, partitionMaxes.head))
-//      partitionMaxes
-//    else
-//      min +: partitionMaxes
-//    pBounds = if (partitionMaxes.isEmpty)
-//      pBounds :+ max
-//    else if (pkOrd.equiv(min, partitionMaxes.last)) pBounds else pBounds :+ max
+    //    var pBounds = if (partitionMaxes.isEmpty)
+    //      Array(min)
+    //    else if (pkOrd.equiv(min, partitionMaxes.head))
+    //      partitionMaxes
+    //    else
+    //      min +: partitionMaxes
+    //    pBounds = if (partitionMaxes.isEmpty)
+    //      pBounds :+ max
+    //    else if (pkOrd.equiv(min, partitionMaxes.last)) pBounds else pBounds :+ max
 
     OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, min +: partitionMaxes :+ max)
   }
@@ -599,15 +599,15 @@ object OrderedRVD {
 
     val newRangeBounds = partitioner.rangeBounds.zipWithIndex.map { case (int: Interval, i: Int) =>
       if (i == 0)
-        int.copy(start=pkOrd.min(int.start, min))
+        int.copy(start = pkOrd.min(int.start, min))
       else if (i == partitioner.numPartitions - 1)
-        int.copy(end=pkOrd.max(int.end, max))
+        int.copy(end = pkOrd.max(int.end, max))
       else
         int.copy()
     }
 
     val newPartitioner = new OrderedRVDPartitioner(partitioner.numPartitions,
-    partitioner.partitionKey, partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+      partitioner.partitionKey, partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
     shuffle(typ, newPartitioner, rdd)
 

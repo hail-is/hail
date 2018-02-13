@@ -8,9 +8,11 @@ import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
-class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format => (
-  { case JString(s) => Parser.parseOrderedRVDType(s) },
-  { case orvdType: OrderedRVDType => JString(orvdType.toString) }))
+class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format => ( {
+  case JString(s) => Parser.parseOrderedRVDType(s)
+}, {
+  case orvdType: OrderedRVDType => JString(orvdType.toString)
+}))
 
 class OrderedRVDType(
   val partitionKey: Array[String],
