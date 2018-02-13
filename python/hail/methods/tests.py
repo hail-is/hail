@@ -105,17 +105,17 @@ class Tests(unittest.TestCase):
             raise e
 
         plink_sex = hl.import_table(out_file + '.sexcheck',
-                                         delimiter=' +',
-                                         types={'SNPSEX': hl.TInt32(),
-                                                'F': hl.TFloat64()})
+                                    delimiter=' +',
+                                    types={'SNPSEX': hl.TInt32(),
+                                           'F': hl.TFloat64()})
         plink_sex = plink_sex.select('IID', 'SNPSEX', 'F')
         plink_sex = plink_sex.select(
             s=plink_sex.IID,
             is_female=hl.cond(plink_sex.SNPSEX == 2,
-                                     True,
-                                     hl.cond(plink_sex.SNPSEX == 1,
-                                                    False,
-                                                    hl.null(hl.TBoolean()))),
+                              True,
+                              hl.cond(plink_sex.SNPSEX == 1,
+                                      False,
+                                      hl.null(hl.TBoolean()))),
             f_stat=plink_sex.F).key_by('s')
 
         sex = sex.select(s=sex.s,
@@ -132,17 +132,17 @@ class Tests(unittest.TestCase):
         dataset = hl.import_vcf(test_file('regressionLinear.vcf'))
 
         phenos = hl.import_table(test_file('regressionLinear.pheno'),
-                                      types={'Pheno': hl.TFloat64()},
-                                      key='Sample')
+                                 types={'Pheno': hl.TFloat64()},
+                                 key='Sample')
         covs = hl.import_table(test_file('regressionLinear.cov'),
-                                    types={'Cov1': hl.TFloat64(), 'Cov2': hl.TFloat64()},
-                                    key='Sample')
+                               types={'Cov1': hl.TFloat64(), 'Cov2': hl.TFloat64()},
+                               key='Sample')
 
-        dataset = dataset.annotate_cols(pheno=phenos[dataset.s], cov=covs[dataset.s])
+        dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
         dataset = hl.linreg(dataset,
-                                 ys=dataset.pheno,
-                                 x=dataset.GT.num_alt_alleles(),
-                                 covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
+                            ys=dataset.pheno,
+                            x=dataset.GT.num_alt_alleles(),
+                            covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
         dataset.count_rows()
 
@@ -293,11 +293,11 @@ class Tests(unittest.TestCase):
         fst = .9
 
         dataset = hl.balding_nichols_model(k,
-                                                n1,
-                                                m1,
-                                                fst=(k * [fst]),
-                                                seed=seed,
-                                                num_partitions=4)
+                                           n1,
+                                           m1,
+                                           fst=(k * [fst]),
+                                           seed=seed,
+                                           num_partitions=4)
 
         def direct_calculation(ds):
             ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_numpy_matrix()
@@ -464,10 +464,10 @@ class Tests(unittest.TestCase):
         hl.export_plink(ds, '/tmp/plink_example', id=ds.s)
 
         hl.export_plink(ds, '/tmp/plink_example2', id=ds.s, fam_id=ds.s, pat_id="nope",
-                             mat_id="nada", is_female=True, is_case=False)
+                        mat_id="nada", is_female=True, is_case=False)
 
         hl.export_plink(ds, '/tmp/plink_example3', id=ds.s, fam_id=ds.s, pat_id="nope",
-                             mat_id="nada", is_female=True, quant_pheno=ds.s.length().to_float64())
+                        mat_id="nada", is_female=True, quant_pheno=ds.s.length().to_float64())
 
         self.assertRaises(ValueError,
                           lambda: hl.export_plink(ds, '/tmp/plink_example', is_case=True, quant_pheno=0.0))
@@ -571,7 +571,8 @@ class Tests(unittest.TestCase):
     def test_entries_table(self):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
-        schema = hl.TStruct(['i', 'j', 'entry'], [hl.TInt64(required=True), hl.TInt64(required=True), hl.TFloat64(required=True)])
+        schema = hl.TStruct(['i', 'j', 'entry'],
+                            [hl.TInt64(required=True), hl.TInt64(required=True), hl.TFloat64(required=True)])
         table = hl.Table.parallelize(rows, schema)
         numpy_matrix = np.reshape(map(lambda row: row['entry'], rows), (num_rows, num_cols))
 
@@ -596,10 +597,10 @@ class Tests(unittest.TestCase):
         from hail.stats import TruncatedBetaDist
 
         ds = hl.balding_nichols_model(2, 20, 25, 3,
-                                           pop_dist=[1.0, 2.0],
-                                           fst=[.02, .06],
-                                           af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=0.95),
-                                           seed=1)
+                                      pop_dist=[1.0, 2.0],
+                                      fst=[.02, .06],
+                                      af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=0.95),
+                                      seed=1)
 
         self.assertEqual(ds.count_cols(), 20)
         self.assertEqual(ds.count_rows(), 25)
@@ -622,48 +623,48 @@ class Tests(unittest.TestCase):
             .key_by("Sample"))
 
         phenotypesSkat = (hl.import_table(test_file("skat.pheno"),
-                                               types={"Pheno": hl.TFloat64()},
-                                               missing="0")
+                                          types={"Pheno": hl.TFloat64()},
+                                          missing="0")
             .key_by("Sample"))
 
         intervalsSkat = (hl.import_interval_list(test_file("skat.interval_list")))
 
         weightsSkat = (hl.import_table(test_file("skat.weights"),
-                                            types={"locus": hl.TLocus(),
-                                                   "weight": hl.TFloat64()})
+                                       types={"locus": hl.TLocus(),
+                                              "weight": hl.TFloat64()})
             .key_by("locus"))
 
         ds = hl.split_multi_hts(ds2)
         ds = ds.annotate_rows(gene=intervalsSkat[ds.locus],
                               weight=weightsSkat[ds.locus].weight)
-        ds = ds.annotate_cols(pheno=phenotypesSkat[ds.s],
+        ds = ds.annotate_cols(pheno=phenotypesSkat[ds.s].Pheno,
                               cov=covariatesSkat[ds.s])
         ds = ds.annotate_cols(pheno=hl.cond(ds.pheno == 1.0,
-                                                   False,
-                                                   hl.cond(ds.pheno == 2.0,
-                                                                  True,
-                                                                  hl.null(hl.TBoolean()))))
+                                            False,
+                                            hl.cond(ds.pheno == 2.0,
+                                                    True,
+                                                    hl.null(hl.TBoolean()))))
 
         hl.skat(ds,
-                     key_expr=ds.gene,
-                     weight_expr=ds.weight,
-                     y=ds.pheno,
-                     x=ds.GT.num_alt_alleles(),
-                     covariates=[ds.cov.Cov1, ds.cov.Cov2],
-                     logistic=False).count()
+                key_expr=ds.gene,
+                weight_expr=ds.weight,
+                y=ds.pheno,
+                x=ds.GT.num_alt_alleles(),
+                covariates=[ds.cov.Cov1, ds.cov.Cov2],
+                logistic=False).count()
 
         hl.skat(ds,
-                     key_expr=ds.gene,
-                     weight_expr=ds.weight,
-                     y=ds.pheno,
-                     x=hl.pl_dosage(ds.PL),
-                     covariates=[ds.cov.Cov1, ds.cov.Cov2],
-                     logistic=True).count()
+                key_expr=ds.gene,
+                weight_expr=ds.weight,
+                y=ds.pheno,
+                x=hl.pl_dosage(ds.PL),
+                covariates=[ds.cov.Cov1, ds.cov.Cov2],
+                logistic=True).count()
 
     def test_import_gen(self):
         gen = hl.import_gen(test_file('example.gen'),
-                                 sample_file=test_file('example.sample'),
-                                 contig_recoding={"01": "1"}).rows_table()
+                            sample_file=test_file('example.sample'),
+                            contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(gen.forall(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
@@ -671,16 +672,16 @@ class Tests(unittest.TestCase):
         hl.index_bgen(test_file('example.v11.bgen'))
 
         bgen = hl.import_bgen(test_file('example.v11.bgen'),
-                                   sample_file=test_file('example.sample'),
-                                   contig_recoding={"01": "1"}).rows_table()
+                              sample_file=test_file('example.sample'),
+                              contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(bgen.forall(bgen.locus.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(test_file('sample2.vcf'),
-                               reference_genome=hl.GenomeReference.GRCh38(),
-                               contig_recoding={"22": "chr22"}))
+                          reference_genome=hl.GenomeReference.GRCh38(),
+                          contig_recoding={"22": "chr22"}))
 
         vcf_table = vcf.rows_table()
         self.assertTrue(vcf_table.forall(vcf_table.locus.contig == "chr22"))
@@ -688,8 +689,8 @@ class Tests(unittest.TestCase):
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(test_file('sample2.vcf'),
-                               reference_genome=hl.GenomeReference.GRCh38(),
-                               contig_recoding={"22": "chr22"}))
+                          reference_genome=hl.GenomeReference.GRCh38(),
+                          contig_recoding={"22": "chr22"}))
 
         hl.export_plink(vcf, '/tmp/sample_plink')
 

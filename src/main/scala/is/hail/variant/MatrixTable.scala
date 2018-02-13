@@ -757,41 +757,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateSamplesTable(kt: Table, vdsKey: java.util.ArrayList[String],
-    root: String, expr: String, product: Boolean): MatrixTable =
-    annotateSamplesTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, expr, product)
+    root: String, product: Boolean): MatrixTable =
+    annotateSamplesTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, product)
 
   def annotateSamplesTable(kt: Table, vdsKey: Seq[String] = null,
-    root: String = null, expr: String = null, product: Boolean = false): MatrixTable = {
+    root: String = null, product: Boolean = false): MatrixTable = {
 
-    if (root == null && expr == null || root != null && expr != null)
-      fatal("method `annotateSamplesTable' requires one of `root' or 'expr', but not both")
-
-    var (joinSignature, f): (Type, Annotation => Annotation) = kt.valueSignature.size match {
-      case 0 => (TBoolean(), _ != null)
-      case 1 => (kt.valueSignature.fields.head.typ, x => if (x != null) x.asInstanceOf[Row].get(0) else null)
-      case _ => (kt.valueSignature, identity[Annotation])
-    }
-
-    if (product) {
-      joinSignature = if (joinSignature.isInstanceOf[TBoolean]) TInt32() else TArray(joinSignature)
-      f = if (kt.valueSignature.size == 0)
-        _.asInstanceOf[IndexedSeq[_]].length
-      else {
-        val g = f
-        _.asInstanceOf[IndexedSeq[_]].map(g)
-      }
-    }
-
-    val (finalType, inserter): (TStruct, (Annotation, Annotation) => Annotation) = {
-      val (t, ins) = if (expr != null) {
-        val ec = EvalContext(Map(
-          "sa" -> (0, colType),
-          "table" -> (1, joinSignature)))
-        Annotation.buildInserter(expr, colType, ec, Annotation.SAMPLE_HEAD)
-      } else insertSA(joinSignature, root)
-
-      (t, (a: Annotation, toIns: Annotation) => ins(a, f(toIns)))
-    }
+    val (finalType, inserter) = colType.structInsert(
+      if (product) TArray(kt.valueSignature) else kt.valueSignature,
+      List(root))
 
     val keyTypes = kt.keyFields.map(_.typ).toSeq
 
