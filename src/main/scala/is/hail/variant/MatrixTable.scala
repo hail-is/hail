@@ -2848,7 +2848,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           ec.set(3, entries(k))
           a(k) = f() match {
             case null => fatal(s"Entry expr must be non-missing. Found missing value for col $k and row ${ localRKF(row) }")
-            case t => t.toDouble
+            case t =>
+              val td = t.toDouble
+              if (td.isNaN || td.isInfinite)
+                fatal(s"Entry expr cannot be NaN or infinite. Found ${ if (td.isNaN) "NaN" else "infinite" } value for col $k and row ${ localRKF(row) }")
+              td
           }
           k += 1
         }

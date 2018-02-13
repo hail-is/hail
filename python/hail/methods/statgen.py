@@ -1393,8 +1393,11 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Warning
     -------
-      This method does not automatically mean-center each column. If desired,
-      mean-centering should be incorporated in `entry_expr`.
+      This method does **not** automatically mean-center or normalize each column.
+      If desired, such transformations should be incorporated in `entry_expr`.
+
+      Hail will return an error if `entry_expr` evaluates to missing, NaN, or
+      infinity on any entry.
 
     Notes
     -----
