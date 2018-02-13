@@ -206,16 +206,16 @@ class MatrixTable(object):
 
     Query:
 
-    >>> col_stats = dataset.aggregate_cols(pop_counts = agg.counter(dataset.pop),
-    ...                                    high_quality = agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5)))
+    >>> col_stats = dataset.aggregate_cols(Struct(pop_counts=agg.counter(dataset.pop),
+    ...                                           high_quality=agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
     >>> print(col_stats.pop_counts)
     >>> print(col_stats.high_quality)
 
-    >>> row_stats = dataset.aggregate_rows(het_dist = agg.stats(dataset.sas_hets))
-    >>> print(row_stats.het_dist)
+    >>> het_dist = dataset.aggregate_rows(agg.stats(dataset.sas_hets))
+    >>> print(het_dist)
 
-    >>> entry_stats = dataset.aggregate_entries(call_rate = agg.fraction(hl.is_defined(dataset.GT)),
-    ...                                         global_gq_mean = agg.mean(dataset.GQ))
+    >>> entry_stats = dataset.aggregate_entries(Struct(call_rate=agg.fraction(hl.is_defined(dataset.GT)),
+    ...                                         global_gq_mean=agg.mean(dataset.GQ)))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
@@ -1378,8 +1378,8 @@ class MatrixTable(object):
         raise NotImplementedError()
 
     @handle_py4j
-    def aggregate_rows(self, **named_exprs):
-        """Aggregate over rows into a local struct.
+    def aggregate_rows(self, expr):
+        """Aggregate over rows to a local value.
 
         Examples
         --------
@@ -1387,8 +1387,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_rows(n_high_quality=agg.count_where(dataset.qual > 40),
-            ...                        mean_qual = agg.mean(dataset.qual))
+            >>> dataset.aggregate_rows(Struct(n_high_quality=agg.count_where(dataset.qual > 40),
+            ...                               mean_qual=agg.mean(dataset.qual)))
             Struct(n_high_quality=100150224, mean_qual=50.12515572)
 
         Notes
@@ -1400,8 +1400,8 @@ class MatrixTable(object):
         the following:
 
         >>> rows_table = dataset.rows_table()
-        >>> rows_table.aggregate(n_high_quality=agg.count_where(rows_table.qual > 40),
-        ...                      mean_qual = agg.mean(rows_table.qual))
+        >>> rows_table.aggregate(Struct(n_high_quality=agg.count_where(rows_table.qual > 40),
+        ...                             mean_qual=agg.mean(rows_table.qual)))
 
         Note
         ----
@@ -1409,34 +1409,29 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`.Expression`
-            Aggregation expressions.
+        expr : :class:`.Expression`
+            Aggregation expression.
 
         Returns
         -------
-        :class:`.Struct`
-            Struct containing all results.
+        any
+            Aggregated value dependent on `expr`.
         """
+        expr = to_expr(expr)
+        base, _ = self._process_joins(expr)
 
-        str_exprs = []
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        base, _ = self._process_joins(*named_exprs.values())
+        analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
+        replace_aggregables(expr._ast, 'variants')
 
-        for k, v in named_exprs.items():
-            analyze('MatrixTable.aggregate_rows', v, self._global_indices, {self._row_axis})
-            replace_aggregables(v._ast, 'variants')
-            str_exprs.append(v._ast.to_hql())
-
-        result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, str_exprs))
+        result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
-
+        assert len(ptypes) == 1
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        d = {k: v for k, v in zip(named_exprs.keys(), annotations)}
-        return Struct(**d)
+        return annotations[0]
 
     @handle_py4j
-    def aggregate_cols(self, **named_exprs):
-        """Aggregate over columns into a local struct.
+    def aggregate_cols(self, expr):
+        """Aggregate over rows to a local value.
 
         Examples
         --------
@@ -1444,8 +1439,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_cols(fraction_female=agg.fraction(dataset.pheno.isFemale),
-            ...                        case_ratio = agg.count_where(dataset.isCase) / agg.count())
+            >>> dataset.aggregate_cols(Struct(fraction_female=agg.fraction(dataset.pheno.isFemale),
+            ...                               case_ratio=agg.count_where(dataset.isCase) / agg.count()))
             Struct(fraction_female=0.5102222, case_ratio=0.35156)
 
         Notes
@@ -1457,8 +1452,8 @@ class MatrixTable(object):
         the following:
 
         >>> cols_table = dataset.cols_table()
-        >>> cols_table.aggregate(fraction_female=agg.fraction(cols_table.pheno.isFemale),
-        ...                      case_ratio = agg.count_where(cols_table.isCase) / agg.count())
+        >>> cols_table.aggregate(Struct(fraction_female=agg.fraction(cols_table.pheno.isFemale),
+        ...                             case_ratio=agg.count_where(cols_table.isCase) / agg.count()))
 
         Note
         ----
@@ -1466,34 +1461,29 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`.Expression`
-            Aggregation expressions.
+        expr : :class:`.Expression`
+            Aggregation expression.
 
         Returns
         -------
-        :class:`.Struct`
-            Struct containing all results.
+        any
+            Aggregated value dependent on `expr`.
         """
+        expr = to_expr(expr)
+        base, _ = self._process_joins(expr)
 
-        str_exprs = []
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        base, _ = self._process_joins(*named_exprs.values())
+        analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
+        replace_aggregables(expr._ast, 'samples')
 
-        for k, v in named_exprs.items():
-            analyze('MatrixTable.aggregate_cols', v, self._global_indices, {self._col_axis})
-            replace_aggregables(v._ast, 'samples')
-            str_exprs.append(v._ast.to_hql())
-
-        result_list = base._jvds.querySamples(jarray(Env.jvm().java.lang.String, str_exprs))
+        result_list = base._jvds.querySamples(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
-
+        assert len(ptypes) == 1
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        d = {k: v for k, v in zip(named_exprs.keys(), annotations)}
-        return Struct(**d)
+        return annotations[0]
 
     @handle_py4j
-    def aggregate_entries(self, **named_exprs):
-        """Aggregate over all entries into a local struct.
+    def aggregate_entries(self, expr):
+        """Aggregate over rows to a local value.
 
         Examples
         --------
@@ -1501,8 +1491,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_entries(global_gq_mean = agg.mean(dataset.GQ),
-            ...                           call_rate = agg.fraction(hl.is_defined(dataset.GT)))
+            >>> dataset.aggregate_entries(Struct(global_gq_mean=agg.mean(dataset.GQ),
+            ...                                  call_rate=agg.fraction(hl.is_defined(dataset.GT))))
             Struct(global_gq_mean=31.16200, call_rate=0.981682)
 
         Notes
@@ -1511,8 +1501,8 @@ class MatrixTable(object):
         the following:
 
         >>> entries_table = dataset.entries_table()
-        >>> entries_table.aggregate(global_gq_mean = agg.mean(entries_table.GQ),
-        ...                         call_rate = agg.fraction(hl.is_defined(entries_table.GT)))
+        >>> entries_table.aggregate(Struct(global_gq_mean=agg.mean(entries_table.GQ),
+        ...                                call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
 
         Note
         ----
@@ -1520,30 +1510,26 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`.Expression`
+        expr : :class:`.Expression`
             Aggregation expressions.
 
         Returns
         -------
-        :class:`.Struct`
-            Struct containing all results.
+        any
+            Aggregated value dependent on `expr`.
         """
 
-        str_exprs = []
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        base, _ = self._process_joins(*named_exprs.values())
+        expr = to_expr(expr)
+        base, _ = self._process_joins(expr)
 
-        for k, v in named_exprs.items():
-            analyze('MatrixTable.aggregate_entries', v, self._global_indices, {self._row_axis, self._col_axis})
-            replace_aggregables(v._ast, 'gs')
-            str_exprs.append(v._ast.to_hql())
+        analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
+        replace_aggregables(expr._ast, 'gs')
 
-        result_list = base._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, str_exprs))
+        result_list = base._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
-
+        assert len(ptypes) == 1
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        d = {k: v for k, v in zip(named_exprs.keys(), annotations)}
-        return Struct(**d)
+        return annotations[0]
 
     @handle_py4j
     def explode_rows(self, field_expr):
