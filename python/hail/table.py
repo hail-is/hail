@@ -1139,7 +1139,7 @@ class Table(TableTemplate):
             all_uids = uids[:]
             all_uids.append(uid)
             return construct_expr(Reference(uid), new_schema, indices, aggregations,
-                                  joins.push(Join(joiner, all_uids)), refs)
+                                  joins.push(Join(joiner, all_uids, uid)), refs)
         elif isinstance(src, MatrixTable):
             if len(exprs) == 1:
                 key_type = self._fields[self.key[0]].dtype
@@ -1178,7 +1178,7 @@ class Table(TableTemplate):
                             right._jt, uid, False))
 
                     return construct_expr(Select(Reference('va'), uid), new_schema,
-                                          indices, aggregations, joins.push(Join(joiner, [uid])))
+                                          indices, aggregations, joins.push(Join(joiner, [uid], uid)))
                 else:
                     # use vds_key
                     uids = [Env._get_uid() for _ in range(len(exprs))]
@@ -1216,7 +1216,7 @@ class Table(TableTemplate):
                         return MatrixTable(jl)
 
                     return construct_expr(Select(Reference('va'), uid),
-                                          new_schema, indices, aggregations, joins.push(Join(joiner, [uid])))
+                                          new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid)))
 
             elif indices == src._col_indices:
                 if len(exprs) == len(src.col_key) and all([exprs[i] is src[src.col_key[i]] for i in range(len(exprs))]):
@@ -1228,7 +1228,7 @@ class Table(TableTemplate):
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
                         right._jt, [e._ast.to_hql() for e in exprs], uid, None, False))
                 return construct_expr(Select(Reference('sa'), uid), new_schema,
-                                      indices, aggregations, joins.push(Join(joiner, [uid])))
+                                      indices, aggregations, joins.push(Join(joiner, [uid], uid)))
             else:
                 raise NotImplementedError()
         else:
@@ -1247,7 +1247,7 @@ class Table(TableTemplate):
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
         return construct_expr(GlobalJoinReference(uid), self.global_schema,
-                              joins=LinkedList(Join).push(Join(joiner, [uid])))
+                              joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
@@ -1256,12 +1256,15 @@ class Table(TableTemplate):
 
         all_uids = []
         left = self
+        used_uids = set()
 
         for e in exprs:
             rewrite_global_refs(e._ast, self)
             for j in list(e._joins)[::-1]:
-                left = j.join_function(left)
-                all_uids.extend(j.temp_vars)
+                if j.uid not in used_uids:
+                    left = j.join_function(left)
+                    all_uids.extend(j.temp_vars)
+                    used_uids.add(j.uid)
 
         if left is not self:
             left = left.key_by(*original_key)

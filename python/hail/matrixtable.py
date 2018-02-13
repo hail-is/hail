@@ -1892,7 +1892,7 @@ class MatrixTable(object):
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
         return construct_expr(GlobalJoinReference(uid), self.global_schema,
-                              joins=LinkedList(Join).push(Join(joiner, [uid])))
+                              joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     @handle_py4j
     def view_join_rows(self, *exprs):
@@ -1932,7 +1932,7 @@ class MatrixTable(object):
             schema = TStruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
             return construct_expr(Select(Reference(prefix), uid),
                                   schema, indices, aggregations,
-                                  joins.push(Join(joiner, uids_to_delete)), refs)
+                                  joins.push(Join(joiner, uids_to_delete, uid)), refs)
 
     @handle_py4j
     def view_join_cols(self, *exprs):
@@ -1980,12 +1980,15 @@ class MatrixTable(object):
 
         all_uids = []
         left = self
+        used_uids = set()
 
         for e in exprs:
             rewrite_global_refs(e._ast, self)
             for j in list(e._joins)[::-1]:
-                left = j.join_function(left)
-                all_uids.extend(j.temp_vars)
+                if j.uid not in used_uids:
+                    left = j.join_function(left)
+                    all_uids.extend(j.temp_vars)
+                    used_uids.add(j.uid)
 
         def cleanup(matrix):
             remaining_uids = [uid for uid in all_uids if uid in matrix._fields]
