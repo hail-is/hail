@@ -211,7 +211,7 @@ class OrderedRVD private(
     }
   }
 
-  def filterIntervals(intervals: IntervalTree[Any, _]): OrderedRVD = {
+  def filterIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val pkOrdering = typ.pkType.ordering
     val intervalsBc = rdd.sparkContext.broadcast(intervals)
     val rowType = typ.rowType

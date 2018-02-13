@@ -21,8 +21,8 @@ class OrderedRVDPartitioner(
     !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0
   }, s"hi")
 
-  val rangeTree: IntervalTree[Any, Int] = new IntervalTree[Any, Int](IntervalTree.fromSorted(pkType.ordering,
-    Array.tabulate[(BaseInterval[Any], Int)](numPartitions) { i =>
+  val rangeTree: IntervalTree[Int] = new IntervalTree[Int](IntervalTree.fromSorted(pkType.ordering,
+    Array.tabulate[(BaseInterval, Int)](numPartitions) { i =>
       (rangeBounds(i).asInstanceOf[Interval], i)
     }, 0, rangeBounds.size))
 
