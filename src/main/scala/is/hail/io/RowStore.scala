@@ -1,14 +1,13 @@
 package is.hail.io
 
-import java.io.{InputStream, OutputStream}
+import java.io.{Closeable, InputStream, OutputStream}
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, OrderedRVDType, UnpartitionedRVDSpec}
+import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, UnpartitionedRVDSpec}
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 
 class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
@@ -83,8 +82,10 @@ class ArrayOutputStream(sizeHint: Int = 32) extends OutputStream {
   }
 }
 
-abstract class OutputBuffer {
+abstract class OutputBuffer extends Closeable {
   def flush(): Unit
+
+  def close(): Unit
 
   def writeByte(b: Byte): Unit
 
@@ -127,6 +128,11 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
 
   def flush() {
     writeBlock()
+  }
+
+  def close() {
+    flush()
+    out.close()
   }
 
   def writeByte(b: Byte) {
@@ -199,7 +205,9 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
   }
 }
 
-abstract class InputBuffer {
+abstract class InputBuffer extends Closeable {
+  def close(): Unit
+
   def readByte(): Byte
 
   def readInt(): Int
@@ -242,6 +250,10 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
     if (off == end)
       readBlock()
     assert(off + n <= end)
+  }
+
+  def close() {
+    in.close()
   }
 
   def readByte(): Byte = {
@@ -317,7 +329,11 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
   }
 }
 
-final class Decoder(in: InputBuffer) {
+final class Decoder(in: InputBuffer) extends Closeable {
+  def close() {
+    in.close()
+  }
+
   def readByte(): Byte = in.readByte()
 
   def readBinary(region: Region, off: Long) {
@@ -415,8 +431,14 @@ final class Decoder(in: InputBuffer) {
   }
 }
 
-final class Encoder(out: OutputBuffer) {
-  def flush() { out.flush() }
+final class Encoder(out: OutputBuffer) extends Closeable {
+  def flush() {
+    out.flush()
+  }
+
+  def close() {
+    out.close()
+  }
 
   def writeByte(b: Byte): Unit = out.writeByte(b)
 
@@ -507,7 +529,7 @@ object RichRDDRegionValue {
   def writeRowsPartition(t: TStruct)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
     val en = new Encoder(new LZ4OutputBuffer(os))
     var rowCount = 0L
-    
+
     it.foreach { rv =>
       en.writeByte(1)
       en.writeRegionValue(t, rv.region, rv.offset)
@@ -517,7 +539,7 @@ object RichRDDRegionValue {
     en.writeByte(0) // end
     en.flush()
     os.close()
-    
+
     rowCount
   }
 }
@@ -543,7 +565,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
 
     val fullRowType = t.rvRowType
     val rowsRVType = t.rowType
-    val localEntriesIndex: Int = t.entriesIdx
+    val localEntriesIndex = t.entriesIdx
 
     val entriesRVType = TStruct(
       MatrixType.entriesIdentifier -> TArray(t.entryType))
@@ -554,50 +576,49 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
       val f = partFile(d, i)
 
       val rowsPartPath = path + "/rows/rows/parts/" + f
-      val rowsOS = hConf.unsafeWriter(rowsPartPath)
+      hConf.writeFile(rowsPartPath) { rowsOS =>
+        using(new Encoder(new LZ4OutputBuffer(rowsOS))) { rowsEN =>
 
-      val entriesPartPath = path + "/entries/rows/parts/" + f
-      val entriesOS = sHConfBc.value.value.unsafeWriter(entriesPartPath)
+          val entriesPartPath = path + "/entries/rows/parts/" + f
+          hConf.writeFile(entriesPartPath) { entriesOS =>
+            using(new Encoder(new LZ4OutputBuffer(entriesOS))) { entriesEN =>
 
-      val rowsEN = new Encoder(new LZ4OutputBuffer(rowsOS))
-      val entriesEN = new Encoder(new LZ4OutputBuffer(entriesOS))
-      var rowCount = 0L
+              var rowCount = 0L
 
-      val rvb = new RegionValueBuilder()
-      val fullRow = new UnsafeRow(fullRowType)
+              val rvb = new RegionValueBuilder()
+              val fullRow = new UnsafeRow(fullRowType)
 
-      it.foreach { rv =>
-        fullRow.set(rv)
-        val row = fullRow.deleteField(localEntriesIndex)
+              it.foreach { rv =>
+                fullRow.set(rv)
+                val row = fullRow.deleteField(localEntriesIndex)
 
-        val region = rv.region
-        rvb.set(region)
-        rvb.start(rowsRVType)
-        rvb.addAnnotation(rowsRVType, row)
+                val region = rv.region
+                rvb.set(region)
+                rvb.start(rowsRVType)
+                rvb.addAnnotation(rowsRVType, row)
 
-        rowsEN.writeByte(1)
-        rowsEN.writeRegionValue(rowsRVType, region, rvb.end())
+                rowsEN.writeByte(1)
+                rowsEN.writeRegionValue(rowsRVType, region, rvb.end())
 
-        rvb.start(entriesRVType)
-        rvb.startStruct()
-        rvb.addField(fullRowType, rv, localEntriesIndex)
-        rvb.endStruct()
+                rvb.start(entriesRVType)
+                rvb.startStruct()
+                rvb.addField(fullRowType, rv, localEntriesIndex)
+                rvb.endStruct()
 
-        entriesEN.writeByte(1)
-        entriesEN.writeRegionValue(entriesRVType, region, rvb.end())
+                entriesEN.writeByte(1)
+                entriesEN.writeRegionValue(entriesRVType, region, rvb.end())
 
-        rowCount += 1
+                rowCount += 1
+              }
+
+              rowsEN.writeByte(0) // end
+              entriesEN.writeByte(0)
+
+              Iterator.single(rowCount)
+            }
+          }
+        }
       }
-
-      rowsEN.writeByte(0) // end
-      rowsEN.flush()
-      rowsOS.close()
-
-      entriesEN.writeByte(0)
-      entriesEN.flush()
-      entriesOS.close()
-
-      Iterator.single(rowCount)
     }
       .collect()
 
@@ -609,7 +630,6 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val entriesSpec = UnpartitionedRVDSpec(entriesRVType, partFiles)
     entriesSpec.write(hConf, path + "/entries/rows")
 
-    val itemCount = partitionCounts.sum
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions")
 
     partitionCounts

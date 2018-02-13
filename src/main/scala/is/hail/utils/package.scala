@@ -563,6 +563,15 @@ package object utils extends Logging
   def lift[T, S](pf: PartialFunction[T, S]): (T) => Option[S] = pf.lift
   def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift
   def optMatch[T, S](a: T)(pf : PartialFunction[T, S]): Option[S] = lift(pf)(a)
+
+
+  def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
+    try {
+      consume(r)
+    } finally {
+      r.close()
+    }
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

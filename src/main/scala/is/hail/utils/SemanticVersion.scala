@@ -1,8 +1,5 @@
 package is.hail.utils
 
-/**
-  * Created by cotton on 2/11/18.
-  */
 case class SemanticVersion(major: Int, minor: Int, patch: Int) {
   assert((major & 0xff) == major)
   assert((minor & 0xff) == minor)

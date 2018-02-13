@@ -195,7 +195,7 @@ object HailContext {
 
         cont = dec.readByte()
         if (cont == 0)
-          in.close()
+          dec.close()
 
         rv
       }

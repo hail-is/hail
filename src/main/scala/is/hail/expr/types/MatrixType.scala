@@ -55,11 +55,6 @@ case class MatrixType(
 
   val rowsTableType: TableType = TableType(rowType, rowKey, globalType)
 
-  val entriesTableType: TableType = TableType(
-    TStruct(MatrixType.entriesIdentifier -> TArray(entryType)),
-    Array.empty[String],
-    globalType)
-
   def orvdType: OrderedRVDType = {
     new OrderedRVDType(rowPartitionKey.toArray,
       rowKey.toArray,

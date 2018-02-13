@@ -138,13 +138,13 @@ object MatrixIR {
   def optimize(ast: MatrixIR): MatrixIR = {
     BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(path, metadata, dropSamples, _),
+      MatrixRead(path, spec, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, metadata, dropSamples, dropVariants = true)
+        MatrixRead(path, spec, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(path, metadata, _, dropVariants),
+      MatrixRead(path, spec, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, metadata, dropSamples = true, dropVariants)
+        MatrixRead(path, spec, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean(_))) =>
         m
@@ -409,8 +409,8 @@ object TableIR {
       case TableFilter(TableFilter(x, p1), p2) =>
         TableFilter(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
       case TableFilter(x, True()) => x
-      case TableFilter(TableRead(path, metadata, _), False() | NA(TBoolean(_))) =>
-        TableRead(path, metadata, true)
+      case TableFilter(TableRead(path, spec, _), False() | NA(TBoolean(_))) =>
+        TableRead(path, spec, true)
     })
   }
 }
