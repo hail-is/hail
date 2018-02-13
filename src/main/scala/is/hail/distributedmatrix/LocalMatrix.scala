@@ -111,13 +111,13 @@ object LocalMatrix {
 
 // Matrix with NumPy-style ops and broadcasting
 class LocalMatrix(val m: BDM[Double]) {
-  def nRows: Int = m.rows
+  val nRows: Int = m.rows
 
-  def nCols: Int = m.cols
+  val nCols: Int = m.cols
 
   def shape: (Int, Int) = (nRows, nCols)
 
-  def isTranspose: Boolean = m.isTranspose  
+  val isTranspose: Boolean = m.isTranspose  
 
   def asArray: Array[Double] =
     if (m.isCompact && !isTranspose)
@@ -159,7 +159,7 @@ class LocalMatrix(val m: BDM[Double]) {
   import LocalMatrix.{sclrType, colType, rowType, matType}
   import LocalMatrix.ops._
 
-  private def shapeType: Int =
+  private val shapeType: Int =
     if (nRows > 1) {
       if (nCols > 1) matType else colType
     } else {
