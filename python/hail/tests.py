@@ -63,10 +63,10 @@ class TableTests(unittest.TestCase):
         result3 = convert_struct_to_dict(kt.annotate(
             x1=kt.f.map(lambda x: x * 2),
             x2=kt.f.map(lambda x: [x, x + 1]).flatmap(lambda x: x),
-            x3=kt.f.min(),
-            x4=kt.f.max(),
-            x5=kt.f.sum(),
-            x6=kt.f.product(),
+            x3=hl.min(kt.f),
+            x4=hl.max(kt.f),
+            x5=hl.sum(kt.f),
+            x6=hl.product(kt.f),
             x7=kt.f.length(),
             x8=kt.f.filter(lambda x: x == 3),
             x9=kt.f[1:],
@@ -471,15 +471,15 @@ class MatrixTests(unittest.TestCase):
         vds = vds.annotate_rows(y2=vds2[(vds.locus, vds.alleles), :].y2)
         vds = vds.annotate_cols(c2=vds2[:, vds.s].c2)
 
-        vds = vds.annotate_cols(c2=vds2[:, hl.to_str(vds.s)].c2)
+        vds = vds.annotate_cols(c2=vds2[:, hl.str(vds.s)].c2)
 
         rt = vds.rows_table()
         ct = vds.cols_table()
 
         vds.annotate_rows(**rt[vds.locus, vds.alleles])
 
-        self.assertTrue(rt.forall(rt.y2 == 2))
-        self.assertTrue(ct.forall(ct.c2 == 2))
+        self.assertTrue(rt.all(rt.y2 == 2))
+        self.assertTrue(ct.all(ct.c2 == 2))
 
     def test_table_join(self):
         ds = self.get_vds()
@@ -540,7 +540,7 @@ class MatrixTests(unittest.TestCase):
         ds = ds.annotate_rows(value=kt[ds['key']].value)
         rt = ds.rows_table()
         self.assertTrue(
-            rt.forall(((rt.locus.position % 2) == 0) == rt.value))
+            rt.all(((rt.locus.position % 2) == 0) == rt.value))
 
     def test_computed_key_join_2(self):
         # multiple keys
@@ -592,14 +592,14 @@ class MatrixTests(unittest.TestCase):
         ds = self.get_vds()
 
         df = ds.annotate_rows(row_struct=ds.row).rows_table()
-        self.assertTrue(df.forall((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
+        self.assertTrue(df.all((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
 
         ds2 = ds.index_cols()
         df = ds2.annotate_cols(col_struct=ds2.col).cols_table()
-        self.assertTrue(df.forall((df.col_idx == df.col_struct.col_idx)))
+        self.assertTrue(df.all((df.col_idx == df.col_struct.col_idx)))
 
         df = ds.annotate_entries(entry_struct=ds.entry).entries_table()
-        self.assertTrue(df.forall(
+        self.assertTrue(df.all(
             ((hl.is_missing(df.GT) |
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
@@ -665,9 +665,9 @@ class FunctionsTests(unittest.TestCase):
         result = convert_struct_to_dict(kt.annotate(
             chisq=hl.chisq(kt.a, kt.b, kt.c, kt.d),
             ctt=hl.ctt(kt.a, kt.b, kt.c, kt.d, 5),
-            Dict=hl.Dict([kt.a, kt.b], [kt.c, kt.d]),
+            Dict=hl.dict([kt.a, kt.b], [kt.c, kt.d]),
             dpois=hl.dpois(4, kt.a),
-            drop=hl.drop(kt.h, 'b', 'c'),
+            drop=kt.h.drop('b', 'c'),
             exp=hl.exp(kt.c),
             fet=hl.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
             hwe=hl.hardy_weinberg_p(1, 2, 1),
@@ -678,7 +678,6 @@ class FunctionsTests(unittest.TestCase):
             json=hl.json(kt.g),
             log=hl.log(kt.a.to_float64(), kt.b.to_float64()),
             log10=hl.log10(kt.c.to_float64()),
-            merge=hl.merge(kt.h, kt.j),
             or_else=hl.or_else(kt.a, 5),
             or_missing=hl.or_missing(kt.i, kt.j),
             pchisqtail=hl.pchisqtail(kt.a.to_float64(), kt.b.to_float64()),
@@ -691,9 +690,9 @@ class FunctionsTests(unittest.TestCase):
             rnorm=hl.rand_norm(0.0, kt.b),
             rpois=hl.rand_pois(kt.a),
             runif=hl.rand_unif(kt.b, kt.a),
-            select=hl.select(kt.h, 'c', 'b'),
+            select=kt.h.select('c', 'b'),
             sqrt=hl.sqrt(kt.a),
-            to_str=[hl.to_str(5), hl.to_str(kt.a), hl.to_str(kt.g)],
+            to_str=[hl.str(5), hl.str(kt.a), hl.str(kt.g)],
             where=hl.cond(kt.i, 5, 10)
         ).take(1)[0])
 
@@ -791,7 +790,7 @@ class ColumnTests(unittest.TestCase):
         rows = [{'x': 2.0}]
         kt = hl.Table.parallelize(rows, schema)
 
-        kt = kt.annotate(a=hl.Dict(['cat', 'dog'], [3, 7]))
+        kt = kt.annotate(a=hl.dict(['cat', 'dog'], [3, 7]))
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a['cat'],

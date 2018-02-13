@@ -11,34 +11,16 @@ Expressions
 
     Expression
     ArrayExpression
-    ArrayFloat32Expression
-    ArrayFloat64Expression
-    ArrayInt32Expression
-    ArrayInt64Expression
     ArrayNumericExpression
-    ArrayStringExpression
-    ArrayStructExpression
-    ArrayArrayExpression
     AtomicExpression
     BooleanExpression
     CallExpression
     CollectionExpression
-    CollectionNumericExpression
     DictExpression
-    Float32Expression
-    Float64Expression
-    Int32Expression
-    Int64Expression
     IntervalExpression
     LocusExpression
     NumericExpression
     SetExpression
-    SetFloat32Expression
-    SetFloat64Expression
-    SetInt32Expression
-    SetInt64Expression
-    SetStringExpression
-    SetSetExpression
     StringExpression
     StructExpression
 
@@ -51,30 +33,9 @@ Expressions
     :show-inheritance:
     :special-members: __getitem__
 
-.. autoclass:: ArrayFloat32Expression
-    :show-inheritance:
-
-.. autoclass:: ArrayFloat64Expression
-    :show-inheritance:
-
-.. autoclass:: ArrayInt32Expression
-    :show-inheritance:
-
-.. autoclass:: ArrayInt64Expression
-    :show-inheritance:
-
 .. autoclass:: ArrayNumericExpression
     :show-inheritance:
     :special-members: __add__, __sub__, __mul__, __div__, __floordiv__, __pow__, __mod__
-
-.. autoclass:: ArrayStringExpression
-    :show-inheritance:
-
-.. autoclass:: ArrayStructExpression
-    :show-inheritance:
-
-.. autoclass:: ArrayArrayExpression
-    :show-inheritance:
 
 .. autoclass:: AtomicExpression
     :show-inheritance:
@@ -89,24 +50,9 @@ Expressions
 .. autoclass:: CollectionExpression
     :show-inheritance:
 
-.. autoclass:: CollectionNumericExpression
-    :show-inheritance:
-
 .. autoclass:: DictExpression
     :show-inheritance:
     :special-members: __getitem__
-
-.. autoclass:: Float32Expression
-    :show-inheritance:
-
-.. autoclass:: Float64Expression
-    :show-inheritance:
-
-.. autoclass:: Int32Expression
-    :show-inheritance:
-
-.. autoclass:: Int64Expression
-    :show-inheritance:
 
 .. autoclass:: IntervalExpression
     :show-inheritance:
@@ -119,24 +65,6 @@ Expressions
     :special-members: __lt__, __le__, __gt__, __ge__, __neg__, __add__, __sub__, __mul__, __div__, __floordiv__, __mod__, __pow__
 
 .. autoclass:: SetExpression
-    :show-inheritance:
-
-.. autoclass:: SetFloat32Expression
-    :show-inheritance:
-
-.. autoclass:: SetFloat64Expression
-    :show-inheritance:
-
-.. autoclass:: SetInt32Expression
-    :show-inheritance:
-
-.. autoclass:: SetInt64Expression
-    :show-inheritance:
-
-.. autoclass:: SetStringExpression
-    :show-inheritance:
-
-.. autoclass:: SetSetExpression
     :show-inheritance:
 
 .. autoclass:: StringExpression

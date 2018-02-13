@@ -1,4 +1,5 @@
 import hail as hl
+import hail.expr.aggregators as agg
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
@@ -8,13 +9,12 @@ from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
 from hail.methods.misc import require_biallelic, require_variant
-import hail.expr.aggregators as agg
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           maf=nullable(oneof(Float32Expression, Float64Expression)),
+           maf=nullable(expr_numeric),
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
@@ -69,24 +69,20 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     ----------
     dataset : :class:`.MatrixTable`
         A variant-keyed :class:`.MatrixTable` containing genotype information.
-
-    maf : :class:`.Float32Expression`, :class:`.Float64Expression` or :obj:`None`
+    maf : :class:`.Expression` of type :class:`TFloat64`, optional
         (optional) expression on `dataset` for the minor allele frequency.
-
     bounded : :obj:`bool`
         Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
         on biologically meaningful values (in the range [0,1]).
-
     min : :obj:`float` or :obj:`None`
         Sample pairs with a ``PI_HAT`` below this value will
         not be included in the output. Must be in :math:`[0,1]`.
-
     max : :obj:`float` or :obj:`None`
         Sample pairs with a ``PI_HAT`` above this value will
         not be included in the output. Must be in :math:`[0,1]`.
 
-    Return
-    ------
+    Returns
+    -------
     :class:`.Table`
         A table which maps pairs of samples to their IBD statistics
     """
@@ -1167,7 +1163,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     .. testsetup::
 
         ds2 = hl.variant_qc(dataset)
-        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
+        ds2 = ds2.select_rows(ds2.locus, ds2.alleles, AF = ds2.variant_qc.AF)
 
     .. doctest::
 
@@ -1805,15 +1801,14 @@ class SplitMulti(object):
     >>> sm = hl.SplitMulti(ds)
     >>> pl = hl.or_missing(
     ...      hl.is_defined(ds.PL),
-    ...      (hl.range(0, 3).map(lambda i: (hl.range(0, ds.PL.length())
+    ...      (hl.range(0, 3).map(lambda i: hl.min(hl.range(0, hl.len(ds.PL))
     ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(i))
-    ...                     .map(lambda j: ds.PL[j])
-    ...                     .min()))))
+    ...                     .map(lambda j: ds.PL[j])))))
     >>> sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
     >>> sm.update_entries(
     ...     GT=hl.downcode(ds.GT, sm.a_index()),
     ...     AD=hl.or_missing(hl.is_defined(ds.AD),
-    ...                     [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
+    ...                     [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
     ...     DP=ds.DP,
     ...     PL=pl,
     ...     GQ=hl.gq_from_pl(pl))
@@ -1872,7 +1867,7 @@ class SplitMulti(object):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`TInt32`
         """
         return construct_reference(
             "aIndex", type=TInt32(), indices=self._ds._row_indices)
@@ -2091,18 +2086,17 @@ hint: Use `split_multi` to split entries with a non-HTS genotype schema.
     sm = SplitMulti(ds)
     pl = hl.or_missing(
         hl.is_defined(ds.PL),
-        (hl.range(0, 3).map(lambda i: (hl.range(0, hl.triangle(ds.alleles.length()))
+        (hl.range(0, 3).map(lambda i: hl.min((hl.range(0, hl.triangle(ds.alleles.length()))
             .filter(
             lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
                                   sm.a_index()) == hl.unphased_diploid_gt_index_call(
                 i))
-            .map(lambda j: ds.PL[j])
-            .min()))))
+            .map(lambda j: ds.PL[j]))))))
     sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
     sm.update_entries(
         GT=hl.downcode(ds.GT, sm.a_index()),
         AD=hl.or_missing(hl.is_defined(ds.AD),
-                         [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
+                         [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
         DP=ds.DP,
         PL=pl,
         GQ=hl.gq_from_pl(pl)
@@ -2512,7 +2506,7 @@ class FilterAlleles(object):
     ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     hl.null(hl.TArray(hl.TInt32())))
     ... fa.annotate_entries(
-    ...     GT = hl.unphased_diploid_gt_index_call(newPL.unique_min_index()),
+    ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
     ...         hl.range(0, fa.new_alleles.length()).map(
@@ -2539,7 +2533,7 @@ class FilterAlleles(object):
         alleles are ``*`` alleles.
     """
 
-    @typecheck_method(filter_expr=ArrayBooleanExpression, keep=bool, left_aligned=bool, keep_star=bool)
+    @typecheck_method(filter_expr=expr_array, keep=bool, left_aligned=bool, keep_star=bool)
     def __init__(self, filter_expr, keep=True, left_aligned=False, keep_star=False):
         source = filter_expr._indices.source
         if not isinstance(source, MatrixTable):
@@ -2548,6 +2542,9 @@ class FilterAlleles(object):
         ds = source
         require_biallelic(ds, 'FilterAlleles')
 
+        if not isinstance(filter_expr.dtype.element_type, TBoolean):
+            raise TypeError("'FilterAlleles' expects 'filter_expr' to be type 'Array[Boolean]', found '{}'"
+                            .format(filter_expr.dtype))
         analyze('FilterAlleles', filter_expr, ds._row_indices)
 
         self._ds = ds
@@ -2717,10 +2714,10 @@ class FilterAlleles(object):
                     hl.unphased_diploid_gt_index_call(newi),
                     lambda newc: ds.PL[hl.call(False, self.new_to_old[newc[0]],
                                                self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
-                lambda unnorm: unnorm - unnorm.min()),
+                lambda unnorm: unnorm - hl.min(unnorm)),
             hl.null(TArray(TInt32())))
         self.annotate_entries(
-            GT=hl.unphased_diploid_gt_index_call(newPL.unique_min_index()),
+            GT=hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
             AD=hl.cond(
                 hl.is_defined(ds.AD),
                 hl.range(0, self.new_alleles.length()).map(
@@ -2806,26 +2803,24 @@ class FilterAlleles(object):
         ds = self._ds
         newPL = hl.cond(
             hl.is_defined(ds.PL),
-            (hl.range(0, hl.triangle(self.new_alleles.length()))
-                .map(lambda newi: (hl.range(0, hl.triangle(ds.alleles.length()))
+            (hl.range(0, hl.triangle(hl.len(self.new_alleles)))
+                .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(ds.alleles)))
                 .filter(lambda oldi: hl.bind(
                 hl.unphased_diploid_gt_index_call(oldi),
                 lambda oldc: hl.call(False,
                                      self.old_to_new[oldc[0]],
                                      self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
-                .map(lambda oldi: ds.PL[oldi])
-                .min()))),
+                .map(lambda oldi: ds.PL[oldi])))),
             hl.null(TArray(TInt32())))
         self.annotate_entries(
             GT=hl.call(False,
                        self.old_to_new[ds.GT[0]],
                        self.old_to_new[ds.GT[1]]), AD=hl.cond(
                 hl.is_defined(ds.AD),
-                (hl.range(0, self.new_alleles.length())
-                    .map(lambda newi: (hl.range(0, ds.alleles.length())
+                (hl.range(0, hl.len(self.new_alleles))
+                    .map(lambda newi: hl.sum(hl.range(0, hl.len(ds.alleles))
                     .filter(lambda oldi: self.old_to_new[oldi] == newi)
-                    .map(lambda oldi: ds.AD[oldi])
-                    .sum()))),
+                    .map(lambda oldi: ds.AD[oldi])))),
                 hl.null(TArray(TInt32()))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),

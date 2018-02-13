@@ -725,11 +725,11 @@ class MatrixTable(object):
         ...    linear_scaled = pl.map(lambda x: 10 ** - (x / 10))
         ...
         ...    # normalize to sum to 1
-        ...    ls_sum = linear_scaled.sum()
+        ...    ls_sum = hl.sum(linear_scaled)
         ...    linear_scaled = linear_scaled.map(lambda x: x / ls_sum)
         ...
         ...    # multiply by [0, 1, 2] and sum
-        ...    return (linear_scaled * [0, 1, 2]).sum()
+        ...    return hl.sum(linear_scaled * [0, 1, 2])
         >>>
         >>> dataset_result = dataset.annotate_entries(dosage = get_dosage(dataset.PL))
 
@@ -838,7 +838,7 @@ class MatrixTable(object):
         --------
         Select existing fields and compute a new one:
 
-        >>> dataset_result = dataset.select_rows(dataset.variant_qc.gqMean,
+        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, dataset.variant_qc.gqMean,
         ...                                      highQualityCases = agg.count_where((dataset.GQ > 20) & (dataset.isCase)))
 
         Notes
@@ -855,7 +855,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.select_rows(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, mean_GQ = agg.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -1252,7 +1252,7 @@ class MatrixTable(object):
 
         Keep entries where the sum of `AD` is greater than 10 and `GQ` is greater than 20:
 
-        >>> dataset_result = dataset.filter_entries((dataset.AD.sum() > 10) & (dataset.GQ > 20))
+        >>> dataset_result = dataset.filter_entries((hl.sum(dataset.AD) > 10) & (dataset.GQ > 20))
 
         Notes
         -----

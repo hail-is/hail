@@ -130,7 +130,7 @@ def count(expr=None):
 
     Returns
     -------
-    :class:`.Int64Expression`
+    :class:`.Expression` of type :class:`TInt64`
         Total number of records.
     """
     if expr is not None:
@@ -159,7 +159,7 @@ def count_where(condition):
 
     Returns
     -------
-    :class:`.Int64Expression`
+    :class:`.Expression` of type :class:`TInt64`
         Total number of records where `condition` is ``True``.
     """
 
@@ -181,7 +181,7 @@ def counter(expr):
     Notes
     -----
     This aggregator method returns a dict expression whose key type is the
-    same type as `expr` and whose value type is :class:`.Int64Expression`.
+    same type as `expr` and whose value type is :class:`.Expression` of type :class:`TInt64`.
     This dict contains a key for each unique value of `expr`, and the value
     is the number of times that key was observed.
 
@@ -251,7 +251,7 @@ def take(expr, n, ordering=None):
     ----------
     expr : :class:`.Expression`
         Expression to store.
-    n : :class:`.Int32Expression`
+    n : :class:`.Expression` of type :class:`TInt32`
         Number of records to take.
     ordering : :class:`.Expression` or function ((arg) -> :class:`.Expression`) or None
         Optional ordering on records.
@@ -383,7 +383,7 @@ def sum(expr):
 
     Returns
     -------
-    :class:`.Int64Expression` or :class:`.Float64Expression`
+    :class:`.Expression` of type :class:`.TInt64` or :class:`.TFloat64`
         Sum of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -446,7 +446,7 @@ def mean(expr):
 
     Returns
     -------
-    :class:`.Float64Expression`
+    :class:`.Expression` of type :class:`TFloat64`
         Mean value of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -524,7 +524,7 @@ def product(expr):
 
     Returns
     -------
-    :class:`.Int64Expression` or :class:`.Float64Expression`
+    :class:`.Expression` of type :class:`.TInt64` or :class:`.TFloat64`
         Product of records of `expr`.
     """
 
@@ -557,7 +557,7 @@ def fraction(predicate):
 
     Returns
     -------
-    :class:`.Float64Expression`
+    :class:`.Expression` of type :class:`TFloat64`
         Fraction of records where `predicate` is ``True``.
     """
     agg = _to_agg(predicate)
@@ -629,7 +629,7 @@ def hardy_weinberg(expr):
     return _agg_func('hardyWeinberg', agg, t)
 
 
-@typecheck(expr=oneof(Aggregable, expr_list, expr_set))
+@typecheck(expr=oneof(Aggregable, expr_array, expr_set))
 def explode(expr):
     """Explode an array or set expression to aggregate the elements of all records.
 
@@ -789,7 +789,7 @@ def inbreeding(expr, prior):
     ----------
     expr : :class:`.CallExpression`
         Call expression.
-    prior : :class:`.Float64Expression`
+    prior : :class:`.Expression` of type :class:`TFloat64`
         Alternate allele frequency prior.
 
     Returns
@@ -820,7 +820,7 @@ def inbreeding(expr, prior):
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
-@typecheck(expr=oneof(Aggregable, expr_call), alleles=expr_list)
+@typecheck(expr=oneof(Aggregable, expr_call), alleles=expr_array)
 def call_stats(expr, alleles):
     """Compute useful call statistics.
 
