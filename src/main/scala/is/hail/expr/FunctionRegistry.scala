@@ -1003,7 +1003,7 @@ object FunctionRegistry {
     })(stringHr, int32Hr, locusHr(GR))
   registerDependent("Interval", () => {
     val t = TT.t
-    (x: Annotation, y: Annotation) => Interval(x, y)
+    (x: Annotation, y: Annotation) => Interval(x, y, true, false)
   })(TTHr, TTHr, intervalHr(TTHr))
 
   val hweStruct = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())

@@ -1,6 +1,6 @@
 package is.hail.expr.types
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeOrdering}
+import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.utils._
 
@@ -37,7 +37,9 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
   val representation: TStruct = {
     val rep = TStruct(
       "start" -> pointType,
-      "end" -> pointType)
+      "end" -> pointType,
+      "includeStart" -> TBooleanRequired,
+      "includeEnd" -> TBooleanRequired)
     rep.setRequired(required).asInstanceOf[TStruct]
   }
 
@@ -47,4 +49,13 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
   }
 
   override def subst() = TInterval(pointType.subst())
+
+  def loadStart(region: Region, off: Long): Long = representation.loadField(region, off, 0)
+
+  def loadStart(rv: RegionValue): Long = loadStart(rv.region, rv.offset)
+
+  def loadEnd(region: Region, off: Long): Long = representation.loadField(region, off, 1)
+
+  def loadEnd(rv: RegionValue): Long = loadEnd(rv.region, rv.offset)
+
 }

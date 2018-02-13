@@ -283,7 +283,7 @@ class ExportVCFSuite extends SparkSuite {
       val callSetFields = schema.fields.filter(fd => fd.typ == TSet(TCall())).map(_.name)
 
       val callAnnots = callFields.map(name => s"g.$name = let c = g.$name in " +
-        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased()) Call(false, 0, 0) else c")
+        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(false, 0, 0) else c")
 
       val callContainerAnnots = (callArrayFields ++ callSetFields).map(name => s"g.$name = " +
         s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(false, 0, 0) else c)")

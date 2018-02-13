@@ -527,6 +527,8 @@ class RegionValueBuilder(var region: Region) {
           startStruct()
           addAnnotation(t.pointType, i.start)
           addAnnotation(t.pointType, i.end)
+          addBoolean(i.includeStart)
+          addBoolean(i.includeEnd)
           endStruct()
       }
 
