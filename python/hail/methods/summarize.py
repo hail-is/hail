@@ -1,7 +1,7 @@
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.utils.java import handle_py4j
-from hail.utils import Summary
+from hail.utils.summary import Summary
 
 @handle_py4j
 @typecheck(ds=MatrixTable)
@@ -14,7 +14,7 @@ def summarize(ds):
 
     Examples
     --------
-    >>> s = methods.summarize(dataset)
+    >>> s = hl.summarize(dataset)
     >>> print(s.contigs)
     >>> print('call rate is %.2f' % s.call_rate)
     >>> s.report()

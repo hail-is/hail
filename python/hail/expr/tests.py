@@ -2,16 +2,18 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail.expr import *
-from hail import *
+import hail as hl
+from hail import Struct, Table, Locus
+import hail.expr.aggregators as agg
+from hail.expr.types import *
 
 
 def setUpModule():
-    init(master='local[2]', min_block_size=0)
+    hl.init(master='local[2]', min_block_size=0)
 
 
 def tearDownModule():
-    stop()
+    hl.stop()
 
 
 class Tests(unittest.TestCase):
@@ -78,7 +80,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(id(reqint), id(reqint2))
 
     def test_floating_point(self):
-        self.assertEqual(eval_expr(1.1e-15), 1.1e-15)
+        self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
     def test_repr(self):
         tl = TLocus()
@@ -103,20 +105,20 @@ class Tests(unittest.TestCase):
             self.assertEqual(eval(repr(typ)), typ)
 
     def test_matches(self):
-        self.assertEqual(eval_expr('\d+'), '\d+')
-        string = functions.capture('12345')
-        self.assertTrue(eval_expr(string.matches('\d+')))
-        self.assertFalse(eval_expr(string.matches(r'\\d+')))
+        self.assertEqual(hl.eval_expr('\d+'), '\d+')
+        string = hl.capture('12345')
+        self.assertTrue(hl.eval_expr(string.matches('\d+')))
+        self.assertFalse(hl.eval_expr(string.matches(r'\\d+')))
 
     def test_cond(self):
-        self.assertEqual(eval_expr('A' + functions.cond(True, 'A', 'B')), 'AA')
+        self.assertEqual(hl.eval_expr('A' + hl.cond(True, 'A', 'B')), 'AA')
 
     def test_aggregators(self):
         table = Table.range(10)
         r = table.aggregate(x=agg.count(),
                             y=agg.count_where(table.idx % 2 == 0),
                             z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
-                            arr_sum=agg.array_sum([1, 2, functions.null(TInt32())]))
+                            arr_sum=agg.array_sum([1, 2, hl.null(TInt32())]))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
@@ -135,74 +137,74 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert2)
 
     def test_dtype(self):
-        i32 = functions.capture(5)
+        i32 = hl.capture(5)
         self.assertEqual(i32.dtype, TInt32())
 
-        str_exp = functions.capture('5')
+        str_exp = hl.capture('5')
         self.assertEqual(str_exp.dtype, TString())
 
     def test_switch(self):
-        x = functions.capture('1')
-        na = functions.null(TInt32())
+        x = hl.capture('1')
+        na = hl.null(TInt32())
 
-        expr1 = (functions.switch(x)
+        expr1 = (hl.switch(x)
             .when('123', 5)
             .when('1', 6)
             .when('0', 2)
             .or_missing())
-        self.assertEqual(eval_expr(expr1), 6)
+        self.assertEqual(hl.eval_expr(expr1), 6)
 
-        expr2 = (functions.switch(x)
+        expr2 = (hl.switch(x)
             .when('123', 5)
             .when('0', 2)
             .or_missing())
-        self.assertEqual(eval_expr(expr2), None)
+        self.assertEqual(hl.eval_expr(expr2), None)
 
-        expr3 = (functions.switch(x)
+        expr3 = (hl.switch(x)
             .when('123', 5)
             .when('0', 2)
             .default(100))
-        self.assertEqual(eval_expr(expr3), 100)
+        self.assertEqual(hl.eval_expr(expr3), 100)
 
-        expr4 = (functions.switch(na)
+        expr4 = (hl.switch(na)
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(functions.null(TInt32()), 3)  # NA != NA
+            .when(hl.null(TInt32()), 3)  # NA != NA
             .default(4))
-        self.assertEqual(eval_expr(expr4), None)
+        self.assertEqual(hl.eval_expr(expr4), None)
 
-        expr5 = (functions.switch(na)
+        expr5 = (hl.switch(na)
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(functions.null(TInt32()), 3)  # NA != NA
+            .when(hl.null(TInt32()), 3)  # NA != NA
             .when_missing(-1)
             .default(4))
-        self.assertEqual(eval_expr(expr5), -1)
+        self.assertEqual(hl.eval_expr(expr5), -1)
 
     def test_case(self):
         def make_case(x):
-            x = functions.capture(x)
-            return (functions.case()
-            .when(x == 6, 'A')
-            .when(x % 3 == 0, 'B')
-            .when(x == 5, 'C')
-            .when(x < 2, 'D')
-            .or_missing())
+            x = hl.capture(x)
+            return (hl.case()
+                .when(x == 6, 'A')
+                .when(x % 3 == 0, 'B')
+                .when(x == 5, 'C')
+                .when(x < 2, 'D')
+                .or_missing())
 
-        self.assertEqual(eval_expr(make_case(6)), 'A')
-        self.assertEqual(eval_expr(make_case(12)), 'B')
-        self.assertEqual(eval_expr(make_case(5)), 'C')
-        self.assertEqual(eval_expr(make_case(-1)), 'D')
-        self.assertEqual(eval_expr(make_case(2)), None)
+        self.assertEqual(hl.eval_expr(make_case(6)), 'A')
+        self.assertEqual(hl.eval_expr(make_case(12)), 'B')
+        self.assertEqual(hl.eval_expr(make_case(5)), 'C')
+        self.assertEqual(hl.eval_expr(make_case(-1)), 'D')
+        self.assertEqual(hl.eval_expr(make_case(2)), None)
 
     def test_struct_ops(self):
-        s = functions.capture(Struct(f1=1, f2=2, f3=3))
+        s = hl.capture(Struct(f1=1, f2=2, f3=3))
 
         def assert_typed(expr, result, dtype):
             self.assertEqual(expr.dtype, dtype)
-            r, t = eval_expr_typed(expr)
+            r, t = hl.eval_expr_typed(expr)
             self.assertEqual(t, dtype)
             self.assertEqual(result, r)
 
@@ -243,51 +245,51 @@ class Tests(unittest.TestCase):
                      TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
 
     def test_iter(self):
-        a = functions.capture([1, 2, 3])
-        self.assertRaises(TypeError, lambda: eval_expr(list(a)))
+        a = hl.capture([1, 2, 3])
+        self.assertRaises(TypeError, lambda: hl.eval_expr(list(a)))
 
     def test_str_ops(self):
-        s = functions.capture("123")
-        self.assertEqual(eval_expr(s.to_int32()), 123)
+        s = hl.capture("123")
+        self.assertEqual(hl.eval_expr(s.to_int32()), 123)
 
-        s = functions.capture("123123123123")
-        self.assertEqual(eval_expr(s.to_int64()), 123123123123)
+        s = hl.capture("123123123123")
+        self.assertEqual(hl.eval_expr(s.to_int64()), 123123123123)
 
-        s = functions.capture("1.5")
-        self.assertEqual(eval_expr(s.to_float32()), 1.5)
-        self.assertEqual(eval_expr(s.to_float64()), 1.5)
+        s = hl.capture("1.5")
+        self.assertEqual(hl.eval_expr(s.to_float32()), 1.5)
+        self.assertEqual(hl.eval_expr(s.to_float64()), 1.5)
 
-        s1 = functions.capture('true')
-        s2 = functions.capture('True')
-        s3 = functions.capture('TRUE')
+        s1 = hl.capture('true')
+        s2 = hl.capture('True')
+        s3 = hl.capture('TRUE')
 
-        s4 = functions.capture('false')
-        s5 = functions.capture('False')
-        s6 = functions.capture('FALSE')
+        s4 = hl.capture('false')
+        s5 = hl.capture('False')
+        s6 = hl.capture('FALSE')
 
-        self.assertTrue(eval_expr(s1.to_boolean()))
-        self.assertTrue(eval_expr(s2.to_boolean()))
-        self.assertTrue(eval_expr(s3.to_boolean()))
+        self.assertTrue(hl.eval_expr(s1.to_boolean()))
+        self.assertTrue(hl.eval_expr(s2.to_boolean()))
+        self.assertTrue(hl.eval_expr(s3.to_boolean()))
 
-        self.assertFalse(eval_expr(s4.to_boolean()))
-        self.assertFalse(eval_expr(s5.to_boolean()))
-        self.assertFalse(eval_expr(s6.to_boolean()))
+        self.assertFalse(hl.eval_expr(s4.to_boolean()))
+        self.assertFalse(hl.eval_expr(s5.to_boolean()))
+        self.assertFalse(hl.eval_expr(s6.to_boolean()))
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
-        self.assertEqual((expected, expected_type), eval_expr_typed(expr))
+        self.assertEqual((expected, expected_type), hl.eval_expr_typed(expr))
 
     def test_division(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int64_4 = functions.capture(4).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int64_4 = hl.capture(4).to_int64()
         int64_4s = int32_4s.map(lambda x: x.to_int64())
-        float32_4 = functions.capture(4).to_float32()
+        float32_4 = hl.capture(4).to_float32()
         float32_4s = int32_4s.map(lambda x: x.to_float32())
-        float64_4 = functions.capture(4).to_float64()
+        float64_4 = hl.capture(4).to_float64()
         float64_4s = int32_4s.map(lambda x: x.to_float64())
 
         expected = [0.5, 1.0, 2.0, 4.0, None]
@@ -354,17 +356,17 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 / float64_4s, expected, TArray(TFloat64()))
 
     def test_floor_division(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
+        float32_3 = hl.capture(3).to_float32()
         float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
+        float64_3 = hl.capture(3).to_float64()
         float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [0, 1, 2, 5, None]
@@ -431,17 +433,17 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 // float64_3s, expected, TArray(TFloat64()))
 
     def test_addition(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
+        float32_3 = hl.capture(3).to_float32()
         float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
+        float64_3 = hl.capture(3).to_float64()
         float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [5, 7, 11, 19, None]
@@ -508,17 +510,17 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 + float64_3s, expected, TArray(TFloat64()))
 
     def test_subtraction(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
+        float32_3 = hl.capture(3).to_float32()
         float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
+        float64_3 = hl.capture(3).to_float64()
         float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [-1, 1, 5, 13, None]
@@ -585,17 +587,17 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 - float64_3s, expected, TArray(TFloat64()))
 
     def test_multiplication(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
+        float32_3 = hl.capture(3).to_float32()
         float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
+        float64_3 = hl.capture(3).to_float64()
         float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [6, 12, 24, 48, None]
@@ -662,17 +664,17 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 * float64_3s, expected, TArray(TFloat64()))
 
     def test_exponentiation(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
+        float32_3 = hl.capture(3).to_float32()
         float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
+        float64_3 = hl.capture(3).to_float64()
         float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [8, 64, 512, 4096, None]
@@ -739,17 +741,17 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 ** float64_3s, expected, TArray(TFloat64()))
 
     def test_modulus(self):
-        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
+        float32_3 = hl.capture(3).to_float32()
         float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
+        float64_3 = hl.capture(3).to_float64()
         float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [2, 1, 2, 1, None]
@@ -816,113 +818,118 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 % float64_3s, expected, TArray(TFloat64()))
 
     def test_allele_methods(self):
-        self.assertTrue(eval_expr(functions.is_transition("A", "G")))
-        self.assertFalse(eval_expr(functions.is_transversion("A", "G")))
-        self.assertTrue(eval_expr(functions.is_transversion("A", "T")))
-        self.assertFalse(eval_expr(functions.is_transition("A", "T")))
-        self.assertTrue(eval_expr(functions.is_snp("A", "T")))
-        self.assertTrue(eval_expr(functions.is_snp("A", "G")))
-        self.assertTrue(eval_expr(functions.is_snp("C", "G")))
-        self.assertTrue(eval_expr(functions.is_snp("CC", "CG")))
-        self.assertTrue(eval_expr(functions.is_snp("AT", "AG")))
-        self.assertTrue(eval_expr(functions.is_snp("ATCCC", "AGCCC")))
-        self.assertTrue(eval_expr(functions.is_mnp("ACTGAC", "ATTGTT")))
-        self.assertTrue(eval_expr(functions.is_mnp("CA", "TT")))
-        self.assertTrue(eval_expr(functions.is_insertion("A", "ATGC")))
-        self.assertTrue(eval_expr(functions.is_insertion("ATT", "ATGCTT")))
-        self.assertTrue(eval_expr(functions.is_deletion("ATGC", "A")))
-        self.assertTrue(eval_expr(functions.is_deletion("GTGTA", "GTA")))
-        self.assertTrue(eval_expr(functions.is_indel("A", "ATGC")))
-        self.assertTrue(eval_expr(functions.is_indel("ATT", "ATGCTT")))
-        self.assertTrue(eval_expr(functions.is_indel("ATGC", "A")))
-        self.assertTrue(eval_expr(functions.is_indel("GTGTA", "GTA")))
-        self.assertTrue(eval_expr(functions.is_complex("CTA", "ATTT")))
-        self.assertTrue(eval_expr(functions.is_complex("A", "TATGC")))
-        self.assertTrue(eval_expr(functions.is_star("ATC", "*")))
-        self.assertTrue(eval_expr(functions.is_star("A", "*")))
-        self.assertTrue(eval_expr(functions.is_star("*", "ATC")))
-        self.assertTrue(eval_expr(functions.is_star("*", "A")))
+        self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
+        self.assertFalse(hl.eval_expr(hl.is_transversion("A", "G")))
+        self.assertTrue(hl.eval_expr(hl.is_transversion("A", "T")))
+        self.assertFalse(hl.eval_expr(hl.is_transition("A", "T")))
+        self.assertTrue(hl.eval_expr(hl.is_snp("A", "T")))
+        self.assertTrue(hl.eval_expr(hl.is_snp("A", "G")))
+        self.assertTrue(hl.eval_expr(hl.is_snp("C", "G")))
+        self.assertTrue(hl.eval_expr(hl.is_snp("CC", "CG")))
+        self.assertTrue(hl.eval_expr(hl.is_snp("AT", "AG")))
+        self.assertTrue(hl.eval_expr(hl.is_snp("ATCCC", "AGCCC")))
+        self.assertTrue(hl.eval_expr(hl.is_mnp("ACTGAC", "ATTGTT")))
+        self.assertTrue(hl.eval_expr(hl.is_mnp("CA", "TT")))
+        self.assertTrue(hl.eval_expr(hl.is_insertion("A", "ATGC")))
+        self.assertTrue(hl.eval_expr(hl.is_insertion("ATT", "ATGCTT")))
+        self.assertTrue(hl.eval_expr(hl.is_deletion("ATGC", "A")))
+        self.assertTrue(hl.eval_expr(hl.is_deletion("GTGTA", "GTA")))
+        self.assertTrue(hl.eval_expr(hl.is_indel("A", "ATGC")))
+        self.assertTrue(hl.eval_expr(hl.is_indel("ATT", "ATGCTT")))
+        self.assertTrue(hl.eval_expr(hl.is_indel("ATGC", "A")))
+        self.assertTrue(hl.eval_expr(hl.is_indel("GTGTA", "GTA")))
+        self.assertTrue(hl.eval_expr(hl.is_complex("CTA", "ATTT")))
+        self.assertTrue(hl.eval_expr(hl.is_complex("A", "TATGC")))
+        self.assertTrue(hl.eval_expr(hl.is_star("ATC", "*")))
+        self.assertTrue(hl.eval_expr(hl.is_star("A", "*")))
+        self.assertTrue(hl.eval_expr(hl.is_star("*", "ATC")))
+        self.assertTrue(hl.eval_expr(hl.is_star("*", "A")))
 
     def test_hamming(self):
-        self.assertEqual(eval_expr(functions.hamming('A', 'T')), 1)
-        self.assertEqual(eval_expr(functions.hamming('AAAAA', 'AAAAT')), 1)
-        self.assertEqual(eval_expr(functions.hamming('abcde', 'edcba')), 4)
+        self.assertEqual(hl.eval_expr(hl.hamming('A', 'T')), 1)
+        self.assertEqual(hl.eval_expr(hl.hamming('AAAAA', 'AAAAT')), 1)
+        self.assertEqual(hl.eval_expr(hl.hamming('abcde', 'edcba')), 4)
 
     def test_gp_dosage(self):
-        self.assertAlmostEqual(eval_expr(functions.gp_dosage([1.0, 0.0, 0.0])), 0.0)
-        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 1.0, 0.0])), 1.0)
-        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.0, 1.0])), 2.0)
-        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.5, 0.5, 0.0])), 0.5)
-        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.5, 0.5])), 1.5)
+        self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([1.0, 0.0, 0.0])), 0.0)
+        self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([0.0, 1.0, 0.0])), 1.0)
+        self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([0.0, 0.0, 1.0])), 2.0)
+        self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([0.5, 0.5, 0.0])), 0.5)
+        self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([0.0, 0.5, 0.5])), 1.5)
 
     def test_call(self):
-        c2_homref = functions.capture(Call([0, 0]))
-        c2_het = functions.capture(Call([1, 0], phased=True))
-        c2_homvar = functions.capture(Call([1, 1]))
-        c2_hetvar = functions.capture(Call([2, 1], phased=True))
-        c1 = functions.capture(Call([1]))
-        c0 = functions.capture(Call([]))
-        cNull = functions.capture(functions.null(TCall()))
-        
+        from hail import Call
+        c2_homref = hl.capture(Call([0, 0]))
+        c2_het = hl.capture(Call([1, 0], phased=True))
+        c2_homvar = hl.capture(Call([1, 1]))
+        c2_hetvar = hl.capture(Call([2, 1], phased=True))
+        c1 = hl.capture(Call([1]))
+        c0 = hl.capture(Call([]))
+        cNull = hl.capture(hl.null(TCall()))
+
         self.check_expr(c2_homref.ploidy, 2, TInt32())
         self.check_expr(c2_homref[0], 0, TInt32())
         self.check_expr(c2_homref[1], 0, TInt32())
         self.check_expr(c2_homref.phased, False, TBoolean())
         self.check_expr(c2_homref.is_hom_ref(), True, TBoolean())
-        
+
         self.check_expr(c2_het.ploidy, 2, TInt32())
         self.check_expr(c2_het[0], 1, TInt32())
         self.check_expr(c2_het[1], 0, TInt32())
         self.check_expr(c2_het.phased, True, TBoolean())
         self.check_expr(c2_het.is_het(), True, TBoolean())
-        
+
         self.check_expr(c2_homvar.ploidy, 2, TInt32())
         self.check_expr(c2_homvar[0], 1, TInt32())
         self.check_expr(c2_homvar[1], 1, TInt32())
         self.check_expr(c2_homvar.phased, False, TBoolean())
         self.check_expr(c2_homvar.is_hom_var(), True, TBoolean())
         self.check_expr(c2_homvar.unphased_diploid_gt_index(), 2, TInt32())
-        
+
         self.check_expr(c2_hetvar.ploidy, 2, TInt32())
         self.check_expr(c2_hetvar[0], 2, TInt32())
         self.check_expr(c2_hetvar[1], 1, TInt32())
         self.check_expr(c2_hetvar.phased, True, TBoolean())
         self.check_expr(c2_hetvar.is_hom_var(), False, TBoolean())
         self.check_expr(c2_hetvar.is_het_nonref(), True, TBoolean())
-        
+
         self.check_expr(c1.ploidy, 1, TInt32())
         self.check_expr(c1[0], 1, TInt32())
         self.check_expr(c1.phased, False, TBoolean())
         self.check_expr(c1.is_hom_var(), True, TBoolean())
-        
+
         self.check_expr(c0.ploidy, 0, TInt32())
         self.check_expr(c0.phased, False, TBoolean())
         self.check_expr(c0.is_hom_var(), False, TBoolean())
-        
+
         self.check_expr(cNull.ploidy, None, TInt32())
         self.check_expr(cNull[0], None, TInt32())
         self.check_expr(cNull.phased, None, TBoolean())
         self.check_expr(cNull.is_hom_var(), None, TBoolean())
 
-        call_expr = functions.call(True, 1, 2)
+        call_expr = hl.call(True, 1, 2)
         self.check_expr(call_expr[0], 1, TInt32())
         self.check_expr(call_expr[1], 2, TInt32())
         self.check_expr(call_expr.ploidy, 2, TInt32())
 
-        a0 = functions.capture(1)
+        a0 = hl.capture(1)
         a1 = 2
-        phased = functions.capture(True)
-        call_expr = functions.call(phased, a0, a1)
+        phased = hl.capture(True)
+        call_expr = hl.call(phased, a0, a1)
         self.check_expr(call_expr[0], 1, TInt32())
         self.check_expr(call_expr[1], 2, TInt32())
         self.check_expr(call_expr.ploidy, 2, TInt32())
 
-        call_expr = functions.parse_call("1|2")
+        call_expr = hl.parse_call("1|2")
         self.check_expr(call_expr[0], 1, TInt32())
         self.check_expr(call_expr[1], 2, TInt32())
         self.check_expr(call_expr.ploidy, 2, TInt32())
 
-        call_expr = functions.unphased_diploid_gt_index_call(2)
+        call_expr = hl.unphased_diploid_gt_index_call(2)
         self.check_expr(call_expr[0], 1, TInt32())
         self.check_expr(call_expr[1], 1, TInt32())
         self.check_expr(call_expr.ploidy, 2, TInt32())
+
+    def test_parse_variant(self):
+        self.assertEqual(hl.eval_expr(hl.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),
+                                                                           alleles=['A', 'T']))

@@ -4,13 +4,13 @@ import unittest
 
 from hail.utils import *
 from .linkedlist import LinkedList
-from hail import *
+import hail as hl
 
 def setUpModule():
-    init(master='local[2]', min_block_size=0)
+    hl.init(master='local[2]', min_block_size=0)
 
 def tearDownModule():
-    stop()
+    hl.stop()
 
 class Tests(unittest.TestCase):
     def test_hadoop_methods(self):

@@ -1,3 +1,4 @@
+import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
@@ -7,7 +8,6 @@ from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
 from hail.methods.misc import require_biallelic, require_variant
-from hail.expr import functions
 import hail.expr.aggregators as agg
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
@@ -31,13 +31,13 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     To calculate a full IBD matrix, using minor allele frequencies computed
     from the dataset itself:
 
-    >>> methods.ibd(dataset)
+    >>> hl.ibd(dataset)
 
     To calculate an IBD matrix containing only pairs of samples with
     ``PI_HAT`` in :math:`[0.2, 0.9]`, using minor allele frequencies stored in
     the row field `panel_maf`:
 
-    >>> methods.ibd(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
+    >>> hl.ibd(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
 
     Notes
     -----
@@ -123,7 +123,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
     Remove samples where imputed sex does not equal reported sex:
 
-    >>> imputed_sex = methods.impute_sex(ds.GT)
+    >>> imputed_sex = hl.impute_sex(ds.GT)
     >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
 
     Notes
@@ -202,11 +202,9 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     if aaf_threshold < 0.0 or aaf_threshold > 1.0:
         raise FatalError("Invalid argument for `aaf_threshold`. Must be in range [0, 1].")
 
-    f = functions
-
     ds = call._indices.source
     ds, _ = ds._process_joins(call)
-    ds = ds.annotate_entries(call = call)
+    ds = ds.annotate_entries(call=call)
     ds = require_biallelic(ds, 'impute_sex')
     if (aaf is None):
         ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.alleles).AF[1])
@@ -222,14 +220,15 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds[aaf]))
     kt = ds.select_cols(
         *ds.col_key,
-        is_female=f.cond(ds.ib.f_stat < female_threshold,
-                         True,
-                         f.cond(ds.ib.f_stat > male_threshold,
-                                False,
-                                f.null(TBoolean()))),
+        is_female=hl.cond(ds.ib.f_stat < female_threshold,
+                          True,
+                          hl.cond(ds.ib.f_stat > male_threshold,
+                                  False,
+                                  hl.null(TBoolean()))),
         **ds.ib).cols_table()
 
     return kt
+
 
 @typecheck(dataset=MatrixTable,
            ys=oneof(expr_numeric, listof(expr_numeric)),
@@ -244,7 +243,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     Examples
     --------
 
-    >>> dataset_result = methods.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
+    >>> dataset_result = hl.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
     ...                                 covariates=[dataset.pheno.age, dataset.pheno.isFemale])
 
     Warning
@@ -362,7 +361,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     Run the logistic regression Wald test per variant using a Boolean
     phenotype and two covariates stored in column-indexed fields:
 
-    >>> ds_result = methods.logreg(
+    >>> ds_result = hl.logreg(
     ...     dataset,
     ...     test='wald',
     ...     y=dataset.pheno.isCase,
@@ -608,9 +607,18 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     Compute a :class:`.KinshipMatrix`, and use it to test variants for
     association using a linear mixed model:
 
-    >>> ds = methods.read_matrix_table("data/example_lmmreg.vds")
-    >>> kinship_matrix = methods.rrm(ds.filter_rows(ds.useInKinship)['GT'])
-    >>> lmm_ds = methods.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
+    .. testsetup::
+
+        lmmreg_ds = hl.variant_qc(hl.split_multi_hts(hl.import_vcf('data/sample.vcf.bgz')))
+        lmmreg_tsv = hl.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
+        lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
+        lmmreg_ds = lmmreg_ds.annotate_rows(useInKinship = lmmreg_ds.variant_qc.AF > 0.05)
+        lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
+
+
+    >>> ds = hl.read_matrix_table("data/example_lmmreg.vds")
+    >>> kinship_matrix = hl.rrm(ds.filter_rows(ds.useInKinship)['GT'])
+    >>> lmm_ds = hl.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
 
     Notes
     -----
@@ -1103,13 +1111,24 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    >>> ds = methods.read_matrix_table('data/example_burden.vds')
-    >>> skat_table = methods.skat(ds,
-    ...                           key_expr=ds.gene,
-    ...                           weight_expr=ds.weight,
-    ...                           y=ds.burden.pheno,
-    ...                           x=ds.GT.num_alt_alleles(),
-    ...                           covariates=[ds.burden.cov1, ds.burden.cov2])
+    .. testsetup::
+
+        burden_ds = hl.import_vcf('data/example_burden.vcf')
+        burden_kt = hl.import_table('data/example_burden.tsv', key='Sample', impute=True)
+        burden_ds = burden_ds.annotate_cols(burden = burden_kt[burden_ds.s])
+        burden_ds = burden_ds.annotate_rows(weight = burden_ds.locus.position.to_float64())
+        burden_ds = hl.variant_qc(burden_ds)
+        genekt = hl.import_interval_list('data/gene.interval_list')
+        burden_ds = burden_ds.annotate_rows(gene = genekt[burden_ds.locus])
+        burden_ds.write('data/example_burden.vds', overwrite=True)
+
+    >>> ds = hl.read_matrix_table('data/example_burden.vds')
+    >>> skat_table = hl.skat(ds,
+    ...                      key_expr=ds.gene,
+    ...                      weight_expr=ds.weight,
+    ...                      y=ds.burden.pheno,
+    ...                      x=ds.GT.num_alt_alleles(),
+    ...                      covariates=[ds.burden.cov1, ds.burden.cov2])
 
     .. caution::
 
@@ -1147,12 +1166,12 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
     .. testsetup::
 
-        ds2 = methods.variant_qc(dataset)
+        ds2 = hl.variant_qc(dataset)
         ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
 
     .. doctest::
 
-        >>> functions.dbeta(ds2.AF.min(1 - ds2.AF),
+        >>> hl.dbeta(ds2.AF.min(1 - ds2.AF),
         ...                 1.0, 25.0) ** 2
 
     In the logistic case, the response `y` must either be numeric (with all
@@ -1275,7 +1294,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     Examples
     --------
 
-    >>> eigenvalues, scores, loadings = methods.hwe_normalized_pca(dataset, k=5)
+    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset, k=5)
 
     Notes
     -----
@@ -1301,7 +1320,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     """
     dataset = require_biallelic(dataset, 'hwe_normalized_pca')
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
-                                    n_called=agg.count_where(functions.is_defined(dataset.GT)))
+                                    n_called=agg.count_where(hl.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
 
     n_variants = dataset.count_rows()
@@ -1310,12 +1329,12 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    entry_expr = functions.bind(
+    entry_expr = hl.bind(
         dataset.AC / dataset.n_called,
-        lambda mean_gt: functions.cond(functions.is_defined(dataset.GT),
-                                       (dataset.GT.num_alt_alleles() - mean_gt) /
-                                       functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                       0))
+        lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
+                                (dataset.GT.num_alt_alleles() - mean_gt) /
+                                hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
+                                0))
     result = pca(entry_expr,
                  k,
                  compute_loadings,
@@ -1337,7 +1356,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Compute the top 2 principal component scores and eigenvalues of the call missingness matrix.
 
-    >>> eigenvalues, scores, _ = methods.pca(functions.is_defined(dataset.GT).to_int32(),
+    >>> eigenvalues, scores, _ = hl.pca(hl.is_defined(dataset.GT).to_int32(),
     ...                                      k=2)
 
     Notes
@@ -1474,18 +1493,18 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     components to correct for ancestral populations, and a minimum minor
     allele frequency filter of 0.01:
 
-    >>> rel = methods.pc_relate(dataset, 10, 0.01)
+    >>> rel = hl.pc_relate(dataset, 10, 0.01)
 
     Calculate values as above, but when performing distributed matrix
     multiplications use a matrix-block-size of 1024 by 1024.
 
-    >>> rel = methods.pc_relate(dataset, 10, 0.01, 1024)
+    >>> rel = hl.pc_relate(dataset, 10, 0.01, 1024)
 
     Calculate values as above, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     filtering using :meth:`.Table.filter`.
 
-    >>> rel = methods.pc_relate(dataset, 5, 0.01, min_kinship=0.1)
+    >>> rel = hl.pc_relate(dataset, 5, 0.01, min_kinship=0.1)
 
     The traditional estimator for kinship between a pair of individuals
     :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
@@ -1615,7 +1634,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     implementation is available in the `GENESIS Bioconductor package
     <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
 
-    :func:`methods.pc_relate` differs from the reference
+    :func:`.pc_relate` differs from the reference
     implementation in a couple key ways:
 
      - the principal components analysis does not use an unrelated set of
@@ -1728,7 +1747,7 @@ def sample_rows(dataset, fraction, seed=1):
     Examples
     --------
 
-    >>> small_dataset = methods.sample_rows(dataset, 0.01)
+    >>> small_dataset = hl.sample_rows(dataset, 0.01)
 
     Notes
     -----
@@ -1753,37 +1772,37 @@ def sample_rows(dataset, fraction, seed=1):
 
     return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
 
+
 class SplitMulti(object):
     """Split multiallelic variants.
 
     Example
     -------
 
-    :func:`.methods.split_multi_hts`, which splits
+    :func:`.split_multi_hts`, which splits
     multiallelic variants for the HTS genotype schema and updates
     the genotype annotations by downcoding the genotype, is
     implemented as:
 
-    >>> f = functions
-    >>> sm = methods.SplitMulti(ds)
-    >>> pl = f.or_missing(
-    ...      f.is_defined(ds.PL),
-    ...      (f.range(0, 3).map(lambda i: (f.range(0, ds.PL.length())
-    ...                                    .filter(lambda j: f.downcode(f.unphased_diploid_gt_index_call(j), sm.a_index()) == f.unphased_diploid_gt_index_call(i))
-    ...                                    .map(lambda j: ds.PL[j])
-    ...                                    .min()))))
+    >>> sm = hl.SplitMulti(ds)
+    >>> pl = hl.or_missing(
+    ...      hl.is_defined(ds.PL),
+    ...      (hl.range(0, 3).map(lambda i: (hl.range(0, ds.PL.length())
+    ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(i))
+    ...                     .map(lambda j: ds.PL[j])
+    ...                     .min()))))
     >>> sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
     >>> sm.update_entries(
-    ...     GT=f.downcode(ds.GT, sm.a_index()),
-    ...     AD=f.or_missing(f.is_defined(ds.AD),
+    ...     GT=hl.downcode(ds.GT, sm.a_index()),
+    ...     AD=hl.or_missing(hl.is_defined(ds.AD),
     ...                     [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
     ...     DP=ds.DP,
     ...     PL=pl,
-    ...     GQ=f.gq_from_pl(pl))
+    ...     GQ=hl.gq_from_pl(pl))
     >>> split_ds = sm.result()
     """
+
     @handle_py4j
-    @record_method
     @typecheck_method(ds=MatrixTable,
                       keep_star=bool,
                       left_aligned=bool)
@@ -1889,7 +1908,7 @@ class SplitMulti(object):
             self._entry_fields = {}
 
         base, _ = self._ds._process_joins(*(
-            self._row_fields.values() + self._entry_fields.values()))
+                self._row_fields.values() + self._entry_fields.values()))
 
         annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
                                   for k, v in self._row_fields.iteritems()])
@@ -1903,6 +1922,7 @@ class SplitMulti(object):
             self._keep_star,
             self._left_aligned)
         return MatrixTable(jvds)
+
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
@@ -1926,7 +1946,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     Examples
     --------
 
-    >>> methods.split_multi_hts(dataset).write('output/split.vds')
+    >>> hl.split_multi_hts(dataset).write('output/split.vds')
 
     Notes
     -----
@@ -1991,7 +2011,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     field `aIndex` can be used to select the value corresponding to the split
     allele's position:
 
-    >>> ds = methods.split_multi_hts(dataset)
+    >>> ds = hl.split_multi_hts(dataset)
     >>> ds = ds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
 
     VCFs split by Hail and exported to new VCFs may be
@@ -2005,9 +2025,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     possible to use annotate_variants_expr to remap these
     values. Here is an example:
 
-    >>> ds = methods.split_multi_hts(dataset)
+    >>> ds = hl.split_multi_hts(dataset)
     >>> ds = ds.annotate_rows(info = Struct(AC=ds.info.AC[ds.aIndex - 1], **ds.info)) # doctest: +SKIP
-    >>> methods.export_vcf(ds, 'output/export.vcf') # doctest: +SKIP
+    >>> hl.export_vcf(ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 
@@ -2050,23 +2070,24 @@ split_multi_hts: entry schema must be the HTS genotype schema
 hint: Use `split_multi` to split entries with a non-HTS genotype schema.
 """.format(ds.entry_schema, hts_genotype_schema))
 
-    f = functions
-
     sm = SplitMulti(ds)
-    pl = f.or_missing(
-        f.is_defined(ds.PL),
-        (f.range(0, 3).map(lambda i: (f.range(0, functions.triangle(ds.alleles.length()))
-                                      .filter(lambda j: f.downcode(f.unphased_diploid_gt_index_call(j), sm.a_index()) == f.unphased_diploid_gt_index_call(i))
-                                      .map(lambda j: ds.PL[j])
-                                      .min()))))
+    pl = hl.or_missing(
+        hl.is_defined(ds.PL),
+        (hl.range(0, 3).map(lambda i: (hl.range(0, hl.triangle(ds.alleles.length()))
+            .filter(
+            lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
+                                  sm.a_index()) == hl.unphased_diploid_gt_index_call(
+                i))
+            .map(lambda j: ds.PL[j])
+            .min()))))
     sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
     sm.update_entries(
-        GT=f.downcode(ds.GT, sm.a_index()),
-        AD=f.or_missing(f.is_defined(ds.AD),
-                        [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
+        GT=hl.downcode(ds.GT, sm.a_index()),
+        AD=hl.or_missing(hl.is_defined(ds.AD),
+                         [ds.AD.sum() - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
         DP=ds.DP,
         PL=pl,
-        GQ=f.gq_from_pl(pl)
+        GQ=hl.gq_from_pl(pl)
     )
 
     return sm.result()
@@ -2082,7 +2103,7 @@ def grm(dataset):
     Examples
     --------
 
-    >>> km = methods.grm(dataset)
+    >>> km = hl.grm(dataset)
 
     Notes
     -----
@@ -2138,7 +2159,7 @@ def grm(dataset):
 
     dataset = require_biallelic(dataset, "grm")
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
-                                    n_called=agg.count_where(functions.is_defined(dataset.GT)))
+                                    n_called=agg.count_where(hl.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
 
     n_variants = dataset.count_rows()
@@ -2146,12 +2167,12 @@ def grm(dataset):
         raise FatalError("Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing GRM using {} variants.".format(n_variants))
 
-    normalized_genotype_expr = functions.bind(
+    normalized_genotype_expr = hl.bind(
         dataset.AC / dataset.n_called,
-        lambda mean_gt: functions.cond(functions.is_defined(dataset.GT),
-                                       (dataset.GT.num_alt_alleles() - mean_gt) /
-                                       functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                       0))
+        lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
+                                (dataset.GT.num_alt_alleles() - mean_gt) /
+                                hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
+                                0))
 
     bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
     dataset.unpersist()
@@ -2173,7 +2194,7 @@ def rrm(call_expr):
     Examples
     --------
 
-    >>> kinship_matrix = methods.rrm(dataset['GT'])
+    >>> kinship_matrix = hl.rrm(dataset['GT'])
 
     Notes
     -----
@@ -2204,7 +2225,7 @@ def rrm(call_expr):
         K = MM^T
 
     Note that the only difference between the Realized Relationship Matrix and
-    the Genetic Relationship Matrix (GRM) used in :func:`.methods.grm` is the
+    the Genetic Relationship Matrix (GRM) used in :func:`.grm` is the
     variant (column) normalization: where RRM uses empirical variance, GRM uses
     expected variance under Hardy-Weinberg Equilibrium.
 
@@ -2230,7 +2251,7 @@ def rrm(call_expr):
     gt_expr = dataset.call.num_alt_alleles()
     dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
                                     ACsq=agg.sum(gt_expr * gt_expr),
-                                    n_called=agg.count_where(functions.is_defined(dataset.call)))
+                                    n_called=agg.count_where(hl.is_defined(dataset.call)))
 
     dataset = dataset.filter_rows((dataset.AC > 0) &
                                   (dataset.AC < 2 * dataset.n_called) &
@@ -2244,14 +2265,14 @@ def rrm(call_expr):
     info("Computing RRM using {} variants.".format(n_variants))
 
     gt_expr = dataset.call.num_alt_alleles()
-    normalized_genotype_expr = functions.bind(
+    normalized_genotype_expr = hl.bind(
         dataset.AC / dataset.n_called,
-        lambda mean_gt: functions.bind(
-            functions.sqrt((dataset.ACsq +
-                            (n_samples - dataset.n_called) * mean_gt ** 2) /
-                           n_samples - mean_gt ** 2),
-            lambda stddev: functions.cond(functions.is_defined(dataset.call),
-                                          (gt_expr - mean_gt) / stddev, 0)))
+        lambda mean_gt: hl.bind(
+            hl.sqrt((dataset.ACsq +
+                     (n_samples - dataset.n_called) * mean_gt ** 2) /
+                    n_samples - mean_gt ** 2),
+            lambda stddev: hl.cond(hl.is_defined(dataset.call),
+                                   (gt_expr - mean_gt) / stddev, 0)))
 
     bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
     dataset.unpersist()
@@ -2284,7 +2305,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> ds = methods.balding_nichols_model(3, 100, 1000)
+    >>> ds = hl.balding_nichols_model(3, 100, 1000)
 
     Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
@@ -2294,7 +2315,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     >>> from hail.stats import TruncatedBetaDist
     >>>
-    >>> ds = methods.balding_nichols_model(4, 40, 150, 3,
+    >>> ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
     ...          af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),
@@ -2462,24 +2483,24 @@ class FilterAlleles(object):
     Filter alleles with zero AC count on a dataset with the HTS entry
     schema and update the ``info.AC`` and entry fields.
 
-    >>> fa = methods.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
+    >>> fa = hl.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
     ... fa.annotate_rows(
     ...     info = dataset.info.annotate(AC = fa.new_to_old[1:].map(lambda i: dataset.info.AC[i - 1])))
-    ... newPL = functions.cond(
-    ...     functions.is_defined(dataset.PL),
-    ...     functions.range(0, functions.triangle(fa.new_alleles.length())).map(
-    ...         lambda newi: functions.bind(
-    ...             functions.unphased_diploid_gt_index_call(newi),
-    ...             lambda newc: dataset.PL[functions.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
-    ...     functions.null(TArray(TInt32())))
+    ... newPL = hl.cond(
+    ...     hl.is_defined(dataset.PL),
+    ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
+    ...         lambda newi: hl.bind(
+    ...             hl.unphased_diploid_gt_index_call(newi),
+    ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
+    ...     hl.null(hl.TArray(hl.TInt32())))
     ... fa.annotate_entries(
-    ...     GT = functions.unphased_diploid_gt_index_call(newPL.unique_min_index()),
-    ...     AD = functions.cond(
-    ...         functions.is_defined(dataset.AD),
-    ...         functions.range(0, fa.new_alleles.length()).map(
+    ...     GT = hl.unphased_diploid_gt_index_call(newPL.unique_min_index()),
+    ...     AD = hl.cond(
+    ...         hl.is_defined(dataset.AD),
+    ...         hl.range(0, fa.new_alleles.length()).map(
     ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
-    ...         functions.null(TArray(TInt32()))),
-    ...     GQ = functions.gq_from_pl(newPL),
+    ...         hl.null(hl.TArray(hl.TInt32()))),
+    ...     GQ = hl.gq_from_pl(newPL),
     ...     PL = newPL)
     ... filtered_result = fa.filter()
     
@@ -2671,24 +2692,25 @@ class FilterAlleles(object):
          - GQ: The second-lowest PL (after shifting).
         """
         ds = self._ds
-        newPL = functions.cond(
-            functions.is_defined(ds.PL),
-            functions.bind(functions.range(0, functions.triangle(self.new_alleles.length())).map(
-                lambda newi: functions.bind(
-                    functions.unphased_diploid_gt_index_call(newi),
-                    lambda newc: ds.PL[functions.call(False, self.new_to_old[newc[0]], self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
+        newPL = hl.cond(
+            hl.is_defined(ds.PL),
+            hl.bind(hl.range(0, hl.triangle(self.new_alleles.length())).map(
+                lambda newi: hl.bind(
+                    hl.unphased_diploid_gt_index_call(newi),
+                    lambda newc: ds.PL[hl.call(False, self.new_to_old[newc[0]],
+                                               self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
                 lambda unnorm: unnorm - unnorm.min()),
-            functions.null(TArray(TInt32())))
+            hl.null(TArray(TInt32())))
         self.annotate_entries(
-            GT = functions.unphased_diploid_gt_index_call(newPL.unique_min_index()),
-            AD = functions.cond(
-                functions.is_defined(ds.AD),
-                functions.range(0, self.new_alleles.length()).map(
+            GT=hl.unphased_diploid_gt_index_call(newPL.unique_min_index()),
+            AD=hl.cond(
+                hl.is_defined(ds.AD),
+                hl.range(0, self.new_alleles.length()).map(
                     lambda newi: ds.AD[self.new_to_old[newi]]),
-                functions.null(TArray(TInt32()))),
+                hl.null(TArray(TInt32()))),
             # DP unchanged
-            GQ = functions.gq_from_pl(newPL),
-            PL = newPL)
+            GQ=hl.gq_from_pl(newPL),
+            PL=newPL)
 
     def downcode_entries_hts(self):
         """Use the downcode algorithm to update the matrix table entries for
@@ -2764,33 +2786,32 @@ class FilterAlleles(object):
          - GQ: The second-lowest PL (after shifting).
         """
         ds = self._ds
-        newPL = functions.cond(
-            functions.is_defined(ds.PL),
-            (functions.range(0, functions.triangle(self.new_alleles.length()))
-             .map(lambda newi: (functions.range(0, functions.triangle(ds.alleles.length()))
-                                .filter(lambda oldi: functions.bind(
-                                    functions.unphased_diploid_gt_index_call(oldi),
-                                    lambda oldc: functions.call(False,
-                                                                    self.old_to_new[oldc[0]],
-                                                                    self.old_to_new[oldc[1]]) == functions.unphased_diploid_gt_index_call(newi)))
-                                .map(lambda oldi: ds.PL[oldi])
-                                .min()))),
-            functions.null(TArray(TInt32())))
+        newPL = hl.cond(
+            hl.is_defined(ds.PL),
+            (hl.range(0, hl.triangle(self.new_alleles.length()))
+                .map(lambda newi: (hl.range(0, hl.triangle(ds.alleles.length()))
+                .filter(lambda oldi: hl.bind(
+                hl.unphased_diploid_gt_index_call(oldi),
+                lambda oldc: hl.call(False,
+                                     self.old_to_new[oldc[0]],
+                                     self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
+                .map(lambda oldi: ds.PL[oldi])
+                .min()))),
+            hl.null(TArray(TInt32())))
         self.annotate_entries(
-            GT = functions.call(False,
-                                self.old_to_new[ds.GT[0]],
-                                self.old_to_new[ds.GT[1]]),
-            AD = functions.cond(
-                functions.is_defined(ds.AD),
-                (functions.range(0, self.new_alleles.length())
-                 .map(lambda newi: (functions.range(0, ds.alleles.length())
-                                    .filter(lambda oldi: self.old_to_new[oldi] == newi)
-                                    .map(lambda oldi: ds.AD[oldi])
-                                    .sum()))),
-                functions.null(TArray(TInt32()))),
+            GT=hl.call(False,
+                       self.old_to_new[ds.GT[0]],
+                       self.old_to_new[ds.GT[1]]), AD=hl.cond(
+                hl.is_defined(ds.AD),
+                (hl.range(0, self.new_alleles.length())
+                    .map(lambda newi: (hl.range(0, ds.alleles.length())
+                    .filter(lambda oldi: self.old_to_new[oldi] == newi)
+                    .map(lambda oldi: ds.AD[oldi])
+                    .sum()))),
+                hl.null(TArray(TInt32()))),
             # DP unchanged
-            GQ = functions.gq_from_pl(newPL),
-            PL = newPL)
+            GQ=hl.gq_from_pl(newPL),
+            PL=newPL)
 
     def filter(self):
         """Perform the filter alleles, returning a new matrix table.

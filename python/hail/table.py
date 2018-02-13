@@ -1,4 +1,5 @@
 from pyspark.sql import DataFrame
+import hail as hl
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
@@ -123,7 +124,7 @@ class GroupedTable(TableTemplate):
 
     .. testsetup ::
 
-        table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
+        table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
 
     """
 
@@ -222,7 +223,7 @@ class Table(TableTemplate):
 
     In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
 
-    >>> table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
+    >>> table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
     >>> table1.show()
 
     .. code-block:: text
@@ -238,7 +239,7 @@ class Table(TableTemplate):
         |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+--------+-------+-------+-------+-------+-------+
 
-    >>> table2 = methods.import_table('data/kt_example2.tsv', impute=True, key='ID')
+    >>> table2 = hl.import_table('data/kt_example2.tsv', impute=True, key='ID')
     >>> table2.show()
 
     .. code-block:: text
@@ -262,7 +263,7 @@ class Table(TableTemplate):
     >>> height_sd_f = 2.5
     >>>
     >>> def get_z(height, sex):
-    ...    return functions.cond(sex == 'M',
+    ...    return hl.cond(sex == 'M',
     ...                  (height - height_mean_m) / height_sd_m,
     ...                  (height - height_mean_f) / height_sd_f)
     >>>
@@ -506,10 +507,10 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table4 = methods.import_table('data/kt_example4.tsv', impute=True,
-                                  types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
-                                 'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
-                                 'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+            table4 = hl.import_table('data/kt_example4.tsv', impute=True,
+                                  types={'B': hl.TStruct(['B0', 'B1'], [hl.TBoolean(), hl.TString()]),
+                                 'D': hl.TStruct(['cat', 'dog'], [hl.TInt32(), hl.TInt32()]),
+                                 'E': hl.TStruct(['A', 'B'], [hl.TInt32(), hl.TInt32()])})
 
         .. doctest::
 
@@ -712,7 +713,7 @@ class Table(TableTemplate):
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = Struct(x=table1.X, z=table1.Z))
+        >>> table3 = table1.annotate(s = hl.Struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, producing a table with one field, `x`.:
 
@@ -920,7 +921,7 @@ class Table(TableTemplate):
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = Struct(x=table1.X, z=table1.Z))
+        >>> table3 = table1.annotate(s = hl.Struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, grouping by one field, `x`:
 
@@ -1205,7 +1206,7 @@ class Table(TableTemplate):
                         vt = (vt.group_by(*rk_uids)
                             .aggregate(values=agg.collect(
                             Struct(**{c: vt[c] for c in vt.columns if c not in rk_uids}))))
-                        vt = vt.annotate(values=functions.index(vt.values, k_uid))
+                        vt = vt.annotate(values=hl.index(vt.values, k_uid))
 
                         jl = left._jvds.annotateVariantsTable(vt._jt, uid, False)
                         key_expr = '{uid} = va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
@@ -1283,11 +1284,11 @@ class Table(TableTemplate):
         --------
         Construct a table with 100 rows:
 
-        >>> range_table = Table.range(100)
+        >>> range_table = hl.Table.range(100)
 
         Construct a table with one million rows and twenty partitions:
 
-        >>> range_table = Table.range(1000000, 20)
+        >>> range_table = hl.Table.range(1000000, 20)
 
         Notes
         -----
@@ -1501,7 +1502,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
+            table = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
             other_table = table
 
         >>> union_table = table.union(other_table)
@@ -1908,9 +1909,9 @@ class Table(TableTemplate):
 
         >>> sorted_table = table1.order_by('HT')
 
-        >>> sorted_table = table1.order_by(asc(table1.HT))
+        >>> sorted_table = table1.order_by(hl.asc(table1.HT))
 
-        >>> sorted_table = table1.order_by(asc('HT'))
+        >>> sorted_table = table1.order_by(hl.asc('HT'))
 
         Notes
         -----
@@ -1975,8 +1976,8 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            people_table = methods.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                     types={'Age': TInt32(), 'Children': TArray(TString())})
+            people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
+                                     types={'Age': hl.TInt32(), 'Children': hl.TArray(hl.TString())})
 
         .. doctest::
 

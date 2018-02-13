@@ -65,8 +65,8 @@ class Locus(HistoryMixin):
 
         **Examples**
 
-        >>> l1 = Locus.parse('1:101230')
-        >>> l2 = Locus.parse('X:4201230')
+        >>> l1 = hl.Locus.parse('1:101230')
+        >>> l2 = hl.Locus.parse('X:4201230')
 
         :param str string: String to parse.
         :param reference_genome: Reference genome to use. Default is :meth:`hail.default_reference`.

@@ -43,9 +43,9 @@ def export_gen(dataset, output, precision=4):
     Import genotype probability data, filter variants based on INFO score, and
     export data to a GEN and SAMPLE file:
 
-    >>> ds = methods.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> ds = hl.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> ds = ds.filter_rows(agg.info_score(ds.GP).score >= 0.9) # doctest: +SKIP
-    >>> methods.export_gen(ds, 'output/infoscore_filtered')
+    >>> hl.export_gen(ds, 'output/infoscore_filtered')
 
     Notes
     -----
@@ -114,8 +114,8 @@ def export_plink(dataset, output, **fam_args):
     Import data from a VCF file, split multi-allelic variants, and export to
     PLINK files with the FAM file individual ID set to the sample ID:
 
-    >>> ds = methods.split_multi_hts(dataset)
-    >>> methods.export_plink(ds, 'output/example', id = ds.s)
+    >>> ds = hl.split_multi_hts(dataset)
+    >>> hl.export_plink(ds, 'output/example', id = ds.s)
 
     Notes
     -----
@@ -214,7 +214,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     --------
     Export to VCF as a block-compressed file:
 
-    >>> methods.export_vcf(dataset, 'output/example.vcf.bgz')
+    >>> hl.export_vcf(dataset, 'output/example.vcf.bgz')
 
     Notes
     -----
@@ -283,9 +283,9 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     the `variant_qc.AC` field to `info.AC` as shown below.
 
     >>> ds = dataset.filter_entries(dataset.GQ >= 20)
-    >>> ds = methods.variant_qc(ds)
+    >>> ds = hl.variant_qc(ds)
     >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
-    >>> methods.export_vcf(ds, 'output/example.vcf.bgz')
+    >>> hl.export_vcf(ds, 'output/example.vcf.bgz')
 
     Parameters
     ----------
@@ -323,7 +323,7 @@ def import_interval_list(path, reference_genome=None):
     Examples
     --------
 
-    >>> intervals = methods.import_interval_list('data/capture_intervals.txt')
+    >>> intervals = hl.import_interval_list('data/capture_intervals.txt')
 
     Notes
     -----
@@ -390,9 +390,9 @@ def import_bed(path, reference_genome=None):
     Examples
     --------
 
-    >>> bed = methods.import_bed('data/file1.bed')
+    >>> bed = hl.import_bed('data/file1.bed')
 
-    >>> bed = methods.import_bed('data/file2.bed')
+    >>> bed = hl.import_bed('data/file2.bed')
 
     The file formats are
 
@@ -453,13 +453,13 @@ def import_bed(path, reference_genome=None):
     # Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
     # at least one interval of the three-column BED file `file1.bed`:
 
-    # >>> bed = methods.import_bed('data/file1.bed')
+    # >>> bed = hl.import_bed('data/file1.bed')
     # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.locus])
 
     # Add a variant annotation **va.cnvRegion** (*String*) with value given by the
     # fourth column of ``file2.bed``:
 
-    # >>> bed = methods.import_bed('data/file2.bed')
+    # >>> bed = hl.import_bed('data/file2.bed')
     # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
 
     from hail import default_reference
@@ -484,11 +484,11 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     `FAM file <https://www.cog-genomics.org/plink2/formats#fam>`__
     with a case-control phenotype:
 
-    >>> fam_kt = methods.import_fam('data/case_control_study.fam')
+    >>> fam_kt = hl.import_fam('data/case_control_study.fam')
 
     Import a FAM file with a quantitative phenotype:
 
-    >>> fam_kt = methods.import_fam('data/quantitative_study.fam', quant_pheno=True)
+    >>> fam_kt = hl.import_fam('data/quantitative_study.fam', quant_pheno=True)
 
     Notes
     -----
@@ -566,7 +566,7 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
 
     Import a BGEN file as a matrix table renaming contig name "01" to "1".
 
-    >>> ds_result = methods.import_bgen("data/example3.bgen",
+    >>> ds_result = hl.import_bgen("data/example3.bgen",
     ...                                 sample_file="data/example3.sample",
     ...                                 contig_recoding={"01": "1"})
 
@@ -670,7 +670,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
 
     Import a GEN file as a matrix table.
 
-    >>> ds_result = methods.import_gen('data/example.gen',
+    >>> ds_result = hl.import_gen('data/example.gen',
     ...                                sample_file='data/example.sample')
 
     Notes
@@ -788,8 +788,8 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     To import this table using field types:
 
-    >>> table = methods.import_table('data/samples1.tsv',
-    ...                              types={'Height': TFloat64(), 'Age': TInt32()})
+    >>> table = hl.import_table('data/samples1.tsv',
+    ...                              types={'Height': hl.TFloat64(), 'Age': hl.TInt32()})
 
     Note ``Sample`` and ``Status`` need no type, because :class:`.TString` is
     the default type.
@@ -797,7 +797,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     To import a table using type imputation (which causes the file to be parsed
     twice):
 
-    >>> table = methods.import_table('data/samples1.tsv', impute=True)
+    >>> table = hl.import_table('data/samples1.tsv', impute=True)
 
     **Detailed examples**
 
@@ -822,7 +822,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     - Pass the non-default missing value ``.``
 
-    >>> table = methods.import_table('data/samples2.tsv', delimiter=',', missing='.')
+    >>> table = hl.import_table('data/samples2.tsv', delimiter=',', missing='.')
 
     Let's import a table from a file with no header and sample IDs that need to
     be transformed.  Suppose the sample IDs are of the form ``NA#####``. This
@@ -840,7 +840,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     To import:
 
-    >>> t = (methods.import_table('data/samples3.tsv', no_header=True)
+    >>> t = (hl.import_table('data/samples3.tsv', no_header=True)
     ...      .annotate(sample = f0.split("_")[1])
     ...      .key_by('sample'))
 
@@ -960,7 +960,7 @@ def import_plink(bed, bim, fam,
 
     Import data from a PLINK binary file:
 
-    >>> ds = methods.import_plink(bed="data/test.bed",
+    >>> ds = hl.import_plink(bed="data/test.bed",
     ...                           bim="data/test.bim",
     ...                           fam="data/test.fam")
 
@@ -1092,7 +1092,7 @@ def get_vcf_metadata(path):
     Examples
     --------
 
-    >>> metadata = methods.get_vcf_metadata('data/example2.vcf.bgz')
+    >>> metadata = hl.get_vcf_metadata('data/example2.vcf.bgz')
     {'filter': {'LowQual': {'Description': ''}, ...},
      'format': {'AD': {'Description': 'Allelic depths for the ref and alt alleles in the order listed',
                        'Number': 'R',
@@ -1160,7 +1160,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     Examples
     --------
 
-    >>> ds = methods.import_vcf('data/example2.vcf.bgz')
+    >>> ds = hl.import_vcf('data/example2.vcf.bgz')
 
     Notes
     -----
@@ -1275,7 +1275,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
-    """Index .bgen files as required by :meth:`.methods.import_bgen`.
+    """Index .bgen files as required by :meth:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
     filename of `path` appended by `.idx`.
@@ -1283,7 +1283,7 @@ def index_bgen(path):
     Example
     -------
 
-    >>> methods.index_bgen("data/example3.bgen")
+    >>> hl.index_bgen("data/example3.bgen")
 
     Warning
     -------

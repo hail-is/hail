@@ -1,24 +1,34 @@
 import sys
 
-from hail.context import init, stop, default_reference
-from hail.table import Table, GroupedTable, asc, desc
-from hail.matrixtable import MatrixTable, GroupedMatrixTable
-import hail.expr.functions as functions
-import hail.expr.aggregators as agg
-import hail.methods as methods
-from hail.expr import Type, TInt32, TInt64, TFloat32, TFloat64, TString, TBoolean, TArray, TSet, TDict, TStruct, \
-    TLocus, TCall, TInterval, eval_expr, eval_expr_typed
-from hail.genetics import KinshipMatrix, Locus, Interval, Call, Pedigree, Trio, \
-    GenomeReference
+__doc__ = """
+    __  __     <>__ 
+   / /_/ /__  __/ / 
+  / __  / _ `/ / /  
+ /_/ /_/\_,_/_/_/
+===================
+    
+For API documentation, visit the website: www.hail.is
+
+For help, visit either:
+ - the forum (discuss.hail.is) 
+ - or the gitter channel: https://gitter.im/hail-is/hail/
+ 
+To report a bug, please open an issue: https://github.com/hail-is/hail/issues
+"""
+
+from .context import init, stop, default_reference
+from .table import Table, GroupedTable, asc, desc
+from .matrixtable import MatrixTable, GroupedMatrixTable
+from .expr import *
+from .genetics import *
+from .methods import *
+from hail.expr import aggregators as agg
 from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
-
-from pyspark import SparkContext
-from pyspark.sql import SQLContext
-
 
 if sys.version_info >= (3, 0) or sys.version_info <= (2, 6):
     raise EnvironmentError('Hail requires Python 2.7, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
+del sys
 
 __all__ = ['init',
            'stop',
@@ -32,30 +42,9 @@ __all__ = ['init',
            'hadoop_read',
            'hadoop_write',
            'hadoop_copy',
-           'functions',
-           'agg',
-           'methods',
-           'eval_expr',
-           'eval_expr_typed',
-           'GenomeReference',
-           'Locus',
-           'Interval',
            'Struct',
-           'Call',
-           'Pedigree',
-           'Trio',
-           'Type',
-           'TInt32',
-           'TInt64',
-           'TFloat32',
-           'TFloat64',
-           'TString',
-           'TBoolean',
-           'TArray',
-           'TSet',
-           'TDict',
-           'TStruct',
-           'TLocus',
-           'TCall',
-           'TInterval',
-           'KinshipMatrix']
+           'agg']
+
+__all__.extend(genetics.__all__)
+__all__.extend(expr.__all__)
+__all__.extend(methods.__all__)

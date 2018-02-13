@@ -9,6 +9,7 @@ from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
 from collections import Mapping
 
+
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(strlike))
     def __init__(self, source=None, axes=set()):
@@ -44,6 +45,7 @@ class Indices(object):
     def __repr__(self):
         return 'Indices(axes={}, source={})'.format(repr(self.axes), repr(self.source))
 
+
 class Aggregation(object):
     def __init__(self, indices, refs):
         self.indices = indices
@@ -68,6 +70,7 @@ def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggrega
     else:
         raise NotImplementedError(type)
 
+
 @typecheck(name=strlike, type=Type, indices=Indices, prefix=nullable(strlike))
 def construct_reference(name, type, indices, prefix=None):
     if prefix is not None:
@@ -75,6 +78,7 @@ def construct_reference(name, type, indices, prefix=None):
     else:
         ast = Reference(name, True)
     return construct_expr(ast, type._deep_optional(), indices, refs=LinkedList(tuple).push((name, indices)))
+
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -97,7 +101,8 @@ def to_expr(e):
     elif isinstance(e, Locus):
         return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
     elif isinstance(e, Interval):
-        return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))), TInterval(TLocus(e.reference_genome)))
+        return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))),
+                              TInterval(TLocus(e.reference_genome)))
     elif isinstance(e, Call):
         if e.ploidy == 0:
             return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), TCall())
@@ -162,7 +167,7 @@ def to_expr(e):
         vt = unify_types(*value_types)
         if not vt:
             raise ExpressionException('Cannot convert dictionary with heterogeneous value types to expression.'
-                             '\n    Found types: {}.'.format(value_types))
+                                      '\n    Found types: {}.'.format(value_types))
         kc = to_expr(keys)
         vc = to_expr(values)
 
@@ -215,6 +220,7 @@ expr_call = transformed((Call, to_expr),
                         (_lazy_call, identity))
 expr_any = transformed((_lazy_expr, identity),
                        (anytype, to_expr))
+
 
 def unify_all(*exprs):
     assert len(exprs) > 0
@@ -302,9 +308,9 @@ class Expression(object):
         if (len(sources.keys()) != 0 and sources.keys()[0] != self._indices.source):
             raise FatalError("verify: incompatible sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
-
     @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
-    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join), refs=LinkedList(tuple)):
+    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join),
+                 refs=LinkedList(tuple)):
         self._ast = ast
         self._type = type
         self._indices = indices
@@ -356,7 +362,7 @@ class Expression(object):
     def __nonzero__(self):
         raise NotImplementedError(
             "The truth value of an expression is undefined\n"
-            "    Hint: instead of 'if x', use 'functions.cond(x, ...)'\n"
+            "    Hint: instead of 'if x', use 'hl.cond(x, ...)'\n"
             "    Hint: instead of 'x and y' or 'x or y', use 'x & y' or 'x | y'\n"
             "    Hint: instead of 'not x', use '~x'")
 
@@ -370,12 +376,14 @@ class Expression(object):
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations, joins, refs = unify_all(self, other)
-        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations, joins, refs)
+        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations, joins,
+                              refs)
 
     def _bin_op_reverse(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations, joins, refs = unify_all(self, other)
-        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations, joins, refs)
+        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations, joins,
+                              refs)
 
     def _field(self, name, ret_type):
         return construct_expr(Select(self._ast, name), ret_type, self._indices,
@@ -416,7 +424,8 @@ class Expression(object):
         args = (to_expr(arg) for arg in args)
         new_id = Env._get_uid()
         lambda_result = to_expr(
-            f(construct_expr(Reference(new_id), input_type, self._indices, self._aggregations, self._joins, self._refs)))
+            f(construct_expr(Reference(new_id), input_type, self._indices, self._aggregations, self._joins,
+                             self._refs)))
         indices, aggregations, joins, refs = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
         return construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins, refs)
@@ -440,14 +449,14 @@ class Expression(object):
 
         .. doctest::
 
-            >>> x = functions.capture(5)
-            >>> y = functions.capture(5)
-            >>> z = functions.capture(1)
+            >>> x = hl.capture(5)
+            >>> y = hl.capture(5)
+            >>> z = hl.capture(1)
 
-            >>> eval_expr(x == y)
+            >>> hl.eval_expr(x == y)
             True
 
-            >>> eval_expr(x == z)
+            >>> hl.eval_expr(x == z)
             False
 
         Notes
@@ -481,14 +490,14 @@ class Expression(object):
 
         .. doctest::
 
-            >>> x = functions.capture(5)
-            >>> y = functions.capture(5)
-            >>> z = functions.capture(1)
+            >>> x = hl.capture(5)
+            >>> y = hl.capture(5)
+            >>> z = hl.capture(1)
 
-            >>> eval_expr(x != y)
+            >>> hl.eval_expr(x != y)
             False
 
-            >>> eval_expr(x != z)
+            >>> hl.eval_expr(x != z)
             True
 
         Notes
@@ -518,9 +527,9 @@ class Expression(object):
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
 
-    >>> a = functions.capture([1, 2, 3, 4, 5])
+    >>> a = hl.capture([1, 2, 3, 4, 5])
 
-    >>> s = functions.capture({'Alice', 'Bob', 'Charlie'})
+    >>> s = hl.capture({'Alice', 'Bob', 'Charlie'})
     """
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -531,10 +540,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.exists(lambda x: x % 2 == 0))
+            >>> hl.eval_expr(a.exists(lambda x: x % 2 == 0))
             True
 
-            >>> eval_expr(s.exists(lambda x: x[0] == 'D'))
+            >>> hl.eval_expr(s.exists(lambda x: x[0] == 'D'))
             False
 
         Notes
@@ -552,10 +561,12 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'exists' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
             return t
+
         return self._bin_lambda_method("exists", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -566,10 +577,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.filter(lambda x: x % 2 == 0))
+            >>> hl.eval_expr(a.filter(lambda x: x % 2 == 0))
             [2, 4]
 
-            >>> eval_expr(s.filter(lambda x: ~(x[-1] == 'e')))
+            >>> hl.eval_expr(s.filter(lambda x: ~(x[-1] == 'e')))
             {'Bob'}
 
         Notes
@@ -589,6 +600,7 @@ class CollectionExpression(Expression):
         :class:`.CollectionExpression`
             Expression of the same type as the callee.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'filter' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
@@ -604,10 +616,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.find(lambda x: x ** 2 > 20))
+            >>> hl.eval_expr(a.find(lambda x: x ** 2 > 20))
             5
 
-            >>> eval_expr(s.find(lambda x: x[0] == 'D'))
+            >>> hl.eval_expr(s.find(lambda x: x[0] == 'D'))
             None
 
         Notes
@@ -625,6 +637,7 @@ class CollectionExpression(Expression):
         :class:`.Expression`
             Expression whose type is the element type of the collection.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'find' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
@@ -640,10 +653,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.flatmap(lambda x: functions.range(0, x)))
+            >>> hl.eval_expr(a.flatmap(lambda x: hl.range(0, x)))
             [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
 
-            >>> eval_expr(s.flatmap(lambda x: functions.range(0, x.length()).map(lambda i: x[i]).to_set()))
+            >>> hl.eval_expr(s.flatmap(lambda x: hl.range(0, x.length()).map(lambda i: x[i]).to_set()))
             {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
 
         Parameters
@@ -658,10 +671,12 @@ class CollectionExpression(Expression):
         :class:`.CollectionExpression`
         """
         expected_type, s = (TArray, 'Array') if isinstance(self._type, TArray) else (TSet, 'Set')
+
         def unify_ret(t):
             if not isinstance(t, expected_type):
                 raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
             return t
+
         return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -672,7 +687,7 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.forall(lambda x: x < 10))
+            >>> hl.eval_expr(a.forall(lambda x: x < 10))
             True
 
         Notes
@@ -690,6 +705,7 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
+
         def unify_ret(t):
             if not isinstance(t, TBoolean):
                 raise TypeError("'forall' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
@@ -705,10 +721,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.group_by(lambda x: x % 2 == 0))
+            >>> hl.eval_expr(a.group_by(lambda x: x % 2 == 0))
             {False: [1, 3, 5], True: [2, 4]}
 
-            >>> eval_expr(s.group_by(lambda x: x.length()))
+            >>> hl.eval_expr(s.group_by(lambda x: x.length()))
             {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
 
         Parameters
@@ -732,10 +748,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.map(lambda x: x ** 3))
+            >>> hl.eval_expr(a.map(lambda x: x ** 3))
             [1.0, 8.0, 27.0, 64.0, 125.0]
 
-            >>> eval_expr(s.map(lambda x: x.length()))
+            >>> hl.eval_expr(s.map(lambda x: x.length()))
             {3, 5, 7}
 
         Parameters
@@ -757,10 +773,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.length())
+            >>> hl.eval_expr(a.length())
             5
 
-            >>> eval_expr(s.length())
+            >>> hl.eval_expr(s.length())
             3
 
         Returns
@@ -777,10 +793,10 @@ class CollectionExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.size())
+            >>> hl.eval_expr(a.size())
             5
 
-            >>> eval_expr(s.size())
+            >>> hl.eval_expr(s.size())
             3
 
         Returns
@@ -794,7 +810,7 @@ class CollectionExpression(Expression):
 class CollectionNumericExpression(CollectionExpression):
     """Expression of type :class:`.TArray` or :class:`.TSet` with numeric element type.
 
-    >>> a = functions.capture([1, 2, 3, 4, 5])
+    >>> a = hl.capture([1, 2, 3, 4, 5])
     """
 
     def max(self):
@@ -804,7 +820,7 @@ class CollectionNumericExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.max())
+            >>> hl.eval_expr(a.max())
             5
 
         Returns
@@ -821,7 +837,7 @@ class CollectionNumericExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.min())
+            >>> hl.eval_expr(a.min())
             1
 
         Returns
@@ -838,7 +854,7 @@ class CollectionNumericExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.mean())
+            >>> hl.eval_expr(a.mean())
             3.0
 
         Note
@@ -859,7 +875,7 @@ class CollectionNumericExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.median())
+            >>> hl.eval_expr(a.median())
             3
 
         Note
@@ -880,7 +896,7 @@ class CollectionNumericExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.product())
+            >>> hl.eval_expr(a.product())
             120
 
         Note
@@ -892,9 +908,7 @@ class CollectionNumericExpression(CollectionExpression):
         :class:`.NumericExpression`
             The product of the collection.
         """
-        return self._method("product",
-                            TInt64() if isinstance(self._type.element_type, TInt32) or
-                                        isinstance(self._type.element_type, TInt64) else TFloat64())
+        return self._method("product", self._type.element_type)
 
     def sum(self):
         """Returns the sum of all elements in the collection.
@@ -903,7 +917,7 @@ class CollectionNumericExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.sum())
+            >>> hl.eval_expr(a.sum())
             15
 
         Note
@@ -921,8 +935,9 @@ class CollectionNumericExpression(CollectionExpression):
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.TArray`.
 
-    >>> a = functions.capture(['Alice', 'Bob', 'Charlie'])
+    >>> a = hl.capture(['Alice', 'Bob', 'Charlie'])
     """
+
     def __getitem__(self, item):
         """Index into or slice the array.
 
@@ -933,17 +948,17 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> eval_expr(a[1])
+            >>> hl.eval_expr(a[1])
             'Bob'
 
-            >>> eval_expr(a[-1])
+            >>> hl.eval_expr(a[-1])
             'Charlie'
 
         Slicing is also supported:
 
         .. doctest::
 
-            >>> eval_expr(a[1:])
+            >>> hl.eval_expr(a[1:])
             ['Bob', 'Charlie']
 
         Parameters
@@ -974,10 +989,10 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> eval_expr(a.contains('Charlie'))
+            >>> hl.eval_expr(a.contains('Charlie'))
             True
 
-            >>> eval_expr(a.contains('Helen'))
+            >>> hl.eval_expr(a.contains('Helen'))
             False
 
         Parameters
@@ -1008,7 +1023,7 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> eval_expr(a.append('Dan'))
+            >>> hl.eval_expr(a.append('Dan'))
             ['Alice', 'Bob', 'Charlie', 'Dan']
 
         Parameters
@@ -1035,7 +1050,7 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> eval_expr(a.extend(['Dan', 'Edith']))
+            >>> hl.eval_expr(a.extend(['Dan', 'Edith']))
             ['Alice', 'Bob', 'Charlie', 'Dan', 'Edith']
 
         Parameters
@@ -1062,7 +1077,7 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> eval_expr(a.sort_by(lambda x: x, ascending=False))
+            >>> hl.eval_expr(a.sort_by(lambda x: x, ascending=False))
             ['Charlie', 'Bob', 'Alice']
 
         Parameters
@@ -1076,11 +1091,13 @@ class ArrayExpression(CollectionExpression):
         -------
         :class:`.ArrayExpression`
         """
+
         def check_f(t):
             if not (is_numeric(t) or isinstance(t, TString)):
                 raise TypeError("'sort_by' expects 'f' to return an ordered type, found type '{}'\n"
                                 "    Ordered types are 'Int32', 'Int64', 'Float32', 'Float64', 'String'".format(t))
             return self._type
+
         return self._bin_lambda_method("sortBy", f, self._type.element_type, check_f, ascending)
 
     def to_set(self):
@@ -1090,7 +1107,7 @@ class ArrayExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.to_set())
+            >>> hl.eval_expr(a.to_set())
             {'Alice', 'Bob', 'Charlie'}
 
         Returns
@@ -1111,9 +1128,9 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     Arithmetic with a scalar will apply the operation to each element of the
     array.
 
-    >>> a1 = functions.capture([0, 1, 2, 3, 4, 5])
+    >>> a1 = hl.capture([0, 1, 2, 3, 4, 5])
 
-    >>> a2 = functions.capture([1, -1, 1, -1, 1, -1])
+    >>> a2 = hl.capture([1, -1, 1, -1, 1, -1])
 
     """
 
@@ -1155,10 +1172,10 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a1 + 5)
+            >>> hl.eval_expr(a1 + 5)
             [5, 6, 7, 8, 9, 10]
 
-            >>> eval_expr(a1 + a2)
+            >>> hl.eval_expr(a1 + a2)
             [1, 0, 3, 2, 5, 4]
 
         Parameters
@@ -1183,10 +1200,10 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a2 - 1)
+            >>> hl.eval_expr(a2 - 1)
             [0, -2, 0, -2, 0, -2]
 
-            >>> eval_expr(a1 - a2)
+            >>> hl.eval_expr(a1 - a2)
             [-1, 2, 1, 4, 3, 6]
 
         Parameters
@@ -1211,10 +1228,10 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a2 * 5)
+            >>> hl.eval_expr(a2 * 5)
             [5, -5, 5, -5, 5, -5]
 
-            >>> eval_expr(a1 * a2)
+            >>> hl.eval_expr(a1 * a2)
             [0, -1, 2, -3, 4, -5]
 
         Parameters
@@ -1239,10 +1256,10 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a1 / 10)
+            >>> hl.eval_expr(a1 / 10)
             [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-            >>> eval_expr(a2 / a1)
+            >>> hl.eval_expr(a2 / a1)
             [inf, -1.0, 0.5, -0.3333333333333333, 0.25, -0.2]
 
         Parameters
@@ -1255,6 +1272,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         :class:`.ArrayNumericExpression`
             Array of positional quotients.
         """
+
         def ret_type_f(t):
             assert isinstance(t, TArray)
             assert is_numeric(t.element_type)
@@ -1263,6 +1281,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rdiv__(self, other):
@@ -1274,6 +1293,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __floordiv__(self, other):
@@ -1283,7 +1303,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a1 // 2)
+            >>> hl.eval_expr(a1 // 2)
             [0, 0, 1, 1, 2, 2]
 
         Parameters
@@ -1306,7 +1326,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a1 % 2)
+            >>> hl.eval_expr(a1 % 2)
             [0, 1, 0, 1, 0, 1]
 
         Parameters
@@ -1329,10 +1349,10 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a1 ** 2)
+            >>> hl.eval_expr(a1 ** 2)
             [0.0, 1.0, 4.0, 9.0, 16.0, 25.0]
 
-            >>> eval_expr(a1 ** a2)
+            >>> hl.eval_expr(a1 ** a2)
             [0.0, 1.0, 2.0, 0.3333333333333333, 4.0, 0.2]
 
         Parameters
@@ -1356,7 +1376,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a1.sort())
+            >>> hl.eval_expr(a1.sort())
             [-1, -1, -1, 1, 1, 1]
 
         Parameters
@@ -1383,16 +1403,16 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         .. doctest::
 
-            >>> pl = functions.capture([10, 0, 100])
+            >>> pl = hl.capture([10, 0, 100])
             [10, 0, 100]
 
-            >>> eval_expr(pl.unique_min_index())
+            >>> hl.eval_expr(pl.unique_min_index())
             1
 
-            >>> pl2 = functions.capture([0, 0, 100])
+            >>> pl2 = hl.capture([0, 0, 100])
             [0, 0, 100]
 
-            >>> eval_expr(pl2.unique_min_index())
+            >>> hl.eval_expr(pl2.unique_min_index())
             None
 
         Returns
@@ -1413,16 +1433,16 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         .. doctest::
 
-            >>> gp = functions.capture([0.2, 0.2, 0.6])
+            >>> gp = hl.capture([0.2, 0.2, 0.6])
             [0.2, 0.2, 0.6]
 
-            >>> eval_expr(gp.unique_max_index())
+            >>> hl.eval_expr(gp.unique_max_index())
             2
 
-            >>> gp2 = functions.capture([0.4, 0.4, 0.2])
+            >>> gp2 = hl.capture([0.4, 0.4, 0.2])
             [0.4, 0.4, 0.2]
 
-            >>> eval_expr(gp2.unique_max_index())
+            >>> hl.eval_expr(gp2.unique_max_index())
             None
 
         Returns
@@ -1460,8 +1480,9 @@ class ArrayInt64Expression(ArrayNumericExpression):
 class ArrayStringExpression(ArrayExpression):
     """Expression of type :class:`.TArray` with element type :class:`.TString`.
 
-    >>> a = functions.capture(['Alice', 'Bob', 'Charles'])
+    >>> a = hl.capture(['Alice', 'Bob', 'Charles'])
     """
+
     @typecheck_method(delimiter=expr_str)
     def mkstring(self, delimiter):
         """Joins the elements of the array into a single string delimited by `delimiter`.
@@ -1470,7 +1491,7 @@ class ArrayStringExpression(ArrayExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.mkstring(','))
+            >>> hl.eval_expr(a.mkstring(','))
             'Alice,Bob,Charles'
 
         Parameters
@@ -1493,7 +1514,7 @@ class ArrayStringExpression(ArrayExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.sort(ascending=False))
+            >>> hl.eval_expr(a.sort(ascending=False))
             ['Charles', 'Bob', 'Alice']
 
         Parameters
@@ -1517,8 +1538,9 @@ class ArrayStructExpression(ArrayExpression):
 class ArrayArrayExpression(ArrayExpression):
     """Expression of type :class:`.TArray` with element type :class:`.TArray`.
 
-    >>> a = functions.capture([[1, 2], [3, 4]])
+    >>> a = hl.capture([[1, 2], [3, 4]])
     """
+
     def flatten(self):
         """Flatten the nested array by concatenating subarrays.
 
@@ -1526,7 +1548,7 @@ class ArrayArrayExpression(ArrayExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(a.flatten())
+            >>> hl.eval_expr(a.flatten())
             [1, 2, 3, 4]
 
         Returns
@@ -1540,9 +1562,10 @@ class ArrayArrayExpression(ArrayExpression):
 class SetExpression(CollectionExpression):
     """Expression of type :class:`.TSet`.
 
-    >>> s1 = functions.capture({1, 2, 3})
-    >>> s2 = functions.capture({1, 3, 5})
+    >>> s1 = hl.capture({1, 2, 3})
+    >>> s2 = hl.capture({1, 3, 5})
     """
+
     @typecheck_method(item=expr_any)
     def add(self, item):
         """Returns a new set including `item`.
@@ -1551,7 +1574,7 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.add(10))
+            >>> hl.eval_expr(s1.add(10))
             {1, 2, 3, 10}
 
         Parameters
@@ -1578,7 +1601,7 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.remove(1))
+            >>> hl.eval_expr(s1.remove(1))
             {2, 3}
 
         Parameters
@@ -1605,10 +1628,10 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.contains(1))
+            >>> hl.eval_expr(s1.contains(1))
             True
 
-            >>> eval_expr(s1.contains(10))
+            >>> hl.eval_expr(s1.contains(10))
             False
 
         Parameters
@@ -1635,10 +1658,10 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.difference(s2))
+            >>> hl.eval_expr(s1.difference(s2))
             {2}
 
-            >>> eval_expr(s2.difference(s1))
+            >>> hl.eval_expr(s2.difference(s1))
             {5}
 
         Parameters
@@ -1665,7 +1688,7 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.intersection(s2))
+            >>> hl.eval_expr(s1.intersection(s2))
             {1, 3}
 
         Parameters
@@ -1692,10 +1715,10 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.is_subset(s2))
+            >>> hl.eval_expr(s1.is_subset(s2))
             False
 
-            >>> eval_expr(s1.remove(2).is_subset(s2))
+            >>> hl.eval_expr(s1.remove(2).is_subset(s2))
             True
 
         Parameters
@@ -1722,7 +1745,7 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.union(s2))
+            >>> hl.eval_expr(s1.union(s2))
             {1, 2, 3, 5}
 
         Parameters
@@ -1748,7 +1771,7 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s1.to_array())
+            >>> hl.eval_expr(s1.to_array())
             [1, 2, 3]
 
         Notes
@@ -1786,8 +1809,9 @@ class SetInt64Expression(SetExpression, CollectionNumericExpression):
 class SetStringExpression(SetExpression):
     """Expression of type :class:`.TSet` with element type :class:`.TString`.
 
-    >>> s = functions.capture({'Alice', 'Bob', 'Charles'})
+    >>> s = hl.capture({'Alice', 'Bob', 'Charles'})
     """
+
     @typecheck_method(delimiter=expr_str)
     def mkstring(self, delimiter):
         """Joins the elements of the set into a single string delimited by `delimiter`.
@@ -1796,7 +1820,7 @@ class SetStringExpression(SetExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.mkstring(','))
+            >>> hl.eval_expr(s.mkstring(','))
             'Bob,Charles,Alice'
 
         Notes
@@ -1819,8 +1843,9 @@ class SetStringExpression(SetExpression):
 class SetSetExpression(SetExpression):
     """Expression of type :class:`.TSet` with element type :class:`.TSet`.
 
-    >>> s = functions.capture({1, 2, 3}).map(lambda s: {s, 2 * s})
+    >>> s = hl.capture({1, 2, 3}).map(lambda s: {s, 2 * s})
     """
+
     def flatten(self):
         """Flatten the nested set by concatenating subsets.
 
@@ -1828,7 +1853,7 @@ class SetSetExpression(SetExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.flatten())
+            >>> hl.eval_expr(s.flatten())
             {1, 2, 3, 4, 6}
 
         Returns
@@ -1842,8 +1867,9 @@ class SetSetExpression(SetExpression):
 class DictExpression(Expression):
     """Expression of type :class:`.TDict`.
 
-    >>> d = functions.capture({'Alice': 43, 'Bob': 33, 'Charles': 44})
+    >>> d = hl.capture({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
+
     def _init(self):
         self._key_typ = self._type.key_type
         self._value_typ = self._type.value_type
@@ -1856,7 +1882,7 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d['Alice'])
+            >>> hl.eval_expr(d['Alice'])
             43
 
         Notes
@@ -1888,10 +1914,10 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.contains('Alice'))
+            >>> hl.eval_expr(d.contains('Alice'))
             True
 
-            >>> eval_expr(d.contains('Anne'))
+            >>> hl.eval_expr(d.contains('Anne'))
             False
 
         Parameters
@@ -1918,10 +1944,10 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.get('Alice'))
+            >>> hl.eval_expr(d.get('Alice'))
             43
 
-            >>> eval_expr(d.get('Anne'))
+            >>> hl.eval_expr(d.get('Anne'))
             None
 
         Parameters
@@ -1947,7 +1973,7 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.key_set())
+            >>> hl.eval_expr(d.key_set())
             {'Alice', 'Bob', 'Charles'}
 
         Returns
@@ -1964,7 +1990,7 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.keys())
+            >>> hl.eval_expr(d.keys())
             ['Bob', 'Charles', 'Alice']
 
         Returns
@@ -1982,7 +2008,7 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.map_values(lambda x: x * 10))
+            >>> hl.eval_expr(d.map_values(lambda x: x * 10))
             {'Alice': 430, 'Bob': 330, 'Charles': 440}
 
         Parameters
@@ -2004,7 +2030,7 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.size())
+            >>> hl.eval_expr(d.size())
             3
 
         Returns
@@ -2021,7 +2047,7 @@ class DictExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(d.values())
+            >>> hl.eval_expr(d.values())
             [33, 44, 43]
 
         Returns
@@ -2039,6 +2065,7 @@ class Aggregable(object):
     methods. These objects can be aggregated using aggregator functions, but
     cannot otherwise be used in expressions.
     """
+
     def __init__(self, ast, type, indices, aggregations, joins, refs):
         self._ast = ast
         self._type = type
@@ -2060,21 +2087,21 @@ class Aggregable(object):
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
 
-    >>> s = functions.capture(Struct(a=5, b='Foo'))
+    >>> s = hl.capture(hl.Struct(a=5, b='Foo'))
 
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
 
     .. doctest::
 
-        >>> eval_expr(s.a)
+        >>> hl.eval_expr(s.a)
         5
 
     However, it is recommended to use square brackets to select fields:
 
     .. doctest::
 
-        >>> eval_expr(s['a'])
+        >>> hl.eval_expr(s['a'])
         5
 
     The latter syntax is safer, because fields that share their name with
@@ -2084,6 +2111,7 @@ class StructExpression(Mapping, Expression):
     to access fields that are not valid Python identifiers, like fields with
     spaces or symbols.
     """
+
     def _init(self):
         self._fields = OrderedDict()
 
@@ -2108,7 +2136,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(s['a'])
+            >>> hl.eval_expr(s['a'])
             5
 
         Parameters
@@ -2149,7 +2177,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.annotate(a=10, c=2*2*2))
+            >>> hl.eval_expr(s.annotate(a=10, c=2*2*2))
             Struct(a=10, b='Foo', c=8)
 
         Notes
@@ -2194,7 +2222,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.select('a', c=['bar', 'baz']))
+            >>> hl.eval_expr(s.select('a', c=['bar', 'baz']))
             Struct(a=5, c=[u'bar', u'baz'])
 
         Notes
@@ -2254,7 +2282,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.drop('b'))
+            >>> hl.eval_expr(s.drop('b'))
             Struct(a=5)
 
         Parameters
@@ -2330,19 +2358,19 @@ class AtomicExpression(Expression):
 class BooleanExpression(AtomicExpression):
     """Expression of type :class:`.TBoolean`.
 
-    >>> t = functions.capture(True)
-    >>> f = functions.capture(False)
-    >>> na = functions.null(TBoolean())
+    >>> t = hl.capture(True)
+    >>> f = hl.capture(False)
+    >>> na = hl.null(hl.TBoolean())
 
     .. doctest::
 
-        >>> eval_expr(t)
+        >>> hl.eval_expr(t)
         True
 
-        >>> eval_expr(f)
+        >>> hl.eval_expr(f)
         False
 
-        >>> eval_expr(na)
+        >>> hl.eval_expr(na)
         None
 
     """
@@ -2359,13 +2387,13 @@ class BooleanExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(t & f)
+            >>> hl.eval_expr(t & f)
             False
 
-            >>> eval_expr(t & na)
+            >>> hl.eval_expr(t & na)
             None
 
-            >>> eval_expr(f & na)
+            >>> hl.eval_expr(f & na)
             False
 
         The ``&`` and ``|`` operators have higher priority than comparison
@@ -2374,9 +2402,9 @@ class BooleanExpression(AtomicExpression):
 
         .. doctest::
 
-            >>> x = functions.capture(5)
+            >>> x = hl.capture(5)
 
-            >>> eval_expr((x < 10) & (x > 2))
+            >>> hl.eval_expr((x < 10) & (x > 2))
             True
 
         Parameters
@@ -2399,13 +2427,13 @@ class BooleanExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(t | f)
+            >>> hl.eval_expr(t | f)
             True
 
-            >>> eval_expr(t | na)
+            >>> hl.eval_expr(t | na)
             True
 
-            >>> eval_expr(f | na)
+            >>> hl.eval_expr(f | na)
             None
 
         The ``&`` and ``|`` operators have higher priority than comparison
@@ -2414,9 +2442,9 @@ class BooleanExpression(AtomicExpression):
 
         .. doctest::
 
-            >>> x = functions.capture(5)
+            >>> x = hl.capture(5)
 
-            >>> eval_expr((x < 10) | (x > 20))
+            >>> hl.eval_expr((x < 10) | (x > 20))
             True
 
         Parameters
@@ -2438,13 +2466,13 @@ class BooleanExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(~t)
+            >>> hl.eval_expr(~t)
             False
 
-            >>> eval_expr(~f)
+            >>> hl.eval_expr(~f)
             True
 
-            >>> eval_expr(~na)
+            >>> hl.eval_expr(~na)
             None
 
         Returns
@@ -2458,10 +2486,11 @@ class BooleanExpression(AtomicExpression):
 class NumericExpression(AtomicExpression):
     """Expression of numeric type.
 
-    >>> x = functions.capture(3)
+    >>> x = hl.capture(3)
 
-    >>> y = functions.capture(4.5)
+    >>> y = hl.capture(4.5)
     """
+
     def _bin_op_ret_typ(self, other):
         if isinstance(other._type, TArray):
             t = other._type.element_type
@@ -2503,7 +2532,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x < 5)
+            >>> hl.eval_expr(x < 5)
             True
 
         Parameters
@@ -2526,7 +2555,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x <= 3)
+            >>> hl.eval_expr(x <= 3)
             True
 
         Parameters
@@ -2549,7 +2578,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(y > 4)
+            >>> hl.eval_expr(y > 4)
             True
 
         Parameters
@@ -2572,7 +2601,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(y >= 4)
+            >>> hl.eval_expr(y >= 4)
             True
 
         Parameters
@@ -2587,7 +2616,6 @@ class NumericExpression(AtomicExpression):
         """
         return self._bin_op(">=", other, TBoolean())
 
-
     def __pos__(self):
         return self
 
@@ -2598,7 +2626,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(-x)
+            >>> hl.eval_expr(-x)
             -3
 
         Returns
@@ -2615,10 +2643,10 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x + 2)
+            >>> hl.eval_expr(x + 2)
             5
 
-            >>> eval_expr(x + y)
+            >>> hl.eval_expr(x + y)
             7.5
 
         Parameters
@@ -2643,10 +2671,10 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x - 2)
+            >>> hl.eval_expr(x - 2)
             1
 
-            >>> eval_expr(x - y)
+            >>> hl.eval_expr(x - y)
             -1.5
 
         Parameters
@@ -2671,10 +2699,10 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x * 2)
+            >>> hl.eval_expr(x * 2)
             6
 
-            >>> eval_expr(x * y)
+            >>> hl.eval_expr(x * y)
             9.0
 
         Parameters
@@ -2699,10 +2727,10 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x / 2)
+            >>> hl.eval_expr(x / 2)
             1.5
 
-            >>> eval_expr(y / 0.1)
+            >>> hl.eval_expr(y / 0.1)
             45.0
 
         Parameters
@@ -2715,6 +2743,7 @@ class NumericExpression(AtomicExpression):
         :class:`.NumericExpression`
             The left number divided by the left.
         """
+
         def ret_type_f(t):
             assert is_numeric(t)
             if isinstance(t, TInt32) or isinstance(t, TInt64):
@@ -2722,6 +2751,7 @@ class NumericExpression(AtomicExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rdiv__(self, other):
@@ -2732,6 +2762,7 @@ class NumericExpression(AtomicExpression):
             else:
                 # Float64 or Float32
                 return t
+
         return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __floordiv__(self, other):
@@ -2741,10 +2772,10 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x // 2)
+            >>> hl.eval_expr(x // 2)
             1
 
-            >>> eval_expr(y // 2)
+            >>> hl.eval_expr(y // 2)
             2.0
 
         Parameters
@@ -2769,10 +2800,10 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(32 % x)
+            >>> hl.eval_expr(32 % x)
             2
 
-            >>> eval_expr(7 % y)
+            >>> hl.eval_expr(7 % y)
             2.5
 
         Parameters
@@ -2797,13 +2828,13 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(x ** 2)
+            >>> hl.eval_expr(x ** 2)
             9.0
 
-            >>> eval_expr(x ** -2)
+            >>> hl.eval_expr(x ** -2)
             0.1111111111111111
 
-            >>> eval_expr(y ** 1.5)
+            >>> hl.eval_expr(y ** 1.5)
             9.545941546018392
 
         Parameters
@@ -2829,7 +2860,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(y.signum())
+            >>> hl.eval_expr(y.signum())
             1
 
         Returns
@@ -2846,7 +2877,7 @@ class NumericExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(y.abs())
+            >>> hl.eval_expr(y.abs())
             4.5
 
         Returns
@@ -2871,7 +2902,7 @@ class NumericExpression(AtomicExpression):
             Maximum value.
         """
         t = unify_types(self._type, other._type)
-        assert(t is not None)
+        assert (t is not None)
         return self._method("max", t, other)
 
     @typecheck_method(other=expr_numeric)
@@ -2889,7 +2920,7 @@ class NumericExpression(AtomicExpression):
             Minimum value.
         """
         t = unify_types(self._type, other._type)
-        assert(t is not None)
+        assert (t is not None)
         return self._method("min", t, other)
 
 
@@ -2916,8 +2947,9 @@ class Int64Expression(NumericExpression):
 class StringExpression(AtomicExpression):
     """Expression of type :class:`.TString`.
 
-    >>> s = functions.capture('The quick brown fox')
+    >>> s = hl.capture('The quick brown fox')
     """
+
     def __getitem__(self, item):
         """Slice or index into the string.
 
@@ -2925,10 +2957,10 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s[:15])
+            >>> hl.eval_expr(s[:15])
             'The quick brown'
 
-            >>> eval_expr(s[0])
+            >>> hl.eval_expr(s[0])
             'T'
 
         Parameters
@@ -2957,7 +2989,7 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s + ' jumped over the lazy dog')
+            >>> hl.eval_expr(s + ' jumped over the lazy dog')
             'The quick brown fox jumped over the lazy dog'
 
         Parameters
@@ -2988,7 +3020,7 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.length())
+            >>> hl.eval_expr(s.length())
             19
 
         Returns
@@ -3006,7 +3038,7 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.replace(' ', '_'))
+            >>> hl.eval_expr(s.replace(' ', '_'))
             'The_quick_brown_fox'
 
         Notes
@@ -3033,10 +3065,10 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(s.split('\\s+'))
+            >>> hl.eval_expr(s.split('\\s+'))
             ['The', 'quick', 'brown', 'fox']
 
-            >>> eval_expr(s.split('\\s+', 2))
+            >>> hl.eval_expr(s.split('\\s+', 2))
             ['The', 'quick brown fox']
 
         Notes
@@ -3070,20 +3102,20 @@ class StringExpression(AtomicExpression):
         Examples
         --------
 
-        >>> string = functions.capture('NA12878')
+        >>> string = hl.capture('NA12878')
 
         The `regex` parameter does not need to match the entire string:
 
         .. doctest::
 
-            >>> eval_expr(string.matches('12'))
+            >>> hl.eval_expr(string.matches('12'))
             True
 
         Regex motifs can be used to match sequences of characters:
 
         .. doctest::
 
-            >>> eval_expr(string.matches(r'NA\\\\d+'))
+            >>> hl.eval_expr(string.matches(r'NA\\\\d+'))
             True
 
         Notes
@@ -3113,8 +3145,8 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> s = functions.capture('123')
-            >>> eval_expr(s.to_int32())
+            >>> s = hl.capture('123')
+            >>> hl.eval_expr(s.to_int32())
             123
 
         Returns
@@ -3131,8 +3163,8 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> s = functions.capture('123123123123')
-            >>> eval_expr(s.to_int64())
+            >>> s = hl.capture('123123123123')
+            >>> hl.eval_expr(s.to_int64())
             123123123123L
 
         Returns
@@ -3150,8 +3182,8 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> s = functions.capture('1.5')
-            >>> eval_expr(s.to_float32())
+            >>> s = hl.capture('1.5')
+            >>> hl.eval_expr(s.to_float32())
             1.5
 
         Returns
@@ -3168,8 +3200,8 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> s = functions.capture('1.15e80')
-            >>> eval_expr(s.to_float64())
+            >>> s = hl.capture('1.15e80')
+            >>> hl.eval_expr(s.to_float64())
             1.15e+80
 
         Returns
@@ -3186,8 +3218,8 @@ class StringExpression(AtomicExpression):
         --------
         .. doctest::
 
-            >>> s = functions.capture('TRUE')
-            >>> eval_expr(s.to_boolean())
+            >>> s = hl.capture('TRUE')
+            >>> hl.eval_expr(s.to_boolean())
             True
 
         Notes
@@ -3203,10 +3235,11 @@ class StringExpression(AtomicExpression):
 
         return self._method("toBoolean", TBoolean())
 
+
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
 
-    >>> call = functions.capture(Call([0, 1]))
+    >>> call = hl.call(False, 0, 1)
     """
 
     def __getitem__(self, item):
@@ -3219,10 +3252,10 @@ class CallExpression(Expression):
 
         .. doctest::
 
-            >>> eval_expr(call[0])
+            >>> hl.eval_expr(call[0])
             0
 
-            >>> eval_expr(call[1])
+            >>> hl.eval_expr(call[1])
             1
 
         Parameters
@@ -3251,7 +3284,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.ploidy)
+            >>> hl.eval_expr(call.ploidy)
             2
 
         Returns
@@ -3268,7 +3301,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.phased)
+            >>> hl.eval_expr(call.phased)
             False
 
         Returns
@@ -3284,7 +3317,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_haploid())
+            >>> hl.eval_expr(call.is_haploid())
             False
 
         Returns
@@ -3300,7 +3333,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_diploid())
+            >>> hl.eval_expr(call.is_diploid())
             True
 
         Returns
@@ -3316,7 +3349,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_non_ref())
+            >>> hl.eval_expr(call.is_non_ref())
             True
 
         Returns
@@ -3333,7 +3366,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_het())
+            >>> hl.eval_expr(call.is_het())
             True
 
         Returns
@@ -3350,7 +3383,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_het_nonref())
+            >>> hl.eval_expr(call.is_het_nonref())
             False
 
         Returns
@@ -3367,7 +3400,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_het_ref())
+            >>> hl.eval_expr(call.is_het_ref())
             True
 
         Returns
@@ -3384,7 +3417,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_hom_ref())
+            >>> hl.eval_expr(call.is_hom_ref())
             False
 
         Returns
@@ -3401,7 +3434,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.is_hom_var())
+            >>> hl.eval_expr(call.is_hom_var())
             False
 
         Returns
@@ -3418,7 +3451,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.num_alt_alleles())
+            >>> hl.eval_expr(call.num_alt_alleles())
             1
 
         Returns
@@ -3437,7 +3470,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.one_hot_alleles(['A', 'T']))
+            >>> hl.eval_expr(call.one_hot_alleles(['A', 'T']))
             [1, 1]
 
         This one-hot representation is the positional sum of the one-hot
@@ -3466,7 +3499,7 @@ class CallExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(call.unphased_diploid_gt_index())
+            >>> hl.eval_expr(call.unphased_diploid_gt_index())
             1
 
         Returns
@@ -3478,8 +3511,9 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.TLocus`.
 
-    >>> locus = functions.capture(Locus('1', 100))
+    >>> locus = hl.capture(hl.Locus('1', 100))
     """
+
     @property
     def contig(self):
         """Returns the chromosome.
@@ -3488,7 +3522,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.contig)
+            >>> hl.eval_expr(locus.contig)
             '1'
 
         Returns
@@ -3506,7 +3540,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.position)
+            >>> hl.eval_expr(locus.position)
             100
 
         Returns
@@ -3524,7 +3558,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_x_nonpar())
+            >>> hl.eval_expr(locus.in_x_nonpar())
             False
 
         Returns
@@ -3541,7 +3575,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_x_par())
+            >>> hl.eval_expr(locus.in_x_par())
             False
 
         Returns
@@ -3558,7 +3592,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_y_nonpar())
+            >>> hl.eval_expr(locus.in_y_nonpar())
             False
 
         Note
@@ -3581,7 +3615,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_y_par())
+            >>> hl.eval_expr(locus.in_y_par())
             False
 
         Note
@@ -3608,7 +3642,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_autosome())
+            >>> hl.eval_expr(locus.in_autosome())
             True
 
         Returns
@@ -3625,7 +3659,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_autosome_or_par())
+            >>> hl.eval_expr(locus.in_autosome_or_par())
             True
 
         Returns
@@ -3641,7 +3675,7 @@ class LocusExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(locus.in_mito())
+            >>> hl.eval_expr(locus.in_mito())
             True
 
         Returns
@@ -3654,8 +3688,9 @@ class LocusExpression(Expression):
 class IntervalExpression(Expression):
     """Expression of type :class:`.TInterval`.
 
-    >>> interval = functions.capture(Interval.parse('X:1M-2M'))
+    >>> interval = hl.capture(hl.Interval.parse('X:1M-2M'))
     """
+
     @typecheck_method(locus=expr_locus)
     def contains(self, locus):
         """Tests whether a locus is contained in the interval.
@@ -3664,10 +3699,10 @@ class IntervalExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(interval.contains(Locus('X', 3000000)))
+            >>> hl.eval_expr(interval.contains(hl.Locus('X', 3000000)))
             False
 
-            >>> eval_expr(interval.contains(Locus('X', 1500000)))
+            >>> hl.eval_expr(interval.contains(hl.Locus('X', 1500000)))
             True
 
         Parameters
@@ -3692,7 +3727,7 @@ class IntervalExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(interval.end)
+            >>> hl.eval_expr(interval.end)
             Locus(contig=X, position=2000000, reference_genome=GRCh37)
 
         Returns
@@ -3710,7 +3745,7 @@ class IntervalExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(interval.start)
+            >>> hl.eval_expr(interval.start)
             Locus(contig=X, position=1000000, reference_genome=GRCh37)
 
         Returns
@@ -3719,6 +3754,7 @@ class IntervalExpression(Expression):
             Start locus.
         """
         return self._field("start", TLocus())
+
 
 typ_to_expr = {
     TBoolean: BooleanExpression,
@@ -3884,7 +3920,7 @@ def eval_expr(expression):
     .. doctest::
 
         >>> x = 6
-        >>> eval_expr(functions.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> hl.eval_expr(hl.cond(x % 2 == 0, 'Even', 'Odd'))
         'Even'
 
     Parameters
@@ -3898,6 +3934,7 @@ def eval_expr(expression):
         Result of evaluating `expression`.
     """
     return eval_expr_typed(expression)[0]
+
 
 @handle_py4j
 @typecheck(expression=expr_any)
@@ -3917,7 +3954,7 @@ def eval_expr_typed(expression):
     .. doctest::
 
         >>> x = 6
-        >>> eval_expr_typed(functions.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> hl.eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
         ('Odd', TString())
 
     Parameters
