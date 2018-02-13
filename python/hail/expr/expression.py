@@ -1403,13 +1403,13 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         .. doctest::
 
-            >>> pl = functions.capture([10, 0, 100])
+            >>> pl = hl.capture([10, 0, 100])
             [10, 0, 100]
 
             >>> hl.eval_expr(pl.unique_min_index())
             1
 
-            >>> pl2 = functions.capture([0, 0, 100])
+            >>> pl2 = hl.capture([0, 0, 100])
             [0, 0, 100]
 
             >>> hl.eval_expr(pl2.unique_min_index())
@@ -1433,13 +1433,13 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         .. doctest::
 
-            >>> gp = functions.capture([0.2, 0.2, 0.6])
+            >>> gp = hl.capture([0.2, 0.2, 0.6])
             [0.2, 0.2, 0.6]
 
             >>> hl.eval_expr(gp.unique_max_index())
             2
 
-            >>> gp2 = functions.capture([0.4, 0.4, 0.2])
+            >>> gp2 = hl.capture([0.4, 0.4, 0.2])
             [0.4, 0.4, 0.2]
 
             >>> hl.eval_expr(gp2.unique_max_index())

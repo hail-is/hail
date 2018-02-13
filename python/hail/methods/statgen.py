@@ -202,8 +202,6 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     if aaf_threshold < 0.0 or aaf_threshold > 1.0:
         raise FatalError("Invalid argument for `aaf_threshold`. Must be in range [0, 1].")
 
-    f = functions
-
     ds = call._indices.source
     ds, _ = ds._process_joins(call)
     ds = ds.annotate_entries(call=call)
@@ -222,11 +220,11 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds[aaf]))
     kt = ds.select_cols(
         *ds.col_key,
-        is_female=f.cond(ds.ib.f_stat < female_threshold,
-                         True,
-                         f.cond(ds.ib.f_stat > male_threshold,
-                                False,
-                                f.null(TBoolean()))),
+        is_female=hl.cond(ds.ib.f_stat < female_threshold,
+                          True,
+                          hl.cond(ds.ib.f_stat > male_threshold,
+                                  False,
+                                  hl.null(TBoolean()))),
         **ds.ib).cols_table()
 
     return kt
@@ -2801,9 +2799,9 @@ class FilterAlleles(object):
                 .min()))),
             hl.null(TArray(TInt32())))
         self.annotate_entries(
-            GT=hl.gt_index(self.old_to_new[ds.GT.gtj()],
-                           self.old_to_new[ds.GT.gtk()]),
-            AD=hl.cond(
+            GT=hl.call(False,
+                       self.old_to_new[ds.GT[0]],
+                       self.old_to_new[ds.GT[1]]), AD=hl.cond(
                 hl.is_defined(ds.AD),
                 (hl.range(0, self.new_alleles.length())
                     .map(lambda newi: (hl.range(0, ds.alleles.length())

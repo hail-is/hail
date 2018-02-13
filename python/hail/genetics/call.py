@@ -189,10 +189,10 @@ class Call(HistoryMixin):
         --------
         .. doctest::
 
-            num_alleles = 2
-            hom_ref = hl.Call([0, 0])
-            het = hl.Call([0, 1])
-            hom_var = hl.Call([1, 1])
+            >>> num_alleles = 2
+            >>> hom_ref = hl.Call([0, 0])
+            >>> het = hl.Call([0, 1])
+            >>> hom_var = hl.Call([1, 1])
 
             >>> het.one_hot_alleles(num_alleles)
             [1, 1]
@@ -216,7 +216,18 @@ class Call(HistoryMixin):
         -------
         :obj:`list` of :obj:`int`
         """
+        return jiterable_to_list(Call.call_jobject().oneHotAlleles(self._call, num_alleles))
+
+    @handle_py4j
+    def unphased_diploid_gt_index(self):
+        """Return the genotype index for unphased, diploid calls.
+
+        Returns
+        -------
+        :obj:`int`
+        """
 
         if self.ploidy != 2 or self.phased:
-            raise FatalError("'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
+            raise FatalError(
+                "'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
         return Call.call_jobject().unphasedDiploidGtIndex(self._call)
