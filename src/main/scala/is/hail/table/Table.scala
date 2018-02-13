@@ -539,6 +539,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def select(selectedColumns: String*): Table = select(selectedColumns.toArray)
 
+  def select(selectedColumns: java.util.ArrayList[String]): Table = select(selectedColumns.asScala.toArray)
+
   def drop(columnsToDrop: Array[String]): Table = {
     if (columnsToDrop.isEmpty)
       return this

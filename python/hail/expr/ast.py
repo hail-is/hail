@@ -243,29 +243,11 @@ class AggregableReference(AST):
 
 class GlobalJoinReference(AST):
     def __init__(self, uid):
-        self.is_set = False
         self.uid = uid
         super(GlobalJoinReference, self).__init__()
 
-    def set(self, target):
-        from hail.matrixtable import MatrixTable
-        self.is_set = True
-        if isinstance(target, MatrixTable):
-            self.is_matrix = True
-        else:
-            self.is_matrix = False
-
     def to_hql(self):
-        assert self.is_set
-        if self.is_matrix:
-            return 'global.{}'.format(escape_id(self.uid))
-        else:
-            return self.uid
-
-
-def rewrite_global_refs(ast, target):
-    for a in ast.search(lambda a: isinstance(a, GlobalJoinReference)):
-        a.set(target)
+        return 'global.{}'.format(escape_id(self.uid))
 
 @typecheck(ast=AST, identifier=str)
 def replace_aggregables(ast, identifier):
