@@ -8,6 +8,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -19,7 +20,7 @@ class RichParser[T](parser: Parser.Parser[T]) {
     }
   }
 
-  def parse_opt(input: String): Option[T] = {
+  def parseOpt(input: String): Option[T] = {
     Parser.parseAll(parser, input) match {
       case Parser.Success(result, _) => Some(result)
       case Parser.NoSuccess(msg, next) => None
@@ -106,183 +107,75 @@ object Parser extends JavaTokenParsers {
     (types.toArray, () => fs.map(f => f()).toArray)
   }
 
-  def parseSelectExprs(codes: Array[String], ec: EvalContext): (Array[List[String]], Array[Type], () => Array[Any], Array[Boolean]) = {
-    val idPaths = codes.map { x => select_arg.parse_opt(x) }
-    val (maybeNames, types, f, isNamed) = parseNamedExprs[List[String]](codes.mkString(","), annotationIdentifier,
-      ec, (t, s) => t.map(_ :+ s), Some((i) => idPaths(i)))
+  def parseSelectExprs(codes: Array[String], ec: EvalContext): (Array[Either[String, List[String]]], Array[Type], () => Array[Any]) = {
 
-    if (maybeNames.exists(_.isEmpty))
-      fatal("left-hand side required in annotation expression")
+    // Left is string assignment, right is referenced path
+    val names = new Array[Either[String, List[String]]](codes.length)
+    val types = new Array[Type](codes.length)
+    val fs = new Array[() => Any](codes.length)
 
-    val names = maybeNames.flatten
-
-    (names, types, f, isNamed)
+    codes.indices.foreach { i =>
+      val code = codes(i)
+      annotationIdentifier.parseOpt(code) match {
+        case Some(ids) =>
+          val ast = expr.parse(code)
+          assert(ids.nonEmpty)
+          names(i) = Right(ids)
+          val (t, f) = eval(ast, ec)
+          types(i) = t
+          fs(i) = f
+        case None =>
+          val (name, ast) = named_expr(identifier).parse(code)
+          names(i) = Left(name)
+          val (t, f) = eval(ast, ec)
+          types(i) = t
+          fs(i) = f
+      }
+    }
+    (names, types, () => fs.map(_()))
   }
 
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Any]) = {
-    val (maybeNames, types, f, _) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
-      (t, s) => t.map(_ :+ s))
+    val (paths, types, fs) = named_exprs(annotationIdentifier)
+      .parse(code)
+      .map { case (l, ast) =>
+        val path = expectedHead match {
+          case Some(h) =>
+            require(l.head == h, h)
+            l.tail
+          case None => l
+        }
+        val (t, f) = eval(ast, ec)
+        (path, t, f)
+      }.unzip3
 
-    if (maybeNames.exists(_.isEmpty))
-      fatal("left-hand side required in annotation expression")
-
-    val names = maybeNames.flatten
-
-    expectedHead.foreach { h =>
-      names.foreach { n =>
-        if (n.head != h)
-          fatal(
-            s"""invalid annotation path `${ n.map(prettyIdentifier).mkString(".") }'
-               |  Path should begin with `$h'
-           """.stripMargin)
-      }
-    }
-
-    (names.map { n =>
-      if (expectedHead.isDefined)
-        n.tail
-      else
-        n
-    }, types, () => {
-      f()
-    })
+    (paths, types, () => fs.map(_()))
   }
 
-  def parseAnnotationExprsToAST(code: String, ec: EvalContext, expectedHead: Option[String]): (
-    Array[List[String]], Array[AST]) = {
-
-    val parsed = named_exprs(annotationIdentifier).parse(code)
-
-    val names = new Array[List[String]](parsed.size)
-    val asts = new Array[AST](parsed.size)
-
-    var i = 0
-    parsed.foreach { case (name, ast, _) =>
-      name match {
-        case Some(n) => names(i) = n
-        case None => fatal("left-hand side required in annotation expression")
-      }
-      asts(i) = ast
-      i += 1
-    }
-
-    expectedHead.foreach { h =>
-      names.foreach { n =>
-        if (n.head != h)
-          fatal(
-            s"""invalid annotation path `${ n.map(prettyIdentifier).mkString(".") }'
-               |  Path should begin with `$h'
-           """.stripMargin)
-      }
-    }
-
-    (names.map { n =>
-      if (expectedHead.isDefined) n.tail else n
-    }, asts)
-  }
+  def parseAnnotationExprsToAST(code: String, ec: EvalContext): (Array[(String, AST)]) =
+    named_exprs(identifier).parse(code)
 
   def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Any]) = {
-    val (maybeNames, types, f, _) = parseNamedExprs[String](code, identifier, ec,
-      (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
-
-    if (maybeNames.exists(_.isEmpty))
-      fatal("left-hand side required in named expression")
-
-    val names = maybeNames.flatten
+    val (names, types, f) = parseNamedExprs[String](code, identifier, ec)
 
     (names, types, f)
   }
 
-  def parseNamedExprs[T](code: String, name: Parser[T], ec: EvalContext, concat: (Option[T], String) => Option[T],
-    nameF: Option[(Int) => Option[T]] = None): (
-    Array[Option[T]], Array[Type], () => Array[Any], Array[Boolean]) = {
+  def parseNamedExprs[T](code: String, name: Parser[T], ec: EvalContext)(implicit ct: ClassTag[T]): (
+    Array[T], Array[Type], () => Array[Any]) = {
 
     val parsed = named_exprs(name).parse(code)
-    val nExprs = parsed.size
+    val nExprs = parsed.length
 
-    val nValues = parsed.map { case (n, ast, splat) =>
-      ast.typecheck(ec)
-      if (splat) {
-        ast.`type` match {
-          case t: TStruct =>
-            t.size
+    val names = parsed.map(_._1)
+    val asts = parsed.map(_._2)
+    val tf = asts.map(eval(_, ec))
+    val types = tf.map(_._1)
+    val fs = tf.map(_._2)
+    val f = () => fs.map(_())
 
-          case t =>
-            fatal(s"cannot splat non-struct type: $t")
-        }
-      } else
-        1
-    }.sum
-
-    val a = new Array[Any](nValues)
-
-    val names = new Array[Option[T]](nValues)
-    val types = new Array[Type](nValues)
-    val fs = new Array[() => Unit](nExprs)
-    val isNamed = new Array[Boolean](nValues)
-
-    var i = 0
-    var j = 0
-    parsed.foreach { case (name, ast, splat) =>
-      val n = nameF.flatMap(f => f(i)).orElse(name)
-      val t = ast.`type`
-
-      if (!t.isRealizable)
-        fatal(s"unrealizable type in export expression: $t")
-
-      val f = evalNoTypeCheck(ast, ec)
-      if (splat) {
-        val j0 = j
-        val s = t.asInstanceOf[TStruct] // checked above
-        s.fields.foreach { field =>
-          names(j) = concat(n, field.name)
-          types(j) = field.typ
-          isNamed(j) = name.isDefined
-          j += 1
-        }
-
-        val sSize = s.size
-        fs(i) = () => {
-          val v = f()
-          if (v == null) {
-            var k = 0
-            while (k < sSize) {
-              a(j0 + k) = null
-              k += 1
-            }
-          } else {
-            val va = v.asInstanceOf[Row].toSeq.toArray[Any]
-            var k = 0
-            while (k < sSize) {
-              a(k + j0) = va(k)
-              k += 1
-            }
-          }
-        }
-      } else {
-        names(j) = n
-        types(j) = t
-        isNamed(j) = name.isDefined
-        val localJ = j
-        fs(i) = () => {
-          a(localJ) = f()
-        }
-        j += 1
-      }
-
-      i += 1
-    }
-    assert(i == nExprs)
-    assert(j == nValues)
-
-    (names, types, () => {
-      fs.foreach(_ ())
-
-      val newa = new Array[Any](nValues)
-      System.arraycopy(a, 0, newa, 0, nValues)
-      newa
-    }, isNamed)
+    (names, types, f)
   }
 
   def parse[T](parser: Parser[T], code: String): T = {
@@ -597,21 +490,11 @@ object Parser extends JavaTokenParsers {
     case t ~ s ~ v => (t, s, v)
   }
 
-  def splat: Parser[Boolean] =
-    "." ~ "*" ^^ { _ => true } |
-      success(false)
+  def named_expr[T](name: Parser[T]): Parser[(T, AST)] =
+    (name <~ "=") ~ expr ^^ { case n ~ e => n -> e }
 
-  def splatAnnotationIdentifier = rep1sep(identifier, ".") <~ ".*"
-
-  def select_arg: Parser[List[String]] =
-    splatAnnotationIdentifier ||| annotationIdentifier
-
-  def named_expr[T](name: Parser[T]): Parser[(Option[T], AST, Boolean)] =
-    (((name <~ "=") ^^ { n => Some(n) }) ~ expr ~ splat |||
-      success(None) ~ expr ~ splat) ^^ tuplify
-
-  def named_exprs[T](name: Parser[T]): Parser[Seq[(Option[T], AST, Boolean)]] =
-    repsep(named_expr(name), ",")
+  def named_exprs[T](name: Parser[T]): Parser[Array[(T, AST)]] =
+    repsep(named_expr(name), ",") ^^ (_.toArray)
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>

@@ -1136,21 +1136,19 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def selectCols(exprs: String*): MatrixTable = {
     val ec = sampleEC
-    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.toArray, ec)
+    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
     val topLevelFields = mutable.Set.empty[String]
-    val finalNames = maybePaths.map(_.toArray).zip(isNamedExpr).map { case (l, named) =>
-      if (named) {
-        assert(l.length == 1)
-        l.head
-      } else {
-        assert(l.head == Annotation.SAMPLE_HEAD)
-        val name = l.last
-        if (l.length == 2) {
-          topLevelFields += name
-        }
-        name
+
+    val finalNames = paths.map {
+      // assignment
+      case Left(name) => name
+      case Right(path) => path match {
+        case List(Annotation.SAMPLE_HEAD, name) => topLevelFields += name
+        case _ =>
       }
+        path.last
     }
+
     assert(finalNames.areDistinct())
     val newColType = TStruct(finalNames.zip(types): _*)
     val finalNameSet = finalNames.toSet
@@ -1173,20 +1171,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def selectRows(exprs: String*): MatrixTable = {
     val ec = variantEC
-    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.toArray, ec)
+    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
     val topLevelFields = mutable.Set.empty[String]
-    val finalNames = maybePaths.map(_.toArray).zip(isNamedExpr).map { case (l, named) =>
-      if (named) {
-        assert(l.length == 1)
-        l.head
-      } else {
-        assert(l.head == Annotation.VARIANT_HEAD)
-        val name = l.last
-        if (l.length == 2) {
-          topLevelFields += name
-        }
-        name
+
+    val finalNames = paths.map {
+      // assignment
+      case Left(name) => name
+      case Right(path) => path match {
+        case List(Annotation.VARIANT_HEAD, name) => topLevelFields += name
+        case _ =>
       }
+        path.last
     }
 
     assert(finalNames.areDistinct())
@@ -1299,20 +1294,16 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = entryEC
     ec.set(0, globals)
 
-    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.toArray, ec)
+    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
     val topLevelFields = mutable.Set.empty[String]
-    val finalNames = maybePaths.map(_.toArray).zip(isNamedExpr).map { case (l, named) =>
-      if (named) {
-        assert(l.length == 1)
-        l.head
-      } else {
-        assert(l.head == Annotation.GENOTYPE_HEAD)
-        val name = l.last
-        if (l.length == 2) {
-          topLevelFields += name
-        }
-        name
+
+    val finalNames = paths.map {
+      // assignment
+      case Left(name) => name
+      case Right(path) => path match {
+        case List(Annotation.GENOTYPE_HEAD, name) => topLevelFields += name
       }
+        path.last
     }
     assert(finalNames.areDistinct())
 

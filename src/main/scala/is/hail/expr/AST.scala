@@ -26,28 +26,6 @@ case class EvalContext private(st: SymbolTable,
     case _ =>
   }
 
-  def setAllFromRows(args1: Row, args2: Row) {
-    var i = 0
-    while (i < args1.length) {
-      a(i) = args1(i)
-      i += 1
-    }
-    var j = 0
-    while (j < args2.length) {
-      a(i) = args2(j)
-      i += 1
-      j += 1
-    }
-  }
-
-  def setAllFromRow(args: Row) {
-    var i = 0
-    while (i < args.length) {
-      a(i) = args(i)
-      i += 1
-    }
-  }
-
   def setAll(arg1: Any) {
     a(0) = arg1
   }

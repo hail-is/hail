@@ -88,22 +88,22 @@ class GenomeReferenceSuite extends SparkSuite {
     val data1 = Array(Row(Locus("X", 154931044), Locus("chrX", 156030895)))
     val kt1 = Table(hc, sc.parallelize(data1), sig)
     kt1.typeCheck()
-    assert(kt1.forall("v37.inXPar() && v38.inXPar()"))
+    assert(kt1.forall("row.v37.inXPar() && row.v38.inXPar()"))
 
     val data2 = Array(Row(Locus("Y", 2649520), Locus("chrY", 2649520)))
     val kt2 = Table(hc, sc.parallelize(data2), sig)
     kt2.typeCheck()
-    assert(kt2.forall("v37.inYPar() && v38.inYPar()"))
+    assert(kt2.forall("row.v37.inYPar() && row.v38.inYPar()"))
 
     val data3 = Array(Row(Locus("X", 157701382), Locus("chrX", 157701382)))
     val kt3 = Table(hc, sc.parallelize(data3), sig)
     kt3.typeCheck()
-    assert(kt3.forall("v37.inXNonPar() && v38.inXNonPar()"))
+    assert(kt3.forall("row.v37.inXNonPar() && row.v38.inXNonPar()"))
 
     val data4 = Array(Row(Locus("Y", 2781480), Locus("chrY", 2781480)))
     val kt4 = Table(hc, sc.parallelize(data4), sig)
     kt4.typeCheck()
-    assert(kt4.forall("v37.inYNonPar() && v38.inYNonPar()"))
+    assert(kt4.forall("row.v37.inYNonPar() && row.v38.inYNonPar()"))
 
     val data5 = Array(
       Row(Locus("1", 2781480), Locus("X", 2781480), Locus("chr1", 2781480), Locus("chrX", 2781480)),
@@ -113,7 +113,8 @@ class GenomeReferenceSuite extends SparkSuite {
       ("v37a", TLocus(GenomeReference.GRCh37)), ("v37na", TLocus(GenomeReference.GRCh37)),
       ("v38a", TLocus(GenomeReference.GRCh38)), ("v38na", TLocus(GenomeReference.GRCh38))))
     kt5.typeCheck()
-    assert(kt5.forall("v37a.isAutosomal() && !v37na.isAutosomal() && v38a.isAutosomal() && !v38na.isAutosomal()"))
+    assert(kt5.forall("row.v37a.isAutosomal() && !row.v37na.isAutosomal() && " +
+      "row.v38a.isAutosomal() && !row.v38na.isAutosomal()"))
   }
 
   @Test def testConstructors() {
@@ -126,8 +127,8 @@ class GenomeReferenceSuite extends SparkSuite {
     ktann.signature.field("i1").typ == TInterval(GenomeReference.GRCh37.locusType) &&
     ktann.signature.field("i2").typ == TInterval(GenomeReference.GRCh38.locusType))
 
-    assert(ktann.forall("l1.position == 100 && l2.position == 100 &&" +
-      """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
+    assert(ktann.forall("row.l1.position == 100 && row.l2.position == 100 &&" +
+      """row.i1.start == Locus(GRCh37)("1", 5) && !row.i2.contains(row.l1)"""))
 
     val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)

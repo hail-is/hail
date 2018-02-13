@@ -96,18 +96,18 @@ class AggregatorSuite extends SparkSuite {
           })
       }
 
-    assert(vds.colsTable().forall("qc.nCalled == test.nCalled"))
-    assert(vds.colsTable().forall("qc.nNotCalled == test.nNotCalled"))
-    assert(vds.colsTable().forall("qc.callRate == test.callrate"))
-    assert(vds.colsTable().forall("qc.nHet == test.nHet"))
-    assert(vds.colsTable().forall("qc.nHomVar == test.nHomVar"))
-    assert(vds.colsTable().forall("qc.nHomRef == test.nHomRef"))
-    assert(vds.colsTable().forall("qc.nSNP == test.nSNP"))
-    assert(vds.colsTable().forall("qc.nInsertion == test.nInsertion"))
-    assert(vds.colsTable().forall("qc.nDeletion == test.nDeletion"))
-    assert(vds.colsTable().forall("qc.nTransition == test.nTi"))
-    assert(vds.colsTable().forall("qc.nTransversion == test.nTv"))
-    assert(vds.colsTable().forall("qc.nStar == test.nStar"))
+    assert(vds.colsTable().forall("row.qc.nCalled == row.test.nCalled"))
+    assert(vds.colsTable().forall("row.qc.nNotCalled == row.test.nNotCalled"))
+    assert(vds.colsTable().forall("row.qc.callRate == row.test.callrate"))
+    assert(vds.colsTable().forall("row.qc.nHet == row.test.nHet"))
+    assert(vds.colsTable().forall("row.qc.nHomVar == row.test.nHomVar"))
+    assert(vds.colsTable().forall("row.qc.nHomRef == row.test.nHomRef"))
+    assert(vds.colsTable().forall("row.qc.nSNP == row.test.nSNP"))
+    assert(vds.colsTable().forall("row.qc.nInsertion == row.test.nInsertion"))
+    assert(vds.colsTable().forall("row.qc.nDeletion == row.test.nDeletion"))
+    assert(vds.colsTable().forall("row.qc.nTransition == row.test.nTi"))
+    assert(vds.colsTable().forall("row.qc.nTransversion == row.test.nTv"))
+    assert(vds.colsTable().forall("row.qc.nStar == row.test.nStar"))
   }
 
   @Test def testSum() {
@@ -137,12 +137,12 @@ class AggregatorSuite extends SparkSuite {
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
 
     val ktMax = Table(hc, rdd, signature)
-      .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.max()").mkString(","))
+      .aggregate("group = row.group", (0 until 11).map(i => s"s$i = rows.map(r => r.s$i).max()").mkString(","))
 
     assert(ktMax.collect() == IndexedSeq(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
     val ktMin = Table(hc, rdd, signature)
-      .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.min()").mkString(","))
+      .aggregate("group = row.group", (0 until 11).map(i => s"s$i = rows.map(r => r.s$i).min()").mkString(","))
 
     assert(ktMin.collect() == IndexedSeq(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
   }
@@ -157,7 +157,7 @@ class AggregatorSuite extends SparkSuite {
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
 
     val ktProduct = Table(hc, rdd, signature)
-      .aggregate("group = group", ((0 until 11).map(i => s"s$i = s$i.product()") :+ ("empty = s10.filter(x => false).product()")).mkString(","))
+      .aggregate("group = row.group", ((0 until 11).map(i => s"s$i = rows.map(r => r.s$i).product()") :+ ("empty = rows.map(r => r.s10).filter(x => false).product()")).mkString(","))
 
     assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
 
@@ -175,9 +175,9 @@ class AggregatorSuite extends SparkSuite {
       .rowsTable()
       .forall(
         """
-        hist.binFrequencies[0] == bin0 &&
-        hist.binFrequencies[1] == bin1 &&
-        hist.binFrequencies[-1] == last"""))
+        row.hist.binFrequencies[0] == row.bin0 &&
+        row.hist.binFrequencies[1] == row.bin1 &&
+        row.hist.binFrequencies[-1] == row.last"""))
 
     assert(vds
       .annotateVariantsExpr(
@@ -188,8 +188,8 @@ class AggregatorSuite extends SparkSuite {
       .rowsTable()
       .forall(
         """
-        hist.nLess == nLess &&
-        hist.nGreater == nGreater"""))
+        row.hist.nLess == row.nLess &&
+        row.hist.nGreater == row.nGreater"""))
   }
 
   @Test def testCallStats() {
@@ -257,7 +257,7 @@ class AggregatorSuite extends SparkSuite {
 
         vds.annotateVariantsExpr(s"""foo = gs.filter(g => sa.s == "$s1").map(g => 1).sum()""")
           .rowsTable()
-          .forall("foo == 1")
+          .forall("row.foo == 1")
       })
 
     p.check()
@@ -451,7 +451,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testCollectAsSet() {
     val kt = Table.range(hc, 100, partitions = Some(10))
 
-    assert(kt.query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)
-    assert(kt.union(kt, kt).query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)
+    assert(kt.query(Array("rows.map(r => r.index).collectAsSet()"))(0)._1 == (0 until 100).toSet)
+    assert(kt.union(kt, kt).query(Array("rows.map(r => r.index).collectAsSet()"))(0)._1 == (0 until 100).toSet)
   }
 }

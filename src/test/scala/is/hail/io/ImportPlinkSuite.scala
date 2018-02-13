@@ -81,22 +81,38 @@ class ImportPlinkSuite extends SparkSuite {
 
     val a1kt = VariantQC(a1ref, "variant_qc")
       .rowsTable()
-      .select("rsid", "alleles", "variant_qc.nNotCalled", "variant_qc.nHomRef", "variant_qc.nHet", "variant_qc.nHomVar")
+      .select(
+        "row.rsid",
+        "row.alleles",
+        "row.variant_qc.nNotCalled",
+        "row.variant_qc.nHomRef",
+        "row.variant_qc.nHet",
+        "row.variant_qc.nHomVar")
       .rename(Map("alleles" -> "vA1", "nNotCalled" -> "nNotCalledA1",
         "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
       .keyBy("rsid")
 
     val a2kt = VariantQC(a2ref, "variant_qc")
       .rowsTable()
-      .select("rsid", "alleles", "variant_qc.nNotCalled", "variant_qc.nHomRef", "variant_qc.nHet", "variant_qc.nHomVar")
+      .select(
+        "row.rsid",
+        "row.alleles",
+        "row.variant_qc.nNotCalled",
+        "row.variant_qc.nHomRef",
+        "row.variant_qc.nHet",
+        "row.variant_qc.nHomVar")
       .rename(Map("alleles" -> "vA2", "nNotCalled" -> "nNotCalledA2",
         "nHomRef" -> "nHomRefA2", "nHet" -> "nHetA2", "nHomVar" -> "nHomVarA2"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")
 
-    assert(joined.forall("vA1[0] == vA2[1] && vA1[1] == vA2[0] && nNotCalledA1 == nNotCalledA2 && " +
-      "nHetA1 == nHetA2 && nHomRefA1 == nHomVarA2 && nHomVarA1 == nHomRefA2"))
+    assert(joined.forall("row.vA1[0] == row.vA2[1] && " +
+      "row.vA1[1] == row.vA2[0] && " +
+      "row.nNotCalledA1 == row.nNotCalledA2 && " +
+      "row.nHetA1 == row.nHetA2 && " +
+      "row.nHomRefA1 == row.nHomVarA2 && " +
+      "row.nHomVarA1 == row.nHomRefA2"))
   }
 
   @Test def testDropChr0() {

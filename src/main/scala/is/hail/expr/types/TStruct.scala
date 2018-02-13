@@ -503,21 +503,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
     (finalSignature, grouper)
   }
-
-  def parseInStructScope[T >: Null](code: String)(implicit hr: HailRep[T]): (Annotation) => T = {
-    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
-    val f = Parser.parseTypedExpr[T](code, ec)
-
-    (a: Annotation) => {
-      if (a == null)
-        null
-      else {
-        ec.setAllFromRow(a.asInstanceOf[Row])
-        f()
-      }
-    }
-  }
-
+  
   def ++(that: TStruct): TStruct = {
     val overlapping = fields.map(_.name).toSet.intersect(
       that.fields.map(_.name).toSet)

@@ -139,7 +139,7 @@ class VSMSuite extends SparkSuite {
     val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
       .annotateVariantsExpr("newGenos = gs.takeBy(g => sa.colIdx, 5)")
 
-    assert(reorderedVds.rowsTable().forall("origGenos == newGenos"))
+    assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
     assert(vds.reorderSamples(vds.colKeys).same(vds))
   }
   
@@ -155,10 +155,8 @@ class VSMSuite extends SparkSuite {
         .indexCols("colIdx")
       vsm.writeBlockMatrix(dirname, "g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1", blockSize)
 
-      vsm.rowsTable().select("locus", "rowIdx").show(1000)
-      vsm.colsTable().select("s", "colIdx").show(1000)
       val data = vsm.entriesTable()
-          .select("x = GT.nNonRefAlleles() + rowIdx + 1 + colIdx.toFloat64()")
+          .select("x = row.GT.nNonRefAlleles() + row.rowIdx + 1 + row.colIdx.toFloat64()")
           .collect()
           .map(_.getAs[Double](0))
 
@@ -179,7 +177,7 @@ class VSMSuite extends SparkSuite {
 
     val data = vsm
       .entriesTable()
-      .select("x = GT.unphasedDiploidGtIndex() + rowIdx + 1 + colIdx.toFloat64()")
+      .select("x = row.GT.unphasedDiploidGtIndex() + row.rowIdx + 1 + row.colIdx.toFloat64()")
       .collect()
       .map(_.getAs[Double](0))
     val lm = new DenseMatrix[Double](nSamples, nVariants, data.asInstanceOf[IndexedSeq[Double]].toArray).t // data is row major

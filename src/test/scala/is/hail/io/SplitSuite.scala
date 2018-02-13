@@ -36,7 +36,7 @@ class SplitSuite extends SparkSuite {
   }
 
   @Test def splitTest() {
-//    Spec.check()
+    Spec.check()
 
     val vds = hc.importVCF("src/test/resources/split_test.vcf")
     val vds1 = SplitMulti(vds)
@@ -52,6 +52,6 @@ class SplitSuite extends SparkSuite {
         simpleAssert(g1 == g2)
       }
 
-    assert(vds1.rowsTable().forall("wasSplit == (locus.position != 1180)"))
+    assert(vds1.rowsTable().forall("row.wasSplit == (row.locus.position != 1180)"))
   }
 }
