@@ -1300,7 +1300,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     Notes
     -----
 
-    This is a specialization of :meth:`.pca` above for the common use case
+    This is a specialization of :func:`.pca` for the common use case
     of PCA in statistical genetics, that of projecting samples to a small
     number of ancestry coordinates. Variants that are all homozygous reference
     or all homozygous alternate are unnormalizable and removed before
@@ -1311,7 +1311,8 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     :math:`ij` entry of the GRM :math:`MM^T` is simply the dot product of rows
     :math:`i` and :math:`j` of :math:`M`; in terms of :math:`C` it is
 
-    .. math:
+    .. math::
+    
       \\frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)
 
     where :math:`\mathcal{C}_i = \{l \mid C_{il} \\text{ is non-missing}\}`. In
@@ -1405,7 +1406,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     PCA is run on the columns of the numeric matrix obtained by evaluating
     `entry_expr` on each entry of the matrix table, or equivalently on the rows
-    of the **transposed** numeric matrix :math:`M`.
+    of the **transposed** numeric matrix :math:`M` referenced below.
 
     PCA computes the SVD
 

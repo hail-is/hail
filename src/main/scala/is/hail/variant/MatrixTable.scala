@@ -2862,6 +2862,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }
 
+    // caching is critical before use in computeSVD in PCA
     new IndexedRowMatrix(indexedRows.cache(), partStarts.last, numCols)
   }
 
