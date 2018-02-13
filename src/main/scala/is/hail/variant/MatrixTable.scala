@@ -756,7 +756,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def annotateSamplesTable(kt: Table, vdsKey: Seq[String] = null,
     root: String = null, product: Boolean = false): MatrixTable = {
 
-    val (finalType, inserter) = colType.structInsert(kt.valueSignature, List(root))
+    val (finalType, inserter) = colType.structInsert(
+      if (product) TArray(kt.valueSignature) else kt.valueSignature,
+      List(root))
 
     val keyTypes = kt.keyFields.map(_.typ).toSeq
 

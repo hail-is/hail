@@ -37,9 +37,8 @@ class AnnotateSuite extends SparkSuite {
         .toMap
     }
 
-    val anno1 = vds.annotateSamplesTable(
-      hc.importTable("src/test/resources/sampleAnnotations.tsv", types = Map("qPhen" -> TInt32())).keyBy("Sample"),
-      root = "my phenotype")
+    val table = hc.importTable("src/test/resources/sampleAnnotations.tsv", types = Map("qPhen" -> TInt32())).keyBy("Sample")
+    val anno1 = vds.annotateSamplesTable(table, root = "my phenotype")
 
     val q1 = anno1.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.querySA("sa.`my phenotype`.qPhen")._2
@@ -51,6 +50,8 @@ class AnnotateSuite extends SparkSuite {
             (qphen.isEmpty && Option(q2(sa)).isEmpty || qphen.liftedZip(Option(q2(sa))).exists { case (v1, v2) => v1 == v2 })
         }
       })
+
+    vds.annotateSamplesTable(table, root = "my phenotype", product = true).dropVariants().typecheck()
   }
 
   @Test def testSampleFamAnnotator() {
