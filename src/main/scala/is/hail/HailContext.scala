@@ -526,21 +526,21 @@ class HailContext private(val sc: SparkContext,
   }
 
   def importMatrix(file: String,
-    fieldHeaders: Option[Seq[String]],
-    fieldTypes: Seq[Type],
-    optKeyExpr: Option[String],
+    fieldHeaders: Option[Array[String]],
+    fieldTypes: Array[Type],
+    optKeyFields: Option[Array[String]],
     nPartitions: Option[Int] = None,
     forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
     noHeader: Boolean = false): MatrixTable =
-    importMatrices(List(file), fieldHeaders, fieldTypes, optKeyExpr, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
+    importMatrices(List(file), fieldHeaders, fieldTypes, optKeyFields, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
 
-  def importMatrices(files: Seq[String],
-    fieldHeaders: Option[Seq[String]],
-    fieldTypes: Seq[Type],
-    optKeyExpr: Option[String],
+  def importMatrices(files: List[String],
+    fieldHeaders: Option[Array[String]],
+    fieldTypes: Array[Type],
+    optKeyFields: Option[Array[String]],
     nPartitions: Option[Int] = None,
     forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
@@ -551,7 +551,7 @@ class HailContext private(val sc: SparkContext,
     val inputs = hadoopConf.globAll(files)
 
     forceBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, fieldHeaders, fieldTypes, optKeyExpr, nPartitions = nPartitions,
+      LoadMatrix(this, inputs, fieldHeaders, fieldTypes, optKeyFields, nPartitions = nPartitions,
         dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
     }
   }

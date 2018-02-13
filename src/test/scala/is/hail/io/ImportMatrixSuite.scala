@@ -13,6 +13,7 @@ import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
 import is.hail.testUtils._
+import org.apache.spark.sql.Row
 
 class ImportMatrixSuite extends SparkSuite {
 
@@ -34,42 +35,56 @@ class ImportMatrixSuite extends SparkSuite {
     tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
 
   def reKeyRows(vsm: MatrixTable): MatrixTable = {
-    val newMatrixType = vsm.matrixType.copy(vType = TInt64())
+    val newMatrixType = MatrixType.fromParts(vsm.matrixType.globalType,
+      vsm.matrixType.colKey,
+      vsm.matrixType.colType,
+      Array("row_id"),
+      Array("row_id"),
+      TStruct("row_id" -> TInt64()) ++ vsm.matrixType.rowType,
+      vsm.matrixType.entryType)
     val partStarts = vsm.partitionStarts()
     val newRowType = newMatrixType.rvRowType
     val oldRowType = vsm.matrixType.rvRowType
 
-    val indexedRDD = vsm.rdd2.rdd.mapPartitionsWithIndex { case (i, it) =>
+    val indexedRDD = vsm.rvd.rdd.mapPartitionsWithIndex { case (i, it) =>
       val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
-      var idx = partStarts(i)
+      val partStart = partStarts(i)
 
-      it.map { rv =>
+      it.zipWithIndex.map { case (rv, idx) =>
         region2.clear()
         rv2b.start(newRowType)
         rv2b.startStruct()
-        rv2b.addLong(idx)
-        rv2b.addLong(idx)
-        rv2b.addRegionValue(oldRowType.fieldType(2), rv.region, oldRowType.loadField(rv, 2))
-        rv2b.addRegionValue(oldRowType.fieldType(3), rv.region, oldRowType.loadField(rv, 3))
+        rv2b.addLong(partStart + idx)
+        var i = 0
+        while (i < oldRowType.size) {
+          if (oldRowType.isFieldDefined(rv, i))
+            rv2b.addRegionValue(oldRowType.fieldType(i), rv.region, oldRowType.loadField(rv, i))
+          else
+            rv2b.setMissing()
+          i += 1
+        }
         rv2b.endStruct()
-        idx += 1
         rv2.setOffset(rv2b.end())
         rv2
       }
     }
-    new MatrixTable(hc, newMatrixType, vsm.value.localValue, OrderedRVD(newMatrixType.orderedRVType, indexedRDD, None, None))
+    new MatrixTable(hc, newMatrixType, vsm.globals, vsm.colValues, OrderedRVD(newMatrixType.orvdType, indexedRDD, None, None))
   }
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {
-    vsm.renameSamples(Array.tabulate[Annotation](vsm.nSamples)("col" + _.toString))
+    vsm.copy2(colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row("col" + i.toString) })
+  }
+
+  def renameColKeyField(vsm: MatrixTable): MatrixTable = {
+    vsm.annotateSamplesExpr("col_id = sa.s").keyColsBy("col_id").selectCols("sa.col_id")
   }
 
   def dropRowAnnotations(vsm: MatrixTable, dropFields: Option[Array[String]]=None): MatrixTable =
     dropFields match {
       case Some(fields) =>
-        val keep = vsm.vaSignature.fieldNames.filterNot { fn => fields.contains(fn) }
+        val keep = vsm.rowType.fieldNames.filterNot { fn => fields.contains(fn) }
         val sb = new StringBuilder()
         keep.foreach { f =>
           sb ++= s"`$f`: va.`$f`,"
@@ -79,27 +94,22 @@ class ImportMatrixSuite extends SparkSuite {
     }
 
   def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
-    (vsm.vaSignature.fieldNames, vsm.vaSignature.fieldType)
+    (vsm.rowType.fieldNames, vsm.rowType.fieldType)
   }
 
-  def exportImportableVds(vsm: MatrixTable, header: Boolean=true, rowKeys: Boolean=true): String = {
+  def exportImportableVds(vsm: MatrixTable, header: Boolean=true): String = {
     val path = tmpDir.createTempFile(extension = "txt")
-    val kt = if (rowKeys)
-      vsm.makeKT("v = v, va.*", "`` = g.x", Array("v"))
-    else
-      vsm.makeKT("va.*", "`` = g.x", Array())
+    val kt = vsm.makeKT("va.*", "`` = g.x", Array("v"))
     kt.export(path, header=header)
     path
   }
 
   def checkValidResult(f: MatrixTable => (MatrixTable, MatrixTable)): Unit = {
     forAll(MatrixTable.gen(hc, genImportableMatrix)
-      .filter(vsm => vsm.sampleIds.intersect(vsm.vaSignature.fieldNames).isEmpty &&
-        !vsm.vaSignature.fieldNames.contains("v") &&
-        !vsm.sampleIds.contains("v"))) { vsm =>
-      println(vsm.sampleIds.contains("v"))
+      .filter(vsm => vsm.stringSampleIds.intersect(vsm.rowType.fieldNames).isEmpty)) { vsm =>
       val (transformed, result) = f(vsm)
-      assert(transformed.same(result, tolerance=0.001))
+      val transformed2 = renameColKeyField(transformed)
+      assert(transformed2.same(result, tolerance=0.001))
       val tmp1 = tmpDir.createTempFile(extension = "vds")
       result.write(tmp1, true)
 
@@ -112,7 +122,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testHeadersNotIdentical() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Some(Array("v")), Seq(TString()), Some("v"))
+      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), Some(Array("v")))
     }
     assert(e.getMessage.contains("invalid sample ids"))
   }
@@ -120,10 +130,10 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Some(Array("v")), Seq(TString()), Some("v"))
+      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), Some(Array("v")))
       vsm.rvd.count()
     }
-    assert(e.getMessage.contains("number of elements"))
+    assert(e.getMessage.contains("Incorrect number"))
   }
 
   @Test def testWithHeaderAndKey() {
@@ -131,9 +141,9 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), None, vsm.rowKeyTypes ++ vaTypes, Some("v"), cellType = vsm.entryType)
+        LoadMatrix(hc, Array(f), None, vaTypes, Some(Array("v")), cellType = vsm.entryType)
       }
-      (vsm, dropRowAnnotations(actual, Some(Array("v"))))
+      (vsm, actual)
     }
   }
 
@@ -142,17 +152,17 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm, header=false)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), Some(Array("v") ++ vaNames), vsm.rowKeyTypes ++ vaTypes, Some("v"), cellType = vsm.entryType, noHeader=true)
+        LoadMatrix(hc, Array(f), Some(vaNames), vaTypes, Some(Array("v")), cellType = vsm.entryType, noHeader=true)
       }
-      (reKeyCols(vsm), dropRowAnnotations(actual, Some(Array("v"))))
+      (reKeyCols(vsm), actual)
     }
   }
 
   @Test def testWithHeaderNoKey() {
     checkValidResult { vsm =>
       val actual: MatrixTable = {
-        val f = exportImportableVds(vsm, rowKeys=false)
-        val (_, vaTypes) = getVAFieldsAndTypes(vsm)
+        val f = exportImportableVds(vsm)
+        val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
         LoadMatrix(hc, Array(f), None, vaTypes, None, cellType = vsm.entryType)
       }
       (reKeyRows(vsm), actual)
@@ -162,9 +172,9 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testNoHeaderNoKey() {
     checkValidResult { vsm =>
       val actual: MatrixTable = {
-        val f = exportImportableVds(vsm, header=false, rowKeys=false)
+        val f = exportImportableVds(vsm, header=false)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), Some(vaNames), vaTypes, None, cellType = vsm.genotypeSignature, noHeader=true)
+        LoadMatrix(hc, Array(f), Some(vaNames), vaTypes, None, cellType = vsm.entryType, noHeader=true)
       }
       (reKeyCols(reKeyRows(vsm)), actual)
     }

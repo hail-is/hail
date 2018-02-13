@@ -21,7 +21,10 @@ class OrderedRVDPartitioner(
 
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.overlaps(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
-  } && rangeBounds.forall { i => pkType.ordering.lteq(i.asInstanceOf[Interval].start, i.asInstanceOf[Interval].end) } ))
+  } && rangeBounds.forall { i =>
+    pkType.ordering.lteq(i.asInstanceOf[Interval].start, i.asInstanceOf[Interval].end) &&
+    !i.asInstanceOf[Interval].isEmpty(pkType.ordering)
+  } ))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     pkType.ordering.equiv(left.end, right.start) && (left.includeEnd || right.includeStart) } )
