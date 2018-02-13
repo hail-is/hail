@@ -2682,7 +2682,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         it.flatMap { rv =>
           val ur = new UnsafeRow(localRVRowType, rv.region, rv.offset)
-          val v = ur.getAs[Variant](1)
+          val v = Variant.fromLocusAlleles(ur)
           val minv = v.minRep
 
           var isLeftAligned = (prevLocus == null || prevLocus != v.locus) &&
@@ -2700,8 +2700,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.startStruct()
             rvb.addAnnotation(localRVRowType.fieldType(0), minv.locus)
             rvb.addAnnotation(localRVRowType.fieldType(1), minv)
-            rvb.addField(localRVRowType, rv, 2)
-            rvb.addField(localRVRowType, rv, 3)
+            var i = 2
+            while (i < localRVRowType.size) {
+              rvb.addField(localRVRowType, rv, i)
+              i += 1
+            }
             rvb.endStruct()
             rv2.set(rv.region, rvb.end())
             Some(rv2)
