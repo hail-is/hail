@@ -727,7 +727,7 @@ object OrderedRVD {
           if (first)
             first = false
           else {
-            assert(typ.pkRowOrd.compare(prevPK.value, rv) <= 0)
+            assert(typ.pkRowOrd.compare(prevPK.value, rv) <= 0 && typ.kRowOrd.compare(prevK.value, rv) <= 0)
           }
 
           prevK.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
