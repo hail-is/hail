@@ -276,9 +276,9 @@ class Table(TableTemplate):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(mean_c1 = agg.mean(table1.C1),
-    ...                             mean_c2 = agg.mean(table1.C2),
-    ...                             stats_c3 = agg.stats(table1.C3))
+    >>> t1_stats = table1.aggregate(Struct(mean_c1 = agg.mean(table1.C1),
+    ...                                    mean_c2 = agg.mean(table1.C2),
+    ...                                    stats_c3 = agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group columns and aggregate to produce a new table:

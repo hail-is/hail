@@ -1431,7 +1431,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def aggregate_cols(self, expr):
-        """Aggregate over rows to a local value.
+        """Aggregate over columns to a local value.
 
         Examples
         --------
@@ -1483,7 +1483,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def aggregate_entries(self, expr):
-        """Aggregate over rows to a local value.
+        """Aggregate over entries to a local value.
 
         Examples
         --------
