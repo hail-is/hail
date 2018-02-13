@@ -643,7 +643,7 @@ class MatrixTests(unittest.TestCase):
         ds = ds.annotate_globals(x = 'foo')
         f = new_temp_file(suffix='vds')
         ds.write(f)
-        t = methods.read_table(f + '/rows')
+        t = hl.read_table(f + '/rows')
         self.assertTrue(ds.rows_table()._same(t))
 
     def test_read_stored_globals(self):
@@ -661,7 +661,7 @@ class MatrixTests(unittest.TestCase):
         temp = new_temp_file(suffix='hmt')
         for codec in codecs:
             ds.write(temp, overwrite=True, _codec_spec=codec.toString())
-            ds2 = methods.read_matrix_table(temp)
+            ds2 = hl.read_matrix_table(temp)
             self.assertTrue(ds._same(ds2))
 
     def test_codecs_table(self):
@@ -671,7 +671,7 @@ class MatrixTests(unittest.TestCase):
         temp = new_temp_file(suffix='ht')
         for codec in codecs:
             rt.write(temp, overwrite=True, _codec_spec=codec.toString())
-            rt2 = methods.read_table(temp)
+            rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
 class FunctionsTests(unittest.TestCase):
