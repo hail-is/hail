@@ -1016,7 +1016,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           val rangeTree = partBc.value.rangeTree
           val pkOrd = partBc.value.pkType.ordering
           val wrappedInterval = interval.copy(start = Row(interval.start), end=Row(interval.end))
-          rangeTree.queryOverlappedValues(pkOrd, wrappedInterval).map(i => (i, rv))
+          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv))
         } else
           Iterator()
       }

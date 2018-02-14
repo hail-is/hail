@@ -98,9 +98,9 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
     b.result()
   }
 
-  def queryOverlappedValues(pord: ExtendedOrdering, interval: Interval): Array[U] = {
+  def queryOverlappingValues(pord: ExtendedOrdering, interval: Interval): Array[U] = {
     val b = Array.newBuilder[U]
-    root.foreach(_.queryOverlappedValues(pord, b, interval))
+    root.foreach(_.queryOverlappingValues(pord, b, interval))
     b.result()
   }
 
@@ -221,13 +221,13 @@ case class IntervalTreeNode[U](i: Interval,
     }
   }
 
-  def queryOverlappedValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], interval: Interval) {
+  def queryOverlappingValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], interval: Interval) {
     if (pord.gteq(interval.end, minimum) && pord.lteq(interval.start, maximum)) {
-      left.foreach(_.queryOverlappedValues(pord, b, interval))
+      left.foreach(_.queryOverlappingValues(pord, b, interval))
       if (pord.gteq(interval.end, i.start)) {
         if (i.overlaps(pord, interval))
           b += value
-        right.foreach(_.queryOverlappedValues(pord, b, interval))
+        right.foreach(_.queryOverlappingValues(pord, b, interval))
       }
     }
   }

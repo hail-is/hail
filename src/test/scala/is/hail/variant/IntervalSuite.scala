@@ -274,4 +274,26 @@ class IntervalSuite extends SparkSuite {
     assert(pruned.size == pruned2.size)
     assert(pruned.result().zip(pruned2.result()).forall { case (i1, i2) => i1 == i2 })
   }
+
+  @Test def testQueryInterval() {
+    val ord = TInt32().ordering
+
+      val iArray = Array(Interval(1, 5, true, true),
+      Interval(5, 10, true, true),
+      Interval(8, 17, true, true),
+      Interval(9, 20, true, true))
+
+    val i0 = IntervalTree.annotationTree(ord, iArray.zipWithIndex)
+    val testIntervals = Array(
+      (Interval(5, 5, false, false), Array()),
+      (Interval(5, 5, true, true), Array(0,1)),
+      (Interval(8, 9, true, false), Array(1,2,3)),
+      (Interval(20, 21, false, false), Array())
+    )
+
+    for ((interval, vals) <- testIntervals) {
+      val actual = i0.queryOverlappingValues(ord, interval)
+      assert(actual.sameElements(vals), s"\n for interval $interval, expected [${ vals.mkString(", ") }], got [${ actual.mkString(", ") }]")
+    }
+  }
 }
