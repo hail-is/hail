@@ -19,8 +19,8 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   }
 
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
-    (this.contains(pord, other.start) && (other.includeStart || !pord.equiv(this.end, other.start))) ||
-      (other.contains(pord, this.start) && (this.includeStart || !pord.equiv(other.end, this.start)))
+    (this.contains(pord, other.start) && (other.includeStart || !(pord.equiv(this.end, other.start) || pord.equiv(this.start, other.start)))) ||
+      (other.contains(pord, this.start) && (this.includeStart || !(pord.equiv(other.end, this.start) || pord.equiv(other.start, this.start))))
   }
 
   // true indicates definitely-empty interval, but false does not guarantee

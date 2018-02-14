@@ -287,9 +287,11 @@ class IntervalSuite extends SparkSuite {
     val testIntervals = Array(
       (Interval(5, 5, false, false), Array()),
       (Interval(5, 5, true, true), Array(0,1)),
-      (Interval(8, 9, true, false), Array(1,2,3)),
+      (Interval(8, 9, true, true), Array(1,2,3)),
       (Interval(20, 21, false, false), Array())
     )
+
+    assert(!testIntervals(0)._1.overlaps(ord, iArray(1)), s":(")
 
     for ((interval, vals) <- testIntervals) {
       val actual = i0.queryOverlappingValues(ord, interval)
