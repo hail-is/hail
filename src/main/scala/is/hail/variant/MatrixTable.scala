@@ -12,6 +12,7 @@ import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
+import is.hail.io.CodecSpec
 import org.apache.hadoop
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -1389,6 +1390,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def countVariants(): Long = partitionCounts().sum
 
+  def forceCountRows(): Long = rvd.count()
+
   def deduplicate(): MatrixTable =
     copy2(rvd = rvd.mapPartitionsPreservesPartitioning(rvd.typ)(
       SortedDistinctRowIterator.transformer(rvd.typ)))
@@ -2516,8 +2519,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
 
-  def writeCols(path: String) {
-    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.colType, colValues)
+  def writeCols(path: String, codecSpec: CodecSpec) {
+    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.colType, codecSpec, colValues)
 
     val colsSpec = TableSpec(
       FileFormat.version.rep,
@@ -2532,10 +2535,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def writeGlobals(path: String) {
-    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.globalType, Array(globals))
+  def writeGlobals(path: String, codecSpec: CodecSpec) {
+    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.globalType, codecSpec, Array(globals))
 
-    RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), Array[Annotation](Row()))
+    RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
@@ -2550,7 +2553,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def write(path: String, overwrite: Boolean = false): Unit = {
+  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null): Unit = {
+    val codecSpec =
+      if (codecSpecJSONStr != null) {
+        implicit val formats = RVDSpec.formats
+        val codecSpecJSON = parse(codecSpecJSONStr)
+        codecSpecJSON.extract[CodecSpec]
+      } else
+        CodecSpec.default
+
     if (overwrite)
       hadoopConf.delete(path, recursive = true)
     else if (hadoopConf.exists(path))
@@ -2558,11 +2569,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val partitionCounts = rvd.rdd.writeRowsSplit(path, matrixType, rvd.partitioner)
+    val partitionCounts = rvd.rdd.writeRowsSplit(path, matrixType, codecSpec, rvd.partitioner)
 
     val globalsPath = path + "/globals"
     hadoopConf.mkDir(globalsPath)
-    writeGlobals(globalsPath)
+    writeGlobals(globalsPath, codecSpec)
 
     val rowsSpec = TableSpec(
       FileFormat.version.rep,
@@ -2589,7 +2600,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
 
     hadoopConf.mkDir(path + "/cols")
-    writeCols(path + "/cols")
+    writeCols(path + "/cols", codecSpec)
 
     val refPath = path + "/references"
     hc.hadoopConf.mkDir(refPath)
