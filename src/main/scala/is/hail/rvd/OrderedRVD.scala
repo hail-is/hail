@@ -586,7 +586,7 @@ object OrderedRVD {
     val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
 
     if (pkis.isEmpty)
-      return OrderedRVD.empty(rdd.sparkContext, typ)
+      return OrderedRVD(typ, partitioner, rdd)
 
     val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
     val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
@@ -597,7 +597,7 @@ object OrderedRVD {
       .copy(start = pkOrd.min(newRangeBounds(0).asInstanceOf[Interval].start, min))
 
     newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-      .copy(end = pkOrd.max(newRangeBounds(0).asInstanceOf[Interval].end, max))
+      .copy(end = pkOrd.max(newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval].end, max))
 
     val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
       partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
