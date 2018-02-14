@@ -27,7 +27,7 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> related_samples = pairs.aggregate(
-    ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
+    ...     agg.collect_as_set(agg.explode([pairs.i, pairs.j])))
     >>> related_samples_to_keep = hl.maximal_independent_set(pairs.i, pairs.j)
     >>> related_samples_to_remove = hl.broadcast(related_samples - set(related_samples_to_keep))
     >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
@@ -37,7 +37,7 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> related_samples = pairs.aggregate(
-    ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
+    ...     agg.collect_as_set(agg.explode([pairs.i, pairs.j])))
     >>> samples = dataset.cols_table()
     >>> pairs_with_case = pairs.select(
     ...     i = hl.Struct(id = pairs.i, is_case = samples[pairs.i].isCase),

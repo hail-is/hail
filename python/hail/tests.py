@@ -138,10 +138,10 @@ class TableTests(unittest.TestCase):
                 {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
         kt = hl.Table.parallelize(rows, schema)
-        results = kt.aggregate(q1=agg.sum(kt.b),
-                               q2=agg.count(),
-                               q3=agg.collect(kt.e),
-                               q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e)))
+        results = kt.aggregate(hl.Struct(q1=agg.sum(kt.b),
+                                         q2=agg.count(),
+                                         q3=agg.collect(kt.e),
+                                         q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e))))
 
         self.assertEqual(results.q1, 8)
         self.assertEqual(results.q2, 3)
@@ -267,10 +267,10 @@ class TableTests(unittest.TestCase):
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
-        self.assertTrue(ktr.aggregate(result=agg.collect(ktr.e)).result == ['quam'])
+        self.assertTrue(ktr.aggregate(agg.collect(ktr.e))== ['quam'])
 
         ktr = kt.select(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
-        self.assertTrue(ktr.aggregate(result=agg.collect(ktr.e)).result == ['quam'])
+        self.assertTrue(ktr.aggregate(agg.collect(ktr.e)) == ['quam'])
 
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
@@ -392,22 +392,22 @@ class MatrixTests(unittest.TestCase):
         vds = vds.annotate_cols(y1=agg.count())
         vds = vds.annotate_entries(z1=vds.DP)
 
-        qv = vds.aggregate_rows(x=agg.count()).x
-        qs = vds.aggregate_cols(x=agg.count()).x
-        qg = vds.aggregate_entries(x=agg.count()).x
+        qv = vds.aggregate_rows(agg.count())
+        qs = vds.aggregate_cols(agg.count())
+        qg = vds.aggregate_entries(agg.count())
 
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)
         self.assertEqual(qg, qv * qs)
 
-        qvs = vds.aggregate_rows(x=agg.collect(vds.locus.contig),
-                                 y=agg.collect(vds.x1))
+        qvs = vds.aggregate_rows(hl.Struct(x=agg.collect(vds.locus.contig),
+                                           y=agg.collect(vds.x1)))
 
-        qss = vds.aggregate_cols(x=agg.collect(vds.s),
-                                 y=agg.collect(vds.y1))
+        qss = vds.aggregate_cols(hl.Struct(x=agg.collect(vds.s),
+                                           y=agg.collect(vds.y1)))
 
-        qgs = vds.aggregate_entries(x=agg.collect(agg.filter(False, vds.y1)),
-                                    y=agg.collect(agg.filter(hl.rand_bool(0.1), vds.GT)))
+        qgs = vds.aggregate_entries(hl.Struct(x=agg.collect(agg.filter(False, vds.y1)),
+                                              y=agg.collect(agg.filter(hl.rand_bool(0.1), vds.GT))))
 
     def test_drop(self):
         vds = self.get_vds()
@@ -508,7 +508,7 @@ class MatrixTests(unittest.TestCase):
 
         # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
-        for s, count in ds.aggregate_cols(counts=agg.counter(ds.s)).counts.items():
+        for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
     def test_index(self):

@@ -277,9 +277,9 @@ class Table(TableTemplate):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(mean_c1 = agg.mean(table1.C1),
-    ...                             mean_c2 = agg.mean(table1.C2),
-    ...                             stats_c3 = agg.stats(table1.C3))
+    >>> t1_stats = table1.aggregate(Struct(mean_c1 = agg.mean(table1.C1),
+    ...                                    mean_c2 = agg.mean(table1.C2),
+    ...                                    stats_c3 = agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group columns and aggregate to produce a new table:
@@ -979,8 +979,8 @@ class Table(TableTemplate):
         return GroupedTable(self, groups)
 
     @handle_py4j
-    def aggregate(self, **named_exprs):
-        """Aggregate over rows into a local struct.
+    def aggregate(self, expr):
+        """Aggregate over rows into a local value.
 
         Examples
         --------
@@ -988,8 +988,8 @@ class Table(TableTemplate):
 
         .. doctest::
 
-            >>> table1.aggregate(fraction_male = agg.fraction(table1.SEX == 'M'),
-            ...                  mean_x = agg.mean(table1.X))
+            >>> table1.aggregate(Struct(fraction_male=agg.fraction(table1.SEX == 'M'),
+            ...                         mean_x=agg.mean(table1.X)))
             Struct(fraction_male=0.5, mean_x=6.5)
 
         Note
@@ -998,30 +998,26 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`.Expression`
-            Aggregation expressions.
+        expr : :class:`.Expression`
+            Aggregation expression.
 
         Returns
         -------
-        :class:`.Struct`
-            Struct containing all results.
+        any
+            Aggregated value dependent on `expr`.
         """
         agg_base = self.columns[0]  # FIXME hack
 
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        base, _ = self._process_joins(*named_exprs.values())
-        for k, v in named_exprs.items():
-            analyze('Table.aggregate', v, self._global_indices, {self._row_axis})
-            replace_aggregables(v._ast, agg_base)
-            strs.append(v._ast.to_hql())
+        expr = to_expr(expr)
+        base, _ = self._process_joins(expr)
+        analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
+        replace_aggregables(expr._ast, agg_base)
 
-        result_list = base._jt.query(jarray(Env.jvm().java.lang.String, strs))
+        result_list = base._jt.query(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
-
+        assert len(ptypes) == 1
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        d = {k: v for k, v in zip(named_exprs.keys(), annotations)}
-        return Struct(**d)
+        return annotations[0]
 
     @handle_py4j
     @typecheck_method(output=strlike,
