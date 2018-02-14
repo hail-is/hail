@@ -36,8 +36,8 @@ def collect(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(ht_over_68 = agg.collect(agg.filter(table1.HT > 68, table1.ID)))
-        Struct(ht_over_68=[2, 3])
+        >>> table1.aggregate(agg.collect(agg.filter(table1.HT > 68, table1.ID)))
+        [2, 3]
 
     Notes
     -----
@@ -73,8 +73,8 @@ def collect_as_set(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(ht_over_68 = agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
-        Struct(ht_over_68=set([2, 3])
+        >>> table1.aggregate(agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
+        set([2, 3]
 
     Warning
     -------
@@ -149,8 +149,8 @@ def count_where(condition):
 
     .. doctest::
 
-        >>> table1.aggregate(ht_over_68 = agg.count_where(table1.HT > 68))
-        Struct(ht_over_68=2)
+        >>> table1.aggregate(agg.count_where(table1.HT > 68))
+        2
 
     Parameters
     ----------
@@ -175,8 +175,8 @@ def counter(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(sex_counts = agg.counter(table1.SEX))
-        Struct(sex_counts={u'M': 2L, u'F': 2L})
+        >>> table1.aggregate(agg.counter(table1.SEX))
+        {'M': 2L, 'F': 2L}
 
     Notes
     -----
@@ -215,17 +215,17 @@ def take(expr, n, ordering=None):
 
     .. doctest::
 
-        >>> table1.aggregate(xs = agg.take(table1.X, 3))
-        Struct(xs=[5, 6, 7])
+        >>> table1.aggregate(agg.take(table1.X, 3))
+        [5, 6, 7]
 
     Take the `ID` and `HT` fields, ordered by `HT` (descending):
 
     .. doctest::
 
-        >>> table1.aggregate(hts = agg.take(hl.Struct(ID=table1.ID, HT=table1.HT),
-        ...                                 3,
-        ...                                 ordering=-table1.HT))
-        Struct(hts=[Struct(ID=2, HT=72), Struct(ID=3, HT=70), Struct(ID=1, HT=65)])
+        >>> table1.aggregate(agg.take(hl.Struct(ID=table1.ID, HT=table1.HT),
+        ...                           3,
+        ...                           ordering=-table1.HT))
+        [Struct(ID=2, HT=72), Struct(ID=3, HT=70), Struct(ID=1, HT=65)]
 
     Notes
     -----
@@ -298,8 +298,8 @@ def min(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(min_ht = agg.min(table1.HT))
-        Struct(min_ht=60)
+        >>> table1.aggregate(agg.min(table1.HT))
+        min_ht=60
 
     Notes
     -----
@@ -331,8 +331,8 @@ def max(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(max_ht = agg.max(table1.HT))
-        Struct(max_ht=72)
+        >>> table1.aggregate(agg.max(table1.HT))
+        max_ht=72
 
     Notes
     -----
@@ -364,8 +364,8 @@ def sum(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(c1_sum = agg.sum(table1.C1))
-        Struct(c1_sum=25)
+        >>> table1.aggregate(agg.sum(table1.C1))
+        25
 
     Notes
     -----
@@ -401,8 +401,8 @@ def array_sum(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(ac_sum=agg.array_sum([table1.C1, table1.C2]))
-        Struct(ac_sum=[25, 46])
+        >>> table1.aggregate(agg.array_sum([table1.C1, table1.C2]))
+        [25, 46]
 
     Notes
     ------
@@ -432,8 +432,8 @@ def mean(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(mean_ht = agg.mean(table1.HT))
-        Struct(mean_ht=66.75)
+        >>> table1.aggregate(agg.mean(table1.HT))
+        66.75
 
     Notes
     -----
@@ -464,8 +464,8 @@ def stats(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(ht_stats = agg.stats(table1.HT))
-        Struct(ht_stats=Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, nNotMissing=4, mean=66.75))
+        >>> table1.aggregate(agg.stats(table1.HT))
+        Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, nNotMissing=4, mean=66.75)
 
     Notes
     -----
@@ -505,8 +505,8 @@ def product(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(c1_prod = agg.product(table1.C1))
-        Struct(c1_prod=440)
+        >>> table1.aggregate(agg.product(table1.C1))
+        440
 
     Notes
     -----
@@ -543,8 +543,8 @@ def fraction(predicate):
 
     .. doctest::
 
-        >>> table1.aggregate(frac = agg.fraction((table1.SEX == 'F') & (table1.HT > 65)))
-        Struct(frac=0.25)
+        >>> table1.aggregate(agg.fraction((table1.SEX == 'F') & (table1.HT > 65)))
+        0.25
 
     Notes
     -----
@@ -639,23 +639,23 @@ def explode(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(mean_c = agg.mean(agg.explode([table1.C1, table1.C2, table1.C3])))
-        Struct(mean_c=24.8333333333)
+        >>> table1.aggregate(agg.mean(agg.explode([table1.C1, table1.C2, table1.C3])))
+        24.8333333333
 
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
     .. doctest::
 
-        >>> dataset.aggregate_rows(filters = agg.collect_as_set(agg.explode(dataset.filters)))
-        Struct(filters=set([u'VQSRTrancheSNP99.80to99.90',
-                            u'VQSRTrancheINDEL99.95to100.00',
-                            u'VQSRTrancheINDEL99.00to99.50',
-                            u'VQSRTrancheINDEL97.00to99.00',
-                            u'VQSRTrancheSNP99.95to100.00',
-                            u'VQSRTrancheSNP99.60to99.80',
-                            u'VQSRTrancheINDEL99.50to99.90',
-                            u'VQSRTrancheSNP99.90to99.95',
-                            u'VQSRTrancheINDEL96.00to97.00']))
+        >>> dataset.aggregate_rows(agg.collect_as_set(agg.explode(dataset.filters)))
+        set([u'VQSRTrancheSNP99.80to99.90',
+             u'VQSRTrancheINDEL99.95to100.00',
+             u'VQSRTrancheINDEL99.00to99.50',
+             u'VQSRTrancheINDEL97.00to99.00',
+             u'VQSRTrancheSNP99.95to100.00',
+             u'VQSRTrancheSNP99.60to99.80',
+             u'VQSRTrancheINDEL99.50to99.90',
+             u'VQSRTrancheSNP99.90to99.95',
+             u'VQSRTrancheINDEL96.00to97.00']))
 
     Notes
     -----
@@ -693,8 +693,8 @@ def filter(condition, expr):
 
     .. doctest::
 
-        >>> table1.aggregate(high_ht = agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
-        Struct(high_ht=[2, 3])
+        >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
+        [2, 3]
 
     Notes
     -----
@@ -906,11 +906,11 @@ def hist(expr, start, end, bins):
 
     .. doctest::
 
-        >>> dataset.aggregate_entries(hist = agg.hist(dataset.GQ, 0, 100, 10))
-        Struct(hist=Struct(binEdges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
-                           binFrequencies=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
-                           nLess=0,
-                           nGreater=0))
+        >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
+        Struct(binEdges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+               binFrequencies=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
+               nLess=0,
+               nGreater=0)
 
     Notes
     -----
