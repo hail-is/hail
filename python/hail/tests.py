@@ -655,8 +655,8 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(ds.globals_table()._same(t))
 
     def test_codecs_matrix(self):
-        from hail.utils.java import Env
-        codecs = Env.hail().io.CodecSpec.codecSpecs()
+        from hail.utils.java import Env, scala_object
+        codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         ds = self.get_vds()
         temp = new_temp_file(suffix='hmt')
         for codec in codecs:
@@ -665,8 +665,8 @@ class MatrixTests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     def test_codecs_table(self):
-        from hail.utils.java import Env
-        codecs = Env.hail().io.CodecSpec.codecSpecs()
+        from hail.utils.java import Env, scala_object
+        codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         rt = self.get_vds().rows_table()
         temp = new_temp_file(suffix='ht')
         for codec in codecs:
