@@ -217,7 +217,7 @@ class GenomeReference(HistoryMixin):
         """
         return GenomeReference._references.get(
             'GRCh38',
-            GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
+            GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh38())
         )
 
     @classmethod
