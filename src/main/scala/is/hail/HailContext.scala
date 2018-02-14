@@ -6,18 +6,15 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
-import is.hail.io.{Decoder, LZ4InputBuffer}
-import is.hail.io.LoadMatrix
+import is.hail.io.{CodecSpec, LoadMatrix}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.GenLoader
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.vcf._
 import is.hail.table.Table
-import is.hail.rvd.OrderedRVD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{Call2, GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, VSMSubgen, Variant}
-import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.rdd.RDD
@@ -27,7 +24,7 @@ import org.apache.spark._
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.ClassTag
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -175,14 +172,14 @@ object HailContext {
     hc
   }
 
-  def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
+  def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       private val region = Region()
       private val rv = RegionValue(region)
 
       private val dec =
         try {
-          new Decoder(new LZ4InputBuffer(in))
+          codecSpec.buildDecoder(in)
         } catch {
           case e: Exception =>
             in.close()
@@ -479,8 +476,8 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def readRows(path: String, t: TStruct, partFiles: Array[String]): RDD[RegionValue] =
-    readPartitions(path, partFiles, HailContext.readRowsPartition(t))
+  def readRows(path: String, t: TStruct, codecSpec: CodecSpec, partFiles: Array[String]): RDD[RegionValue] =
+    readPartitions(path, partFiles, HailContext.readRowsPartition(t, codecSpec))
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)

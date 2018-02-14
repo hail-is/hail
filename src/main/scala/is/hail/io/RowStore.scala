@@ -1,14 +1,143 @@
 package is.hail.io
 
-import java.io.{Closeable, InputStream, OutputStream}
-
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, UnpartitionedRVDSpec}
+import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
 import org.apache.spark.rdd.RDD
+import org.json4s.{Extraction, JValue}
+import org.json4s.jackson.JsonMethods
+import java.io.{Closeable, InputStream, OutputStream}
+
+trait BufferSpec extends Serializable {
+  def buildInputBuffer(in: InputStream): InputBuffer
+
+  def buildOutputBuffer(out: OutputStream): OutputBuffer
+}
+
+final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
+  def buildInputBuffer(in: InputStream): InputBuffer = new LEB128InputBuffer(child.buildInputBuffer(in))
+
+  def buildOutputBuffer(out: OutputStream): OutputBuffer = new LEB128OutputBuffer(child.buildOutputBuffer(out))
+}
+
+final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
+  def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
+
+  def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
+}
+
+trait BlockBufferSpec extends Serializable {
+  def buildInputBuffer(in: InputStream): InputBlockBuffer
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
+}
+
+final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+  def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
+}
+
+object StreamBlockBufferSpec {
+  def extract(jv: JValue): StreamBlockBufferSpec = new StreamBlockBufferSpec
+}
+
+final class StreamBlockBufferSpec extends BlockBufferSpec {
+  def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer(in)
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new StreamBlockOutputBuffer(out)
+}
+
+object CodecSpec {
+  val default: CodecSpec = new PackCodecSpec(
+    new LEB128BufferSpec(
+      new BlockingBufferSpec(32 * 1024,
+        new LZ4BlockBufferSpec(32 * 1024,
+          new StreamBlockBufferSpec))))
+
+  val blockSpecs:  Array[BufferSpec] = Array(
+    new BlockingBufferSpec(64 * 1024,
+      new StreamBlockBufferSpec),
+    new BlockingBufferSpec(32 * 1024,
+      new LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
+
+  val bufferSpecs: Array[BufferSpec] = blockSpecs.flatMap { blockSpec =>
+    Array(blockSpec,
+      new LEB128BufferSpec(blockSpec))
+  }
+
+  val codecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
+    Array(new DirectCodecSpec(bufferSpec),
+      new PackCodecSpec(bufferSpec))
+  }
+}
+
+trait CodecSpec extends Serializable {
+  def buildEncoder(out: OutputStream): Encoder
+
+  def buildDecoder(in: InputStream): Decoder
+
+  override def toString: String = {
+    implicit val formats = RVDSpec.formats
+    val jv = Extraction.decompose(this)
+    JsonMethods.compact(JsonMethods.render(jv))
+  }
+}
+
+final class PackCodecSpec(child: BufferSpec) extends CodecSpec {
+  def buildEncoder(out: OutputStream): Encoder = new PackEncoder(child.buildOutputBuffer(out))
+
+  def buildDecoder(in: InputStream): Decoder = new PackDecoder(child.buildInputBuffer(in))
+}
+
+final class DirectCodecSpec(child: BufferSpec) extends CodecSpec {
+  def buildEncoder(out: OutputStream): Encoder = new DirectEncoder(child.buildOutputBuffer(out))
+
+  def buildDecoder(in: InputStream): Decoder = new DirectDecoder(child.buildInputBuffer(in))
+}
+
+trait OutputBlockBuffer extends Closeable {
+  def writeBlock(buf: Array[Byte], len: Int): Unit
+}
+
+trait InputBlockBuffer extends Closeable {
+  def close(): Unit
+
+  def readBlock(buf: Array[Byte]): Int
+}
+
+final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
+  private val lenBuf = new Array[Byte](4)
+
+  def close() {
+    out.close()
+  }
+
+  def writeBlock(buf: Array[Byte], len: Int): Unit = {
+    Memory.storeInt(lenBuf, 0, len)
+    out.write(lenBuf, 0, 4)
+    out.write(buf, 0, len)
+  }
+}
+
+final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
+  private val lenBuf = new Array[Byte](4)
+
+  def close() {
+    in.close()
+  }
+
+  def readBlock(buf: Array[Byte]): Int = {
+    in.read(lenBuf, 0, 4)
+    val len = Memory.loadInt(lenBuf, 0)
+    in.read(buf, 0, len)
+    len
+  }
+}
 
 class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
   var off: Int = 0
@@ -82,7 +211,7 @@ class ArrayOutputStream(sizeHint: Int = 32) extends OutputStream {
   }
 }
 
-abstract class OutputBuffer extends Closeable {
+trait OutputBuffer extends Closeable {
   def flush(): Unit
 
   def close(): Unit
@@ -104,26 +233,65 @@ abstract class OutputBuffer extends Closeable {
   }
 }
 
-object LZ4Buffer {
-  final val blockSize: Int = 32 * 1024
+final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
+  def flush(): Unit = out.flush()
+
+  def close() {
+    out.close()
+  }
+
+  def writeByte(b: Byte): Unit = out.writeByte(b)
+
+  def writeInt(i: Int): Unit = {
+    var j = i
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      out.writeByte(b.toByte)
+    } while (j != 0)
+  }
+
+  def writeLong(l: Long): Unit = {
+    var j = l
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      out.writeByte(b.toByte)
+    } while (j != 0)
+  }
+
+  def writeFloat(f: Float): Unit = out.writeFloat(f)
+
+  def writeDouble(d: Double): Unit = out.writeDouble(d)
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
 }
 
-class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
-  val buf: Array[Byte] = new Array[Byte](LZ4Buffer.blockSize)
-  var off: Int = 0
+final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+  private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
 
-  val comp = new Array[Byte](8 + LZ4Utils.maxCompressedLength(LZ4Buffer.blockSize))
+  def close() {
+    out.close()
+  }
+
+  def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
+    val compLen = LZ4Utils.compress(comp, 4, buf, decompLen)
+    Memory.storeInt(comp, 0, decompLen) // decompLen
+    out.writeBlock(comp, compLen + 4)
+  }
+}
+
+final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
+  private val buf: Array[Byte] = new Array[Byte](blockSize)
+  private var off: Int = 0
 
   private def writeBlock() {
-    if (off > 0) {
-      val compLen = LZ4Utils.compress(comp, 8, buf, off)
-      Memory.storeInt(comp, 0, compLen)
-      Memory.storeInt(comp, 4, off) // decompLen
-
-      out.write(comp, 0, 8 + compLen)
-
-      off = 0
-    }
+    out.writeBlock(buf, off)
+    off = 0
   }
 
   def flush() {
@@ -143,33 +311,17 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
   }
 
   def writeInt(i: Int) {
-    if (off + 5 > buf.length)
+    if (off + 4 > buf.length)
       writeBlock()
-
-    var j = i
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      Memory.storeByte(buf, off, b.toByte)
-      off += 1
-    } while (j != 0)
+    Memory.storeInt(buf, off, i)
+    off += 4
   }
 
   def writeLong(l: Long) {
-    if (off + 10 > buf.length)
+    if (off + 8 > buf.length)
       writeBlock()
-
-    var j = l
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      Memory.storeByte(buf, off, b.toByte)
-      off += 1
-    } while (j != 0)
+    Memory.storeLong(buf, off, l)
+    off += 8
   }
 
   def writeFloat(f: Float) {
@@ -205,7 +357,7 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
   }
 }
 
-abstract class InputBuffer extends Closeable {
+trait InputBuffer extends Closeable {
   def close(): Unit
 
   def readByte(): Byte
@@ -223,27 +375,71 @@ abstract class InputBuffer extends Closeable {
   def readBoolean(): Boolean = readByte() != 0
 }
 
-class LZ4InputBuffer(in: InputStream) extends InputBuffer {
-  private val buf = new Array[Byte](LZ4Buffer.blockSize)
+final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
+  def close() {
+    in.close()
+  }
+
+  def readByte(): Byte = in.readByte()
+
+  def readInt(): Int = {
+    var b: Byte = readByte()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+    x
+  }
+
+  def readLong(): Long = {
+    var b: Byte = readByte()
+    var x: Long = b & 0x7fL
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7fL) << shift)
+      shift += 7
+    }
+    x
+  }
+
+  def readFloat(): Float = in.readFloat()
+
+  def readDouble(): Double = in.readDouble()
+
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
+}
+
+final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
+
+  def close() {
+    in.close()
+  }
+
+  def readBlock(buf: Array[Byte]): Int = {
+    val blockLen = in.readBlock(comp)
+    val compLen = blockLen - 4
+    val decompLen = Memory.loadInt(comp, 0)
+
+    LZ4Utils.decompress(buf, 0, decompLen, comp, 4, compLen)
+
+    decompLen
+  }
+}
+
+final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuffer {
+  private val buf = new Array[Byte](blockSize)
   private var end: Int = 0
   private var off: Int = 0
 
-  private val comp = new Array[Byte](8 + LZ4Utils.maxCompressedLength(LZ4Buffer.blockSize))
-
   private def readBlock() {
     assert(off == end)
-
-    // read the header
-    in.readFully(comp, 0, 4)
-    val compLen = Memory.loadInt(comp, 0)
-
-    in.readFully(comp, 4, 4 + compLen)
-    val decompLen = Memory.loadInt(comp, 4)
-
-    LZ4Utils.decompress(buf, 0, decompLen, comp, 8, compLen)
-
+    end = in.readBlock(buf)
     off = 0
-    end = decompLen
   }
 
   private def ensure(n: Int) {
@@ -264,37 +460,16 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
   }
 
   def readInt(): Int = {
-    ensure(1)
-
-    var b: Byte = Memory.loadByte(buf, off)
-    off += 1
-    var x: Int = b & 0x7f
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = Memory.loadByte(buf, off)
-      off += 1
-      x |= ((b & 0x7f) << shift)
-      shift += 7
-    }
-
-    x
+    ensure(4)
+    val i = Memory.loadInt(buf, off)
+    off += 4
+    i
   }
-
   def readLong(): Long = {
-    ensure(1)
-
-    var b: Byte = Memory.loadByte(buf, off)
-    off += 1
-    var x: Long = b & 0x7fL
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = Memory.loadByte(buf, off)
-      off += 1
-      x |= ((b & 0x7fL) << shift)
-      shift += 7
-    }
-
-    x
+    ensure(8)
+    val l  = Memory.loadLong(buf, off)
+    off += 8
+    l
   }
 
   def readFloat(): Float = {
@@ -329,7 +504,32 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
   }
 }
 
-final class Decoder(in: InputBuffer) extends Closeable {
+trait Decoder extends Closeable {
+  def close()
+
+  def readRegionValue(t: Type, region: Region): Long
+
+  def readByte(): Byte
+}
+
+final class DirectDecoder(in: InputBuffer) extends Decoder {
+  def close() {
+    in.close()
+  }
+
+  def readRegionValue(t: Type, region: Region): Long = {
+    val size = in.readInt()
+    val off = region.allocate(t.alignment, size)
+    assert(off == 0)
+    in.readBytes(region, 0, size)
+
+    in.readInt() // offset
+  }
+
+  def readByte(): Byte = in.readByte()
+}
+
+final class PackDecoder(in: InputBuffer) extends Decoder {
   def close() {
     in.close()
   }
@@ -431,7 +631,38 @@ final class Decoder(in: InputBuffer) extends Closeable {
   }
 }
 
-final class Encoder(out: OutputBuffer) extends Closeable {
+trait Encoder extends Closeable {
+  def flush(): Unit
+
+  def close(): Unit
+
+  def writeRegionValue(t: Type, region: Region, offset: Long): Unit
+
+  def writeByte(b: Byte): Unit
+}
+
+final class DirectEncoder(out: OutputBuffer) extends Encoder {
+  def flush() {
+    out.flush()
+  }
+
+  def close() {
+    out.close()
+  }
+
+  def writeRegionValue(t: Type, region: Region, offset: Long) {
+    assert(region.size <= Int.MaxValue)
+    out.writeInt(region.size.toInt)
+    out.writeBytes(region, 0, region.size.toInt)
+
+    assert(offset <= Int.MaxValue)
+    out.writeInt(offset.toInt)
+  }
+
+  def writeByte(b: Byte): Unit = out.writeByte(b)
+}
+
+final class PackEncoder(out: OutputBuffer) extends Encoder {
   def flush() {
     out.flush()
   }
@@ -526,8 +757,8 @@ final class Encoder(out: OutputBuffer) extends Closeable {
 }
 
 object RichRDDRegionValue {
-  def writeRowsPartition(t: TStruct)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
-    val en = new Encoder(new LZ4OutputBuffer(os))
+  def writeRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
+    val en = codecSpec.buildEncoder(os)
     var rowCount = 0L
 
     it.foreach { rv =>
@@ -545,11 +776,11 @@ object RichRDDRegionValue {
 }
 
 class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
-  def writeRows(path: String, t: TStruct): (Array[String], Array[Long]) = {
-    rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t))
+  def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
+    rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t, codecSpec))
   }
 
-  def writeRowsSplit(path: String, t: MatrixType, partitioner: OrderedRVDPartitioner): Array[Long] = {
+  def writeRowsSplit(path: String, t: MatrixType, codecSpec: CodecSpec, partitioner: OrderedRVDPartitioner): Array[Long] = {
     val sc = rdd.sparkContext
     val hConf = sc.hadoopConfiguration
 
@@ -577,11 +808,11 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
 
       val rowsPartPath = path + "/rows/rows/parts/" + f
       hConf.writeFile(rowsPartPath) { rowsOS =>
-        using(new Encoder(new LZ4OutputBuffer(rowsOS))) { rowsEN =>
+        using(codecSpec.buildEncoder(rowsOS)) { rowsEN =>
 
           val entriesPartPath = path + "/entries/rows/parts/" + f
           hConf.writeFile(entriesPartPath) { entriesOS =>
-            using(new Encoder(new LZ4OutputBuffer(entriesOS))) { entriesEN =>
+            using(codecSpec.buildEncoder(entriesOS)) { entriesEN =>
 
               var rowCount = 0L
 
@@ -623,11 +854,12 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
       .collect()
 
     val rowsSpec = OrderedRVDSpec(t.rowORVDType,
+      codecSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))
     rowsSpec.write(hConf, path + "/rows/rows")
 
-    val entriesSpec = UnpartitionedRVDSpec(entriesRVType, partFiles)
+    val entriesSpec = UnpartitionedRVDSpec(entriesRVType, codecSpec, partFiles)
     entriesSpec.write(hConf, path + "/entries/rows")
 
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions")

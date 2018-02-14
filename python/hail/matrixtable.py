@@ -1744,6 +1744,10 @@ class MatrixTable(object):
         return self._jvds.countVariants()
 
     @handle_py4j
+    def _force_count_rows(self):
+        return self._jvds.forceCountRows()
+
+    @handle_py4j
     def count_cols(self):
         """Count the number of columns in the matrix.
 
@@ -1781,8 +1785,9 @@ class MatrixTable(object):
 
     @handle_py4j
     @typecheck_method(output=strlike,
-                      overwrite=bool)
-    def write(self, output, overwrite=False):
+                      overwrite=bool,
+                      _codec_spec=nullable(strlike))
+    def write(self, output, overwrite=False, _codec_spec=None):
         """Write to disk.
 
         Examples
@@ -1806,7 +1811,7 @@ class MatrixTable(object):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        self._jvds.write(output, overwrite)
+        self._jvds.write(output, overwrite, _codec_spec)
 
     @handle_py4j
     def globals_table(self):

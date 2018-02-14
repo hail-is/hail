@@ -70,7 +70,7 @@ class UnsafeIndexedSeq(
     kryo.writeObject(output, t)
 
     val aos = new ArrayOutputStream()
-    val enc = new Encoder(new LZ4OutputBuffer(aos))
+    val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, aoff)
     enc.flush()
 
@@ -82,7 +82,7 @@ class UnsafeIndexedSeq(
     out.writeObject(t)
 
     val aos = new ArrayOutputStream()
-    val enc = new Encoder(new LZ4OutputBuffer(aos))
+    val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, aoff)
     enc.flush()
 
@@ -96,9 +96,7 @@ class UnsafeIndexedSeq(
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
     input.readFully(a, 0, smallInOff)
-    using(new Decoder(
-      new LZ4InputBuffer(
-        new ArrayInputStream(a)))) { dec =>
+    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
 
       region = Region()
       aoff = dec.readRegionValue(t, region)
@@ -113,10 +111,7 @@ class UnsafeIndexedSeq(
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)
     in.readFully(a, 0, smallInOff)
-    using(new Decoder(
-      new LZ4InputBuffer(
-        new ArrayInputStream(a)))) { dec =>
-
+    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
       region = Region()
       aoff = dec.readRegionValue(t, region)
 
@@ -303,7 +298,7 @@ class UnsafeRow(var t: TStruct,
     kryo.writeObject(output, t)
 
     val aos = new ArrayOutputStream()
-    val enc = new Encoder(new LZ4OutputBuffer(aos))
+    val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, offset)
     enc.flush()
 
@@ -315,7 +310,7 @@ class UnsafeRow(var t: TStruct,
     out.writeObject(t)
 
     val aos = new ArrayOutputStream()
-    val enc = new Encoder(new LZ4OutputBuffer(aos))
+    val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, offset)
     enc.flush()
 
@@ -329,10 +324,7 @@ class UnsafeRow(var t: TStruct,
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
     input.readFully(a, 0, smallInOff)
-    using(new Decoder(
-      new LZ4InputBuffer(
-        new ArrayInputStream(a)))) { dec =>
-
+    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
       region = Region()
       offset = dec.readRegionValue(t, region)
     }
@@ -344,9 +336,7 @@ class UnsafeRow(var t: TStruct,
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)
     in.readFully(a, 0, smallInOff)
-    using(new Decoder(
-      new LZ4InputBuffer(
-        new ArrayInputStream(a)))) { dec =>
+    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
       region = Region()
       offset = dec.readRegionValue(t, region)
     }

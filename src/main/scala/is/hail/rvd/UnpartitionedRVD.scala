@@ -3,6 +3,7 @@ package is.hail.rvd
 import is.hail.annotations.RegionValue
 import is.hail.utils._
 import is.hail.expr.types.TStruct
+import is.hail.io.CodecSpec
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -40,9 +41,9 @@ class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends 
   def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, rdd.sample(withReplacement, p, seed))
 
-  def write(path: String): Array[Long] = {
-    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType)
-    val spec = UnpartitionedRVDSpec(rowType, partFiles)
+  def write(path: String, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)
+    val spec = UnpartitionedRVDSpec(rowType, codecSpec, partFiles)
     spec.write(sparkContext.hadoopConfiguration, path)
     partitionCounts
   }
