@@ -369,7 +369,7 @@ class Tests(unittest.TestCase):
         ds1 = hl.split_multi_hts(ds1)
         ds2 = hl.import_vcf(test_file('split_test_b.vcf'))
         df = ds1.rows_table()
-        self.assertTrue(df.forall((df.locus.position == 1180) | df.was_split))
+        self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
         # required python3
         # self.assertTrue(ds1._same(ds2))
@@ -419,8 +419,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob_conc[4][4], counts.nHomVar)
         [self.assertEqual(glob_conc[i][j], 0) for i in range(5) for j in range(5) if i != j]
 
-        self.assertTrue(cols_conc.forall(cols_conc.concordance.flatten().sum() == dataset.count_rows()))
-        self.assertTrue(rows_conc.forall(rows_conc.concordance.flatten().sum() == dataset.count_cols()))
+        self.assertTrue(cols_conc.all(hl.sum(hl.flatten(cols_conc.concordance)) == dataset.count_rows()))
+        self.assertTrue(rows_conc.all(hl.sum(hl.flatten(rows_conc.concordance)) == dataset.count_cols()))
 
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
@@ -666,7 +666,7 @@ class Tests(unittest.TestCase):
         gen = hl.import_gen(test_file('example.gen'),
                             sample_file=test_file('example.sample'),
                             contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(gen.forall(gen.locus.contig == "1"))
+        self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
     def test_import_bgen(self):
@@ -675,7 +675,7 @@ class Tests(unittest.TestCase):
         bgen = hl.import_bgen(test_file('example.v11.bgen'),
                               sample_file=test_file('example.sample'),
                               contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(bgen.forall(bgen.locus.contig == "1"))
+        self.assertTrue(bgen.all(bgen.locus.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
     def test_import_vcf(self):
@@ -685,7 +685,7 @@ class Tests(unittest.TestCase):
                           contig_recoding={"22": "chr22"}))
 
         vcf_table = vcf.rows_table()
-        self.assertTrue(vcf_table.forall(vcf_table.locus.contig == "chr22"))
+        self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
 
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
@@ -699,5 +699,5 @@ class Tests(unittest.TestCase):
         plink = hl.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True,
             contig_recoding={'chr22': '22'}).rows_table()
-        self.assertTrue(plink.forall(plink.locus.contig == "22"))
+        self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
