@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
-from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions
 from hail.table import Table
 
 
@@ -594,7 +594,7 @@ class MatrixTable(object):
         for k, v in named_exprs.items():
             analyze('MatrixTable.annotate_globals', v, self._global_indices)
             exprs.append('global.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-            self._check_field_name(k, self._global_indices)
+            check_collisions(self._fields, k, self._global_indices)
         m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -652,7 +652,7 @@ class MatrixTable(object):
             analyze('MatrixTable.annotate_rows', v, self._row_indices, {self._col_axis})
             replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-            self._check_field_name(k, self._row_indices)
+            check_collisions(self._fields, k, self._row_indices)
         m = MatrixTable(base._jvds.annotateVariantsExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -707,7 +707,7 @@ class MatrixTable(object):
             analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
             replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-            self._check_field_name(k, self._col_indices)
+            check_collisions(self._fields, k, self._row_indices)
         m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -764,7 +764,7 @@ class MatrixTable(object):
         for k, v in named_exprs.items():
             analyze('MatrixTable.annotate_entries', v, self._entry_indices)
             exprs.append('g.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-            self._check_field_name(k, self._entry_indices)
+            check_collisions(self._fields, k, self._entry_indices)
         m = MatrixTable(base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -824,7 +824,7 @@ class MatrixTable(object):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
-            self._check_field_name(k, self._global_indices)
+            check_collisions(self._fields, k, self._global_indices)
             strs.append('{}: {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
         m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
@@ -886,7 +886,7 @@ class MatrixTable(object):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
-            self._check_field_name(k, self._row_indices)
+            check_collisions(self._fields, k, self._row_indices)
             replace_aggregables(e._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
         m = MatrixTable(base._jvds.selectRows(strs))
@@ -951,7 +951,7 @@ class MatrixTable(object):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
-            self._check_field_name(k, self._col_indices)
+            check_collisions(self._fields, k, self._col_indices)
             replace_aggregables(e._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
 
@@ -1009,7 +1009,7 @@ class MatrixTable(object):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
-            self._check_field_name(k, self._entry_indices)
+            check_collisions(self._fields, k, self._entry_indices)
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
         m = MatrixTable(base._jvds.selectEntries(strs))
         return cleanup(m)
@@ -1975,12 +1975,6 @@ class MatrixTable(object):
             return self.entries_table().view_join_rows(*(row_exprs + col_exprs))
         else:
             raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
-
-    def _check_field_name(self, name, indices):
-        if name in set(self._fields.keys()) and not self._fields[name]._indices == indices:
-            msg = 'name collision with field indexed by {}: {}'.format(list(self._fields[name]._indices.axes), name)
-            error('Analysis exception: {}'.format(msg))
-            raise ExpressionException(msg)
 
     @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):

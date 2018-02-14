@@ -8,6 +8,7 @@ from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption, jarray
+from hail.utils.misc import check_collisions
 from hail.methods.misc import require_biallelic, require_variant
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
@@ -2847,13 +2848,13 @@ class FilterAlleles(object):
         row_hqls = []
         for k, v in self._row_exprs.items():
             row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
-            base._check_field_name(k, base._row_indices)
+            check_collisions(base._fields, k, base._row_indices)
         row_hql = ',\n'.join(row_hqls)
 
         entry_hqls = []
         for k, v in self._entry_exprs.items():
             entry_hqls.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
-            base._check_field_name(k, base._entry_indices)
+            check_collisions(base._fields, k, base._entry_indices)
         entry_hql = ',\n'.join(entry_hqls)
 
         m = MatrixTable(
