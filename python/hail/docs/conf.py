@@ -53,7 +53,22 @@ nbsphinx_allow_errors = False
 if not tags.has('checktutorial'):
     nbsphinx_execute = 'never'
 
-autosummary_generate = ['api.rst', 'genetics/index.rst', 'methods/index.rst', 'utils/index.rst', 'linalg/index.rst', 'stats/index.rst', 'expr/utils.rst']
+autosummary_generate = ['api.rst',
+                        'genetics/index.rst',
+                        'methods/index.rst',
+                        'utils/index.rst',
+                        'linalg/index.rst',
+                        'stats/index.rst',
+                        'expr/utils.rst',
+                        'expr/expression.rst',
+                        'expr/functions/index.rst',
+                        'expr/functions/core.rst',
+                        'expr/functions/string.rst',
+                        'expr/functions/stats.rst',
+                        'expr/functions/collections.rst',
+                        'expr/functions/numeric.rst',
+                        'expr/functions/genetics.rst',
+                        ]
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
 

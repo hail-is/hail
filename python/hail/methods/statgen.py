@@ -69,7 +69,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     ----------
     dataset : :class:`.MatrixTable`
         A variant-keyed :class:`.MatrixTable` containing genotype information.
-    maf : :class:`.Expression` of type :class:`TFloat64`, optional
+    maf : :class:`.Expression` of type :class:`.TFloat64`, optional
         (optional) expression on `dataset` for the minor allele frequency.
     bounded : :obj:`bool`
         Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
@@ -1867,7 +1867,7 @@ class SplitMulti(object):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
         """
         return construct_reference(
             "aIndex", type=TInt32(), indices=self._ds._row_indices)

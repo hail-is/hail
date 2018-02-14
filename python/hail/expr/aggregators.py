@@ -130,7 +130,7 @@ def count(expr=None):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt64`
+    :class:`.Expression` of type :class:`.TInt64`
         Total number of records.
     """
     if expr is not None:
@@ -159,7 +159,7 @@ def count_where(condition):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt64`
+    :class:`.Expression` of type :class:`.TInt64`
         Total number of records where `condition` is ``True``.
     """
 
@@ -181,7 +181,7 @@ def counter(expr):
     Notes
     -----
     This aggregator method returns a dict expression whose key type is the
-    same type as `expr` and whose value type is :class:`.Expression` of type :class:`TInt64`.
+    same type as `expr` and whose value type is :class:`.Expression` of type :class:`.TInt64`.
     This dict contains a key for each unique value of `expr`, and the value
     is the number of times that key was observed.
 
@@ -251,7 +251,7 @@ def take(expr, n, ordering=None):
     ----------
     expr : :class:`.Expression`
         Expression to store.
-    n : :class:`.Expression` of type :class:`TInt32`
+    n : :class:`.Expression` of type :class:`.TInt32`
         Number of records to take.
     ordering : :class:`.Expression` or function ((arg) -> :class:`.Expression`) or None
         Optional ordering on records.
@@ -446,7 +446,7 @@ def mean(expr):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
         Mean value of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -557,7 +557,7 @@ def fraction(predicate):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
         Fraction of records where `predicate` is ``True``.
     """
     agg = _to_agg(predicate)
@@ -789,7 +789,7 @@ def inbreeding(expr, prior):
     ----------
     expr : :class:`.CallExpression`
         Call expression.
-    prior : :class:`.Expression` of type :class:`TFloat64`
+    prior : :class:`.Expression` of type :class:`.TFloat64`
         Alternate allele frequency prior.
 
     Returns

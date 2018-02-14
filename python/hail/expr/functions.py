@@ -327,13 +327,13 @@ def chisq(c1, c2, c3, c4):
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :class:`TInt32`
+    c1 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :class:`TInt32`
+    c2 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :class:`TInt32`
+    c3 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :class:`TInt32`
+    c4 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 4.
 
     Returns
@@ -368,15 +368,15 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :class:`TInt32`
+    c1 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :class:`TInt32`
+    c2 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :class:`TInt32`
+    c3 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :class:`TInt32`
+    c4 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 4.
-    min_cell_count : int or :class:`.Expression` of type :class:`TInt32`
+    min_cell_count : int or :class:`.Expression` of type :class:`.TInt32`
         Minimum cell count for chi-squared approximation.
 
     Returns
@@ -407,7 +407,7 @@ def dict(keys, values):
     ----------
     keys : list or :class:`.ArrayExpression`
         The keys of the resulting dictionary.
-    values : list or :class:`.Expression` of type :class:`TInt32`
+    values : list or :class:`.Expression` of type :class:`.TInt32`
         The values of the resulting dictionary.
 
     Returns
@@ -438,13 +438,13 @@ def dbeta(x, a, b):
 
     Parameters
     ----------
-    x : :obj:`float` or :class:`.Expression` of type :class:`TFloat64`
+    x : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
         Point in [0,1] at which to sample. If a < 1 then x must be positive.
         If b < 1 then x must be less than 1.
-    a : :obj:`float` or :class:`.Expression` of type :class:`TFloat64`
+    a : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
         The alpha parameter in the beta distribution. The result is undefined
         for non-positive a.
-    b : :obj:`float` or :class:`.Expression` of type :class:`TFloat64`
+    b : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
@@ -464,16 +464,16 @@ def dpois(x, lamb, log_p=False):
 
     Parameters
     ----------
-    x : :obj:`float` or :class:`.Expression` of type :class:`TFloat64`
+    x : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
         Non-negative number at which to compute the probability density.
-    lamb : :obj:`float` or :class:`.Expression` of type :class:`TFloat64`
+    lamb : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
         Poisson rate parameter. Must be non-negative.
     log_p : :obj:`bool` or :class:`.BooleanExpression`
         If true, the natural logarithm of the probability density is returned.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
         The (log) probability density.
     """
     return _func("dpois", TFloat64(), x, lamb, log_p)
@@ -492,11 +492,11 @@ def exp(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("exp", TFloat64(), x)
 
@@ -525,13 +525,13 @@ def fisher_exact_test(c1, c2, c3, c4):
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :class:`TInt32`
+    c1 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :class:`TInt32`
+    c2 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :class:`TInt32`
+    c3 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :class:`TInt32`
+    c4 : int or :class:`.Expression` of type :class:`.TInt32`
         Value for cell 4.
 
     Returns
@@ -602,11 +602,11 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 
     Parameters
     ----------
-    num_hom_ref : int or :class:`.Expression` of type :class:`TInt32`
+    num_hom_ref : int or :class:`.Expression` of type :class:`.TInt32`
         Homozygous reference count.
-    num_het : int or :class:`.Expression` of type :class:`TInt32`
+    num_het : int or :class:`.Expression` of type :class:`.TInt32`
         Heterozygote count.
-    num_hom_var : int or :class:`.Expression` of type :class:`TInt32`
+    num_hom_var : int or :class:`.Expression` of type :class:`.TInt32`
         Homozygous alternate count.
 
     Returns
@@ -655,7 +655,7 @@ def locus(contig, pos, reference_genome=None):
     ----------
     contig : str or :class:`.StringExpression`
         Chromosome.
-    pos : int or :class:`.Expression` of type :class:`TInt32`
+    pos : int or :class:`.Expression` of type :class:`.TInt32`
         Base position along the chromosome.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`~hail.default_reference` if not passed).
@@ -770,7 +770,7 @@ def gp_dosage(gp):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     if not is_numeric(gp.dtype.element_type):
         raise TypeError("'gp_dosage' expects an expression of type "
@@ -799,7 +799,7 @@ def pl_dosage(pl):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     if not isinstance(pl.dtype.element_type, TInt32):
         raise TypeError("Function 'pl_dosage' expects an expression of type "
@@ -899,7 +899,7 @@ def call(phased, *alleles):  # FIXME: Python 3 allows optional kwarg after varar
     ----------
     phased : :obj:`bool`
         If ``True``, preserve the order of `alleles`.
-    alleles : variable-length args of :obj:`int` or :class:`.Expression` of type :class:`TInt32`
+    alleles : variable-length args of :obj:`int` or :class:`.Expression` of type :class:`.TInt32`
         List of allele indices.
 
     Returns
@@ -927,7 +927,7 @@ def unphased_diploid_gt_index_call(gt_index):
 
     Parameters
     ----------
-    gt_index : :obj:`int` or :class:`.Expression` of type :class:`TInt32`
+    gt_index : :obj:`int` or :class:`.Expression` of type :class:`.TInt32`
         Unphased, diploid genotype index.
 
     Returns
@@ -1066,7 +1066,7 @@ def is_nan(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
         Expression to test.
 
     Returns
@@ -1127,12 +1127,12 @@ def log(x, base=None):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
-    base : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    base : float or :class:`.Expression` of type :class:`.TFloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     x = to_expr(x)
     if base is not None:
@@ -1157,11 +1157,11 @@ def log10(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("log10", TFloat64(), x)
 
@@ -1249,18 +1249,18 @@ def binom_test(x, n, p, alternative):
 
     Parameters
     ----------
-    x : int or :class:`.Expression` of type :class:`TInt32`
+    x : int or :class:`.Expression` of type :class:`.TInt32`
         Number of successes.
-    n : int or :class:`.Expression` of type :class:`TInt32`
+    n : int or :class:`.Expression` of type :class:`.TInt32`
         Number of trials.
-    p : float or :class:`.Expression` of type :class:`TFloat64`
+    p : float or :class:`.Expression` of type :class:`.TFloat64`
         Probability of success, between 0 and 1.
     alternative
         : One of, "two.sided", "greater", "less".
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
         p-value.
     """
     return _func("binomTest", TFloat64(), x, n, p, alternative)
@@ -1280,13 +1280,13 @@ def pchisqtail(x, df):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
-    df : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    df : float or :class:`.Expression` of type :class:`.TFloat64`
         Degrees of freedom.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("pchisqtail", TFloat64(), x, df)
 
@@ -1314,11 +1314,11 @@ def pnorm(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("pnorm", TFloat64(), x)
 
@@ -1342,8 +1342,8 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
-    lamb : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    lamb : float or :class:`.Expression` of type :class:`.TFloat64`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
@@ -1353,7 +1353,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("ppois", TFloat64(), x, lamb, lower_tail, log_p)
 
@@ -1376,14 +1376,14 @@ def qchisqtail(p, df):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`TFloat64`
+    p : float or :class:`.Expression` of type :class:`.TFloat64`
         Probability.
-    df : float or :class:`.Expression` of type :class:`TFloat64`
+    df : float or :class:`.Expression` of type :class:`.TFloat64`
         Degrees of freedom.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("qchisqtail", TFloat64(), p, df)
 
@@ -1406,12 +1406,12 @@ def qnorm(p):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`TFloat64`
+    p : float or :class:`.Expression` of type :class:`.TFloat64`
         Probability.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("qnorm", TFloat64(), p)
 
@@ -1434,8 +1434,8 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`TFloat64`
-    lamb : float or :class:`.Expression` of type :class:`TFloat64`
+    p : float or :class:`.Expression` of type :class:`.TFloat64`
+    lamb : float or :class:`.Expression` of type :class:`.TFloat64`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :class:`.BooleanExpression`
         Corresponds to `lower_tail` parameter in inverse :meth:`.ppois`.
@@ -1444,7 +1444,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("qpois", TInt32(), p, lamb, lower_tail, log_p)
 
@@ -1469,11 +1469,11 @@ def range(start, stop, step=1):
 
     Parameters
     ----------
-    start : int or :class:`.Expression` of type :class:`TInt32`
+    start : int or :class:`.Expression` of type :class:`.TInt32`
         Start of range.
-    stop : int or :class:`.Expression` of type :class:`TInt32`
+    stop : int or :class:`.Expression` of type :class:`.TInt32`
         End of range.
-    step : int or :class:`.Expression` of type :class:`TInt32`
+    step : int or :class:`.Expression` of type :class:`.TInt32`
         Step of range.
 
     Returns
@@ -1504,7 +1504,7 @@ def rand_bool(p):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`TFloat64`
+    p : float or :class:`.Expression` of type :class:`.TFloat64`
         Probability between 0 and 1.
 
     Returns
@@ -1536,14 +1536,14 @@ def rand_norm(mean=0, sd=1):
 
     Parameters
     ----------
-    mean : float or :class:`.Expression` of type :class:`TFloat64`
+    mean : float or :class:`.Expression` of type :class:`.TFloat64`
         Mean of normal distribution.
-    sd : float or :class:`.Expression` of type :class:`TFloat64`
+    sd : float or :class:`.Expression` of type :class:`.TFloat64`
         Standard deviation of normal distribution.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("rnorm", TFloat64(), mean, sd)
 
@@ -1570,12 +1570,12 @@ def rand_pois(lamb):
 
     Parameters
     ----------
-    lamb : float or :class:`.Expression` of type :class:`TFloat64`
+    lamb : float or :class:`.Expression` of type :class:`.TFloat64`
         Rate parameter for Poisson distribution.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("rpois", TFloat64(), lamb)
 
@@ -1602,14 +1602,14 @@ def rand_unif(min, max):
 
     Parameters
     ----------
-    min : float or :class:`.Expression` of type :class:`TFloat64`
+    min : float or :class:`.Expression` of type :class:`.TFloat64`
         Left boundary of range.
-    max : float or :class:`.Expression` of type :class:`TFloat64`
+    max : float or :class:`.Expression` of type :class:`.TFloat64`
         Right boundary of range.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("runif", TFloat64(), min, max)
 
@@ -1632,11 +1632,11 @@ def sqrt(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`TFloat64`
+    x : float or :class:`.Expression` of type :class:`.TFloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     return _func("sqrt", TFloat64(), x)
 
@@ -1937,7 +1937,7 @@ def hamming(s1, s2):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt32`
+    :class:`.Expression` of type :class:`.TInt32`
     """
     return _func("hamming", TInt32(), s1, s2)
 
@@ -1981,7 +1981,7 @@ def downcode(c, i):
     ----------
     c : :class:`.CallExpression`
         A call.
-    i : :class:`.Expression` of type :class:`TInt32`
+    i : :class:`.Expression` of type :class:`.TInt32`
         The index of the allele that will be sent to the alternate allele. All
         other alleles will be downcoded to reference.
 
@@ -2009,7 +2009,7 @@ def gq_from_pl(pl):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt32`
+    :class:`.Expression` of type :class:`.TInt32`
     """
     if not isinstance(pl.dtype.element_type, TInt32):
         raise TypeError("'gq_from_pl' expects an array with element type 'Int32', found '{}'"
@@ -2035,11 +2035,11 @@ def triangle(n):
 
     Parameters
     ----------
-    n : :class:`.Expression` of type :class:`TInt32`
+    n : :class:`.Expression` of type :class:`.TInt32`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt32`
+    :class:`.Expression` of type :class:`.TInt32`
     """
     return _func("triangle", TInt32(), n)
 
@@ -2333,7 +2333,7 @@ def len(x):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt32`
+    :class:`.Expression` of type :class:`.TInt32`
     """
     return x._method("size", TInt32())
 
@@ -2416,7 +2416,7 @@ def mean(collection):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TFloat64`
+    :class:`.Expression` of type :class:`.TFloat64`
     """
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'mean' expects a numeric collection, found '{}'".format(collection.dtype))
@@ -2711,7 +2711,7 @@ def unique_min_index(collection):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt32`
+    :class:`.Expression` of type :class:`.TInt32`
     """
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'unique_min_index' expects an array with numeric element type, found '{}'"
@@ -2745,7 +2745,7 @@ def unique_max_index(collection):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`TInt32`
+    :class:`.Expression` of type :class:`.TInt32`
     """
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'unique_max_index' expects an array with numeric element type, found '{}'"

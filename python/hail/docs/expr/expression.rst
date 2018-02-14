@@ -26,7 +26,6 @@ Expressions
 
 
 .. autoclass:: Expression
-    :show-inheritance:
     :special-members: __eq__, __ne__
 
 .. autoclass:: ArrayExpression
@@ -46,6 +45,7 @@ Expressions
 
 .. autoclass:: CallExpression
     :show-inheritance:
+    :special-members: __getitem__
 
 .. autoclass:: CollectionExpression
     :show-inheritance:

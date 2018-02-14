@@ -787,7 +787,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
@@ -807,7 +807,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
@@ -848,7 +848,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        item : slice or :class:`.Expression` of type :class:`TInt32`
+        item : slice or :class:`.Expression` of type :class:`.TInt32`
             Index or slice.
 
         Returns
@@ -1593,7 +1593,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
             Size of the dictionary.
         """
         return self._method("size", TInt32())
@@ -1890,7 +1890,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TFloat32`
+        :class:`.Expression` of type :class:`.TFloat32`
         """
         return self._method("toFloat32", TFloat32())
 
@@ -1908,7 +1908,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
         """
         return self._method("toInt32", TInt32())
 
@@ -2423,7 +2423,7 @@ class NumericExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
             ``1`` or ``-1``.
         """
         return self._method("signum", TInt32())
@@ -2523,7 +2523,7 @@ class StringExpression(AtomicExpression):
 
         Parameters
         ----------
-        item : slice or :class:`.Expression` of type :class:`TInt32`
+        item : slice or :class:`.Expression` of type :class:`.TInt32`
             Slice or character index.
 
         Returns
@@ -2583,7 +2583,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
             Length of the string.
         """
         return self._method("length", TInt32())
@@ -2640,7 +2640,7 @@ class StringExpression(AtomicExpression):
         ----------
         delim : str or :class:`.StringExpression`
             Delimiter regex.
-        n : :class:`.Expression` of type :class:`TInt32`, optional
+        n : :class:`.Expression` of type :class:`.TInt32`, optional
             Maximum number of splits.
 
         Returns
@@ -2709,7 +2709,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TInt32`
+        :class:`.Expression` of type :class:`.TInt32`
             Parsed integer expression.
         """
         return self._method("toInt32", TInt32())
@@ -2746,7 +2746,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`TFloat32`
+        :class:`.Expression` of type :class:`.TFloat32`
             Parsed float expression.
         """
         return self._method("toFloat32", TFloat32())
