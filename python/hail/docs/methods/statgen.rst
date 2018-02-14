@@ -20,6 +20,7 @@ Statistical Genetics
     pc_relate
     rrm
     sample_qc
+    skat
     SplitMulti
     split_multi_hts
     tdt
@@ -40,6 +41,7 @@ Statistical Genetics
 .. autofunction:: pc_relate
 .. autofunction:: rrm
 .. autofunction:: sample_qc
+.. autofunction:: skat
 .. autoclass:: SplitMulti
 .. autofunction:: split_multi_hts
 .. autofunction:: tdt

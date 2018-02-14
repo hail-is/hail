@@ -1,4 +1,4 @@
-Regression
+Statistics
 ----------
 
 .. currentmodule:: hail.methods
@@ -11,7 +11,9 @@ Regression
     linreg
     logreg
     lmmreg
+    pca
 
 .. autofunction:: linreg
 .. autofunction:: logreg
 .. autofunction:: lmmreg
+.. autofunction:: pca

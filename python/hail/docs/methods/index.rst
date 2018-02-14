@@ -6,16 +6,21 @@ Methods
 .. toctree::
     :maxdepth: 2
 
-    import
-    export
-    regression
+    impex
+    stats
     statgen
     misc
 
-.. rubric:: Import
+.. rubric:: Import / Export
 
 .. autosummary::
 
+    export_cassandra
+    export_gen
+    export_plink
+    export_solr
+    export_vcf
+    get_vcf_metadata
     import_bed
     import_bgen
     import_fam
@@ -27,24 +32,14 @@ Methods
     read_table
 
 
-.. rubric:: Export
-
-.. autosummary::
-
-    export_cassandra
-    export_gen
-    export_plink
-    export_solr
-    export_vcf
-
-
-.. rubric:: Regression
+.. rubric:: Statistics
 
 .. autosummary::
 
     linreg
     logreg
     lmmreg
+    pca
 
 
 .. rubric:: Statistical Genetics
@@ -63,6 +58,7 @@ Methods
     pc_relate
     rrm
     sample_qc
+    skat
     SplitMulti
     split_multi_hts
     tdt
@@ -75,9 +71,6 @@ Methods
 
 .. autosummary::
 
-    get_vcf_metadata
     maximal_independent_set
-    pca
     rename_duplicates
     sample_rows
-    skat

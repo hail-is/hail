@@ -1,5 +1,5 @@
-Import
-------
+Import / Export
+---------------
 
 .. currentmodule:: hail.methods
 
@@ -8,6 +8,12 @@ Import
 
 .. autosummary::
 
+    export_cassandra
+    export_gen
+    export_plink
+    export_solr
+    export_vcf
+    get_vcf_metadata
     import_bed
     import_bgen
     import_fam
@@ -18,6 +24,12 @@ Import
     read_matrix_table
     read_table
 
+.. autofunction:: export_cassandra
+.. autofunction:: export_gen
+.. autofunction:: export_plink
+.. autofunction:: export_solr
+.. autofunction:: export_vcf
+.. autofunction:: get_vcf_metadata
 .. autofunction:: import_bed
 .. autofunction:: import_bgen
 .. autofunction:: import_fam
@@ -27,4 +39,3 @@ Import
 .. autofunction:: import_vcf
 .. autofunction:: read_matrix_table
 .. autofunction:: read_table
-
