@@ -1,9 +1,10 @@
 from hail.typecheck import *
 from hail.history import HistoryMixin, record_init, record_method
 from collections import Mapping, OrderedDict
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error
 
 
-class Struct(Mapping, HistoryMixin):
+class Struct(Mapping):
     """
     Nested annotation structure.
 
@@ -15,13 +16,9 @@ class Struct(Mapping, HistoryMixin):
     >>> bar.foo
     >>> bar['foo']
 
-    Note that it is possible to use Hail to define struct fields inside
-    of a key table or variant dataset that do not match python syntax.
-    The name "1kg", for example, will not parse to python because it
-    begins with an integer, which is not an acceptable leading character
-    for an identifier.  There are two ways to access this field:
+    Field names that are not valid Python identifers, like fields with
+    spaces or starting with numbers, must be accessed with the latter syntax:
 
-    >>> getattr(bar, '1kg')
     >>> bar['1kg']
 
     The ``pprint`` module can be used to print nested Structs in a more
@@ -30,10 +27,12 @@ class Struct(Mapping, HistoryMixin):
     >>> from pprint import pprint
     >>> pprint(bar)
 
-    :param dict attributes: struct members.
+    Parameters
+    ----------
+    attributes
+        Field names and values.
     """
 
-    @record_init
     def __init__(self, **kwargs):
         self._fields = kwargs
         for k, v in kwargs.items():
@@ -43,11 +42,20 @@ class Struct(Mapping, HistoryMixin):
     def __contains__(self, item):
         return item in self._fields
 
+    def _get_field(self, item):
+        if item in self._fields:
+            return self._fields[item]
+        else:
+            raise KeyError(get_nice_field_error(self, item))
+
     def __getitem__(self, item):
-        if not item in self._fields:
-            raise KeyError("Struct has no field '{}'\n"
-                           "    Fields: [ {} ]".format(item, ', '.join("'{}'".format(x) for x in self._fields)))
-        return self._fields[item]
+        return self._get_field(item)
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            raise AttributeError(get_nice_attr_error(self, item))
 
     def __len__(self):
         return len(self._fields)

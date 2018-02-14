@@ -59,7 +59,6 @@ class TableTemplate(HistoryMixin):
         else:
             self.__dict__[key] = value
 
-    @typecheck_method(item=strlike)
     def _get_field(self, item):
         if item in self._fields:
             return self._fields[item]
