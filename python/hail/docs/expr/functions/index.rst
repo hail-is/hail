@@ -100,7 +100,6 @@ Functions
     parse_interval
     call
     unphased_diploid_gt_index_call
-    unphased_diploid_gt_index_call
     parse_call
     is_snp
     is_mnp
