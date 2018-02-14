@@ -375,7 +375,14 @@ class OrderedRVD private(
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < rdd.partitions.length)),
       "values not sorted or not in range [0, number of partitions)")
 
-    val newRangeBounds = keep.map(partitioner.rangeBounds)
+    val newRangeBounds = Array.tabulate(keep.length) { i =>
+      if (i == 0)
+        partitioner.rangeBounds(keep(i))
+      else {
+        partitioner.rangeBounds(keep(i)).asInstanceOf[Interval]
+          .copy(start = partitioner.rangeBounds(keep(i - 1)).asInstanceOf[Interval].end)
+      }
+    }
     val newPartitioner = new OrderedRVDPartitioner(
       partitioner.partitionKey,
       partitioner.kType,

@@ -2700,7 +2700,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.start(localRVRowType)
             rvb.startStruct()
             rvb.addAnnotation(localRVRowType.fieldType(0), minv.locus)
-            rvb.addAnnotation(localRVRowType.fieldType(1), minv)
+            rvb.addAnnotation(localRVRowType.fieldType(1), minv.alleles)
             var i = 2
             while (i < localRVRowType.size) {
               rvb.addField(localRVRowType, rv, i)
