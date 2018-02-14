@@ -1248,6 +1248,7 @@ object FunctionRegistry {
   registerMethod("size", (a: IndexedSeq[Any]) => a.size)(arrayHr(TTHr), int32Hr)
   registerMethod("size", (s: Set[Any]) => s.size)(setHr(TTHr), int32Hr)
   registerMethod("size", (d: Map[Any, Any]) => d.size)(dictHr(TTHr, TUHr), int32Hr)
+  registerMethod("size", (s: String) => s.length)(stringHr, int32Hr)
 
   registerMethod("isEmpty", (a: IndexedSeq[Any]) => a.isEmpty)(arrayHr(TTHr), boolHr)
   registerMethod("isEmpty", (s: Set[Any]) => s.isEmpty)(setHr(TTHr), boolHr)

@@ -1200,7 +1200,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         ``ds.filters.is_empty()`` is ``True``. Thus, filtering to PASS variants
         can be done with :meth:`.MatrixTable.filter_rows` as follows:
 
-        >>> pass_ds = dataset.filter_rows(dataset.filters.length() == 0)
+        >>> pass_ds = dataset.filter_rows(hl.len(dataset.filters) == 0)
 
     **Column Fields**
 

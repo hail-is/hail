@@ -1726,14 +1726,14 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(expr=BooleanExpression)
-    def forall(self, expr):
+    def all(self, expr):
         """Evaluate whether a boolean expression is true for all rows.
 
         Examples
         --------
         Test whether `C1` is greater than 5 in all rows of the table:
 
-        >>> if table1.forall(table1.C1 == 5):
+        >>> if table1.all(table1.C1 == 5):
         ...     print("All rows have C1 equal 5.")
 
         Parameters
@@ -1746,7 +1746,7 @@ class Table(TableTemplate):
         :obj:`bool`
         """
         expr = to_expr(expr)
-        analyze('Table.forall', expr, self._row_indices)
+        analyze('Table.all', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
@@ -1756,15 +1756,15 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(expr=BooleanExpression)
-    def exists(self, expr):
-        """Evaluate whether a boolean expression is true for at least one row.
+    def any(self, expr):
+        """Evaluate whether a Boolean expression is true for at least one row.
 
         Examples
         --------
 
         Test whether `C1` is equal to 5 any row in any row of the table:
 
-        >>> if table1.exists(table1.C1 == 5):
+        >>> if table1.any(table1.C1 == 5):
         ...     print("At least one row has C1 equal 5.")
 
         Parameters
@@ -1778,7 +1778,7 @@ class Table(TableTemplate):
             ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
         """
         expr = to_expr(expr)
-        analyze('Table.exists', expr, self._row_indices)
+        analyze('Table.any', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"

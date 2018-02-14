@@ -64,8 +64,6 @@ def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggrega
                    refs=LinkedList(tuple)):
     if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
         return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins, refs)
-    elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
-        return elt_typ_to_set_expr[type.element_type.__class__](ast, type, indices, aggregations, joins, refs)
     elif type.__class__ in typ_to_expr:
         return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins, refs)
     else:
@@ -110,7 +108,8 @@ def to_expr(e):
         elif e.ploidy == 1:
             return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast), TCall())
         elif e.ploidy == 2:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast, to_expr(e[1])._ast), TCall())
+            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast, to_expr(e[1])._ast),
+                                  TCall())
         else:
             raise NotImplementedError("Do not support calls with ploidy == {}.".format(e.ploidy))
     elif isinstance(e, Struct):
@@ -190,6 +189,7 @@ _lazy_int32 = lazy()
 _lazy_numeric = lazy()
 _lazy_array = lazy()
 _lazy_set = lazy()
+_lazy_dict = lazy()
 _lazy_bool = lazy()
 _lazy_struct = lazy()
 _lazy_string = lazy()
@@ -203,10 +203,12 @@ expr_int32 = transformed((_lazy_int32, identity),
 expr_numeric = transformed((_lazy_numeric, identity),
                            (integral, to_expr),
                            (float, to_expr))
-expr_list = transformed((list, to_expr),
-                        (_lazy_array, identity))
+expr_array = transformed((list, to_expr),
+                         (_lazy_array, identity))
 expr_set = transformed((set, to_expr),
                        (_lazy_set, identity))
+expr_dict = transformed((dict, to_expr),
+                        (_lazy_dict, identity))
 expr_bool = transformed((bool, to_expr),
                         (_lazy_bool, identity))
 expr_struct = transformed((Struct, to_expr),
@@ -442,6 +444,9 @@ class Expression(object):
         """
         return self._type
 
+    def __len__(self):
+        raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
+
     def __eq__(self, other):
         """Returns ``True`` if the two expressions are equal.
 
@@ -534,17 +539,17 @@ class CollectionExpression(Expression):
     """
 
     @typecheck_method(f=func_spec(1, expr_bool))
-    def exists(self, f):
+    def any(self, f):
         """Returns ``True`` if `f` returns ``True`` for any element.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(a.exists(lambda x: x % 2 == 0))
+            >>> hl.eval_expr(a.any(lambda x: x % 2 == 0))
             True
 
-            >>> hl.eval_expr(s.exists(lambda x: x[0] == 'D'))
+            >>> hl.eval_expr(s.any(lambda x: x[0] == 'D'))
             False
 
         Notes
@@ -657,7 +662,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.flatmap(lambda x: hl.range(0, x)))
             [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
 
-            >>> hl.eval_expr(s.flatmap(lambda x: hl.range(0, x.length()).map(lambda i: x[i]).to_set()))
+            >>> hl.eval_expr(s.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))
             {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
 
         Parameters
@@ -681,14 +686,14 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
-    def forall(self, f):
+    def all(self, f):
         """Returns ``True`` if `f` returns ``True`` for every element.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(a.forall(lambda x: x < 10))
+            >>> hl.eval_expr(a.all(lambda x: x < 10))
             True
 
         Notes
@@ -782,7 +787,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
@@ -802,141 +807,20 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
-
-
-class CollectionNumericExpression(CollectionExpression):
-    """Expression of type :class:`.TArray` or :class:`.TSet` with numeric element type.
-
-    >>> a = hl.capture([1, 2, 3, 4, 5])
-    """
-
-    def max(self):
-        """Returns the maximum element.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.max())
-            5
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The maximum value in the collection.
-        """
-        return self._method("max", self._type.element_type)
-
-    def min(self):
-        """Returns the minimum element.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.min())
-            1
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The miniumum value in the collection.
-        """
-        return self._method("min", self._type.element_type)
-
-    def mean(self):
-        """Returns the mean of all values in the collection.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.mean())
-            3.0
-
-        Note
-        ----
-        Missing elements are ignored.
-
-        Returns
-        -------
-        :class:`.Float64Expression`
-            The mean value of the collection.
-        """
-        return self._method("mean", TFloat64())
-
-    def median(self):
-        """Returns the median element.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.median())
-            3
-
-        Note
-        ----
-        Missing elements are ignored.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The median value in the collection.
-        """
-        return self._method("median", self._type.element_type)
-
-    def product(self):
-        """Returns the product of all elements in the collection.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.product())
-            120
-
-        Note
-        ----
-        Missing elements are ignored.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The product of the collection.
-        """
-        return self._method("product", self._type.element_type)
-
-    def sum(self):
-        """Returns the sum of all elements in the collection.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.sum())
-            15
-
-        Note
-        ----
-        Missing elements are ignored.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The sum of the collection.
-        """
-        return self._method("sum", self._type.element_type)
 
 
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.TArray`.
 
     >>> a = hl.capture(['Alice', 'Bob', 'Charlie'])
+
+    See Also
+    --------
+    :class:`.CollectionExpression`
     """
 
     def __getitem__(self, item):
@@ -964,7 +848,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        item : slice or :class:`.Int32Expression`
+        item : slice or :class:`.Expression` of type :class:`.TInt32`
             Index or slice.
 
         Returns
@@ -1006,14 +890,15 @@ class ArrayExpression(CollectionExpression):
         This method takes time proportional to the length of the array. If a
         pipeline uses this method on the same array several times, it may be
         more efficient to convert the array to a set first
-        (:meth:`.ArrayExpression.to_set`).
+        (:func:`~hail.expr.functions.set`).
 
         Returns
         -------
         :class:`.BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
-        return self.exists(lambda x: x == item)
+        import hail as hl
+        return hl.any(lambda x: x == item, self)
 
     @typecheck_method(item=expr_any)
     def append(self, item):
@@ -1026,6 +911,11 @@ class ArrayExpression(CollectionExpression):
 
             >>> hl.eval_expr(a.append('Dan'))
             ['Alice', 'Bob', 'Charlie', 'Dan']
+
+        Note
+        ----
+        This method does not mutate the caller, but instead returns a new
+        array by copying the caller and adding `item`.
 
         Parameters
         ----------
@@ -1042,7 +932,7 @@ class ArrayExpression(CollectionExpression):
                             "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
         return self._method("append", self._type, item)
 
-    @typecheck_method(a=expr_list)
+    @typecheck_method(a=expr_array)
     def extend(self, a):
         """Concatenate two arrays and return the result.
 
@@ -1069,56 +959,8 @@ class ArrayExpression(CollectionExpression):
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
 
-    @typecheck_method(f=func_spec(1, expr_any), ascending=expr_bool)
-    def sort_by(self, f, ascending=True):
-        """Sort the array according to a function.
 
-        Examples
-        --------
-
-        .. doctest::
-
-            >>> hl.eval_expr(a.sort_by(lambda x: x, ascending=False))
-            ['Charlie', 'Bob', 'Alice']
-
-        Parameters
-        ----------
-        f : function ( (arg) -> :class:`.BooleanExpression`)
-            Function to evaluate per element to obtain the sort key.
-        ascending : bool or :class:`.BooleanExpression`
-            Sort in ascending order.
-
-        Returns
-        -------
-        :class:`.ArrayExpression`
-        """
-
-        def check_f(t):
-            if not (is_numeric(t) or isinstance(t, TString)):
-                raise TypeError("'sort_by' expects 'f' to return an ordered type, found type '{}'\n"
-                                "    Ordered types are 'Int32', 'Int64', 'Float32', 'Float64', 'String'".format(t))
-            return self._type
-
-        return self._bin_lambda_method("sortBy", f, self._type.element_type, check_f, ascending)
-
-    def to_set(self):
-        """Convert the array to a set.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.to_set())
-            {'Alice', 'Bob', 'Charlie'}
-
-        Returns
-        -------
-        :class:`.SetExpression`
-            Set of all unique elements.
-        """
-        return self._method("toSet", TSet(self._type.element_type))
-
-class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
+class ArrayNumericExpression(ArrayExpression):
     """Expression of type :class:`.TArray` with a numeric type.
 
     Numeric arrays support arithmetic both with scalar values and other arrays.
@@ -1369,202 +1211,16 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     def __rpow__(self, other):
         return self._bin_op_numeric_reverse('**', other, lambda _: TArray(TFloat64()))
 
-    @typecheck_method(ascending=expr_bool)
-    def sort(self, ascending=True):
-        """Returns a sorted array.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a1.sort())
-            [-1, -1, -1, 1, 1, 1]
-
-        Parameters
-        ----------
-        ascending : :class:`.BooleanExpression`
-            Sort in ascending order.
-
-        Returns
-        -------
-        :class:`.ArrayNumericExpression`
-            Sorted array.
-        """
-        return self._method("sort", self._type, ascending)
-
-    def unique_min_index(self):
-        """Return the index of the minimum value in the array.
-
-        Notes
-        -----
-        If the minimum value is not unique, returns missing.
-
-        Examples
-        --------
-
-        .. doctest::
-
-            >>> pl = hl.capture([10, 0, 100])
-            [10, 0, 100]
-
-            >>> hl.eval_expr(pl.unique_min_index())
-            1
-
-            >>> pl2 = hl.capture([0, 0, 100])
-            [0, 0, 100]
-
-            >>> hl.eval_expr(pl2.unique_min_index())
-            None
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-        """
-        return self._method("uniqueMinIndex", TInt32())
-
-    def unique_max_index(self):
-        """Return the index of the maximum value in the array.
-
-        Notes
-        -----
-        If the maximum value is not unique, returns missing.
-
-        Examples
-        --------
-
-        .. doctest::
-
-            >>> gp = hl.capture([0.2, 0.2, 0.6])
-            [0.2, 0.2, 0.6]
-
-            >>> hl.eval_expr(gp.unique_max_index())
-            2
-
-            >>> gp2 = hl.capture([0.4, 0.4, 0.2])
-            [0.4, 0.4, 0.2]
-
-            >>> hl.eval_expr(gp2.unique_max_index())
-            None
-
-        Returns
-        -------
-        :class:`.Int32Expression`
-        """
-        return self._method("uniqueMinIndex", TInt32())
-
-
-class ArrayBooleanExpression(ArrayExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TBoolean`."""
-    pass
-
-
-class ArrayFloat64Expression(ArrayNumericExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TFloat64`."""
-    pass
-
-
-class ArrayFloat32Expression(ArrayNumericExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TFloat32`."""
-    pass
-
-
-class ArrayInt32Expression(ArrayNumericExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TInt32`"""
-    pass
-
-
-class ArrayInt64Expression(ArrayNumericExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TInt64`."""
-    pass
-
-
-class ArrayStringExpression(ArrayExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TString`.
-
-    >>> a = hl.capture(['Alice', 'Bob', 'Charles'])
-    """
-
-    @typecheck_method(delimiter=expr_str)
-    def mkstring(self, delimiter):
-        """Joins the elements of the array into a single string delimited by `delimiter`.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.mkstring(','))
-            'Alice,Bob,Charles'
-
-        Parameters
-        ----------
-        delimiter : :class:`.StringExpression`
-            Field delimiter.
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Joined string expression.
-        """
-        return self._method("mkString", TString(), delimiter)
-
-    @typecheck_method(ascending=expr_bool)
-    def sort(self, ascending=True):
-        """Returns a sorted array.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.sort(ascending=False))
-            ['Charles', 'Bob', 'Alice']
-
-        Parameters
-        ----------
-        ascending : bool or :class:`.BooleanExpression`
-            Sort in ascending order.
-
-        Returns
-        -------
-        :class:`.ArrayStringExpression`
-            Sorted array.
-        """
-        return self._method("sort", self._type, ascending)
-
-
-class ArrayStructExpression(ArrayExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TStruct`."""
-    pass
-
-
-class ArrayArrayExpression(ArrayExpression):
-    """Expression of type :class:`.TArray` with element type :class:`.TArray`.
-
-    >>> a = hl.capture([[1, 2], [3, 4]])
-    """
-
-    def flatten(self):
-        """Flatten the nested array by concatenating subarrays.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(a.flatten())
-            [1, 2, 3, 4]
-
-        Returns
-        -------
-        :class:`.ArrayExpression`
-            Array generated by concatenating all subarrays.
-        """
-        return self._method("flatten", self._type.element_type)
-
 
 class SetExpression(CollectionExpression):
     """Expression of type :class:`.TSet`.
 
     >>> s1 = hl.capture({1, 2, 3})
     >>> s2 = hl.capture({1, 3, 5})
+
+    See Also
+    --------
+    :class:`.CollectionExpression`
     """
 
     @typecheck_method(item=expr_any)
@@ -1765,105 +1421,6 @@ class SetExpression(CollectionExpression):
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
 
-    def to_array(self):
-        """Convert the set to an array.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(s1.to_array())
-            [1, 2, 3]
-
-        Notes
-        -----
-        The order of elements in the array is not guaranteed.
-
-        Returns
-        -------
-        :class:`.ArrayExpression`
-            Array of all elements in the set.
-        """
-        return self._method("toArray", TArray(self._type.element_type))
-
-
-class SetFloat64Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`.TSet` with element type :class:`.TFloat64`."""
-    pass
-
-
-class SetFloat32Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`.TSet` with element type :class:`.TFloat32`."""
-    pass
-
-
-class SetInt32Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`.TSet` with element type :class:`.TInt32`."""
-    pass
-
-
-class SetInt64Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`.TSet` with element type :class:`.TInt64`."""
-    pass
-
-
-class SetStringExpression(SetExpression):
-    """Expression of type :class:`.TSet` with element type :class:`.TString`.
-
-    >>> s = hl.capture({'Alice', 'Bob', 'Charles'})
-    """
-
-    @typecheck_method(delimiter=expr_str)
-    def mkstring(self, delimiter):
-        """Joins the elements of the set into a single string delimited by `delimiter`.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(s.mkstring(','))
-            'Bob,Charles,Alice'
-
-        Notes
-        -----
-        The order of the elements in the string is not guaranteed.
-
-        Parameters
-        ----------
-        delimiter : str or :class:`.StringExpression`
-            Field delimiter.
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            Joined string expression.
-        """
-        return self._method("mkString", TString(), delimiter)
-
-
-class SetSetExpression(SetExpression):
-    """Expression of type :class:`.TSet` with element type :class:`.TSet`.
-
-    >>> s = hl.capture({1, 2, 3}).map(lambda s: {s, 2 * s})
-    """
-
-    def flatten(self):
-        """Flatten the nested set by concatenating subsets.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(s.flatten())
-            {1, 2, 3, 4, 6}
-
-        Returns
-        -------
-        :class:`.SetExpression`
-            Set generated by concatenating all subsets.
-        """
-        return self._method("flatten", self._type.element_type)
-
 
 class DictExpression(Expression):
     """Expression of type :class:`.TDict`.
@@ -2036,7 +1593,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             Size of the dictionary.
         """
         return self._method("size", TInt32())
@@ -2324,7 +1881,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :class:`.Float64Expression`
+        :class:`.Expression` of type :class:`.TFloat64`
         """
         return self._method("toFloat64", TFloat64())
 
@@ -2333,7 +1890,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :class:`.Float32Expression`
+        :class:`.Expression` of type :class:`.TFloat32`
         """
         return self._method("toFloat32", TFloat32())
 
@@ -2342,7 +1899,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :class:`.Int64Expression`
+        :class:`.Expression` of type :class:`.TInt64`
         """
         return self._method("toInt64", TInt64())
 
@@ -2351,7 +1908,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
         """
         return self._method("toInt32", TInt32())
 
@@ -2846,7 +2403,7 @@ class NumericExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Float64Expression`
+        :class:`.Expression` of type :class:`.TFloat64`
             Result of raising left to the right power.
         """
         return self._bin_op_numeric('**', power, lambda _: TFloat64())
@@ -2866,7 +2423,7 @@ class NumericExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             ``1`` or ``-1``.
         """
         return self._method("signum", TInt32())
@@ -2966,7 +2523,7 @@ class StringExpression(AtomicExpression):
 
         Parameters
         ----------
-        item : slice or :class:`.Int32Expression`
+        item : slice or :class:`.Expression` of type :class:`.TInt32`
             Slice or character index.
 
         Returns
@@ -3026,7 +2583,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             Length of the string.
         """
         return self._method("length", TInt32())
@@ -3083,7 +2640,7 @@ class StringExpression(AtomicExpression):
         ----------
         delim : str or :class:`.StringExpression`
             Delimiter regex.
-        n : :class:`.Int32Expression`, optional
+        n : :class:`.Expression` of type :class:`.TInt32`, optional
             Maximum number of splits.
 
         Returns
@@ -3152,7 +2709,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             Parsed integer expression.
         """
         return self._method("toInt32", TInt32())
@@ -3170,7 +2727,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Int64Expression`
+        :class:`.Expression` of type :class:`.TInt64`
             Parsed integer expression.
         """
 
@@ -3189,7 +2746,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Float32Expression`
+        :class:`.Expression` of type :class:`.TFloat32`
             Parsed float expression.
         """
         return self._method("toFloat32", TFloat32())
@@ -3207,7 +2764,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Float64Expression`
+        :class:`.Expression` of type :class:`.TFloat64`
             Parsed float expression.
         """
         return self._method("toFloat64", TFloat64())
@@ -3261,12 +2818,12 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        item : int or :class:`.Int32Expression`
+        item : int or :class:`.Expression` of type :class:`.TInt32`
             Allele index.
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
         """
         if isinstance(item, slice):
             raise NotImplementedError("CallExpression does not support indexing with a slice.")
@@ -3290,7 +2847,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
         """
         return self._method("ploidy", TInt32())
 
@@ -3457,12 +3014,12 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             The number of non-reference alleles.
         """
         return self._method("nNonRefAlleles", TInt32())
 
-    @typecheck_method(alleles=expr_list)
+    @typecheck_method(alleles=expr_array)
     def one_hot_alleles(self, alleles):
         """Returns an array containing the summed one-hot encoding of the
         alleles.
@@ -3505,9 +3062,10 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
         """
         return self._method("unphasedDiploidGtIndex", TInt32())
+
 
 class LocusExpression(Expression):
     """Expression of type :class:`.TLocus`.
@@ -3546,7 +3104,7 @@ class LocusExpression(Expression):
 
         Returns
         -------
-        :class:`.Int32Expression`
+        :class:`.Expression` of type :class:`.TInt32`
             This locus's position along its chromosome.
         """
         return self._field("position", TInt32())
@@ -3774,23 +3332,10 @@ typ_to_expr = {
 }
 
 elt_typ_to_array_expr = {
-    TBoolean: ArrayBooleanExpression,
-    TInt32: ArrayInt32Expression,
-    TFloat64: ArrayFloat64Expression,
-    TInt64: ArrayInt64Expression,
-    TFloat32: ArrayFloat32Expression,
-    TString: ArrayStringExpression,
-    TStruct: ArrayStructExpression,
-    TArray: ArrayArrayExpression
-}
-
-elt_typ_to_set_expr = {
-    TInt32: SetInt32Expression,
-    TFloat64: SetFloat64Expression,
-    TFloat32: SetFloat32Expression,
-    TInt64: SetFloat32Expression,
-    TString: SetStringExpression,
-    TSet: SetSetExpression
+    TInt32: ArrayNumericExpression,
+    TFloat64: ArrayNumericExpression,
+    TInt64: ArrayNumericExpression,
+    TFloat32: ArrayNumericExpression,
 }
 
 
@@ -3982,6 +3527,7 @@ _lazy_int32.set(Int32Expression)
 _lazy_numeric.set(NumericExpression)
 _lazy_array.set(ArrayExpression)
 _lazy_set.set(SetExpression)
+_lazy_dict.set(DictExpression)
 _lazy_bool.set(BooleanExpression)
 _lazy_struct.set(StructExpression)
 _lazy_string.set(StringExpression)
