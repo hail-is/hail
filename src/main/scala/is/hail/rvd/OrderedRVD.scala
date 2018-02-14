@@ -540,6 +540,11 @@ object OrderedRVD {
       .flatMap(_.samples)
       .sorted(pkOrd)
 
+    val min = pkis.map(_.min).min(pkOrd)
+    val max = pkis.map(_.max).max(pkOrd)
+
+    keys = min +: keys :+ max
+
     val ab = new ArrayBuilder[RegionValue]()
     var i = 0
     while (i < keys.length) {
@@ -552,18 +557,15 @@ object OrderedRVD {
 
     // FIXME weighted
     val partitionMaxes =
-      if (keys.length < nPartitions)
+      if (keys.length <= nPartitions + 1)
         keys
       else {
         val k = keys.length / nPartitions
         assert(k > 0)
-        Array.tabulate(nPartitions - 1)(i => keys((i + 1) * k))
+        Array.tabulate(nPartitions)(i => keys(i * k)) :+ max
       }
 
-    val min = pkis.map(_.min).min(pkOrd)
-    val max = pkis.map(_.max).max(pkOrd)
-
-    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, min +: partitionMaxes :+ max)
+    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionMaxes)
   }
 
   def adjustBoundsAndShuffle(typ: OrderedRVDType,

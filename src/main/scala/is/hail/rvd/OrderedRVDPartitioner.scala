@@ -41,6 +41,9 @@ class OrderedRVDPartitioner(
 
   def loadEnd(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
+  def minBound: Any = rangeBounds(0).asInstanceOf[Interval].start
+  def maxBound: Any = rangeBounds(numPartitions - 1).asInstanceOf[Interval].end
+
   // if outside bounds, return min or max depending on location
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {

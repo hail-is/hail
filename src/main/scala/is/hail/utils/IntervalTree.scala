@@ -18,9 +18,18 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
   }
 
+  //like contains, but excluding endpoints
+  private def containsWithin(pord: ExtendedOrdering, position: Any): Boolean = {
+    val compareStart = pord.compare(position, start)
+    val compareEnd = pord.compare(position, end)
+    compareStart > 0 && compareEnd < 0
+  }
+
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
-    (this.contains(pord, other.start) && (other.includeStart || !(pord.equiv(this.end, other.start) || pord.equiv(this.start, other.start)))) ||
-      (other.contains(pord, this.start) && (this.includeStart || !(pord.equiv(other.end, this.start) || pord.equiv(other.start, this.start))))
+    (this.contains(pord, other.start) && (other.includeStart || this.containsWithin(pord, other.start))) ||
+      (this.contains(pord, other.end) && (other.includeEnd || this.containsWithin(pord, other.end))) ||
+      (other.contains(pord, this.start) && (this.includeStart || other.containsWithin(pord, this.start))) ||
+      (other.contains(pord, this.end) && (this.includeEnd || other.containsWithin(pord, this.end)))
   }
 
   // true indicates definitely-empty interval, but false does not guarantee
