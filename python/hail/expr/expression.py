@@ -1881,6 +1881,24 @@ class StructExpression(Mapping, Expression):
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._joins, self._aggregations, self._refs)
 
+    def describe(self):
+        """Print information about the schema of the struct."""
+
+        def format_type(typ):
+            return typ.pretty(indent=4)
+
+        if len(self._fields) == 0:
+            fields = '\n    None'
+        else:
+            fields= ''.join("\n    '{name}': {type} ".format(
+                name=name, type=format_type(value.dtype)) for name, value in self._fields.items())
+
+        s = '----------------------------------------\n' \
+            'Fields:{f}\n' \
+            '----------------------------------------'.format(f=fields)
+        print(s)
+
+
 
 class AtomicExpression(Expression):
     """Abstract base class for numeric and logical types."""
