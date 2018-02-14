@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
-from hail.utils.misc import plural
+from hail.utils.misc import plural, get_nice_field_error, get_nice_attr_error
 from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
@@ -1683,6 +1683,18 @@ class StructExpression(Mapping, Expression):
         if key not in self.__dict__:
             self.__dict__[key] = value
 
+    def _get_field(self, item):
+        if item in self._fields:
+            return self._fields[item]
+        else:
+            raise KeyError(get_nice_field_error(self, item))
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            raise AttributeError(get_nice_attr_error(self, item))
+
     def __len__(self):
         return len(self._fields)
 
@@ -1707,10 +1719,7 @@ class StructExpression(Mapping, Expression):
         :class:`.Expression`
             Struct field.
         """
-        if not item in self._fields:
-            raise KeyError("Struct has no field '{}'\n"
-                           "    Fields: [ {} ]".format(item, ', '.join("'{}'".format(x) for x in self._fields)))
-        return self._fields[item]
+        return self._get_field(item)
 
     def __iter__(self):
         return iter(self._fields)

@@ -65,40 +65,10 @@ def plural(orig, n, alternate=None):
 def get_obj_metadata(obj):
     from hail.matrixtable import MatrixTable, GroupedMatrixTable
     from hail.table import Table, GroupedTable
-    if isinstance(obj, MatrixTable):
-        return 'MatrixTable', obj, MatrixTable
-    elif isinstance(obj, GroupedMatrixTable):
-        return 'GroupedMatrixTable', obj._parent, GroupedMatrixTable
-    elif isinstance(obj, Table):
-        return 'Table', obj, Table
-    elif isinstance(obj, GroupedTable):
-        return 'GroupedTable', obj._parent, GroupedTable
-    else:
-        raise NotImplementedError(obj)
+    from hail.utils import Struct
+    from hail.expr.expression import StructExpression
 
-
-def get_nice_attr_error(obj, item):
-    class_name, index_obj, cls = get_obj_metadata(obj)
-
-    if item.startswith('_'):
-        # don't handle 'private' attribute access
-        return "{} instance has no attribute '{}'".format(class_name, item)
-    else:
-        field_names = obj._fields.keys()
-        dd = defaultdict(lambda: [])
-        for f in field_names:
-            dd[f.lower()].append(f)
-
-        obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
-        methods = {x for x in obj_namespace if x in cls.__dict__ and callable(cls.__dict__[x])}
-        props = obj_namespace - methods
-
-        item_lower = item.lower()
-
-        field_matches = difflib.get_close_matches(item_lower, dd, n=5)
-        method_matches = difflib.get_close_matches(item_lower, methods, n=5)
-        prop_matches = difflib.get_close_matches(item_lower, props, n=5)
-
+    def table_error(index_obj):
         def fmt_field(field):
             assert field in index_obj._fields
             inds = index_obj[field]._indices
@@ -111,16 +81,63 @@ def get_nice_attr_error(obj, item):
             else:
                 assert inds == index_obj._entry_indices
                 return "'{}' [entry]".format(field)
+        return fmt_field
+
+    def struct_error(s):
+        def fmt_field(field):
+            assert field in s._fields
+            return "'{}'".format(field)
+        return fmt_field
+
+    if isinstance(obj, MatrixTable):
+        return 'MatrixTable', MatrixTable, table_error(obj)
+    elif isinstance(obj, GroupedMatrixTable):
+        return 'GroupedMatrixTable', GroupedMatrixTable, table_error(obj._parent)
+    elif isinstance(obj, Table):
+        return 'Table', Table, table_error(obj)
+    elif isinstance(obj, GroupedTable):
+        return 'GroupedTable', GroupedTable, table_error(obj)
+    elif isinstance(obj, Struct):
+        return 'Struct', Struct, struct_error(obj)
+    elif isinstance(obj, StructExpression):
+        return 'StructExpression', StructExpression, struct_error(obj)
+    else:
+        raise NotImplementedError(obj)
+
+
+def get_nice_attr_error(obj, item):
+    class_name, cls, handler = get_obj_metadata(obj)
+
+    if item.startswith('_'):
+        # don't handle 'private' attribute access
+        return "{} instance has no attribute '{}'".format(class_name, item)
+    else:
+        field_names = obj._fields.keys()
+        field_dict = defaultdict(lambda: [])
+        for f in field_names:
+            field_dict[f.lower()].append(f)
+
+        obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
+        inherited = {x for x in obj_namespace if x not in cls.__dict__}
+        methods = {x for x in obj_namespace if x in cls.__dict__ and callable(cls.__dict__[x])}
+        props = obj_namespace - methods - inherited
+
+        item_lower = item.lower()
+
+        field_matches = difflib.get_close_matches(item_lower, field_dict, n=5)
+        inherited_matches = difflib.get_close_matches(item_lower, inherited, n=5)
+        method_matches = difflib.get_close_matches(item_lower, methods, n=5)
+        prop_matches = difflib.get_close_matches(item_lower, props, n=5)
 
         s = ["{} instance has no field, method, or property '{}'".format(class_name, item)]
-        if any([field_matches, method_matches, prop_matches]):
+        if any([field_matches, method_matches, prop_matches, inherited_matches]):
             s.append('\n    Did you mean:')
             if field_matches:
                 l = []
                 for f in field_matches:
-                    l.extend(dd[f])
+                    l.extend(field_dict[f])
                 word = plural('field', len(l))
-                s.append('\n        Data {}: {}'.format(word, ', '.join(fmt_field(f) for f in l)))
+                s.append('\n        Data {}: {}'.format(word, ', '.join(handler(f) for f in l)))
             if method_matches:
                 word = plural('method', len(method_matches))
                 s.append('\n        {} {}: {}'.format(class_name, word,
@@ -129,32 +146,22 @@ def get_nice_attr_error(obj, item):
                 word = plural('property', len(prop_matches), 'properties')
                 s.append('\n        {} {}: {}'.format(class_name, word,
                                                       ', '.join("'{}'".format(p) for p in prop_matches)))
+            if inherited_matches:
+                word = plural('inherited method', len(inherited_matches))
+                s.append('\n        {} {}: {}'.format(class_name, word,
+                                                      ', '.join("'{}'".format(m) for m in inherited_matches)))
         else:
             s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
         return ''.join(s)
 
 
 def get_nice_field_error(obj, item):
-    class_name, index_obj, _ = get_obj_metadata(obj)
+    class_name, _, handler = get_obj_metadata(obj)
 
     field_names = obj._fields.keys()
     dd = defaultdict(lambda: [])
     for f in field_names:
         dd[f.lower()].append(f)
-
-    def fmt_field(field):
-        assert field in index_obj._fields
-        field_expr = index_obj[field]
-        inds = field_expr._indices
-        if inds == index_obj._global_indices:
-            return "'{}' [global field]".format(field)
-        elif inds == index_obj._row_indices:
-            return "'{}' [row field]".format(field)
-        elif inds == index_obj._col_indices:  # Table will never get here
-            return "'{}' [col field]".format(field)
-        else:
-            assert inds == index_obj._entry_indices
-            return "'{}' [entry field]".format(field)
 
     item_lower = item.lower()
 
@@ -165,6 +172,6 @@ def get_nice_field_error(obj, item):
         s.append('\n    Did you mean:')
         for f in field_matches:
             for orig_f in dd[f]:
-                s.append("\n        {}".format(fmt_field(orig_f)))
+                s.append("\n        {}".format(handler(orig_f)))
     s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
