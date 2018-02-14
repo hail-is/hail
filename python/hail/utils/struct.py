@@ -16,8 +16,9 @@ class Struct(Mapping):
     >>> bar.foo
     >>> bar['foo']
 
-    Field names that are not valid Python identifers, like fields with
-    spaces or starting with numbers, must be accessed with the latter syntax:
+    Field names that are not valid Python identifiers, such as fields that
+    start with numbers or contain spaces, must be accessed with the latter
+    syntax:
 
     >>> bar['1kg']
 

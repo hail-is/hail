@@ -113,9 +113,9 @@ def get_nice_attr_error(obj, item):
         return "{} instance has no attribute '{}'".format(class_name, item)
     else:
         field_names = obj._fields.keys()
-        dd = defaultdict(lambda: [])
+        field_dict = defaultdict(lambda: [])
         for f in field_names:
-            dd[f.lower()].append(f)
+            field_dict[f.lower()].append(f)
 
         obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
         inherited = {x for x in obj_namespace if x not in cls.__dict__}
@@ -124,7 +124,7 @@ def get_nice_attr_error(obj, item):
 
         item_lower = item.lower()
 
-        field_matches = difflib.get_close_matches(item_lower, dd, n=5)
+        field_matches = difflib.get_close_matches(item_lower, field_dict, n=5)
         inherited_matches = difflib.get_close_matches(item_lower, inherited, n=5)
         method_matches = difflib.get_close_matches(item_lower, methods, n=5)
         prop_matches = difflib.get_close_matches(item_lower, props, n=5)
@@ -135,7 +135,7 @@ def get_nice_attr_error(obj, item):
             if field_matches:
                 l = []
                 for f in field_matches:
-                    l.extend(dd[f])
+                    l.extend(field_dict[f])
                 word = plural('field', len(l))
                 s.append('\n        Data {}: {}'.format(word, ', '.join(handler(f) for f in l)))
             if method_matches:
