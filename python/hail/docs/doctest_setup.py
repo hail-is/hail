@@ -3,6 +3,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.stats import *
 from hail.utils.java import warn
+from hail import Struct
 
 if not os.path.isdir("output/"):
     os.mkdir("output/")
