@@ -2,13 +2,11 @@ package is.hail.io
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.implicitConversions
@@ -199,28 +197,36 @@ object LoadMatrix {
     }
   }
 
-  // this assumes that col IDs are in last line of header.
-  def parseHeader(hConf: Configuration, file: String, sep: Char, nRowFields: Int,
-    fieldHeaders: Option[Array[String]], noHeader: Boolean): (Array[String], Array[String]) = {
-    val line = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().next() }
-    parseHeaderFields(line.split(sep), nRowFields, fieldHeaders, noHeader)
+  def parseHeader(hConf: Configuration, file: String, sep: Char, nRowFields: Int, noHeader: Boolean): (Array[String], Int) = {
+    if (noHeader) {
+      val nCols = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().next() }.count(_ == sep) + 1
+      (Array(), nCols - nRowFields)
+    } else {
+      val lines = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
+      lines match {
+        case Array(header, first) =>
+          val nCols = first.count(_ == sep) + 1 - nRowFields
+          if (nCols <= 0)
+            fatal(s"Found more header fields than columns in file: $file")
+          (header.split(sep), nCols)
+        case _ =>
+          fatal(s"file in import_matrix contains no data: $file")
+      }
+    }
   }
 
-  def parseHeaderFields(cols: Array[String], nRowFields: Int,
-    annotationHeaders: Option[Array[String]], noHeader: Boolean=false): (Array[String], Array[String]) = {
-    annotationHeaders match {
-      case None =>
-        if (cols.length < nRowFields)
-          fatal(s"Expected $nRowFields annotation columns; only ${ cols.length } columns in table.")
-        if (noHeader)
-          (Array.tabulate(nRowFields) { i => "f"+i.toString() },
-            Array.tabulate(cols.length - nRowFields) { i => "col"+i.toString() })
-        else
-          (cols.slice(0, nRowFields), cols.slice(nRowFields, cols.length))
-      case Some(h) =>
-        assert(h.length == nRowFields)
-        (h.toArray, if (noHeader) Array.tabulate(cols.length - h.length) { i => "col"+i.toString() } else cols)
-    }
+  def splitHeader(cols: Array[String], nRowFields: Int, nColIDs: Int): (Array[String], Array[String]) = {
+    if (cols.length == nColIDs) {
+      (Array.tabulate(nRowFields)(i => s"f$i"), cols)
+    } else if (cols.length == nColIDs + nRowFields) {
+      (cols.take(nRowFields), cols.drop(nRowFields))
+    } else if (cols.isEmpty) {
+      (Array.tabulate(nRowFields)(i => s"f$i"), Array.tabulate(nColIDs)(i => s"col$i"))
+    } else
+      fatal(
+        s"""Expected file header to contain all $nColIDs column IDs and
+            | optionally all $nRowFields row field names: found ${ cols.length } header elements.
+           """.stripMargin)
   }
 
   def makePartitionerFromCounts(partitionCounts: Array[Long], pkType: TStruct): (OrderedRVDPartitioner, Array[Int]) = {
@@ -240,22 +246,39 @@ object LoadMatrix {
     (new OrderedRVDPartitioner(Array(pkType.fieldNames(0)), pkType, ranges), keepPartitions.result())
   }
 
+  def verifyRowFields(fieldNames: Array[String], fieldTypes: Map[String, Type]): TStruct = {
+    val headerDups = fieldNames.duplicates()
+    if (headerDups.nonEmpty)
+      fatal(s"Found following duplicate row fields in header: \n    ${ headerDups.mkString("\n    ") }")
+
+    val fields: Array[(String, Type)] = fieldNames.map { name =>
+      fieldTypes.get(name) match {
+        case Some(t) => (name, t)
+        case None => fatal(
+          s"""row field $name not found in provided row_fields dictionary.
+             |    expected fields:
+             |      ${ fieldNames.mkString("\n      ") }
+           """.stripMargin)
+      }
+    }
+    TStruct(fields: _*)
+  }
+
   def apply(hc: HailContext,
     files: Array[String],
-    annotationHeaders: Option[Array[String]],
-    fieldTypes: Array[Type],
-    keyFields: Option[Array[String]],
-    nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
+    rowFields: Map[String, Type],
+    keyFields: Array[String],
     cellType: TStruct = TStruct("x" -> TInt64()),
     missingValue: String = "NA",
+    nPartitions: Option[Int] = None,
     noHeader: Boolean = false): MatrixTable = {
+
     require(cellType.size == 1, "cellType can only have 1 field")
 
     val sep = '\t'
-    val nAnnotations = fieldTypes.length
+    val nAnnotations = rowFields.size
 
-      assert(fieldTypes.forall { t =>
+      assert(rowFields.values.forall { t =>
         t.isOfType(TString()) ||
           t.isOfType(TInt32()) ||
           t.isOfType(TInt64()) ||
@@ -265,22 +288,14 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val (annotationNames, header1) = parseHeader(hConf, files.head, sep, nAnnotations, annotationHeaders, noHeader)
-    val symTab = annotationNames.zip(fieldTypes)
-    val annotationType = TStruct(symTab: _*)
-    val ec = EvalContext(symTab: _*)
+    val (header1, nCols) = parseHeader(hConf, files.head, sep, nAnnotations, noHeader)
+    val (rowFieldNames, colIDs) = splitHeader(header1, nAnnotations, nCols)
+
+    val rowFieldType: TStruct = verifyRowFields(rowFieldNames, rowFields)
 
     val header1Bc = sc.broadcast(header1)
 
-    val sampleIds: Array[String] =
-      if (dropSamples)
-        Array.empty
-      else
-        header1
-
-    val nCols = sampleIds.length
-
-    LoadMatrix.warnDuplicates(sampleIds)
+    LoadMatrix.warnDuplicates(colIDs)
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
@@ -292,14 +307,11 @@ object LoadMatrix {
         if (firstPartitions(i) == i) {
           if (!noHeader) {
             val hd1 = header1Bc.value
-            val (annotationNamesCheck, hd) = parseHeaderFields(it.next().value.split(sep), nAnnotations, annotationHeaders)
-            if (!annotationNames.sameElements(annotationNamesCheck)) {
-              fatal("column headers for annotations must be the same across files.")
-            }
+            val hd = it.next().value.split(sep)
             if (!hd1.sameElements(hd)) {
               if (hd1.length != hd.length) {
                 fatal(
-                  s"""invalid sample ids: lengths of headers differ.
+                  s"""invalid header: lengths of headers differ.
                      |    ${ hd1.length } elements in ${ files(0) }
                      |    ${ hd.length } elements in ${ fileByPartition(i) }
                """.stripMargin
@@ -308,7 +320,7 @@ object LoadMatrix {
               hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
                 if (s1 != s2) {
                   fatal(
-                    s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
+                    s"""invalid header: expected elements to be identical for all input files. Found different elements at position $j.
                        |    ${ files(0) }: $s1
                        |    ${ fileByPartition(i) }: $s2""".
                       stripMargin)
@@ -321,10 +333,10 @@ object LoadMatrix {
       }.countPerPartition().scanLeft(0L)(_ + _)
 
     val useIndex = keyFields.isEmpty
-    val rowKey = keyFields.getOrElse(Array("row_id"))
-    val rowType = if (useIndex)
-      TStruct("row_id" -> TInt64()) ++ annotationType
-    else annotationType
+    val (rowKey, rowType) =
+      if (useIndex)
+        (Array("row_id"),TStruct("row_id" -> TInt64()) ++ rowFieldType)
+      else (keyFields, rowFieldType)
 
     val matrixType = MatrixType.fromParts(
       TStruct.empty(),
@@ -344,7 +356,7 @@ object LoadMatrix {
         if (firstPartitions(i) == i && !noHeader) { it.next() }
 
         val partitionStartInFile = partitionCounts(i) - partitionCounts(firstPartitions(i))
-        val parser = new LoadMatrixParser(rvb, fieldTypes, cellType, nCols, missingValue, fileByPartition(i))
+        val parser = new LoadMatrixParser(rvb, rowFieldType.fieldType, cellType, nCols, missingValue, fileByPartition(i))
 
         it.zipWithIndex.map { case (v, row) =>
           val fileRowNum = partitionStartInFile + row
@@ -372,7 +384,7 @@ object LoadMatrix {
     new MatrixTable(hc,
       matrixType,
       Annotation.empty,
-      sampleIds.map(x => Annotation(x)),
+      colIDs.map(x => Annotation(x)),
       orderedRVD)
   }
 }

@@ -953,6 +953,63 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
                                    no_header, impute, quote, rg._jrep)
     return Table(jt)
 
+@handle_py4j
+@typecheck(paths=oneof(strlike, listof(strlike)),
+           row_fields=dictof(strlike, Type),
+           key=nullable(oneof(strlike, listof(strlike))),
+           entry_type=nullable(Type),
+           missing=strlike,
+           min_partitions=nullable(int),
+           no_header=bool,
+           force_bgz=bool)
+def import_matrix(paths, row_fields={}, key=[], entry_type=None, missing="NA", min_partitions=None, no_header=True, force_bgz=False):
+    """
+
+
+
+    Parameters
+    ----------
+    paths: :obj:`str` or :obj:`list` of :obj:`str`
+        Files to import.
+    row_fields: :obj:`dict` of :obj:`str` to :class:`.Type`
+        Columns to take as row fields in the MatrixTable. They must be located
+        before all entry columns, and if named in the file header, the names
+        must match.
+    key: :obj:`str` or :obj:`list` of :obj:`str`
+        Key fields(s). If empty, creates an index `row_id` to use as key.
+    entry_type: :class:`.Type`
+        Type of entries in matrix table. Must be one of: TInt32, TInt64, TFloat32,
+        TFloat64, or TString. Default: TInt64.
+    missing: :obj:`str`
+        Identifier to be treated as missing. Default: NA
+    min_partitions: :obj:`int` or :obj:`None`
+        Minimum number of partitions.
+    no_header: :obj:`bool`
+        If ``True``, assume the file has no header and name the row fields `f0`,
+        `f1`, ... `fK` (0-indexed) and the column keys `col0`, `col1`, ...
+        `colN`.
+    force_bgz : :obj:`bool`
+        If ``True``, load **.gz** files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        MatrixTable constructed from imported data
+    """
+
+    paths = wrap_to_list(paths)
+    jrow_fields = {k: v._jtype for k, v in row_fields.items()}
+    key = wrap_to_list(key)
+    if entry_type is None:
+        entry_type = TInt64()
+    else:
+        if entry_type not in {TInt32(), TInt64(), TFloat32(), TFloat64(), TString()}:
+            raise FatalError("import_matrix expects entry types to be one of: TInt32, TInt64, TFloat32, TFloat64, TString: found {}".format(entry_type))
+
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, min_partitions, no_header, force_bgz)
+    return MatrixTable(jmt)
+
 
 @handle_py4j
 @typecheck(bed=str,

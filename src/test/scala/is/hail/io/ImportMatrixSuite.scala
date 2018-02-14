@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
@@ -74,7 +74,17 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {
-    vsm.copy2(colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row("col" + i.toString) })
+    val keyIdx = vsm.rvd.typ.kRowFieldIdx(0)
+    val key = s"f$keyIdx"
+    val keyType = TStruct(key -> vsm.rvd.rowType.fieldType(keyIdx))
+    val newRowType = TStruct(Array.tabulate(vsm.rowType.size)(i => (s"f$i", vsm.rowType.fieldType(i))): _*)
+    val newMatrixType = vsm.matrixType.copyParts(rowType = newRowType, rowPartitionKey = Array(key), rowKey = Array(key))
+    val newPartitioner = vsm.rvd.partitioner.copy(partitionKey = Array(key), kType = keyType,
+      rangeBounds = new UnsafeIndexedSeq(TArray(TInterval(keyType)), vsm.rvd.partitioner.rangeBounds.region, vsm.rvd.partitioner.rangeBounds.aoff))
+
+    vsm.copyMT(rvd = vsm.rvd.copy(typ = newMatrixType.orvdType, orderedPartitioner = newPartitioner),
+      matrixType = newMatrixType,
+      colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row("col" + i.toString) })
   }
 
   def renameColKeyField(vsm: MatrixTable): MatrixTable = {
@@ -119,15 +129,15 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testHeadersNotIdentical() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), Some(Array("v")))
+      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
     }
-    assert(e.getMessage.contains("invalid sample ids"))
+    assert(e.getMessage.contains("invalid header"))
   }
 
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), Some(Array("v")))
+      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
       vsm.rvd.count()
     }
     assert(e.getMessage.contains("Incorrect number"))
@@ -138,7 +148,7 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), None, vaTypes, Some(Array("v")), cellType = vsm.entryType)
+        LoadMatrix(hc, Array(f), Map(vaNames.zip(vaTypes): _*), Array("v"), cellType = vsm.entryType)
       }
       (vsm, actual)
     }
@@ -149,7 +159,8 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm, header=false)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), Some(vaNames), vaTypes, Some(Array("v")), cellType = vsm.entryType, noHeader=true)
+        val newRowHeaders = Array.tabulate[String](vaNames.length)(i => s"f$i")
+        LoadMatrix(hc, Array(f), Map(newRowHeaders.zip(vaTypes): _*), Array(s"f${ vaNames.indexOf("v") }"), cellType = vsm.entryType, noHeader=true)
       }
       (reKeyCols(vsm), actual)
     }
@@ -160,7 +171,7 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), None, vaTypes, None, cellType = vsm.entryType)
+        LoadMatrix(hc, Array(f), Map(vaNames.zip(vaTypes): _*), Array(), cellType = vsm.entryType)
       }
       (reKeyRows(vsm), actual)
     }
@@ -171,9 +182,10 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm, header=false)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), Some(vaNames), vaTypes, None, cellType = vsm.entryType, noHeader=true)
+        val newRowHeaders = Array.tabulate[String](vaNames.length)(i => s"f$i")
+        LoadMatrix(hc, Array(f), Map(newRowHeaders.zip(vaTypes): _*), Array(), cellType = vsm.entryType, noHeader=true)
       }
-      (reKeyCols(reKeyRows(vsm)), actual)
+      (reKeyRows(reKeyCols(vsm)), actual)
     }
   }
 }
