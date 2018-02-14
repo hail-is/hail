@@ -301,10 +301,7 @@ object LDPrune {
     def computeDependencies(partitionId: Int): Array[Int] = {
       val startLocus = rangeBounds(partitionId).start.asInstanceOf[UnsafeRow].getAs[Locus](0)
       val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
-
-      // FIXME: -1 if not in rangeBounds. currently implies minLocus < rvd min,
-      // which means filter is fine, but needs to change once rangebounds can have
-      // gaps.
+      
       val minPart = partitioner.getPartitionPK(Annotation(minLocus))
       Array.range(minPart, partitionId + 1).reverse
     }

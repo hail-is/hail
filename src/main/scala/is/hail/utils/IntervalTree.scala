@@ -211,7 +211,7 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def queryValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], position: Any) {
-    if (pord.gteq(position, minimum) && pord.lteq(position, minimum)) {
+    if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
       left.foreach(_.queryValues(pord, b, position))
       if (pord.gteq(position, i.start)) {
         right.foreach(_.queryValues(pord, b, position))

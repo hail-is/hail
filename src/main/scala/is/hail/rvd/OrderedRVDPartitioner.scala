@@ -24,7 +24,7 @@ class OrderedRVDPartitioner(
   } && rangeBounds.forall { i => pkType.ordering.lteq(i.asInstanceOf[Interval].start, i.asInstanceOf[Interval].end) } ))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
-    pkType.ordering.equiv(left.end, right.start) && (left.includeEnd || right.includeStart)})
+    pkType.ordering.equiv(left.end, right.start) && (left.includeEnd || right.includeStart) } )
 
   val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(Interval, Int)](numPartitions) { i =>
@@ -50,7 +50,7 @@ class OrderedRVDPartitioner(
       case Array() =>
         if (pkType.ordering.lteq(pk, rangeBounds(0).asInstanceOf[Interval].start))
           0
-        else{
+        else {
           assert(pkType.ordering.gteq(pk, rangeBounds(numPartitions - 1).asInstanceOf[Interval].end))
           numPartitions - 1
         }
@@ -74,7 +74,7 @@ class OrderedRVDPartitioner(
       case Array() =>
         if (pkType.ordering.lteq(pkUR, rangeBounds(0).asInstanceOf[Interval].start))
           0
-        else{
+        else {
           assert(pkType.ordering.gteq(pkUR, rangeBounds(numPartitions - 1).asInstanceOf[Interval].end))
           numPartitions - 1
         }
