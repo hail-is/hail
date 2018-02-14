@@ -45,6 +45,11 @@ class ExprSuite extends SparkSuite {
     assert(run[IndexedSeq[Int]]("[1,2]").contains(Array(1, 2): IndexedSeq[Int]))
     assert(run[IndexedSeq[Int]]("[1,2,3]").contains(Array(1, 2, 3): IndexedSeq[Int]))
 
+    assert(run[Annotation]("Tuple()").contains(Annotation()))
+    assert(run[Annotation]("Tuple(5)").contains(Annotation(5)))
+    assert(run[Annotation]("Tuple(5, Tuple(3, 4))").contains(Annotation(5, Annotation(3, 4))))
+    assert(run[Int]("let t = Tuple(5, Tuple(3, 4)) in t[1][1]").contains(4))
+
     assert(run[Annotation]("{}").contains(Annotation()))
     assert(run[Annotation]("{a: 1}").contains(Annotation(1)))
     assert(run[Annotation]("{a: 1, b: 2}").contains(Annotation(1, 2)))

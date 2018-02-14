@@ -80,7 +80,7 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     case _: TFloat64 => loadDouble
     case _: TArray => loadAddress
     case _: TBinary => loadAddress
-    case _: TStruct => off => off
+    case _: TStructBase => off => off
   }
 
   def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {

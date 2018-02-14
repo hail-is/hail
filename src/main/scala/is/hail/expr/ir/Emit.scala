@@ -413,6 +413,30 @@ private class Emit(
         val (doo, mo, vo) = emit(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
 
+      case x@MakeTuple(types, _) =>
+        val initializers = types.map { v => (v.typ, emit(v)) }
+        val srvb = new StagedRegionValueBuilder(fb, x.typ)
+        present(Code(
+          srvb.start(init = true),
+          Code(initializers.map { case (t, (dov, mv, vv)) =>
+            Code(
+              dov,
+              mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
+              srvb.advance()) }: _*),
+          srvb.offset))
+      case GetTupleElement(o, idx, _) =>
+        val t = coerce[TTuple](o.typ)
+        val (doo, mo, vo) = emit(o)
+        val xmo = mb.newBit()
+        val xo = fb.newLocal[Long]
+        val setup = Code(
+          doo,
+          xmo := mo,
+          xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
+        (setup,
+          xmo || !t.isFieldDefined(region, xo, idx),
+          region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
+
       case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
         throw new RuntimeException(s"Aggregations must appear within an aggregation: $ir")
 

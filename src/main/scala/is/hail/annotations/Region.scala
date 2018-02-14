@@ -349,6 +349,19 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
           i += 1
         }
         v.leaveStruct()
+      case t: TTuple =>
+        v.enterTuple(t)
+        var i = 0
+        while (i < t.size) {
+          v.enterElement(i)
+          if (t.isFieldDefined(this, off, i))
+            visit(t.types(i), t.loadField(this, off, i), v)
+          else
+            v.visitMissing(t.types(i))
+          v.leaveElement()
+          i += 1
+        }
+        v.leaveTuple()
       case t: ComplexType =>
         visit(t.representation, off, v)
     }

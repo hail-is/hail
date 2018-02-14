@@ -160,6 +160,16 @@ class StructDeclaration(AST):
         return '{' + ', '.join('{}: {}'.format(escape_id(k), v.to_hql()) for k, v in zip(self.keys, self.values)) + '}'
 
 
+class TupleDeclaration(AST):
+    @typecheck_method(values=listof(AST))
+    def __init__(self, values):
+        self.values = values
+        super(TupleDeclaration, self).__init__(*values)
+
+    def to_hql(self):
+        return 'Tuple(' + ', '.join(v.to_hql() for v in self.values) + ')'
+
+
 class StructOp(AST):
     @typecheck_method(operation=str, parent=AST, keys=str)
     def __init__(self, operation, parent, *keys):

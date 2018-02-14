@@ -34,6 +34,10 @@ trait ValueVisitor {
   def enterElement(i: Int): Unit
 
   def leaveElement(): Unit
+
+  def enterTuple(t: TTuple): Unit
+
+  def leaveTuple(): Unit
 }
 
 final class PrettyVisitor extends ValueVisitor {
@@ -89,6 +93,14 @@ final class PrettyVisitor extends ValueVisitor {
 
   def leaveStruct() {
     sb.append(" }")
+  }
+
+  def enterTuple(t: TTuple) {
+    sb.append("(")
+  }
+
+  def leaveTuple() {
+    sb.append(")")
   }
 
   def enterArray(t: TContainer, length: Int) {

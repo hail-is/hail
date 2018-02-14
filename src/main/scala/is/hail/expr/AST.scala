@@ -386,16 +386,8 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
   } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 
-case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
-  override def typecheckThis(ec: EvalContext): Type = {
-    elements.foreach(_.typecheck(ec))
-    val types = elements.map(_.`type`)
-      .map {
-        case t: Type => t
-        case bt => parseError(s"invalid struct element found: `$bt'")
-      }
-    TStruct((names, types, names.indices).zipped.map { case (id, t, i) => Field(id, t, i) })
-  }
+abstract class StructBaseConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
+  override def typecheckThis(ec: EvalContext): Type
 
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
@@ -406,10 +398,40 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
     celements <- CM.sequence(elements.map(_.compile()))
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
 
+  def toIR(agg: Option[String] = None): Option[IR]
+}
+
+case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends StructBaseConstructor(posn, elements) {
+  override def typecheckThis(ec: EvalContext): Type = {
+    elements.foreach(_.typecheck(ec))
+    val types = elements.map(_.`type`)
+      .map {
+        case t: Type => t
+        case bt => parseError(s"invalid struct element found: `$bt'")
+      }
+    TStruct((names, types, names.indices).zipped.map { case (id, t, i) => Field(id, t, i) })
+  }
+
   def toIR(agg: Option[String] = None): Option[IR] = for {
     irElements <- anyFailAllFail[Array](elements.map(x => x.toIR(agg).map(ir => (x.`type`, ir))))
     fields = names.zip(irElements).map { case (x, (y, z)) => (x, z) }
   } yield ir.MakeStruct(fields)
+}
+
+case class TupleConstructor(posn: Position, elements: Array[AST]) extends StructBaseConstructor(posn, elements) {
+  override def typecheckThis(ec: EvalContext): Type = {
+    elements.foreach(_.typecheck(ec))
+    val types = elements.map(_.`type`)
+      .map {
+        case t: Type => t
+        case bt => parseError(s"invalid tuple element found: `$bt'")
+      }
+    TTuple(types)
+  }
+
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    irElements <- anyFailAllFail[Array](elements.map(x => x.toIR(agg)))
+  } yield ir.MakeTuple(irElements)
 }
 
 case class GenomeReferenceDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
@@ -763,6 +785,15 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = FunctionRegistry.lookupMethodReturnType(it, funType +: rest.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
+      case (tt: TTuple, "[]", Array(Const(_, v, t))) =>
+        val idx = t match {
+          case TInt32(_) => v.asInstanceOf[Int]
+          case _ => fatal(s"Tuple index must have type `tint32'. Found ${ t.toString }.")
+        }
+        if (idx < 0 || idx >= tt.size)
+          fatal(s"Invalid index for tuple of size ${ tt.size }.")
+        `type` = tt.types(idx)
+
       case _ =>
         super.typecheck(ec)
     }
@@ -796,6 +827,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
       val funType = TFunction(Array(it.elementType), body.`type`)
       FunctionRegistry.call(method, lhs +: args, it +: funType +: rest.map(_.`type`))
+    case (tt: TTuple, "[]", Array(Const(_, v, t))) =>
+      val i = v.asInstanceOf[Int]
+      val elemTyp = tt.types(i)
+      AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(elemTyp.scalaClassTag) }
+
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
 
@@ -820,6 +856,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case "flatMap" => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
         }
       } yield result
+    case (_: TTuple, "[]", IndexedSeq(rhs)) =>
+      val idx = rhs.asInstanceOf[Const].value.asInstanceOf[Int]
+      for {
+        tup <- lhs.toIR(agg)
+      } yield ir.GetTupleElement(tup, idx, `type`)
     case _ => None
   }
 }

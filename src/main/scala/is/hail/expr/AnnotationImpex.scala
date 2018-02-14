@@ -32,7 +32,8 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType, _) => requiresConversion(elementType)
-    case TSet(_, _) | TDict(_, _, _) | TAltAllele(_) | TVariant(_, _) | TLocus(_, _) | TInterval(_, _) | TCall(_) => true
+    case TSet(_, _) | TDict(_, _, _) | TAltAllele(_) | TVariant(_, _) |
+         TLocus(_, _) | TInterval(_, _) | TCall(_) | TTuple(_, _) => true
     case TStruct(fields, _) =>
       fields.isEmpty || fields.exists(f => requiresConversion(f.typ))
     case _ => false
@@ -97,13 +98,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             importAnnotation(r.get(1), x.pointType),
             importAnnotation(r.get(2), TBooleanRequired).asInstanceOf[Boolean],
             importAnnotation(r.get(3), TBooleanRequired).asInstanceOf[Boolean])
-        case TStruct(fields, _) =>
-          if (fields.isEmpty)
+        case t: TStructBase =>
+          if (t.size == 0)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
           else {
             val r = a.asInstanceOf[Row]
-            Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
-              importAnnotation(v, f.typ)
+            Annotation.fromSeq(r.toSeq.zip(t.types).map { case (v, typ) =>
+              importAnnotation(v, typ)
             })
           }
         case _ => a
@@ -140,6 +141,14 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         StructType(fields
           .map(f =>
             StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
+    case TTuple(types, _) =>
+      if (types.isEmpty)
+        BooleanType // placeholder
+      else
+        StructType(types
+          .zipWithIndex
+          .map { case (typ, i) =>
+          StructField(s"_$i", typ.schema, nullable = !typ.required) })
   }
 
   def annotationExporter(t: Type): (Annotation) => Any = {
@@ -182,13 +191,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             exportAnnotation(i.end, pointType),
             exportAnnotation(i.includeStart, TBooleanRequired),
             exportAnnotation(i.includeEnd, TBooleanRequired))
-        case TStruct(fields, _) =>
-          if (fields.isEmpty)
+        case t: TStructBase =>
+          if (t.size == 0)
             a != null
           else {
             val r = a.asInstanceOf[Row]
-            Annotation.fromSeq(r.toSeq.zip(fields).map {
-              case (v, f) => exportAnnotation(v, f.typ)
+            Annotation.fromSeq(r.toSeq.zip(t.types).map {
+              case (v, typ) => exportAnnotation(v, typ)
             })
           }
         case _ => a
@@ -303,6 +312,9 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
           JObject(fields
             .map(f => (f.name, exportAnnotation(row.get(f.index), f.typ)))
             .toList)
+        case TTuple(types, _) =>
+          val row = a.asInstanceOf[Row]
+          JArray(types.zipWithIndex.map { case (typ, i) => exportAnnotation(row.get(i), typ) }.toList)
       }
     }
 
@@ -380,6 +392,19 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 
           Annotation(a: _*)
         }
+      case (JArray(elts), t: TTuple) =>
+        if (t.size == 0)
+          Annotation.empty
+        else {
+          val a = Array.fill[Any](t.size)(null)
+          var i = 0
+          for (jvelt <- elts) {
+            a(i) = importAnnotation(jvelt, t.types(i), parent)
+            i += 1
+          }
+
+          Annotation(a: _*)
+        }
       case (_, _: TAltAllele) =>
         jv.extract[AltAllele]
       case (_, TVariant(_, _)) =>
@@ -428,6 +453,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
+        case t: TTuple => JsonMethods.compact(t.toJSON(a))
         case TInterval(TLocus(gr, _), _) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
@@ -464,6 +490,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TTuple => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
     }
   }
 }

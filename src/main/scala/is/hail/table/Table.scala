@@ -1255,7 +1255,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       t match {
         case s: TStruct =>
           val r = v.asInstanceOf[Row]
-          s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
+          s.types.zipWithIndex.foreach { case (typ, i) => convertValue(typ, if (r == null) null else r.get(i), ab) }
         case _ =>
           ab += t.str(v)
       }
