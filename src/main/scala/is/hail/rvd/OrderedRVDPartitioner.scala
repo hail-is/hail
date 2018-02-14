@@ -96,7 +96,7 @@ object OrderedRVDPartitioner {
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
   def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq =
-    makeRangeBoundIntervals(UnsafeIndexedSeq(TArray(TInterval(pType)), rangeBounds))
+    makeRangeBoundIntervals(UnsafeIndexedSeq(TArray(pType), rangeBounds))
 
   def makeRangeBoundIntervals(rangeBounds: UnsafeIndexedSeq): UnsafeIndexedSeq = {
     val pType = rangeBounds.t.elementType
