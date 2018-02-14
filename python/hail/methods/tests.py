@@ -573,7 +573,7 @@ class Tests(unittest.TestCase):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
         schema = hl.TStruct(['i', 'j', 'entry'],
-                            [hl.TInt64(required=True), hl.TInt64(required=True), hl.TFloat64(required=True)])
+                            [hl.tint64, hl.tint64, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
         numpy_matrix = np.reshape(map(lambda row: row['entry'], rows), (num_rows, num_cols))
 

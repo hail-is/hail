@@ -39,7 +39,7 @@ def null(t):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(Literal('NA: {}'.format(t)), t)
+    return construct_expr(Literal('NA: {}'.format(t._jtype.toString())), t)
 
 
 def capture(x):
@@ -633,7 +633,7 @@ def index(structs, identifier):
                            "Struct type is {}.".format(identifier, struct_type))
 
     key_type = struct_fields[identifier]
-    value_type = struct_type._drop(identifier)
+    value_type = TStruct.from_fields([f for f in struct_type.fields if f.name != identifier])
 
     ast = StructOp('index', structs._ast, identifier)
     return construct_expr(ast, TDict(key_type, value_type),

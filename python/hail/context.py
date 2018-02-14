@@ -2,7 +2,7 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.genetics.genomeref import GenomeReference
-from hail.typecheck import nullable, strlike, integral, typecheck, typecheck_method
+from hail.typecheck import nullable, strlike, integral, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger
 
@@ -109,7 +109,7 @@ class HailContext(object):
            min_block_size=integral,
            branching_factor=integral,
            tmp_dir=strlike,
-           default_reference=strlike)
+           default_reference=enumeration('GRCh37', 'GRCh38'))
 def init(sc=None, app_name="Hail", master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
@@ -128,3 +128,16 @@ def default_reference():
     :class:`.GenomeReference`
     """
     return Env.hc().default_reference
+
+def get_reference(name):
+    """Return the reference genome corresponding to `name`.
+
+    Returns
+    -------
+    :class:`.GenomeReference`
+    """
+    from hail import GenomeReference
+    return GenomeReference._references.get(
+        name,
+        GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
+    )

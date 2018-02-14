@@ -261,10 +261,11 @@ class Table(val hc: HailContext, val ir: TableIR) {
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
-  def same(other: Table, tolerance: Option[Double] = None): Boolean = {
+  def same(other: Table, tolerance: Double = defaultTolerance): Boolean = {
     val localValueSignature = valueSignature
 
-    if (signature != other.signature) {
+    val globalSignatureOpt = globalSignature.deepOptional()
+    if (signature.deepOptional() != other.signature.deepOptional()) {
       info(
         s"""different signatures:
            | left: ${ signature.toString }
@@ -278,14 +279,14 @@ class Table(val hc: HailContext, val ir: TableIR) {
            | right: ${ other.key.mkString(", ") }
            |""".stripMargin)
       false
-    } else if (globalSignature != other.globalSignature) {
+    } else if (globalSignatureOpt != other.globalSignature.deepOptional()) {
       info(
         s"""different global signatures:
            | left: ${ globalSignature.toString }
            | right: ${ other.globalSignature.toString }
            |""".stripMargin)
       false
-    } else if (globals != other.globals) {
+    } else if (!globalSignatureOpt.valuesSimilar(globals, other.globals)) {
       info(
         s"""different global annotations:
            | left: $globals
@@ -302,8 +303,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
             val res = if (r1.length != r2.length)
               false
             else r1.counter() == r2.counter() ||
-              tolerance.fold(false)(
-                Table.sameWithinTolerance(localValueSignature, r1, r2, _))
+              Table.sameWithinTolerance(localValueSignature, r1, r2, tolerance)
             if (!res)
               info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ") }\n  right:\n    ${ r2.mkString("\n    ") }")
             res

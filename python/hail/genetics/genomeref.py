@@ -33,6 +33,8 @@ class GenomeReference(HistoryMixin):
     >>> my_ref = hl.GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
     """
 
+    _references = {}
+
     @handle_py4j
     @record_init
     @typecheck_method(name=strlike,
@@ -70,6 +72,7 @@ class GenomeReference(HistoryMixin):
         self._par_tuple = par
 
         super(GenomeReference, self).__init__()
+        GenomeReference._references[name] = self
 
     def _set_history(self, history):
         if not self._history_was_set: # only set varid if GenomeReference was constructed by user
@@ -195,7 +198,10 @@ class GenomeReference(HistoryMixin):
 
         :rtype: :class:`.GenomeReference`
         """
-        return GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
+        return GenomeReference._references.get(
+            'GRCh37',
+            GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
+        )
 
     @classmethod
     @record_classmethod
@@ -209,7 +215,10 @@ class GenomeReference(HistoryMixin):
 
         :rtype: :class:`.GenomeReference`
         """
-        return GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh38())
+        return GenomeReference._references.get(
+            'GRCh38',
+            GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
+        )
 
     @classmethod
     @record_classmethod
@@ -286,6 +295,7 @@ class GenomeReference(HistoryMixin):
         gr._par = None
         gr._par_tuple = None
         super(GenomeReference, gr).__init__()
+        GenomeReference._references[gr.name] = gr
         return gr
 
     @handle_py4j

@@ -2069,26 +2069,33 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
     var metadataSame = true
-    if (rowType != that.rowType) {
+    if (rowType.deepOptional() != that.rowType.deepOptional()) {
       metadataSame = false
       println(
-        s"""different va signature:
+        s"""different row signature:
            |  left:  ${ rowType.toString }
            |  right: ${ that.rowType.toString }""".stripMargin)
     }
-    if (colType != that.colType) {
+    if (colType.deepOptional() != that.colType.deepOptional()) {
       metadataSame = false
       println(
-        s"""different sa signature:
+        s"""different column signature:
            |  left:  ${ colType.toString }
            |  right: ${ that.colType.toString }""".stripMargin)
     }
-    if (globalType != that.globalType) {
+    if (globalType.deepOptional() != that.globalType.deepOptional()) {
       metadataSame = false
       println(
         s"""different global signature:
            |  left:  ${ globalType.toString }
            |  right: ${ that.globalType.toString }""".stripMargin)
+    }
+    if (entryType.deepOptional() != that.entryType.deepOptional()) {
+      metadataSame = false
+      println(
+        s"""different entry signature:
+           |  left:  ${ entryType.toString }
+           |  right: ${ that.entryType.toString }""".stripMargin)
     }
     if (!colValuesSimilar(that, tolerance)) {
       metadataSame = false

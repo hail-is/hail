@@ -68,17 +68,6 @@ class Tests(unittest.TestCase):
                 else:
                     self.assertNotEqual(some_random_types[i], some_random_types_cp[j])
 
-        reqint = TInt32(required=True)
-        self.assertEqual(reqint.required, True)
-        optint = TInt32()
-        self.assertEqual(optint.required, False)
-        optint2 = TInt32(required=False)
-        self.assertEqual(optint2.required, False)
-        self.assertEqual(id(optint), id(optint2))
-
-        reqint2 = TInt32(required=True)
-        self.assertEqual(id(reqint), id(reqint2))
-
     def test_floating_point(self):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
