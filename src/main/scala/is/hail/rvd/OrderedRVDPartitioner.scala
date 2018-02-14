@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.spark.Partitioner
+import org.apache.spark.sql.Row
 
 class OrderedRVDPartitioner(
   val partitionKey: Array[String], val kType: TStruct,
@@ -111,8 +112,9 @@ object OrderedRVDPartitioner {
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
   def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq = {
+    val uisRangeBounds = UnsafeIndexedSeq(TArray(pType), rangeBounds)
     var includeStart = true
-    val rangeBoundIntervals = rangeBounds.zip(rangeBounds.tail).map { case (s, e) =>
+    val rangeBoundIntervals = uisRangeBounds.zip(uisRangeBounds.tail).map { case (s, e) =>
         val i = Interval(s, e, includeStart, true)
         includeStart = false
         i
