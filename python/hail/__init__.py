@@ -1,4 +1,8 @@
 import sys
+if sys.version_info >= (3, 0) or sys.version_info <= (2, 6):
+    raise EnvironmentError('Hail requires Python 2.7, found {}.{}'.format(
+        sys.version_info.major, sys.version_info.minor))
+del sys
 
 __doc__ = """
     __  __     <>__ 
@@ -25,10 +29,6 @@ from .methods import *
 from hail.expr import aggregators as agg
 from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
 
-if sys.version_info >= (3, 0) or sys.version_info <= (2, 6):
-    raise EnvironmentError('Hail requires Python 2.7, found {}.{}'.format(
-        sys.version_info.major, sys.version_info.minor))
-del sys
 
 __all__ = ['init',
            'stop',
@@ -45,6 +45,11 @@ __all__ = ['init',
            'Struct',
            'agg']
 
+
 __all__.extend(genetics.__all__)
-__all__.extend(expr.__all__)
 __all__.extend(methods.__all__)
+
+# don't import the following with `from hail import *`
+builtins = {'str', 'any', 'all', 'set', 'dict', 'sum', 'min', 'max', 'len', 'sorted', 'map', 'filter', 'range'}
+__all__.extend([x for x in expr.__all__ if x not in builtins])
+del builtins

@@ -13,7 +13,7 @@ language. It contains three submodules:
     :maxdepth: 1
 
     expression <expression>
-    functions <functions>
+    functions <functions/index>
     aggregators <aggregators>
     types <types>
     utils <utils>

@@ -237,7 +237,7 @@ class ExactlyTypeChecker(TypeChecker):
         return str(self.v)
 
 
-class CoercionChecker(MultipleTypeChecker):
+class CoercionChecker(TypeChecker):
     """Type checker that performs argument transformations.
 
     The `fs` argument should be a varargs of 2-tuples that each contain a
@@ -249,7 +249,7 @@ class CoercionChecker(MultipleTypeChecker):
 
     def __init__(self, *fs):
         self.fs = fs
-        super(CoercionChecker, self).__init__([c for c, _ in fs])
+        super(CoercionChecker, self).__init__()
 
     def check(self, x, caller, param):
         for tc, f in self.fs:
@@ -258,6 +258,10 @@ class CoercionChecker(MultipleTypeChecker):
             except TypecheckFailure:
                 pass
         raise TypecheckFailure
+
+    def expects(self):
+        return '(' + ' or '.join([c.expects() for c, _ in self.fs]) + ')'
+
 
 class FunctionChecker(TypeChecker):
     def __init__(self, nargs, ret_checker):
@@ -318,7 +322,7 @@ def enumeration(*args):
 
 
 def nullable(t):
-    return oneof(t, NoneType)
+    return oneof(NoneType, t)
 
 
 def listof(t):

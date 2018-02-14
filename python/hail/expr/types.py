@@ -334,9 +334,9 @@ class TArray(Type):
     """
 
     @record_init
-    def __init__(self, _element_type, required=False):
-        jtype = scala_object(Env.hail().expr.types, 'TArray').apply(_element_type._jtype, required)
-        self._element_type = _element_type
+    def __init__(self, element_type, required=False):
+        jtype = scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, required)
+        self._element_type = element_type
         super(TArray, self).__init__(jtype)
 
     @property
