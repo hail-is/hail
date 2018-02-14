@@ -112,7 +112,27 @@ class OrderedRVD private(
     }
   }
 
-  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] = new OrderedZipJoinRDD(this, right)
+  def orderedZipJoin(right: OrderedRVD): OrderedZipJoinRDD = {
+    val pkOrd = this.partitioner.pkType.ordering
+    if (pkOrd.gt(this.partitioner.minBound, right.partitioner.minBound) ||
+      pkOrd.lt(this.partitioner.maxBound, right.partitioner.maxBound)) {
+
+      val newRangeBounds = partitioner.rangeBounds.toArray
+
+      newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
+        .copy(start = pkOrd.min(this.partitioner.minBound, right.partitioner.minBound))
+      newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
+        .copy(end = pkOrd.max(this.partitioner.maxBound, right.partitioner.maxBound))
+
+      val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
+        partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+
+      new OrderedZipJoinRDD(OrderedRVD(this.typ, newPartitioner, this.rdd), right)
+
+    } else {
+      new OrderedZipJoinRDD(this, right)
+    }
+  }
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)

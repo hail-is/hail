@@ -51,10 +51,10 @@ class OrderedRVDPartitioner(
     val part = rangeTree.queryValues(pkType.ordering, pk)
     part match {
       case Array() =>
-        if (pkType.ordering.lteq(pk, rangeBounds(0).asInstanceOf[Interval].start))
+        if (pkType.ordering.lt(pk, minBound))
           0
         else {
-          assert(pkType.ordering.gteq(pk, rangeBounds(numPartitions - 1).asInstanceOf[Interval].end))
+          assert(pkType.ordering.gt(pk, maxBound))
           numPartitions - 1
         }
 
@@ -75,10 +75,10 @@ class OrderedRVDPartitioner(
 
     part match {
       case Array() =>
-        if (pkType.ordering.lteq(pkUR, rangeBounds(0).asInstanceOf[Interval].start))
+        if (pkType.ordering.lt(pkUR, minBound))
           0
         else {
-          assert(pkType.ordering.gteq(pkUR, rangeBounds(numPartitions - 1).asInstanceOf[Interval].end))
+          assert(pkType.ordering.gt(pkUR, maxBound))
           numPartitions - 1
         }
       case Array(x) => x

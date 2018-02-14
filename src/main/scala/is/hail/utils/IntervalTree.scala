@@ -18,7 +18,7 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
   }
 
-  //like contains, but excluding endpoints
+  // like contains, but excluding endpoints
   private def containsWithin(pord: ExtendedOrdering, position: Any): Boolean = {
     val compareStart = pord.compare(position, start)
     val compareEnd = pord.compare(position, end)

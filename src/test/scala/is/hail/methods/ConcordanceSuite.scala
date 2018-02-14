@@ -156,6 +156,8 @@ class ConcordanceSuite extends SparkSuite {
       val variants1 = vds1.variants.collect().toSet
       val variants2 = vds2.variants.collect().toSet
 
+      assert(variants1.forall(_ != null) && variants2.forall(_ != null))
+
       val commonVariants = variants1.intersect(variants2)
 
       val uniqueVds1Variants = (variants1 -- commonVariants).size
