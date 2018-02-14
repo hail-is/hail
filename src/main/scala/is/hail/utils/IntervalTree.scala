@@ -120,22 +120,6 @@ object Interval {
       else 0
     }
   }
-
-  //minimum interval containing this and others.
-  def minimumContaining(pord: ExtendedOrdering, ints: Seq[Interval]): Interval = {
-    var Interval(s, e, is, ie) = ints.head
-    ints.foreach { i =>
-      if (pord.lt(i.start, s)) {
-        s = i.start
-        is = i.includeStart
-      } else if (pord.equiv(i.start, s)) is = is || i.includeStart
-      if (pord.gt(i.end, e)) {
-        e = i.end
-        ie = i.includeEnd
-      } else if (pord.equiv(i.end, e)) ie = ie || i.includeEnd
-    }
-    Interval(s, e, is, ie)
-  }
 }
 
 case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
@@ -204,7 +188,10 @@ object IntervalTree {
     new IntervalTree[Unit](fromSorted(pord, sorted.map(i => (i, ())), 0, sorted.length))
   }
 
-  def fromSorted[U](pord: ExtendedOrdering, intervals: Array[(BaseInterval, U)], start: Int, end: Int): Option[IntervalTreeNode[U]] = {
+  def fromSorted[U: ClassTag](pord: ExtendedOrdering, intervals: Array[(BaseInterval, U)]): IntervalTree[U] =
+    new IntervalTree[U](fromSorted(pord, intervals, 0, intervals.length))
+
+  private def fromSorted[U](pord: ExtendedOrdering, intervals: Array[(BaseInterval, U)], start: Int, end: Int): Option[IntervalTreeNode[U]] = {
     if (start >= end)
       None
     else {

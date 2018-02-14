@@ -13,8 +13,8 @@ class OrderedRVDPartitioner(
   val numPartitions: Int = rangeBounds.length
 
   val (pkType, _) = kType.select(partitionKey)
-  val pkIntType = TInterval(pkType)
-  val rangeBoundsType = TArray(pkIntType)
+  val pkIntervalType = TInterval(pkType)
+  val rangeBoundsType = TArray(pkIntervalType)
 
   assert(rangeBoundsType.typeCheck(rangeBounds))
 
@@ -22,10 +22,13 @@ class OrderedRVDPartitioner(
     !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0
   })
 
-  val rangeTree: IntervalTree[Int] = new IntervalTree[Int](IntervalTree.fromSorted(pkType.ordering,
+  require(rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
+    pkType.ordering.equiv(left.end, right.start)})
+
+  val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(BaseInterval, Int)](numPartitions) { i =>
       (rangeBounds(i).asInstanceOf[Interval], i)
-    }, 0, rangeBounds.size))
+    })
 
   val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
   val pkKOrd: ExtendedOrdering = OrderedRVDType.selectExtendedOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
@@ -36,44 +39,30 @@ class OrderedRVDPartitioner(
 
   def loadElement(i: Int): Long = rangeBoundsType.loadElement(region, rangeBounds.aoff, rangeBounds.length, i)
 
-  def loadStart(i: Int): Long = pkIntType.loadStart(region, loadElement(i))
+  def loadStart(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
-  def loadEnd(i: Int): Long = pkIntType.loadStart(region, loadElement(i))
+  def loadEnd(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
     assert(pkType.typeCheck(pk))
     val part = rangeTree.queryValues(pkType.ordering, pk)
-    part.length match {
-      case 0 =>
-        if (pkType.ordering.gt(pk, rangeTree.root.get.maximum))
-          numPartitions - 1
-        else {
-          assert(pkType.ordering.lt(pk, rangeTree.root.get.minimum))
-          0
-        }
-      case 1 => part.head
+    part match {
+      case Array(x) => x
     }
   }
 
-  // return the partition containing pk
-  // needs to update the bounds
-  // key: RegionValue
+  // return the partition containing key
+  // if outside bounds, throw error
+  // key: RegionValue[kType]
   def getPartition(key: Any): Int = {
     val keyrv = key.asInstanceOf[RegionValue]
     val keyUR = new UnsafeRow(kType, keyrv)
 
     val part = rangeTree.queryValues(pkKOrd, keyUR)
 
-    part.length match {
-      case 0 =>
-        if (pkKOrd.lt(rangeTree.root.get.maximum, keyUR))
-          numPartitions - 1
-        else {
-          assert(pkKOrd.gt(rangeTree.root.get.minimum, keyUR))
-          0
-        }
-      case 1 => part.head
+    part match {
+      case Array(x) => x
     }
   }
 
@@ -88,9 +77,9 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
-  def remapRanges(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
+  def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
     val newRangeBounds = UnsafeIndexedSeq(
-      TArray(TInterval(pkType)),
+      rangeBoundsType,
       (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
         val i1 = rangeBounds(s + 1).asInstanceOf[Interval]
         val i2 = rangeBounds(e).asInstanceOf[Interval]
@@ -102,7 +91,7 @@ class OrderedRVDPartitioner(
 
 object OrderedRVDPartitioner {
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(typ.pkType)))
+    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(TInterval(typ.pkType))))
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]

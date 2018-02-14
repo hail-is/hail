@@ -14,16 +14,22 @@ class OrderedDependency(left: OrderedRVD, right: OrderedRVD) extends NarrowDepen
 
 object OrderedDependency {
   def getDependencies(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner)(partitionId: Int): Range = {
-    val lastPartition = if (partitionId == p1.rangeBounds.length - 1)
-      p2.numPartitions - 1
-    else
-      p2.getPartitionPK(p1.rangeBounds(partitionId).asInstanceOf[Interval].end)
+    val partBounds = p1.rangeBounds(partitionId).asInstanceOf[Interval]
 
-    if (partitionId == 0)
-      0 to lastPartition
+    if (!p2.rangeTree.overlaps(p2.pkType.ordering, partBounds))
+      0 to 0
     else {
-      val startPartition = p2.getPartitionPK(p1.rangeBounds(partitionId).asInstanceOf[Interval].start)
-      startPartition to lastPartition
+      val startPart = p2.rangeTree.queryValues(p2.pkType.ordering, partBounds.end)
+      val endPart = p2.rangeTree.queryValues(p2.pkType.ordering, partBounds.end)
+      val start = startPart match {
+        case Array() => p2.numPartitions - 1
+        case Array(x) => x
+      }
+      val end = endPart match {
+        case Array() => 0
+        case Array(x) => x
+      }
+      start to end
     }
   }
 }
@@ -142,7 +148,6 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     Seq[Dependency[_]](new OneToOneDependency(left.rdd),
       new OrderedDependency(left, right))) {
   private val leftPartitionForRightRow = new OrderedRVDPartitioner(
-    left.partitioner.numPartitions,
     right.typ.partitionKey,
     right.typ.rowType,
     left.partitioner.rangeBounds)
