@@ -294,7 +294,6 @@ object LDPrune {
 
     val partitioner = inputRDD.partitioner
     val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Interval]).toArray
-    val partitionIndices = inputRDD.partitions.map(_.index)
     val nPartitions = inputRDD.partitions.length
 
     val localRowType = inputRDD.typ.rowType
@@ -307,7 +306,7 @@ object LDPrune {
       // which means filter is fine, but needs to change once rangebounds can have
       // gaps.
       val minPart = partitioner.checkPartitionPK(Annotation(minLocus))
-      partitionIndices.filter(idx => idx >= minPart && idx <= partitionId).reverse
+      Array.range(if (minPart == -1) 0 else minPart, partitionId + 1).reverse
     }
 
     def pruneF = (x: Array[Iterator[RegionValue]]) => {
@@ -340,9 +339,8 @@ object LDPrune {
       }
     }
 
-    val contigStartPartitions =
-      partitionIndices.filter { i =>
-        i == partitionIndices(0) || rangeBounds(i).start.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
+    val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
+        i == 0 || rangeBounds(i).start.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
       }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
@@ -360,7 +358,7 @@ object LDPrune {
       (rvds.toArray, inputs.toArray)
     }
 
-    for (i <- partitionIndices) {
+    for (i <- 0 until nPartitions) {
       val (rvds, inputs) = generalRDDInputs(i)
       pruneIntermediates(i) = GlobalPruneIntermediate(
         rvd = new UnpartitionedRVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),

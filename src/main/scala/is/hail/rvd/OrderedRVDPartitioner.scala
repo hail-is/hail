@@ -31,9 +31,6 @@ class OrderedRVDPartitioner(
     })
 
   val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
-  val pkKOrd: ExtendedOrdering = OrderedRVDType.selectExtendedOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
-
-  val ordering: Ordering[Annotation] = pkType.ordering.toOrdering
 
   def region: Region = rangeBounds.region
 
@@ -70,9 +67,11 @@ class OrderedRVDPartitioner(
   // key: RegionValue[kType]
   def getPartition(key: Any): Int = {
     val keyrv = key.asInstanceOf[RegionValue]
-    val keyUR = new UnsafeRow(kType, keyrv)
+    val wpkrv = WritableRegionValue(pkType)
+    wpkrv.setSelect(kType, pkKFieldIdx, keyrv)
+    val pkUR = new UnsafeRow(pkType, wpkrv.value)
 
-    val part = rangeTree.queryValues(pkKOrd, keyUR)
+    val part = rangeTree.queryValues(pkType.ordering, pkUR)
 
     part match {
       case Array(x) => x
