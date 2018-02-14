@@ -36,7 +36,6 @@ class GroupedMatrixTable(object):
         for f in parent._fields:
             self._set_field(f, parent._fields[f])
 
-    @typecheck_method(item=strlike)
     def _get_field(self, item):
         if item in self._fields:
             return self._fields[item]
