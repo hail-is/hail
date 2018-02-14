@@ -705,6 +705,7 @@ object OrderedRVD {
     new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
       val prevK = WritableRegionValue(typ.kType)
       val prevPK = WritableRegionValue(typ.pkType)
+      val pkUR = new UnsafeRow(typ.pkType)
 
       new Iterator[RegionValue] {
         var first = true
@@ -714,8 +715,6 @@ object OrderedRVD {
         def next(): RegionValue = {
           val rv = it.next()
 
-          assert(RegionValueInterval(partitioner.pkIntervalType, partitioner.region, partitioner.loadElement(i)).contains(typ.pkRowEOrd, rv))
-
           if (first)
             first = false
           else {
@@ -724,6 +723,9 @@ object OrderedRVD {
 
           prevK.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
           prevPK.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
+
+          pkUR.set(prevPK.value)
+          assert(partitioner.rangeBounds(i).asInstanceOf[Interval].contains(typ.pkType.ordering, pkUR))
 
           assert(typ.pkRowOrd.compare(prevPK.value, rv) == 0)
 

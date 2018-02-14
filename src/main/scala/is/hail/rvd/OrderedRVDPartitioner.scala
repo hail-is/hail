@@ -26,7 +26,7 @@ class OrderedRVDPartitioner(
     pkType.ordering.equiv(left.end, right.start)})
 
   val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(pkType.ordering,
-    Array.tabulate[(BaseInterval, Int)](numPartitions) { i =>
+    Array.tabulate[(Interval, Int)](numPartitions) { i =>
       (rangeBounds(i).asInstanceOf[Interval], i)
     })
 

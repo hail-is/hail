@@ -76,7 +76,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testNew() {
-    val a: Array[BaseInterval] = Array(
+    val a: Array[Interval] = Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50))
@@ -92,7 +92,7 @@ class IntervalSuite extends SparkSuite {
     assert(!t.contains(pord, Locus("5", 20)))
 
     // Test queries
-    val a2: Array[BaseInterval] = Array(
+    val a2: Array[Interval] = Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("1", 30, 50),
@@ -241,7 +241,7 @@ class IntervalSuite extends SparkSuite {
         assert(i1.overlaps(ord, i2) == i2.overlaps(ord, i1))
         assert(i1.overlaps(ord, i2) == (i1.includeEnd && i2.includeStart))
 
-        val iTree = IntervalTree.apply(ord, Array[BaseInterval](i1, i2))
+        val iTree = IntervalTree.apply(ord, Array[Interval](i1, i2))
         assert(iTree.contains(ord, 5) == (i1.includeEnd || i2.includeStart))
         assert(iTree.queryIntervals(ord, 5).length == (if (i1.includeEnd || i2.includeStart) 1 else 0))
         assert(iTree.contains(ord, 1) == i1.includeStart)
@@ -258,12 +258,12 @@ class IntervalSuite extends SparkSuite {
       }
     }
 
-    val itree = IntervalTree.apply(ord, Array[BaseInterval](
+    val itree = IntervalTree.apply(ord, Array[Interval](
       Interval(1, 5, false, false),
       Interval(1, 5, true, true),
       Interval(10, 20, false, false),
       Interval(10, 20, true, true)))
-    val itree2 = IntervalTree.apply(ord, Array[BaseInterval](
+    val itree2 = IntervalTree.apply(ord, Array[Interval](
       Interval(1, 5, true, true),
       Interval(10, 20, true, true)))
     val pruned = new ArrayBuilder[Interval]()

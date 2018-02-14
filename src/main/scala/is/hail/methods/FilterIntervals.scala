@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.{UnsafeRow, WritableRegionValue}
 import is.hail.utils.{Interval, IntervalTree}
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -22,11 +23,17 @@ object FilterIntervals {
       vsm.copy2(rvd = vsm.rvd.filterIntervals(intervals))
     } else {
       val intervalsBc = vsm.sparkContext.broadcast(intervals)
-      val pord = vsm.rvd.typ.pkRowEOrd
+      val pkType = vsm.rvd.typ.pkType
+      val pkRowFieldIdx = vsm.rvd.typ.pkRowFieldIdx
+      val rowType = vsm.rvd.typ.rowType
 
       vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ) { it =>
+        val pk = WritableRegionValue(pkType)
+        val pkUR = new UnsafeRow(pkType)
         it.filter { rv =>
-          !intervalsBc.value.contains(pord, rv)
+          pk.setSelect(rowType, pkRowFieldIdx, rv)
+          pkUR.set(pk.value)
+          !intervalsBc.value.contains(pkType.ordering, pkUR)
         }
       })
     }
