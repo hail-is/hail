@@ -305,8 +305,8 @@ object LDPrune {
       // FIXME: -1 if not in rangeBounds. currently implies minLocus < rvd min,
       // which means filter is fine, but needs to change once rangebounds can have
       // gaps.
-      val minPart = partitioner.checkPartitionPK(Annotation(minLocus))
-      Array.range(if (minPart == -1) 0 else minPart, partitionId + 1).reverse
+      val minPart = partitioner.getPartitionPK(Annotation(minLocus))
+      Array.range(minPart, partitionId + 1).reverse
     }
 
     def pruneF = (x: Array[Iterator[RegionValue]]) => {
@@ -340,7 +340,7 @@ object LDPrune {
     }
 
     val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
-        i == 0 || rangeBounds(i).start.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
+        i == 0 || rangeBounds(i-1).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
       }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)

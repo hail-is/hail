@@ -13,9 +13,9 @@ import scala.reflect.ClassTag
 case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boolean) extends Serializable {
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    val compareStart = pord.compare(start, position)
-    val compareEnd = pord.compare(end, position)
-    (compareStart < 0 || (includeStart && compareStart == 0)) && (compareEnd > 0 || (includeEnd && compareEnd == 0))
+    val compareStart = pord.compare(position, start)
+    val compareEnd = pord.compare(position, end)
+    (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
   }
 
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
@@ -52,7 +52,7 @@ object Interval {
           Interval(y, x, s, e)
       }
 
-  def ordering[T](pord: ExtendedOrdering): ExtendedOrdering = new ExtendedOrdering {
+  def ordering(pord: ExtendedOrdering): ExtendedOrdering = new ExtendedOrdering {
     def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
       val xi = x.asInstanceOf[Interval]
       val yi = y.asInstanceOf[Interval]
@@ -95,6 +95,12 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
   def queryValues(pord: ExtendedOrdering, position: Any): Array[U] = {
     val b = Array.newBuilder[U]
     root.foreach(_.queryValues(pord, b, position))
+    b.result()
+  }
+
+  def queryOverlappedValues(pord: ExtendedOrdering, interval: Interval): Array[U] = {
+    val b = Array.newBuilder[U]
+    root.foreach(_.queryOverlappedValues(pord, b, interval))
     b.result()
   }
 
@@ -167,7 +173,7 @@ object IntervalTree {
   }
 
   def gen[T](pord: ExtendedOrdering, pgen: Gen[T]): Gen[IntervalTree[Unit]] = {
-    Gen.buildableOf[Array](Interval.gen(pord, pgen)).map(a => IntervalTree.apply(pord, a.asInstanceOf[Array[Interval]]))
+    Gen.buildableOf[Array](Interval.gen(pord, pgen)).map(a => IntervalTree.apply(pord, a))
   }
 }
 
@@ -180,9 +186,9 @@ case class IntervalTreeNode[U](i: Interval,
     left.map(_.size).getOrElse(0) + right.map(_.size).getOrElse(0) + 1
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    pord.lteq(minimum, position) && pord.gteq(maximum, position) &&
+    pord.gteq(position, minimum) && pord.lteq(position, maximum) &&
       (left.exists(_.contains(pord, position)) ||
-        (pord.lteq(i.start, position) &&
+        (pord.gteq(position, i.start) &&
           (i.contains(pord, position) ||
             right.exists(_.contains(pord, position)))))
   }
@@ -194,9 +200,9 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def query(pord: ExtendedOrdering, b: mutable.Builder[Interval, _], position: Any) {
-    if (pord.lteq(minimum, position) && pord.gteq(maximum, position)) {
+    if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
       left.foreach(_.query(pord, b, position))
-      if (pord.lteq(i.start, position)) {
+      if (pord.gteq(position, i.start)) {
         right.foreach(_.query(pord, b, position))
         if (i.contains(pord, position))
           b += i
@@ -205,12 +211,23 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def queryValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], position: Any) {
-    if (pord.lteq(minimum, position) && pord.gteq(maximum, position)) {
+    if (pord.gteq(position, minimum) && pord.lteq(position, minimum)) {
       left.foreach(_.queryValues(pord, b, position))
-      if (pord.lteq(i.start, position)) {
+      if (pord.gteq(position, i.start)) {
         right.foreach(_.queryValues(pord, b, position))
         if (i.contains(pord, position))
           b += value
+      }
+    }
+  }
+
+  def queryOverlappedValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], interval: Interval) {
+    if (pord.gteq(interval.end, minimum) && pord.lteq(interval.start, maximum)) {
+      left.foreach(_.queryOverlappedValues(pord, b, interval))
+      if (pord.gteq(interval.end, i.start)) {
+        if (i.overlaps(pord, interval))
+          b += value
+        right.foreach(_.queryOverlappedValues(pord, b, interval))
       }
     }
   }

@@ -1013,9 +1013,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val ur = new UnsafeRow(ktSignature, rv)
         val interval = ur.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
-          val start = partBc.value.getPartitionPK(Row(interval.start))
-          val end = partBc.value.getPartitionPK(Row(interval.end))
-          (start to end).view.map(i => (i, rv))
+          val rangeTree = partBc.value.rangeTree
+          val pkOrd = partBc.value.pkType.ordering
+          val wrappedInterval = interval.copy(start = Row(interval.start), end=Row(interval.end))
+          rangeTree.queryOverlappedValues(pkOrd, wrappedInterval).map(i => (i, rv))
         } else
           Iterator()
       }

@@ -17,7 +17,7 @@ object OrderedDependency {
     val partBounds = p1.rangeBounds(partitionId).asInstanceOf[Interval]
 
     if (!p2.rangeTree.overlaps(p2.pkType.ordering, partBounds))
-      0 to 0
+      0 until 0
     else {
       val startPart = p2.rangeTree.queryValues(p2.pkType.ordering, partBounds.start)
       val endPart = p2.rangeTree.queryValues(p2.pkType.ordering, partBounds.end)

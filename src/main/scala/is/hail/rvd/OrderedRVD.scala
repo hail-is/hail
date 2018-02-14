@@ -247,7 +247,7 @@ class OrderedRVD private(
         start to end
       }
     }
-      .toSet //distinct
+      .toSet // distinct
       .toArray.sorted[Int]
 
     info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
@@ -576,7 +576,7 @@ object OrderedRVD {
     OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, min +: partitionMaxes :+ max)
   }
 
-  def shuffleAndAdjustBounds(typ: OrderedRVDType,
+  def adjustBoundsAndShuffle(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): OrderedRVD = {
 

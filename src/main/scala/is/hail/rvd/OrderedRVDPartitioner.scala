@@ -23,7 +23,7 @@ class OrderedRVDPartitioner(
   } && rangeBounds.forall { i => pkType.ordering.lteq(i.asInstanceOf[Interval].start, i.asInstanceOf[Interval].end) } ))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
-    pkType.ordering.equiv(left.end, right.start)})
+    pkType.ordering.equiv(left.end, right.start) && (left.includeEnd || right.includeStart)})
 
   val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(Interval, Int)](numPartitions) { i =>
@@ -40,30 +40,26 @@ class OrderedRVDPartitioner(
 
   def loadEnd(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
-
-  // pk: Annotation[pkType]
-  // returns partition number if in partition, -1 otherwise
-  def checkPartitionPK(pk: Any): Int = {
-    assert(pkType.typeCheck(pk))
-    val part = rangeTree.queryValues(pkType.ordering, pk)
-    part match {
-      case Array() => -1
-      case Array(x) => x
-    }
-  }
-
-  // if outside bounds, throw error
+  // if outside bounds, return min or max depending on location
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
     assert(pkType.typeCheck(pk))
     val part = rangeTree.queryValues(pkType.ordering, pk)
     part match {
+      case Array() =>
+        if (pkType.ordering.lteq(pk, rangeBounds(0).asInstanceOf[Interval].start))
+          0
+        else{
+          assert(pkType.ordering.gteq(pk, rangeBounds(numPartitions - 1).asInstanceOf[Interval].end))
+          numPartitions - 1
+        }
+
       case Array(x) => x
     }
   }
 
   // return the partition containing key
-  // if outside bounds, throw error
+  // if outside bounds, return min or max depending on location
   // key: RegionValue[kType]
   def getPartition(key: Any): Int = {
     val keyrv = key.asInstanceOf[RegionValue]
@@ -74,6 +70,13 @@ class OrderedRVDPartitioner(
     val part = rangeTree.queryValues(pkType.ordering, pkUR)
 
     part match {
+      case Array() =>
+        if (pkType.ordering.lteq(pkUR, rangeBounds(0).asInstanceOf[Interval].start))
+          0
+        else{
+          assert(pkType.ordering.gteq(pkUR, rangeBounds(numPartitions - 1).asInstanceOf[Interval].end))
+          numPartitions - 1
+        }
       case Array(x) => x
     }
   }
@@ -107,28 +110,13 @@ object OrderedRVDPartitioner {
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq =
-    makeRangeBoundIntervals(UnsafeIndexedSeq(TArray(pType), rangeBounds))
-
-  def makeRangeBoundIntervals(rangeBounds: UnsafeIndexedSeq): UnsafeIndexedSeq = {
-    val pType = rangeBounds.t.elementType
-    val newT = TArray(TInterval(pType))
-
-    val region = rangeBounds.region
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(newT)
-    rvb.startArray(rangeBounds.length - 1)
-    var i = 0
-    while (i < rangeBounds.length - 1) {
-      rvb.startStruct()
-      rvb.addAnnotation(pType, rangeBounds(i))
-      rvb.addAnnotation(pType, rangeBounds(i + 1))
-      rvb.addBoolean(if (i == 0) true else false)
-      rvb.addBoolean(true)
-      rvb.endStruct()
-      i += 1
+  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq = {
+    var includeStart = true
+    val rangeBoundIntervals = rangeBounds.zip(rangeBounds.tail).map { case (s, e) =>
+        val i = Interval(s, e, includeStart, true)
+        includeStart = false
+        i
     }
-    rvb.endArray()
-    new UnsafeIndexedSeq(newT, region, rvb.end())
+    UnsafeIndexedSeq(TArray(TInterval(pType)), rangeBoundIntervals)
   }
 }

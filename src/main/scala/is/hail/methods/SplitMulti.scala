@@ -173,7 +173,7 @@ object SplitMulti {
 
   def unionMovedVariants(ordered: OrderedRVD,
     moved: RDD[RegionValue]): OrderedRVD = {
-    val movedRVD = OrderedRVD.shuffleAndAdjustBounds(ordered.typ,
+    val movedRVD = OrderedRVD.adjustBoundsAndShuffle(ordered.typ,
       ordered.partitioner, moved)
 
     ordered.copy(orderedPartitioner = movedRVD.partitioner).partitionSortedUnion(movedRVD)
