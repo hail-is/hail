@@ -22,7 +22,7 @@ class OrderedRVDPartitioner(
     !left.overlaps(pkType.ordering, right) && pkType.ordering.compare(left.start, right.start) <= 0
   })
 
-  require(rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
+  require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     pkType.ordering.equiv(left.end, right.start)})
 
   val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(pkType.ordering,
@@ -43,6 +43,19 @@ class OrderedRVDPartitioner(
 
   def loadEnd(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
+
+  // pk: Annotation[pkType]
+  // returns partition number if in partition, -1 otherwise
+  def checkPartitionPK(pk: Any): Int = {
+    assert(pkType.typeCheck(pk))
+    val part = rangeTree.queryValues(pkType.ordering, pk)
+    part match {
+      case Array() => -1
+      case Array(x) => x
+    }
+  }
+
+  // if outside bounds, throw error
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
     assert(pkType.typeCheck(pk))

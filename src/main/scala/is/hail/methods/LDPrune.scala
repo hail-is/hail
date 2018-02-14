@@ -300,14 +300,14 @@ object LDPrune {
     val localRowType = inputRDD.typ.rowType
 
     def computeDependencies(partitionId: Int): Array[Int] = {
-      if (partitionId == partitionIndices(0))
-        Array(partitionId)
-      else {
-        val startLocus = rangeBounds(partitionId).start.asInstanceOf[UnsafeRow].getAs[Locus](0)
-        val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
-        val minPart = partitioner.getPartitionPK(Annotation(minLocus))
-        partitionIndices.filter(idx => idx >= minPart && idx <= partitionId).reverse
-      }
+      val startLocus = rangeBounds(partitionId).start.asInstanceOf[UnsafeRow].getAs[Locus](0)
+      val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
+
+      // FIXME: -1 if not in rangeBounds. currently implies minLocus < rvd min,
+      // which means filter is fine, but needs to change once rangebounds can have
+      // gaps.
+      val minPart = partitioner.checkPartitionPK(Annotation(minLocus))
+      partitionIndices.filter(idx => idx >= minPart && idx <= partitionId).reverse
     }
 
     def pruneF = (x: Array[Iterator[RegionValue]]) => {
@@ -342,7 +342,7 @@ object LDPrune {
 
     val contigStartPartitions =
       partitionIndices.filter { i =>
-        i == partitionIndices(0) || i == partitionIndices.last || rangeBounds(i).start.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
+        i == partitionIndices(0) || rangeBounds(i).start.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
       }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
