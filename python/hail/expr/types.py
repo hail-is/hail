@@ -585,7 +585,7 @@ class TStruct(Type):
     def _from_java(cls, jtype):
         struct = TStruct.__new__(cls)
         struct._init_from_java(jtype)
-        struct.__get_jtype = lambda: jtype
+        struct._get_jtype = lambda: jtype
         super(TStruct, struct).__init__()
         return struct
 
