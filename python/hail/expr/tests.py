@@ -922,3 +922,32 @@ class Tests(unittest.TestCase):
     def test_parse_variant(self):
         self.assertEqual(hl.eval_expr(hl.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),
                                                                            alleles=['A', 'T']))
+
+    def test_array_methods(self):
+        self.assertEqual(hl.eval_expr(hl.any(lambda x: x % 2 == 0, [1, 3, 5])), False)
+        self.assertEqual(hl.eval_expr(hl.any(lambda x: x % 2 == 0, [1, 3, 5, 6])), True)
+        
+        self.assertEqual(hl.eval_expr(hl.all(lambda x: x % 2 == 0, [1, 3, 5, 6])), False)
+        self.assertEqual(hl.eval_expr(hl.all(lambda x: x % 2 == 0, [2, 6])), True)
+
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x % 2 == 0, [1, 3, 4, 6])), 4)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x % 2 != 0, [0, 2, 4, 6])), None)
+
+        self.assertEqual(hl.eval_expr(hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6])), [True, False, True, True])
+
+        self.assertEqual(hl.eval_expr(hl.len([0, 1, 4, 6])), 4)
+
+        self.assertEqual(hl.eval_expr(hl.max([0, 1, 4, 6])), 6)
+
+        self.assertEqual(hl.eval_expr(hl.min([0, 1, 4, 6])), 0)
+
+        self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6])), 2.75)
+
+        self.assertTrue(1 <= hl.eval_expr(hl.median([0, 1, 4, 6])) <= 4)
+
+        self.assertEqual(hl.eval_expr(hl.product([1, 4, 6])), 24)
+
+        self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
+
+        self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
+

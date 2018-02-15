@@ -2120,7 +2120,7 @@ def any(f, collection):
         ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
     """
 
-    return collection._bin_lambda_method("exists", f, collection.dtype.element_type, lambda _: collection.dtype)
+    return collection._bin_lambda_method("exists", f, collection.dtype.element_type, lambda _: tbool)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2159,7 +2159,7 @@ def all(f, collection):
         ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
     """
 
-    return collection._bin_lambda_method("forall", f, collection.dtype.element_type, lambda _: collection.dtype)
+    return collection._bin_lambda_method("forall", f, collection.dtype.element_type, lambda _: tbool)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2420,7 +2420,7 @@ def mean(collection):
     """
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'mean' expects a numeric collection, found '{}'".format(collection.dtype))
-    return collection._method("mean", collection.dtype.element_type)
+    return collection._method("mean", tfloat64)
 
 
 @typecheck(collection=oneof(expr_set, expr_array))
