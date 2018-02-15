@@ -132,7 +132,10 @@ object Variant {
     val r = a.asInstanceOf[Row]
     val l = r.getAs[Locus](0)
     val alleles = r.getAs[IndexedSeq[String]](1)
-    Variant(l.contig, l.position, alleles(0), alleles.tail.map(x => AltAllele(alleles(0), x)))
+    if (l == null || alleles == null)
+      null
+    else
+      Variant(l.contig, l.position, alleles(0), alleles.tail.map(x => AltAllele(alleles(0), x)))
   }
 
   def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =

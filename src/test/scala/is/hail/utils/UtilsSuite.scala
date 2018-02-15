@@ -207,38 +207,4 @@ class UtilsSuite extends SparkSuite {
     assert(c4.toSeq == Seq("a", "b", "c", "aD", "aDD", "cD", "aDDD"))
     assert(diff2.toSeq == Seq("a" -> "aD", "a" -> "aDD", "c" -> "cD", "a" -> "aDDD"))
   }
-
-  @Test def testBinarySearch() {
-    val g = for {
-      a <- Gen.buildableOf[Array](arbitrary[Int])
-      s = a.sorted
-      i <- Gen.choose(0, a.length - 1)
-      v <- arbitrary[Int]
-    } yield {
-      val length = s.length
-
-      var min = s(0)
-      if (min > Int.MinValue)
-        min -= 1
-      assert(BinarySearch.binarySearch(a.length, i => min.compare(s(i))) == 0)
-
-      var max = s.last
-      if (max < Int.MaxValue)
-        max += 1
-      var j = length - 1
-      while (j > 0 && s(j - 1) == max)
-        j -= 1
-      assert(BinarySearch.binarySearch(a.length, i => max.compare(s(i))) == j)
-
-      j = i
-      while (j > 0 && s(j - 1) == s(i))
-        j -= 1
-      assert(BinarySearch.binarySearch(a.length, i => s(j).compare(s(i))) == j)
-
-      BinarySearch.binarySearch(a.length, i => v.compare(s(i)))
-
-      true
-    }
-    Prop.forAll(g).check()
-  }
 }

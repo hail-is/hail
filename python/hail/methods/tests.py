@@ -587,7 +587,8 @@ class Tests(unittest.TestCase):
     def test_min_rep(self):
         # FIXME actually test
         ds = self.get_dataset()
-        hl.min_rep(ds)
+        hl.min_rep(ds).count()
+
 
     def test_filter_intervals(self):
         ds = self.get_dataset()

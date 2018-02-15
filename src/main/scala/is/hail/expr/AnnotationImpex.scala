@@ -434,7 +434,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
           else
             s"${ i.start }-${ i.end }"
-          s"${if (i.includeStart) "[" else "("}$bounds${if (i.includeEnd) "]" else ")"}"
+          s"${ if (i.includeStart) "[" else "(" }$bounds${ if (i.includeEnd) "]" else ")" }"
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
         case _: TCall => Call.toString(a.asInstanceOf[Call])
@@ -452,7 +452,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case _: TFloat64 => if (a == "nan") Double.NaN else a.toDouble
       case _: TBoolean => a.toBoolean
       case tl: TLocus => Locus.parse(a, tl.gr)
-        // FIXME legacy
+      // FIXME legacy
       case TInterval(TLocus(gr, _), _) => Locus.parseInterval(a, gr)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case tv: TVariant => Variant.parse(a, tv.gr)

@@ -13,17 +13,15 @@ class OrderedDependency(left: OrderedRVD, right: OrderedRVD) extends NarrowDepen
 }
 
 object OrderedDependency {
-  def getDependencies(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner)(partitionId: Int): Range = {
-    val lastPartition = if (partitionId == p1.rangeBounds.length)
-      p2.numPartitions - 1
-    else
-      p2.getPartitionPK(p1.rangeBounds(partitionId))
+  def getDependencies(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner)(partitionId: Int): Seq[Int] = {
+    val partBounds = p1.rangeBounds(partitionId).asInstanceOf[Interval]
 
-    if (partitionId == 0)
-      0 to lastPartition
+    if (!p2.rangeTree.overlaps(p2.pkType.ordering, partBounds))
+      Seq.empty[Int]
     else {
-      val startPartition = p2.getPartitionPK(p1.rangeBounds(partitionId - 1))
-      startPartition to lastPartition
+      val start = p2.getPartitionPK(partBounds.start)
+      val end = p2.getPartitionPK(partBounds.end)
+      start to end
     }
   }
 }
@@ -141,8 +139,11 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
   extends RDD[JoinedRegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left.rdd),
       new OrderedDependency(left, right))) {
+
+  assert(left.partitioner.pkType.ordering.lteq(left.partitioner.minBound, right.partitioner.minBound) &&
+    left.partitioner.pkType.ordering.gteq(left.partitioner.maxBound, right.partitioner.maxBound))
+
   private val leftPartitionForRightRow = new OrderedRVDPartitioner(
-    left.partitioner.numPartitions,
     right.typ.partitionKey,
     right.typ.rowType,
     left.partitioner.rangeBounds)

@@ -17,7 +17,7 @@ class IntervalSuite extends SparkSuite {
     Interval(Locus(contig, start), Locus(contig, end), true, false)
 
   @Test def test() {
-    val ilist = IntervalTree.apply(pord, Array(
+    val ilist = IntervalTree(pord, Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50)))
@@ -76,7 +76,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testNew() {
-    val a = Array(
+    val a: Array[Interval] = Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50))
@@ -92,7 +92,7 @@ class IntervalSuite extends SparkSuite {
     assert(!t.contains(pord, Locus("5", 20)))
 
     // Test queries
-    val a2 = Array(
+    val a2: Array[Interval] = Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("1", 30, 50),
@@ -223,11 +223,11 @@ class IntervalSuite extends SparkSuite {
 
     for (s1 <- Array(true, false); e1 <- Array(true, false)) {
 
-      val i0 = Interval(1, 1, includeStart=s1, includeEnd=e1)
+      val i0 = Interval(1, 1, includeStart = s1, includeEnd = e1)
 
       assert(i0.isEmpty(ord) == (!i0.includeStart || !i0.includeEnd))
 
-      val i1 = Interval(1, 5, includeStart=s1, includeEnd=e1)
+      val i1 = Interval(1, 5, includeStart = s1, includeEnd = e1)
 
       assert(i1.contains(ord, 3))
       assert(i1.includeStart == i1.contains(ord, 1))
@@ -237,41 +237,65 @@ class IntervalSuite extends SparkSuite {
       assert(Locus.parseInterval(iLocus.toString, gr) == iLocus)
 
       for (s2 <- Array(true, false); e2 <- Array(true, false)) {
-        val i2 = Interval(5, 10, includeStart=s2, includeEnd=e2)
+        val i2 = Interval(5, 10, includeStart = s2, includeEnd = e2)
         assert(i1.overlaps(ord, i2) == i2.overlaps(ord, i1))
         assert(i1.overlaps(ord, i2) == (i1.includeEnd && i2.includeStart))
 
-        val iTree = IntervalTree.apply(ord, Array(i1, i2))
+        val iTree = IntervalTree.apply(ord, Array[Interval](i1, i2))
         assert(iTree.contains(ord, 5) == (i1.includeEnd || i2.includeStart))
         assert(iTree.queryIntervals(ord, 5).length == (if (i1.includeEnd || i2.includeStart) 1 else 0))
         assert(iTree.contains(ord, 1) == i1.includeStart)
         assert(iTree.contains(ord, 10) == i2.includeEnd)
 
-        val i3 = Interval(2, 3, includeStart=s2, includeEnd=e2)
+        val i3 = Interval(2, 3, includeStart = s2, includeEnd = e2)
         assert(i1.overlaps(ord, i3))
         assert(i3.overlaps(ord, i1))
 
-        val i4 = Interval(1, 5, includeStart=s2, includeEnd=e2)
+        val i4 = Interval(1, 5, includeStart = s2, includeEnd = e2)
         assert((Interval.ordering(ord).compare(i1, i4) < 0) == ((i1.includeStart && !i4.includeStart) || ((i1.includeStart == i4.includeStart) && i4.includeEnd && !i1.includeEnd)))
         assert((Interval.ordering(ord).compare(i1, i4) == 0) == ((i1.includeStart == i4.includeStart) && (i4.includeEnd == i1.includeEnd)))
         assert((Interval.ordering(ord).compare(i1, i4) > 0) == ((!i1.includeStart && i4.includeStart) || ((i1.includeStart == i4.includeStart) && !i4.includeEnd && i1.includeEnd)))
       }
     }
 
-    val itree = IntervalTree.apply(ord, Array(
+    val itree = IntervalTree.apply(ord, Array[Interval](
       Interval(1, 5, false, false),
       Interval(1, 5, true, true),
       Interval(10, 20, false, false),
       Interval(10, 20, true, true)))
-    val itree2 = IntervalTree.apply(ord, Array(
+    val itree2 = IntervalTree.apply(ord, Array[Interval](
       Interval(1, 5, true, true),
       Interval(10, 20, true, true)))
     val pruned = new ArrayBuilder[Interval]()
     val pruned2 = new ArrayBuilder[Interval]()
-    itree.foreach { case (interval, _) => pruned += interval}
-    itree2.foreach { case (interval, _) => pruned2 += interval}
+    itree.foreach { case (interval: Interval, _) => pruned += interval }
+    itree2.foreach { case (interval: Interval, _) => pruned2 += interval }
 
     assert(pruned.size == pruned2.size)
     assert(pruned.result().zip(pruned2.result()).forall { case (i1, i2) => i1 == i2 })
+  }
+
+  @Test def testQueryInterval() {
+    val ord = TInt32().ordering
+
+      val iArray = Array(Interval(1, 5, true, true),
+      Interval(5, 10, true, true),
+      Interval(8, 17, true, true),
+      Interval(9, 20, true, true))
+
+    val i0 = IntervalTree.annotationTree(ord, iArray.zipWithIndex)
+    val testIntervals = Array(
+      (Interval(5, 5, false, false), Array()),
+      (Interval(5, 5, true, true), Array(0,1)),
+      (Interval(8, 9, true, true), Array(1,2,3)),
+      (Interval(20, 21, false, false), Array())
+    )
+
+    assert(!testIntervals(0)._1.overlaps(ord, iArray(1)), s":(")
+
+    for ((interval, vals) <- testIntervals) {
+      val actual = i0.queryOverlappingValues(ord, interval)
+      assert(actual.sameElements(vals), s"\n for interval $interval, expected [${ vals.mkString(", ") }], got [${ actual.mkString(", ") }]")
+    }
   }
 }

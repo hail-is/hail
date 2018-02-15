@@ -1036,7 +1036,7 @@ class ExprSuite extends SparkSuite {
   @Test def testImpexes() {
 
     val g = for {t <- Type.genArb
-      a <- t.genValue} yield (t, a)
+    a <- t.genValue} yield (t, a)
 
     object Spec extends Properties("ImpEx") {
       property("json") = forAll(g) { case (t, a) =>
@@ -1092,8 +1092,8 @@ class ExprSuite extends SparkSuite {
     assert(intOrd.compare(null, -2) > 0)
 
     val g = for (t <- Type.genArb;
-      a <- t.genValue;
-      b <- t.genValue) yield (t, a, b)
+    a <- t.genValue;
+    b <- t.genValue) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
       val ord = t.ordering
