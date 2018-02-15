@@ -42,7 +42,7 @@ def convert_struct_to_dict(x):
 class TableTests(unittest.TestCase):
     def test_annotate(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.TArray(hl.tint32)])
+                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -133,7 +133,7 @@ class TableTests(unittest.TestCase):
 
     def test_query(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.TArray(hl.tint32)])
+                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -152,7 +152,7 @@ class TableTests(unittest.TestCase):
 
     def test_filter(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.TArray(hl.tint32)])
+                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -167,7 +167,7 @@ class TableTests(unittest.TestCase):
 
     def test_transmute(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.TArray(hl.tint32),
+                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
                              hl.tstruct(['x', 'y'], [hl.tbool, hl.tint32])])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
@@ -183,7 +183,7 @@ class TableTests(unittest.TestCase):
 
     def test_select(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.TArray(hl.tint32),
+                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
                              hl.tstruct(['x', 'y'], [hl.tbool, hl.tint32])])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
@@ -353,7 +353,7 @@ class MatrixTests(unittest.TestCase):
                           [('x1', hl.tint64),
                            ('x2', hl.tfloat64),
                            ('x3', hl.tint64),
-                           ('x4', hl.TArray(hl.tint32))]
+                           ('x4', hl.tarray(hl.tint32))]
 
         self.assertTrue(orig_variant_schema, hl.tstruct(*[list(x) for x in zip(*expected_fields)]))
 
@@ -678,8 +678,8 @@ class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
                             [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr,
-                             hl.TArray(hl.tint32),
-                             hl.TArray(hl.tstruct(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])),
+                             hl.tarray(hl.tint32),
+                             hl.tarray(hl.tstruct(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])),
                              hl.tstruct(['a', 'b', 'c'], [hl.tint32, hl.tint32, hl.tstr]),
                              hl.tbool, hl.tstruct(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])])
 
@@ -732,7 +732,7 @@ class FunctionsTests(unittest.TestCase):
 class ColumnTests(unittest.TestCase):
     def test_operators(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.TArray(hl.tint32)])
+                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -797,7 +797,7 @@ class ColumnTests(unittest.TestCase):
         self.assertDictEqual(result, expected)
 
     def test_array_column(self):
-        schema = hl.tstruct(['a'], [hl.TArray(hl.tint32)])
+        schema = hl.tstruct(['a'], [hl.tarray(hl.tint32)])
         rows = [{'a': [1, 2, 3]}]
         kt = hl.Table.parallelize(rows, schema)
 
@@ -852,9 +852,9 @@ class ColumnTests(unittest.TestCase):
                          x5=[1, kt.c, long(1)])
 
         expected_schema = {'a': hl.tfloat64, 'b': hl.tfloat64, 'c': hl.tint32, 'd': hl.tint64,
-                           'x1': hl.TArray(hl.tfloat64), 'x2': hl.TArray(hl.tfloat64),
-                           'x3': hl.TArray(hl.tfloat64),
-                           'x4': hl.TArray(hl.tint64), 'x5': hl.TArray(hl.tint64)}
+                           'x1': hl.tarray(hl.tfloat64), 'x2': hl.tarray(hl.tfloat64),
+                           'x3': hl.tarray(hl.tfloat64),
+                           'x4': hl.tarray(hl.tint64), 'x5': hl.tarray(hl.tint64)}
 
         self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))
 

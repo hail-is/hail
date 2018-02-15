@@ -84,7 +84,7 @@ def export_gen(dataset, output, precision=4):
     dataset = require_biallelic(dataset, 'export_gen')
     try:
         gp = dataset['GP']
-        if gp.dtype != TArray(tfloat64) or gp._indices != dataset._entry_indices:
+        if gp.dtype != tarray(tfloat64) or gp._indices != dataset._entry_indices:
             raise KeyError
     except KeyError:
         raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")

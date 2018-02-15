@@ -1860,7 +1860,7 @@ class SplitMulti(object):
         :class:`.ArrayStringExpression`
         """
         return construct_reference(
-            "newAlleles", type=TArray(tstr), indices=self._ds._row_indices)
+            "newAlleles", type=tarray(tstr), indices=self._ds._row_indices)
 
     def a_index(self):
         """The index of the input allele to the output variant.
@@ -2504,14 +2504,14 @@ class FilterAlleles(object):
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
     ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
-    ...     hl.null(hl.TArray(hl.tint32)))
+    ...     hl.null(hl.tarray(hl.tint32)))
     ... fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
     ...         hl.range(0, fa.new_alleles.length()).map(
     ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
-    ...         hl.null(hl.TArray(hl.tint32))),
+    ...         hl.null(hl.tarray(hl.tint32))),
     ...     GQ = hl.gq_from_pl(newPL),
     ...     PL = newPL)
     ... filtered_result = fa.filter()
@@ -2555,8 +2555,8 @@ class FilterAlleles(object):
         self._row_exprs = None
         self._entry_exprs = None
 
-        self._old_to_new = construct_reference('oldToNew', TArray(tint32), ds._row_indices)
-        self._new_to_old = construct_reference('newToOld', TArray(tint32), ds._row_indices)
+        self._old_to_new = construct_reference('oldToNew', tarray(tint32), ds._row_indices)
+        self._new_to_old = construct_reference('newToOld', tarray(tint32), ds._row_indices)
         self._new_locus = construct_reference('newLocus', ds['locus'].dtype, ds._row_indices)
         self._new_alleles = construct_reference('newAlleles', ds['alleles'].dtype, ds._row_indices)
 
@@ -2715,14 +2715,14 @@ class FilterAlleles(object):
                     lambda newc: ds.PL[hl.call(False, self.new_to_old[newc[0]],
                                                self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
                 lambda unnorm: unnorm - hl.min(unnorm)),
-            hl.null(TArray(tint32)))
+            hl.null(tarray(tint32)))
         self.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
             AD=hl.cond(
                 hl.is_defined(ds.AD),
                 hl.range(0, self.new_alleles.length()).map(
                     lambda newi: ds.AD[self.new_to_old[newi]]),
-                hl.null(TArray(tint32))),
+                hl.null(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL)
@@ -2811,7 +2811,7 @@ class FilterAlleles(object):
                                      self.old_to_new[oldc[0]],
                                      self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
                 .map(lambda oldi: ds.PL[oldi])))),
-            hl.null(TArray(tint32)))
+            hl.null(tarray(tint32)))
         self.annotate_entries(
             GT=hl.call(False,
                        self.old_to_new[ds.GT[0]],
@@ -2821,7 +2821,7 @@ class FilterAlleles(object):
                     .map(lambda newi: hl.sum(hl.range(0, hl.len(ds.alleles))
                     .filter(lambda oldi: self.old_to_new[oldi] == newi)
                     .map(lambda oldi: ds.AD[oldi])))),
-                hl.null(TArray(tint32))),
+                hl.null(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL)

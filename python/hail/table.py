@@ -1416,7 +1416,7 @@ class Table(TableTemplate):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return TArray(self.schema)._convert_to_py(self._jt.collect())
+        return tarray(self.schema)._convert_to_py(self._jt.collect())
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1983,7 +1983,7 @@ class Table(TableTemplate):
         .. testsetup::
 
             people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                     types={'Age': hl.tint32, 'Children': hl.TArray(hl.tstr)})
+                                     types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
 
         .. doctest::
 

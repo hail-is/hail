@@ -49,7 +49,7 @@ class Type(object):
         if not cls._hts_schema:
             cls._hts_schema = TStruct(
                 ['GT', 'AD', 'DP', 'GQ', 'PL'],
-                [tcall, TArray(tint32), tint32, tint32, TArray(tint32)])
+                [tcall, tarray(tint32), tint32, tint32, tarray(tint32)])
         return cls._hts_schema
 
     def __init__(self):
@@ -347,7 +347,7 @@ class TArray(Type):
                 self.element_type._typecheck(elt)
 
     def __str__(self):
-        return "TArray({})".format(self.element_type)
+        return "tarray({})".format(self.element_type)
 
 
 class TSet(Type):

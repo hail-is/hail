@@ -107,7 +107,7 @@ class Tests(unittest.TestCase):
         plink_sex = hl.import_table(out_file + '.sexcheck',
                                     delimiter=' +',
                                     types={'SNPSEX': hl.tint32,
-                                           'F': hl.TFloat64()})
+                                           'F': hl.tfloat64})
         plink_sex = plink_sex.select('IID', 'SNPSEX', 'F')
         plink_sex = plink_sex.select(
             s=plink_sex.IID,
