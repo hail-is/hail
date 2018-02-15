@@ -512,9 +512,9 @@ class Table(TableTemplate):
         .. testsetup::
 
             table4 = hl.import_table('data/kt_example4.tsv', impute=True,
-                                  types={'B': hl.TStruct(['B0', 'B1'], [hl.TBoolean(), hl.TString()]),
-                                 'D': hl.TStruct(['cat', 'dog'], [hl.TInt32(), hl.TInt32()]),
-                                 'E': hl.TStruct(['A', 'B'], [hl.TInt32(), hl.TInt32()])})
+                                  types={'B': hl.tstruct(['B0', 'B1'], [hl.tbool, hl.tstr]),
+                                 'D': hl.tstruct(['cat', 'dog'], [hl.tint32, hl.tint32]),
+                                 'E': hl.tstruct(['A', 'B'], [hl.tint32, hl.tint32])})
 
         .. doctest::
 
@@ -1146,7 +1146,7 @@ class Table(TableTemplate):
                 key_type = self._fields[self.key[0]].dtype
                 expr_type = exprs[0].dtype
                 if not (key_type == expr_type or
-                        key_type == TInterval(expr_type)):
+                        key_type == tinterval(expr_type)):
                     raise ExpressionException(
                         "type mismatch at index 0 of table key: expected type {expected}, found '{et}'"
                             .format(expected="'{}'".format(key_type) if not isinstance(key_type, TInterval)
@@ -1416,7 +1416,7 @@ class Table(TableTemplate):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return TArray(self.schema)._convert_to_py(self._jt.collect())
+        return tarray(self.schema)._convert_to_py(self._jt.collect())
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1983,7 +1983,7 @@ class Table(TableTemplate):
         .. testsetup::
 
             people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                     types={'Age': hl.TInt32(), 'Children': hl.TArray(hl.TString())})
+                                     types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
 
         .. doctest::
 
@@ -2161,8 +2161,8 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(other=table_type, tolerance=nullable(numeric))
-    def _same(self, other, tolerance=None):
-        return self._jt.same(other._jt, joption(tolerance))
+    def _same(self, other, tolerance=1e-6):
+        return self._jt.same(other._jt, tolerance)
 
 
 table_type.set(Table)

@@ -285,8 +285,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     }
 
     if (badContigs.nonEmpty)
-      fatal(s"Found ${ badContigs.size } ${ plural(badContigs.size, "contig mapping") } that do not have remapped contigs in the reference genome `$name':\n  " +
-        s"@1", contigMapping.truncatable("\n  "))
+      fatal(s"Found ${ badContigs.size } ${ plural(badContigs.size, "contig mapping that does", "contigs mapping that do") }" +
+        s" not have remapped contigs in reference genome '$name':\n  " +
+        s"@1", badContigs.truncatable("\n  "))
   }
 
   override def equals(other: Any): Boolean = {

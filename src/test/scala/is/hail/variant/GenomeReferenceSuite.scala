@@ -193,7 +193,7 @@ class GenomeReferenceSuite extends SparkSuite {
 
   @Test def testContigRemap() {
     val mapping = Map("23" -> "foo")
-    TestUtils.interceptFatal("do not have remapped contigs in the reference genome")(GenomeReference.GRCh37.validateContigRemap(mapping))
+    TestUtils.interceptFatal("have remapped contigs in reference genome")(GenomeReference.GRCh37.validateContigRemap(mapping))
   }
 
   @Test def testComparisonOps() {

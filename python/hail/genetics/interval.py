@@ -32,8 +32,8 @@ class Interval(HistoryMixin):
         self._jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep, self._rg._jrep)
         
         # FIXME
-        from hail.expr.types import TLocus
-        self._typ = TLocus(self._rg)
+        from hail.expr.types import tlocus
+        self._typ = tlocus(self._rg)
 
     def __str__(self):
         return self._jrep.toString()
@@ -54,8 +54,8 @@ class Interval(HistoryMixin):
         interval._rg = reference_genome
 
         # FIXME
-        from hail.expr.types import TLocus
-        interval._typ = TLocus(reference_genome)
+        from hail.expr.types import tlocus
+        interval._typ = tlocus(reference_genome)
 
         reference_genome._check_interval(jrep)
 

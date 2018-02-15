@@ -1,5 +1,6 @@
 import abc
 
+import hail as hl
 from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
@@ -22,11 +23,10 @@ class TypeCheckError(Exception):
         return self.msg
 
 
-class Type(HistoryMixin):
+class Type(object):
     """
-    Hail type superclass used for annotations and expression language.
+    Hail type superclass.
     """
-    __metaclass__ = abc.ABCMeta
 
     _hts_schema = None
 
@@ -49,31 +49,36 @@ class Type(HistoryMixin):
         if not cls._hts_schema:
             cls._hts_schema = TStruct(
                 ['GT', 'AD', 'DP', 'GQ', 'PL'],
-                [TCall(), TArray(TInt32(True)), TInt32(), TInt32(), TArray(TInt32(True))])
+                [tcall, tarray(tint32), tint32, tint32, tarray(tint32)])
         return cls._hts_schema
 
-    def __init__(self, jtype):
-        self._jtype = jtype
-        self.required = jtype.required()
+    def __init__(self):
+        self._cached_jtype = None
         super(Type, self).__init__()
 
     def __repr__(self):
-        return ("!" if self.required else "") + self._repr()
+        return str(self)
 
-    def _repr(self):
-        return self._jtype.toString()
-
-    def __str__(self):
-        return self._jtype.toString()
+    @property
+    def _jtype(self):
+        if self._cached_jtype is None:
+            self._cached_jtype = self._get_jtype()
+        return self._cached_jtype
 
     def __eq__(self, other):
-        return isinstance(other, Type) and self._jtype.equals(other._jtype)
+        # FIXME this is a bit weird
+        return isinstance(other, Type) and str(self) == str(other)
+
+    @abc.abstractmethod
+    def __str__(self):
+        return
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return self._jtype.hashCode()
+        # FIXME this is a bit weird
+        return 43 + hash(str(self))
 
     def pretty(self, indent=0):
         """Returns a prettily formatted string representation of the type.
@@ -91,8 +96,7 @@ class Type(HistoryMixin):
         class_name = jtype.getClass().getCanonicalName()
 
         if class_name in _intern_classes:
-            type, required = _intern_classes[class_name]
-            return type(required)
+            return _intern_classes[class_name]
         elif class_name == 'is.hail.expr.types.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TSet':
@@ -117,24 +121,6 @@ class Type(HistoryMixin):
         """
         return
 
-    def _deep_optional(self):
-        return Type._from_java(self._jtype.deepOptional())
-
-
-class Intern(type):
-    _instances = {}
-
-    def __call__(cls, required=False):
-        p = (cls, required)
-        if p not in cls._instances:
-            cls._instances[p] = super(Intern, cls).__call__(required=required)
-        return cls._instances[p]
-
-
-class InternType(Intern, abc.ABCMeta):
-    pass
-
-
 class TInt32(Type):
     """Hail type for signed 32-bit integers.
 
@@ -143,11 +129,9 @@ class TInt32(Type):
 
     In Python, these are represented as :obj:`int`.
     """
-    __metaclass__ = InternType
-
-    @record_init
-    def __init__(self, required=False):
-        super(TInt32, self).__init__(scala_object(Env.hail().expr.types, 'TInt32').apply(required))
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt32Optional')
+        super(TInt32, self).__init__()
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -159,13 +143,12 @@ class TInt32(Type):
             return None
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError(self.__repr__+" can't have missing annotation")
-        if annotation and not isinstance(annotation, int):
+        if annotation is not None and not isinstance(annotation, int):
             raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TInt32()"
+
 
 class TInt64(Type):
     """Hail type for signed 64-bit integers.
@@ -174,12 +157,10 @@ class TInt64(Type):
 
     In Python, these are represented as :obj:`int`.
     """
-    __metaclass__ = InternType
 
-    @record_init
-    def __init__(self, required=False):
-        super(TInt64, self).__init__(scala_object(Env.hail().expr.types, 'TInt64').apply(required))
-        self.required = required
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt64Optional')
+        super(TInt64, self).__init__()
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -191,12 +172,10 @@ class TInt64(Type):
             return None
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError(self.__repr__+" can't have missing annotation")
-        if annotation and not (isinstance(annotation, long) or isinstance(annotation, int)):
+        if annotation is not None and not (isinstance(annotation, long) or isinstance(annotation, int)):
             raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TInt64()"
 
 
@@ -205,11 +184,10 @@ class TFloat32(Type):
 
     In Python, these are represented as :obj:`float`.
     """
-    __metaclass__ = InternType
 
-    @record_init
-    def __init__(self, required=False):
-        super(TFloat32, self).__init__(scala_object(Env.hail().expr.types, 'TFloat32').apply(required))
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat32Optional')
+        super(TFloat32, self).__init__()
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -224,12 +202,10 @@ class TFloat32(Type):
         raise NotImplementedError('TFloat32 is currently unsupported in certain operations, use TFloat64 instead')
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError(self.__repr__+" can't have missing annotation")
-        if annotation and not isinstance(annotation, float):
+        if annotation is not None and not isinstance(annotation, float):
             raise TypeCheckError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TFloat32()"
 
 
@@ -238,11 +214,10 @@ class TFloat64(Type):
 
     In Python, these are represented as :obj:`float`.
     """
-    __metaclass__ = InternType
 
-    @record_init
-    def __init__(self, required=False):
-        super(TFloat64, self).__init__(scala_object(Env.hail().expr.types, 'TFloat64').apply(required))
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat64Optional')
+        super(TFloat64, self).__init__()
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -254,12 +229,10 @@ class TFloat64(Type):
             return None
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError(self.__repr__+" can't have missing annotation")
-        if annotation and not isinstance(annotation, float):
+        if annotation is not None and not isinstance(annotation, float):
             raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TFloat64()"
 
 
@@ -268,11 +241,10 @@ class TString(Type):
 
     In Python, these are represented as :obj:`unicode` strings.
     """
-    __metaclass__ = InternType
 
-    @record_init
-    def __init__(self, required=False):
-        super(TString, self).__init__(scala_object(Env.hail().expr.types, 'TString').apply(required))
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStringOptional')
+        super(TString, self).__init__()
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -281,12 +253,10 @@ class TString(Type):
         return annotation
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError(self.__repr__+" can't have missing annotation")
-        if annotation and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
+        if annotation is not None and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TString()"
 
 
@@ -295,11 +265,10 @@ class TBoolean(Type):
 
     In Python, these are represented as :obj:`bool`.
     """
-    __metaclass__ = InternType
 
-    @record_init
-    def __init__(self, required=False):
-        super(TBoolean, self).__init__(scala_object(Env.hail().expr.types, 'TBoolean').apply(required))
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TBooleanOptional')
+        super(TBoolean, self).__init__()
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -308,12 +277,10 @@ class TBoolean(Type):
         return annotation
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError(self.__repr__+" can't have missing annotation")
-        if annotation and not isinstance(annotation, bool):
+        if annotation is not None and not isinstance(annotation, bool):
             raise TypeCheckError("TBoolean expected type 'bool', but found type '%s'" % type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TBoolean()"
 
 
@@ -333,11 +300,10 @@ class TArray(Type):
         Element type of array.
     """
 
-    @record_init
-    def __init__(self, element_type, required=False):
-        jtype = scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, required)
+    def __init__(self, element_type):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, False)
         self._element_type = element_type
-        super(TArray, self).__init__(jtype)
+        super(TArray, self).__init__()
 
     @property
     def element_type(self):
@@ -354,9 +320,8 @@ class TArray(Type):
     def _from_java(cls, jtype):
         t = TArray.__new__(cls)
         t._element_type = Type._from_java(jtype.elementType())
-        t._jtype = jtype
-        t.required = jtype.required()
-        super(Type, t).__init__()
+        t._get_jtype = lambda: jtype
+        super(TArray, t).__init__()
         return t
 
     def _convert_to_py(self, annotation):
@@ -375,16 +340,14 @@ class TArray(Type):
             return None
 
     def _typecheck(self, annotation):
-        if annotation:
+        if annotation is not None:
             if not isinstance(annotation, list):
                 raise TypeCheckError("TArray expected type 'list', but found type '%s'" % type(annotation))
             for elt in annotation:
                 self.element_type._typecheck(elt)
-        elif self.required:
-            raise TypeCheckError("!TArray() can't have missing annotation")
 
-    def _repr(self):
-        return "TArray({})".format(repr(self.element_type))
+    def __str__(self):
+        return "tarray({})".format(self.element_type)
 
 
 class TSet(Type):
@@ -403,14 +366,10 @@ class TSet(Type):
         Element type of set.
     """
 
-    @record_init
-    def __init__(self, element_type, required=False):
-        """
-        :param :class:`.Type` element_type: Hail type of set element
-        """
-        jtype = scala_object(Env.hail().expr.types, 'TSet').apply(element_type._jtype, required)
+    def __init__(self, element_type):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TSet').apply(element_type._jtype, False)
         self._element_type = element_type
-        super(TSet, self).__init__(jtype)
+        super(TSet, self).__init__()
 
     @property
     def element_type(self):
@@ -427,8 +386,7 @@ class TSet(Type):
     def _from_java(cls, jtype):
         t = TSet.__new__(cls)
         t._element_type = Type._from_java(jtype.elementType())
-        t._jtype = jtype
-        t.required = jtype.required()
+        t._get_jtype = lambda: jtype
         super(Type, t).__init__()
         return t
 
@@ -448,16 +406,13 @@ class TSet(Type):
             return None
 
     def _typecheck(self, annotation):
-        if annotation:
+        if annotation is not None:
             if not isinstance(annotation, set):
                 raise TypeCheckError("TSet expected type 'set', but found type '%s'" % type(annotation))
             for elt in annotation:
                 self.element_type._typecheck(elt)
 
-        elif self.required:
-            raise TypeCheckError("!TSet() can't have missing annotation")
-
-    def _repr(self):
+    def __str__(self):
         return "TSet({})".format(repr(self.element_type))
 
 
@@ -479,12 +434,12 @@ class TDict(Type):
         Value type.
     """
 
-    @record_init
-    def __init__(self, key_type, value_type, required=False):
-        jtype = scala_object(Env.hail().expr.types, 'TDict').apply(key_type._jtype, value_type._jtype, required)
+    def __init__(self, key_type, value_type):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TDict').apply(
+            key_type._jtype, value_type._jtype, False)
         self._key_type = key_type
         self._value_type = value_type
-        super(TDict, self).__init__(jtype)
+        super(TDict, self).__init__()
 
     @property
     def key_type(self):
@@ -513,8 +468,7 @@ class TDict(Type):
         t = TDict.__new__(cls)
         t._key_type = Type._from_java(jtype.keyType())
         t._value_type = Type._from_java(jtype.valueType())
-        t._jtype = jtype
-        t.required = jtype.required()
+        t._get_jtype = lambda: jtype
         super(Type, t).__init__()
         return t
 
@@ -543,12 +497,10 @@ class TDict(Type):
             for k, v in annotation.iteritems():
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
-        elif self.required:
-            raise TypeCheckError("!TDict() can't have missing annotation")
 
-
-    def _repr(self):
+    def __str__(self):
         return "TDict({}, {})".format(repr(self.key_type), repr(self.value_type))
+
 
 class Field(object):
     """Class representing a field of a :class:`.TStruct`."""
@@ -579,6 +531,7 @@ class Field(object):
         """
         return self._typ
 
+
 class TStruct(Type):
     """Hail type for structured groups of heterogeneous fields.
 
@@ -592,15 +545,18 @@ class TStruct(Type):
         Field types.
     """
 
-    @typecheck_method(names=listof(strlike), types=listof(Type), required=bool)
-    def __init__(self, names, types, required=False):
+    @typecheck_method(names=listof(strlike),
+                      types=listof(Type))
+    def __init__(self, names, types):
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        jtype = scala_object(Env.hail().expr.types, 'TStruct').apply(names, map(lambda t: t._jtype, types), required)
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply(names,
+                                                                                       map(lambda t: t._jtype, types),
+                                                                                       False)
         self._fields = [Field(names[i], types[i]) for i in range(len(names))]
 
-        super(TStruct, self).__init__(jtype)
+        super(TStruct, self).__init__()
 
     @property
     def fields(self):
@@ -614,31 +570,23 @@ class TStruct(Type):
         return self._fields
 
     @classmethod
-    def from_fields(cls, fields, required=False):
+    def from_fields(cls, fields):
         """Creates a new TStruct from field objects.
 
         :param fields: The TStruct fields.
         :type fields: list of :class:`.Field`
 
-        :param bool required: Flag for whether the struct can be missing.
-
         :return: TStruct from input fields
         :rtype: :class:`.TStruct`
         """
-
-        struct = TStruct.__new__(cls)
-        struct._fields = fields
-        jfields = [scala_object(Env.hail().expr.types, 'Field').apply(f.name, f.typ._jtype, i) for i, f in enumerate(fields)]
-        jtype = scala_object(Env.hail().expr.types, 'TStruct').apply(jindexed_seq(jfields), required)
-        return TStruct._from_java(jtype)
+        return TStruct([f.name for f in fields], [f.typ for f in fields])
 
     @classmethod
     def _from_java(cls, jtype):
         struct = TStruct.__new__(cls)
         struct._init_from_java(jtype)
-        struct._jtype = jtype
-        struct.required = jtype.required()
-        super(Type, struct).__init__()
+        struct.__get_jtype = lambda: jtype
+        super(TStruct, struct).__init__()
         return struct
 
     def _init_from_java(self, jtype):
@@ -675,33 +623,22 @@ class TStruct(Type):
                     raise TypeCheckError("TStruct expected fields '%s', but found fields '%s'" %
                                          ([f.name for f in self.fields], annotation._fields))
                 f.typ._typecheck((annotation[f.name]))
-        elif self.required:
-            raise TypeCheckError("!TStruct cannot be missing")
 
-    def __repr__(self):
-        names = [fd.name for fd in self.fields]
+    def __str__(self):
+        names = [str(fd.name) for fd in self.fields]
         types = [fd.typ for fd in self.fields]
         return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
 
-    def _merge(self, other):
-        return TStruct._from_java(self._jtype.merge(other._jtype)._1())
-
-    def _drop(self, *identifiers):
-        return TStruct._from_java(self._jtype.filter(jset(list(identifiers)), False)._1())
-
-    def _select(self, *identifiers):
-        return TStruct._from_java(self._jtype.filter(jset(list(identifiers)), True)._1())
 
 class TCall(Type):
     """Hail type for a diploid genotype.
 
     In Python, these are represented by :class:`.Call`.
     """
-    __metaclass__ = InternType
 
-    @record_init
-    def __init__(self, required=False):
-        super(TCall, self).__init__(scala_object(Env.hail().expr.types, 'TCall').apply(required))
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TCallOptional')
+        super(TCall, self).__init__()
 
     @typecheck_method(annotation=nullable(integral))
     def _convert_to_py(self, annotation):
@@ -718,13 +655,11 @@ class TCall(Type):
             return None
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError('!TCall cannot be missing')
-        if annotation and not isinstance(annotation, genetics.Call):
+        if annotation is not None and not isinstance(annotation, genetics.Call):
             raise TypeCheckError('TCall expected type hail.genetics.Call, but found %s' %
                                  type(annotation))
 
-    def _repr(self):
+    def __str__(self):
         return "TCall()"
 
 
@@ -735,26 +670,27 @@ class TLocus(Type):
 
     Parameters
     ----------
-    reference_genome: :class:`.GenomeReference`
+    reference_genome: :class:`.GenomeReference` or :obj:`str`
         Reference genome to use. Default is
         :meth:`hail.default_reference`.
     """
 
-    @record_init
-    @typecheck_method(reference_genome=nullable(genetics.GenomeReference),
-                      required=bool)
-    def __init__(self, reference_genome=None, required=False):
-        self._rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr.types, 'TLocus').apply(self._rg._jrep, required)
-        super(TLocus, self).__init__(jtype)
+    @typecheck_method(reference_genome=nullable(oneof(genetics.GenomeReference, strlike)))
+    def __init__(self, reference_genome=None):
+        if reference_genome is not None:
+            if not isinstance(reference_genome, genetics.GenomeReference):
+                reference_genome = hl.get_reference(reference_genome)
+        self._rg = reference_genome
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self.reference_genome._jrep,
+                                                                                      False)
+        super(TLocus, self).__init__()
 
     @classmethod
     def _from_java(cls, jtype):
         l = TLocus.__new__(cls)
-        l._jtype = jtype
+        l._get_jtype = lambda: jtype
         l._rg = genetics.GenomeReference._from_java(jtype.gr())
-        l.required = jtype.required()
-        super(Type, l).__init__()
+        super(TLocus, l).__init__()
         return l
 
     def _convert_to_py(self, annotation):
@@ -770,17 +706,14 @@ class TLocus(Type):
             return None
 
     def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError('!TLocus cannot be missing')
-        if annotation and not isinstance(annotation, genetics.Locus):
+        if annotation is not None and not isinstance(annotation, genetics.Locus):
             raise TypeCheckError('TLocus expected type hail.genetics.Locus, but found %s' %
                                  type(annotation))
 
-    def _repr(self):
-        return "TLocus()"
+    def __str__(self):
+        return "TLocus('{}')".format(self.reference_genome)
 
     @property
-    @record_property
     def reference_genome(self):
         """Reference genome.
 
@@ -789,6 +722,8 @@ class TLocus(Type):
         :class:`.GenomeReference`
             Reference genome.
         """
+        if self._rg is None:
+            self._rg = hl.default_reference()
         return self._rg
 
 
@@ -807,13 +742,11 @@ class TInterval(Type):
         Interval point type.
     """
 
-    @record_init
-    @typecheck_method(point_type=Type,
-                      required=bool)
-    def __init__(self, point_type, required=False):
-        jtype = scala_object(Env.hail().expr.types, 'TInterval').apply(point_type._jtype, required)
+    @typecheck_method(point_type=Type)
+    def __init__(self, point_type):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInterval').apply(self.point_type._jrep, False)
         self._point_type = point_type
-        super(TInterval, self).__init__(jtype)
+        super(TInterval, self).__init__()
 
     @property
     def point_type(self):
@@ -830,13 +763,12 @@ class TInterval(Type):
     def _from_java(cls, jtype):
         i = TInterval.__new__(cls)
         i._point_type = Type._from_java(jtype.pointType())
-        i._jtype = jtype
-        i.required = jtype.required()
-        super(Type, i).__init__()
+        i._get_jtype = lambda: jtype
+        super(TInterval, i).__init__()
         return i
 
     def _convert_to_py(self, annotation):
-        assert(isinstance(self._point_type, TLocus))
+        assert (isinstance(self._point_type, TLocus))
         if annotation is not None:
             return genetics.Interval._from_java(annotation, self._point_type.reference_genome)
         else:
@@ -844,42 +776,59 @@ class TInterval(Type):
 
     @typecheck_method(annotation=nullable(genetics.Interval))
     def _convert_to_j(self, annotation):
-        assert(isinstance(self._point_type, TLocus))
+        assert (isinstance(self._point_type, TLocus))
         if annotation is not None:
             return annotation._jrep
         else:
             return None
 
     def _typecheck(self, annotation):
-        assert(isinstance(self._point_type, TLocus))
-        if not annotation and self.required:
-            raise TypeCheckError('!TInterval is a required field')
-        if annotation and not isinstance(annotation, genetics.Interval):
+        assert (isinstance(self._point_type, TLocus))
+        if annotation is not None and not isinstance(annotation, genetics.Interval):
             raise TypeCheckError('TInterval expected type hail.genetics.Interval, but found %s' %
                                  type(annotation))
 
-    def _repr(self):
-        return "TInterval({})".format(repr(self._point_type))
+    def __str__(self):
+        return "TInterval({})".format(repr(self.point_type))
 
-_intern_classes = {'is.hail.expr.types.TInt32Optional$': (TInt32, False),
-                   'is.hail.expr.types.TInt32Required$': (TInt32, True),
-                   'is.hail.expr.types.TInt64Optional$': (TInt64, False),
-                   'is.hail.expr.types.TInt64Required$': (TInt64, True),
-                   'is.hail.expr.types.TFloat32Optional$': (TFloat32, False),
-                   'is.hail.expr.types.TFloat32Required$': (TFloat32, True),
-                   'is.hail.expr.types.TFloat64Optional$': (TFloat64, False),
-                   'is.hail.expr.types.TFloat64Required$': (TFloat64, True),
-                   'is.hail.expr.types.TBooleanOptional$': (TBoolean, False),
-                   'is.hail.expr.types.TBooleanRequired$': (TBoolean, True),
-                   'is.hail.expr.types.TStringOptional$': (TString, False),
-                   'is.hail.expr.types.TStringRequired$': (TString, True),
-                   'is.hail.expr.types.TCallOptional$': (TCall, False),
-                   'is.hail.expr.types.TCallRequired$': (TCall, True)}
 
+
+tint32 = TInt32()
+tint64 = TInt64()
+tint = tint32
+tfloat32 = TFloat32()
+tfloat64 = TFloat64()
+tfloat = tfloat64
+tstr = TString()
+tbool = TBoolean()
+tcall = TCall()
+tarray = TArray
+tset = TSet
+tdict = TDict
+tstruct = TStruct
+tlocus = TLocus
+tinterval = TInterval
+
+_numeric_types = {tint32, tint64, tfloat32, tfloat64}
+
+_intern_classes = {'is.hail.expr.types.TInt32Optional$': tint32,
+                   'is.hail.expr.types.TInt32Required$': tint32,
+                   'is.hail.expr.types.TInt64Optional$': tint64,
+                   'is.hail.expr.types.TInt64Required$': tint64,
+                   'is.hail.expr.types.TFloat32Optional$': tfloat32,
+                   'is.hail.expr.types.TFloat32Required$': tfloat32,
+                   'is.hail.expr.types.TFloat64Optional$': tfloat64,
+                   'is.hail.expr.types.TFloat64Required$': tfloat64,
+                   'is.hail.expr.types.TBooleanOptional$': tbool,
+                   'is.hail.expr.types.TBooleanRequired$': tbool,
+                   'is.hail.expr.types.TStringOptional$': tstr,
+                   'is.hail.expr.types.TStringRequired$': tstr,
+                   'is.hail.expr.types.TCallOptional$': tcall,
+                   'is.hail.expr.types.TCallRequired$': tcall}
 
 @typecheck(t=Type)
 def is_numeric(t):
-    return isinstance(t, TInt32) or isinstance(t, TInt64) or isinstance(t, TFloat32) or isinstance(t, TFloat64)
+    return t in _numeric_types
 
 
 import pprint

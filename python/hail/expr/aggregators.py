@@ -61,7 +61,7 @@ def collect(expr):
         Array of all `expr` records.
     """
     agg = _to_agg(expr)
-    return _agg_func('collect', agg, TArray(agg._type))
+    return _agg_func('collect', agg, tarray(agg._type))
 
 @typecheck(expr=oneof(Aggregable, expr_any))
 def collect_as_set(expr):
@@ -92,7 +92,7 @@ def collect_as_set(expr):
     """
 
     agg = _to_agg(expr)
-    return _agg_func('collectAsSet', agg, TArray(agg._type))
+    return _agg_func('collectAsSet', agg, tarray(agg._type))
 
 @typecheck(expr=nullable(oneof(Aggregable, expr_any)))
 def count(expr=None):
@@ -134,9 +134,9 @@ def count(expr=None):
         Total number of records.
     """
     if expr is not None:
-        return _agg_func('count', _to_agg(expr), TInt64())
+        return _agg_func('count', _to_agg(expr), tint64)
     else:
-        return _agg_func('count', _to_agg(0), TInt64())
+        return _agg_func('count', _to_agg(0), tint64)
 
 @typecheck(condition=oneof(Aggregable, expr_bool))
 def count_where(condition):
@@ -163,7 +163,7 @@ def count_where(condition):
         Total number of records where `condition` is ``True``.
     """
 
-    return _agg_func('count', filter(condition, 0), TInt64())
+    return _agg_func('count', filter(condition, 0), tint64)
 
 @typecheck(expr=oneof(Aggregable, expr_any))
 def counter(expr):
@@ -203,7 +203,7 @@ def counter(expr):
         Dictionary with the number of occurrences of each unique record.
     """
     agg = _to_agg(expr)
-    return _agg_func('counter', agg, TDict(agg._type, TInt64()))
+    return _agg_func('counter', agg, tdict(agg._type, tint64))
 
 @typecheck(expr=oneof(Aggregable, expr_any), n=integral, ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
 def take(expr, n, ordering=None):
@@ -265,7 +265,7 @@ def take(expr, n, ordering=None):
     agg = _to_agg(expr)
     n = to_expr(n)
     if ordering is None:
-        return _agg_func('take', agg, TArray(agg._type), n)
+        return _agg_func('take', agg, tarray(agg._type), n)
     else:
         uid = Env._get_uid()
         if callable(ordering):
@@ -285,7 +285,7 @@ def take(expr, n, ordering=None):
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-        return construct_expr(ast, TArray(agg._type), Indices(source=indices.source),
+        return construct_expr(ast, tarray(agg._type), Indices(source=indices.source),
                               aggregations.push(Aggregation(indices, refs)), joins)
 
 @typecheck(expr=oneof(Aggregable, expr_numeric))
@@ -492,8 +492,8 @@ def stats(expr):
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'stats' expects a numeric argument, found '{}'".format(agg._type))
-    return _agg_func('stats', agg, TStruct(['mean', 'stdev', 'min', 'max', 'nNotMissing', 'sum'],
-                                           [TFloat64(), TFloat64(), TFloat64(), TFloat64(), TInt64(), TFloat64()]))
+    return _agg_func('stats', agg, tstruct(['mean', 'stdev', 'min', 'max', 'nNotMissing', 'sum'],
+                                           [tfloat64, tfloat64, tfloat64, tfloat64, tint64, tfloat64]))
 
 @typecheck(expr=oneof(Aggregable, expr_numeric))
 def product(expr):
@@ -570,7 +570,7 @@ def fraction(predicate):
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
-    return construct_expr(ast, TFloat64(), Indices(source=agg._indices.source),
+    return construct_expr(ast, tfloat64, Indices(source=agg._indices.source),
                           agg._aggregations.push(Aggregation(agg._indices, agg._refs)), agg._joins)
 
 @typecheck(expr=oneof(Aggregable, expr_any))
@@ -621,7 +621,7 @@ def hardy_weinberg(expr):
     :class:`.StructExpression`
         Struct expression with fields `rExpectedHetFrequency` and `pHWE`.
     """
-    t = TStruct(['rExpectedHetFrequency', 'pHWE'], [TFloat64(), TFloat64()])
+    t = tstruct(['rExpectedHetFrequency', 'pHWE'], [tfloat64, tfloat64])
     agg = _to_agg(expr)
     if not isinstance(agg._type, TCall):
         raise TypeError("aggregator 'hardy_weinberg' requires an expression of type 'Call', found '{}'".format(
@@ -815,8 +815,8 @@ def inbreeding(expr, prior):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = TStruct(['f_stat', 'n_called', 'expected_homs', 'observed_homs'],
-                [TFloat64(), TInt64(), TFloat64(), TInt64()])
+    t = tstruct(['f_stat', 'n_called', 'expected_homs', 'observed_homs'],
+                [tfloat64, tint64, tfloat64, tint64])
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
@@ -877,7 +877,7 @@ def call_stats(expr, alleles):
     """
     agg = _to_agg(expr)
     alleles = to_expr(alleles)
-    if not alleles.dtype.element_type == TString():
+    if not alleles.dtype.element_type == tstr:
         raise TypeError("aggregator 'call_stats' requires 'alleles' to be an expression of type 'Array[String]',"
                         " found '{}'".format(alleles.dtype))
 
@@ -893,7 +893,7 @@ def call_stats(expr, alleles):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = TStruct(['AC', 'AF', 'AN'], [TArray(TInt32()), TArray(TFloat64()), TInt32()])
+    t = tstruct(['AC', 'AF', 'AN'], [tarray(tint32), tarray(tfloat64), tint32])
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 @typecheck(expr=oneof(Aggregable, expr_numeric), start=numeric, end=numeric, bins=numeric)
@@ -945,6 +945,6 @@ def hist(expr, start, end, bins):
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'hist' expects argument 'expr' to be a numeric type, found '{}'".format(agg._type))
-    t = TStruct(['binEdges', 'binFrequencies', 'nLess', 'nGreater'],
-                [TArray(TFloat64()), TArray(TInt64()), TInt64(), TInt64()])
+    t = tstruct(['binEdges', 'binFrequencies', 'nLess', 'nGreater'],
+                [tarray(tfloat64), tarray(tint64), tint64, tint64])
     return _agg_func('hist', agg, t, start, end, bins)
