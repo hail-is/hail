@@ -2457,16 +2457,16 @@ class FilterAlleles(object):
     schema and update the ``info.AC`` and entry fields.
 
     >>> fa = hl.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
-    ... fa.annotate_rows(
+    >>> fa.annotate_rows(
     ...     info = dataset.info.annotate(AC = fa.new_to_old[1:].map(lambda i: dataset.info.AC[i - 1])))
-    ... newPL = hl.cond(
+    >>> newPL = hl.cond(
     ...     hl.is_defined(dataset.PL),
     ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
     ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     hl.null(hl.tarray(hl.tint32)))
-    ... fa.annotate_entries(
+    >>> fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
@@ -2475,7 +2475,7 @@ class FilterAlleles(object):
     ...         hl.null(hl.tarray(hl.tint32))),
     ...     GQ = hl.gq_from_pl(newPL),
     ...     PL = newPL)
-    ... filtered_result = fa.filter()
+    >>> filtered_result = fa.filter()
     
     Parameters
     ----------
