@@ -1,9 +1,9 @@
 package is.hail.annotations
 
-import is.hail.rvd.OrderedRVType
+import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
 
-case class OrderedRVIterator(t: OrderedRVType, iterator: Iterator[RegionValue]) {
+case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
   def staircase: StagingIterator[EphemeralIterator[RegionValue]] =
     iterator.toEphemeralIterator.staircased(t.mutableEquiv)
@@ -26,7 +26,7 @@ case class OrderedRVIterator(t: OrderedRVType, iterator: Iterator[RegionValue]) 
       leftDefault = null,
       right = other.iterator.toStagingIterator,
       rightDefault = null,
-      OrderedRVType.selectUnsafeOrdering(
+      OrderedRVDType.selectUnsafeOrdering(
         t.rowType, t.kRowFieldIdx, other.t.rowType, other.t.kRowFieldIdx)
         .compare
     )

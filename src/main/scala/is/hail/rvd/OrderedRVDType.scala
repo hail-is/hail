@@ -47,7 +47,7 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
-  def kComp(other: OrderedRVType): UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(
+  def kComp(other: OrderedRVDType): UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(
     this.rowType,
     this.kRowFieldIdx,
     other.rowType,
