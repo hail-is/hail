@@ -207,7 +207,7 @@ class GroupedTable(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        base, cleanup = self._parent._process_joins(*([v for _, v in self._groups] + named_exprs.values()))
+        base, cleanup = self._parent._process_joins(*itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
@@ -315,7 +315,7 @@ class Table(TableTemplate):
 
     @typecheck_method(item=oneof(strlike, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
-        if isinstance(item, str) or isinstance(item, unicode):
+        if isinstance(item, str):
             return self._get_field(item)
         elif isinstance(item, slice):
             s = item
@@ -510,7 +510,7 @@ class Table(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -639,7 +639,6 @@ class Table(TableTemplate):
             analyze('Table.annotate', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
 
     @handle_py4j
@@ -784,7 +783,7 @@ class Table(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -848,7 +847,7 @@ class Table(TableTemplate):
                     raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. table['foo'])")
             else:
-                assert isinstance(e, str) or isinstance(e, unicode)
+                assert isinstance(e, str)
                 if e not in self._fields:
                     raise IndexError("table has no field '{}'".format(e))
                 fields_to_drop.add(e)
@@ -995,7 +994,7 @@ class Table(TableTemplate):
         """
         groups = []
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 e = self[e]
             else:
                 e = to_expr(e)
@@ -1968,7 +1967,7 @@ class Table(TableTemplate):
         sort_cols = []
         fields_rev = {v: k for k, v in self._fields.items()}
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 expr = self[e]
                 if not expr._indices == self._row_indices:
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
@@ -1981,7 +1980,7 @@ class Table(TableTemplate):
                 sort_cols.append(asc(fields_rev[e])._j_obj())
             else:
                 assert isinstance(e, Ascending) or isinstance(e, Descending)
-                if isinstance(e.col, str) or isinstance(e.col, unicode):
+                if isinstance(e.col, str):
                     expr = self[e.col]
                     if not expr._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))

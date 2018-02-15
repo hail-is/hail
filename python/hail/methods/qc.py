@@ -286,7 +286,7 @@ def concordance(left, right):
     j_global_conc = r._1()
     col_conc = Table(r._2())
     row_conc = Table(r._3())
-    global_conc = [[j_global_conc.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
+    global_conc = [[j_global_conc.apply(j).apply(i) for i in range(5)] for j in range(5)]
 
     return global_conc, col_conc, row_conc
 

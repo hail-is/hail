@@ -4,7 +4,7 @@ class ListIterator(Iterator):
     def __init__(self, node):
         self.node = node
 
-    def next(self):
+    def __next__(self):
         if self.node is None:
             raise StopIteration
         else:

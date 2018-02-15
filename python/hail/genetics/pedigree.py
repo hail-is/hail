@@ -237,7 +237,7 @@ class Pedigree(HistoryMixin):
 
         :rtype: list of :class:`.Trio`
         """
-        return filter(lambda t: t.is_complete(), self.trios)
+        return list(filter(lambda t: t.is_complete(), self.trios))
 
     @handle_py4j
     @record_method

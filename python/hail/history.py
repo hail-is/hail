@@ -1,5 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 import datetime
 import inspect
 import itertools
@@ -9,7 +7,7 @@ from decorator import decorator
 
 
 def parse_args(f, args, kwargs, is_method=True):
-    argspec = inspect.getargspec(f)
+    argspec = inspect.getfullargspec(f)
 
     arg_names = argspec.args[1:] if is_method else argspec.args
     defaults = list(argspec.defaults) if argspec.defaults else []
@@ -17,13 +15,13 @@ def parse_args(f, args, kwargs, is_method=True):
     defaults = n_postnl_args * [None] + defaults
 
     parsed_args = OrderedDict({k: v for k, (v, d) in zip(arg_names, zip(args, defaults)) if v is not d})
-    parsed_args.update(OrderedDict({k: v for k, v in kwargs.iteritems()}))
+    parsed_args.update(OrderedDict({k: v for k, v in kwargs.items()}))
     return parsed_args
 
 
 def set_history(result, f):
     if isinstance(result, dict):
-        for k, r in result.iteritems():
+        for k, r in result.items():
             f(r, key_name=k)
     elif isinstance(result, list) or isinstance(result, tuple):
         for i, r in enumerate(result):
@@ -101,7 +99,7 @@ def format_args(arg, statements):
     elif isinstance(arg, tuple):
         return tuple([format_args(a, statements) for a in arg])
     elif isinstance(arg, dict):
-        return {format_args(k, statements): format_args(v, statements) for k, v in arg.iteritems()}
+        return {format_args(k, statements): format_args(v, statements) for k, v in arg.items()}
     else:
         if isinstance(arg, HistoryMixin):
             h = arg._history
@@ -112,7 +110,7 @@ def format_args(arg, statements):
 
 
 def remove_dup_statements(statements1, statements2):
-    return [s2 for s1, s2 in itertools.izip_longest(statements1, statements2) if s2 and s1 != s2]
+    return [s2 for s1, s2 in itertools.zip_longest(statements1, statements2) if s2 and s1 != s2]
 
 
 class History(object):
@@ -125,7 +123,7 @@ class History(object):
 
     def add_method(self, f_name, kwargs, index=None, key_name=None):
         statements = self.statements[:]
-        f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.iteritems()]
+        f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.items()]
         expr = "{expr}\n.{f_name}({f_args})".format(expr=self.expr, f_name=f_name, f_args=", ".join(f_args))
         if index:
             expr += "[{}]".format(index)
@@ -145,14 +143,14 @@ class History(object):
     @staticmethod
     def from_classmethod(cls_name, f_name, kwargs):
         statements = []
-        f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.iteritems()]
+        f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.items()]
         expr = "{cls_name}.{f_name}({args})".format(cls_name=cls_name, f_name=f_name, args=", ".join(f_args))
         return History(expr, statements)
 
     @staticmethod
     def from_init(cls_name, kwargs):
         statements = []
-        f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.iteritems()]
+        f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.items()]
         expr = "{cls_name}({args})".format(cls_name=cls_name, args=", ".join(f_args))
         return History(expr, statements)
 

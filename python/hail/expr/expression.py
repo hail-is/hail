@@ -1,5 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
@@ -87,14 +85,14 @@ def to_expr(e):
                                   "    These methods produce 'Aggregable' objects that can only be aggregated\n"
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
-    elif isinstance(e, str) or isinstance(e, unicode):
+    elif isinstance(e, str):
         return construct_expr(Literal('"{}"'.format(escape_str(e))), tstr)
     elif isinstance(e, bool):
         return construct_expr(Literal("true" if e else "false"), tbool)
     elif isinstance(e, int):
         return construct_expr(Literal(str(e)), tint32)
-    elif isinstance(e, long):
-        return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), tint64)
+    # elif isinstance(e, long):
+    #     return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), TInt64())
     elif isinstance(e, float):
         return construct_expr(Literal(str(e)), tfloat64)
     elif isinstance(e, Locus):
@@ -308,7 +306,7 @@ class Expression(object):
         if (len(sources.keys()) > 1):
             raise FatalError("verify: too many sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
-        if (len(sources.keys()) != 0 and sources.keys()[0] != self._indices.source):
+        if (len(sources.keys()) != 0 and list(sources.keys())[0] != self._indices.source):
             raise FatalError("verify: incompatible sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
     @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
@@ -446,6 +444,9 @@ class Expression(object):
 
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
+
+    def __hash__(self):
+        return super(Expression, self).__hash__()
 
     def __eq__(self, other):
         """Returns ``True`` if the two expressions are equal.
@@ -1092,7 +1093,7 @@ class ArrayNumericExpression(ArrayExpression):
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         """Positionally divide by an array or a scalar.
 
         Examples
@@ -1127,7 +1128,7 @@ class ArrayNumericExpression(ArrayExpression):
 
         return self._bin_op_numeric("/", other, ret_type_f)
 
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         def ret_type_f(t):
             assert isinstance(t, TArray)
             assert is_numeric(t.element_type)
@@ -2295,7 +2296,7 @@ class NumericExpression(AtomicExpression):
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         """Divide two numbers.
 
         Examples
@@ -2329,7 +2330,7 @@ class NumericExpression(AtomicExpression):
 
         return self._bin_op_numeric("/", other, ret_type_f)
 
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         def ret_type_f(t):
             assert is_numeric(t)
             if isinstance(t, TInt32) or isinstance(t, TInt64):

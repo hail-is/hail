@@ -11,6 +11,7 @@ from hail.utils.java import handle_py4j, joption, jarray
 from hail.utils.misc import check_collisions
 from hail.methods.misc import require_biallelic, require_variant
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+import itertools
 
 
 @handle_py4j
@@ -1880,13 +1881,13 @@ class SplitMulti(object):
         if not self._entry_fields:
             self._entry_fields = {}
 
-        base, _ = self._ds._process_joins(*(
-                self._row_fields.values() + self._entry_fields.values()))
+        base, _ = self._ds._process_joins(*itertools.chain(
+                self._row_fields.values(), self._entry_fields.values()))
 
         annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
-                                  for k, v in self._row_fields.iteritems()])
+                                  for k, v in self._row_fields.items()])
         annotate_entries = ','.join(['g.`{}` = {}'.format(k, v._ast.to_hql())
-                                     for k, v in self._entry_fields.iteritems()])
+                                     for k, v in self._entry_fields.items()])
 
         jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
             self._ds._jvds,
@@ -2799,8 +2800,8 @@ class FilterAlleles(object):
         if not self._entry_exprs:
             self._entry_exprs = {}
 
-        base, cleanup = self._ds._process_joins(*(
-                [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
+        base, cleanup = self._ds._process_joins(*itertools.chain(
+                [self._filter_expr], self._row_exprs.values(), self._entry_exprs.values()))
 
         filter_hql = self._filter_expr._ast.to_hql()
 

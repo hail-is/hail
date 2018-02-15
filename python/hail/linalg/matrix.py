@@ -203,7 +203,7 @@ class BlockMatrix(object):
 
     @handle_py4j
     @typecheck_method(i=numeric)
-    def __div__(self, i):
+    def __truediv__(self, i):
         return self * (1. / i)
 
 

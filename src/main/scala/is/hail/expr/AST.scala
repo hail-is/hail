@@ -404,7 +404,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
       CompilationHelp.arrayToWrappedArray(convertedArray)
 
   def toIR(agg: Option[String] = None): Option[IR] = for {
-    irElements <- anyFailAllFail(elements.map(_.toIR(agg)))
+    irElements <- anyFailAllFail(elements.map(_.toIR(agg))).filter(_ => elements.map(_.`type`).distinct.length == 1)
   } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 

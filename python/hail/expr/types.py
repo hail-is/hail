@@ -166,14 +166,11 @@ class TInt64(Type):
         return annotation
 
     def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().makeLong(annotation)
-        else:
-            return None
+        raise NotImplementedError('int64 conversion from Python to JVM')
 
     def _typecheck(self, annotation):
-        if annotation is not None and not (isinstance(annotation, long) or isinstance(annotation, int)):
-            raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
+        if annotation and not isinstance(annotation, int):
+            raise TypeCheckError("TInt64 expected type 'int', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "TInt64()"
@@ -239,7 +236,7 @@ class TFloat64(Type):
 class TString(Type):
     """Hail type for text strings.
 
-    In Python, these are represented as :obj:`unicode` strings.
+    In Python, these are represented as strings.
     """
 
     def __init__(self):
@@ -253,7 +250,7 @@ class TString(Type):
         return annotation
 
     def _typecheck(self, annotation):
-        if annotation is not None and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
+        if annotation and not isinstance(annotation, str):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
 
     def __str__(self):
@@ -485,7 +482,7 @@ class TDict(Type):
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return Env.jutils().javaMapToMap(
-                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.iteritems()}
+                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.items()}
             )
         else:
             return None
@@ -494,7 +491,7 @@ class TDict(Type):
         if annotation:
             if not isinstance(annotation, dict):
                 raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
-            for k, v in annotation.iteritems():
+            for k, v in annotation.items():
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
 

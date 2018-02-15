@@ -1,4 +1,4 @@
-import SocketServer
+import socketserver
 import socket
 import sys
 from threading import Thread
@@ -103,12 +103,12 @@ def jset(x):
 
 
 def jindexed_seq_args(x):
-    args = [x] if isinstance(x, str) or isinstance(x, unicode) else x
+    args = [x] if isinstance(x, str) else x
     return jindexed_seq(args)
 
 
 def jset_args(x):
-    args = [x] if isinstance(x, str) or isinstance(x, unicode) else x
+    args = [x] if isinstance(x, str) else x
     return jset(args)
 
 
@@ -176,6 +176,7 @@ def info(msg):
 
 @decorator
 def handle_py4j(func, *args, **kwargs):
+
     try:
         r = func(*args, **kwargs)
     except py4j.protocol.Py4JJavaError as e:
@@ -199,18 +200,18 @@ def handle_py4j(func, *args, **kwargs):
     return r
 
 
-class LoggingTCPHandler(SocketServer.StreamRequestHandler):
+class LoggingTCPHandler(socketserver.StreamRequestHandler):
     def handle(self):
         for line in self.rfile:
-            sys.stderr.write(line)
+            sys.stderr.write(line.decode("ISO-8859-1"))
 
 
-class SimpleServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class SimpleServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
     def __init__(self, server_address, handler_class):
-        SocketServer.TCPServer.__init__(self, server_address, handler_class)
+        socketserver.TCPServer.__init__(self, server_address, handler_class)
 
 
 def connect_logger(host, port):

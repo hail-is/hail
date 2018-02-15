@@ -1,4 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *

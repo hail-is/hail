@@ -1,10 +1,9 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions
 from hail.table import Table
+import itertools
 
 
 class GroupedMatrixTable(object):
@@ -145,7 +144,8 @@ class GroupedMatrixTable(object):
 
         strs = []
 
-        base, cleanup = self._parent._process_joins(*([x for _, x in self._groups] + named_exprs.values()))
+        base, cleanup = self._parent._process_joins(*itertools.chain(
+            [x for _, x in self._groups], named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedMatrixTable.aggregate', v, self._grouped_indices,
                     {self._parent._row_axis, self._parent._col_axis})
@@ -296,7 +296,7 @@ class MatrixTable(object):
     @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
                                                         oneof(slice, Expression, tupleof(Expression)))))
     def __getitem__(self, item):
-        if isinstance(item, str) or isinstance(item, unicode):
+        if isinstance(item, str):
             return self._get_field(item)
         else:
             # this is the join path
@@ -835,11 +835,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified global fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
@@ -896,11 +896,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified row fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -961,11 +961,11 @@ class MatrixTable(object):
             MatrixTable with specified column fields.
         """
 
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -1020,11 +1020,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified entry fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -1096,7 +1096,7 @@ class MatrixTable(object):
                     raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. 'foo', matrix.foo, or matrix['foo'])")
             else:
-                assert isinstance(e, str) or isinstance(str, unicode)
+                assert isinstance(e, str)
                 if e not in self._fields:
                     raise IndexError("matrix has no field '{}'".format(e))
                 fields_to_drop.add(e)
@@ -1590,7 +1590,7 @@ class MatrixTable(object):
         :class:MatrixTable`
             Matrix table exploded row-wise for each element of `field_expr`.
         """
-        if isinstance(field_expr, str) or isinstance(field_expr, unicode):
+        if isinstance(field_expr, str):
             if not field_expr in self._fields:
                 raise KeyError("MatrixTable has no field '{}'".format(field_expr))
             elif self._fields[field_expr]._indices != self._row_indices:
@@ -1638,7 +1638,7 @@ class MatrixTable(object):
             Matrix table exploded column-wise for each element of `field_expr`.
         """
 
-        if isinstance(field_expr, str) or isinstance(field_expr, unicode):
+        if isinstance(field_expr, str):
             if not field_expr in self._fields:
                 raise KeyError("MatrixTable has no field '{}'".format(field_expr))
             elif self._fields[field_expr]._indices != self._col_indices:
@@ -1683,7 +1683,7 @@ class MatrixTable(object):
         """
         groups = []
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 e = self[e]
             else:
                 e = to_expr(e)
@@ -1733,7 +1733,7 @@ class MatrixTable(object):
         """
         groups = []
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 e = self[e]
             else:
                 e = to_expr(e)
