@@ -1,91 +1,76 @@
 Methods
 =======
 
+.. currentmodule:: hail.methods
+
 .. toctree::
     :maxdepth: 2
 
+    impex
+    stats
+    genetics
+    misc
+
+.. rubric:: Import / Export
+
 .. autosummary::
 
-    hail.methods.linreg
-    hail.methods.logreg
-    hail.methods.lmmreg
-    hail.methods.skat
-    hail.methods.sample_rows
-    hail.methods.sample_qc
-    hail.methods.variant_qc
-    hail.methods.trio_matrix
-    hail.methods.grm
-    hail.methods.rrm
-    hail.methods.ibd
-    hail.methods.pca
-    hail.methods.hwe_normalized_pca
-    hail.methods.pc_relate
-    hail.methods.rename_duplicates
-    hail.methods.split_multi_hts
-    hail.methods.mendel_errors
-    hail.methods.vep
-    hail.methods.maximal_independent_set
-    hail.methods.export_cassandra
-    hail.methods.export_gen
-    hail.methods.export_plink
-    hail.methods.export_solr
-    hail.methods.export_vcf
-    hail.methods.concordance
-    hail.methods.read_matrix_table
-    hail.methods.read_table
-    hail.methods.import_interval_list
-    hail.methods.import_bed
-    hail.methods.import_fam
-    hail.methods.import_plink
-    hail.methods.import_bgen
-    hail.methods.import_gen
-    hail.methods.get_vcf_metadata
-    hail.methods.import_vcf
-    hail.methods.nirvana
-    hail.methods.tdt
-    hail.methods.SplitMulti
-    hail.methods.FilterAlleles
-    hail.methods.min_rep
-    hail.methods.balding_nichols_model
+    export_cassandra
+    export_gen
+    export_plink
+    export_solr
+    export_vcf
+    get_vcf_metadata
+    import_bed
+    import_bgen
+    import_fam
+    import_gen
+    import_interval_list
+    import_plink
+    import_vcf
+    read_matrix_table
+    read_table
 
-.. autofunction:: hail.methods.linreg
-.. autofunction:: hail.methods.logreg
-.. autofunction:: hail.methods.lmmreg
-.. autofunction:: hail.methods.skat
-.. autofunction:: hail.methods.sample_rows
-.. autofunction:: hail.methods.sample_qc
-.. autofunction:: hail.methods.variant_qc
-.. autofunction:: hail.methods.trio_matrix
-.. autofunction:: hail.methods.grm
-.. autofunction:: hail.methods.rrm
-.. autofunction:: hail.methods.ibd
-.. autofunction:: hail.methods.pca
-.. autofunction:: hail.methods.hwe_normalized_pca
-.. autofunction:: hail.methods.pc_relate
-.. autofunction:: hail.methods.rename_duplicates
-.. autofunction:: hail.methods.split_multi_hts
-.. autofunction:: hail.methods.mendel_errors
-.. autofunction:: hail.methods.vep
-.. autofunction:: hail.methods.maximal_independent_set
-.. autofunction:: hail.methods.export_cassandra
-.. autofunction:: hail.methods.export_gen
-.. autofunction:: hail.methods.export_plink
-.. autofunction:: hail.methods.export_solr
-.. autofunction:: hail.methods.export_vcf
-.. autofunction:: hail.methods.concordance
-.. autofunction:: hail.methods.read_matrix_table
-.. autofunction:: hail.methods.read_table
-.. autofunction:: hail.methods.import_interval_list
-.. autofunction:: hail.methods.import_bed
-.. autofunction:: hail.methods.import_fam
-.. autofunction:: hail.methods.import_plink
-.. autofunction:: hail.methods.import_bgen
-.. autofunction:: hail.methods.import_gen
-.. autofunction:: hail.methods.get_vcf_metadata
-.. autofunction:: hail.methods.import_vcf
-.. autofunction:: hail.methods.nirvana
-.. autofunction:: hail.methods.tdt
-.. autoclass:: hail.methods.FilterAlleles
-.. autoclass:: hail.methods.SplitMulti
-.. autofunction:: hail.methods.min_rep
-.. autofunction:: hail.methods.balding_nichols_model
+
+.. rubric:: Statistics
+
+.. autosummary::
+
+    linreg
+    logreg
+    lmmreg
+    pca
+
+
+.. rubric:: Genetics
+
+.. autosummary::
+
+    balding_nichols_model
+    concordance
+    FilterAlleles
+    grm
+    hwe_normalized_pca
+    ibd
+    mendel_errors
+    min_rep
+    nirvana
+    pc_relate
+    rrm
+    sample_qc
+    skat
+    SplitMulti
+    split_multi_hts
+    tdt
+    trio_matrix
+    variant_qc
+    vep
+
+
+.. rubric:: Miscellaneous
+
+.. autosummary::
+
+    maximal_independent_set
+    rename_duplicates
+    sample_rows

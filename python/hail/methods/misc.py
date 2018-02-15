@@ -13,10 +13,9 @@ from hail.expr.ast import Reference
            j=Expression,
            tie_breaker=nullable(func_spec(2, expr_numeric)))
 def maximal_independent_set(i, j, tie_breaker=None):
-    """Compute a `maximal independent set`_ of vertices in an undirected graph
-    whose edges are given by a two-column table.
-
-    .. _maximal independent set: https://en.wikipedia.org/wiki/Maximal_independent_set
+    """Compute a `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
+    of vertices in an undirected graph whose edges are given by a two-column
+    table.
 
     Examples
     --------
