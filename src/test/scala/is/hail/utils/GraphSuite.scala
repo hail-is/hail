@@ -3,11 +3,15 @@ package is.hail.utils
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
-
+import is.hail.expr.types._
+import is.hail.table.Table
+import org.apache.spark.sql.Row
 import scala.collection.mutable
-import scala.reflect.ClassTag
+import is.hail.SparkSuite
+
 
 class GraphSuite {
+
   import Graph._
 
   private def isIndependentSet[T](x: Array[T], g: T => mutable.Set[T]): Boolean = {
@@ -23,12 +27,12 @@ class GraphSuite {
 
     {
       val actual = maximalIndependentSet(Array(0 -> 1, 0 -> 2))
-      actual should contain theSameElementsAs Array(1,2)
+      actual should contain theSameElementsAs Array(1, 2)
     }
 
     {
       val actual = maximalIndependentSet(Array(0 -> 1, 0 -> 2, 3 -> 1, 3 -> 2))
-      actual should ((contain theSameElementsAs Array(1,2)) or (contain theSameElementsAs Array(0,3)))
+      actual should ((contain theSameElementsAs Array(1, 2)) or (contain theSameElementsAs Array(0, 3)))
     }
 
     {
@@ -82,7 +86,7 @@ class GraphSuite {
     val actual = maximalIndependentSet(g)
 
     assert(isIndependentSet(actual, g))
-    actual should contain theSameElementsAs Array(2,3)
+    actual should contain theSameElementsAs Array(2, 3)
   }
 
   @Test def emptyGraph() {
@@ -96,7 +100,7 @@ class GraphSuite {
   @Test def tieBreakingOfBipartiteGraphWorks() {
     val g = mkGraph(for (i <- 0 until 10) yield (i, i + 10))
     // prefer to remove big numbers
-    val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => l - r))
+    val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => (l - r).toLong))
 
     assert(isIndependentSet(actual, g))
     assert(actual.length == 10)
@@ -107,10 +111,37 @@ class GraphSuite {
   @Test def tieBreakingInLongCycleWorks() {
     val g = mkGraph(0 -> 1, 1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6, 6 -> 0)
     // prefers to remove small numbers
-    val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => r - l))
+    val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => (r - l).toLong))
 
     assert(isIndependentSet(actual, g))
     assert(actual.length == 3)
     actual should contain theSameElementsAs Array[Int](1, 3, 6)
+  }
+
+  @Test def misOnTableWithSingletons() {
+    val edges = List((0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
+    val nodes = List("A", "B", "C", "D", "E", "F", "G", "H", "I", "J").map(str => Row(str))
+
+    val nodeTable = Table
+      .parallelize(SparkSuite.hc, nodes.toIndexedSeq, TStruct("letter" -> TString()), Array.empty[String], None)
+      .index("idx")
+
+    val edgeTable = Table
+      .parallelize(SparkSuite.hc, edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) }.toIndexedSeq,
+        TStruct("i" -> TInt64(), "j" -> TInt64()), Array.empty[String], None)
+
+    val misTable = edgeTable.maximalIndependentSet(nodeTable, "row.idx", "row.i", "row.j", None)
+
+    val mis = misTable.select("row.letter").collect().map(row => row.getString(0))
+
+    val maximalIndependentSets = List(Set("A", "G", "F", "D", "I", "J"), Set("B", "E", "H", "C", "I", "J"))
+    // imperfect greedy algorithm may also give non-maximal independent sets
+    val nonMaximalIndependentSets = List(Set("A", "H", "I", "J"), Set("G", "B", "I", "J"))
+
+    assert(nonMaximalIndependentSets.contains(mis.toSet) || maximalIndependentSets.contains(mis.toSet))
+
+    assert(misTable.signature == nodeTable.signature
+      && misTable.key == nodeTable.key
+      && misTable.globalSignature == nodeTable.globalSignature)
   }
 }

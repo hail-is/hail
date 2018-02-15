@@ -1,5 +1,6 @@
 package is.hail.utils
 
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -31,11 +32,11 @@ object Graph {
     maximalIndependentSet(mkGraph(edges))
   }
 
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Int): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Long): Array[T] = {
     maximalIndependentSet(mkGraph(edges), Some(tieBreaker))
   }
 
-  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Int] = None): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Long] = None): Array[T] = {
     val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>
@@ -53,5 +54,4 @@ object Graph {
 
     verticesByDegree.toArray
   }
-
 }

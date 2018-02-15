@@ -526,9 +526,21 @@ class Tests(unittest.TestCase):
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
         t = hl.utils.range_table(10)
-        graph = t.select(i=t.idx, j=t.idx + 10)
-        mis = hl.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
+        graph = t.select(i=t.idx.to_int64(), j=(t.idx + 10).to_int64(), bad_type=t.idx.to_float32())
+
+        rows = [{'row_data': 'foo' + str(v)} for v in range(20)]
+        schema = hl.TStruct(['row_data'], [hl.TString()])
+        nodes = hl.Table.parallelize(rows, schema).index()
+
+        mis_table = hl.maximal_independent_set(nodes.idx, graph.i, graph.j, lambda l, r: l - r)
+        mis = [row['idx'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
+        self.assertEqual(mis_table.schema, nodes.schema)
+
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.capture(1), graph.i, graph.j))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(nodes.idx, graph.i, graph.bad_type))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(nodes.idx, graph.i, nodes.row_data))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(nodes.idx, hl.capture(1), hl.capture(2)))
 
     def test_filter_alleles(self):
         # poor man's Gen

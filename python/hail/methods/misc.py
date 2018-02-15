@@ -1,4 +1,3 @@
-from decorator import decorator
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
@@ -9,13 +8,15 @@ from hail.expr.ast import Reference
 
 
 @handle_py4j
-@typecheck(i=Expression,
+@typecheck(vertices=Expression,
+           i=Expression,
            j=Expression,
            tie_breaker=nullable(func_spec(2, expr_numeric)))
-def maximal_independent_set(i, j, tie_breaker=None):
-    """Compute a `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
-    of vertices in an undirected graph whose edges are given by a two-column
-    table.
+def maximal_independent_set(vertices, i, j, tie_breaker=None):
+    """Filter a table to contain only those rows that belong in a near `maximal independent set`,
+    where edges between the rows are given by a two-column table.
+
+    .. _maximal independent set: https://en.wikipedia.org/wiki/Maximal_independent_set
 
     Examples
     --------
@@ -25,31 +26,24 @@ def maximal_independent_set(i, j, tie_breaker=None):
 
     >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = pairs.aggregate(
-    ...     agg.collect_as_set(agg.explode([pairs.i, pairs.j])))
-    >>> related_samples_to_keep = hl.maximal_independent_set(pairs.i, pairs.j)
-    >>> related_samples_to_remove = hl.broadcast(related_samples - set(related_samples_to_keep))
-    >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
+    >>> individuals = pairs.annotate(id=[pairs.i,pairs.j]).select('id').explode('id')
+    >>> result_table = hl.maximal_independent_set(individuals.id, pairs.i, pairs.j)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
     >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = pairs.aggregate(
-    ...     agg.collect_as_set(agg.explode([pairs.i, pairs.j])))
     >>> samples = dataset.cols()
     >>> pairs_with_case = pairs.select(
-    ...     i = hl.Struct(id = pairs.i, is_case = samples[pairs.i].isCase),
-    ...     j = hl.Struct(id = pairs.j, is_case = samples[pairs.j].isCase))
+    ...     i=hl.Struct(id=pairs.i, is_case=samples[pairs.i].isCase),
+    ...     j=hl.Struct(id=pairs.j, is_case=samples[pairs.j].isCase))
     >>> def tie_breaker(l, r):
     ...     return hl.cond(l.is_case & ~r.is_case, -1,
-    ...         hl.cond(~l.is_case & r.is_case, 1, 0))
-    >>> related_samples_to_keep = hl.maximal_independent_set(
-    ...         pairs_with_case.i,
-    ...         pairs_with_case.j,
-    ...         tie_breaker)
-    >>> related_samples_to_remove = hl.broadcast(related_samples - {x.id for x in related_samples_to_keep})
-    >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
+    ...                    hl.cond(~l.is_case & r.is_case, 1, 0))
+    >>> individuals = (pairs_with_case.annotate(id_with_case=[pairs_with_case.i, pairs_with_case.j])
+    ...     .select('id_with_case').explode('id_with_case'))
+    >>> result_table = hl.maximal_independent_set(
+    ...     individuals.id_with_case, pairs_with_case.i, pairs_with_case.j, tie_breaker)
 
     Notes
     -----
@@ -59,12 +53,17 @@ def maximal_independent_set(i, j, tie_breaker=None):
     undirected edge between the vertices given by evaluating `i` and `j` on
     that row. An undirected edge may appear multiple times in the table and
     will not affect the output. Vertices with self-edges are removed as they
-    are not independent of themselves.
+    are not independent of themselves. Vertices with no edges will be kept in
+    the final filtered table.
 
-    The expressions for `i` and `j` must have the same type.
+    The expressions for `vertices`, `i`, and `j` must have the same type.
+    The vertices should be stored in a single column of one table, while the edges
+    are stored as columns i and j of another table.
 
     This method implements a greedy algorithm which iteratively removes a
-    vertex of highest degree until the graph contains no edges.
+    vertex of highest degree until the graph contains no edges. The greedy
+    algorithm always returns an independent set, but the set may not always
+    be perfectly maximal.
 
     `tie_breaker` is a Python function taking two arguments---say `l` and
     `r`---each of which is an :class:`Expression` of the same type as `i` and
@@ -83,25 +82,30 @@ def maximal_independent_set(i, j, tie_breaker=None):
 
     Parameters
     ----------
+    vertices : :class:`.Expression`
+        Expression representing the nodes of the table being filtered. Must be same type as i and j.
     i : :class:`.Expression`
-        Expression to compute one endpoint.
+        Expression to compute one endpoint of an edge.
     j : :class:`.Expression`
-        Expression to compute another endpoint.
+        Expression to compute another endpoint of an edge.
     tie_breaker : function
         Function used to order nodes with equal degree.
 
     Returns
     -------
-    :obj:`list` of elements with the same type as `i` and `j`
-        A list of vertices in a maximal independent set.
+    :class:`Table` filtered to the rows that belong in the approximate maximal independent set.
     """
-
-    if i.dtype != j.dtype:
-        raise ValueError("Expects arguments `i` and `j` to have same type. "
-                         "Found {} and {}.".format(i.dtype, j.dtype))
+    vertices_source = vertices._indices.source
+    if not isinstance(vertices_source, Table):
+        raise ValueError("Expects an expression of 'Table', found {}".format(
+            "expression of '{}'".format(
+                vertices_source.__class__) if vertices_source is not None else 'scalar expression'))
+    if i.dtype != j.dtype or vertices.dtype != i.dtype:
+        raise ValueError("Expects arguments `vertices`, `i` and `j` to have same type. "
+                         "Found {}, {} and {}.".format(vertices.dtype, i.dtype, j.dtype))
     source = i._indices.source
     if not isinstance(source, Table):
-        raise ValueError("Expect an expression of 'Table', found {}".format(
+        raise ValueError("Expects an expression of 'Table', found {}".format(
             "expression of '{}'".format(
                 source.__class__) if source is not None else 'scalar expression'))
     if i._indices.source != j._indices.source:
@@ -113,15 +117,14 @@ def maximal_independent_set(i, j, tie_breaker=None):
     l = construct_expr(Reference('l'), node_t)
     r = construct_expr(Reference('r'), node_t)
     if tie_breaker:
-        tie_breaker_expr = tie_breaker(l, r)
-        base, _ = source._process_joins(i, j, tie_breaker_expr)
+        tie_breaker_expr = tie_breaker(l, r).to_int64()
+        edges, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_hql = tie_breaker_expr._ast.to_hql()
     else:
-        base, _ = source._process_joins(i, j)
+        edges, _ = source._process_joins(i, j)
         tie_breaker_hql = None
-    return jarray_to_list(base._jt.maximalIndependentSet(i._ast.to_hql(),
-                                                         j._ast.to_hql(),
-                                                         joption(tie_breaker_hql)))
+    return Table(edges._jt.maximalIndependentSet(
+        vertices_source._jt, vertices._ast.to_hql(), i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker_hql)))
 
 
 def require_variant(dataset, method):
@@ -132,12 +135,14 @@ def require_variant(dataset, method):
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
+
 def require_locus(dataset, method):
     if (len(dataset.partition_key) != 1 or
             not isinstance(dataset[dataset.partition_key[0]].dtype, TLocus)):
         raise TypeError("Method '{}' requires partition key of type Locus.\n"
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=str)
