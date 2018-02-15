@@ -324,27 +324,27 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
-      vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      globalSig <- globalSigGen.resize(5);
-      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-      global <- globalGen(globalSig).resize(25);
-      nPartitions <- Gen.choose(1, 10);
+    vSig <- vSigGen.resize(3);
+    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    sSig <- sSigGen.resize(3);
+    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    globalSig <- globalSigGen.resize(5);
+    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
+    global <- globalGen(globalSig).resize(25);
+    nPartitions <- Gen.choose(1, 10);
 
-      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-        .map(ids => ids.distinct);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-      rows <- Gen.buildableOfN[Array](l,
-        for (
-          v <- vGen(vSig).resize(3);
-          va <- vaGen(vaSig).resize(5);
-          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-          yield (v, (va, ts: Iterable[Annotation]))))
+    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+      .map(ids => ids.distinct);
+    nSamples = sampleIds.length;
+    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+    rows <- Gen.buildableOfN[Array](l,
+      for (
+        v <- vGen(vSig).resize(3);
+        va <- vaGen(vaSig).resize(5);
+        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
+        yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))
         val (finalSaSchema, ins) = saSig.structInsert(sSig, List("s"))
@@ -418,6 +418,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         fatal(s"in $method: row key (variant) schema must be ('locus': Locus, 'alleles': Array[String], found: ${
           rowKey.zip(rowKeyTypes).mkString(", ")
         }")
+    }
+  }
+
+  def requirePartitionKeyLocus(method: String) {
+    rowPartitionKeyTypes match {
+      case Array(_: TLocus) =>
+      case t =>
+        fatal(s"in $method: partition key schema must be Locus, found: $t")
     }
   }
 
@@ -1005,9 +1013,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val ur = new UnsafeRow(ktSignature, rv)
         val interval = ur.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
-          val start = partBc.value.getPartitionPK(Row(interval.start))
-          val end = partBc.value.getPartitionPK(Row(interval.end))
-          (start to end).view.map(i => (i, rv))
+          val rangeTree = partBc.value.rangeTree
+          val pkOrd = partBc.value.pkType.ordering
+          val wrappedInterval = interval.copy(start = Row(interval.start), end = Row(interval.end))
+          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv))
         } else
           Iterator()
       }
@@ -1022,7 +1031,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType
     val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
     val newRDD = rvd.rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
-      val intervalAnnotations =
+      val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { rv =>
           val ur = new UnsafeRow(ktSignature, rv)
           val interval = ur.getAs[Interval](ktKeyFieldIdx)
@@ -2674,7 +2683,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         it.flatMap { rv =>
           val ur = new UnsafeRow(localRVRowType, rv.region, rv.offset)
-          val v = ur.getAs[Variant](1)
+          val v = Variant.fromLocusAlleles(ur)
           val minv = v.minRep
 
           var isLeftAligned = (prevLocus == null || prevLocus != v.locus) &&
@@ -2691,9 +2700,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.start(localRVRowType)
             rvb.startStruct()
             rvb.addAnnotation(localRVRowType.fieldType(0), minv.locus)
-            rvb.addAnnotation(localRVRowType.fieldType(1), minv)
-            rvb.addField(localRVRowType, rv, 2)
-            rvb.addField(localRVRowType, rv, 3)
+            rvb.addAnnotation(localRVRowType.fieldType(1), minv.alleles)
+            var i = 2
+            while (i < localRVRowType.size) {
+              rvb.addField(localRVRowType, rv, i)
+              i += 1
+            }
             rvb.endStruct()
             rv2.set(rv.region, rvb.end())
             Some(rv2)

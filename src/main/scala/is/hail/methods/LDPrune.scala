@@ -293,21 +293,17 @@ object LDPrune {
     require(inputRDD.storageLevel == StorageLevel.MEMORY_AND_DISK)
 
     val partitioner = inputRDD.partitioner
-    val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Row].getAs[Locus](0)).toArray
-    val partitionIndices = inputRDD.partitions.map(_.index)
+    val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Interval]).toArray
     val nPartitions = inputRDD.partitions.length
 
     val localRowType = inputRDD.typ.rowType
 
     def computeDependencies(partitionId: Int): Array[Int] = {
-      if (partitionId == partitionIndices(0))
-        Array(partitionId)
-      else {
-        val startLocus = rangeBounds(partitionId - 1) // this is the best estimate of the first locus of the partition
-        val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
-        val minPart = partitioner.getPartitionPK(Annotation(minLocus))
-        partitionIndices.filter(idx => idx >= minPart && idx <= partitionId).reverse
-      }
+      val startLocus = rangeBounds(partitionId).start.asInstanceOf[UnsafeRow].getAs[Locus](0)
+      val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
+      
+      val minPart = partitioner.getPartitionPK(Annotation(minLocus))
+      Array.range(minPart, partitionId + 1).reverse
     }
 
     def pruneF = (x: Array[Iterator[RegionValue]]) => {
@@ -340,9 +336,8 @@ object LDPrune {
       }
     }
 
-    val contigStartPartitions =
-      partitionIndices.filter { i =>
-        i == partitionIndices(0) || i == partitionIndices.last || rangeBounds(i).contig != rangeBounds(i - 1).contig
+    val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
+        i == 0 || rangeBounds(i-1).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
       }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
@@ -360,7 +355,7 @@ object LDPrune {
       (rvds.toArray, inputs.toArray)
     }
 
-    for (i <- partitionIndices) {
+    for (i <- 0 until nPartitions) {
       val (rvds, inputs) = generalRDDInputs(i)
       pruneIntermediates(i) = GlobalPruneIntermediate(
         rvd = new UnpartitionedRVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),

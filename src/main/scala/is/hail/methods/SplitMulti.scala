@@ -95,11 +95,11 @@ class SplitMultiPartitionContext(
       if (removeMoving)
         return Iterator()
       else if (verifyLeftAligned)
-        fatal(s"found non-left aligned variant: ${rvv.locus()}:$ref:${alts.mkString(",")} ")
+        fatal(s"found non-left aligned variant: ${ rvv.locus() }:$ref:${ alts.mkString(",") } ")
     }
 
     if (sortAlleles)
-      splitVariants = splitVariants.sortBy { case (svj, i) => svj } (variantOrdering)
+      splitVariants = splitVariants.sortBy { case (svj, i) => svj }(variantOrdering)
 
     val nAlleles = 1 + alts.length
     val nGenotypes = Variant.nGenotypes(nAlleles)
@@ -173,9 +173,10 @@ object SplitMulti {
 
   def unionMovedVariants(ordered: OrderedRVD,
     moved: RDD[RegionValue]): OrderedRVD = {
-    ordered.partitionSortedUnion(OrderedRVD.shuffle(ordered.typ,
-      ordered.partitioner,
-      moved))
+    val movedRVD = OrderedRVD.adjustBoundsAndShuffle(ordered.typ,
+      ordered.partitioner, moved)
+
+    ordered.copy(orderedPartitioner = movedRVD.partitioner).partitionSortedUnion(movedRVD)
   }
 }
 

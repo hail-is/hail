@@ -250,16 +250,16 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   def inY(contig: String): Boolean = yContigs.contains(contig)
 
   def copyState(sex: Sex, locus: Locus): CopyState = {
-      // FIXME this seems wrong (no MT); I copied it from Variant
-      if (sex == Sex.Male)
-        if (inX(locus.contig) && !inXPar(locus))
-          CopyState.HemiX
-        else if (inY(locus.contig) && !inYPar(locus))
-          CopyState.HemiY
-        else
-          CopyState.Auto
+    // FIXME this seems wrong (no MT); I copied it from Variant
+    if (sex == Sex.Male)
+      if (inX(locus.contig) && !inXPar(locus))
+        CopyState.HemiX
+      else if (inY(locus.contig) && !inYPar(locus))
+        CopyState.HemiY
       else
         CopyState.Auto
+    else
+      CopyState.Auto
   }
 
   def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
@@ -415,7 +415,8 @@ object GenomeReference {
       gr.asInstanceOf[GenomeReference].write(hc, grPath)
   }
 
-  def exportReferences(hc: HailContext, path: String, t: Type) { (t: @unchecked) match {
+  def exportReferences(hc: HailContext, path: String, t: Type) {
+    (t: @unchecked) match {
       case TArray(elementType, _) => exportReferences(hc, path, elementType)
       case TSet(elementType, req) => exportReferences(hc, path, elementType)
       case TDict(keyType, valueType, _) =>
@@ -426,7 +427,8 @@ object GenomeReference {
       case TLocus(gr, _) => writeReference(hc, path, gr)
       case TInterval(TLocus(gr, _), _) => writeReference(hc, path, gr)
       case _ =>
-  }}
+    }
+  }
 
   def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {
     (contigsIndex.get(c1), contigsIndex.get(c2)) match {
@@ -557,7 +559,7 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
   def checkInterval(l1: Locus, l2: Locus): Unit = ???
 
   def checkInterval(contig: String, start: Int, end: Int): Unit = ???
-  
+
   def contigLength(contig: String): Int = ???
 
   def contigLength(contigIdx: Int): Int = ???

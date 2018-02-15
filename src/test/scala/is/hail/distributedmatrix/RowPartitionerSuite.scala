@@ -2,7 +2,6 @@ package is.hail.distributedmatrix
 
 import is.hail.check.Arbitrary.arbitrary
 import is.hail.check.{Gen, Prop}
-import is.hail.utils.BinarySearch
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -46,14 +45,5 @@ class RowPartitionerSuite extends TestNGSuite {
       true
     }
     Prop.forAll(g).check()
-  }
-  
-  @Test
-  def testRelationshipToBinarySearch() {
-    val a = Array[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
-    
-    assert((0 until a.length - 1).forall(key =>
-      RowPartitioner.findInterval(a, key) == 
-        BinarySearch.binarySearch(a.length - 1, j => math.signum(key + 1 - a(j + 1)).toInt)))
   }
 }

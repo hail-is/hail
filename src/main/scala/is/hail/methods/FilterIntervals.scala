@@ -1,7 +1,6 @@
 package is.hail.methods
 
-import is.hail.annotations.UnsafeRow
-import is.hail.expr.types.Type
+import is.hail.annotations.{UnsafeRow, WritableRegionValue}
 import is.hail.utils.{Interval, IntervalTree}
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -10,34 +9,31 @@ import scala.collection.JavaConverters._
 
 object FilterIntervals {
   def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
-    vsm.requireRowKeyVariant("filter_intervals")
-    val locusField = vsm.rowType.fieldByName(vsm.rowKey(0))
-    val iList = IntervalTree(locusField.typ.ordering, intervals.asScala.toArray)
+    vsm.requirePartitionKeyLocus("filter_intervals")
+    val locusField = vsm.rowType.fieldByName(vsm.rowPartitionKey(0))
+    val iList = IntervalTree(locusField.typ.ordering,
+      intervals.asScala.map { i =>
+        Interval(Row(i.start), Row(i.end), i.includeStart, i.includeEnd)
+      }.toArray)
     apply(vsm, iList, keep)
   }
 
   def apply[U](vsm: MatrixTable, intervals: IntervalTree[U], keep: Boolean): MatrixTable = {
     if (keep) {
-      val pkIntervals = IntervalTree(
-        vsm.matrixType.orvdType.pkType.ordering,
-        intervals.map { case (i, _) =>
-          Interval(Row(i.start), Row(i.end), true, false)
-        }.toArray)
-      vsm.copy2(rvd = vsm.rvd.filterIntervals(pkIntervals))
+      vsm.copy2(rvd = vsm.rvd.filterIntervals(intervals))
     } else {
       val intervalsBc = vsm.sparkContext.broadcast(intervals)
-
-      val locusField = vsm.rowType.fieldByName(vsm.rowKey(0))
-      val locusIdx = locusField.index
-
-      val fullRowType = vsm.rvRowType
-      val localLocusOrdering = locusField.typ.ordering
+      val pkType = vsm.rvd.typ.pkType
+      val pkRowFieldIdx = vsm.rvd.typ.pkRowFieldIdx
+      val rowType = vsm.rvd.typ.rowType
 
       vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ) { it =>
-        val ur = new UnsafeRow(fullRowType)
+        val pk = WritableRegionValue(pkType)
+        val pkUR = new UnsafeRow(pkType)
         it.filter { rv =>
-          ur.set(rv)
-          !intervalsBc.value.contains(localLocusOrdering, ur.get(locusIdx))
+          pk.setSelect(rowType, pkRowFieldIdx, rv)
+          pkUR.set(pk.value)
+          !intervalsBc.value.contains(pkType.ordering, pkUR)
         }
       })
     }
