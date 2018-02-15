@@ -84,7 +84,7 @@ def export_gen(dataset, output, precision=4):
     dataset = require_biallelic(dataset, 'export_gen')
     try:
         gp = dataset['GP']
-        if gp.dtype != TArray(TFloat64()) or gp._indices != dataset._entry_indices:
+        if gp.dtype != TArray(tfloat64) or gp._indices != dataset._entry_indices:
             raise KeyError
     except KeyError:
         raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
@@ -162,8 +162,8 @@ def export_plink(dataset, output, **fam_args):
         Named expressions defining FAM field values.
     """
 
-    fam_dict = {'fam_id': TString(), 'id': TString(), 'mat_id': TString(), 'pat_id': TString(),
-                'is_female': TBoolean(), 'is_case': TBoolean(), 'quant_pheno': TFloat64()}
+    fam_dict = {'fam_id': tstr, 'id': tstr, 'mat_id': tstr, 'pat_id': tstr,
+                'is_female': tbool, 'is_case': tbool, 'quant_pheno': tfloat64}
 
     exprs = []
     named_exprs = {k: v for k, v in fam_args.items()}
@@ -308,7 +308,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     """
 
-    typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
+    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
     Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
                                       Env.hail().utils.ExportType.getExportType(parallel),
                                       joption(typ._convert_to_j(metadata)))
@@ -644,7 +644,7 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
     rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
-        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     tolerance, joption(min_partitions), rg._jrep,
@@ -743,7 +743,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
-        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
                                    tolerance, rg._jrep, joption(contig_recoding))
@@ -789,7 +789,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     To import this table using field types:
 
     >>> table = hl.import_table('data/samples1.tsv',
-    ...                              types={'Height': hl.TFloat64(), 'Age': hl.TInt32()})
+    ...                              types={'Height': hl.tfloat64, 'Age': hl.tint32})
 
     Note ``Sample`` and ``Status`` need no type, because :class:`.TString` is
     the default type.
@@ -882,7 +882,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     ``Chromosome`` only contains the values ``1`` through ``22``, it will be
     imputed to have type :class:.TInt32, whereas most Hail methods expect that a
     chromosome field will be of type :class:.TString.  Setting ``impute=True``
-    and ``types={'Chromosome': TString()}`` solves this problem.
+    and ``types={'Chromosome': tstr}`` solves this problem.
 
     Parameters
     ----------
@@ -1056,8 +1056,8 @@ def import_plink(bed, bim, fam,
     rg = reference_genome if reference_genome else Env.hc().default_reference
 
     if contig_recoding:
-        contig_recoding = TDict(TString(),
-                                TString())._convert_to_j(contig_recoding)
+        contig_recoding = tdict(tstr,
+                                tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
                                     delimiter, missing, quant_pheno,
@@ -1139,7 +1139,7 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
-    typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
+    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
 
 
@@ -1263,7 +1263,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
-        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                    joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,

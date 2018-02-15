@@ -106,7 +106,7 @@ class Tests(unittest.TestCase):
 
         plink_sex = hl.import_table(out_file + '.sexcheck',
                                     delimiter=' +',
-                                    types={'SNPSEX': hl.TInt32(),
+                                    types={'SNPSEX': hl.tint32,
                                            'F': hl.TFloat64()})
         plink_sex = plink_sex.select('IID', 'SNPSEX', 'F')
         plink_sex = plink_sex.select(
@@ -115,7 +115,7 @@ class Tests(unittest.TestCase):
                               True,
                               hl.cond(plink_sex.SNPSEX == 1,
                                       False,
-                                      hl.null(hl.TBoolean()))),
+                                      hl.null(hl.tbool))),
             f_stat=plink_sex.F).key_by('s')
 
         sex = sex.select(s=sex.s,
@@ -132,10 +132,10 @@ class Tests(unittest.TestCase):
         dataset = hl.import_vcf(test_file('regressionLinear.vcf'))
 
         phenos = hl.import_table(test_file('regressionLinear.pheno'),
-                                 types={'Pheno': hl.TFloat64()},
+                                 types={'Pheno': hl.tfloat64},
                                  key='Sample')
         covs = hl.import_table(test_file('regressionLinear.cov'),
-                               types={'Cov1': hl.TFloat64(), 'Cov2': hl.TFloat64()},
+                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
@@ -489,8 +489,8 @@ class Tests(unittest.TestCase):
 
         truth = hl.import_table(
             test_file('tdt_results.tsv'),
-            types={'POSITION': hl.TInt32(), 'T': hl.TInt32(), 'U': hl.TInt32(),
-                   'Chi2': hl.TFloat64(), 'Pval': hl.TFloat64()})
+            types={'POSITION': hl.tint32, 'T': hl.tint32, 'U': hl.tint32,
+                   'Chi2': hl.tfloat64, 'Pval': hl.tfloat64})
         truth = (truth
             .transmute(locus=hl.locus(truth.CHROM, truth.POSITION),
                        alleles=[truth.REF, truth.ALT])
@@ -572,7 +572,7 @@ class Tests(unittest.TestCase):
     def test_entries_table(self):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
-        schema = hl.TStruct(['i', 'j', 'entry'],
+        schema = hl.tstruct(['i', 'j', 'entry'],
                             [hl.tint64, hl.tint64, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
         numpy_matrix = np.reshape(map(lambda row: row['entry'], rows), (num_rows, num_cols))
@@ -625,15 +625,15 @@ class Tests(unittest.TestCase):
             .key_by("Sample"))
 
         phenotypesSkat = (hl.import_table(test_file("skat.pheno"),
-                                          types={"Pheno": hl.TFloat64()},
+                                          types={"Pheno": hl.tfloat64},
                                           missing="0")
             .key_by("Sample"))
 
         intervalsSkat = (hl.import_interval_list(test_file("skat.interval_list")))
 
         weightsSkat = (hl.import_table(test_file("skat.weights"),
-                                       types={"locus": hl.TLocus(),
-                                              "weight": hl.TFloat64()})
+                                       types={"locus": hl.tlocus(),
+                                              "weight": hl.tfloat64})
             .key_by("locus"))
 
         ds = hl.split_multi_hts(ds2)
@@ -645,7 +645,7 @@ class Tests(unittest.TestCase):
                                             False,
                                             hl.cond(ds.pheno == 2.0,
                                                     True,
-                                                    hl.null(hl.TBoolean()))))
+                                                    hl.null(hl.tbool))))
 
         hl.skat(ds,
                 key_expr=ds.gene,

@@ -220,7 +220,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
                           True,
                           hl.cond(ds.ib.f_stat > male_threshold,
                                   False,
-                                  hl.null(TBoolean()))),
+                                  hl.null(tbool))),
         **ds.ib).cols_table()
 
     return kt
@@ -1860,7 +1860,7 @@ class SplitMulti(object):
         :class:`.ArrayStringExpression`
         """
         return construct_reference(
-            "newAlleles", type=TArray(TString()), indices=self._ds._row_indices)
+            "newAlleles", type=TArray(tstr), indices=self._ds._row_indices)
 
     def a_index(self):
         """The index of the input allele to the output variant.
@@ -1870,7 +1870,7 @@ class SplitMulti(object):
         :class:`.Expression` of type :class:`.TInt32`
         """
         return construct_reference(
-            "aIndex", type=TInt32(), indices=self._ds._row_indices)
+            "aIndex", type=tint32, indices=self._ds._row_indices)
 
     def was_split(self):
         """``True`` if the original variant was multiallelic.
@@ -1880,7 +1880,7 @@ class SplitMulti(object):
         :class:`.BooleanExpression`
         """
         return construct_reference(
-            "wasSplit", type=TBoolean(), indices=self._ds._row_indices)
+            "wasSplit", type=tbool, indices=self._ds._row_indices)
 
     def update_rows(self, **kwargs):
         """Set the row field updates for this SplitMulti object.
@@ -2190,7 +2190,7 @@ def grm(dataset):
     dataset.unpersist()
     grm = bm.T.dot(bm)
 
-    return KinshipMatrix._from_block_matrix(TString(),
+    return KinshipMatrix._from_block_matrix(tstr,
                                             grm,
                                             [row.s for row in dataset.cols_table().select('s').collect()],
                                             n_variants)
@@ -2290,7 +2290,7 @@ def rrm(call_expr):
     dataset.unpersist()
     rrm = bm.T.dot(bm) / n_variants
 
-    return KinshipMatrix._from_block_matrix(TString(),
+    return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
                                             [row.s for row in dataset.cols_table().select('s').collect()],
                                             n_variants)
@@ -2504,14 +2504,14 @@ class FilterAlleles(object):
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
     ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
-    ...     hl.null(hl.TArray(hl.TInt32())))
+    ...     hl.null(hl.TArray(hl.tint32)))
     ... fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
     ...         hl.range(0, fa.new_alleles.length()).map(
     ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
-    ...         hl.null(hl.TArray(hl.TInt32()))),
+    ...         hl.null(hl.TArray(hl.tint32))),
     ...     GQ = hl.gq_from_pl(newPL),
     ...     PL = newPL)
     ... filtered_result = fa.filter()
@@ -2555,8 +2555,8 @@ class FilterAlleles(object):
         self._row_exprs = None
         self._entry_exprs = None
 
-        self._old_to_new = construct_reference('oldToNew', TArray(TInt32()), ds._row_indices)
-        self._new_to_old = construct_reference('newToOld', TArray(TInt32()), ds._row_indices)
+        self._old_to_new = construct_reference('oldToNew', TArray(tint32), ds._row_indices)
+        self._new_to_old = construct_reference('newToOld', TArray(tint32), ds._row_indices)
         self._new_locus = construct_reference('newLocus', ds['locus'].dtype, ds._row_indices)
         self._new_alleles = construct_reference('newAlleles', ds['alleles'].dtype, ds._row_indices)
 
@@ -2715,14 +2715,14 @@ class FilterAlleles(object):
                     lambda newc: ds.PL[hl.call(False, self.new_to_old[newc[0]],
                                                self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
                 lambda unnorm: unnorm - hl.min(unnorm)),
-            hl.null(TArray(TInt32())))
+            hl.null(TArray(tint32)))
         self.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
             AD=hl.cond(
                 hl.is_defined(ds.AD),
                 hl.range(0, self.new_alleles.length()).map(
                     lambda newi: ds.AD[self.new_to_old[newi]]),
-                hl.null(TArray(TInt32()))),
+                hl.null(TArray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL)
@@ -2811,7 +2811,7 @@ class FilterAlleles(object):
                                      self.old_to_new[oldc[0]],
                                      self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
                 .map(lambda oldi: ds.PL[oldi])))),
-            hl.null(TArray(TInt32())))
+            hl.null(TArray(tint32)))
         self.annotate_entries(
             GT=hl.call(False,
                        self.old_to_new[ds.GT[0]],
@@ -2821,7 +2821,7 @@ class FilterAlleles(object):
                     .map(lambda newi: hl.sum(hl.range(0, hl.len(ds.alleles))
                     .filter(lambda oldi: self.old_to_new[oldi] == newi)
                     .map(lambda oldi: ds.AD[oldi])))),
-                hl.null(TArray(TInt32()))),
+                hl.null(TArray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL)

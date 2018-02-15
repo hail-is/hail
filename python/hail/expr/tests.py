@@ -18,48 +18,48 @@ def tearDownModule():
 
 class Tests(unittest.TestCase):
     def test_types(self):
-        self.assertEqual(TInt32(), TInt32())
-        self.assertEqual(TFloat64(), TFloat64())
-        self.assertEqual(TArray(TFloat64()), TArray(TFloat64()))
-        self.assertNotEqual(TArray(TFloat64()), TArray(TFloat32()))
-        self.assertNotEqual(TSet(TFloat64()), TArray(TFloat64()))
-        self.assertEqual(TSet(TFloat64()), TSet(TFloat64()))
-        self.assertEqual(TDict(TString(), TArray(TInt32())), TDict(TString(), TArray(TInt32())))
+        self.assertEqual(tint32, tint32)
+        self.assertEqual(tfloat64, tfloat64)
+        self.assertEqual(tarray(tfloat64), tarray(tfloat64))
+        self.assertNotEqual(tarray(tfloat64), tarray(tfloat32))
+        self.assertNotEqual(tset(tfloat64), tarray(tfloat64))
+        self.assertEqual(tset(tfloat64), tset(tfloat64))
+        self.assertEqual(tdict(tstr, tarray(tint32)), tdict(tstr, tarray(tint32)))
 
         some_random_types = [
-            TInt32(),
-            TString(),
-            TFloat32(),
-            TFloat64(),
-            TBoolean(),
-            TArray(TString()),
-            TSet(TArray(TSet(TBoolean()))),
-            TDict(TString(), TInt32()),
-            TLocus(),
-            TCall(),
-            TInterval(TLocus()),
-            TSet(TInterval(TLocus())),
-            TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
-            TStruct(['a', 'b'], [TInt32(), TInt32()])]
+            tint32,
+            tstr,
+            tfloat32,
+            tfloat64,
+            tbool,
+            tarray(tstr),
+            tset(tarray(tset(tbool))),
+            tdict(tstr, tint32),
+            tlocus(),
+            tcall,
+            tinterval(tlocus()),
+            tset(tinterval(tlocus())),
+            tstruct(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
+            tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
+            tstruct(['a', 'b'], [tint32, tint32])]
 
         #  copy and reinitialize to check that two initializations produce equality (not reference equality)
         some_random_types_cp = [
-            TInt32(),
-            TString(),
-            TFloat32(),
-            TFloat64(),
-            TBoolean(),
-            TArray(TString()),
-            TSet(TArray(TSet(TBoolean()))),
-            TDict(TString(), TInt32()),
-            TLocus(),
-            TCall(),
-            TInterval(TLocus()),
-            TSet(TInterval(TLocus())),
-            TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
-            TStruct(['a', 'b'], [TInt32(), TInt32()])]
+            tint32,
+            tstr,
+            tfloat32,
+            tfloat64,
+            tbool,
+            tarray(tstr),
+            tset(tarray(tset(tbool))),
+            tdict(tstr, tint32),
+            tlocus(),
+            tcall,
+            tinterval(tlocus()),
+            tset(tinterval(tlocus())),
+            tstruct(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
+            tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
+            tstruct(['a', 'b'], [tint32, tint32])]
 
         for i in range(len(some_random_types)):
             for j in range(len(some_random_types)):
@@ -72,25 +72,25 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
     def test_repr(self):
-        tl = TLocus()
-        ti = TInterval(TLocus())
-        tc = TCall()
+        tl = tlocus()
+        ti = tinterval(tlocus())
+        tc = tcall
 
-        ti32 = TInt32()
-        ti64 = TInt64()
-        tf32 = TFloat32()
-        tf64 = TFloat64()
-        ts = TString()
-        tb = TBoolean()
+        ti32 = tint32
+        ti64 = tint64
+        tf32 = tfloat32
+        tf64 = tfloat64
+        ts = tstr
+        tb = tbool
 
-        tdict = TDict(TInterval(TLocus()), TFloat32())
-        tset = TArray(TLocus())
-        tarray = TArray(TString())
-        tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])
+        tdict_ = tdict(tinterval(tlocus()), tfloat32)
+        tset_ = tarray(tlocus())
+        tarray_ = tarray(tstr)
+        tstruct_ = tstruct(['a', 'b'], [tbool, tarray(tstr)])
 
         for typ in [tl, ti, tc,
                     ti32, ti64, tf32, tf64, ts, tb,
-                    tdict, tarray, tset, tstruct]:
+                    tdict_, tarray_, tset_, tstruct_]:
             self.assertEqual(eval(repr(typ)), typ)
 
     def test_matches(self):
@@ -107,7 +107,7 @@ class Tests(unittest.TestCase):
         r = table.aggregate(Struct(x=agg.count(),
                                    y=agg.count_where(table.idx % 2 == 0),
                                    z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
-                                   arr_sum=agg.array_sum([1, 2, hl.null(TInt32())])))
+                                   arr_sum=agg.array_sum([1, 2, hl.null(tint32)])))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
@@ -127,14 +127,14 @@ class Tests(unittest.TestCase):
 
     def test_dtype(self):
         i32 = hl.capture(5)
-        self.assertEqual(i32.dtype, TInt32())
+        self.assertEqual(i32.dtype, tint32)
 
         str_exp = hl.capture('5')
-        self.assertEqual(str_exp.dtype, TString())
+        self.assertEqual(str_exp.dtype, tstr)
 
     def test_switch(self):
         x = hl.capture('1')
-        na = hl.null(TInt32())
+        na = hl.null(tint32)
 
         expr1 = (hl.switch(x)
             .when('123', 5)
@@ -159,7 +159,7 @@ class Tests(unittest.TestCase):
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(hl.null(TInt32()), 3)  # NA != NA
+            .when(hl.null(tint32), 3)  # NA != NA
             .default(4))
         self.assertEqual(hl.eval_expr(expr4), None)
 
@@ -167,7 +167,7 @@ class Tests(unittest.TestCase):
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(hl.null(TInt32()), 3)  # NA != NA
+            .when(hl.null(tint32), 3)  # NA != NA
             .when_missing(-1)
             .default(4))
         self.assertEqual(hl.eval_expr(expr5), -1)
@@ -199,39 +199,39 @@ class Tests(unittest.TestCase):
 
         assert_typed(s.drop('f3'),
                      Struct(f1=1, f2=2),
-                     TStruct(['f1', 'f2'], [TInt32(), TInt32()]))
+                     tstruct(['f1', 'f2'], [tint32, tint32]))
 
         assert_typed(s.drop('f1'),
                      Struct(f2=2, f3=3),
-                     TStruct(['f2', 'f3'], [TInt32(), TInt32()]))
+                     tstruct(['f2', 'f3'], [tint32, tint32]))
 
         assert_typed(s.drop(),
                      Struct(f1=1, f2=2, f3=3),
-                     TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
+                     tstruct(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
         assert_typed(s.select('f1', 'f2'),
                      Struct(f1=1, f2=2),
-                     TStruct(['f1', 'f2'], [TInt32(), TInt32()]))
+                     tstruct(['f1', 'f2'], [tint32, tint32]))
 
         assert_typed(s.select('f2', 'f1', f4=5, f5=6),
                      Struct(f2=2, f1=1, f4=5, f5=6),
-                     TStruct(['f2', 'f1', 'f4', 'f5'], [TInt32(), TInt32(), TInt32(), TInt32()]))
+                     tstruct(['f2', 'f1', 'f4', 'f5'], [tint32, tint32, tint32, tint32]))
 
         assert_typed(s.select(),
                      Struct(),
-                     TStruct([], []))
+                     tstruct([], []))
 
         assert_typed(s.annotate(f1=5, f2=10, f4=15),
                      Struct(f1=5, f2=10, f3=3, f4=15),
-                     TStruct(['f1', 'f2', 'f3', 'f4'], [TInt32(), TInt32(), TInt32(), TInt32()]))
+                     tstruct(['f1', 'f2', 'f3', 'f4'], [tint32, tint32, tint32, tint32]))
 
         assert_typed(s.annotate(f1=5),
                      Struct(f1=5, f2=2, f3=3),
-                     TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
+                     tstruct(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
         assert_typed(s.annotate(),
                      Struct(f1=1, f2=2, f3=3),
-                     TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
+                     tstruct(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
     def test_iter(self):
         a = hl.capture([1, 2, 3])
@@ -269,11 +269,11 @@ class Tests(unittest.TestCase):
         self.assertEqual((expected, expected_type), hl.eval_expr_typed(expr))
 
     def test_division(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int64_4 = hl.capture(4).to_int64()
         int64_4s = int32_4s.map(lambda x: x.to_int64())
         float32_4 = hl.capture(4).to_float32()
@@ -284,73 +284,73 @@ class Tests(unittest.TestCase):
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
-        self.check_expr(a_int32 / 4, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 / 4, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 / 4, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 / 4, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / 4, expected, tarray(tfloat32))
+        self.check_expr(a_int64 / 4, expected, tarray(tfloat32))
+        self.check_expr(a_float32 / 4, expected, tarray(tfloat32))
+        self.check_expr(a_float64 / 4, expected, tarray(tfloat64))
 
-        self.check_expr(int32_4s / a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int32_4s / a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(int32_4s / a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int32_4s / a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat32))
+        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int32_4s / a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(int32_4s / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int32_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 / int32_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 / int32_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 / int32_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_float32 / int32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 / int32_4s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 / int64_4, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 / int64_4, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 / int64_4, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat32))
+        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat32))
+        self.check_expr(a_float32 / int64_4, expected, tarray(tfloat32))
+        self.check_expr(a_float64 / int64_4, expected, tarray(tfloat64))
 
-        self.check_expr(int64_4 / a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_4 / a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_4 / a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_4 / a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_4 / a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_4 / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 / int64_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 / int64_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 / int64_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat32))
+        self.check_expr(a_float32 / int64_4s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 / int64_4s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 / float32_4, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 / float32_4, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 / float32_4, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 / float32_4, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / float32_4, expected, tarray(tfloat32))
+        self.check_expr(a_int64 / float32_4, expected, tarray(tfloat32))
+        self.check_expr(a_float32 / float32_4, expected, tarray(tfloat32))
+        self.check_expr(a_float64 / float32_4, expected, tarray(tfloat64))
 
-        self.check_expr(float32_4 / a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_4 / a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_4 / a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_4 / a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_4 / a_int32, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_4 / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_4 / a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_4 / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / float32_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 / float32_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 / float32_4s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 / float32_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / float32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int64 / float32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_float32 / float32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 / float32_4s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 / float64_4, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 / float64_4, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 / float64_4, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 / float64_4, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / float64_4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / float64_4, expected, tarray(tfloat64))
+        self.check_expr(a_float32 / float64_4, expected, tarray(tfloat64))
+        self.check_expr(a_float64 / float64_4, expected, tarray(tfloat64))
 
-        self.check_expr(float64_4 / a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_4 / a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_4 / a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_4 / a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_4 / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_4 / a_int64, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_4 / a_float32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_4 / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / float64_4s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 / float64_4s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 / float64_4s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 / float64_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 / float64_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / float64_4s, expected, tarray(tfloat64))
+        self.check_expr(a_float32 / float64_4s, expected, tarray(tfloat64))
+        self.check_expr(a_float64 / float64_4s, expected, tarray(tfloat64))
 
     def test_floor_division(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
-        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
         int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
         float32_3 = hl.capture(3).to_float32()
@@ -361,73 +361,73 @@ class Tests(unittest.TestCase):
         expected = [0, 1, 2, 5, None]
         expected_inv = [1, 0, 0, 0, None]
 
-        self.check_expr(a_int32 // 3, expected, TArray(TInt32()))
-        self.check_expr(a_int64 // 3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 // 3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 // 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // 3, expected, tarray(tint32))
+        self.check_expr(a_int64 // 3, expected, tarray(tint64))
+        self.check_expr(a_float32 // 3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 // 3, expected, tarray(tfloat64))
 
-        self.check_expr(3 // a_int32, expected_inv, TArray(TInt32()))
-        self.check_expr(3 // a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(3 // a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(3 // a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 // a_int32, expected_inv, tarray(tint32))
+        self.check_expr(3 // a_int64, expected_inv, tarray(tint64))
+        self.check_expr(3 // a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(3 // a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 // int32_3s, expected, TArray(TInt32()))
-        self.check_expr(a_int64 // int32_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 // int32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 // int32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // int32_3s, expected, tarray(tint32))
+        self.check_expr(a_int64 // int32_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 // int32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 // int32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 // int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_int64 // int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 // int64_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 // int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // int64_3, expected, tarray(tint64))
+        self.check_expr(a_int64 // int64_3, expected, tarray(tint64))
+        self.check_expr(a_float32 // int64_3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 // int64_3, expected, tarray(tfloat64))
 
-        self.check_expr(int64_3 // a_int32, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 // a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 // a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_3 // a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 // a_int32, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 // a_int64, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 // a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_3 // a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 // int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_int64 // int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 // int64_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 // int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // int64_3s, expected, tarray(tint64))
+        self.check_expr(a_int64 // int64_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 // int64_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 // int64_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 // float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 // float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 // float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 // float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // float32_3, expected, tarray(tfloat32))
+        self.check_expr(a_int64 // float32_3, expected, tarray(tfloat32))
+        self.check_expr(a_float32 // float32_3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 // float32_3, expected, tarray(tfloat64))
 
-        self.check_expr(float32_3 // a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 // a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 // a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 // a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 // a_int32, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_3 // a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_3 // a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_3 // a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 // float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 // float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 // float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 // float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_int64 // float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float32 // float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 // float32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 // float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 // float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 // float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 // float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_int64 // float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_float32 // float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_float64 // float64_3, expected, tarray(tfloat64))
 
-        self.check_expr(float64_3 // a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 // a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 // a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 // a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 // a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 // a_int64, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 // a_float32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 // a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 // float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 // float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 // float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 // float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 // float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 // float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_float32 // float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_float64 // float64_3s, expected, tarray(tfloat64))
 
     def test_addition(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
-        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
         int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
         float32_3 = hl.capture(3).to_float32()
@@ -438,73 +438,73 @@ class Tests(unittest.TestCase):
         expected = [5, 7, 11, 19, None]
         expected_inv = expected
 
-        self.check_expr(a_int32 + 3, expected, TArray(TInt32()))
-        self.check_expr(a_int64 + 3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 + 3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 + 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + 3, expected, tarray(tint32))
+        self.check_expr(a_int64 + 3, expected, tarray(tint64))
+        self.check_expr(a_float32 + 3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 + 3, expected, tarray(tfloat64))
 
-        self.check_expr(3 + a_int32, expected_inv, TArray(TInt32()))
-        self.check_expr(3 + a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(3 + a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(3 + a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 + a_int32, expected_inv, tarray(tint32))
+        self.check_expr(3 + a_int64, expected_inv, tarray(tint64))
+        self.check_expr(3 + a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(3 + a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 + int32_3s, expected, TArray(TInt32()))
-        self.check_expr(a_int64 + int32_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 + int32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 + int32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + int32_3s, expected, tarray(tint32))
+        self.check_expr(a_int64 + int32_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 + int32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 + int32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 + int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_int64 + int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 + int64_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 + int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + int64_3, expected, tarray(tint64))
+        self.check_expr(a_int64 + int64_3, expected, tarray(tint64))
+        self.check_expr(a_float32 + int64_3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 + int64_3, expected, tarray(tfloat64))
 
-        self.check_expr(int64_3 + a_int32, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 + a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 + a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_3 + a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 + a_int32, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 + a_int64, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 + a_float32, expected_inv, TArray(tfloat32))
+        self.check_expr(int64_3 + a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 + int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_int64 + int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 + int64_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 + int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + int64_3s, expected, TArray(tint64))
+        self.check_expr(a_int64 + int64_3s, expected, TArray(tint64))
+        self.check_expr(a_float32 + int64_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float64 + int64_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 + float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 + float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 + float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 + float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_int64 + float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_float32 + float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_float64 + float32_3, expected, TArray(tfloat64))
 
-        self.check_expr(float32_3 + a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 + a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 + a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 + a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 + a_int32, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 + a_int64, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 + a_float32, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 + a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 + float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 + float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 + float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 + float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_int64 + float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float32 + float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 + float32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 + float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 + float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 + float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 + float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_int64 + float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_float32 + float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_float64 + float64_3, expected, tarray(tfloat64))
 
-        self.check_expr(float64_3 + a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 + a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 + a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 + a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 + a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 + a_int64, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 + a_float32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 + a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 + float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 + float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 + float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 + float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 + float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 + float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_float32 + float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_float64 + float64_3s, expected, tarray(tfloat64))
 
     def test_subtraction(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
-        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
         int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
         float32_3 = hl.capture(3).to_float32()
@@ -515,73 +515,73 @@ class Tests(unittest.TestCase):
         expected = [-1, 1, 5, 13, None]
         expected_inv = [1, -1, -5, -13, None]
 
-        self.check_expr(a_int32 - 3, expected, TArray(TInt32()))
-        self.check_expr(a_int64 - 3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 - 3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 - 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - 3, expected, tarray(tint32))
+        self.check_expr(a_int64 - 3, expected, tarray(tint64))
+        self.check_expr(a_float32 - 3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 - 3, expected, tarray(tfloat64))
 
-        self.check_expr(3 - a_int32, expected_inv, TArray(TInt32()))
-        self.check_expr(3 - a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(3 - a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(3 - a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 - a_int32, expected_inv, tarray(tint32))
+        self.check_expr(3 - a_int64, expected_inv, tarray(tint64))
+        self.check_expr(3 - a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(3 - a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 - int32_3s, expected, TArray(TInt32()))
-        self.check_expr(a_int64 - int32_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 - int32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 - int32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - int32_3s, expected, tarray(tint32))
+        self.check_expr(a_int64 - int32_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 - int32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 - int32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 - int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_int64 - int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 - int64_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 - int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - int64_3, expected, tarray(tint64))
+        self.check_expr(a_int64 - int64_3, expected, tarray(tint64))
+        self.check_expr(a_float32 - int64_3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 - int64_3, expected, tarray(tfloat64))
 
-        self.check_expr(int64_3 - a_int32, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 - a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 - a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_3 - a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 - a_int32, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 - a_int64, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 - a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_3 - a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 - int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_int64 - int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 - int64_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 - int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - int64_3s, expected, tarray(tint64))
+        self.check_expr(a_int64 - int64_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 - int64_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 - int64_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 - float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 - float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 - float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 - float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - float32_3, expected, tarray(tfloat32))
+        self.check_expr(a_int64 - float32_3, expected, tarray(tfloat32))
+        self.check_expr(a_float32 - float32_3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 - float32_3, expected, tarray(tfloat64))
 
-        self.check_expr(float32_3 - a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 - a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 - a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 - a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 - a_int32, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_3 - a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_3 - a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(float32_3 - a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 - float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 - float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 - float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 - float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_int64 - float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float32 - float32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 - float32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 - float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 - float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 - float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 - float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_int64 - float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_float32 - float64_3, expected, tarray(tfloat64))
+        self.check_expr(a_float64 - float64_3, expected, tarray(tfloat64))
 
-        self.check_expr(float64_3 - a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 - a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 - a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 - a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 - a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 - a_int64, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 - a_float32, expected_inv, tarray(tfloat64))
+        self.check_expr(float64_3 - a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 - float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 - float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 - float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 - float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 - float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 - float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_float32 - float64_3s, expected, tarray(tfloat64))
+        self.check_expr(a_float64 - float64_3s, expected, tarray(tfloat64))
 
     def test_multiplication(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
-        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
         int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
         float32_3 = hl.capture(3).to_float32()
@@ -592,73 +592,73 @@ class Tests(unittest.TestCase):
         expected = [6, 12, 24, 48, None]
         expected_inv = expected
 
-        self.check_expr(a_int32 * 3, expected, TArray(TInt32()))
-        self.check_expr(a_int64 * 3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 * 3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 * 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * 3, expected, tarray(tint32))
+        self.check_expr(a_int64 * 3, expected, tarray(tint64))
+        self.check_expr(a_float32 * 3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 * 3, expected, tarray(tfloat64))
 
-        self.check_expr(3 * a_int32, expected_inv, TArray(TInt32()))
-        self.check_expr(3 * a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(3 * a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(3 * a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 * a_int32, expected_inv, tarray(tint32))
+        self.check_expr(3 * a_int64, expected_inv, tarray(tint64))
+        self.check_expr(3 * a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(3 * a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 * int32_3s, expected, TArray(TInt32()))
-        self.check_expr(a_int64 * int32_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 * int32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 * int32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * int32_3s, expected, tarray(tint32))
+        self.check_expr(a_int64 * int32_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 * int32_3s, expected, tarray(tfloat32))
+        self.check_expr(a_float64 * int32_3s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 * int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_int64 * int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 * int64_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 * int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * int64_3, expected, tarray(tint64))
+        self.check_expr(a_int64 * int64_3, expected, tarray(tint64))
+        self.check_expr(a_float32 * int64_3, expected, tarray(tfloat32))
+        self.check_expr(a_float64 * int64_3, expected, tarray(tfloat64))
 
-        self.check_expr(int64_3 * a_int32, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 * a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 * a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_3 * a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 * a_int32, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 * a_int64, expected_inv, tarray(tint64))
+        self.check_expr(int64_3 * a_float32, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_3 * a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 * int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_int64 * int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 * int64_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 * int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * int64_3s, expected, tarray(tint64))
+        self.check_expr(a_int64 * int64_3s, expected, tarray(tint64))
+        self.check_expr(a_float32 * int64_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float64 * int64_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 * float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 * float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 * float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 * float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_int64 * float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_float32 * float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_float64 * float32_3, expected, TArray(tfloat64))
 
-        self.check_expr(float32_3 * a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 * a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 * a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 * a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 * a_int32, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 * a_int64, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 * a_float32, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 * a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 * float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 * float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 * float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 * float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * float32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_int64 * float32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float32 * float32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float64 * float32_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 * float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 * float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 * float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 * float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_int64 * float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float32 * float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float64 * float64_3, expected, TArray(tfloat64))
 
-        self.check_expr(float64_3 * a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 * a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 * a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 * a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 * a_int32, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 * a_int64, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 * a_float32, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 * a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 * float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 * float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 * float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 * float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 * float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_int64 * float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float32 * float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float64 * float64_3s, expected, TArray(tfloat64))
 
     def test_exponentiation(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
-        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
         int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
         float32_3 = hl.capture(3).to_float32()
@@ -669,73 +669,73 @@ class Tests(unittest.TestCase):
         expected = [8, 64, 512, 4096, None]
         expected_inv = [9.0, 81.0, 6561.0, 43046721.0, None]
 
-        self.check_expr(a_int32 ** 3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** 3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** 3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** 3, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** 3, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** 3, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** 3, expected, TArray(tfloat64))
 
-        self.check_expr(3 ** a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(3 ** a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(3 ** a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(3 ** a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 ** a_int32, expected_inv, TArray(tfloat64))
+        self.check_expr(3 ** a_int64, expected_inv, TArray(tfloat64))
+        self.check_expr(3 ** a_float32, expected_inv, TArray(tfloat64))
+        self.check_expr(3 ** a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** int32_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** int32_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** int32_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** int32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** int32_3s, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** int32_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** int32_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** int32_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** int64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** int64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** int64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** int64_3, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** int64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** int64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** int64_3, expected, TArray(tfloat64))
 
-        self.check_expr(int64_3 ** a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(int64_3 ** a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(int64_3 ** a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(int64_3 ** a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 ** a_int32, expected_inv, TArray(tfloat64))
+        self.check_expr(int64_3 ** a_int64, expected_inv, TArray(tfloat64))
+        self.check_expr(int64_3 ** a_float32, expected_inv, TArray(tfloat64))
+        self.check_expr(int64_3 ** a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** int64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** int64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** int64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** int64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** int64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** int64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** int64_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** float32_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** float32_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** float32_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** float32_3, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** float32_3, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** float32_3, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** float32_3, expected, TArray(tfloat64))
 
-        self.check_expr(float32_3 ** a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float32_3 ** a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float32_3 ** a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float32_3 ** a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 ** a_int32, expected_inv, TArray(tfloat64))
+        self.check_expr(float32_3 ** a_int64, expected_inv, TArray(tfloat64))
+        self.check_expr(float32_3 ** a_float32, expected_inv, TArray(tfloat64))
+        self.check_expr(float32_3 ** a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** float32_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** float32_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** float32_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** float32_3s, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** float32_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** float32_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** float32_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** float64_3, expected, TArray(tfloat64))
 
-        self.check_expr(float64_3 ** a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 ** a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 ** a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 ** a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 ** a_int32, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 ** a_int64, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 ** a_float32, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 ** a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 ** float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 ** float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 ** float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 ** float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 ** float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_int64 ** float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float32 ** float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float64 ** float64_3s, expected, TArray(tfloat64))
 
     def test_modulus(self):
-        a_int32 = hl.capture([2, 4, 8, 16, hl.null(TInt32())])
+        a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
         a_float64 = a_int32.map(lambda x: x.to_float64())
-        int32_4s = hl.capture([4, 4, 4, 4, hl.null(TInt32())])
-        int32_3s = hl.capture([3, 3, 3, 3, hl.null(TInt32())])
+        int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
+        int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
         int64_3 = hl.capture(3).to_int64()
         int64_3s = int32_3s.map(lambda x: x.to_int64())
         float32_3 = hl.capture(3).to_float32()
@@ -746,65 +746,65 @@ class Tests(unittest.TestCase):
         expected = [2, 1, 2, 1, None]
         expected_inv = [1, 3, 3, 3, None]
 
-        self.check_expr(a_int32 % 3, expected, TArray(TInt32()))
-        self.check_expr(a_int64 % 3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 % 3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 % 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % 3, expected, TArray(tint32))
+        self.check_expr(a_int64 % 3, expected, TArray(tint64))
+        self.check_expr(a_float32 % 3, expected, TArray(tfloat32))
+        self.check_expr(a_float64 % 3, expected, TArray(tfloat64))
 
-        self.check_expr(3 % a_int32, expected_inv, TArray(TInt32()))
-        self.check_expr(3 % a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(3 % a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(3 % a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 % a_int32, expected_inv, TArray(tint32))
+        self.check_expr(3 % a_int64, expected_inv, TArray(tint64))
+        self.check_expr(3 % a_float32, expected_inv, TArray(tfloat32))
+        self.check_expr(3 % a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 % int32_3s, expected, TArray(TInt32()))
-        self.check_expr(a_int64 % int32_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 % int32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 % int32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % int32_3s, expected, TArray(tint32))
+        self.check_expr(a_int64 % int32_3s, expected, TArray(tint64))
+        self.check_expr(a_float32 % int32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float64 % int32_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 % int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_int64 % int64_3, expected, TArray(TInt64()))
-        self.check_expr(a_float32 % int64_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 % int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % int64_3, expected, TArray(tint64))
+        self.check_expr(a_int64 % int64_3, expected, TArray(tint64))
+        self.check_expr(a_float32 % int64_3, expected, TArray(tfloat32))
+        self.check_expr(a_float64 % int64_3, expected, TArray(tfloat64))
 
-        self.check_expr(int64_3 % a_int32, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 % a_int64, expected_inv, TArray(TInt64()))
-        self.check_expr(int64_3 % a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(int64_3 % a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 % a_int32, expected_inv, TArray(tint64))
+        self.check_expr(int64_3 % a_int64, expected_inv, TArray(tint64))
+        self.check_expr(int64_3 % a_float32, expected_inv, TArray(tfloat32))
+        self.check_expr(int64_3 % a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 % int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_int64 % int64_3s, expected, TArray(TInt64()))
-        self.check_expr(a_float32 % int64_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 % int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % int64_3s, expected, TArray(tint64))
+        self.check_expr(a_int64 % int64_3s, expected, TArray(tint64))
+        self.check_expr(a_float32 % int64_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float64 % int64_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 % float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 % float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 % float32_3, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 % float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_int64 % float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_float32 % float32_3, expected, TArray(tfloat32))
+        self.check_expr(a_float64 % float32_3, expected, TArray(tfloat64))
 
-        self.check_expr(float32_3 % a_int32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 % a_int64, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 % a_float32, expected_inv, TArray(TFloat32()))
-        self.check_expr(float32_3 % a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 % a_int32, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 % a_int64, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 % a_float32, expected_inv, TArray(tfloat32))
+        self.check_expr(float32_3 % a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 % float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_int64 % float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float32 % float32_3s, expected, TArray(TFloat32()))
-        self.check_expr(a_float64 % float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % float32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_int64 % float32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float32 % float32_3s, expected, TArray(tfloat32))
+        self.check_expr(a_float64 % float32_3s, expected, TArray(tfloat64))
 
-        self.check_expr(a_int32 % float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 % float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 % float64_3, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 % float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_int64 % float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float32 % float64_3, expected, TArray(tfloat64))
+        self.check_expr(a_float64 % float64_3, expected, TArray(tfloat64))
 
-        self.check_expr(float64_3 % a_int32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 % a_int64, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 % a_float32, expected_inv, TArray(TFloat64()))
-        self.check_expr(float64_3 % a_float64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 % a_int32, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 % a_int64, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 % a_float32, expected_inv, TArray(tfloat64))
+        self.check_expr(float64_3 % a_float64, expected_inv, TArray(tfloat64))
 
-        self.check_expr(a_int32 % float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_int64 % float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float32 % float64_3s, expected, TArray(TFloat64()))
-        self.check_expr(a_float64 % float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int32 % float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_int64 % float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float32 % float64_3s, expected, TArray(tfloat64))
+        self.check_expr(a_float64 % float64_3s, expected, TArray(tfloat64))
 
     def test_allele_methods(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
@@ -854,70 +854,70 @@ class Tests(unittest.TestCase):
         c2_hetvar = hl.capture(Call([2, 1], phased=True))
         c1 = hl.capture(Call([1]))
         c0 = hl.capture(Call([]))
-        cNull = hl.capture(hl.null(TCall()))
+        cNull = hl.capture(hl.null(tcall))
 
-        self.check_expr(c2_homref.ploidy, 2, TInt32())
-        self.check_expr(c2_homref[0], 0, TInt32())
-        self.check_expr(c2_homref[1], 0, TInt32())
-        self.check_expr(c2_homref.phased, False, TBoolean())
-        self.check_expr(c2_homref.is_hom_ref(), True, TBoolean())
+        self.check_expr(c2_homref.ploidy, 2, tint32)
+        self.check_expr(c2_homref[0], 0, tint32)
+        self.check_expr(c2_homref[1], 0, tint32)
+        self.check_expr(c2_homref.phased, False, tbool)
+        self.check_expr(c2_homref.is_hom_ref(), True, tbool)
 
-        self.check_expr(c2_het.ploidy, 2, TInt32())
-        self.check_expr(c2_het[0], 1, TInt32())
-        self.check_expr(c2_het[1], 0, TInt32())
-        self.check_expr(c2_het.phased, True, TBoolean())
-        self.check_expr(c2_het.is_het(), True, TBoolean())
+        self.check_expr(c2_het.ploidy, 2, tint32)
+        self.check_expr(c2_het[0], 1, tint32)
+        self.check_expr(c2_het[1], 0, tint32)
+        self.check_expr(c2_het.phased, True, tbool)
+        self.check_expr(c2_het.is_het(), True, tbool)
 
-        self.check_expr(c2_homvar.ploidy, 2, TInt32())
-        self.check_expr(c2_homvar[0], 1, TInt32())
-        self.check_expr(c2_homvar[1], 1, TInt32())
-        self.check_expr(c2_homvar.phased, False, TBoolean())
-        self.check_expr(c2_homvar.is_hom_var(), True, TBoolean())
-        self.check_expr(c2_homvar.unphased_diploid_gt_index(), 2, TInt32())
+        self.check_expr(c2_homvar.ploidy, 2, tint32)
+        self.check_expr(c2_homvar[0], 1, tint32)
+        self.check_expr(c2_homvar[1], 1, tint32)
+        self.check_expr(c2_homvar.phased, False, tbool)
+        self.check_expr(c2_homvar.is_hom_var(), True, tbool)
+        self.check_expr(c2_homvar.unphased_diploid_gt_index(), 2, tint32)
 
-        self.check_expr(c2_hetvar.ploidy, 2, TInt32())
-        self.check_expr(c2_hetvar[0], 2, TInt32())
-        self.check_expr(c2_hetvar[1], 1, TInt32())
-        self.check_expr(c2_hetvar.phased, True, TBoolean())
-        self.check_expr(c2_hetvar.is_hom_var(), False, TBoolean())
-        self.check_expr(c2_hetvar.is_het_nonref(), True, TBoolean())
+        self.check_expr(c2_hetvar.ploidy, 2, tint32)
+        self.check_expr(c2_hetvar[0], 2, tint32)
+        self.check_expr(c2_hetvar[1], 1, tint32)
+        self.check_expr(c2_hetvar.phased, True, tbool)
+        self.check_expr(c2_hetvar.is_hom_var(), False, tbool)
+        self.check_expr(c2_hetvar.is_het_nonref(), True, tbool)
 
-        self.check_expr(c1.ploidy, 1, TInt32())
-        self.check_expr(c1[0], 1, TInt32())
-        self.check_expr(c1.phased, False, TBoolean())
-        self.check_expr(c1.is_hom_var(), True, TBoolean())
+        self.check_expr(c1.ploidy, 1, tint32)
+        self.check_expr(c1[0], 1, tint32)
+        self.check_expr(c1.phased, False, tbool)
+        self.check_expr(c1.is_hom_var(), True, tbool)
 
-        self.check_expr(c0.ploidy, 0, TInt32())
-        self.check_expr(c0.phased, False, TBoolean())
-        self.check_expr(c0.is_hom_var(), False, TBoolean())
+        self.check_expr(c0.ploidy, 0, tint32)
+        self.check_expr(c0.phased, False, tbool)
+        self.check_expr(c0.is_hom_var(), False, tbool)
 
-        self.check_expr(cNull.ploidy, None, TInt32())
-        self.check_expr(cNull[0], None, TInt32())
-        self.check_expr(cNull.phased, None, TBoolean())
-        self.check_expr(cNull.is_hom_var(), None, TBoolean())
+        self.check_expr(cNull.ploidy, None, tint32)
+        self.check_expr(cNull[0], None, tint32)
+        self.check_expr(cNull.phased, None, tbool)
+        self.check_expr(cNull.is_hom_var(), None, tbool)
 
         call_expr = hl.call(True, 1, 2)
-        self.check_expr(call_expr[0], 1, TInt32())
-        self.check_expr(call_expr[1], 2, TInt32())
-        self.check_expr(call_expr.ploidy, 2, TInt32())
+        self.check_expr(call_expr[0], 1, tint32)
+        self.check_expr(call_expr[1], 2, tint32)
+        self.check_expr(call_expr.ploidy, 2, tint32)
 
         a0 = hl.capture(1)
         a1 = 2
         phased = hl.capture(True)
         call_expr = hl.call(phased, a0, a1)
-        self.check_expr(call_expr[0], 1, TInt32())
-        self.check_expr(call_expr[1], 2, TInt32())
-        self.check_expr(call_expr.ploidy, 2, TInt32())
+        self.check_expr(call_expr[0], 1, tint32)
+        self.check_expr(call_expr[1], 2, tint32)
+        self.check_expr(call_expr.ploidy, 2, tint32)
 
         call_expr = hl.parse_call("1|2")
-        self.check_expr(call_expr[0], 1, TInt32())
-        self.check_expr(call_expr[1], 2, TInt32())
-        self.check_expr(call_expr.ploidy, 2, TInt32())
+        self.check_expr(call_expr[0], 1, tint32)
+        self.check_expr(call_expr[1], 2, tint32)
+        self.check_expr(call_expr.ploidy, 2, tint32)
 
         call_expr = hl.unphased_diploid_gt_index_call(2)
-        self.check_expr(call_expr[0], 1, TInt32())
-        self.check_expr(call_expr[1], 1, TInt32())
-        self.check_expr(call_expr.ploidy, 2, TInt32())
+        self.check_expr(call_expr[0], 1, tint32)
+        self.check_expr(call_expr[1], 1, tint32)
+        self.check_expr(call_expr.ploidy, 2, tint32)
 
     def test_parse_variant(self):
         self.assertEqual(hl.eval_expr(hl.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),

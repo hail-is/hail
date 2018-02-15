@@ -88,38 +88,38 @@ def to_expr(e):
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
     elif isinstance(e, str) or isinstance(e, unicode):
-        return construct_expr(Literal('"{}"'.format(escape_str(e))), TString())
+        return construct_expr(Literal('"{}"'.format(escape_str(e))), tstr)
     elif isinstance(e, bool):
-        return construct_expr(Literal("true" if e else "false"), TBoolean())
+        return construct_expr(Literal("true" if e else "false"), tbool)
     elif isinstance(e, int):
-        return construct_expr(Literal(str(e)), TInt32())
+        return construct_expr(Literal(str(e)), tint32)
     elif isinstance(e, long):
-        return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), TInt64())
+        return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), tint64)
     elif isinstance(e, float):
-        return construct_expr(Literal(str(e)), TFloat64())
+        return construct_expr(Literal(str(e)), tfloat64)
     elif isinstance(e, Locus):
-        return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
+        return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), tlocus(e.reference_genome))
     elif isinstance(e, Interval):
         return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))),
-                              TInterval(TLocus(e.reference_genome)))
+                              tinterval(tlocus(e.reference_genome)))
     elif isinstance(e, Call):
         if e.ploidy == 0:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), TCall())
+            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), tcall)
         elif e.ploidy == 1:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast), TCall())
+            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast), tcall)
         elif e.ploidy == 2:
             return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast, to_expr(e[1])._ast),
-                                  TCall())
+                                  tcall)
         else:
             raise NotImplementedError("Do not support calls with ploidy == {}.".format(e.ploidy))
     elif isinstance(e, Struct):
         if len(e) == 0:
-            return construct_expr(StructDeclaration([], []), TStruct([], []))
+            return construct_expr(StructDeclaration([], []), tstruct([], []))
         attrs = e._fields.items()
         cols = [to_expr(x) for _, x in attrs]
         names = [k for k, _ in attrs]
         indices, aggregations, joins, refs = unify_all(*cols)
-        t = TStruct(names, [col._type for col in cols])
+        t = tstruct(names, [col._type for col in cols])
         return construct_expr(StructDeclaration(names, [c._ast for c in cols]),
                               t, indices, aggregations, joins, refs)
     elif isinstance(e, list):
@@ -133,7 +133,7 @@ def to_expr(e):
                                       '\n    Found types: {}.'.format(types))
         indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ArrayDeclaration([col._ast for col in cols]),
-                              TArray(t), indices, aggregations, joins, refs)
+                              tarray(t), indices, aggregations, joins, refs)
     elif isinstance(e, set):
         if len(e) == 0:
             raise ExpressionException('Cannot convert empty set to expression.')
@@ -144,7 +144,7 @@ def to_expr(e):
             raise ExpressionException('Cannot convert set with heterogeneous types to expression.'
                                       '\n    Found types: {}.'.format(types))
         indices, aggregations, joins, refs = unify_all(*cols)
-        return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), TSet(t), indices,
+        return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), tset(t), indices,
                               aggregations, joins, refs)
     elif isinstance(e, dict):
         if len(e) == 0:
@@ -179,7 +179,7 @@ def to_expr(e):
         ast = ApplyMethod('Dict',
                           ArrayDeclaration([k._ast for k in key_cols]),
                           ArrayDeclaration([v._ast for v in value_cols]))
-        return construct_expr(ast, TDict(kt, vt), indices, aggregations, joins, refs)
+        return construct_expr(ast, tdict(kt, vt), indices, aggregations, joins, refs)
     else:
         raise ExpressionException("Cannot implicitly convert value '{}' of type '{}' to expression.".format(
             e, e.__class__))
@@ -261,12 +261,12 @@ def unify_types_limited(*ts):
         # assert there are at least 2 numeric types
         assert len(classes) > 1
         if TFloat64 in classes:
-            return TFloat64()
+            return tfloat64
         elif TFloat32 in classes:
-            return TFloat32()
+            return tfloat32
         else:
             assert classes == {TInt32, TInt64}
-            return TInt64()
+            return tint64
     else:
         return None
 
@@ -280,16 +280,16 @@ def unify_types(*ts):
         # assert there are at least 2 numeric types
         assert len(classes) > 1
         if TFloat64 in classes:
-            return TFloat64()
+            return tfloat64
         elif TFloat32 in classes:
-            return TFloat32()
+            return tfloat32
         else:
             assert classes == {TInt32, TInt64}
-            return TInt64()
+            return tint64
     elif all(isinstance(t, TArray) for t in ts):
         et = unify_types(*(t.element_type for t in ts))
         if et:
-            return TArray(et)
+            return tarray(et)
         else:
             return None
     else:
@@ -486,7 +486,7 @@ class Expression(object):
             raise TypeError("Invalid '==' comparison, cannot compare expressions of type '{}' and '{}'".format(
                 self._type, other._type
             ))
-        return self._bin_op("==", other, TBoolean())
+        return self._bin_op("==", other, tbool)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -527,7 +527,7 @@ class Expression(object):
             raise TypeError("Invalid '!=' comparison, cannot compare expressions of type '{}' and '{}'".format(
                 self._type, other._type
             ))
-        return self._bin_op("!=", other, TBoolean())
+        return self._bin_op("!=", other, tbool)
 
 
 class CollectionExpression(Expression):
@@ -744,7 +744,7 @@ class CollectionExpression(Expression):
         :class:`.DictExpression`.
             Dictionary keyed by results of `f`.
         """
-        return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: TDict(t, self._type))
+        return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: tdict(t, self._type))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -790,7 +790,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :class:`.TInt32`
             The number of elements in the collection.
         """
-        return self._method("size", TInt32())
+        return self._method("size", tint32)
 
     def size(self):
         """Returns the size of a collection.
@@ -810,7 +810,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :class:`.TInt32`
             The number of elements in the collection.
         """
-        return self._method("size", TInt32())
+        return self._method("size", tint32)
 
 
 class ArrayExpression(CollectionExpression):
@@ -986,7 +986,7 @@ class ArrayNumericExpression(ArrayExpression):
         if not t:
             return None
         else:
-            return TArray(t)
+            return tarray(t)
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         other = to_expr(other)
@@ -1120,7 +1120,7 @@ class ArrayNumericExpression(ArrayExpression):
             assert isinstance(t, TArray)
             assert is_numeric(t.element_type)
             if isinstance(t.element_type, TInt32) or isinstance(t.element_type, TInt64):
-                return TArray(TFloat32())
+                return tarray(tfloat32)
             else:
                 # Float64 or Float32
                 return t
@@ -1132,7 +1132,7 @@ class ArrayNumericExpression(ArrayExpression):
             assert isinstance(t, TArray)
             assert is_numeric(t.element_type)
             if isinstance(t.element_type, TInt32) or isinstance(t.element_type, TInt64):
-                return TArray(TFloat32())
+                return tarray(tfloat32)
             else:
                 # Float64 or Float32
                 return t
@@ -1206,10 +1206,10 @@ class ArrayNumericExpression(ArrayExpression):
         -------
         :class:`.ArrayNumericExpression`
         """
-        return self._bin_op_numeric('**', other, lambda _: TArray(TFloat64()))
+        return self._bin_op_numeric('**', other, lambda _: tarray(tfloat64))
 
     def __rpow__(self, other):
-        return self._bin_op_numeric_reverse('**', other, lambda _: TArray(TFloat64()))
+        return self._bin_op_numeric_reverse('**', other, lambda _: tarray(tfloat64))
 
 
 class SetExpression(CollectionExpression):
@@ -1305,7 +1305,7 @@ class SetExpression(CollectionExpression):
             raise TypeError("'SetExpression.contains' expects 'item' to be the same type as its elements\n"
                             "    set element type:   '{}'\n"
                             "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
-        return self._method("contains", TBoolean(), item)
+        return self._method("contains", tbool, item)
 
     @typecheck_method(s=expr_set)
     def difference(self, s):
@@ -1392,7 +1392,7 @@ class SetExpression(CollectionExpression):
             raise TypeError("'SetExpression.is_subset' expects 's' to be the same type\n"
                             "    set type:    '{}'\n"
                             "    type of 's': '{}'".format(self._type, s._type))
-        return self._method("isSubset", TBoolean(), s)
+        return self._method("isSubset", tbool, s)
 
     @typecheck_method(s=expr_set)
     def union(self, s):
@@ -1492,7 +1492,7 @@ class DictExpression(Expression):
             raise TypeError("'DictExpression.contains' encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
                             "    type of 'item': '{}'".format(self._type.key_type, item._type))
-        return self._method("contains", TBoolean(), item)
+        return self._method("contains", tbool, item)
 
     @typecheck_method(item=expr_any)
     def get(self, item):
@@ -1539,7 +1539,7 @@ class DictExpression(Expression):
         :class:`.SetExpression`
             Set of all keys.
         """
-        return self._method("keySet", TSet(self._key_typ))
+        return self._method("keySet", tset(self._key_typ))
 
     def keys(self):
         """Returns an array with all keys in the dictionary.
@@ -1556,7 +1556,7 @@ class DictExpression(Expression):
         :class:`.ArrayExpression`
             Array of all keys.
         """
-        return self._method("keys", TArray(self._key_typ))
+        return self._method("keys", tarray(self._key_typ))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map_values(self, f):
@@ -1579,7 +1579,7 @@ class DictExpression(Expression):
         :class:`.DictExpression`
             Dictionary with transformed values.
         """
-        return self._bin_lambda_method("mapValues", f, self._value_typ, lambda t: TDict(self._key_typ, t))
+        return self._bin_lambda_method("mapValues", f, self._value_typ, lambda t: tdict(self._key_typ, t))
 
     def size(self):
         """Returns the size of the dictionary.
@@ -1596,7 +1596,7 @@ class DictExpression(Expression):
         :class:`.Expression` of type :class:`.TInt32`
             Size of the dictionary.
         """
-        return self._method("size", TInt32())
+        return self._method("size", tint32)
 
     def values(self):
         """Returns an array with all values in the dictionary.
@@ -1613,7 +1613,7 @@ class DictExpression(Expression):
         :class:`.ArrayExpression`
             All values in the dictionary.
         """
-        return self._method("values", TArray(self._value_typ))
+        return self._method("values", tarray(self._value_typ))
 
 
 class Aggregable(object):
@@ -1775,7 +1775,7 @@ class StructExpression(Mapping, Expression):
                 names.append(fd.name)
                 types.append(fd.typ)
 
-        result_type = TStruct(names, types)
+        result_type = tstruct(names, types)
         indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
@@ -1834,7 +1834,7 @@ class StructExpression(Mapping, Expression):
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
             names.append(fd.name)
             types.append(fd.typ)
-        result_type = TStruct(names, types)
+        result_type = tstruct(names, types)
 
         indices, joins, aggregations, refs = unify_all(self, kwargs_struct)
 
@@ -1877,7 +1877,7 @@ class StructExpression(Mapping, Expression):
             if not fd.name in to_drop:
                 names.append(fd.name)
                 types.append(fd.typ)
-        result_type = TStruct(names, types)
+        result_type = tstruct(names, types)
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._joins, self._aggregations, self._refs)
 
@@ -1892,7 +1892,7 @@ class AtomicExpression(Expression):
         -------
         :class:`.Expression` of type :class:`.TFloat64`
         """
-        return self._method("toFloat64", TFloat64())
+        return self._method("toFloat64", tfloat64)
 
     def to_float32(self):
         """Convert to a 32-bit floating point expression.
@@ -1901,7 +1901,7 @@ class AtomicExpression(Expression):
         -------
         :class:`.Expression` of type :class:`.TFloat32`
         """
-        return self._method("toFloat32", TFloat32())
+        return self._method("toFloat32", tfloat32)
 
     def to_int64(self):
         """Convert to a 64-bit integer expression.
@@ -1910,7 +1910,7 @@ class AtomicExpression(Expression):
         -------
         :class:`.Expression` of type :class:`.TInt64`
         """
-        return self._method("toInt64", TInt64())
+        return self._method("toInt64", tint64)
 
     def to_int32(self):
         """Convert to a 32-bit integer expression.
@@ -1919,7 +1919,7 @@ class AtomicExpression(Expression):
         -------
         :class:`.Expression` of type :class:`.TInt32`
         """
-        return self._method("toInt32", TInt32())
+        return self._method("toInt32", tint32)
 
 
 class BooleanExpression(AtomicExpression):
@@ -1927,7 +1927,7 @@ class BooleanExpression(AtomicExpression):
 
     >>> t = hl.capture(True)
     >>> f = hl.capture(False)
-    >>> na = hl.null(hl.TBoolean())
+    >>> na = hl.null(hl.tbool)
 
     .. doctest::
 
@@ -1944,7 +1944,7 @@ class BooleanExpression(AtomicExpression):
 
     def _bin_op_logical(self, name, other):
         other = to_expr(other)
-        return self._bin_op(name, other, TBoolean())
+        return self._bin_op(name, other, tbool)
 
     @typecheck_method(other=expr_bool)
     def __and__(self, other):
@@ -2061,7 +2061,7 @@ class NumericExpression(AtomicExpression):
     def _bin_op_ret_typ(self, other):
         if isinstance(other._type, TArray):
             t = other._type.element_type
-            wrapper = lambda t: TArray(t)
+            wrapper = lambda t: tarray(t)
         else:
             t = other._type
             wrapper = lambda t: t
@@ -2112,7 +2112,7 @@ class NumericExpression(AtomicExpression):
         :class:`.BooleanExpression`
             ``True`` if the left side is smaller than the right side.
         """
-        return self._bin_op("<", other, TBoolean())
+        return self._bin_op("<", other, tbool)
 
     @typecheck_method(other=expr_numeric)
     def __le__(self, other):
@@ -2135,7 +2135,7 @@ class NumericExpression(AtomicExpression):
         :class:`.BooleanExpression`
             ``True`` if the left side is smaller than or equal to the right side.
         """
-        return self._bin_op("<=", other, TBoolean())
+        return self._bin_op("<=", other, tbool)
 
     @typecheck_method(other=expr_numeric)
     def __gt__(self, other):
@@ -2158,7 +2158,7 @@ class NumericExpression(AtomicExpression):
         :class:`.BooleanExpression`
             ``True`` if the left side is greater than the right side.
         """
-        return self._bin_op(">", other, TBoolean())
+        return self._bin_op(">", other, tbool)
 
     @typecheck_method(other=expr_numeric)
     def __ge__(self, other):
@@ -2181,7 +2181,7 @@ class NumericExpression(AtomicExpression):
         :class:`.BooleanExpression`
             ``True`` if the left side is greater than or equal to the right side.
         """
-        return self._bin_op(">=", other, TBoolean())
+        return self._bin_op(">=", other, tbool)
 
     def __pos__(self):
         return self
@@ -2314,7 +2314,7 @@ class NumericExpression(AtomicExpression):
         def ret_type_f(t):
             assert is_numeric(t)
             if isinstance(t, TInt32) or isinstance(t, TInt64):
-                return TFloat32()
+                return tfloat32
             else:
                 # Float64 or Float32
                 return t
@@ -2325,7 +2325,7 @@ class NumericExpression(AtomicExpression):
         def ret_type_f(t):
             assert is_numeric(t)
             if isinstance(t, TInt32) or isinstance(t, TInt64):
-                return TFloat32()
+                return tfloat32
             else:
                 # Float64 or Float32
                 return t
@@ -2415,10 +2415,10 @@ class NumericExpression(AtomicExpression):
         :class:`.Expression` of type :class:`.TFloat64`
             Result of raising left to the right power.
         """
-        return self._bin_op_numeric('**', power, lambda _: TFloat64())
+        return self._bin_op_numeric('**', power, lambda _: tfloat64)
 
     def __rpow__(self, other):
-        return self._bin_op_numeric_reverse('**', other, lambda _: TFloat64())
+        return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
 
     def signum(self):
         """Returns the sign of the callee, ``1`` or ``-1``.
@@ -2435,7 +2435,7 @@ class NumericExpression(AtomicExpression):
         :class:`.Expression` of type :class:`.TInt32`
             ``1`` or ``-1``.
         """
-        return self._method("signum", TInt32())
+        return self._method("signum", tint32)
 
     def abs(self):
         """Returns the absolute value of the callee.
@@ -2541,13 +2541,13 @@ class StringExpression(AtomicExpression):
             Substring or character at index `item`.
         """
         if isinstance(item, slice):
-            return self._slice(TString(), item.start, item.stop, item.step)
+            return self._slice(tstr, item.start, item.stop, item.step)
         else:
             item = to_expr(item)
             if not isinstance(item._type, TInt32):
                 raise TypeError("String expects index to be type 'slice' or expression of type 'Int32', "
                                 "found expression of type '{}'".format(item._type))
-            return self._index(TString(), item)
+            return self._index(tstr, item)
 
     def __add__(self, other):
         """Concatenate strings.
@@ -2595,7 +2595,7 @@ class StringExpression(AtomicExpression):
         :class:`.Expression` of type :class:`.TInt32`
             Length of the string.
         """
-        return self._method("length", TInt32())
+        return self._method("length", tint32)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
@@ -2622,7 +2622,7 @@ class StringExpression(AtomicExpression):
         -------
 
         """
-        return self._method("replace", TString(), pattern1, pattern2)
+        return self._method("replace", tstr, pattern1, pattern2)
 
     @typecheck_method(delim=expr_str, n=nullable(expr_int32))
     def split(self, delim, n=None):
@@ -2658,9 +2658,9 @@ class StringExpression(AtomicExpression):
             Array of split strings.
         """
         if n is None:
-            return self._method("split", TArray(TString()), delim)
+            return self._method("split", tarray(tstr), delim)
         else:
-            return self._method("split", TArray(TString()), delim, n)
+            return self._method("split", tarray(tstr), delim, n)
 
     @typecheck_method(regex=strlike)
     def matches(self, regex):
@@ -2702,7 +2702,7 @@ class StringExpression(AtomicExpression):
         :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
-        return construct_expr(RegexMatch(self._ast, regex), TBoolean(),
+        return construct_expr(RegexMatch(self._ast, regex), tbool,
                               self._indices, self._aggregations, self._joins, self._refs)
 
     def to_int32(self):
@@ -2721,7 +2721,7 @@ class StringExpression(AtomicExpression):
         :class:`.Expression` of type :class:`.TInt32`
             Parsed integer expression.
         """
-        return self._method("toInt32", TInt32())
+        return self._method("toInt32", tint32)
 
     def to_int64(self):
         """Parse the string to a 64-bit integer.
@@ -2740,7 +2740,7 @@ class StringExpression(AtomicExpression):
             Parsed integer expression.
         """
 
-        return self._method("toInt64", TInt64())
+        return self._method("toInt64", tint64)
 
     def to_float32(self):
         """Parse the string to a 32-bit float.
@@ -2758,7 +2758,7 @@ class StringExpression(AtomicExpression):
         :class:`.Expression` of type :class:`.TFloat32`
             Parsed float expression.
         """
-        return self._method("toFloat32", TFloat32())
+        return self._method("toFloat32", tfloat32)
 
     def to_float64(self):
         """Parse the string to a 64-bit float.
@@ -2776,7 +2776,7 @@ class StringExpression(AtomicExpression):
         :class:`.Expression` of type :class:`.TFloat64`
             Parsed float expression.
         """
-        return self._method("toFloat64", TFloat64())
+        return self._method("toFloat64", tfloat64)
 
     def to_boolean(self):
         """Parse the string to a Boolean.
@@ -2800,7 +2800,7 @@ class StringExpression(AtomicExpression):
             Parsed Boolean expression.
         """
 
-        return self._method("toBoolean", TBoolean())
+        return self._method("toBoolean", tbool)
 
 
 class CallExpression(Expression):
@@ -2841,7 +2841,7 @@ class CallExpression(Expression):
             if not isinstance(item._type, TInt32):
                 raise TypeError("Call expects allele index to be an expression of type 'Int32', "
                                 "found expression of type '{}'".format(item._type))
-            return self._index(TInt32(), item)
+            return self._index(tint32, item)
 
     @property
     def ploidy(self):
@@ -2858,7 +2858,7 @@ class CallExpression(Expression):
         -------
         :class:`.Expression` of type :class:`.TInt32`
         """
-        return self._method("ploidy", TInt32())
+        return self._method("ploidy", tint32)
 
     @property
     def phased(self):
@@ -2875,7 +2875,7 @@ class CallExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("isPhased", TBoolean())
+        return self._method("isPhased", tbool)
 
     def is_haploid(self):
         """True if the call has ploidy equal to 1.
@@ -2924,7 +2924,7 @@ class CallExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if at least one allele is non-reference, ``False`` otherwise.
         """
-        return self._method("isNonRef", TBoolean())
+        return self._method("isNonRef", tbool)
 
     def is_het(self):
         """Evaluate whether the call includes two different alleles.
@@ -2941,7 +2941,7 @@ class CallExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the two alleles are different, ``False`` if they are the same.
         """
-        return self._method("isHet", TBoolean())
+        return self._method("isHet", tbool)
 
     def is_het_nonref(self):
         """Evaluate whether the call includes two different alleles, neither of which is reference.
@@ -2958,7 +2958,7 @@ class CallExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the call includes two different alternate alleles, ``False`` otherwise.
         """
-        return self._method("isHetNonRef", TBoolean())
+        return self._method("isHetNonRef", tbool)
 
     def is_het_ref(self):
         """Evaluate whether the call includes two different alleles, one of which is reference.
@@ -2975,7 +2975,7 @@ class CallExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the call includes one reference and one alternate allele, ``False`` otherwise.
         """
-        return self._method("isHetRef", TBoolean())
+        return self._method("isHetRef", tbool)
 
     def is_hom_ref(self):
         """Evaluate whether the call includes two reference alleles.
@@ -2992,7 +2992,7 @@ class CallExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the call includes two reference alleles, ``False`` otherwise.
         """
-        return self._method("isHomRef", TBoolean())
+        return self._method("isHomRef", tbool)
 
     def is_hom_var(self):
         """Evaluate whether the call includes two identical alternate alleles.
@@ -3009,7 +3009,7 @@ class CallExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the call includes two identical alternate alleles, ``False`` otherwise.
         """
-        return self._method("isHomVar", TBoolean())
+        return self._method("isHomVar", tbool)
 
     def num_alt_alleles(self):
         """Returns the number of non-reference alleles.
@@ -3026,7 +3026,7 @@ class CallExpression(Expression):
         :class:`.Expression` of type :class:`.TInt32`
             The number of non-reference alleles.
         """
-        return self._method("nNonRefAlleles", TInt32())
+        return self._method("nNonRefAlleles", tint32)
 
     @typecheck_method(alleles=expr_array)
     def one_hot_alleles(self, alleles):
@@ -3057,7 +3057,7 @@ class CallExpression(Expression):
         :class:`.ArrayInt32Expression`
             An array of summed one-hot encodings of allele indices.
         """
-        return self._method("oneHotAlleles", TArray(TInt32()), alleles)
+        return self._method("oneHotAlleles", tarray(tint32), alleles)
 
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.
@@ -3073,7 +3073,7 @@ class CallExpression(Expression):
         -------
         :class:`.Expression` of type :class:`.TInt32`
         """
-        return self._method("unphasedDiploidGtIndex", TInt32())
+        return self._method("unphasedDiploidGtIndex", tint32)
 
 
 class LocusExpression(Expression):
@@ -3098,7 +3098,7 @@ class LocusExpression(Expression):
         :class:`.StringExpression`
             The chromosome for this locus.
         """
-        return self._field("contig", TString())
+        return self._field("contig", tstr)
 
     @property
     def position(self):
@@ -3116,7 +3116,7 @@ class LocusExpression(Expression):
         :class:`.Expression` of type :class:`.TInt32`
             This locus's position along its chromosome.
         """
-        return self._field("position", TInt32())
+        return self._field("position", tint32)
 
     def in_x_nonpar(self):
         """Returns ``True`` if the locus is in a non-pseudoautosomal
@@ -3133,7 +3133,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("inXNonPar", TBoolean())
+        return self._method("inXNonPar", tbool)
 
     def in_x_par(self):
         """Returns ``True`` if the locus is in a pseudoautosomal region
@@ -3150,7 +3150,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("inXPar", TBoolean())
+        return self._method("inXPar", tbool)
 
     def in_y_nonpar(self):
         """Returns ``True`` if the locus is in a non-pseudoautosomal
@@ -3173,7 +3173,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("inYNonPar", TBoolean())
+        return self._method("inYNonPar", tbool)
 
     def in_y_par(self):
         """Returns ``True`` if the locus is in a pseudoautosomal region
@@ -3196,7 +3196,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("inYPar", TBoolean())
+        return self._method("inYPar", tbool)
 
     def in_autosome(self):
         """Returns ``True`` if the locus is on an autosome.
@@ -3217,7 +3217,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("isAutosomal", TBoolean())
+        return self._method("isAutosomal", tbool)
 
     def in_autosome_or_par(self):
         """Returns ``True`` if the locus is on an autosome or
@@ -3234,7 +3234,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("isAutosomalOrPseudoAutosomal", TBoolean())
+        return self._method("isAutosomalOrPseudoAutosomal", tbool)
 
     def in_mito(self):
         """Returns ``True`` if the locus is on mitochondrial DNA.
@@ -3250,7 +3250,7 @@ class LocusExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("isMitochondrial", TBoolean())
+        return self._method("isMitochondrial", tbool)
 
 
 class IntervalExpression(Expression):
@@ -3285,7 +3285,7 @@ class IntervalExpression(Expression):
         locus = to_expr(locus)
         if self._type.point_type != locus._type:
             raise TypeError('expected {}, found: {}'.format(self._type.point_type, locus._type))
-        return self._method("contains", TBoolean(), locus)
+        return self._method("contains", tbool, locus)
 
     @property
     def end(self):
@@ -3303,7 +3303,7 @@ class IntervalExpression(Expression):
         :class:`.LocusExpression`
             End locus.
         """
-        return self._field("end", TLocus())
+        return self._field("end", tlocus())
 
     @property
     def start(self):
@@ -3321,7 +3321,7 @@ class IntervalExpression(Expression):
         :class:`.LocusExpression`
             Start locus.
         """
-        return self._field("start", TLocus())
+        return self._field("start", tlocus())
 
 
 typ_to_expr = {
@@ -3510,7 +3510,7 @@ def eval_expr_typed(expression):
 
         >>> x = 6
         >>> hl.eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-        ('Odd', TString())
+        ('Odd', tstr)
 
     Parameters
     ----------

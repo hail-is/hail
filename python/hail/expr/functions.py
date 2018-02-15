@@ -21,7 +21,7 @@ def null(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.null(hl.TString()))
+        >>> hl.eval_expr(hl.null(hl.tstr))
         None
 
     Notes
@@ -341,7 +341,7 @@ def chisq(c1, c2, c3, c4):
     :class:`.StructExpression`
         A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
     """
-    ret_type = TStruct(['pValue', 'oddsRatio'], [TFloat64(), TFloat64()])
+    ret_type = tstruct(['pValue', 'oddsRatio'], [tfloat64, tfloat64])
     return _func("chisq", ret_type, c1, c2, c3, c4)
 
 
@@ -384,7 +384,7 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     :class:`.StructExpression`
         A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
     """
-    ret_type = TStruct(['pValue', 'oddsRatio'], [TFloat64(), TFloat64()])
+    ret_type = tstruct(['pValue', 'oddsRatio'], [tfloat64, tfloat64])
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
@@ -418,7 +418,7 @@ def dict(keys, values):
     """
     key_col = to_expr(keys)
     value_col = to_expr(values)
-    ret_type = TDict(key_col._type, value_col._type)
+    ret_type = tdict(key_col._type, value_col._type)
     return _func("Dict", ret_type, keys, values)
 
 
@@ -448,7 +448,7 @@ def dbeta(x, a, b):
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
-    return _func("dbeta", TFloat64(), x, a, b)
+    return _func("dbeta", tfloat64, x, a, b)
 
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
@@ -476,7 +476,7 @@ def dpois(x, lamb, log_p=False):
     :class:`.Expression` of type :class:`.TFloat64`
         The (log) probability density.
     """
-    return _func("dpois", TFloat64(), x, lamb, log_p)
+    return _func("dpois", tfloat64, x, lamb, log_p)
 
 
 @typecheck(x=expr_numeric)
@@ -498,7 +498,7 @@ def exp(x):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("exp", TFloat64(), x)
+    return _func("exp", tfloat64, x)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -540,8 +540,8 @@ def fisher_exact_test(c1, c2, c3, c4):
         A struct expression with four fields, `pValue` (``Float64``), `oddsRatio` (``Float64``),
         ci95Lower (``Float64``), and ci95Upper(``Float64``).
     """
-    ret_type = TStruct(['pValue', 'oddsRatio', 'ci95Lower', 'ci95Upper'],
-                       [TFloat64(), TFloat64(), TFloat64(), TFloat64()])
+    ret_type = tstruct(['pValue', 'oddsRatio', 'ci95Lower', 'ci95Upper'],
+                       [tfloat64, tfloat64, tfloat64, tfloat64])
     return _func("fet", ret_type, c1, c2, c3, c4)
 
 
@@ -560,7 +560,7 @@ def floor(x):
     -------
     :obj:`.Float64Expression`
     """
-    return _func("floor", unify_types(x.dtype, TFloat32()), x)
+    return _func("floor", unify_types(x.dtype, tfloat32), x)
 
 
 @typecheck(x=expr_numeric)
@@ -578,7 +578,7 @@ def ceil(x):
     -------
     :obj:`.Float64Expression`
     """
-    return _func("ceil", unify_types(x.dtype, TFloat32()), x)
+    return _func("ceil", unify_types(x.dtype, tfloat32), x)
 
 
 @typecheck(num_hom_ref=expr_int32, num_het=expr_int32, num_hom_var=expr_int32)
@@ -614,7 +614,7 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     :class:`.StructExpression`
         A struct expression with two fields, `rExpectedHetFrequency` (``Float64``) and`pValue` (``Float64``).
     """
-    ret_type = TStruct(['rExpectedHetFrequency', 'pHWE'], [TFloat64(), TFloat64()])
+    ret_type = tstruct(['rExpectedHetFrequency', 'pHWE'], [tfloat64, tfloat64])
     return _func("hwe", ret_type, num_hom_ref, num_het, num_hom_var)
 
 
@@ -636,7 +636,7 @@ def index(structs, identifier):
     value_type = TStruct.from_fields([f for f in struct_type.fields if f.name != identifier])
 
     ast = StructOp('index', structs._ast, identifier)
-    return construct_expr(ast, TDict(key_type, value_type),
+    return construct_expr(ast, tdict(key_type, value_type),
                           structs._indices, structs._aggregations, structs._joins, structs._refs)
 
 
@@ -670,7 +670,7 @@ def locus(contig, pos, reference_genome=None):
         reference_genome = Env.hc().default_reference
     indices, aggregations, joins, refs = unify_all(contig, pos)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
-                          TLocus(reference_genome), indices, aggregations, joins, refs)
+                          tlocus(reference_genome), indices, aggregations, joins, refs)
 
 
 @typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
@@ -703,7 +703,7 @@ def parse_locus(s, reference_genome=None):
     s = to_expr(s)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
+    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
 
@@ -741,7 +741,7 @@ def parse_variant(s, reference_genome=None):
     s = to_expr(s)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    t = TStruct(['locus', 'alleles'], [TLocus(reference_genome), TArray(TString())])
+    t = tstruct(['locus', 'alleles'], [tlocus(reference_genome), tarray(tstr)])
     return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
                           s._indices, s._aggregations, s._joins, s._refs)
 
@@ -775,7 +775,7 @@ def gp_dosage(gp):
     if not is_numeric(gp.dtype.element_type):
         raise TypeError("'gp_dosage' expects an expression of type "
                         "'Array[Float64]'. Found '{}'".format(gp.dtype))
-    return _func("dosage", TFloat64(), gp)
+    return _func("dosage", tfloat64, gp)
 
 
 @typecheck(pl=expr_array)
@@ -804,7 +804,7 @@ def pl_dosage(pl):
     if not isinstance(pl.dtype.element_type, TInt32):
         raise TypeError("Function 'pl_dosage' expects an expression of type "
                         "'Array[Int32]'. Found {}".format(pl.dtype))
-    return _func("plDosage", TFloat64(), pl)
+    return _func("plDosage", tfloat64, pl)
 
 
 @typecheck(start=expr_locus, end=expr_locus)
@@ -839,7 +839,7 @@ def interval(start, end):
     if not start._type._rg == end._type._rg:
         raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
     return construct_expr(
-        ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
+        ApplyMethod('Interval', start._ast, end._ast), tinterval(tlocus(start._type._rg)),
         indices, aggregations, joins, refs)
 
 
@@ -879,7 +879,7 @@ def parse_interval(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
+        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), tinterval(tlocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)
 
 
@@ -910,7 +910,7 @@ def call(phased, *alleles):  # FIXME: Python 3 allows optional kwarg after varar
     indices, aggregations, joins, refs = unify_all(phased, *alleles)
     if std_len(alleles) > 2:
         raise NotImplementedError("`call' supports a maximum of 2 alleles.")
-    return construct_expr(ApplyMethod('Call', phased._ast, *[a._ast for a in alleles]), TCall(), indices, aggregations,
+    return construct_expr(ApplyMethod('Call', phased._ast, *[a._ast for a in alleles]), tcall, indices, aggregations,
                           joins, refs)
 
 
@@ -935,7 +935,7 @@ def unphased_diploid_gt_index_call(gt_index):
     :class:`.CallExpression`
     """
     gt_index = to_expr(gt_index)
-    return construct_expr(ApplyMethod('UnphasedDiploidGtIndexCall', gt_index._ast), TCall(), gt_index._indices,
+    return construct_expr(ApplyMethod('UnphasedDiploidGtIndexCall', gt_index._ast), tcall, gt_index._indices,
                           gt_index._aggregations, gt_index._joins, gt_index._refs)
 
 
@@ -978,7 +978,7 @@ def parse_call(s):
     :class:`.CallExpression`
     """
     s = to_expr(s)
-    return construct_expr(ApplyMethod('Call', s._ast), TCall(), s._indices, s._aggregations, s._joins, s._refs)
+    return construct_expr(ApplyMethod('Call', s._ast), tcall, s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(expression=expr_any)
@@ -992,10 +992,10 @@ def is_defined(expression):
         >>> hl.eval_expr(hl.is_defined(5))
         True
 
-        >>> hl.eval_expr(hl.is_defined(hl.null(hl.TString())))
+        >>> hl.eval_expr(hl.is_defined(hl.null(hl.tstr)))
         False
 
-        >>> hl.eval_expr(hl.is_defined(hl.null(hl.TBoolean()) & True))
+        >>> hl.eval_expr(hl.is_defined(hl.null(hl.tbool) & True))
         False
 
     Parameters
@@ -1008,7 +1008,7 @@ def is_defined(expression):
     :class:`.BooleanExpression`
         ``True`` if `expression` is not missing, ``False`` otherwise.
     """
-    return _func("isDefined", TBoolean(), expression)
+    return _func("isDefined", tbool, expression)
 
 
 @typecheck(expression=expr_any)
@@ -1022,10 +1022,10 @@ def is_missing(expression):
         >>> hl.eval_expr(hl.is_missing(5))
         False
 
-        >>> hl.eval_expr(hl.is_missing(hl.null(hl.TString())))
+        >>> hl.eval_expr(hl.is_missing(hl.null(hl.tstr)))
         True
 
-        >>> hl.eval_expr(hl.is_missing(hl.null(hl.TBoolean()) & True))
+        >>> hl.eval_expr(hl.is_missing(hl.null(hl.tbool) & True))
         True
 
     Parameters
@@ -1038,7 +1038,7 @@ def is_missing(expression):
     :class:`.BooleanExpression`
         ``True`` if `expression` is missing, ``False`` otherwise.
     """
-    return _func("isMissing", TBoolean(), expression)
+    return _func("isMissing", tbool, expression)
 
 
 @typecheck(x=expr_numeric)
@@ -1055,7 +1055,7 @@ def is_nan(x):
         >>> hl.eval_expr(hl.is_nan(hl.capture(0) / 0))
         True
 
-        >>> hl.eval_expr(hl.is_nan(hl.capture(0) / hl.null(hl.TFloat64())))
+        >>> hl.eval_expr(hl.is_nan(hl.capture(0) / hl.null(hl.tfloat64)))
         None
 
     Notes
@@ -1074,7 +1074,7 @@ def is_nan(x):
     :class:`.BooleanExpression`
         ``True`` if `x` is ``NaN``, ``False`` otherwise.
     """
-    return _func("isnan", TBoolean(), x)
+    return _func("isnan", tbool, x)
 
 
 @typecheck(x=expr_any)
@@ -1101,7 +1101,7 @@ def json(x):
     :class:`.StringExpression`
         String expression with JSON representation of `x`.
     """
-    return _func("json", TString(), x)
+    return _func("json", tstr, x)
 
 
 @typecheck(x=expr_numeric, base=nullable(expr_numeric))
@@ -1136,9 +1136,9 @@ def log(x, base=None):
     """
     x = to_expr(x)
     if base is not None:
-        return _func("log", TFloat64(), x, to_expr(base))
+        return _func("log", tfloat64, x, to_expr(base))
     else:
-        return _func("log", TFloat64(), x)
+        return _func("log", tfloat64, x)
 
 
 @typecheck(x=expr_numeric)
@@ -1163,7 +1163,7 @@ def log10(x):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("log10", TFloat64(), x)
+    return _func("log10", tfloat64, x)
 
 
 @typecheck(a=expr_any, b=expr_any)
@@ -1177,7 +1177,7 @@ def or_else(a, b):
         >>> hl.eval_expr(hl.or_else(5, 7))
         5
 
-        >>> hl.eval_expr(hl.or_else(hl.null(hl.TInt32()), 7))
+        >>> hl.eval_expr(hl.or_else(hl.null(hl.tint32), 7))
         7
 
     Parameters
@@ -1263,7 +1263,7 @@ def binom_test(x, n, p, alternative):
     :class:`.Expression` of type :class:`.TFloat64`
         p-value.
     """
-    return _func("binomTest", TFloat64(), x, n, p, alternative)
+    return _func("binomTest", tfloat64, x, n, p, alternative)
 
 
 @typecheck(x=expr_numeric, df=expr_numeric)
@@ -1288,7 +1288,7 @@ def pchisqtail(x, df):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("pchisqtail", TFloat64(), x, df)
+    return _func("pchisqtail", tfloat64, x, df)
 
 
 @typecheck(x=expr_numeric)
@@ -1320,7 +1320,7 @@ def pnorm(x):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("pnorm", TFloat64(), x)
+    return _func("pnorm", tfloat64, x)
 
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
@@ -1355,7 +1355,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("ppois", TFloat64(), x, lamb, lower_tail, log_p)
+    return _func("ppois", tfloat64, x, lamb, lower_tail, log_p)
 
 
 @typecheck(p=expr_numeric, df=expr_numeric)
@@ -1385,7 +1385,7 @@ def qchisqtail(p, df):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("qchisqtail", TFloat64(), p, df)
+    return _func("qchisqtail", tfloat64, p, df)
 
 
 @typecheck(p=expr_numeric)
@@ -1413,7 +1413,7 @@ def qnorm(p):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("qnorm", TFloat64(), p)
+    return _func("qnorm", tfloat64, p)
 
 
 @typecheck(p=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
@@ -1446,7 +1446,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("qpois", TInt32(), p, lamb, lower_tail, log_p)
+    return _func("qpois", tint32, p, lamb, lower_tail, log_p)
 
 
 @typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
@@ -1480,7 +1480,7 @@ def range(start, stop, step=1):
     -------
     :class:`.ArrayInt32Expression`
     """
-    return _func("range", TArray(TInt32()), start, stop, step)
+    return _func("range", tarray(tint32), start, stop, step)
 
 
 @typecheck(p=expr_numeric)
@@ -1511,7 +1511,7 @@ def rand_bool(p):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("pcoin", TBoolean(), p)
+    return _func("pcoin", tbool, p)
 
 
 @typecheck(mean=expr_numeric, sd=expr_numeric)
@@ -1545,7 +1545,7 @@ def rand_norm(mean=0, sd=1):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("rnorm", TFloat64(), mean, sd)
+    return _func("rnorm", tfloat64, mean, sd)
 
 
 @typecheck(lamb=expr_numeric)
@@ -1577,7 +1577,7 @@ def rand_pois(lamb):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("rpois", TFloat64(), lamb)
+    return _func("rpois", tfloat64, lamb)
 
 
 @typecheck(min=expr_numeric, max=expr_numeric)
@@ -1611,7 +1611,7 @@ def rand_unif(min, max):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("runif", TFloat64(), min, max)
+    return _func("runif", tfloat64, min, max)
 
 
 @typecheck(x=expr_numeric)
@@ -1638,7 +1638,7 @@ def sqrt(x):
     -------
     :class:`.Expression` of type :class:`.TFloat64`
     """
-    return _func("sqrt", TFloat64(), x)
+    return _func("sqrt", tfloat64, x)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1663,7 +1663,7 @@ def is_snp(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_snp", TBoolean(), ref, alt)
+    return _func("is_snp", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1688,7 +1688,7 @@ def is_mnp(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_mnp", TBoolean(), ref, alt)
+    return _func("is_mnp", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1716,7 +1716,7 @@ def is_transition(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_transition", TBoolean(), ref, alt)
+    return _func("is_transition", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1744,7 +1744,7 @@ def is_transversion(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_transversion", TBoolean(), ref, alt)
+    return _func("is_transversion", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1769,7 +1769,7 @@ def is_insertion(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_insertion", TBoolean(), ref, alt)
+    return _func("is_insertion", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1794,7 +1794,7 @@ def is_deletion(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_deletion", TBoolean(), ref, alt)
+    return _func("is_deletion", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1819,7 +1819,7 @@ def is_indel(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_indel", TBoolean(), ref, alt)
+    return _func("is_indel", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1844,7 +1844,7 @@ def is_star(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_star", TBoolean(), ref, alt)
+    return _func("is_star", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1869,7 +1869,7 @@ def is_complex(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_complex", TBoolean(), ref, alt)
+    return _func("is_complex", tbool, ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1907,7 +1907,7 @@ def allele_type(ref, alt):
     -------
     :class:`.StringExpression`
     """
-    return _func("allele_type", TString(), ref, alt)
+    return _func("allele_type", tstr, ref, alt)
 
 
 @typecheck(s1=expr_str, s2=expr_str)
@@ -1939,7 +1939,7 @@ def hamming(s1, s2):
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    return _func("hamming", TInt32(), s1, s2)
+    return _func("hamming", tint32, s1, s2)
 
 
 @typecheck(x=expr_any)
@@ -1961,7 +1961,7 @@ def str(x):
     -------
     :class:`.StringExpression`
     """
-    return _func("str", TString(), x)
+    return _func("str", tstr, x)
 
 
 @typecheck(c=expr_call, i=expr_int32)
@@ -1989,7 +1989,7 @@ def downcode(c, i):
     -------
     :class:`.CallExpression`
     """
-    return _func("downcode", TCall(), c, i)
+    return _func("downcode", tcall, c, i)
 
 
 @typecheck(pl=expr_array)
@@ -2015,7 +2015,7 @@ def gq_from_pl(pl):
         raise TypeError("'gq_from_pl' expects an array with element type 'Int32', found '{}'"
                         .format(pl.dtype
                                 ))
-    return _func("gqFromPL", TInt32(), pl)
+    return _func("gqFromPL", tint32, pl)
 
 
 @typecheck(n=expr_int32)
@@ -2041,7 +2041,7 @@ def triangle(n):
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    return _func("triangle", TInt32(), n)
+    return _func("triangle", tint32, n)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2272,7 +2272,7 @@ def group_by(f, collection):
     """
     return collection._bin_lambda_method("groupBy", f,
                                          collection.dtype.element_type,
-                                         lambda t: TDict(t, collection.dtype))
+                                         lambda t: tdict(t, collection.dtype))
 
 
 @typecheck(f=func_spec(1, expr_any),
@@ -2335,7 +2335,7 @@ def len(x):
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    return x._method("size", TInt32())
+    return x._method("size", tint32)
 
 
 @typecheck(collection=oneof(expr_set, expr_array))
@@ -2536,7 +2536,7 @@ def set(collection):
     """
     if isinstance(collection.dtype, TSet):
         return collection
-    return collection._method("toSet", TSet(collection.dtype.element_type))
+    return collection._method("toSet", tset(collection.dtype.element_type))
 
 
 @typecheck(collection=oneof(expr_set, expr_array))
@@ -2559,7 +2559,7 @@ def array(collection):
     """
     if isinstance(collection.dtype, TArray):
         return collection
-    return collection._method("toArray", TArray(collection.dtype.element_type))
+    return collection._method("toArray", tarray(collection.dtype.element_type))
 
 
 @typecheck(collection=oneof(expr_set, expr_array))
@@ -2625,7 +2625,7 @@ def delimit(collection, delimiter=','):
     """
     if not isinstance(collection.dtype.element_type, TString):
         collection = map(str, collection)
-    return collection._method("mkString", TString(), delimiter)
+    return collection._method("mkString", tstr, delimiter)
 
 
 @typecheck(collection=expr_array,
@@ -2716,7 +2716,7 @@ def unique_min_index(collection):
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'unique_min_index' expects an array with numeric element type, found '{}'"
                         .format(collection.dtype))
-    return collection._method("uniqueMinIndex", TInt32())
+    return collection._method("uniqueMinIndex", tint32)
 
 
 @typecheck(collection=expr_array)
@@ -2750,4 +2750,4 @@ def unique_max_index(collection):
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'unique_max_index' expects an array with numeric element type, found '{}'"
                         .format(collection.dtype))
-    return collection._method("uniqueMaxIndex", TInt32())
+    return collection._method("uniqueMaxIndex", tint32)

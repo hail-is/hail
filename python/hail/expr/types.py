@@ -27,7 +27,6 @@ class Type(object):
     """
     Hail type superclass.
     """
-    __metaclass__ = abc.ABCMeta
 
     _hts_schema = None
 
@@ -50,7 +49,7 @@ class Type(object):
         if not cls._hts_schema:
             cls._hts_schema = TStruct(
                 ['GT', 'AD', 'DP', 'GQ', 'PL'],
-                [TCall(), TArray(TInt32()), TInt32(), TInt32(), TArray(TInt32())])
+                [tcall, TArray(tint32), tint32, tint32, TArray(tint32)])
         return cls._hts_schema
 
     def __init__(self):
@@ -97,8 +96,7 @@ class Type(object):
         class_name = jtype.getClass().getCanonicalName()
 
         if class_name in _intern_classes:
-            typ = _intern_classes[class_name]
-            return typ()
+            return _intern_classes[class_name]
         elif class_name == 'is.hail.expr.types.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TSet':
@@ -123,21 +121,6 @@ class Type(object):
         """
         return
 
-
-class Intern(type):
-    _instances = {}
-
-    def __call__(cls):
-        p = (cls)
-        if p not in cls._instances:
-            cls._instances[p] = super(Intern, cls).__call__()
-        return cls._instances[p]
-
-
-class InternType(Intern, abc.ABCMeta):
-    pass
-
-
 class TInt32(Type):
     """Hail type for signed 32-bit integers.
 
@@ -146,8 +129,6 @@ class TInt32(Type):
 
     In Python, these are represented as :obj:`int`.
     """
-    __metaclass__ = InternType
-
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt32Optional')
         super(TInt32, self).__init__()
@@ -176,7 +157,6 @@ class TInt64(Type):
 
     In Python, these are represented as :obj:`int`.
     """
-    __metaclass__ = InternType
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt64Optional')
@@ -204,7 +184,6 @@ class TFloat32(Type):
 
     In Python, these are represented as :obj:`float`.
     """
-    __metaclass__ = InternType
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat32Optional')
@@ -235,7 +214,6 @@ class TFloat64(Type):
 
     In Python, these are represented as :obj:`float`.
     """
-    __metaclass__ = InternType
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat64Optional')
@@ -263,7 +241,6 @@ class TString(Type):
 
     In Python, these are represented as :obj:`unicode` strings.
     """
-    __metaclass__ = InternType
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStringOptional')
@@ -288,7 +265,6 @@ class TBoolean(Type):
 
     In Python, these are represented as :obj:`bool`.
     """
-    __metaclass__ = InternType
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TBooleanOptional')
@@ -659,7 +635,6 @@ class TCall(Type):
 
     In Python, these are represented by :class:`.Call`.
     """
-    __metaclass__ = InternType
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TCallOptional')
@@ -817,27 +792,13 @@ class TInterval(Type):
         return "TInterval({})".format(repr(self.point_type))
 
 
-_intern_classes = {'is.hail.expr.types.TInt32Optional$': (TInt32),
-                   'is.hail.expr.types.TInt32Required$': (TInt32),
-                   'is.hail.expr.types.TInt64Optional$': (TInt64),
-                   'is.hail.expr.types.TInt64Required$': (TInt64),
-                   'is.hail.expr.types.TFloat32Optional$': (TFloat32),
-                   'is.hail.expr.types.TFloat32Required$': (TFloat32),
-                   'is.hail.expr.types.TFloat64Optional$': (TFloat64),
-                   'is.hail.expr.types.TFloat64Required$': (TFloat64),
-                   'is.hail.expr.types.TBooleanOptional$': (TBoolean),
-                   'is.hail.expr.types.TBooleanRequired$': (TBoolean),
-                   'is.hail.expr.types.TStringOptional$': (TString),
-                   'is.hail.expr.types.TStringRequired$': (TString),
-                   'is.hail.expr.types.TCallOptional$': (TCall),
-                   'is.hail.expr.types.TCallRequired$': (TCall)}
 
 tint32 = TInt32()
 tint64 = TInt64()
-tint = TInt32()
+tint = tint32
 tfloat32 = TFloat32()
 tfloat64 = TFloat64()
-tfloat = TFloat64()
+tfloat = tfloat64
 tstr = TString()
 tbool = TBoolean()
 tcall = TCall()
@@ -850,6 +811,20 @@ tinterval = TInterval
 
 _numeric_types = {tint32, tint64, tfloat32, tfloat64}
 
+_intern_classes = {'is.hail.expr.types.TInt32Optional$': tint32,
+                   'is.hail.expr.types.TInt32Required$': tint32,
+                   'is.hail.expr.types.TInt64Optional$': tint64,
+                   'is.hail.expr.types.TInt64Required$': tint64,
+                   'is.hail.expr.types.TFloat32Optional$': tfloat32,
+                   'is.hail.expr.types.TFloat32Required$': tfloat32,
+                   'is.hail.expr.types.TFloat64Optional$': tfloat64,
+                   'is.hail.expr.types.TFloat64Required$': tfloat64,
+                   'is.hail.expr.types.TBooleanOptional$': tbool,
+                   'is.hail.expr.types.TBooleanRequired$': tbool,
+                   'is.hail.expr.types.TStringOptional$': tstr,
+                   'is.hail.expr.types.TStringRequired$': tstr,
+                   'is.hail.expr.types.TCallOptional$': tcall,
+                   'is.hail.expr.types.TCallRequired$': tcall}
 
 @typecheck(t=Type)
 def is_numeric(t):

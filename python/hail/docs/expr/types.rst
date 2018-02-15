@@ -22,6 +22,7 @@ Types
     tdict
     tstruct
     tlocus
+    tinterval
     tcall
     Type
     TString
@@ -53,6 +54,7 @@ Types
 .. autoattribute:: hail.expr.types.tdict
 .. autoattribute:: hail.expr.types.tstruct
 .. autoattribute:: hail.expr.types.tlocus
+.. autoattribute:: hail.expr.types.tinterval
 .. autoattribute:: hail.expr.types.tcall
 .. autoclass:: TString
 .. autoclass:: TInt32
