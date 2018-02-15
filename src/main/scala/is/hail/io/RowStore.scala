@@ -132,9 +132,9 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 
   def readBlock(buf: Array[Byte]): Int = {
-    in.read(lenBuf, 0, 4)
+    in.readFully(lenBuf, 0, 4)
     val len = Memory.loadInt(lenBuf, 0)
-    in.read(buf, 0, len)
+    in.readFully(buf, 0, len)
     len
   }
 }
