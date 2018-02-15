@@ -416,9 +416,9 @@ def dict(keys, values):
         A dictionary expression constructed from `keys` and `values`.
 
     """
-    key_col = to_expr(keys)
-    value_col = to_expr(values)
-    ret_type = tdict(key_col._type, value_col._type)
+    keys = to_expr(keys)
+    values = to_expr(values)
+    ret_type = tdict(keys.dtype.element_type, values.dtype.element_type)
     return _func("Dict", ret_type, keys, values)
 
 

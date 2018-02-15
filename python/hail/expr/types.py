@@ -347,7 +347,7 @@ class TArray(Type):
                 self.element_type._typecheck(elt)
 
     def __str__(self):
-        return "tarray({})".format(self.element_type)
+        return "TArray({})".format(self.element_type)
 
 
 class TSet(Type):
