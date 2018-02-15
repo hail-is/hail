@@ -10,11 +10,8 @@ import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 object PCA {
-  def pcSchema(k: Int, asArray: Boolean = false): Type =
-    if (asArray)
-      TArray(TFloat64())
-    else
-      TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
+  def pcSchema(k: Int, asArray: Boolean = false): TStruct =
+    TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   def scoresTable(vsm: MatrixTable, asArrays: Boolean, scores: DenseMatrix[Double]): Table = {
     assert(vsm.numCols == scores.rows)
@@ -22,7 +19,7 @@ object PCA {
     val hc = vsm.hc
     val sc = hc.sc
 
-    val rowType = TStruct(vsm.colKey.zip(vsm.colKeyTypes) ++ Seq("scores" -> PCA.pcSchema(k, asArrays)): _*)
+    val rowType = TStruct(vsm.colKey.zip(vsm.colKeyTypes): _*) ++ (if (asArrays) TStruct("scores" -> TArray(TFloat64())) else pcSchema(k))
     val rowTypeBc = sc.broadcast(rowType)
 
     val scoresBc = sc.broadcast(scores)
@@ -44,13 +41,13 @@ object PCA {
           rvb.addAnnotation(localSSignature(j), keys.get(j))
           j += 1
         }
-        if (asArrays) rvb.startArray(k) else rvb.startStruct()
+        if (asArrays) rvb.startArray(k)
         j = 0
         while (j < k) {
           rvb.addDouble(scoresBc.value(i, j))
           j += 1
         }
-        if (asArrays) rvb.endArray() else rvb.endStruct()
+        if (asArrays) rvb.endArray()
         rvb.endStruct()
         rv.setOffset(rvb.end())
         rv
@@ -78,8 +75,7 @@ object PCA {
           s"but user requested ${ k } principal components.")
 
     val optionLoadings = someIf(computeLoadings, {
-      val rowType = TStruct("v" -> vsm.rowKeyStruct) ++ (if (asArray) TStruct("loadings" -> pcSchema(k, asArray))
-      else pcSchema(k, asArray).asInstanceOf[TStruct])
+      val rowType = TStruct("v" -> vsm.rowKeyStruct) ++ (if (asArray) TStruct("loadings" -> TArray(TFloat64())) else pcSchema(k))
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
       val variantsBc = vsm.sparkContext.broadcast(vsm.collectRowKeys().values)
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>

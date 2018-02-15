@@ -1430,22 +1430,17 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     default, Hail only computes the loadings if the ``loadings`` parameter is
     specified.
 
-    Scores are stored in a :class:`.Table` with the column keys of the matrix,
-    and the following additional field:
-
-     - **scores**: The principal component scores. This can have two different
-       structures, depending on the value of the `as_array` flag.
-
-    If `as_array` is ``False`` (default), then `scores` is a ``Struct`` with
-    fields `PC1`, `PC2`, etc. If `as_array` is ``True``, then `scores` is a
-    field of type ``Array[Float64]`` containing the principal component scores.
+    Scores are stored in a :class:`.Table` with the column keys of the matrix
+    followed by the principal component scores. If `as_array` is ``True``, there
+    is one row field `scores` of type ``Array[Float64]`` containing the principal
+    component scores. If `as_array` is ``False`` (default), then each principal
+    component score is a new row field of type ``Float64`` and the names `PC1`,
+    `PC2`, etc.
 
     Loadings are stored in a :class:`.Table` with a structure similar to the scores
-    table:
-
-     - **v**: Row key of the dataset.
-
-     - **pcaLoadings**: Row loadings (same type as the scores).
+    table. The first row field is `v` which is the row keys of the dataset. The
+    loadings for each principal component is stored as described above except the
+    row field name is `loadings` instead of `scores` if `as_array` is ``False``.
 
     Parameters
     ----------
@@ -1458,8 +1453,8 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     compute_loadings : :obj:`bool`
         If ``True``, compute row loadings.
     as_array : :obj:`bool`
-        If ``True``, return scores and loadings as an array field. If ``False``, return
-        one field per element (`PC1`, `PC2`, ... `PCk`).
+        If ``True``, return scores and loadings as an array field. If ``False``, add
+        one row field per element (`PC1`, `PC2`, ... `PCk`).
 
     Returns
     -------
