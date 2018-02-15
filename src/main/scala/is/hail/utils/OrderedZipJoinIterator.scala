@@ -1,38 +1,37 @@
 package is.hail.utils
 
 class OrderedZipJoinIterator[T, U](
-    left: BufferedIterator[T],
+    left: StagingIterator[T],
     leftDefault: T,
-    right: BufferedIterator[U],
+    right: StagingIterator[U],
     rightDefault: U,
     ordering: (T, U) => Int)
-  extends Iterator[Muple[T, U]] {
-
-  val muple = Muple(leftDefault, rightDefault)
-
-  def hasNext: Boolean = left.hasNext || right.hasNext
-
-  def next(): Muple[T, U] = {
+  extends StagingIterator[Muple[T, U]] {
+  val head = Muple(leftDefault, rightDefault)
+  var isValid: Boolean = true
+  def advanceHead() {
+    left.stage()
+    right.stage()
     val c = {
-      if (left.hasNext) {
-        if (right.hasNext)
-          ordering(left.head, right.head)
+      if (left.isValid) {
+        if (right.isValid)
+          ordering(left.value, right.value)
         else
           -1
-      } else if (right.hasNext)
+      } else if (right.isValid)
           1
         else {
-          assert(!hasNext)
-          throw new NoSuchElementException("next on empty iterator")
+          isValid = false
+          return
         }
     }
     if (c == 0)
-      muple.set(left.next(), right.next())
+      head.set(left.consume(), right.consume())
     else if (c < 0)
-      muple.set(left.next(), rightDefault)
+      head.set(left.consume(), rightDefault)
     else
       // c > 0
-      muple.set(leftDefault, right.next())
-    muple
+      head.set(leftDefault, right.consume())
   }
+  advanceHead()
 }

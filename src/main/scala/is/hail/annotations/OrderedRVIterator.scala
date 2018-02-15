@@ -1,30 +1,35 @@
 package is.hail.annotations
 
 import is.hail.rvd.OrderedRVType
-import is.hail.utils.{Muple, OrderedZipJoinIterator, StaircaseIterator}
+import is.hail.utils._
 
-case class OrderedRVIterator(t: OrderedRVType, iterator: BufferedIterator[RegionValue])
-  extends BufferedIterator[RegionValue] {
+case class OrderedRVIterator(t: OrderedRVType, iterator: Iterator[RegionValue]) {
 
-  def hasNext: Boolean = iterator.hasNext
-  def head: RegionValue = iterator.head
-  def next(): RegionValue = iterator.next()
-
-  def staircase: StaircaseIterator[RegionValue] =
-    new StaircaseIterator(iterator, t.mutableEquiv)
+  def staircase: StagingIterator[EphemeralIterator[RegionValue]] =
+    iterator.toEphemeralIterator.staircased(t.mutableEquiv)
 
   def cogroup(other: OrderedRVIterator):
-      Iterator[Muple[BufferedIterator[RegionValue], BufferedIterator[RegionValue]]] =
-  {
-    new OrderedZipJoinIterator[BufferedIterator[RegionValue],
-                               BufferedIterator[RegionValue]](
-      left = this.staircase.buffered,
-      leftDefault = Iterator.empty.buffered,
-      right = other.staircase.buffered,
-      rightDefault = Iterator.empty.buffered,
+      EphemeralIterator[Muple[EphemeralIterator[RegionValue], EphemeralIterator[RegionValue]]] =
+    new OrderedZipJoinIterator[EphemeralIterator[RegionValue],
+                               EphemeralIterator[RegionValue]](
+      left = this.staircase,
+      leftDefault = EphemeralIterator.empty,
+      right = other.staircase,
+      rightDefault = EphemeralIterator.empty,
       (l, r) => t.kComp(other.t).compare(l.head, r.head)
     )
-  }
+
+
+  def zipJoin(other: OrderedRVIterator): EphemeralIterator[JoinedRegionValue] =
+    new OrderedZipJoinIterator[RegionValue, RegionValue](
+      left = iterator.toStagingIterator,
+      leftDefault = null,
+      right = other.iterator.toStagingIterator,
+      rightDefault = null,
+      OrderedRVType.selectUnsafeOrdering(
+        t.rowType, t.kRowFieldIdx, other.t.rowType, other.t.kRowFieldIdx)
+        .compare
+    )
 
   def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
     val muple = Muple[RegionValue, RegionValue](null, null)

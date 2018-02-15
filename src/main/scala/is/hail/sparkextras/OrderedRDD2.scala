@@ -55,10 +55,10 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
     }
 
     joinType match {
-      case "inner" => OrderedRVIterator(left.typ, leftIt.buffered)
-        .innerJoinDistinct(OrderedRVIterator(right.typ, rightIt.buffered))
-      case "left" => OrderedRVIterator(left.typ, leftIt.buffered)
-          .leftJoinDistinct(OrderedRVIterator(right.typ, rightIt.buffered))
+      case "inner" => OrderedRVIterator(left.typ, leftIt)
+        .innerJoinDistinct(OrderedRVIterator(right.typ, rightIt))
+      case "left" => OrderedRVIterator(left.typ, leftIt)
+          .leftJoinDistinct(OrderedRVIterator(right.typ, rightIt))
       case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }
@@ -102,14 +102,6 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     }
       .filter { rrv => leftPartitionForRightRow.getPartition(rrv) == index }
 
-    new OrderedZipJoinIterator[RegionValue, RegionValue](
-      left = leftIt.buffered,
-      leftDefault = null,
-      right = rightIt.buffered,
-      rightDefault = null,
-      OrderedRVType.selectUnsafeOrdering(
-        left.typ.rowType, left.typ.kRowFieldIdx, right.typ.rowType, right.typ.kRowFieldIdx)
-        .compare
-    )
+    OrderedRVIterator(left.typ, leftIt).zipJoin(OrderedRVIterator(right.typ, rightIt))
   }
 }
