@@ -1,5 +1,5 @@
-Statistical Genetics
---------------------
+Genetics
+--------
 
 .. currentmodule:: hail.methods
 

@@ -8,7 +8,7 @@ Methods
 
     impex
     stats
-    statgen
+    genetics
     misc
 
 .. rubric:: Import / Export
@@ -42,7 +42,7 @@ Methods
     pca
 
 
-.. rubric:: Statistical Genetics
+.. rubric:: Genetics
 
 .. autosummary::
 
