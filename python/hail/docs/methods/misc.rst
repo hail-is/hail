@@ -14,4 +14,4 @@ Miscellaneous
 
 .. autofunction:: maximal_independent_set
 .. autofunction:: rename_duplicates
-.. autofunction:: sample_rowspca
+.. autofunction:: sample_rows
