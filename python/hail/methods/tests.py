@@ -595,6 +595,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             hl.filter_intervals(ds, hl.Interval.parse('20:10639222-10644705')).count_rows(), 3)
 
+        self.assertEqual(
+            hl.filter_intervals(ds, [hl.Interval.parse('20:10639222-10644700'),
+                                     hl.Interval.parse('20:10644700-10644705')]).count_rows(), 3)
+
     def test_balding_nichols_model(self):
         from hail.stats import TruncatedBetaDist
 
