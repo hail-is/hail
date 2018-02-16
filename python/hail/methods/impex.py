@@ -964,8 +964,47 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
            force_bgz=bool)
 def import_matrix(paths, row_fields={}, key=[], entry_type=None, missing="NA", min_partitions=None, no_header=True, force_bgz=False):
     """
+    Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
+    Examples
+    --------
 
+        Consider this file:
+
+    .. code-block:: text
+
+        $ cat data/matrix1.tsv
+        Sample     Height  Status  Age  COL1
+        PT-1234    154.1   ADHD    24
+        PT-1236    160.9   Control 19
+        PT-1238    NA      ADHD    89
+        PT-1239    170.3   Control 55
+
+    The field ``Height`` contains floating-point numbers and the field ``Age``
+    contains integers.
+
+    To import this matrix:
+
+    >>> matrix1 = hl.import_matrix('data/matrix1.tsv',
+    ...                              row_fields={'Height': hl.TFloat64(), 'Age': hl.TInt32()}
+    ...                              )
+
+    Notes
+    -----
+    All columns to be imported as row fields must be at the start of the row.
+
+    Unlike import_table, no type imputation is done so types must be specified
+    for all columns that should be imported as row fields.
+
+    The header information for row fields is allowed to be missing, if the
+    column IDs are present, but the header must then consist only of tab-delimited
+    column IDs (no row field names).
+
+    If row field names are missing (or the no_header flag is ``True``), fields
+    are imported in column-order as `f0`, `f1`, ... (0-indexed).
+
+    If the no_header flag is ``True``, column IDs will be imported as `col0`,
+    `col1`, ... (also 0-indexed).
 
     Parameters
     ----------
@@ -1000,6 +1039,9 @@ def import_matrix(paths, row_fields={}, key=[], entry_type=None, missing="NA", m
 
     paths = wrap_to_list(paths)
     jrow_fields = {k: v._jtype for k, v in row_fields.items()}
+    for k, v in row_fields.items():
+        if v not in {TInt32(), TInt64(), TFloat32(), TFloat64(), TString()}:
+            raise FatalError("import_matrix expects field types to be one of: TInt32, TInt64, TFloat32, TFloat64, TString: field {} had type {}".format(k, v))
     key = wrap_to_list(key)
     if entry_type is None:
         entry_type = TInt64()
