@@ -34,7 +34,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
              |    expected $nFields fields but only $ii found.
              |    File: $file
              |    Line:
-             |        ${ line.truncate(76) }""".stripMargin
+             |        ${ line.truncate }""".stripMargin
         )
       }
     }
@@ -48,7 +48,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
              |    expected $nCols entries but only $ii entries found.
              |    File: $file
              |    Line:
-             |        ${ line.truncate(76) }""".stripMargin
+             |        ${ line.truncate }""".stripMargin
         )
       }
       rvb.startStruct()
