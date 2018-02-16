@@ -523,6 +523,18 @@ class TStruct(Type):
                                          ([f.name for f in self.fields], annotation._attrs))
                 f.typ._typecheck((annotation[f.name]))
 
+    def transitive_fields(self):
+        self._transitive_fields("", identifiers)
+
+    def _transitive_fields(self, prefix="", identifiers=[]):
+        for f in self.fields:
+            if (isinstance(f.typ, TStruct):
+                doit(f.typ, prefix+f.name+".", identifiers)
+            else:
+                identifiers.append('`{}`'.format(prefix+f.name)
+        return identifiers
+
+
 
 class TVariant(Type):
     """
