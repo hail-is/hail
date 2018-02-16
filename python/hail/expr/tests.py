@@ -951,3 +951,9 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
 
+
+    def test_bool_r_ops(self):
+        self.assertTrue(hl.eval_expr(hl.capture(True) & True))
+        self.assertTrue(hl.eval_expr(True & hl.capture(True)))
+        self.assertTrue(hl.eval_expr(hl.capture(False) | True))
+        self.assertTrue(hl.eval_expr(True | hl.capture(False)))
