@@ -1947,6 +1947,14 @@ class BooleanExpression(AtomicExpression):
         return self._bin_op(name, other, tbool)
 
     @typecheck_method(other=expr_bool)
+    def __rand__(self, other):
+        return self.__and__(other)
+
+    @typecheck_method(other=expr_bool)
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    @typecheck_method(other=expr_bool)
     def __and__(self, other):
         """Return ``True`` if the left and right arguments are ``True``.
 
