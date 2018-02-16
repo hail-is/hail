@@ -387,7 +387,7 @@ class TSet(Type):
         t = TSet.__new__(cls)
         t._element_type = Type._from_java(jtype.elementType())
         t._get_jtype = lambda: jtype
-        super(Type, t).__init__()
+        super(TSet, t).__init__()
         return t
 
     def _convert_to_py(self, annotation):
@@ -469,7 +469,7 @@ class TDict(Type):
         t._key_type = Type._from_java(jtype.keyType())
         t._value_type = Type._from_java(jtype.valueType())
         t._get_jtype = lambda: jtype
-        super(Type, t).__init__()
+        super(TDict, t).__init__()
         return t
 
     def _convert_to_py(self, annotation):
