@@ -484,6 +484,16 @@ class HailContext private(val sc: SparkContext,
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 
+  private[this] val codecsKey = "io.compression.codecs"
+  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
+  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
+  private[this] def forceBGZip[T](force: Boolean)(body: => T): T = {
+    val defaultCodecs = hadoopConf.get(codecsKey)
+    if (force)
+      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+    try { body } finally { hadoopConf.set(codecsKey, defaultCodecs) }
+  }
+
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
@@ -508,42 +518,42 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
-    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
-
-    if (forceBGZ)
-      hadoopConf.set("io.compression.codecs",
-        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
-    try {
+    forceBGZip(forceBGZ)  {
       val reader = new HtsjdkRecordReader(callFields)
       LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr,
         contigRecoding.getOrElse(Map.empty[String, String]))
-    } finally {
-      hadoopConf.set("io.compression.codecs", codecs)
     }
   }
 
   def importMatrix(file: String,
-    annotationHeaders: Option[Seq[String]],
-    annotationTypes: Seq[Type],
-    keyExpr: String,
+    fieldHeaders: Option[Array[String]],
+    fieldTypes: Array[Type],
+    optKeyFields: Option[Array[String]],
     nPartitions: Option[Int] = None,
+    forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
-    missingVal: String = "NA"): MatrixTable =
-    importMatrices(List(file), annotationHeaders, annotationTypes, keyExpr, nPartitions, dropSamples, cellType, missingVal)
+    missingVal: String = "NA",
+    noHeader: Boolean = false): MatrixTable =
+    importMatrices(List(file), fieldHeaders, fieldTypes, optKeyFields, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
 
-  def importMatrices(files: Seq[String],
-    annotationHeaders: Option[Seq[String]],
-    annotationTypes: Seq[Type],
-    keyExpr: String,
+  def importMatrices(files: List[String],
+    fieldHeaders: Option[Array[String]],
+    fieldTypes: Array[Type],
+    optKeyFields: Option[Array[String]],
     nPartitions: Option[Int] = None,
+    forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
-    missingVal: String = "NA"): MatrixTable = {
+    missingVal: String = "NA",
+    noHeader: Boolean = false): MatrixTable = {
+
     val inputs = hadoopConf.globAll(files)
 
-    LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions,
-      dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal)
+    forceBGZip(forceBGZ) {
+      LoadMatrix(this, inputs, fieldHeaders, fieldTypes, optKeyFields, nPartitions = nPartitions,
+        dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
+    }
   }
 
   def indexBgen(file: String) {

@@ -4,14 +4,190 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.language.implicitConversions
 import scala.io.Source
+
+class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String) {
+
+  assert(entryType.size == 1)
+
+  val sep = '\t'
+  val nFields: Int = fieldTypes.length
+  val cellf: (String, Long, Int, Int) => Int = addType(entryType.fieldType(0))
+
+  def parseLine(line: String, rowNum: Long): Unit = {
+    var ii = 0
+    var off = 0
+    while (ii < fieldTypes.length) {
+      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
+      ii += 1
+      if (off > line.length) {
+        fatal(
+          s"""Error parsing row fields in row $rowNum:
+             |    expected $nFields fields but only $ii found.
+             |    File: $file
+             |    Line:
+             |        ${ line.truncate }""".stripMargin
+        )
+      }
+    }
+
+    ii = 0
+    rvb.startArray(nCols)
+    while (ii < nCols) {
+      if (off > line.length) {
+        fatal(
+          s"""Incorrect number of entries in row $rowNum:
+             |    expected $nCols entries but only $ii entries found.
+             |    File: $file
+             |    Line:
+             |        ${ line.truncate }""".stripMargin
+        )
+      }
+      rvb.startStruct()
+      off = cellf(line, rowNum, ii, off)
+      rvb.endStruct()
+      ii += 1
+    }
+    if (off < line.length) {
+      fatal(
+        s"""Incorrect number of entries in row $rowNum:
+           |    expected $nCols entries but more data found.
+           |    in file $file""".stripMargin
+      )
+    }
+    rvb.endArray()
+  }
+
+  def addType(t: Type): (String, Long, Int, Int) => Int = t match {
+    case TInt32(_) => addInt
+    case TInt64(_) => addLong
+    case TFloat32(_) => addFloat
+    case TFloat64(_) => addDouble
+    case TString(_) => addString
+  }
+
+  def addString(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+    var newoff = line.indexOf(sep, off)
+    if (newoff == -1) {
+      newoff = line.length
+    }
+    val v = line.substring(off, newoff)
+    if (v == missingValue){
+      rvb.setMissing()
+    } else rvb.addString(v)
+    newoff + 1
+  }
+
+  def addInt(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+    var newoff = off
+    var v = 0
+    var isNegative = false
+    if (line(off) == sep) {
+      fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
+    }
+    if (line(off) == '-' || line(off) == '+') {
+      isNegative = line(off) == '-'
+      newoff += 1
+    }
+    while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
+      v *= 10
+      v += (line(newoff) - '0')
+      newoff += 1
+    }
+    if (newoff == off) {
+      while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
+        newoff += 1
+      }
+
+      if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
+        rvb.setMissing()
+      } else {
+        fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
+      }
+    } else if (line.length == newoff || line(newoff) == sep) {
+      if (isNegative) rvb.addInt(-v) else rvb.addInt(v)
+    } else {
+      fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
+    }
+    newoff + 1
+  }
+
+  def addLong(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+    var newoff = off
+    var v = 0L
+    var isNegative = false
+    if (line(off) == sep) {
+      fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowNum in file: $file")
+    }
+    if (line(off) == '-' || line(off) == '+') {
+      isNegative = line(off) == '-'
+      newoff += 1
+    }
+    while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
+      v *= 10
+      v += line(newoff) - '0'
+      newoff += 1
+    }
+    if (newoff == off) {
+      while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
+        newoff += 1
+      }
+
+      if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
+        rvb.setMissing()
+      } else {
+        fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowNum in file: $file")
+      }
+    } else if (line.length == newoff || line(newoff) == sep) {
+      if (isNegative) rvb.addLong(-v) else rvb.addLong(v)
+    } else {
+      fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowNum in file: $file")
+    }
+    newoff + 1
+  }
+
+  def addFloat(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+    var newoff = line.indexOf(sep, off)
+    if (newoff == -1)
+      newoff = line.length
+    val v = line.substring(off, newoff)
+    if (v == missingValue) {
+      rvb.setMissing()
+    } else {
+      try {
+        rvb.addFloat(v.toFloat)
+      } catch {
+        case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: $rowNum in file: $file")
+      }
+    }
+    newoff + 1
+  }
+
+  def addDouble(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+    var newoff = line.indexOf(sep, off)
+    if (newoff == -1)
+      newoff = line.length
+    val v = line.substring(off, newoff)
+    if (v == missingValue) {
+      rvb.setMissing()
+    } else {
+      try {
+        rvb.addDouble(v.toDouble)
+      } catch {
+        case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: $rowNum in file: $file")
+      }
+    }
+    newoff + 1
+  }
+}
 
 object LoadMatrix {
 
@@ -24,37 +200,62 @@ object LoadMatrix {
   }
 
   // this assumes that col IDs are in last line of header.
-  def parseHeader(line: String, sep: Char = '\t', nAnnotations: Int, annotationHeaders: Option[Seq[String]]): (Array[String], Array[String]) =
+  def parseHeader(hConf: Configuration, file: String, sep: Char, nRowFields: Int,
+    fieldHeaders: Option[Array[String]], noHeader: Boolean): (Array[String], Array[String]) = {
+    val line = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().next() }
+    parseHeaderFields(line.split(sep), nRowFields, fieldHeaders, noHeader)
+  }
+
+  def parseHeaderFields(cols: Array[String], nRowFields: Int,
+    annotationHeaders: Option[Array[String]], noHeader: Boolean=false): (Array[String], Array[String]) = {
     annotationHeaders match {
       case None =>
-        val r = line.split(sep)
-        if (r.length < nAnnotations)
-          fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
-        (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
+        if (cols.length < nRowFields)
+          fatal(s"Expected $nRowFields annotation columns; only ${ cols.length } columns in table.")
+        if (noHeader)
+          (Array.tabulate(nRowFields) { i => "f"+i.toString() },
+            Array.tabulate(cols.length - nRowFields) { i => "col"+i.toString() })
+        else
+          (cols.slice(0, nRowFields), cols.slice(nRowFields, cols.length))
       case Some(h) =>
-        assert(h.length == nAnnotations)
-        (h.toArray, line.split(sep))
+        assert(h.length == nRowFields)
+        (h.toArray, if (noHeader) Array.tabulate(cols.length - h.length) { i => "col"+i.toString() } else cols)
     }
+  }
 
-  def getHeaderLines[T](hConf: Configuration, file: String, nLines: Int = 1): String = hConf.readFile(file) { s =>
-    Source.fromInputStream(s).getLines().next()
+  def makePartitionerFromCounts(partitionCounts: Array[Long], pkType: TStruct): (OrderedRVDPartitioner, Array[Int]) = {
+    var includeStart = true
+    val keepPartitions = new ArrayBuilder[Int]()
+    val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
+      val interval = Interval(Row(if (includeStart) s else s - 1), Row(e - 1), includeStart, true)
+      includeStart = false
+      if (interval.isEmpty(pkType.ordering))
+        None
+      else {
+        keepPartitions += i
+        Some(interval)
+      }
+    }
+    val ranges = UnsafeIndexedSeq(TArray(TInterval(pkType)), rangeBoundIntervals)
+    (new OrderedRVDPartitioner(Array(pkType.fieldNames(0)), pkType, ranges), keepPartitions.result())
   }
 
   def apply(hc: HailContext,
     files: Array[String],
-    annotationHeaders: Option[Seq[String]],
-    annotationTypes: Seq[Type],
-    keyExpr: String,
+    annotationHeaders: Option[Array[String]],
+    fieldTypes: Array[Type],
+    keyFields: Option[Array[String]],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: TStruct = TStruct("x" -> TInt64()),
-    missingValue: String = "NA"): MatrixTable = {
+    missingValue: String = "NA",
+    noHeader: Boolean = false): MatrixTable = {
     require(cellType.size == 1, "cellType can only have 1 field")
 
     val sep = '\t'
-    val nAnnotations = annotationTypes.length
+    val nAnnotations = fieldTypes.length
 
-      assert(annotationTypes.forall { t =>
+      assert(fieldTypes.forall { t =>
         t.isOfType(TString()) ||
           t.isOfType(TInt32()) ||
           t.isOfType(TInt64()) ||
@@ -64,11 +265,10 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val (annotationNames, header1) = parseHeader(getHeaderLines(hConf, files.head), sep, nAnnotations, annotationHeaders)
-    val symTab = annotationNames.zip(annotationTypes)
+    val (annotationNames, header1) = parseHeader(hConf, files.head, sep, nAnnotations, annotationHeaders, noHeader)
+    val symTab = annotationNames.zip(fieldTypes)
     val annotationType = TStruct(symTab: _*)
     val ec = EvalContext(symTab: _*)
-    val (keyType, keyF) = Parser.parseExpr(keyExpr, ec)
 
     val header1Bc = sc.broadcast(header1)
 
@@ -78,24 +278,61 @@ object LoadMatrix {
       else
         header1
 
-    val nSamples = sampleIds.length
+    val nCols = sampleIds.length
 
     LoadMatrix.warnDuplicates(sampleIds)
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val fileByPartition = lines.partitions.map(p => partitionPath(p))
-    val firstPartitions = fileByPartition.zipWithIndex.filter {
-      case (name, partition) => partition == 0 || fileByPartition(partition - 1) != name
-    }.map { case (_, partition) => partition }.toSet
+    val firstPartitions = fileByPartition.scanLeft(0) { (i, file) => if (fileByPartition(i) == file) i else i + 1 }.tail
+
+    val partitionCounts = lines.filter(l => l.value.nonEmpty)
+      .mapPartitionsWithIndex { (i, it) =>
+        if (firstPartitions(i) == i) {
+          if (!noHeader) {
+            val hd1 = header1Bc.value
+            val (annotationNamesCheck, hd) = parseHeaderFields(it.next().value.split(sep), nAnnotations, annotationHeaders)
+            if (!annotationNames.sameElements(annotationNamesCheck)) {
+              fatal("column headers for annotations must be the same across files.")
+            }
+            if (!hd1.sameElements(hd)) {
+              if (hd1.length != hd.length) {
+                fatal(
+                  s"""invalid sample ids: lengths of headers differ.
+                     |    ${ hd1.length } elements in ${ files(0) }
+                     |    ${ hd.length } elements in ${ fileByPartition(i) }
+               """.stripMargin
+                )
+              }
+              hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
+                if (s1 != s2) {
+                  fatal(
+                    s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
+                       |    ${ files(0) }: $s1
+                       |    ${ fileByPartition(i) }: $s2""".
+                      stripMargin)
+                }
+              }
+            }
+          }
+        }
+        it
+      }.countPerPartition().scanLeft(0L)(_ + _)
+
+    val useIndex = keyFields.isEmpty
+    val rowKey = keyFields.getOrElse(Array("row_id"))
+    val rowType = if (useIndex)
+      TStruct("row_id" -> TInt64()) ++ annotationType
+    else annotationType
 
     val matrixType = MatrixType.fromParts(
       TStruct.empty(),
       colType = TStruct("col_id" -> TString()),
       colKey = Array("col_id"),
-      rowType = TStruct("row_id" -> keyType) ++ annotationType,
-      rowKey = Array("row_id"),
-      rowPartitionKey = Array("row_id"),
+      rowType = rowType,
+      rowKey = rowKey.toFastIndexedSeq,
+      rowPartitionKey = rowKey.toFastIndexedSeq,
       entryType = cellType)
 
     val rdd = lines.filter(l => l.value.nonEmpty)
@@ -104,238 +341,38 @@ object LoadMatrix {
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
-        if (firstPartitions(i)) {
-          val hd1 = header1Bc.value
-          val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
-          if (!annotationNames.sameElements(annotationNamesCheck)) {
-            fatal("column headers for annotations must be the same accross files.")
-          }
-          if (!hd1.sameElements(hd)) {
-            if (hd1.length != hd.length) {
-              fatal(
-                s"""invalid sample ids: lengths of headers differ.
-                   |    ${ hd1.length } elements in ${ files(0) }
-                   |    ${ hd.length } elements in ${ fileByPartition(i) }
-               """.stripMargin
-              )
-            }
-            hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
-              if (s1 != s2) {
-                fatal(
-                  s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
-                     |    ${ files(0) }: $s1
-                     |    ${ fileByPartition(i) }: $s2""".
-                    stripMargin)
-              }
-            }
-          }
-        }
+        if (firstPartitions(i) == i && !noHeader) { it.next() }
 
-        val at = matrixType.rowType.asInstanceOf[TStruct]
+        val partitionStartInFile = partitionCounts(i) - partitionCounts(firstPartitions(i))
+        val parser = new LoadMatrixParser(rvb, fieldTypes, cellType, nCols, missingValue, fileByPartition(i))
 
-        it.map { v =>
+        it.zipWithIndex.map { case (v, row) =>
+          val fileRowNum = partitionStartInFile + row
           val line = v.value
-          var off = 0
-          var missing = false
-
-          def getString(file: String, rowID: Annotation, colNum: Int): String = {
-            var newoff = line.indexOf(sep, off)
-            if (newoff == -1) {
-              newoff = line.length
-            }
-            val v = line.substring(off, newoff)
-            off = newoff + 1
-            if (v == missingValue){
-              missing = true
-              null
-            } else v
-          }
-
-          def getInt(file: String, rowID: Annotation, colNum: Int): Int = {
-            var newoff = off
-            var v = 0
-            var isNegative = false
-            if (line(off) == sep) {
-              fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-            }
-            if (line(off) == '-' || line(off) == '+') {
-              isNegative = line(off) == '-'
-              newoff += 1
-            }
-            while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
-              v *= 10
-              v += (line(newoff) - '0')
-              newoff += 1
-            }
-            if (newoff == off) {
-              while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
-                newoff += 1
-              }
-
-              if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
-                off = newoff + 1
-                missing = true
-                0
-              } else {
-                fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-              }
-            } else if (line.length == newoff || line(newoff) == sep) {
-              off = newoff + 1
-              if (isNegative) -v else v
-            } else {
-              fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-            }
-          }
-
-          def getLong(file: String, rowID: Annotation, colNum: Int): Long = {
-            var newoff = off
-            var v = 0L
-            var isNegative = false
-            if (line(off) == sep) {
-              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-            }
-            if (line(off) == '-' || line(off) == '+') {
-              isNegative = line(off) == '-'
-              newoff += 1
-            }
-            while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
-              v *= 10
-              v += line(newoff) - '0'
-              newoff += 1
-            }
-            if (newoff == off) {
-              while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
-                newoff += 1
-              }
-
-              if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
-                off = newoff + 1
-                missing = true
-                0L
-              } else {
-                fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-              }
-            } else if (line.length == newoff || line(newoff) == sep) {
-              off = newoff + 1
-              if (isNegative) -v else v
-            } else {
-              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-            }
-          }
-
-          def getFloat(file: String, rowID: Annotation, colNum: Int): Float = {
-            var newoff = line.indexOf(sep, off)
-            if (newoff == -1)
-              newoff = line.length
-            val v = line.substring(off, newoff)
-            off = newoff + 1
-            if (v == missingValue) {
-              missing = true
-              0.0F
-            } else {
-              try {
-              v.toFloat
-              } catch {
-                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-              }
-            }
-          }
-
-          def getDouble(file: String, rowID: Annotation, colNum: Int): Double = {
-            var newoff = line.indexOf(sep, off)
-            if (newoff == -1)
-              newoff = line.length
-            val v = line.substring(off, newoff)
-            off = newoff + 1
-            if (v == missingValue) {
-              missing = true
-              0.0
-            } else {
-              try {
-                v.toDouble
-              } catch {
-                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: ${ keyType.str(rowID) } in file: $file")
-              }
-            }
-          }
-
-          var ii = 0
-          while (ii < nAnnotations) {
-            val t = at.fieldType(ii)
-            ec.set(ii, t match {
-              case _: TInt32 => getInt(fileByPartition(i), null, ii)
-              case _: TInt64 => getLong(fileByPartition(i), null, ii)
-              case _: TFloat32 => getFloat(fileByPartition(i), null, ii)
-              case _: TFloat64 => getDouble(fileByPartition(i), null, ii)
-              case _: TString => getString(fileByPartition(i), null, ii)
-            })
-            ii += 1
-          }
-
-          val rowKey = keyF()
 
           region.clear()
           rvb.start(matrixType.rvRowType)
           rvb.startStruct()
-          rvb.addAnnotation(keyType, rowKey)
-          ii = 1 // start at 1 because we include the one key
-          while (ii < at.size) {
-            rvb.addAnnotation(at.fieldType(ii), ec.a(ii - 1)) // subtract 1 for the key
-            ii += 1
+          if (useIndex) {
+            rvb.addLong(partitionCounts(i) + row)
           }
-
-          rvb.startArray(nSamples)
-          if (nSamples > 0) {
-            var ii = 0
-            while (ii < nSamples) {
-              if (off > line.length) {
-                fatal(
-                  s"""Incorrect number of elements in line:
-                     |    expected $nSamples elements in row $rowKey but only $ii elements found.
-                     |    in file ${ fileByPartition(i) }""".stripMargin
-                )
-              }
-              rvb.startStruct()
-              missing = false
-              cellType.fields(0).typ match {
-                case _: TInt32 =>
-                  val v = getInt(fileByPartition(i), rowKey, ii + nAnnotations)
-                  if (missing) rvb.setMissing() else rvb.addInt(v)
-                case _: TInt64 =>
-                  val v = getLong(fileByPartition(i), rowKey, ii + nAnnotations)
-                  if (missing) rvb.setMissing() else rvb.addLong(v)
-                case _: TFloat32 =>
-                  val v = getFloat(fileByPartition(i), rowKey, ii + nAnnotations)
-                  if (missing) rvb.setMissing() else rvb.addFloat(v)
-                case _: TFloat64 =>
-                  val v = getDouble(fileByPartition(i), rowKey, ii + nAnnotations)
-                  if (missing) rvb.setMissing() else rvb.addDouble(v)
-                case _: TString =>
-                  val v = getString(fileByPartition(i), rowKey, ii + nAnnotations)
-                  if (missing) rvb.setMissing() else rvb.addString(v)
-              }
-              rvb.endStruct()
-              ii += 1
-            }
-            if (off < line.length) {
-              fatal(
-                s"""Incorrect number of elements in line:
-                   |    expected $nSamples elements in row but more data found.
-                   |    in file ${ fileByPartition(i) }""".stripMargin
-              )
-            }
-          }
-          rvb.endArray()
+          parser.parseLine(line, fileRowNum)
           rvb.endStruct()
           rv.setOffset(rvb.end())
           rv
         }
       }
 
+    val orderedRVD = if (useIndex) {
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.pkType)
+      OrderedRVD(matrixType.orvdType, partitioner, rdd.subsetPartitions(keepPartitions))
+    } else
+      OrderedRVD(matrixType.orvdType, rdd, None, None)
+
     new MatrixTable(hc,
       matrixType,
       Annotation.empty,
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orvdType, rdd, None, None))
+      orderedRVD)
   }
 }
