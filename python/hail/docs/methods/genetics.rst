@@ -11,6 +11,7 @@ Genetics
     balding_nichols_model
     concordance
     FilterAlleles
+    filter_intervals
     grm
     hwe_normalized_pca
     ibd
@@ -32,6 +33,7 @@ Genetics
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance
 .. autoclass:: FilterAlleles
+.. autofunction:: filter_intervals
 .. autofunction:: grm
 .. autofunction:: hwe_normalized_pca
 .. autofunction:: ibd

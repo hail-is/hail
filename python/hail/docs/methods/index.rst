@@ -49,6 +49,7 @@ Methods
     balding_nichols_model
     concordance
     FilterAlleles
+    filter_intervals
     grm
     hwe_normalized_pca
     ibd
