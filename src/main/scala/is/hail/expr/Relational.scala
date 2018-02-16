@@ -93,11 +93,7 @@ case class MatrixValue(
 
   def sampleIds: IndexedSeq[Row] = {
     val queriers = typ.colKey.map(field => typ.colType.query(field))
-<<<<<<< 1aaa5217fd94f97e9caf9007118f504f31c34267
     colValues.map(a => Row.fromSeq(queriers.map(_ (a))))
-=======
-    localValue.sampleAnnotations.map(a => Row.fromSeq(queriers.map(_ (a))))
->>>>>>> Scala done
   }
 
   lazy val colValuesBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(colValues)
@@ -426,13 +422,8 @@ abstract sealed class TableIR extends BaseIR {
 
   def env: Env[IR] = {
     Env.empty[IR]
-<<<<<<< 1aaa5217fd94f97e9caf9007118f504f31c34267
-      .bind(typ.rowType.fieldNames.map { f => (f, GetField(In(0, typ.rowType), f)) }: _*)
-      .bind(typ.globalType.fieldNames.map { f => (f, GetField(In(1, typ.globalType), f)) }: _*)
-=======
       .bind(("global", GetField(In(0, typ.globalType), "global")))
       .bind(("row", GetField(In(1, typ.rowType), "row")))
->>>>>>> Scala done
   }
 
   def execute(hc: HailContext): TableValue
