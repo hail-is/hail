@@ -46,6 +46,7 @@ Methods
 
 .. autosummary::
 
+    filter_intervals
     balding_nichols_model
     concordance
     FilterAlleles

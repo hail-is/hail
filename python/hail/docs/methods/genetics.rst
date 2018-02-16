@@ -8,6 +8,7 @@ Genetics
 
 .. autosummary::
 
+    filter_intervals
     balding_nichols_model
     concordance
     FilterAlleles
@@ -29,6 +30,7 @@ Genetics
     vep
 
 
+.. autofunction:: filter_intervals
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance
 .. autoclass:: FilterAlleles
