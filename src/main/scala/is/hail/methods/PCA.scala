@@ -75,9 +75,11 @@ object PCA {
           s"but user requested ${ k } principal components.")
 
     val optionLoadings = someIf(computeLoadings, {
-      val rowType = TStruct("v" -> vsm.rowKeyStruct) ++ (if (asArray) TStruct("loadings" -> TArray(TFloat64())) else pcSchema(k))
+      val rowType = TStruct(vsm.rowKey.zip(vsm.rowKeyTypes): _*) ++ (if (asArray) TStruct("loadings" -> TArray(TFloat64())) else pcSchema(k))
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
       val variantsBc = vsm.sparkContext.broadcast(vsm.collectRowKeys().values)
+      val localRowKeySignature = vsm.rowKeyTypes
+
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
         val region = Region()
         val rv = RegionValue(region)
@@ -86,7 +88,14 @@ object PCA {
           region.clear()
           rvb.start(rowTypeBc.value)
           rvb.startStruct()
-          rvb.addAnnotation(rowTypeBc.value.fieldType(0), variantsBc.value(ir.index.toInt))
+
+          val rowKeys = variantsBc.value(ir.index.toInt).asInstanceOf[Row]
+          var j = 0
+          while (j < localRowKeySignature.length) {
+            rvb.addAnnotation(localRowKeySignature(j), rowKeys.get(j))
+            j += 1
+          }
+
           if (asArray)
             rvb.startArray(k)
           var i = 0
@@ -101,7 +110,7 @@ object PCA {
           rv
         }
       }
-      new Table(vsm.hc, rdd, rowType, Array("v"))
+      new Table(vsm.hc, rdd, rowType, vsm.rowKey)
     })
 
     val data =

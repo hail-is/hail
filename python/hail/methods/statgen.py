@@ -1434,13 +1434,15 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     followed by the principal component scores. If `as_array` is ``True``, there
     is one row field `scores` of type ``Array[Float64]`` containing the principal
     component scores. If `as_array` is ``False`` (default), then each principal
-    component score is a new row field of type ``Float64`` and the names `PC1`,
+    component score is a new row field of type ``Float64`` with the names `PC1`,
     `PC2`, etc.
 
-    Loadings are stored in a :class:`.Table` with a structure similar to the scores
-    table. The first row field is `v` which is the row keys of the dataset. The
-    loadings for each principal component is stored as described above except the
-    row field name is `loadings` instead of `scores` if `as_array` is ``False``.
+    Loadings are stored in a :class:`.Table` with a structure similar to the
+    scores table except the row keys of the matrix are followed by the loadings.
+    If `as_array` is ``False``, the loadings are stored in one row field
+    `loadings` of type ``Array[Float64]``. Otherwise, each principal component
+    loading is a new row field of type ``Float64`` with the names `PC1`, `PC2`,
+    etc.
 
     Parameters
     ----------
@@ -1453,8 +1455,8 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     compute_loadings : :obj:`bool`
         If ``True``, compute row loadings.
     as_array : :obj:`bool`
-        If ``True``, return scores and loadings as an array field. If ``False``, add
-        one row field per element (`PC1`, `PC2`, ... `PCk`).
+        If ``True``, return scores and loadings as an array field. If ``False``,
+        add one row field per element (`PC1`, `PC2`, ... `PCk`).
 
     Returns
     -------
