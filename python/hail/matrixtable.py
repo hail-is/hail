@@ -507,43 +507,65 @@ class MatrixTable(object):
                               refs=LinkedList(tuple).push(
                                   *[(f.name, self._entry_indices) for f in self.entry_schema.fields]))
 
-    @typecheck_method(fields=strlike)
-    def key_cols_by(self, *fields):
+    @typecheck_method(keys=oneof(strlike, Expression))
+    def key_cols_by(self, *keys):
         """Key columns by a new set of fields.
 
         Parameters
         ----------
-        fields : varargs of :obj:`str`
-            Fields to key by.
+        keys : varargs of :obj:`str`
+            Column fields to key by.
         Returns
         -------
         :class:`.MatrixTable`
         """
-        for f in fields:
-            if f not in self._fields:
-                raise ValueError("MatrixTable has no field '{}'".format(f))
-            if not self[f]._indices == self._col_indices:
-                raise ValueError("field '{}' is not a column field".format(f))
-        return MatrixTable(self._jvds.keyColsBy(list(fields)))
+        str_keys = []
+        fields_rev = {expr: name for name, expr in self._fields.items()}
+        for k in keys:
+            if isinstance(k, Expression):
+                if k not in fields_rev:
+                    raise ExpressionException("'key_cols_by' permits only top-level fields of the matrix table")
+                elif k._indices != self._col_indices:
+                    raise ExpressionException("key_cols_by' expects column fields, found index {}"
+                                              .format(list(k._indices.axes)))
+                str_keys.append(fields_rev[k])
+            else:
+                if k not in self._fields:
+                    raise LookupError(get_nice_field_error(self, k))
+                if not self._fields[k]._indices == self._col_indices:
+                    raise ValueError("'{}' is not a column field".format(k))
+                str_keys.append(k)
+        return MatrixTable(self._jvds.keyColsBy(str_keys))
 
-    @typecheck_method(fields=strlike)
-    def key_rows_by(self, *fields):
+    @typecheck_method(fields=oneof(strlike, Expression))
+    def key_rows_by(self, *keys):
         """Key rows by a new set of fields.
 
         Parameters
         ----------
-        fields : varargs of :obj:`str`
-            Fields to key by.
+        keys : varargs of :obj:`str`
+            Row fields to key by.
         Returns
         -------
         :class:`.MatrixTable`
         """
-        for f in fields:
-            if f not in self._fields:
-                raise ValueError("MatrixTable has no field '{}'".format(f))
-            if not self[f]._indices == self._row_indices:
-                raise ValueError("field '{}' is not a column field".format(f))
-        return MatrixTable(self._jvds.keyRowsBy(list(fields), list(fields)))
+        str_keys = []
+        fields_rev = {expr: name for name, expr in self._fields.items()}
+        for k in keys:
+            if isinstance(k, Expression):
+                if k not in fields_rev:
+                    raise ExpressionException("'key_rows_by' permits only top-level fields of the matrix table")
+                elif k._indices != self._row_indices:
+                    raise ExpressionException("key_rows_by' expects row fields, found index {}"
+                                              .format(list(k._indices.axes)))
+                str_keys.append(fields_rev[k])
+            else:
+                if k not in self._fields:
+                    raise LookupError(get_nice_field_error(self, k))
+                if not self._fields[k]._indices == self._row_indices:
+                    raise ValueError("'{}' is not a row field".format(k))
+                str_keys.append(k)
+        return MatrixTable(self._jvds.keyRowsBy(str_keys, str_keys))
 
     @handle_py4j
     def annotate_globals(self, **named_exprs):

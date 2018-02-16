@@ -380,7 +380,7 @@ class Table(TableTemplate):
                 schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
     @handle_py4j
-    @typecheck_method(keys=strlike)
+    @typecheck_method(keys=oneof(strlike, Expression))
     def key_by(self, *keys):
         """Change which columns are keys.
 
@@ -393,7 +393,7 @@ class Table(TableTemplate):
 
         >>> table_result = table1.key_by('C2', 'C3')
 
-        >>> table_result = table1.key_by('C2')
+        >>> table_result = table1.key_by(table1.C1)
 
         Set to no keys:
 
@@ -409,8 +409,24 @@ class Table(TableTemplate):
         :class:`.Table`
             Table with new set of keys.
         """
+        str_keys = []
+        fields_rev = {expr: name for name, expr in self._fields.items()}
+        for k in keys:
+            if isinstance(k, Expression):
+                if k not in fields_rev:
+                    raise ExpressionException("'key_by' permits only top-level fields of the table")
+                elif k._indices != self._row_indices:
+                    raise ExpressionException("key_by' expects row fields, found index {}"
+                                              .format(list(k._indices.axes)))
+                str_keys.append(fields_rev[k])
+            else:
+                if k not in self._fields:
+                    raise LookupError(get_nice_field_error(self, k))
+                if not self._fields[k]._indices == self._row_indices:
+                    raise ValueError("'{}' is not a row field".format(k))
+                str_keys.append(k)
 
-        return Table(self._jt.keyBy(list(keys)))
+        return Table(self._jt.keyBy(str_keys))
 
     @handle_py4j
     def annotate_globals(self, **named_exprs):
