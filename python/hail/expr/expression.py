@@ -3528,6 +3528,7 @@ def eval_expr_typed(expression):
 
     x = Env.hc()._jhc.eval(expression._ast.to_hql())
     t = Type._from_java(x._2())
+    assert t == expression.dtype, "type mismatch: eval={}, expr={}".format(t, expression.dtype)
     r = t._convert_to_py(x._1())
     return r, t
 
