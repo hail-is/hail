@@ -85,11 +85,8 @@ class ImportMatrixSuite extends SparkSuite {
     dropFields match {
       case Some(fields) =>
         val keep = vsm.rowType.fieldNames.filterNot { fn => fields.contains(fn) }
-        val sb = new StringBuilder()
-        keep.foreach { f =>
-          sb ++= s"`$f`: va.`$f`,"
-        }
-        vsm.annotateVariantsExpr(s"va = {${ sb.result().dropRight(1) }}")
+        val keepString = keep.map { f => s"`$f`: va.`$f`" }.mkString(",")
+        vsm.annotateVariantsExpr(s"va = {$keepString}")
       case None => vsm.annotateVariantsExpr("va = {}")
     }
 

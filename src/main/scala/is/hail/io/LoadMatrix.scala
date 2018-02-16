@@ -20,34 +20,23 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
 
   val sep = '\t'
   val nFields: Int = fieldTypes.length
-  val cellf: (String, Long, Int, Int) => Int = entryType.fieldType(0) match {
-    case TInt32(_) => getInt
-    case TInt64(_) => getLong
-    case TFloat32(_) => getFloat
-    case TFloat64(_) => getDouble
-    case TString(_) => getString
-  }
-
+  val cellf: (String, Long, Int, Int) => Int = addType(entryType.fieldType(0))
 
   def parseLine(line: String, rowNum: Long): Unit = {
     var ii = 0
     var off = 0
     while (ii < fieldTypes.length) {
-      off = fieldTypes(ii) match {
-        case TInt32(_) => getInt(line, rowNum, ii, off)
-        case TInt64(_) => getLong(line, rowNum, ii, off)
-        case TFloat32(_) => getFloat(line, rowNum, ii, off)
-        case TFloat64(_) => getDouble(line, rowNum, ii, off)
-        case TString(_) => getString(line, rowNum, ii, off)
-      }
+      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
+      ii += 1
       if (off > line.length) {
         fatal(
           s"""Error parsing row fields in row $rowNum:
              |    expected $nFields fields but only $ii found.
-             |    in file $file""".stripMargin
+             |    File: $file
+             |    Line:
+             |        ${ line.take(76) }...""".stripMargin
         )
       }
-      ii += 1
     }
 
     ii = 0
@@ -57,7 +46,9 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
         fatal(
           s"""Incorrect number of entries in row $rowNum:
              |    expected $nCols entries but only $ii entries found.
-             |    in file $file""".stripMargin
+             |    File: $file
+             |    Line:
+             |        ${ line.take(76) }...""".stripMargin
         )
       }
       rvb.startStruct()
@@ -75,7 +66,15 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     rvb.endArray()
   }
 
-  def getString(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+  def addType(t: Type): (String, Long, Int, Int) => Int = t match {
+    case TInt32(_) => addInt
+    case TInt64(_) => addLong
+    case TFloat32(_) => addFloat
+    case TFloat64(_) => addDouble
+    case TString(_) => addString
+  }
+
+  def addString(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
     var newoff = line.indexOf(sep, off)
     if (newoff == -1) {
       newoff = line.length
@@ -87,7 +86,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     newoff + 1
   }
 
-  def getInt(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+  def addInt(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
     var newoff = off
     var v = 0
     var isNegative = false
@@ -121,7 +120,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     newoff + 1
   }
 
-  def getLong(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+  def addLong(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
     var newoff = off
     var v = 0L
     var isNegative = false
@@ -155,7 +154,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     newoff + 1
   }
 
-  def getFloat(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+  def addFloat(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
     var newoff = line.indexOf(sep, off)
     if (newoff == -1)
       newoff = line.length
@@ -172,7 +171,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     newoff + 1
   }
 
-  def getDouble(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
+  def addDouble(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
     var newoff = line.indexOf(sep, off)
     if (newoff == -1)
       newoff = line.length
@@ -286,7 +285,7 @@ object LoadMatrix {
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val fileByPartition = lines.partitions.map(p => partitionPath(p))
-    val firstPartitions = fileByPartition.scanLeft(0) { case(i, file) => if (fileByPartition(i) == file) i else i + 1 }.tail
+    val firstPartitions = fileByPartition.scanLeft(0) { (i, file) => if (fileByPartition(i) == file) i else i + 1 }.tail
 
     val partitionCounts = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
