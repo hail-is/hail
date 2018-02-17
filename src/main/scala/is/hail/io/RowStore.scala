@@ -5,11 +5,12 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
 import is.hail.utils._
-import is.hail.variant.LZ4Utils
 import org.apache.spark.rdd.RDD
 import org.json4s.{Extraction, JValue}
 import org.json4s.jackson.JsonMethods
 import java.io.{Closeable, InputStream, OutputStream}
+
+import is.hail.io.compress.LZ4Utils
 
 trait BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
