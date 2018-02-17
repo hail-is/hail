@@ -1127,7 +1127,7 @@ def get_vcf_metadata(path):
                                     'Number': '1',
                                     'Type': 'Float'}}}
 
-    which can be used with :meth:`.export_vcf` to fill in the relevant fields in the header.
+    which can be used with :func:`.export_vcf` to fill in the relevant fields in the header.
 
     Parameters
     ----------
@@ -1275,7 +1275,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
-    """Index .bgen files as required by :meth:`.import_bgen`.
+    """Index .bgen files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
     filename of `path` appended by `.idx`.
