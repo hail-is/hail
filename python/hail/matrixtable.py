@@ -707,7 +707,7 @@ class MatrixTable(object):
             analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
             replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-            check_collisions(self._fields, k, self._row_indices)
+            check_collisions(self._fields, k, self._col_indices)
         m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
