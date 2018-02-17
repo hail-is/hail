@@ -302,7 +302,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    :meth:`.vep` runs `Variant Effect Predictor
+    :func:`.vep` runs `Variant Effect Predictor
     <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with the `LOFTEE
     plugin <https://github.com/konradjk/loftee>`__ on the current dataset and
     adds the result as a row field.
@@ -319,10 +319,10 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     **Configuration**
 
-    :meth:`.vep` needs a configuration file to tell it
+    :func:`.vep` needs a configuration file to tell it
     how to run VEP. The format is a `.properties file
     <https://en.wikipedia.org/wiki/.properties>`__. Roughly, each line defines a
-    property as a key-value pair of the form `key = value`. :meth:`.vep` supports the
+    property as a key-value pair of the form `key = value`. :func:`.vep` supports the
     following properties:
 
     - **hail.vep.perl** -- Location of Perl. Optional, default: perl.
@@ -556,7 +556,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    :meth:`.nirvana` runs `Nirvana
+    :func:`.nirvana` runs `Nirvana
     <https://github.com/Illumina/Nirvana>`_ on the current dataset and adds a
     new row field in the location specified by `name`.
 
@@ -572,10 +572,10 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
 
     ***Configuration***
 
-    :meth:`.nirvana` requires a configuration file. The format is a
+    :func:`.nirvana` requires a configuration file. The format is a
     `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each
     line defines a property as a key-value pair of the form ``key = value``.
-    :meth:`.nirvana` supports the following properties:
+    :func:`.nirvana` supports the following properties:
 
     - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
     - **hail.nirvana.path** -- Value of the PATH environment variable when

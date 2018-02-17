@@ -45,7 +45,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     The implementation is based on the IBD algorithm described in the `PLINK
     paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
 
-    :meth:`ibd` requires the dataset to be biallelic and does not perform LD
+    :func:`.ibd` requires the dataset to be biallelic and does not perform LD
     pruning. Linkage disequilibrium may bias the result so consider filtering
     variants first.
 
@@ -244,14 +244,13 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Warning
     -------
-    :meth:`.linreg` considers the same set of columns (i.e., samples, points)
+    :func:`.linreg` considers the same set of columns (i.e., samples, points)
     for every response variable and row, namely those columns for which **all**
     response variables and covariates are defined. For each row, missing values
     of ``x`` are mean-imputed over these columns.
 
     Notes
     -----
-
     With the default root, the following row-indexed fields are added. The
     indexing of the array fields corresponds to that of ``ys``.
 
@@ -1951,7 +1950,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
         PL: Array[!Int32].
       }
 
-    For generic genotype schema, use :meth:`.split_multi`.
+    For generic genotype schema, use :func:`.split_multi_hts`.
 
     Examples
     --------
@@ -1968,7 +1967,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
       A   C,T 0/2:7,2,6:15:45:99,50,99,0,45,99
 
-    split_multi will create two biallelic variants (one for each
+    :func:`.split_multi_hts` will create two biallelic variants (one for each
     alternate allele) at the same position
 
     .. code-block:: text
@@ -2043,7 +2042,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     **New Fields**
 
-    :meth:`.split_multi_hts` adds the following fields:
+    :func:`.split_multi_hts` adds the following fields:
 
      - `wasSplit` (*Boolean*) -- ``True`` if this variant was originally
        multiallelic, otherwise ``False``.
