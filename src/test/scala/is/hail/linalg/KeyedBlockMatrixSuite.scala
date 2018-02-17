@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Gen

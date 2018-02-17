@@ -2,8 +2,8 @@ package is.hail.methods
 
 import breeze.linalg.{*, DenseMatrix}
 import is.hail.annotations.{Annotation, UnsafeRow}
-import is.hail.distributedmatrix.BlockMatrix
-import is.hail.distributedmatrix.BlockMatrix.ops._
+import is.hail.linalg.BlockMatrix
+import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._

@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.distributedmatrix._
+import is.hail.linalg._
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 

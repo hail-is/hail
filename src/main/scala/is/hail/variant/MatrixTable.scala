@@ -2,7 +2,7 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.distributedmatrix._
+import is.hail.linalg._
 import is.hail.expr._
 import is.hail.methods._
 import is.hail.rvd._

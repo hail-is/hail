@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test

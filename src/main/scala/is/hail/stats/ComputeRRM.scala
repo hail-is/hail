@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.distributedmatrix.BlockMatrix.ops._
+import is.hail.linalg.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.Annotation
 import is.hail.expr.types.TString
