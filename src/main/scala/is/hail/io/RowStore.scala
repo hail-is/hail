@@ -202,7 +202,7 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
 
   def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
 
-  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = writeDoubles(from, fromOff, n)
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = out.writeDoubles(from, fromOff, n)
 }
 
 final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
@@ -292,18 +292,20 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
   def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int) {
     assert(n0 >= 0)
+    assert(fromOff0 >= 0)
+    assert(fromOff0 <= from.length - n0)
     var fromOff = fromOff0
     var n = n0
 
     while (off + (n << 3) > buf.length) {
       val p = (buf.length - off) >>> 3
-      Memory.memcpy(buf, off, from, fromOff << 3, p << 3)
+      Memory.memcpy(buf, off, from, fromOff, p)
       off += (p << 3)
       fromOff += p
       n -= p
       writeBlock()
     }
-    Memory.memcpy(buf, off, from, fromOff << 3, n << 3)
+    Memory.memcpy(buf, off, from, fromOff, n)
     off += (n << 3)
   }
 }
@@ -461,22 +463,23 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   }
 
   def readDoubles(to: Array[Double], toOff0: Int, n0: Int) {
+    assert(toOff0 >= 0)
     assert(n0 >= 0)
+    assert(toOff0 <= to.length - n0)
     var toOff = toOff0
     var n = n0
 
-    while ((n << 3) > 0) {
+    while (n > 0) {
       if (end == off)
         readBlock()
       val p = math.min(end - off, n << 3) >>> 3
       assert(p > 0)
-      Memory.memcpy(buf, off, to, toOff << 3, p << 3)
+      Memory.memcpy(to, toOff, buf, off, p)
       toOff += p
       n -= p
       off += (p << 3)
     }
   }
-
 }
 
 trait Decoder extends Closeable {

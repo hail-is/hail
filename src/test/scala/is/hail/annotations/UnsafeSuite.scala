@@ -55,13 +55,14 @@ class UnsafeSuite extends SparkSuite {
     p.check()
   }
 
-  def testBufferWriteReadDoubles() {
+  @Test def testBufferWriteReadDoubles() {
     val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
 
     CodecSpec.bufferSpecs.foreach { bufferSpec =>
       val out = new ByteArrayOutputStream()
       val outputBuffer = bufferSpec.buildOutputBuffer(out)
       outputBuffer.writeDoubles(a)
+      outputBuffer.flush()
 
       val in = new ByteArrayInputStream(out.toByteArray)
       val inputBuffer = bufferSpec.buildInputBuffer(in)
