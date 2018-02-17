@@ -1,6 +1,4 @@
-package is.hail.variant
-
-import java.util
+package is.hail.io.compress
 
 import net.jpountz.lz4.LZ4Factory
 
