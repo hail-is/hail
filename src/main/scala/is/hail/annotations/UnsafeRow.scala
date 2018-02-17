@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
@@ -69,25 +69,27 @@ class UnsafeIndexedSeq(
   override def write(kryo: Kryo, output: Output) {
     kryo.writeObject(output, t)
 
-    val aos = new ArrayOutputStream()
+    val aos = new ByteArrayOutputStream()
     val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, aoff)
     enc.flush()
 
-    output.writeInt(aos.off)
-    output.write(aos.a, 0, aos.off)
+    val a = aos.toByteArray
+    output.writeInt(a.length)
+    output.write(a, 0, a.length)
   }
 
   private def writeObject(out: ObjectOutputStream) {
     out.writeObject(t)
 
-    val aos = new ArrayOutputStream()
+    val aos = new ByteArrayOutputStream()
     val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, aoff)
     enc.flush()
 
-    out.writeInt(aos.off)
-    out.write(aos.a, 0, aos.off)
+    val a = aos.toByteArray
+    out.writeInt(a.length)
+    out.write(a, 0, a.length)
   }
 
   override def read(kryo: Kryo, input: Input) {
@@ -96,7 +98,7 @@ class UnsafeIndexedSeq(
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
     input.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
+    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
 
       region = Region()
       aoff = dec.readRegionValue(t, region)
@@ -111,7 +113,7 @@ class UnsafeIndexedSeq(
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)
     in.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
+    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
       region = Region()
       aoff = dec.readRegionValue(t, region)
 
@@ -297,25 +299,27 @@ class UnsafeRow(var t: TStruct,
   override def write(kryo: Kryo, output: Output) {
     kryo.writeObject(output, t)
 
-    val aos = new ArrayOutputStream()
+    val aos = new ByteArrayOutputStream()
     val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, offset)
     enc.flush()
 
-    output.writeInt(aos.off)
-    output.write(aos.a, 0, aos.off)
+    val a = aos.toByteArray
+    output.writeInt(a.length)
+    output.write(a, 0, a.length)
   }
 
   private def writeObject(out: ObjectOutputStream) {
     out.writeObject(t)
 
-    val aos = new ArrayOutputStream()
+    val aos = new ByteArrayOutputStream()
     val enc = CodecSpec.default.buildEncoder(aos)
     enc.writeRegionValue(t, region, offset)
     enc.flush()
 
-    out.writeInt(aos.off)
-    out.write(aos.a, 0, aos.off)
+    val a = aos.toByteArray
+    out.writeInt(a.length)
+    out.write(a, 0, a.length)
   }
 
   override def read(kryo: Kryo, input: Input) {
@@ -324,7 +328,7 @@ class UnsafeRow(var t: TStruct,
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
     input.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
+    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
       region = Region()
       offset = dec.readRegionValue(t, region)
     }
@@ -336,7 +340,7 @@ class UnsafeRow(var t: TStruct,
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)
     in.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ArrayInputStream(a))) { dec =>
+    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
       region = Region()
       offset = dec.readRegionValue(t, region)
     }

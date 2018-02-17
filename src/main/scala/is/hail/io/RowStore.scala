@@ -139,78 +139,6 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 }
 
-class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
-  var off: Int = 0
-
-  def this(a: Array[Byte]) = this(a, a.length)
-
-  def clear() {
-    off = 0
-  }
-
-  def read(): Int = {
-    if (off == end)
-      -1
-    else {
-      val c = a(off) & 0xff
-      off += 1
-      c
-    }
-  }
-
-  override def read(to: Array[Byte], toOff: Int, len: Int): Int = {
-    if (end == off)
-      -1
-    else {
-      val p = math.min(len, end - off)
-      System.arraycopy(a, off, to, toOff, p)
-      off += p
-      p
-    }
-  }
-
-  override def skip(n: Long): Long = {
-    assert(end != off)
-    assert(n <= Int.MaxValue)
-    val p = math.min(n.toInt, end - off)
-    off += p
-    p
-  }
-
-  override def available(): Int = end - off
-}
-
-class ArrayOutputStream(sizeHint: Int = 32) extends OutputStream {
-  var a: Array[Byte] = new Array[Byte](sizeHint)
-  var off: Int = 0
-
-  private def ensure(n: Int) {
-    val newEnd = off + n
-    if (newEnd > a.length) {
-      val newLength = math.max((a.length * 3) / 2, off + n)
-      val newA = new Array[Byte](newLength)
-      System.arraycopy(a, 0, newA, 0, off)
-      a = newA
-    }
-  }
-
-  def clear() {
-    off = 0
-  }
-
-  def write(b: Int) {
-    ensure(1)
-    a(off) = b.toByte
-    off += 1
-  }
-
-  override def write(from: Array[Byte], fromOff: Int, len: Int) {
-    ensure(len)
-    System.arraycopy(from, fromOff, a, off, len)
-    off += len
-  }
-}
-
 trait OutputBuffer extends Closeable {
   def flush(): Unit
 
@@ -227,6 +155,10 @@ trait OutputBuffer extends Closeable {
   def writeDouble(d: Double): Unit
 
   def writeBytes(region: Region, off: Long, n: Int): Unit
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit
+
+  def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
 
   def writeBoolean(b: Boolean) {
     writeByte(b.toByte)
@@ -269,6 +201,8 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def writeDouble(d: Double): Unit = out.writeDouble(d)
 
   def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = out.writeDoubles(from, fromOff, n)
 }
 
 final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
@@ -355,6 +289,25 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     fromRegion.loadBytes(fromOff, buf, off, n)
     off += n
   }
+
+  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int) {
+    assert(n0 >= 0)
+    assert(fromOff0 >= 0)
+    assert(fromOff0 <= from.length - n0)
+    var fromOff = fromOff0
+    var n = n0
+
+    while (off + (n << 3) > buf.length) {
+      val p = (buf.length - off) >>> 3
+      Memory.memcpy(buf, off, from, fromOff, p)
+      off += (p << 3)
+      fromOff += p
+      n -= p
+      writeBlock()
+    }
+    Memory.memcpy(buf, off, from, fromOff, n)
+    off += (n << 3)
+  }
 }
 
 trait InputBuffer extends Closeable {
@@ -370,7 +323,11 @@ trait InputBuffer extends Closeable {
 
   def readDouble(): Double
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int)
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit
+
+  def readDoubles(to: Array[Double], off: Int, n: Int): Unit
+
+  def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
   def readBoolean(): Boolean = readByte() != 0
 }
@@ -411,6 +368,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readDouble(): Double = in.readDouble()
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
+
+  def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit = in.readDoubles(to, toOff, n)
 }
 
 final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
@@ -500,6 +459,25 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       toOff += p
       n -= p
       off += p
+    }
+  }
+
+  def readDoubles(to: Array[Double], toOff0: Int, n0: Int) {
+    assert(toOff0 >= 0)
+    assert(n0 >= 0)
+    assert(toOff0 <= to.length - n0)
+    var toOff = toOff0
+    var n = n0
+
+    while (n > 0) {
+      if (end == off)
+        readBlock()
+      val p = math.min(end - off, n << 3) >>> 3
+      assert(p > 0)
+      Memory.memcpy(to, toOff, buf, off, p)
+      toOff += p
+      n -= p
+      off += (p << 3)
     }
   }
 }

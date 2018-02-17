@@ -1,5 +1,7 @@
 package is.hail.annotations
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.check.Arbitrary._
@@ -34,13 +36,13 @@ class UnsafeSuite extends SparkSuite {
         val offset = rvb.end()
         val ur = new UnsafeRow(t, region, offset)
 
-        val aos = new ArrayOutputStream()
+        val aos = new ByteArrayOutputStream()
         val en = codecSpec.buildEncoder(aos)
         en.writeRegionValue(t, region, offset)
         en.flush()
 
         region2.clear()
-        val ais = new ArrayInputStream(aos.a, aos.off)
+        val ais = new ByteArrayInputStream(aos.toByteArray)
         val dec = codecSpec.buildDecoder(ais)
         val offset2 = dec.readRegionValue(t, region2)
         val ur2 = new UnsafeRow(t, region2, offset2)
@@ -51,6 +53,24 @@ class UnsafeSuite extends SparkSuite {
       true
     }
     p.check()
+  }
+
+  @Test def testBufferWriteReadDoubles() {
+    val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
+
+    CodecSpec.bufferSpecs.foreach { bufferSpec =>
+      val out = new ByteArrayOutputStream()
+      val outputBuffer = bufferSpec.buildOutputBuffer(out)
+      outputBuffer.writeDoubles(a)
+      outputBuffer.flush()
+
+      val in = new ByteArrayInputStream(out.toByteArray)
+      val inputBuffer = bufferSpec.buildInputBuffer(in)
+      val a2 = new Array[Double](5)
+      inputBuffer.readDoubles(a2)
+
+      assert(a sameElements a2)
+    }
   }
 
   @Test def testRegionValue() {
