@@ -52,7 +52,7 @@ class PCASuite extends SparkSuite {
     val truth = Table.parallelize(hc, pyLoadings,
       TStruct("locus" -> TLocus(GenomeReference.defaultReference), "alleles" -> TArray(TString())) ++ structT,
       Array("locus", "alleles"), None)
-      .annotate("v = {locus: locus, alleles: alleles}").keyBy("v")
+    truth.typeCheck()
 
     assert(truth.join(loadings.get, "outer").forall(
       s"""
