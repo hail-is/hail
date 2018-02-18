@@ -1,4 +1,4 @@
-from hail.utils.java import handle_py4j, Env, joption
+from hail.utils.java import handle_py4j, Env, joption, error
 from hail.typecheck import enumeration
 import difflib
 from collections import defaultdict
@@ -175,3 +175,10 @@ def get_nice_field_error(obj, item):
                 s.append("\n        {}".format(handler(orig_f)))
     s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
+
+def check_collisions(fields, name, indices):
+    from hail.expr.expression import ExpressionException
+    if name in fields and not fields[name]._indices == indices:
+        msg = 'name collision with field indexed by {}: {}'.format(list(fields[name]._indices.axes), name)
+        error('Analysis exception: {}'.format(msg))
+        raise ExpressionException(msg)

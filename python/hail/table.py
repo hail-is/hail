@@ -3,7 +3,7 @@ import hail as hl
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.java import jiterable_to_list
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error
+from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions
 
 table_type = lazy()
 
@@ -321,7 +321,7 @@ class Table(TableTemplate):
                     )
                 )
 
-            return self.index_globals()
+            return self.view_join_globals()
         else:
             exprs = item if isinstance(item, tuple) else (item,)
             return self.view_join_rows(*exprs)
@@ -455,6 +455,7 @@ class Table(TableTemplate):
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze('Table.annotate_globals', v, self._global_indices)
+            check_collisions(self._fields, k, self._global_indices)
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
 
         m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
@@ -513,9 +514,13 @@ class Table(TableTemplate):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
+            check_collisions(self._fields, k, self._global_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.selectGlobal(strs)))
+
+    def transmute_globals(self, **named_exprs):
+        raise NotImplementedError()
 
     def transmute(self, **named_exprs):
         """Add new fields and drop fields referenced.
@@ -583,6 +588,7 @@ class Table(TableTemplate):
         fields_referenced = set()
         for k, v in named_exprs.items():
             analyze('Table.transmute', v, self._row_indices)
+            check_collisions(self._fields, k, self._row_indices)
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             for name, inds in v._refs:
                 if inds == self._row_indices:
@@ -624,6 +630,7 @@ class Table(TableTemplate):
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze('Table.annotate', v, self._row_indices)
+            check_collisions(self._fields, k, self._row_indices)
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
 
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
@@ -781,6 +788,7 @@ class Table(TableTemplate):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
+            check_collisions(self._fields, k, self._row_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.select(strs, False)))
@@ -1252,7 +1260,7 @@ class Table(TableTemplate):
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
     @handle_py4j
-    def index_globals(self):
+    def view_join_globals(self):
         uid = Env._get_uid()
 
         def joiner(obj):
@@ -1266,7 +1274,6 @@ class Table(TableTemplate):
         return construct_expr(GlobalJoinReference(uid), self.global_schema,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
-    @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
         # ordered to support nested joins
         original_key = self.key
