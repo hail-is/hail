@@ -14,13 +14,13 @@ class BlockMatrix(object):
     @classmethod
     @handle_py4j
     def default_block_size(cls):
-        return scala_object(Env.hail().distributedmatrix, "BlockMatrix").defaultBlockSize()
+        return scala_object(Env.hail().linalg, "BlockMatrix").defaultBlockSize()
 
     @classmethod
     @handle_py4j
     def read(cls, path):
         hc = Env.hc()
-        return cls(Env.hail().distributedmatrix.BlockMatrix.read(
+        return cls(Env.hail().linalg.BlockMatrix.read(
             hc._jhc, path))
 
     @staticmethod
@@ -51,7 +51,7 @@ class BlockMatrix(object):
         # breeze is column major
         is_transpose = True
 
-        block_matrix_constructor = getattr(Env.hail().distributedmatrix.BlockMatrix, "from")
+        block_matrix_constructor = getattr(Env.hail().linalg.BlockMatrix, "from")
         breeze_matrix_constructor = getattr(Env.hail().utils.richUtils.RichDenseMatrixDouble, 'from')
 
         return BlockMatrix(
@@ -84,7 +84,7 @@ class BlockMatrix(object):
     @handle_py4j
     def random(num_rows, num_cols, block_size, seed=0, gaussian=False):
         hc = Env.hc()
-        return BlockMatrix(scala_object(Env.hail().distributedmatrix, 'BlockMatrix').random(
+        return BlockMatrix(scala_object(Env.hail().linalg, 'BlockMatrix').random(
             hc._jhc, num_rows, num_cols, block_size, seed, gaussian))
 
     def __init__(self, jbm):
