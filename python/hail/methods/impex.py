@@ -579,7 +579,7 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     renaming contig name "01" to "1":
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
-    ...                            sample_file="data/example.sample",
+    ...                            sample_file="data/example.8bits.sample",
     ...                            gt_field=True,
     ...                            gp_field=True,
     ...                            contig_recoding={"01": "1"})
@@ -588,7 +588,7 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     renaming contig name "01" to "1":
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
-    ...                             sample_file="data/example.sample",
+    ...                             sample_file="data/example.8bits.sample",
     ...                             dosage_field=True,
     ...                             contig_recoding={"01": "1"})
 
