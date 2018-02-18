@@ -10,8 +10,6 @@ Miscellaneous
 
     maximal_independent_set
     rename_duplicates
-    sample_rows
 
 .. autofunction:: maximal_independent_set
 .. autofunction:: rename_duplicates
-.. autofunction:: sample_rows
