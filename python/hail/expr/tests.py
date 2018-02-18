@@ -956,6 +956,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.capture(False) | True))
         self.assertTrue(hl.eval_expr(True | hl.capture(False)))
 
+    def test_array_neg(self):
+        self.assertEqual(hl.eval_expr(-(hl.capture([1, 2, 3]))), [-1, -2, -3])
+
     def test_min_max(self):
         self.assertEqual(hl.eval_expr(hl.max(1, 2)), 2)
         self.assertEqual(hl.eval_expr(hl.max(1.0, 2)), 2.0)
