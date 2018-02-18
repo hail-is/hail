@@ -561,8 +561,16 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     Warning
     -------
 
-    A BGEN file must have a corresponding index file which can be generated with
-    :func:`.index_bgen`.
+    Each BGEN file must have a corresponding index file, which can be generated
+    with :func:`.index_bgen`.
+
+    Warning
+    -------
+
+    At least one of `gt_field`, `gp_field`, and `dosage_field` must be set
+    true. For best performance, include precisely those fields required for your
+    analysis. If any BGEN input files are v1.1, the settings ``gt_field=True``,
+    ``gp_field=True``, and ``dosage_field=False`` are required.
 
     Examples
     --------
@@ -570,19 +578,19 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     Import a BGEN v1.2 file as a matrix table with GT and GP entry fields,
     renaming contig name "01" to "1":
 
-    >>> ds_result = hl.import_bgen("data/example3.bgen",
-    ...                                 sample_file="data/example3.sample",
-    ...                                 gt_field=True,
-    ...                                 gp_field=True,
-    ...                                 contig_recoding={"01": "1"})
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            sample_file="data/example.sample",
+    ...                            gt_field=True,
+    ...                            gp_field=True,
+    ...                            contig_recoding={"01": "1"})
 
     Import a BGEN v1.2 file as a matrix table with genotype dosage entry field,
     renaming contig name "01" to "1":
 
-    >>> ds_result = hl.import_bgen("data/example3.bgen",
-    ...                                 sample_file="data/example3.sample",
-    ...                                 dosage_field=True,
-    ...                                 contig_recoding={"01": "1"})
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                             sample_file="data/example.sample",
+    ...                             dosage_field=True,
+    ...                             contig_recoding={"01": "1"})
 
     Notes
     -----
@@ -618,11 +626,8 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
 
     **Entry Fields**
 
-    For BGEN v1.2, there are up to three entry fields depending on the
-    parameters `gt_field`, `gp_field`, and `dosage_field`, at least one of which
-    must be true. For best performance, only include fields that are required for
-    your analysis. For BGEN v1.1, these parameters must be set to
-    ``gt_field=True``, ``gp_field=True``, and ``dosage_field=False``.
+    There are up to three entry fields, determined by the parameters `gt_field`, `gp_field`,
+    and `dosage_field`.
 
     - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
       the highest probability.
@@ -1299,7 +1304,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
-    """Index .bgen files as required by :func:`.import_bgen`.
+    """Index BGEN files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
     filename of `path` appended by `.idx`.
@@ -1307,7 +1312,7 @@ def index_bgen(path):
     Example
     -------
 
-    >>> hl.index_bgen("data/example3.bgen")
+    >>> hl.index_bgen("data/example.8bits.bgen")
 
     Warning
     -------
