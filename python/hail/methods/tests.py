@@ -8,10 +8,10 @@ from subprocess import call as syscall
 import numpy as np
 from struct import unpack
 import hail.utils as utils
-from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
 from hail.linalg import BlockMatrix
 from math import sqrt
+from hail.expr.types import TStruct, TCall, TArray, TFloat64
 
 
 def setUpModule():
@@ -677,11 +677,37 @@ class Tests(unittest.TestCase):
     def test_import_bgen(self):
         hl.index_bgen(test_file('example.v11.bgen'))
 
-        bgen = hl.import_bgen(test_file('example.v11.bgen'),
+        bgen_rows = hl.import_bgen(test_file('example.v11.bgen'),
                               sample_file=test_file('example.sample'),
+                              gt_field=True,
+                              gp_field=True,
                               contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(bgen.all(bgen.locus.contig == "1"))
-        self.assertEqual(bgen.count(), 199)
+        self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == "1"))
+        self.assertEqual(bgen_rows.count(), 199)
+
+        hl.index_bgen(test_file('example.8bits.bgen'))
+
+        bgen = hl.import_bgen(test_file('example.8bits.bgen'),
+                              dosage_field=True,
+                              contig_recoding={"01": "1"})
+        self.assertTrue(bgen.entry_schema == TStruct(["dosage"], [TFloat64()]))
+
+
+        bgen = hl.import_bgen(test_file('example.8bits.bgen'),
+                              gt_field=True,
+                              gp_field=True,
+                              sample_file=test_file('example.sample'),
+                              contig_recoding={"01": "1"})
+        self.assertTrue(bgen.entry_schema == TStruct(["GT", "GP"], [TCall(), TArray(TFloat64())]))
+        self.assertTrue(bgen.count_rows() == 199)
+
+        hl.index_bgen(test_file('example.10bits.bgen'))
+        bgen = hl.import_bgen(test_file('example.10bits.bgen'),
+                              gt_field=True,
+                              gp_field=True,
+                              dosage_field=True,
+                              contig_recoding={"01": "1"})
+        self.assertTrue(bgen.entry_schema == TStruct(["GT", "GP", "dosage"], [TCall(), TArray(TFloat64()), TFloat64()]))
 
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(

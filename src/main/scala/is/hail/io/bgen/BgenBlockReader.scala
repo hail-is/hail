@@ -15,6 +15,10 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
 
   val tolerance = job.get("tolerance").toDouble
 
+  val gtField = job.get("gtField").toBoolean
+  val gpField = job.get("gpField").toBoolean
+  val dosageField = job.get("dosageField").toBoolean
+
   seekToFirstBlockInSplit(split.getStart)
 
   override def createValue(): T
@@ -79,7 +83,8 @@ class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlock
 }
 
 class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlockReader[BgenRecordV12](job, split) {
-  override def createValue(): BgenRecordV12 = new BgenRecordV12(bState.compressed, bState.nSamples, tolerance)
+  override def createValue(): BgenRecordV12 =
+    new BgenRecordV12(bState.compressed, bState.nSamples, tolerance, gtField, gpField, dosageField)
 
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
     if (pos >= end)

@@ -288,7 +288,7 @@ object Genotype {
   }
 
 
-  def genGenericDosageGenotype(v: Variant): Gen[Annotation] = {
+  def genGenericCallAndProbabilitiesGenotype(v: Variant): Gen[Annotation] = {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     val gg = for (gp <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
