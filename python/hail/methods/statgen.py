@@ -1747,43 +1747,6 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
                    min_kinship,
                    intstatistics))
 
-
-@handle_py4j
-@typecheck(dataset=MatrixTable,
-           fraction=numeric,
-           seed=integral)
-def sample_rows(dataset, fraction, seed=1):
-    """Downsample rows to a given fraction of the dataset.
-
-    Examples
-    --------
-
-    >>> small_dataset = hl.sample_rows(dataset, 0.01)
-
-    Notes
-    -----
-
-    This method may not sample exactly ``(fraction * n_rows)`` rows from
-    the dataset.
-
-    Parameters
-    ----------
-    dataset : :class:`.MatrixTable`
-        Dataset to sample from.
-    fraction : :obj:`float`
-        (Expected) fraction of rows to keep.
-    seed : :obj:`int`
-        Random seed.
-
-    Returns
-    ------
-    :class:`.MatrixTable`
-        Downsampled matrix table.
-    """
-
-    return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
-
-
 class SplitMulti(object):
     """Split multiallelic variants.
 
