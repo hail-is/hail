@@ -625,8 +625,10 @@ def import_bgen(path, entry_fields, tolerance=0.2, sample_file=None,
     - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
       the greatest probability.
     - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
-      as defined by the BGEN file spec. For BGEN v1.2 files, no
-      modifications are made to the genotype probabilities.
+      as defined by the BGEN file spec. For bi-allelic variants, the array has
+      three elements giving the probabilities of homozygous reference,
+      heterozygous, and homozygous variant, in that order. For BGEN v1.2 files,
+      no modifications are made to these genotype probabilities.
       For BGEN v1.1 files, the array is set to missing if the sum of the
       probabilities is a distance greater than the `tolerance` parameter from
       1.0. Otherwise, the probabilities are normalized to sum to 1.0. For
