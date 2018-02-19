@@ -74,4 +74,3 @@ Methods
 
     maximal_independent_set
     rename_duplicates
-    sample_rows
