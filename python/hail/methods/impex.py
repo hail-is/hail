@@ -837,9 +837,8 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
     To import:
 
-    >>> t = (hl.import_table('data/samples3.tsv', no_header=True)
-    ...      .annotate(sample = f0.split("_")[1])
-    ...      .key_by('sample'))
+    >>> t = hl.import_table('data/samples3.tsv', no_header=True)
+    >>> t = t.annotate(sample = t.f0.split("_")[1]).key_by('sample')
 
     Notes
     -----
