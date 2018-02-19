@@ -1,6 +1,7 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
+from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
@@ -547,13 +548,11 @@ def grep(regex, path, max_count=100):
 @typecheck(path=oneof(strlike, listof(strlike)),
            tolerance=numeric,
            sample_file=nullable(strlike),
-           gt_field=bool,
-           gp_field=bool,
-           dosage_field=bool,
+           entry_fields=listof(strlike),
            min_partitions=nullable(integral),
            reference_genome=nullable(GenomeReference),
            contig_recoding=nullable(dictof(strlike, strlike)))
-def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=False, dosage_field=False,
+def import_bgen(path, entry_fields, tolerance=0.2, sample_file=None,
                 min_partitions=None, reference_genome=None,
                 contig_recoding=None):
     """Import BGEN file(s) as a :class:`.MatrixTable`.
@@ -562,34 +561,27 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     -------
 
     Each BGEN file must have a corresponding index file, which can be generated
-    with :func:`.index_bgen`.
-
-    Warning
-    -------
-
-    At least one of `gt_field`, `gp_field`, and `dosage_field` must be set
-    true. For best performance, include precisely those fields required for your
-    analysis. If any BGEN input files are v1.1, the settings ``gt_field=True``,
-    ``gp_field=True``, and ``dosage_field=False`` are required.
+    with :func:`.index_bgen`. If `entry_fields` includes ``'dosage'``, all
+    variants must be bi-allelic. If any input file is BGEN v1.1,
+    `entry_fields` must be ``['GT', 'GP']``.
 
     Examples
     --------
 
-    Import a BGEN v1.2 file as a matrix table with GT and GP entry fields,
+    Import a BGEN file as a matrix table with GT and GP entry fields,
     renaming contig name "01" to "1":
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['GT', 'GP'],
     ...                            sample_file="data/example.8bits.sample",
-    ...                            gt_field=True,
-    ...                            gp_field=True,
     ...                            contig_recoding={"01": "1"})
 
     Import a BGEN v1.2 file as a matrix table with genotype dosage entry field,
     renaming contig name "01" to "1":
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                             entry_fields=['dosage'],
     ...                             sample_file="data/example.8bits.sample",
-    ...                             dosage_field=True,
     ...                             contig_recoding={"01": "1"})
 
     Notes
@@ -626,26 +618,32 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
 
     **Entry Fields**
 
-    There are up to three entry fields, determined by the parameters `gt_field`, `gp_field`,
-    and `dosage_field`.
+    Up to three entry fields are created, as determined by `entry_fields` which
+    must be non-empty. For best performance, include precisely those fields
+    required for your analysis.
 
     - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
-      the highest probability.
+      the greatest probability.
     - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
-      as defined by the BGEN file spec. For BGEN v1.1 files, the array is set to
-      missing if the sum of the probabilities is a distance greater than the
-      `tolerance` parameter from 1.0. Otherwise, the probabilities are
-      normalized to sum to 1.0. For example, the input ``[0.98, 0.0, 0.0]`` will
-      be normalized to ``[1.0, 0.0, 0.0]``. For BGEN v1.2 files, no
+      as defined by the BGEN file spec. For BGEN v1.2 files, no
       modifications are made to the genotype probabilities.
-    - `dosage` (:class:`.TFloat64`) -- The expected number of alternate
-      alleles, given by the probability of one alternate allele plus twice the
-      probability of two alternate alleles.
+      For BGEN v1.1 files, the array is set to missing if the sum of the
+      probabilities is a distance greater than the `tolerance` parameter from
+      1.0. Otherwise, the probabilities are normalized to sum to 1.0. For
+      example, the input ``[0.98, 0.0, 0.0]`` will be normalized to
+      ``[1.0, 0.0, 0.0]``.
+    - `dosage` (:class:`.TFloat64`) -- The expected value of the number of
+      alternate alleles, given by the probability of heterozygous plus twice
+      the probability of homozygous variant. All variants must be bi-allelic.
 
     Parameters
     ----------
     path : :obj:`str` or :obj:`list` of :obj:`str`
         BGEN file(s) to read.
+    entry_fields : :obj:`list` of :obj:`str`
+        List of entry fields to create.
+        Options: ``'GT'``, ``'GP'``, ``'dosage'``.
+        For BGEN v1.1, must be ``['GT', 'GP']``.
     tolerance : :obj:`float`
         If the sum of the probabilities for an entry differ from 1.0 by more
         than the tolerance, set the entry to missing. Only applicable if the
@@ -653,12 +651,6 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     sample_file : :obj:`str`, optional
         Sample file to read the sample ids from. If specified, the number of
         samples in the file must match the number in the BGEN file(s).
-    gt_field : :obj:`bool`
-        If true, include 'GT' as an entry field. Must be true for BGEN v1.1.
-    gp_field : :obj:`bool`
-        If true, include 'GP' as an entry field. Must be true for BGEN v1.1.
-    dosage_field : :obj:`bool`
-        If true, include 'dosage' as an entry field. Must be false for BGEN v1.1.
     min_partitions : :obj:`int`, optional
         Number of partitions.
     reference_genome : :class:`.GenomeReference`, optional
@@ -676,15 +668,24 @@ def import_bgen(path, tolerance=0.2, sample_file=None, gt_field=False, gp_field=
     from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
-    if not (gt_field or gp_field or dosage_field):
-        raise FatalError("import_bgen: set at least one of {gt_entry, gp_entry, dosage_entry} to True")
+    if not entry_fields:
+        raise FatalError("import_bgen: entry_fields must be non-empty."
+                         "\n    Options: 'GT', 'GP', 'dosage'.")
+
+    entry_set = set(entry_fields)
+    bad_entry_fields = list(entry_set - {'GT', 'GP', 'dosage'})
+
+    if bad_entry_fields:
+        word = plural('value', len(bad_entry_fields))
+        raise FatalError("import_bgen: found invalid {} {} in entry_fields."
+                         "\n    Options: 'GT', 'GP', 'dosage'.".format(word, bad_entry_fields))
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
-    jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                    tolerance, gt_field, gp_field, dosage_field, joption(min_partitions), rg._jrep,
-                                    joption(contig_recoding))
+    jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file), tolerance,
+                                    'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
+                                    joption(min_partitions), rg._jrep, joption(contig_recoding))
     return MatrixTable(jmt)
 
 

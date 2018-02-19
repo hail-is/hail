@@ -143,15 +143,12 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
     assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
 
     val nGenotypes = triangle(nAlleles)
-    val hetRefIndices = (0 until nGenotypes).filter(i => Call.isHetRef(Call2.fromUnphasedDiploidGtIndex(i))).toArray
     
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
     rvb.startArray(nSamples) // gs
     if (nBitsPerProb == 8 && nAlleles == 2) {
-      val totalProb = 255
-
       val sampleProbs = new Array[Int](3)
 
       i = 0
@@ -237,16 +234,12 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
             }
             rvb.endArray()
           }
-          
+
           if (dosageField) {
-            val d0 = sampleProbs(0).toDouble
-            var d1 = 0.0
-            var j = 0
-            while (j < hetRefIndices.length) {
-              d1 += sampleProbs(hetRefIndices(j)).toDouble
-              j += 1
-            }
-            rvb.addDouble(2 - (2 * d0 + d1) / totalProb.toDouble)
+            if (nGenotypes == 3)
+              rvb.addDouble((sampleProbs(1).toDouble + 2 * sampleProbs(2).toDouble) / totalProb.toDouble)
+            else
+              fatal("import_bgen: 'dosage' entry field is invalid for multi-allelic variants.")
           }
           
           rvb.endStruct() // g

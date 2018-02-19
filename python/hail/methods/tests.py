@@ -678,36 +678,32 @@ class Tests(unittest.TestCase):
         hl.index_bgen(test_file('example.v11.bgen'))
 
         bgen_rows = hl.import_bgen(test_file('example.v11.bgen'),
-                              sample_file=test_file('example.sample'),
-                              gt_field=True,
-                              gp_field=True,
-                              contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == "1"))
+                                   entry_fields=['GT', 'GP'],
+                                   sample_file=test_file('example.sample'),
+                                   contig_recoding={'01': '1'}).rows_table()
+        self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == '1'))
         self.assertEqual(bgen_rows.count(), 199)
 
         hl.index_bgen(test_file('example.8bits.bgen'))
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
-                              dosage_field=True,
-                              contig_recoding={"01": "1"})
-        self.assertTrue(bgen.entry_schema == TStruct(["dosage"], [TFloat64()]))
+                              entry_fields=['dosage'],
+                              contig_recoding={'01': '1'})
+        self.assertTrue(bgen.entry_schema == TStruct(['dosage'], [TFloat64()]))
 
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
-                              gt_field=True,
-                              gp_field=True,
+                              entry_fields=['GT', 'GP'],
                               sample_file=test_file('example.sample'),
-                              contig_recoding={"01": "1"})
-        self.assertTrue(bgen.entry_schema == TStruct(["GT", "GP"], [TCall(), TArray(TFloat64())]))
+                              contig_recoding={'01': '1'})
+        self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP'], [TCall(), TArray(TFloat64())]))
         self.assertTrue(bgen.count_rows() == 199)
 
         hl.index_bgen(test_file('example.10bits.bgen'))
         bgen = hl.import_bgen(test_file('example.10bits.bgen'),
-                              gt_field=True,
-                              gp_field=True,
-                              dosage_field=True,
-                              contig_recoding={"01": "1"})
-        self.assertTrue(bgen.entry_schema == TStruct(["GT", "GP", "dosage"], [TCall(), TArray(TFloat64()), TFloat64()]))
+                              entry_fields=['GT', 'GP', 'dosage'],
+                              contig_recoding={'01': '1'})
+        self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP', 'dosage'], [TCall(), TArray(TFloat64()), TFloat64()]))
 
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
