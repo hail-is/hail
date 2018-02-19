@@ -55,11 +55,13 @@ class IntervalSuite extends SparkSuite {
         globalType = TStruct.empty(),
         colKey = Array("s"),
         colType = TStruct("s" -> TString()),
-        rowPartitionKey = Array("v"), rowKey = Array("v"),
-        rowType = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+        rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+        rowType = TStruct(
+          "locus" -> TLocus(GenomeReference.defaultReference),
+          "alleles" -> TArray(TString())),
         entryType = Genotype.htsGenotypeType),
       Annotation.empty, IndexedSeq.empty[Annotation],
-      sc.parallelize(Seq((Annotation(Variant("1", 100, "A", "T")), Iterable.empty[Annotation]))))
+      sc.parallelize(Seq((Annotation(Locus("1", 100), Array("A", "T").toFastIndexedSeq), Iterable.empty[Annotation]))))
 
     val intervalFile = tmpDir.createTempFile("intervals")
     hadoopConf.writeTextFile(intervalFile) { out =>
@@ -158,7 +160,7 @@ class IntervalSuite extends SparkSuite {
         simpleAssert(a == Set())
     }
   }
-  
+
   @Test def testParser() {
     val xMax = gr.contigLength("X")
     val yMax = gr.contigLength("Y")
@@ -278,7 +280,7 @@ class IntervalSuite extends SparkSuite {
   @Test def testQueryInterval() {
     val ord = TInt32().ordering
 
-      val iArray = Array(Interval(1, 5, true, true),
+    val iArray = Array(Interval(1, 5, true, true),
       Interval(5, 10, true, true),
       Interval(8, 17, true, true),
       Interval(9, 20, true, true))
@@ -286,8 +288,8 @@ class IntervalSuite extends SparkSuite {
     val i0 = IntervalTree.annotationTree(ord, iArray.zipWithIndex)
     val testIntervals = Array(
       (Interval(5, 5, false, false), Array()),
-      (Interval(5, 5, true, true), Array(0,1)),
-      (Interval(8, 9, true, true), Array(1,2,3)),
+      (Interval(5, 5, true, true), Array(0, 1)),
+      (Interval(8, 9, true, true), Array(1, 2, 3)),
       (Interval(20, 21, false, false), Array())
     )
 

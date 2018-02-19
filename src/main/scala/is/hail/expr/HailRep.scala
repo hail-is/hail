@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.types._
 import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, Call, GRBase, GRVariable, Genotype, Locus, Variant}
+import is.hail.variant.{Call, GRBase, Locus}
 
 trait HailRep[T] { self =>
   def typ: Type
@@ -58,16 +58,8 @@ trait HailRepFunctions {
     def typ = TCall()
   }
 
-  implicit class variantHr(gr: GRBase) extends HailRep[Variant] {
-    def typ = TVariant(gr)
-  }
-
   implicit class locusHr(gr: GRBase) extends HailRep[Locus] {
     def typ = TLocus(gr)
-  }
-
-  implicit object altAlleleHr extends HailRep[AltAllele] {
-    def typ = TAltAllele()
   }
 
   implicit def intervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval] {

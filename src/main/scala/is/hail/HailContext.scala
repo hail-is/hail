@@ -338,7 +338,9 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of variants in all GEN files: $nVariants")
     info(s"Number of samples in GEN files: $nSamples")
 
-    val signature = TStruct("v" -> TVariant(gr),
+    val signature = TStruct(
+      "locus" -> TLocus(gr),
+      "alleles" -> TArray(TString()),
       "rsid" -> TString(), "varid" -> TString())
 
     val rdd = sc.union(results.map(_.rdd))
@@ -348,7 +350,7 @@ class HailContext private(val sc: SparkContext,
         globalType = TStruct.empty(),
         colKey = Array("s"),
         colType = TStruct("s" -> TString()),
-        rowPartitionKey = Array("v"), rowKey = Array("v"),
+        rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
         rowType = signature,
         entryType = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),
@@ -600,7 +602,8 @@ class HailContext private(val sc: SparkContext,
 
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "locus" -> TLocus(GenomeReference.GRCh37),
+      "alleles" -> TArray(TString()),
       "s" -> TString(),
       "g" -> Genotype.htsGenotypeType,
       "sa" -> TStruct(
@@ -623,7 +626,8 @@ class HailContext private(val sc: SparkContext,
           "canonical" -> TBoolean(),
           "consequence" -> TString()))))
 
-    val v = Variant("16", 19200405, "C", Array("G", "CCC"))
+    val locus = Locus("16", 19200405)
+    val alleles = Array("C", "G", "CCC").toFastIndexedSeq
     val s = "NA12878"
     val g = Genotype(Call2.fromUnphasedDiploidGtIndex(1), Array(14, 0, 12), 26, 60, Array(60, 65, 126, 0, 67, 65))
     val sa = Annotation("1KG", Annotation(0.102312, -0.61512, 0.3166666, 34, true))
@@ -638,11 +642,12 @@ class HailContext private(val sc: SparkContext,
         Annotation("GENE3", "GENE3.1", false, "SYN"),
         Annotation("GENE3", "GENE3.2", false, "SYN")))
 
-    ec.set(0, v)
-    ec.set(1, s)
-    ec.set(2, g)
-    ec.set(3, sa)
-    ec.set(4, va)
+    ec.set(0, locus)
+    ec.set(1, alleles)
+    ec.set(2, s)
+    ec.set(3, g)
+    ec.set(4, sa)
+    ec.set(5, va)
 
     val (t, f) = Parser.parseExpr(expr, ec)
     (f(), t)

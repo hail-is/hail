@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.types.{TString, TStruct, TVariant}
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -30,21 +30,27 @@ class ConcordanceSuite extends SparkSuite {
           id
       })
     }
-    scrambledVariants1 <- Gen.shuffle(vds1.variants.collect()).map(_.iterator)
+    scrambledVariants1 <- Gen.shuffle(vds1.locusAlleles.collect()).map(_.iterator)
     newVariantMapping <- Gen.parameterized { p =>
-      Gen.const(Table.parallelize(hc, vds2.variants.collect().map { v =>
-        if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) Row(v, scrambledVariants1.next()) else Row(v, v)
-      }, TStruct("v1" -> TVariant(gr),
-        "v2" -> TVariant(gr)), Array.empty[String], None)
-        .annotate("locus = v1.locus, alleles = [v1.ref].extend(v1.altAlleles.map(x => x.alt))")
+      Gen.const(Table.parallelize(hc, vds2.locusAlleles.collect().map { case (locus, alleles) =>
+        if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) {
+          val (locus2, alleles2) = scrambledVariants1.next()
+          Row(locus, alleles, locus2, alleles2)
+        } else
+          Row(locus, alleles, locus, alleles)
+      },
+        TStruct("locus" -> TLocus(gr),
+        "alleles" -> TArray(TString()),
+        "locus2" -> TLocus(gr),
+        "alleles2" -> TArray(TString())), Array.empty[String], None)
         .keyBy("locus", "alleles"))
     }
   } yield (vds1, vds2.annotateVariantsTable(newVariantMapping, "newVariant")
-      .annotateVariantsExpr("locus = va.newVariant.v2.locus, " +
-        "alleles = [va.newVariant.v2.ref].extend(va.newVariant.v2.altAlleles.map(x => x.alt))")
+      .annotateVariantsExpr("locus = va.newVariant.locus2, " +
+        "alleles = va.newVariant.alleles2")
       .copy2(colValues = newIds2.map(Annotation(_)), colType = TStruct("s" -> TString())))
 
-  //FIXME use SnpSift when it's fixed
+  // FIXME use SnpSift when it's fixed
   def readSampleConcordance(file: String): Map[String, IndexedSeq[IndexedSeq[Int]]] = {
     hadoopConf.readLines(file) { lines =>
       lines.filter(line => !line.value.startsWith("sample") && !line.value.startsWith("#Total"))

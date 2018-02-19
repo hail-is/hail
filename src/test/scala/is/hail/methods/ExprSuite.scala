@@ -8,14 +8,12 @@ import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.utils.{Interval, _}
+import is.hail.utils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
-import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.scalatest.Matchers._
-import org.scalatest._
 import org.testng.annotations.Test
 
 class ExprSuite extends SparkSuite {
@@ -643,26 +641,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[Annotation](""" select({a:1,b:2}, a) """).contains(Annotation(1)))
     assert(eval[Boolean](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,`\tweird\t`) == drop(x, c) """).contains(true))
 
-    assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
-    assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
-    assert(eval[Boolean]("""let v = Variant("1", 1, "A", "T") in Variant(str(v)) == v""").contains(true))
-
-    {
-      val x = eval[Annotation]("""let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)""")
-      assert(x.isDefined)
-      assert(x.get.asInstanceOf[Row].getAs[Variant](0) == Variant("1", 1000, "AT", Array("A", "CT", "AGGT")))
-      val left = x.get.asInstanceOf[Row].getAs[Map[Int, Int]](1)
-      left.keySet should contain theSameElementsAs Seq(0, 1, 2)
-      assert(left.get(0).contains(0))
-      assert(left.get(1).contains(1))
-      assert(left.get(2).contains(2))
-      val right = x.get.asInstanceOf[Row].getAs[Map[Int, Int]](2)
-      right.keySet should contain theSameElementsAs Seq(0, 2, 3)
-      assert(left.get(0).contains(0))
-      assert(right.get(2).contains(1))
-      assert(right.get(3).contains(2))
-    }
-
     assert(eval[Locus]("""Locus("1", 1)""").contains(Locus("1", 1)))
     assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
     assert(eval[Boolean]("""let l = Locus("1", 1) in Locus(str(l)) == l""").contains(true))
@@ -727,7 +705,7 @@ class ExprSuite extends SparkSuite {
     }
 
     interceptFatal("No function found") {
-      eval[Double](""" log(Variant("22", 123, "A", "T")) """)
+      eval[Double](""" log(Locus("22", 123)) """)
     }
 
     assert(eval[Int]("[0, 0.toInt64()][0].toInt32()").contains(0))
@@ -807,28 +785,28 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isMissing(calls.noCall.nNonRefAlleles())").contains(true))
     assert(eval[Boolean]("isMissing(calls.noCall[0])").contains(true))
     assert(eval[Boolean]("isMissing(calls.noCall.ploidy)").contains(true))
-    assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") in isMissing(c.oneHotAlleles(v))""").contains(true)) // FIXME
+    assert(eval[Boolean]("""let c = calls.noCall and alleles = ["A", "T"] in isMissing(c.oneHotAlleles(alleles))""").contains(true)) // FIXME
 
     assert(eval[Boolean]("isDefined(calls.homRef)").contains(true))
     assert(eval[Boolean]("calls.homRef.isHomRef()").contains(true))
     assert(eval[Boolean]("calls.homRef.isHet()").contains(false))
     assert(eval[Boolean]("calls.homRef.isHomVar()").contains(false))
     assert(eval[Boolean]("calls.homRef.nNonRefAlleles() == 0").contains(true))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(2, 0)))
+    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and alleles = ["A", "T"] in c.oneHotAlleles(alleles)""").contains(IndexedSeq(2, 0)))
 
     assert(eval[Boolean]("isDefined(calls.het)").contains(true))
     assert(eval[Boolean]("calls.het.isHomRef()").contains(false))
     assert(eval[Boolean]("calls.het.isHet()").contains(true))
     assert(eval[Boolean]("calls.het.isHomVar()").contains(false))
     assert(eval[Boolean]("calls.het.nNonRefAlleles() == 1").contains(true))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(1, 1)))
+    assert(eval[IndexedSeq[Int]]("""let c = calls.het and alleles = ["A", "T"] in c.oneHotAlleles(alleles)""").contains(IndexedSeq(1, 1)))
 
     assert(eval[Boolean]("isDefined(calls.homVar)").contains(true))
     assert(eval[Boolean]("calls.homVar.isHomRef()").contains(false))
     assert(eval[Boolean]("calls.homVar.isHet()").contains(false))
     assert(eval[Boolean]("calls.homVar.isHomVar()").contains(true))
     assert(eval[Boolean]("calls.homVar.nNonRefAlleles() == 2").contains(true))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(0, 2)))
+    assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and alleles = ["A", "T"] in c.oneHotAlleles(alleles)""").contains(IndexedSeq(0, 2)))
 
     assert(eval[Int]("let x = Call(true, 1, 2) in x.ploidy").contains(2))
     assert(eval[Int]("let x = Call(true, 1, 2) in x[1]").contains(2))
@@ -1077,7 +1055,7 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testRegistryTypeCheck() {
-    val expr = """let v = Variant("1:650000:A:T") and ref = v.ref and isHet = v.isAutosomal and s = "1" in s.toInt32()"""
+    val expr = """let l = Locus("1:650000") and isHet = l.isAutosomal and s = "1" in s.toInt32()"""
     val (t, f) = Parser.parseExpr(expr, EvalContext())
     assert(f().asInstanceOf[Int] == 1 && t.isInstanceOf[TInt32])
   }
@@ -1103,7 +1081,7 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testContext() {
-    Array("s", "sa", "v", "va", "g").foreach { sym =>
+    Array("s", "sa", "locus", "alleles", "va", "g").foreach { sym =>
       val (a, t) = hc.eval(sym)
       assert(t.typeCheck(a), s"problematic symbol: '$sym'")
     }
