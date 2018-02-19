@@ -17,7 +17,7 @@ from hail.methods.misc import require_biallelic
            block_size=integral,
            rate=integral)
 def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=1000):
-    """Export to Cassandra.
+    """Export a :class:`.Table` to Cassandra.
 
     Warning
     -------
@@ -32,7 +32,7 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
            output=strlike,
            precision=integral)
 def export_gen(dataset, output, precision=4):
-    """Export variant dataset as GEN and SAMPLE files.
+    """Export a :class:`.MatrixTable` as GEN and SAMPLE files.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -99,7 +99,7 @@ def export_gen(dataset, output, precision=4):
            output=strlike,
            fam_args=expr_any)
 def export_plink(dataset, output, **fam_args):
-    """Export variant dataset as
+    """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
 
@@ -189,7 +189,7 @@ def export_plink(dataset, output, **fam_args):
            collection=strlike,
            block_size=integral)
 def export_solr(table, zk_host, collection, block_size=100):
-    """Export to Solr.
+    """Export a :class:`.Table` to Solr.
 
     Warning
     -------
@@ -206,7 +206,7 @@ def export_solr(table, zk_host, collection, block_size=100):
            parallel=nullable(enumeration('separate_header', 'header_per_shard')),
            metadata=nullable(dictof(strlike, dictof(strlike, dictof(strlike, strlike)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
-    """Export variant dataset as a VCF file in ``.vcf`` or ``.vcf.bgz`` format.
+    """Export a :class:`.MatrixTable` as a VCF file.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -318,7 +318,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 @typecheck(path=strlike,
            reference_genome=nullable(GenomeReference))
 def import_interval_list(path, reference_genome=None):
-    """Import an interval list file in the GATK standard format.
+    """Import an interval list as a :class:`.Table`.
 
     Examples
     --------
@@ -447,7 +447,7 @@ def import_bed(path, reference_genome=None):
     Returns
     -------
     :class:`.Table`
-        Interval-indexed table containing information from file.
+        Interval-keyed table.
     """
     # FIXME: once interval join support is added, add the following examples:
     # Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
@@ -475,7 +475,7 @@ def import_bed(path, reference_genome=None):
            delimiter=strlike,
            missing=strlike)
 def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
-    """Import PLINK .fam file into a :class:`.Table`.
+    """Import a PLINK FAM file into a :class:`.Table`.
 
     Examples
     --------
@@ -528,7 +528,6 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     Returns
     -------
     :class:`.Table`
-        Table representing the data of a FAM file.
     """
 
     jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
@@ -553,7 +552,7 @@ def grep(regex, path, max_count=100):
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None,
                 contig_recoding=None):
-    """Import BGEN file(s) as matrix table.
+    """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Warning
     -------
@@ -663,15 +662,13 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
 def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
                contig_recoding=None):
     """
-    Import GEN file(s) as a matrix table.
+    Import GEN file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
-    Import a GEN file as a matrix table.
-
-    >>> ds_result = hl.import_gen('data/example.gen',
-    ...                                sample_file='data/example.sample')
+    >>> ds = hl.import_gen('data/example.gen',
+    ...                    sample_file='data/example.sample')
 
     Notes
     -----
@@ -915,7 +912,6 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     Returns
     -------
     :class:`.Table`
-        Table constructed from text table.
     """
     key = wrap_to_list(key)
     paths = wrap_to_list(paths)
@@ -953,16 +949,14 @@ def import_plink(bed, bim, fam,
                                   '25': 'X',
                                   '26': 'MT'},
                  drop_chr0=False):
-    """Import PLINK binary file (BED, BIM, FAM) as a :class:`.MatrixTable`.
+    """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
-    Import data from a PLINK binary file:
-
     >>> ds = hl.import_plink(bed="data/test.bed",
-    ...                           bim="data/test.bim",
-    ...                           fam="data/test.fam")
+    ...                      bim="data/test.bim",
+    ...                      fam="data/test.fam")
 
     Notes
     -----
@@ -1050,7 +1044,6 @@ def import_plink(bed, bim, fam,
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset imported from PLINK files.
     """
 
     rg = reference_genome if reference_genome else Env.hc().default_reference
@@ -1070,7 +1063,7 @@ def import_plink(bed, bim, fam,
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def read_matrix_table(path):
-    """Read a `.vds` file as a :class:`.MatrixTable`
+    """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
 
     Parameters
     ----------
@@ -1155,7 +1148,7 @@ def get_vcf_metadata(path):
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
-    """Import VCF file(s) as a matrix table.
+    """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
@@ -1303,7 +1296,7 @@ def index_bgen(path):
 @handle_py4j
 @typecheck(path=strlike)
 def read_table(path):
-    """Read in a :class:`.Table`.
+    """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
     ----------
