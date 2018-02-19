@@ -51,8 +51,6 @@ class BitPackedVectorView(rvRowType: TStruct) {
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
-  def getVariant: Variant = Variant.fromRegionValue(m, vOffset)
-
   def getContig: String = vView.contig()
 
   def getStart: Int = vView.position()
