@@ -20,6 +20,7 @@ Import / Export
     import_gen
     import_interval_list
     import_plink
+    import_table
     import_vcf
     read_matrix_table
     read_table
@@ -36,6 +37,7 @@ Import / Export
 .. autofunction:: import_gen
 .. autofunction:: import_interval_list
 .. autofunction:: import_plink
+.. autofunction:: import_table
 .. autofunction:: import_vcf
 .. autofunction:: read_matrix_table
 .. autofunction:: read_table

@@ -220,8 +220,15 @@ class GroupedTable(TableTemplate):
 
 class Table(TableTemplate):
     """Hail's distributed implementation of a dataframe or SQL table.
+    
+    Use :func:`.read_table` to read a table that was written with
+    :meth:`.Table.write`.
 
-    In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
+    Examples
+    --------
+
+    The examples below use ``table1`` and ``table2``, which are imported
+    from text files using :func:`.import_table`.
 
     >>> table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
     >>> table1.show()

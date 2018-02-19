@@ -169,7 +169,11 @@ matrix_table_type = lazy()
 class MatrixTable(object):
     """Hail's distributed implementation of a structured matrix.
 
-    **Examples**
+    Use :func:`.read_matrix_table` to read a matrix table that was written with
+    :meth:`.MatrixTable.write`.
+
+    Examples
+    --------
 
     .. testsetup::
 
