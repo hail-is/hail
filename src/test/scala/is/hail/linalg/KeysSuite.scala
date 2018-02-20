@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 import is.hail.annotations.Annotation
 import is.hail.check.Gen

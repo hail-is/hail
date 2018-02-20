@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 import is.hail.check.Arbitrary.arbitrary
 import is.hail.check.{Gen, Prop}

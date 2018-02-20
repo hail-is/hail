@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 import org.apache.spark.Partitioner
 

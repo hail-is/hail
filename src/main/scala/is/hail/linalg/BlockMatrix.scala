@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 import java.io._
 
@@ -135,12 +135,12 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  private[distributedmatrix] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
+  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
     assert(lm.offset == 0, s"${ lm.offset }")
     assert(lm.majorStride == (if (lm.isTranspose) lm.cols else lm.rows), s"${ lm.majorStride } ${ lm.isTranspose } ${ lm.rows } ${ lm.cols }}")
   }
 
-  private[distributedmatrix] def block(dm: BlockMatrix, partitions: Array[Partition], partitioner: GridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
+  private[linalg] def block(dm: BlockMatrix, partitions: Array[Partition], partitioner: GridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
     val it = dm.blocks
       .iterator(partitions(partitioner.coordinatesBlock(i, j)), context)
     assert(it.hasNext)
@@ -233,7 +233,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   import BlockMatrix._
 
-  private[distributedmatrix] val st: String = Thread.currentThread().getStackTrace().mkString("\n")
+  private[linalg] val st: String = Thread.currentThread().getStackTrace().mkString("\n")
 
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])

@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
   
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite

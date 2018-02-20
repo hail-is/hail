@@ -2,7 +2,7 @@ package is.hail.methods
 
 import breeze.linalg.DenseMatrix
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.distributedmatrix.BlockMatrix
+import is.hail.linalg.BlockMatrix
 import is.hail.expr.types._
 import is.hail.io.plink.ExportPlink
 import is.hail.stats._

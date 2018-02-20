@@ -1,4 +1,4 @@
-package is.hail.distributedmatrix
+package is.hail.linalg
 
 
 import breeze.linalg.{DenseMatrix => BDM}
@@ -7,7 +7,7 @@ import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Gen._
 import is.hail.check._
-import is.hail.distributedmatrix.BlockMatrix.ops._
+import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types.{TFloat64Required, TInt64Required, TStruct}
 import is.hail.table.Table
 import is.hail.utils._

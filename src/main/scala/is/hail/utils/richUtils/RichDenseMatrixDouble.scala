@@ -5,7 +5,7 @@ import java.io.{DataInputStream, DataOutputStream}
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
 import is.hail.annotations.Memory
-import is.hail.distributedmatrix.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
 import org.json4s.jackson

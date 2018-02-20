@@ -4,7 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
-import is.hail.distributedmatrix.{BlockMatrix, KeyedBlockMatrix, Keys}
+import is.hail.linalg.{BlockMatrix, KeyedBlockMatrix, Keys}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
