@@ -304,7 +304,7 @@ class Tests(unittest.TestCase):
 
             # filter out constant rows
             isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])
-            ds = ds[[not isconst(row) for row in ds]]
+            ds = np.array([row for row in ds if not isconst(row)])
 
             nvariants, nsamples = ds.shape
             sumgt = lambda r: sum([i for i in r if i >= 0])
