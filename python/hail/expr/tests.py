@@ -957,3 +957,22 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(True & hl.capture(True)))
         self.assertTrue(hl.eval_expr(hl.capture(False) | True))
         self.assertTrue(hl.eval_expr(True | hl.capture(False)))
+
+    def test_min_max(self):
+        self.assertEqual(hl.eval_expr(hl.max(1, 2)), 2)
+        self.assertEqual(hl.eval_expr(hl.max(1.0, 2)), 2.0)
+        self.assertEqual(hl.eval_expr(hl.max([1, 2])), 2)
+        self.assertEqual(hl.eval_expr(hl.max([1.0, 2])), 2.0)
+        self.assertEqual(hl.eval_expr(hl.max(0, 1.0, 2)), 2.0)
+        self.assertEqual(hl.eval_expr(hl.max(0, 1, 2)), 2)
+        self.assertEqual(hl.eval_expr(hl.max([0, 10, 2, 3, 4, 5, 6, ])), 10)
+        self.assertEqual(hl.eval_expr(hl.max(0, 10, 2, 3, 4, 5, 6)), 10)
+
+        self.assertEqual(hl.eval_expr(hl.min(1, 2)), 1)
+        self.assertEqual(hl.eval_expr(hl.min(1.0, 2)), 1.0)
+        self.assertEqual(hl.eval_expr(hl.min([1, 2])), 1)
+        self.assertEqual(hl.eval_expr(hl.min([1.0, 2])), 1.0)
+        self.assertEqual(hl.eval_expr(hl.min(0, 1.0, 2)), 0.0)
+        self.assertEqual(hl.eval_expr(hl.min(0, 1, 2)), 0)
+        self.assertEqual(hl.eval_expr(hl.min([0, 10, 2, 3, 4, 5, 6, ])), 0)
+        self.assertEqual(hl.eval_expr(hl.min(4, 10, 2, 3, 4, 5, 6)), 2)

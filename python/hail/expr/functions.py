@@ -6,7 +6,7 @@ from hail.genetics import Locus, Call, GenomeReference
 
 std_len = len
 std_str = str
-
+std_all = all
 
 def _func(name, ret_type, *args):
     indices, aggregations, joins, refs = unify_all(*args)
@@ -2338,59 +2338,109 @@ def len(x):
     return x._method("size", tint32)
 
 
-@typecheck(collection=oneof(expr_set, expr_array))
-def max(collection):
-    """Returns the maximum element.
+@typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))
+def max(*exprs):
+    """Returns the maximum element of a collection or of given numeric expressions.
 
     Examples
     --------
     .. doctest::
 
-        >>> a = [1, 3, 5, 6, 7, 9]
+        Take the maximum value of an array:
 
-        >>> hl.eval_expr(hl.max(a))
+        >>> hl.eval_expr(hl.max([1, 3, 5, 6, 7, 9]))
         9
 
+        Take the maximum value of values:
+
+        >>> hl.eval_expr(hl.max(1, 50, 2))
+        50
+
+    Notes
+    -----
+    Like the Python builtin ``max`` function, this function can either take a
+    single iterable expression (an array or set of numeric elements), or
+    variable-length arguments of numeric expressions.
+
     Parameters
     ----------
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression with numeric element type.
+    exprs : :class:`.ArrayExpression` or class:`.SetExpression` or varargs of :class:`.NumericExpression`
+        Single numeric array or set, or multiple numeric values.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'max' expects a numeric collection, found '{}'".format(collection.dtype))
-    return collection._method("max", collection.dtype.element_type)
+    if std_len(exprs) < 1:
+        raise ValueError("'max' requires at least one argument")
+    if std_len(exprs) == 1:
+        expr = exprs[0]
+        if not ((isinstance(expr.dtype, TSet) or isinstance(expr.dtype, TArray))
+                and is_numeric(expr.dtype.element_type)):
+            raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
+                            "  Found 1 argument of type '{}'".format(expr.dtype))
+        return expr._method('max', expr.dtype.element_type)
+    else:
+        if not std_all(is_numeric(e.dtype) for e in exprs):
+            raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
+                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join("'{}'".format(e.dtype) for e in exprs)))
+        ret_t = unify_types(*(e.dtype for e in exprs))
+        if std_len(exprs) == 2:
+            return exprs[0]._method('max', ret_t, exprs[1])
+        else:
+            return max([e for e in exprs])
 
-
-@typecheck(collection=oneof(expr_set, expr_array))
-def min(collection):
-    """Returns the minimum element.
+@typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))
+def min(*exprs):
+    """Returns the minimum of a collection or of given numeric expressions.
 
     Examples
     --------
     .. doctest::
 
-        >>> a = [1, 3, 5, 6, 7, 9]
+        Take the minimum value of an array:
 
-        >>> hl.eval_expr(hl.min(a))
-        1
+        >>> hl.eval_expr(hl.max([2, 3, 5, 6, 7, 9]))
+        2
+
+        Take the minimum value:
+
+        >>> hl.eval_expr(hl.max(12, 50, 2))
+        2
+
+    Notes
+    -----
+    Like the Python builtin ``min`` function, this function can either take a
+    single iterable expression (an array or set of numeric elements), or
+    variable-length arguments of numeric expressions.
 
     Parameters
     ----------
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression with numeric element type.
+    exprs : :class:`.ArrayExpression` or class:`.SetExpression` or varargs of :class:`.NumericExpression`
+        Single numeric array or set, or multiple numeric values.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'min' expects a numeric collection, found '{}'".format(collection.dtype))
-    return collection._method("min", collection.dtype.element_type)
-
+    if std_len(exprs) < 1:
+        raise ValueError("'min' requires at least one argument")
+    if std_len(exprs) == 1:
+        expr = exprs[0]
+        if not ((isinstance(expr.dtype, TSet) or isinstance(expr.dtype, TArray))
+                and is_numeric(expr.dtype.element_type)):
+            raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
+                            "  Found 1 argument of type '{}'".format(expr.dtype))
+        return expr._method('min', expr.dtype.element_type)
+    else:
+        if not std_all(is_numeric(e.dtype) for e in exprs):
+            raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
+                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join("'{}'".format(e.dtype) for e in exprs)))
+        ret_t = unify_types(*(e.dtype for e in exprs))
+        if std_len(exprs) == 2:
+            return exprs[0]._method('min', ret_t, exprs[1])
+        else:
+            return min([e for e in exprs])
 
 @typecheck(collection=oneof(expr_set, expr_array))
 def mean(collection):
