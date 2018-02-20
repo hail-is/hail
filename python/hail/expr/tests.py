@@ -981,7 +981,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.abs(-5)), 5)
         self.assertEqual(hl.eval_expr(hl.abs(-5.5)), 5.5)
         self.assertEqual(hl.eval_expr(hl.abs(5.5)), 5.5)
-        self.assertEqual(hl.eval_expr(hl.abs([5.5, -5.5])), [5.5, -5.5])
+        self.assertEqual(hl.eval_expr(hl.abs([5.5, -5.5])), [5.5, 5.5])
 
     def test_signum(self):
         self.assertEqual(hl.eval_expr(hl.signum(-5)), -1)
