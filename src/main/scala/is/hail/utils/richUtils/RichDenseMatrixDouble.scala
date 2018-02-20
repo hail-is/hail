@@ -1,73 +1,36 @@
 package is.hail.utils.richUtils
 
-import java.io.{DataInputStream, DataOutputStream}
+import java.io.{InputStream, OutputStream}
 
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
-import is.hail.annotations.Memory
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
+import is.hail.io.BufferSpec
 import is.hail.utils._
-import org.apache.commons.lang3.StringUtils
 import org.json4s.jackson
 
 object RichDenseMatrixDouble {
-  // copies n doubles as bytes from data to dos
-  def writeDoubles(dos: DataOutputStream, data: Array[Double], n: Int) {
-    assert(n <= data.length)
-    var nLeft = n
-    val bufSize = math.min(nLeft, 8192)
-    val buf = new Array[Byte](bufSize << 3) // up to 64KB of doubles
-
-    var off = 0
-    while (nLeft > 0) {
-      val nCopy = math.min(nLeft, bufSize)
-
-      Memory.memcpy(buf, 0, data, off, nCopy)
-      dos.write(buf, 0, nCopy << 3)
-
-      off += nCopy
-      nLeft -= nCopy
-    }
-  }
-
-  // copies n doubles as bytes from dis to data
-  def readDoubles(dis: DataInputStream, data: Array[Double], n: Int) {
-    assert(n <= data.length)
-    var nLeft = n
-    val bufSize = math.min(nLeft, 8192)
-    val buf = new Array[Byte](bufSize << 3) // up to 64KB of doubles
-
-    var off = 0
-    while (nLeft > 0) {
-      val nCopy = math.min(nLeft, bufSize)
-
-      dis.readFully(buf, 0, nCopy << 3)
-      Memory.memcpy(data, off, buf, 0, nCopy)
-
-      off += nCopy
-      nLeft -= nCopy
-    }
-  }
-
-  // assumes zero offset and minimal majorStride 
-  def read(dis: DataInputStream): DenseMatrix[Double] = {
-    val rows = dis.readInt()
-    val cols = dis.readInt()
-    val isTranspose = dis.readBoolean()
+  // assumes zero offset and minimal majorStride
+  def read(is: InputStream, bufferSpec: BufferSpec): DenseMatrix[Double] = {
+    val in = bufferSpec.buildInputBuffer(is)
+    
+    val rows = in.readInt()
+    val cols = in.readInt()
+    val isTranspose = in.readBoolean()
 
     val data = new Array[Double](rows * cols)
-    readDoubles(dis, data, data.length)
+    in.readDoubles(data)
 
     new DenseMatrix[Double](rows, cols, data,
       offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
   }
   
-  def read(hc: HailContext, path: String): DenseMatrix[Double] = {
-    hc.hadoopConf.readDataFile(path)(read)
+  def read(hc: HailContext, path: String, bufferSpec: BufferSpec): DenseMatrix[Double] = {
+    hc.hadoopConf.readDataFile(path)(is => read(is, bufferSpec))
   }
 
   def from(nRows: Int, nCols: Int, data: Array[Double], isTranspose: Boolean = false): DenseMatrix[Double] = {
-    return new DenseMatrix[Double](rows = nRows, cols = nCols, data = data,
+    new DenseMatrix[Double](rows = nRows, cols = nCols, data = data,
       offset = 0, majorStride = nCols, isTranspose = isTranspose)
   }
 }
@@ -135,19 +98,22 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       (m.toArray, false)
   }
 
-  def write(dos: DataOutputStream, forceRowMajor: Boolean) {
+  def write(os: OutputStream, forceRowMajor: Boolean, bufferSpec: BufferSpec) {
     val (data, isTranspose) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
     
-    dos.writeInt(m.rows)
-    dos.writeInt(m.cols)
-    dos.writeBoolean(isTranspose)
+    val out = bufferSpec.buildOutputBuffer(os)
     
-    RichDenseMatrixDouble.writeDoubles(dos, data, data.length)
+    out.writeInt(m.rows)
+    out.writeInt(m.cols)
+    out.writeBoolean(isTranspose)
+    out.flush() // align block row with buffer
+    out.writeDoubles(data)
+    out.flush()
   }
   
-  def write(hc: HailContext, path: String, forceRowMajor: Boolean = false) {
-    hc.hadoopConf.writeDataFile(path)(dos => write(dos, forceRowMajor))
+  def write(hc: HailContext, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
+    hc.hadoopConf.writeFile(path)(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
   
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false) {
@@ -174,7 +140,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       val jOffset = j * blockSize      
       var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
 
-      block.write(hc, filename, forceRowMajor)
+      block.write(hc, filename, forceRowMajor, BlockMatrix.bufferSpec)
     }
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")

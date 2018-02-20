@@ -9,13 +9,10 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types.{TFloat64Required, TInt64Required, TStruct}
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.testng.annotations.Test
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 class BlockMatrixSuite extends SparkSuite {
@@ -598,8 +595,8 @@ class BlockMatrixSuite extends SparkSuite {
     val lm = BDM.rand[Double](256, 129) // 33024 doubles
     val fname = tmpDir.createTempFile("test")
 
-    lm.write(hc, fname)
-    val lm2 = RichDenseMatrixDouble.read(hc, fname)
+    lm.write(hc, fname, bufferSpec = BlockMatrix.bufferSpec)
+    val lm2 = RichDenseMatrixDouble.read(hc, fname, BlockMatrix.bufferSpec)
 
     assert(lm === lm2)
   }

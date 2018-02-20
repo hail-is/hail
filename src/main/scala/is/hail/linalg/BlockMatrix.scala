@@ -9,25 +9,25 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.EvalContext
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
+import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
+import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
-import org.json4s.jackson.Serialization
-
-import scala.collection.JavaConverters._
 
 object BlockMatrix {
   type M = BlockMatrix
-  val defaultBlockSize: Int = 4096
+  val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
+  val bufferSpec: BufferSpec =
+    new BlockingBufferSpec(32 * 1024,
+      new LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec))
 
   def from(sc: SparkContext, lm: BDM[Double]): M =
     from(sc, lm, defaultBlockSize)
@@ -119,9 +119,8 @@ object BlockMatrix {
     val gp = GridPartitioner(blockSize, nRows, nCols)
 
     def readBlock(i: Int, is: InputStream): Iterator[((Int, Int), BDM[Double])] = {
-      val dis = new DataInputStream(is)
-      val bdm = RichDenseMatrixDouble.read(dis)
-      dis.close()
+      val bdm = RichDenseMatrixDouble.read(is, bufferSpec)
+      is.close()
 
       Iterator.single(gp.blockCoordinates(i), bdm)
     }
@@ -316,9 +315,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       var bdm = it.next()._2
       assert(!it.hasNext)
 
-      val dos = new DataOutputStream(os)
-      bdm.write(dos, forceRowMajor)
-      dos.close()
+      bdm.write(os, forceRowMajor, bufferSpec)
+      os.close()
 
       1
     }
@@ -1100,21 +1098,22 @@ class WriteBlocksRDD(path: String,
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
 
-    val dosPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
+    val outPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val i = gp.coordinatesBlock(blockRow, blockCol)
       val filename = path + "/parts/" + partFile(d, i)
 
-      val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))
-      dos.writeInt(nRowsInBlock)
-      dos.writeInt(nColsInBlock)
-      dos.writeBoolean(true) // transposed, stored row major
-
-      dos
+      val os = sHadoopBc.value.value.unsafeWriter(filename)
+      val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
+      
+      out.writeInt(nRowsInBlock)
+      out.writeInt(nColsInBlock)
+      out.writeBoolean(true) // transposed, stored row major
+      out.flush() // align block row with buffer
+      
+      out
     }
-
-    val bytes = new Array[Byte](blockSize << 3)
 
     val entriesIndex = matrixType.entriesIdx
     val fullRow = new UnsafeRow(matrixType.rvRowType)
@@ -1132,6 +1131,8 @@ class WriteBlocksRDD(path: String,
           j += 1
         }
       }
+      
+      val data = new Array[Double](blockSize)
 
       var i = 0
       while (it.hasNext && i < nRowsInBlock) {
@@ -1149,20 +1150,22 @@ class WriteBlocksRDD(path: String,
             ec.set(3, gs(sampleIndex))
             f() match {
               case null => fatal(s"Entry expr must be non-missing. Found missing value for col $j and row $row}")
-              case t => Memory.storeDouble(bytes, j << 3, t.toDouble)
+              case t => data(j) = t.toDouble
             }
             sampleIndex += 1
             j += 1
           }
-          dosPerBlockCol(blockCol).write(bytes, 0, n << 3)
-
+          outPerBlockCol(blockCol).writeDoubles(data, 0, n)          
           blockCol += 1
         }
         i += 1
       }
     }
 
-    dosPerBlockCol.foreach(_.close())
+    outPerBlockCol.foreach { out =>
+      out.flush()
+      out.close()
+    }
 
     Iterator.single(gp.nBlockCols) // number of blocks written
   }
