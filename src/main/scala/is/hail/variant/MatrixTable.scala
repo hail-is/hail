@@ -2102,7 +2102,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
       val newRVRowType = TStruct(rvRowType.fields.map { f =>
           f.name match {
-            case x@MatrixType.entriesIdentifier => (x, newEntryType)
+            case x@MatrixType.entriesIdentifier => (x, TArray(newEntryType))
             case x => (fieldMapRows.getOrElse(x, x), f.typ)
           }
       }: _*)
