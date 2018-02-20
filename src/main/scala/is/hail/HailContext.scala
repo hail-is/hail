@@ -250,19 +250,25 @@ class HailContext private(val sc: SparkContext,
 
   def importBgen(file: String,
     sampleFile: Option[String] = None,
-    tolerance: Double = 0.2,
+    includeGT: Boolean,
+    includeGP: Boolean,
+    includeDosage: Boolean,
     nPartitions: Option[Int] = None,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
-    importBgens(List(file), sampleFile, tolerance, nPartitions, gr, contigRecoding)
+    contigRecoding: Option[Map[String, String]] = None,
+    tolerance: Double = 0.2): MatrixTable = {
+    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, gr, contigRecoding, tolerance)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
-    tolerance: Double = 0.2,
+    includeGT: Boolean = true,
+    includeGP: Boolean = true,
+    includeDosage: Boolean = false,
     nPartitions: Option[Int] = None,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    tolerance: Double = 0.2): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -281,7 +287,8 @@ class HailContext private(val sc: SparkContext,
 
     contigRecoding.foreach(gr.validateContigRemap)
 
-    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions, gr, contigRecoding.getOrElse(Map.empty[String, String]))
+    BgenLoader.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
+      nPartitions, gr, contigRecoding.getOrElse(Map.empty[String, String]), tolerance)
   }
 
   def importGen(file: String,

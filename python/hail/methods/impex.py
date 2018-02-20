@@ -1,6 +1,7 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
+from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
@@ -545,43 +546,48 @@ def grep(regex, path, max_count=100):
 
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)),
-           tolerance=numeric,
            sample_file=nullable(strlike),
+           entry_fields=listof(strlike),
            min_partitions=nullable(integral),
            reference_genome=nullable(GenomeReference),
-           contig_recoding=nullable(dictof(strlike, strlike)))
-def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None,
-                contig_recoding=None):
+           contig_recoding=nullable(dictof(strlike, strlike)),
+           tolerance=numeric)
+def import_bgen(path, entry_fields, sample_file=None,
+                min_partitions=None, reference_genome=None,
+                contig_recoding=None, tolerance=0.2):
     """Import BGEN file(s) as a :class:`.MatrixTable`.
-
-    Warning
-    -------
-
-    A BGEN file must have a corresponding index file which can be generated with
-    :func:`.index_bgen`.
 
     Examples
     --------
 
-    Import a BGEN file as a matrix table renaming contig name "01" to "1".
+    Import a BGEN file as a matrix table with GT and GP entry fields,
+    renaming contig name "01" to "1":
 
-    >>> ds_result = hl.import_bgen("data/example3.bgen",
-    ...                                 sample_file="data/example3.sample",
-    ...                                 contig_recoding={"01": "1"})
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['GT', 'GP'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            contig_recoding={"01": "1"})
+
+    Import a BGEN file as a matrix table with genotype dosage entry field,
+    renaming contig name "01" to "1":
+
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                             entry_fields=['dosage'],
+    ...                             sample_file="data/example.8bits.sample",
+    ...                             contig_recoding={"01": "1"})
 
     Notes
     -----
 
-    Hail supports importing data in the BGEN file format. For more information
-    on the BGEN file format, see `here
-    <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__. Note that
-    only v1.1 and v1.2 BGEN files are supported at this time. For v1.2 files,
-    only **unphased** and **diploid** genotype probabilities are allowed and the
-    genotype probability blocks must be either compressed with zlib or
-    uncompressed.
+    Hail supports importing data from v1.1 and v1.2 of the
+    `BGEN file format <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__.
+    For v1.2, genotypes must be **unphased** and **diploid**, and genotype
+    probability blocks must be compressed with zlib or uncompressed. If
+    `entry_fields` includes ``'dosage'``, all variants must be bi-allelic.
 
-    To load multiple files at the same time, use :ref:`Hadoop Glob Patterns
-    <sec-hadoop-glob>`.
+    Each BGEN file must have a corresponding index file, which can be generated
+    with :func:`.index_bgen`. To load multiple files at the same time,
+    use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
     **Column Fields**
 
@@ -603,25 +609,34 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
 
     **Entry Fields**
 
-    - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
-      the highest probability.
-    - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
-      as defined by the BGEN file spec. For BGEN v1.1 files, the array is set to
-      missing if the sum of the probabilities is a distance greater than the
-      `tolerance` parameter from 1.0. Otherwise, the probabilities are
-      normalized to sum to 1.0. For example, the input ``[0.98, 0.0, 0.0]`` will
-      be normalized to ``[1.0, 0.0, 0.0]``. For BGEN v1.2 files, no
-      modifications are made to the genotype probabilities.
+    Up to three entry fields are created, as determined by `entry_fields` which
+    must be non-empty. For best performance, include precisely those fields
+    required for your analysis. For BGEN v1.1 files, all entry fields are set
+    to missing if the sum of the genotype probabilities is a distance greater
+    than `tolerance` from 1.0.
 
+    - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
+      the greatest probability.
+    - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
+      as defined by the BGEN file spec. For bi-allelic variants, the array has
+      three elements giving the probabilities of homozygous reference,
+      heterozygous, and homozygous alternate genotype, in that order.
+      For v1.2 files, no modifications are made to these genotype
+      probabilities. For v1.1 files, the probabilities are normalized to
+      sum to 1.0. For example, ``[0.98, 0.0, 0.0]`` is normalized to
+      ``[1.0, 0.0, 0.0]``.
+    - `dosage` (:class:`.TFloat64`) -- The expected value of the number of
+      alternate alleles, given by the probability of heterozygous genotype plus
+      twice the probability of homozygous alternate genotype. All variants must
+      be bi-allelic.
 
     Parameters
     ----------
     path : :obj:`str` or :obj:`list` of :obj:`str`
         BGEN file(s) to read.
-    tolerance : :obj:`float`
-        If the sum of the probabilities for an entry differ from 1.0 by more
-        than the tolerance, set the entry to missing. Only applicable if the
-        BGEN files are v1.1.
+    entry_fields : :obj:`list` of :obj:`str`
+        List of entry fields to create.
+        Options: ``'GT'``, ``'GP'``, ``'dosage'``.
     sample_file : :obj:`str`, optional
         Sample file to read the sample ids from. If specified, the number of
         samples in the file must match the number in the BGEN file(s).
@@ -633,6 +648,9 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
+    tolerance : :obj:`float`
+        If the sum of the probabilities for an entry differ from 1.0 by more
+        than the tolerance, set the entry to missing. Only applicable to v1.1.
 
     Returns
     -------
@@ -642,12 +660,24 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
     from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
+    if not entry_fields:
+        raise FatalError("import_bgen: entry_fields must be non-empty."
+                         "\n    Options: 'GT', 'GP', 'dosage'.")
+
+    entry_set = set(entry_fields)
+    bad_entry_fields = list(entry_set - {'GT', 'GP', 'dosage'})
+
+    if bad_entry_fields:
+        word = plural('value', len(bad_entry_fields))
+        raise FatalError("import_bgen: found invalid {} {} in entry_fields."
+                         "\n    Options: 'GT', 'GP', 'dosage'.".format(word, bad_entry_fields))
+
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                    tolerance, joption(min_partitions), rg._jrep,
-                                    joption(contig_recoding))
+                                    'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
+                                    joption(min_partitions), rg._jrep, joption(contig_recoding), tolerance)
     return MatrixTable(jmt)
 
 
@@ -1267,7 +1297,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
-    """Index .bgen files as required by :func:`.import_bgen`.
+    """Index BGEN files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
     filename of `path` appended by `.idx`.
@@ -1275,7 +1305,7 @@ def index_bgen(path):
     Example
     -------
 
-    >>> hl.index_bgen("data/example3.bgen")
+    >>> hl.index_bgen("data/example.8bits.bgen")
 
     Warning
     -------

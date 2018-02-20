@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
-import is.hail.variant.{Call, Call2, Genotype, Variant}
+import is.hail.variant.{Call2, Genotype, Variant}
 
 abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
   var ann: Annotation = _
@@ -19,6 +19,9 @@ abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
 
 class BgenRecordV11(compressed: Boolean,
   nSamples: Int,
+  includeGT: Boolean,
+  includeGP: Boolean,
+  includeDosage: Boolean,
   tolerance: Double) extends BgenRecord {
 
   override def getValue(rvb: RegionValueBuilder) {
@@ -48,21 +51,30 @@ class BgenRecordV11(compressed: Boolean,
         t(2) = d2
         rvb.startStruct()
 
-        // GT
-        val gt = Genotype.unboxedGTFromLinear(t)
-        if (gt != -1)
-          rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
-        else
-          rvb.setMissing()
+        if (includeGT) {
+          val gt = Genotype.unboxedGTFromLinear(t)
+          if (gt != -1)
+            rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
+          else
+            rvb.setMissing()
+        }
 
-        rvb.startArray(3) // GP
-        rvb.addDouble(d0.toDouble / dsum)
-        rvb.addDouble(d1.toDouble / dsum)
-        rvb.addDouble(d2.toDouble / dsum)
-        rvb.endArray()
-        rvb.endStruct()
+        if (includeGP) {
+          rvb.startArray(3)
+          rvb.addDouble(d0.toDouble / dsum)
+          rvb.addDouble(d1.toDouble / dsum)
+          rvb.addDouble(d2.toDouble / dsum)
+          rvb.endArray()
+        } else
+          rvb.setMissing()
+        
+        if (includeDosage)
+          rvb.addDouble((d1 + (d2 << 1)).toDouble / dsum)
+
+        rvb.endStruct()     
       } else
         rvb.setMissing()
+      
       i += 1
     }
     rvb.endArray()
@@ -93,7 +105,8 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
   }
 }
 
-class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) extends BgenRecord {
+class BgenRecordV12(compressed: Boolean, nSamples: Int,
+  includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean) extends BgenRecord {
   var expectedDataSize: Int = _
   var expectedNumAlleles: Int = _
 
@@ -142,13 +155,12 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
 
     val nGenotypes = triangle(nAlleles)
+    
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
     rvb.startArray(nSamples) // gs
     if (nBitsPerProb == 8 && nAlleles == 2) {
-      val totalProb = 255
-
       val sampleProbs = new Array[Int](3)
 
       i = 0
@@ -164,21 +176,29 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           val d1 = a(off + 1) & 0xff
           val d2 = 255 - d0 - d1
 
-          // GT
-          sampleProbs(0) = d0
-          sampleProbs(1) = d1
-          sampleProbs(2) = d2
-          val gt = Genotype.unboxedGTFromLinear(sampleProbs)
-          if (gt != -1)
-            rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
-          else
-            rvb.setMissing()
-
-          rvb.startArray(3) // GP
-          rvb.addDouble(d0 / 255.0)
-          rvb.addDouble(d1 / 255.0)
-          rvb.addDouble(d2 / 255.0)
-          rvb.endArray()
+          if (includeGT) {
+            sampleProbs(0) = d0
+            sampleProbs(1) = d1
+            sampleProbs(2) = d2
+            val gt = Genotype.unboxedGTFromLinear(sampleProbs)
+            if (gt != -1)
+              rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
+            else
+              rvb.setMissing()
+          }
+          
+          if (includeGP) {
+            rvb.startArray(3) // GP
+            rvb.addDouble(d0 / 255.0)
+            rvb.addDouble(d1 / 255.0)
+            rvb.addDouble(d2 / 255.0)
+            rvb.endArray()
+          }
+          
+          if (includeDosage) {
+            val dosage = (d1 + (d2 << 1)) / 255.0
+            rvb.addDouble(dosage)
+          }
 
           rvb.endStruct() // g
         }
@@ -209,21 +229,31 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           }
           sampleProbs(j) = lastProb
 
-          // GT
-          val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
-          if (gt != -1)
-            rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
-          else
-            rvb.setMissing()
-
-          // GP
-          rvb.startArray(nGenotypes)
-          j = 0
-          while (j < nGenotypes) {
-            rvb.addDouble(sampleProbs(j).toDouble / totalProb.toDouble)
-            j += 1
+          if (includeGT) {
+            val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
+            if (gt != -1)
+              rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
+            else
+              rvb.setMissing()
           }
-          rvb.endArray()
+
+          if (includeGP) {
+            rvb.startArray(nGenotypes)
+            j = 0
+            while (j < nGenotypes) {
+              rvb.addDouble(sampleProbs(j).toDouble / totalProb.toDouble)
+              j += 1
+            }
+            rvb.endArray()
+          }
+
+          if (includeDosage) {
+            if (nGenotypes == 3)
+              rvb.addDouble((sampleProbs(1).toDouble + 2 * sampleProbs(2).toDouble) / totalProb.toDouble)
+            else
+              fatal("import_bgen: 'dosage' entry field is invalid for multi-allelic variants.")
+          }
+          
           rvb.endStruct() // g
         }
         i += 1

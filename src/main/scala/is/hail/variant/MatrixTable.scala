@@ -390,7 +390,7 @@ object VSMSubgen {
     vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2),
       contigGen = Contig.gen(t.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference])).gen)
 
-  val dosage = VSMSubgen(
+  val callAndProbabilities = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
     vSigGen = Gen.const(TVariant(GenomeReference.defaultReference)),
@@ -404,7 +404,7 @@ object VSMSubgen {
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genValue,
     vGen = (t: Type) => t.genNonmissingValue,
-    tGen = (t: Type, v: Annotation) => Genotype.genGenericDosageGenotype(v.asInstanceOf[Variant]))
+    tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(v.asInstanceOf[Variant]))
 
   val realistic = random.copy(
     tGen = (t: Type, v: Annotation) => Genotype.genRealistic(v.asInstanceOf[Variant]))

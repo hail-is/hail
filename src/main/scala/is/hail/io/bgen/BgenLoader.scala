@@ -21,18 +21,31 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 
 object BgenLoader {
 
-  def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
+  def load(hc: HailContext,
+    files: Array[String],
+    sampleFile: Option[String] = None,
+    includeGT: Boolean,
+    includeGP: Boolean,
+    includeDosage: Boolean,
+    nPartitions: Option[Int] = None,
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Map[String, String] = Map.empty[String, String],
+    tolerance: Double): MatrixTable = {
+    
     require(files.nonEmpty)
-    val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
-      .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
+    val hadoop = hc.hadoopConf
+    
+    val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hadoop, file))
+      .getOrElse(BgenLoader.readSamples(hadoop, files.head))
 
     LoadVCF.warnDuplicates(sampleIds)
 
     val nSamples = sampleIds.length
 
-    hc.hadoopConf.setDouble("tolerance", tolerance)
+    hadoop.setDouble("tolerance", tolerance)
+    hadoop.setBoolean("includeGT", includeGT)
+    hadoop.setBoolean("includeGP", includeGP)
+    hadoop.setBoolean("includeDosage", includeDosage)
 
     val sc = hc.sc
     val results = files.map { file =>
@@ -72,6 +85,12 @@ object BgenLoader {
       "rsid" -> TString(),
       "varid" -> TString())
 
+    val entryFields = Array(
+      (includeGT, "GT" -> TCall()),
+      (includeGP, "GP" -> TArray(TFloat64())),
+      (includeDosage, "dosage" -> TFloat64()))
+      .withFilter(_._1).map(_._2)
+        
     val matrixType: MatrixType = MatrixType.fromParts(
       globalType = TStruct.empty(),
       colKey = Array("s"),
@@ -79,7 +98,7 @@ object BgenLoader {
       rowType = signature,
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
-      entryType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
+      entryType = TStruct(entryFields: _*))
 
     val kType = matrixType.orvdType.kType
     val rowType = matrixType.rvRowType
