@@ -329,8 +329,6 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def query(exprs: Array[String]): Array[(Annotation, Type)] = {
     val ec = aggEvalContext()
 
-    ec.set(0, globals)
-
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {

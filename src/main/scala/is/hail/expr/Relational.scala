@@ -419,13 +419,7 @@ abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
   def partitionCounts: Option[Array[Long]] = None
-
-  def env: Env[IR] = {
-    Env.empty[IR]
-      .bind(("global", GetField(In(0, typ.globalType), "global")))
-      .bind(("row", GetField(In(1, typ.rowType), "row")))
-  }
-
+  
   def execute(hc: HailContext): TableValue
 }
 
