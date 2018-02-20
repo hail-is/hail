@@ -2086,15 +2086,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(fieldMapGlobals.keys.forall(k => matrixType.globalType.fieldNames.contains(k)),
       s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ matrixType.globalType.fieldNames.mkString(", ") }]")
 
-    val (pk, newRowKey, newRowType) = if (fieldMapRows.isEmpty)
-      (rowPartitionKey, rowKey, rowType)
-    else {
-      val newFieldNames = rowType.fieldNames.map { n => fieldMapRows.getOrElse(n, n) }
-      val newPK = rowPartitionKey.map { f => fieldMapRows.getOrElse(f, f) }
-      val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
-      (newPK, newKey, TStruct(newFieldNames.zip(rowType.fieldType): _*))
-    }
-
     val (newColKey, newColType) = if (fieldMapCols.isEmpty) (colKey, colType) else {
       val newFieldNames = colType.fieldNames.map { n => fieldMapCols.getOrElse(n, n) }
       val newKey = colKey.map { f => fieldMapCols.getOrElse(f, f) }
@@ -2106,18 +2097,29 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       TStruct(newFieldNames.zip(entryType.fieldType): _*)
     }
 
+    val (pk, newRowKey, newRVRowType) = {
+      val newPK = rowPartitionKey.map { f => fieldMapRows.getOrElse(f, f) }
+      val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
+      val newRVRowType = TStruct(rvRowType.fields.map { f =>
+          f.name match {
+            case x@MatrixType.entriesIdentifier => (x, newEntryType)
+            case x => (fieldMapRows.getOrElse(x, x), f.typ)
+          }
+      }: _*)
+      (newPK, newKey, newRVRowType)
+    }
+
     val newGlobalType = if (fieldMapEntries.isEmpty) globalType else {
       val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
       TStruct(newFieldNames.zip(globalType.fieldType): _*)
     }
 
-    val newMatrixType = MatrixType.fromParts(newGlobalType,
+    val newMatrixType = MatrixType(newGlobalType,
       newColKey,
       newColType,
       pk,
       newRowKey,
-      newRowType,
-      newEntryType)
+      newRVRowType)
 
     val newRVD = if (fieldMapRows.isEmpty) rvd else {
       val newType = newMatrixType.orvdType
