@@ -1048,6 +1048,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(t[3][1]) == 5)
         self.assertTrue(hl.eval_expr(t[4][1][1][1]) == 4)
 
-        self.assertTrue(hl.eval_expr(t0.length()) == 0)
-        self.assertTrue(hl.eval_expr(t2.length()) == 2)
-        self.assertTrue(hl.eval_expr(t.length()) == 5)
+        self.assertTrue(hl.eval_expr(len(t0) == 0))
+        self.assertTrue(hl.eval_expr(len(t2) == 2))
+        self.assertTrue(hl.eval_expr(len(t)) == 5)

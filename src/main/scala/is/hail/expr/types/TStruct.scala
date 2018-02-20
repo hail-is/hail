@@ -43,24 +43,30 @@ object TStruct {
   }
 }
 
-final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends TStructBase {
+final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends TBaseStruct {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
-  def types: IndexedSeq[Type] = fields.map(_.typ)
+  val types: Array[Type] = fields.map(_.typ).toArray
+
+  val fieldRequired: Array[Boolean] = types.map(_.required)
 
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
-  val fieldType: Array[Type] = fields.map(_.typ).toArray
-
   assert(fieldNames.areDistinct(), fieldNames.duplicates())
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.ordering).toArray)
+  val size: Int = fields.length
 
-  override def children: Seq[Type] = fields.map(_.typ)
+  val missingIdx = new Array[Int](size)
+  val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
+  val nMissingBytes = (nMissing + 7) >>> 3
+  val byteOffsets = new Array[Long](size)
+  override val byteSize: Long = TBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = TBaseStruct.alignment(types)
+
+  val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
   def fieldByName(name: String): Field = fields(fieldIdx(name))
 

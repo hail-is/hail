@@ -62,7 +62,7 @@ object Annotation {
         case TArray(elementType, _) =>
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
 
-        case t: TStructBase =>
+        case t: TBaseStruct =>
           Row.fromSeq((a.asInstanceOf[Row].toSeq, t.types).zipped.map { case (ai, typ) =>
             expandAnnotation(ai, typ)
           })
@@ -163,7 +163,7 @@ object Annotation {
       return null
 
     t match {
-      case t: TStructBase =>
+      case t: TBaseStruct =>
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         rvb.start(t)

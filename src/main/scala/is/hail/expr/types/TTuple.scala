@@ -21,10 +21,22 @@ object TTuple {
   }
 }
 
-final case class TTuple(types: IndexedSeq[Type], override val required: Boolean = false) extends TStructBase {
+final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean = false) extends TBaseStruct {
+  val types = _types.toArray
+  val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.ordering).toArray)
+  val fields: IndexedSeq[Field] = types.zipWithIndex.map { case (t, i) => Field(s"$i", t, i) }
+
+  val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
+
+  val size: Int = types.length
+
+  val missingIdx = new Array[Int](size)
+  val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
+  val nMissingBytes = (nMissing + 7) >>> 3
+  val byteOffsets = new Array[Long](size)
+  override val byteSize: Long = TBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = TBaseStruct.alignment(types)
 
   def ++(that: TTuple): TTuple = TTuple(types ++ that.types, required = false)
 

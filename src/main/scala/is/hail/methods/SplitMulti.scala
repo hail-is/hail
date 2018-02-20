@@ -124,7 +124,7 @@ class SplitMultiPartitionContext(
         ).asInstanceOf[Row]
         var fdIdx = 0
         while (fdIdx < newRow.length) {
-          rvb.addAnnotation(newRVRowType.fieldType(fdIdx), newRow(fdIdx))
+          rvb.addAnnotation(newRVRowType.types(fdIdx), newRow(fdIdx))
           fdIdx += 1
         }
 
@@ -183,8 +183,8 @@ object SplitMulti {
 class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalType),
-    "newLocus" -> (1, vsm.rowKeyStruct.fieldType(0)),
-    "newAlleles" -> (2, vsm.rowKeyStruct.fieldType(1)),
+    "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
+    "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
     "va" -> (3, vsm.rowType),
     "aIndex" -> (4, TInt32()),
     "wasSplit" -> (5, TBoolean())))
@@ -192,8 +192,8 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
 
   val gEC = EvalContext(Map(
     "global" -> (0, vsm.globalType),
-    "newLocus" -> (1, vsm.rowKeyStruct.fieldType(0)),
-    "newAlleles" -> (2, vsm.rowKeyStruct.fieldType(1)),
+    "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
+    "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
     "va" -> (3, vsm.rowType),
     "aIndex" -> (4, TInt32()),
     "wasSplit" -> (5, TBoolean()),

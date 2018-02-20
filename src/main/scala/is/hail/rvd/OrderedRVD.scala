@@ -99,7 +99,7 @@ class OrderedRVD private(
     val lTyp = typ
     val rTyp = right.typ
 
-    if (!lTyp.kType.fieldType.sameElements(rTyp.kType.fieldType))
+    if (!lTyp.kType.types.sameElements(rTyp.kType.types))
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
            | Left key type: ${ lTyp.kType.toString }

@@ -1876,12 +1876,9 @@ def is_complex(ref, alt):
 def is_strand_ambiguous(ref, alt):
     """Returns ``True`` if the alleles are strand ambiguous.
 
-    Strand ambiguous allele pairs are as follows:
-
-    - ("A", "T")
-    - ("T", "A")
-    - ("G", "C")
-    - ("C", "G")
+    Strand ambiguous allele pairs are ``A/T``, ``T/A``,
+    ``C/G``, and ``G/C`` where the first allele is `ref`
+    and the second allele is `alt`.
 
     Examples
     --------
@@ -1901,7 +1898,7 @@ def is_strand_ambiguous(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    alleles = hl.capture({("A", "T"), ("T", "A"), ("G", "C"), ("C", "G")})
+    alleles = hl.capture({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
     return alleles.contains((ref, alt))
 
 

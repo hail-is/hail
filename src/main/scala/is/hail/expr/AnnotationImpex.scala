@@ -33,9 +33,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType, _) => requiresConversion(elementType)
     case TSet(_, _) | TDict(_, _, _) | TAltAllele(_) | TVariant(_, _) |
-         TLocus(_, _) | TInterval(_, _) | TCall(_) | TTuple(_, _) => true
-    case TStruct(fields, _) =>
-      fields.isEmpty || fields.exists(f => requiresConversion(f.typ))
+         TLocus(_, _) | TInterval(_, _) | TCall(_) => true
+    case tbs: TBaseStruct =>
+      tbs.types.isEmpty || tbs.types.exists(typ => requiresConversion(typ))
     case _ => false
   }
 
@@ -49,10 +49,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case BinaryType => TBinary()
     case ArrayType(elementType, containsNull) => TArray(importType(elementType).setRequired(!containsNull))
     case StructType(fields) =>
-      TStruct(fields.zipWithIndex
-        .map { case (f, i) =>
-          (f.name, importType(f.dataType).setRequired(!f.nullable))
-        }: _*)
+      TStruct(fields.map { f => (f.name, importType(f.dataType).setRequired(!f.nullable)) }: _*)
   }
 
   def annotationImporter(t: Type): (Any) => Annotation = {
@@ -98,7 +95,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             importAnnotation(r.get(1), x.pointType),
             importAnnotation(r.get(2), TBooleanRequired).asInstanceOf[Boolean],
             importAnnotation(r.get(3), TBooleanRequired).asInstanceOf[Boolean])
-        case t: TStructBase =>
+        case t: TBaseStruct =>
           if (t.size == 0)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
           else {
@@ -134,21 +131,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       StructField("start", Locus.sparkSchema, nullable = false),
       StructField("end", Locus.sparkSchema, nullable = false)))
     case _: TCall => StringType
-    case TStruct(fields, _) =>
-      if (fields.isEmpty)
+    case tbs: TBaseStruct =>
+      if (tbs.fields.isEmpty)
         BooleanType //placeholder
       else
-        StructType(fields
+        StructType(tbs.fields
           .map(f =>
             StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
-    case TTuple(types, _) =>
-      if (types.isEmpty)
-        BooleanType // placeholder
-      else
-        StructType(types
-          .zipWithIndex
-          .map { case (typ, i) =>
-          StructField(s"_$i", typ.schema, nullable = !typ.required) })
   }
 
   def annotationExporter(t: Type): (Annotation) => Any = {
@@ -191,7 +180,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             exportAnnotation(i.end, pointType),
             exportAnnotation(i.includeStart, TBooleanRequired),
             exportAnnotation(i.includeEnd, TBooleanRequired))
-        case t: TStructBase =>
+        case t: TBaseStruct =>
           if (t.size == 0)
             a != null
           else {
@@ -452,8 +441,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case _: TString => a.asInstanceOf[String]
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
-        case t: TStruct => JsonMethods.compact(t.toJSON(a))
-        case t: TTuple => JsonMethods.compact(t.toJSON(a))
+        case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
         case TInterval(TLocus(gr, _), _) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
@@ -489,8 +477,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TTuple => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TBaseStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
     }
   }
 }

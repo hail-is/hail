@@ -33,16 +33,36 @@ object Type {
 
   val requiredComplex: Gen[Type] = genComplexType(true)
 
-  def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] =
+  def genFields(required: Boolean, genFieldType: Gen[Type]): Gen[Array[Field]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
-      .map(fields => TStruct(fields
+      .map(fields => fields
         .iterator
         .zipWithIndex
         .map { case ((k, t), i) => Field(k, t, i) }
-        .toIndexedSeq))
-      .map(t => if (required) (+t).asInstanceOf[TStruct] else t)
+        .toArray)
+  }
+
+  def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] = {
+    for (fields <- genFields(required, genFieldType)) yield {
+      val t = TStruct(fields)
+      if (required)
+        (+t).asInstanceOf[TStruct]
+      else
+        t
+    }
+  }
+
+  def preGenTuple(required: Boolean, genFieldType: Gen[Type]): Gen[TTuple] = {
+    for (fields <- genFields(required, genFieldType)) yield {
+      val t = TTuple(fields.map(_.typ))
+      if (required)
+        (+t).asInstanceOf[TTuple]
+      else
+        t
+    }
+  }
 
   private val defaultRequiredGenRatio = 0.2
 
@@ -76,9 +96,7 @@ object Type {
         (1, genArb.map {
           TInterval(_)
         }),
-        (1, genArb.map {
-          TTuple(_)
-        }),
+        (1, preGenTuple(required, genArb)),
         (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
         (1, genTStruct.resize(size)))
     }

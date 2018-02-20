@@ -28,7 +28,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   private val startOffset: LocalRef[Long] = fb.newLocal[Long]
 
   typ match {
-    case t: TStructBase => elementsOffset = fb.newLocal[Long]
+    case t: TBaseStruct => elementsOffset = fb.newLocal[Long]
     case t: TArray =>
       elementsOffset = fb.newLocal[Long]
       idx = fb.newLocal[Int]
@@ -43,7 +43,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def currentOffset: Code[Long] = {
     typ match {
-      case _: TStructBase => elementsOffset
+      case _: TBaseStruct => elementsOffset
       case _: TArray => elementsOffset
       case _ => startOffset
     }
@@ -52,7 +52,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def start(): Code[Unit] = {
     assert(!typ.isInstanceOf[TArray])
     typ.fundamentalType match {
-      case _: TStructBase => start(true)
+      case _: TBaseStruct => start(true)
       case _: TBinary =>
         assert(pOffset == null)
         startOffset.store(endOffset)
@@ -74,7 +74,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   }
 
   def start(init: Boolean): Code[Unit] = {
-    val t = typ.asInstanceOf[TStructBase]
+    val t = typ.asInstanceOf[TBaseStruct]
     var c = if (pOffset == null)
       startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
@@ -90,7 +90,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def setMissing(): Code[Unit] = {
     typ match {
       case t: TArray => t.setElementMissing(region, startOffset, idx)
-      case t: TStructBase => t.setFieldMissing(region, startOffset, staticIdx)
+      case t: TBaseStruct => t.setFieldMissing(region, startOffset, staticIdx)
     }
   }
 
@@ -122,17 +122,15 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
-  def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
-
-  def addTuple(t: TTuple, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
-
+  def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
+  
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case _: TInt32 => v => addInt(v.asInstanceOf[Code[Int]])
     case _: TInt64 => v => addLong(v.asInstanceOf[Code[Long]])
     case _: TFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
     case _: TFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
-    case _: TStructBase => v =>
+    case _: TBaseStruct => v =>
       region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
     case _: TArray => v => addAddress(v.asInstanceOf[Code[Long]])
     case _: TBinary => v => addAddress(v.asInstanceOf[Code[Long]])
@@ -145,7 +143,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
         elementsOffset := elementsOffset + t.elementByteSize,
         idx ++
       )
-      case t: TStructBase =>
+      case t: TBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
           elementsOffset.store(startOffset + t.byteOffsets(staticIdx))

@@ -1255,7 +1255,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       t match {
         case s: TStruct =>
           val r = v.asInstanceOf[Row]
-          s.types.zipWithIndex.foreach { case (typ, i) => convertValue(typ, if (r == null) null else r.get(i), ab) }
+          s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
         case _ =>
           ab += t.str(v)
       }
@@ -1382,7 +1382,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val localSignature = signature
 
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
-    assert(hintPartitioner.forall(p => p.pkType.fieldType.sameElements(orderedKTType.pkType.fieldType)))
+    assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)
   }
 }

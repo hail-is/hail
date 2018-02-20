@@ -567,7 +567,7 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
         if (t.isElementDefined(region, aoff, i)) {
           val off = elemsOff + i * elemSize
           t.elementType match {
-            case t2: TStructBase => readStructBase(t2, region, off)
+            case t2: TBaseStruct => readBaseStruct(t2, region, off)
             case t2: TArray =>
               val aoff = readArray(t2, region)
               region.storeAddress(off, aoff)
@@ -585,7 +585,7 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
     aoff
   }
 
-  def readStructBase(t: TStructBase, region: Region, offset: Long) {
+  def readBaseStruct(t: TBaseStruct, region: Region, offset: Long) {
     val nMissingBytes = t.nMissingBytes
     in.readBytes(region, offset, nMissingBytes)
 
@@ -594,7 +594,7 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
       if (t.isFieldDefined(region, offset, i)) {
         val off = offset + t.byteOffsets(i)
         t.types(i) match {
-          case t2: TStructBase => readStructBase(t2, region, off)
+          case t2: TBaseStruct => readBaseStruct(t2, region, off)
           case t2: TArray =>
             val aoff = readArray(t2, region)
             region.storeAddress(off, aoff)
@@ -613,9 +613,9 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
   def readRegionValue(t: Type, region: Region): Long = {
     val f = t.fundamentalType
     f match {
-      case t: TStructBase =>
+      case t: TBaseStruct =>
         val start = region.allocate(t.alignment, t.byteSize)
-        readStructBase(t, region, start)
+        readBaseStruct(t, region, start)
         start
 
       case t: TArray =>
@@ -699,7 +699,7 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
         if (t.isElementDefined(region, aoff, i)) {
           val off = elemsOff + i * elemSize
           t.elementType match {
-            case t2: TStructBase => writeStructBase(t2, region, off)
+            case t2: TBaseStruct => writeBaseStruct(t2, region, off)
             case t2: TArray => writeArray(t2, region, region.loadAddress(off))
             case _: TBoolean => out.writeBoolean(region.loadByte(off) != 0)
             case _: TInt64 => out.writeLong(region.loadLong(off))
@@ -714,7 +714,7 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
     }
   }
 
-  def writeStructBase(t: TStructBase, region: Region, offset: Long) {
+  def writeBaseStruct(t: TBaseStruct, region: Region, offset: Long) {
     val nMissingBytes = t.nMissingBytes
     out.writeBytes(region, offset, nMissingBytes)
 
@@ -723,7 +723,7 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
       if (t.isFieldDefined(region, offset, i)) {
         val off = offset + t.byteOffsets(i)
         t.types(i) match {
-          case t2: TStructBase => writeStructBase(t2, region, off)
+          case t2: TBaseStruct => writeBaseStruct(t2, region, off)
           case t2: TArray => writeArray(t2, region, region.loadAddress(off))
           case _: TBoolean => out.writeBoolean(region.loadByte(off) != 0)
           case _: TInt32 => out.writeInt(region.loadInt(off))
@@ -741,8 +741,8 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
   def writeRegionValue(t: Type, region: Region, offset: Long) {
     val f = t.fundamentalType
     (f: @unchecked) match {
-      case t: TStructBase =>
-        writeStructBase(t, region, offset)
+      case t: TBaseStruct =>
+        writeBaseStruct(t, region, offset)
       case t: TArray =>
         writeArray(t, region, offset)
     }

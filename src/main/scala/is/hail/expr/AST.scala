@@ -386,7 +386,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
   } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 
-abstract class StructBaseConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
+abstract class BaseStructConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type
 
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
@@ -401,7 +401,7 @@ abstract class StructBaseConstructor(posn: Position, elements: Array[AST]) exten
   def toIR(agg: Option[String] = None): Option[IR]
 }
 
-case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends StructBaseConstructor(posn, elements) {
+case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends BaseStructConstructor(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
     elements.foreach(_.typecheck(ec))
     val types = elements.map(_.`type`)
@@ -418,7 +418,7 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
   } yield ir.MakeStruct(fields)
 }
 
-case class TupleConstructor(posn: Position, elements: Array[AST]) extends StructBaseConstructor(posn, elements) {
+case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseStructConstructor(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
     elements.foreach(_.typecheck(ec))
     val types = elements.map(_.`type`)
@@ -786,12 +786,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           .valueOr(x => parseError(x.message))
 
       case (tt: TTuple, "[]", Array(Const(_, v, t))) =>
-        val idx = t match {
+        val idx = (t: @unchecked) match {
           case TInt32(_) => v.asInstanceOf[Int]
-          case _ => fatal(s"Tuple index must have type `tint32'. Found ${ t.toString }.")
+          case _ => fatal(s"Tuple index must have type `Int32'. Found ${ t.toString }.")
         }
-        if (idx < 0 || idx >= tt.size)
-          fatal(s"Invalid index for tuple of size ${ tt.size }.")
+        assert(idx >= 0 && idx < tt.size)
         `type` = tt.types(idx)
 
       case _ =>

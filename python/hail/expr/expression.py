@@ -2077,10 +2077,10 @@ class StructExpression(Mapping, Expression):
 class TupleExpression(Expression):
     """Expression of type :class:`.TTuple`.
 
-    >>> t = hl.capture(("a", (1, True, "hello"), [1, 2, 3]))
+    >>> t = hl.capture(("a", 1, [1, 2, 3]))
     """
 
-    @typecheck_method(item=integral)
+    @typecheck_method(item=int)
     def __getitem__(self, item):
         """Index into the tuple.
 
@@ -2089,39 +2089,36 @@ class TupleExpression(Expression):
         .. doctest::
 
             >>> hl.eval_expr(t[1])
-            (1, True, "hello")
+            1
 
         Parameters
         ----------
-        item : :class:`.Expression` of type :class:`.TInt32`
+        item : :obj:`int`
             Element index.
 
         Returns
         -------
         :class:`.Expression`
         """
-        if isinstance(item, slice):
-            raise NotImplementedError("Tuple expressions do not support slices.")
-        else:
-            if not 0 <= item < self.length:
-                raise TypeError("Out of bounds index. Tuple length is {}.".format(self.length()))
-            return self._index(self._type._get_elt_typ(item), item)
+        if not 0 <= item < len(self):
+            raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
+        return self._index(self.dtype.types[item], item)
 
-    def length(self):
+    def __len__(self):
         """Returns the length of the tuple.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(t.length())
+            >>> hl.eval_expr(len(t))
             3
 
         Returns
         -------
-        :class:`.Expression` of type :class:`.TInt32`
+        :obj:`int`
         """
-        return self._type.size
+        return len(self.dtype.types)
 
 
 class BooleanExpression(Expression):

@@ -9,14 +9,65 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-abstract class TStructBase extends Type {
-  def types: IndexedSeq[Type]
+object TBaseStruct {
+  def getOrdering(types: Array[Type]): ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(types.map(_.ordering))
+
+  def getMissingness(types: Array[Type], missingIdx: Array[Int]): Int = {
+    assert(missingIdx.length == types.length)
+    var i = 0
+    types.zipWithIndex.foreach { case (t, idx) =>
+      missingIdx(idx) = i
+      if (!t.required)
+        i += 1
+    }
+    i
+  }
+
+  def getByteSizeAndOffsets(types: Array[Type], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
+    assert(byteOffsets.length == types.length)
+    val bp = new BytePacker()
+
+    var offset: Long = nMissingBytes
+    types.zipWithIndex.foreach { case (t, i) =>
+      val fSize = t.byteSize
+      val fAlignment = t.alignment
+
+      bp.getSpace(fSize, fAlignment) match {
+        case Some(start) =>
+          byteOffsets(i) = start
+        case None =>
+          val mod = offset % fAlignment
+          if (mod != 0) {
+            val shift = fAlignment - mod
+            bp.insertSpace(shift, offset)
+            offset += (fAlignment - mod)
+          }
+          byteOffsets(i) = offset
+          offset += fSize
+      }
+    }
+    offset
+  }
+
+  def alignment(types: Array[Type]): Long = {
+    if (types.isEmpty)
+      1
+    else
+      types.map(_.alignment).max
+  }
+}
+
+abstract class TBaseStruct extends Type {
+  def types: Array[Type]
+
+  def fields: IndexedSeq[Field]
   
-  def fieldRequired: IndexedSeq[Boolean] = types.map(_.required)
+  def fieldRequired: Array[Boolean]
 
   override def children: Seq[Type] = types
 
-  def size: Int = types.length
+  def size: Int
 
   def _toString: String = {
     val sb = new StringBuilder
@@ -84,54 +135,11 @@ abstract class TStructBase extends Type {
     }
   }
 
-  val (missingIdx, nMissing) = {
-    var i = 0
-    val a = new Array[Int](types.length)
-    types.zipWithIndex.foreach { case (t, idx) =>
-      a(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    (a, i)
-  }
+  def nMissingBytes: Int
 
-  def nMissingBytes: Int = (nMissing + 7) >>> 3
+  def missingIdx: Array[Int]
 
-  var byteOffsets: Array[Long] = _
-  override val byteSize: Long = {
-    val a = new Array[Long](types.length)
-
-    val bp = new BytePacker()
-
-    var offset: Long = nMissingBytes
-    types.zipWithIndex.foreach { case (t, i) =>
-      val fSize = t.byteSize
-      val fAlignment = t.alignment
-
-      bp.getSpace(fSize, fAlignment) match {
-        case Some(start) =>
-          a(i) = start
-        case None =>
-          val mod = offset % fAlignment
-          if (mod != 0) {
-            val shift = fAlignment - mod
-            bp.insertSpace(shift, offset)
-            offset += (fAlignment - mod)
-          }
-          a(i) = offset
-          offset += fSize
-      }
-    }
-    byteOffsets = a
-    offset
-  }
-
-  override val alignment: Long = {
-    if (types.isEmpty)
-      1
-    else
-      types.map(_.alignment).max
-  }
+  def byteOffsets: Array[Long]
 
   def allocate(region: Region): Long = {
     region.allocate(alignment, byteSize)

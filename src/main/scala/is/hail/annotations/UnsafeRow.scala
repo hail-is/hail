@@ -131,7 +131,7 @@ object UnsafeRow {
   def readArray(t: TContainer, region: Region, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)
 
-  def readStructBase(t: TStructBase, region: Region, offset: Long): UnsafeRow =
+  def readBaseStruct(t: TBaseStruct, region: Region, offset: Long): UnsafeRow =
     new UnsafeRow(t, region, offset)
 
   def readString(region: Region, boff: Long): String =
@@ -198,8 +198,7 @@ object UnsafeRow {
       case td: TDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
-      case t: TStructBase =>
-        readStructBase(t, region, offset)
+      case t: TBaseStruct => readBaseStruct(t, region, offset)
       case x: TVariant =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Variant(
@@ -228,12 +227,12 @@ object UnsafeRow {
   }
 }
 
-class UnsafeRow(var t: TStructBase,
+class UnsafeRow(var t: TBaseStruct,
   var region: Region, var offset: Long) extends Row with KryoSerializable {
 
-  def this(t: TStructBase, rv: RegionValue) = this(t, rv.region, rv.offset)
+  def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
-  def this(t: TStructBase) = this(t, null, 0)
+  def this(t: TBaseStruct) = this(t, null, 0)
 
   def this() = this(null, null, 0)
 

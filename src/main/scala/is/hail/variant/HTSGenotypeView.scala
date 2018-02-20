@@ -16,7 +16,7 @@ object HTSGenotypeView {
 
 final class HTSGenotypeView(rvType: TStruct) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
-  private val tgs = rvType.fieldType(entriesIndex).asInstanceOf[TArray]
+  private val tgs = rvType.types(entriesIndex).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
   private def lookupField(name: String, expected: Type): (Boolean, Int) = {
@@ -120,7 +120,7 @@ object ArrayGenotypeView {
 
 final class ArrayGenotypeView(rvType: TStruct) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
-  private val tgs = rvType.fieldType(entriesIndex).asInstanceOf[TArray]
+  private val tgs = rvType.types(entriesIndex).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
     case _ => null
@@ -193,7 +193,7 @@ object HardCallView {
 
 final class HardCallView(rvType: TStruct, callField: String) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
-  private val tgs = rvType.fieldType(entriesIndex).asInstanceOf[TArray]
+  private val tgs = rvType.types(entriesIndex).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
   private def lookupField(name: String, expected: Type): (Boolean, Int) = {
@@ -246,7 +246,7 @@ final class HardCallView(rvType: TStruct, callField: String) {
 
 final class HardcallTrioGenotypeView(rvType: TStruct, callField: String) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
-  private val trioTgs = rvType.fieldType(entriesIndex).asInstanceOf[TArray]
+  private val trioTgs = rvType.types(entriesIndex).asInstanceOf[TArray]
   private val trioTg = trioTgs.elementType.asInstanceOf[TStruct]
 
   require(trioTg.hasField("proband_entry") && trioTg.hasField("mother_entry") && trioTg.hasField("father_entry"))
@@ -254,11 +254,11 @@ final class HardcallTrioGenotypeView(rvType: TStruct, callField: String) {
   private val motherIndex = trioTg.fieldIdx("mother_entry")
   private val fatherIndex = trioTg.fieldIdx("father_entry")
 
-  private val tg = trioTg.fieldType(probandIndex).fundamentalType.asInstanceOf[TStruct]
+  private val tg = trioTg.types(probandIndex).fundamentalType.asInstanceOf[TStruct]
 
   require(tg.hasField(callField))
   private val gtIndex = tg.fieldIdx(callField)
-  require(tg.unify(trioTg.fieldType(motherIndex).fundamentalType) && tg.unify(trioTg.fieldType(fatherIndex).fundamentalType))
+  require(tg.unify(trioTg.types(motherIndex).fundamentalType) && tg.unify(trioTg.types(fatherIndex).fundamentalType))
 
   private var m: Region = _
   private var gsOffset: Long = _

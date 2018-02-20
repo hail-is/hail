@@ -91,7 +91,7 @@ class OrderedRVDPartitioner(
     val (newPKType, _) = newKType.select(newPartitionKey)
     val newRangeBounds = new UnsafeIndexedSeq(TArray(TInterval(newPKType)), rangeBounds.region, rangeBounds.aoff)
     val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, newRangeBounds)
-    assert(newPart.pkType.fieldType.sameElements(pkType.fieldType))
+    assert(newPart.pkType.types.sameElements(pkType.types))
     newPart
   }
 

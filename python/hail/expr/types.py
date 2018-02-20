@@ -4,7 +4,7 @@ import hail as hl
 from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
-from hail.utils.java import scala_object, jset, jindexed_seq, Env
+from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list
 from hail import genetics
 
 
@@ -594,7 +594,7 @@ class TStruct(Type):
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
-            d = OrderedDict()
+            d = dict()
             for i, f in enumerate(self.fields):
                 d[f.name] = f.typ._convert_to_py(annotation.get(i))
             return Struct(**d)
@@ -656,20 +656,6 @@ class TTuple(Type):
         """
         return self._types
 
-    @property
-    def size(self):
-        """Number of elements.
-
-        Returns
-        -------
-        :obj:`int`
-        """
-        return len(self._types)
-
-    def _get_elt_typ(self, idx):
-        assert (0 <= idx < self.size)
-        return self._types[idx]
-
     @classmethod
     def _from_java(cls, jtype):
         tup = TTuple.__new__(cls)
@@ -679,24 +665,19 @@ class TTuple(Type):
         return tup
 
     def _init_from_java(self, jtype):
-        jtypes = Env.jutils().iterableToArrayList(jtype.types())
+        jtypes = jarray_to_list(jtype.types())
         self._types = [Type._from_java(t) for t in jtypes]
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
-            l = list()
-            for i, t in enumerate(self.types):
-                l.append(t._convert_to_py(annotation.get(i)))
-            return tuple(l)
+            return tuple([t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types)])
         else:
             return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
-                Env.jutils().arrayListToISeq(
-                    [f.typ._convert_to_j(annotation.get(f.name)) for f in self.types]
-                )
+            return Env.jutils().arrayListToISeq(
+                [self.types[i]._convert_to_j(elt) for i, elt in enumerate(annotation)]
             )
         else:
             return None

@@ -154,7 +154,7 @@ object LoadPlink {
           region.clear()
           rvb.start(kType)
           rvb.startStruct()
-          rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
+          rvb.addAnnotation(kType.types(0), v.locus) // locus/pk
           rvb.startArray(2)
           rvb.addString(v.ref)
           rvb.addString(v.alt)
@@ -181,9 +181,9 @@ object LoadPlink {
           region.clear()
           rvb.start(rvRowType)
           rvb.startStruct()
-          rvb.addAnnotation(rvRowType.fieldType(0), v.locus) // locus/pk
-          rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq(v.ref, v.alt))
-          rvb.addAnnotation(rvRowType.fieldType(2), rsid)
+          rvb.addAnnotation(rvRowType.types(0), v.locus) // locus/pk
+          rvb.addAnnotation(rvRowType.types(1), IndexedSeq(v.ref, v.alt))
+          rvb.addAnnotation(rvRowType.types(2), rsid)
           record.getValue(rvb)
           rvb.endStruct()
 
