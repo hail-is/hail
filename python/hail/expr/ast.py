@@ -136,7 +136,7 @@ class Literal(AST):
         super(Literal, self).__init__()
 
     def to_hql(self):
-        return self.value
+        return '({})'.format(self.value)
 
 
 class ArrayDeclaration(AST):

@@ -976,3 +976,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.min(0, 1, 2)), 0)
         self.assertEqual(hl.eval_expr(hl.min([0, 10, 2, 3, 4, 5, 6, ])), 0)
         self.assertEqual(hl.eval_expr(hl.min(4, 10, 2, 3, 4, 5, 6)), 2)
+
+    def test_abs(self):
+        self.assertEqual(hl.eval_expr(hl.abs(-5)), 5)
+        self.assertEqual(hl.eval_expr(hl.abs(-5.5)), 5.5)
+        self.assertEqual(hl.eval_expr(hl.abs(5.5)), 5.5)
+        self.assertEqual(hl.eval_expr(hl.abs([5.5, -5.5])), [5.5, -5.5])
+
+    def test_signum(self):
+        self.assertEqual(hl.eval_expr(hl.signum(-5)), -1)
+        self.assertEqual(hl.eval_expr(hl.signum(0.0)), 0)
+        self.assertEqual(hl.eval_expr(hl.signum(10.0)), 1)
+        self.assertEqual(hl.eval_expr(hl.signum([-5, 0, 10])), [-1, 0, 1])
+

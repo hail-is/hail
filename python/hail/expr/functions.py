@@ -8,6 +8,7 @@ std_len = len
 std_str = str
 std_all = all
 
+
 def _func(name, ret_type, *args):
     indices, aggregations, joins, refs = unify_all(*args)
     return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins, refs)
@@ -2383,12 +2384,14 @@ def max(*exprs):
     else:
         if not std_all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join("'{}'".format(e.dtype) for e in exprs)))
+                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join(
+                "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
         if std_len(exprs) == 2:
             return exprs[0]._method('max', ret_t, exprs[1])
         else:
             return max([e for e in exprs])
+
 
 @typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))
 def min(*exprs):
@@ -2435,12 +2438,82 @@ def min(*exprs):
     else:
         if not std_all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join("'{}'".format(e.dtype) for e in exprs)))
+                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join(
+                "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
         if std_len(exprs) == 2:
             return exprs[0]._method('min', ret_t, exprs[1])
         else:
             return min([e for e in exprs])
+
+
+@typecheck(x=oneof(expr_numeric, expr_array))
+def abs(x):
+    """Take the absolute value of a numeric value or array.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.abs(-5))
+        5
+
+        >>> hl.eval_expr(hl.abs([1.0, -2.5, -5.1]))
+        [1.0, 2.5, 5.1]
+
+    Parameters
+    ----------
+    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    """
+    if isinstance(x.dtype, TArray):
+        if not is_numeric(x.dtype.element_type):
+            raise TypeError(
+                "'abs' expects a numeric expression or numeric array expression, found '{}'".format(x.dtype))
+        return map(abs, x)
+    else:
+        return x._method('abs', x.dtype)
+
+
+@typecheck(x=oneof(expr_numeric, expr_array))
+def signum(x):
+    """Returns the sign (1, 0, or -1) of a numeric value or array.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.signum(-1.23))
+        -1
+
+        >>> hl.eval_expr(hl.signum(555))
+        1
+
+        >>> hl.eval_expr(hl.signum(0.0))
+        0
+
+        >>> hl.eval_expr(hl.signum([1, -5, 0, -125]))
+        [1, -1, 0, -1]
+
+    Parameters
+    ----------
+    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    """
+    if isinstance(x.dtype, TArray):
+        if not is_numeric(x.dtype.element_type):
+            raise TypeError(
+                "'signum' expects a numeric expression or numeric array expression, found '{}'".format(x.dtype))
+        return map(signum, x)
+    else:
+        return x._method('signum', tint32)
+
 
 @typecheck(collection=oneof(expr_set, expr_array))
 def mean(collection):
@@ -2732,6 +2805,7 @@ def sorted(collection, key=None, reverse=False):
             if not can_sort(t):
                 raise TypeError("'sort_by' expects 'key' to return type 'String' or numeric, found '{}'".format(t))
             return collection.dtype
+
         return collection._bin_lambda_method("sortBy", key, collection.dtype.element_type, check_f, ascending)
 
 
