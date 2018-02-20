@@ -63,8 +63,8 @@ class LoadBgenSuite extends SparkSuite {
       val nVariants = getNumberOfLinesInFile(gen)
 
       hc.indexBgen(bgen)
-      val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), gtField = true, gpField = true,
-        dosageField = false, nPartitions = Some(10), contigRecoding = contigRecoding)
+      val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), includeGT = true, includeGP = true,
+        includeDosage = false, nPartitions = Some(10), contigRecoding = contigRecoding)
         .selectRows("va.locus", "va.alleles", "va.varid", "va.rsid")
       assert(bgenVDS.numCols == nSamples && bgenVDS.countVariants() == nVariants)
 
@@ -162,7 +162,7 @@ class LoadBgenSuite extends SparkSuite {
 
         hc.indexBgen(bgenFile)
         val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile),
-          gtField = true, gpField = true, dosageField = false, nPartitions = Some(nPartitions),
+          includeGT = true, includeGP = true, includeDosage = false, nPartitions = Some(nPartitions),
           contigRecoding = contigRecoding)
 
         assert(importedVds.numCols == vds.numCols)
@@ -262,13 +262,13 @@ class LoadBgenSuite extends SparkSuite {
     val sample = "src/test/resources/parallelBgenExport.sample"
 
     hc.indexBgen(bgen)
-    hc.importBgen(bgen, Option(sample), gtField = true, gpField = true, dosageField = false).count()
+    hc.importBgen(bgen, Option(sample), includeGT = true, includeGP = true, includeDosage = false).count()
   }
 
   @Test def testReIterate() {
     hc.indexBgen("src/test/resources/example.v11.bgen")
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
-      gtField = true, gpField = true, dosageField = false, contigRecoding = contigRecoding)
+      includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
     assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => isDefined(g.GT))")
       .annotateVariantsExpr("va.cr2 = gs.fraction(g => isDefined(g.GT))")
@@ -278,11 +278,12 @@ class LoadBgenSuite extends SparkSuite {
   
   @Test def testDosage() {
     for (bgen <- Array("src/test/resources/example.8bits.bgen",
-                       "src/test/resources/example.10bits.bgen")) {
+                       "src/test/resources/example.10bits.bgen",
+                       "src/test/resources/example.v11.bgen")) {
       if (!hadoopConf.exists(bgen + ".idx"))
         hc.indexBgen(bgen)
       
-      val vds = hc.importBgen(bgen, gtField = false, gpField = true, dosageField = true, contigRecoding = contigRecoding)
+      val vds = hc.importBgen(bgen, includeGT = false, includeGP = true, includeDosage = true, contigRecoding = contigRecoding)
         .filterVariantsExpr("va.locus.position == 2000")
 
       val dosages = vds.queryGenotypes("gs.map(g => g.dosage).collect()")._1
@@ -290,13 +291,9 @@ class LoadBgenSuite extends SparkSuite {
 
       val dosagesFromGP = vds.queryGenotypes("gs.map(g => dosage(g.GP)).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
-
-      val nNull = dosages.count(_ == null)
-      val nTotal = dosages.length
       
-      assert(nNull > 0 && nNull < nTotal)
-      assert(nNull == dosagesFromGP.count(_ == null))
-      assert(dosages.length == dosagesFromGP.length)      
+      assert(dosages.length == 500 && dosagesFromGP.length == 500)
+      assert(dosages.count(_ == null) > 0)
       assert((dosages, dosagesFromGP).zipped.forall { case (x, y) => (x == null && y == null) || D_==(x, y) })
     }
   }

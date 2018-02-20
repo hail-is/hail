@@ -21,22 +21,31 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 
 object BgenLoader {
 
-  def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, gtField: Boolean, gpField: Boolean, dosageField: Boolean,
-    nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
+  def load(hc: HailContext,
+    files: Array[String],
+    sampleFile: Option[String] = None,
+    includeGT: Boolean,
+    includeGP: Boolean,
+    includeDosage: Boolean,
+    nPartitions: Option[Int] = None,
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Map[String, String] = Map.empty[String, String],
+    tolerance: Double): MatrixTable = {
+    
     require(files.nonEmpty)
-    val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
-      .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
+    val hadoop = hc.hadoopConf
+    
+    val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hadoop, file))
+      .getOrElse(BgenLoader.readSamples(hadoop, files.head))
 
     LoadVCF.warnDuplicates(sampleIds)
 
     val nSamples = sampleIds.length
 
-    hc.hadoopConf.setDouble("tolerance", tolerance)
-    hc.hadoopConf.setBoolean("gtField", gtField)
-    hc.hadoopConf.setBoolean("gpField", gpField)
-    hc.hadoopConf.setBoolean("dosageField", dosageField)
+    hadoop.setDouble("tolerance", tolerance)
+    hadoop.setBoolean("includeGT", includeGT)
+    hadoop.setBoolean("includeGP", includeGP)
+    hadoop.setBoolean("includeDosage", includeDosage)
 
     val sc = hc.sc
     val results = files.map { file =>
@@ -44,8 +53,6 @@ object BgenLoader {
 
       bState.version match {
         case 1 =>
-          if (!gtField || !gpField || dosageField)
-            fatal("import_bgen: for BGEN v1.1, set gt_field=True, gp_field=True, dosage_field=False")
           BgenResult(file, bState.nSamples, bState.nVariants,
             sc.hadoopFile(file, classOf[BgenInputFormatV11], classOf[LongWritable], classOf[BgenRecordV11], nPartitions.getOrElse(sc.defaultMinPartitions)))
         case 2 =>
@@ -79,9 +86,9 @@ object BgenLoader {
       "varid" -> TString())
 
     val entryFields = Array(
-      (gtField, "GT" -> TCall()),
-      (gpField, "GP" -> TArray(TFloat64())),
-      (dosageField, "dosage" -> TFloat64()))
+      (includeGT, "GT" -> TCall()),
+      (includeGP, "GP" -> TArray(TFloat64())),
+      (includeDosage, "dosage" -> TFloat64()))
       .withFilter(_._1).map(_._2)
         
     val matrixType: MatrixType = MatrixType.fromParts(

@@ -14,10 +14,9 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
   val btree = new IndexBTree(indexPath, job)
 
   val tolerance = job.get("tolerance").toDouble
-
-  val gtField = job.get("gtField").toBoolean
-  val gpField = job.get("gpField").toBoolean
-  val dosageField = job.get("dosageField").toBoolean
+  val includeGT = job.get("includeGT").toBoolean
+  val includeGP = job.get("includeGP").toBoolean
+  val includeDosage = job.get("includeDosage").toBoolean
 
   seekToFirstBlockInSplit(split.getStart)
 
@@ -37,7 +36,8 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
 }
 
 class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlockReader[BgenRecordV11](job, split) {
-  override def createValue(): BgenRecordV11 = new BgenRecordV11(bState.compressed, bState.nSamples, tolerance)
+  override def createValue(): BgenRecordV11 =
+    new BgenRecordV11(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, tolerance)
 
   override def next(key: LongWritable, value: BgenRecordV11): Boolean = {
     if (pos >= end)
@@ -84,7 +84,7 @@ class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlock
 
 class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlockReader[BgenRecordV12](job, split) {
   override def createValue(): BgenRecordV12 =
-    new BgenRecordV12(bState.compressed, bState.nSamples, tolerance, gtField, gpField, dosageField)
+    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage)
 
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
     if (pos >= end)

@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
-import is.hail.variant.{Call, Call2, Genotype, Variant}
+import is.hail.variant.{Call2, Genotype, Variant}
 
 abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
   var ann: Annotation = _
@@ -19,6 +19,9 @@ abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
 
 class BgenRecordV11(compressed: Boolean,
   nSamples: Int,
+  includeGT: Boolean,
+  includeGP: Boolean,
+  includeDosage: Boolean,
   tolerance: Double) extends BgenRecord {
 
   override def getValue(rvb: RegionValueBuilder) {
@@ -48,21 +51,30 @@ class BgenRecordV11(compressed: Boolean,
         t(2) = d2
         rvb.startStruct()
 
-        // GT
-        val gt = Genotype.unboxedGTFromLinear(t)
-        if (gt != -1)
-          rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
-        else
-          rvb.setMissing()
+        if (includeGT) {
+          val gt = Genotype.unboxedGTFromLinear(t)
+          if (gt != -1)
+            rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
+          else
+            rvb.setMissing()
+        }
 
-        rvb.startArray(3) // GP
-        rvb.addDouble(d0.toDouble / dsum)
-        rvb.addDouble(d1.toDouble / dsum)
-        rvb.addDouble(d2.toDouble / dsum)
-        rvb.endArray()
-        rvb.endStruct()
+        if (includeGP) {
+          rvb.startArray(3)
+          rvb.addDouble(d0.toDouble / dsum)
+          rvb.addDouble(d1.toDouble / dsum)
+          rvb.addDouble(d2.toDouble / dsum)
+          rvb.endArray()
+        } else
+          rvb.setMissing()
+        
+        if (includeDosage)
+          rvb.addDouble((d1 + (d2 << 1)).toDouble / dsum)
+
+        rvb.endStruct()     
       } else
         rvb.setMissing()
+      
       i += 1
     }
     rvb.endArray()
@@ -93,8 +105,8 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
   }
 }
 
-class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
-  gtField: Boolean, gpField: Boolean, dosageField: Boolean) extends BgenRecord {
+class BgenRecordV12(compressed: Boolean, nSamples: Int,
+  includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean) extends BgenRecord {
   var expectedDataSize: Int = _
   var expectedNumAlleles: Int = _
 
@@ -164,7 +176,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
           val d1 = a(off + 1) & 0xff
           val d2 = 255 - d0 - d1
 
-          if (gtField) {
+          if (includeGT) {
             sampleProbs(0) = d0
             sampleProbs(1) = d1
             sampleProbs(2) = d2
@@ -175,7 +187,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
               rvb.setMissing()
           }
           
-          if (gpField) {
+          if (includeGP) {
             rvb.startArray(3) // GP
             rvb.addDouble(d0 / 255.0)
             rvb.addDouble(d1 / 255.0)
@@ -183,7 +195,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
             rvb.endArray()
           }
           
-          if (dosageField) {
+          if (includeDosage) {
             val dosage = (d1 + (d2 << 1)) / 255.0
             rvb.addDouble(dosage)
           }
@@ -217,7 +229,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
           }
           sampleProbs(j) = lastProb
 
-          if (gtField) {
+          if (includeGT) {
             val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
             if (gt != -1)
               rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
@@ -225,7 +237,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
               rvb.setMissing()
           }
 
-          if (gpField) {
+          if (includeGP) {
             rvb.startArray(nGenotypes)
             j = 0
             while (j < nGenotypes) {
@@ -235,7 +247,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double,
             rvb.endArray()
           }
 
-          if (dosageField) {
+          if (includeDosage) {
             if (nGenotypes == 3)
               rvb.addDouble((sampleProbs(1).toDouble + 2 * sampleProbs(2).toDouble) / totalProb.toDouble)
             else
