@@ -2065,6 +2065,69 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
+  def renameFields(oldToNewRows: java.util.HashMap[String, String],
+    oldToNewCols: java.util.HashMap[String, String],
+    oldToNewEntries: java.util.HashMap[String, String],
+    oldToNewGlobals: java.util.HashMap[String, String]): MatrixTable = {
+
+    val fieldMapRows = oldToNewRows.asScala
+    assert(fieldMapRows.keys.forall(k => matrixType.rowType.fieldNames.contains(k)),
+      s"[${fieldMapRows.keys.mkString(", ")}], expected [${ matrixType.rowType.fieldNames.mkString(", ") }]")
+
+    val fieldMapCols = oldToNewCols.asScala
+    assert(fieldMapCols.keys.forall(k => matrixType.colType.fieldNames.contains(k)),
+      s"[${fieldMapCols.keys.mkString(", ")}], expected [${ matrixType.colType.fieldNames.mkString(", ") }]")
+
+    val fieldMapEntries = oldToNewEntries.asScala
+    assert(fieldMapEntries.keys.forall(k => matrixType.entryType.fieldNames.contains(k)),
+      s"[${fieldMapEntries.keys.mkString(", ")}], expected [${ matrixType.entryType.fieldNames.mkString(", ") }]")
+
+    val fieldMapGlobals = oldToNewGlobals.asScala
+    assert(fieldMapGlobals.keys.forall(k => matrixType.globalType.fieldNames.contains(k)),
+      s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ matrixType.globalType.fieldNames.mkString(", ") }]")
+
+    val (pk, newRowKey, newRowType) = if (fieldMapRows.isEmpty)
+      (rowPartitionKey, rowKey, rowType)
+    else {
+      val newFieldNames = rowType.fieldNames.map { n => fieldMapRows.getOrElse(n, n) }
+      val newPK = rowPartitionKey.map { f => fieldMapRows.getOrElse(f, f) }
+      val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
+      (newPK, newKey, TStruct(newFieldNames.zip(rowType.fieldType): _*))
+    }
+
+    val (newColKey, newColType) = if (fieldMapCols.isEmpty) (colKey, colType) else {
+      val newFieldNames = colType.fieldNames.map { n => fieldMapCols.getOrElse(n, n) }
+      val newKey = colKey.map { f => fieldMapCols.getOrElse(f, f) }
+      (newKey, TStruct(newFieldNames.zip(colType.fieldType): _*))
+    }
+
+    val newEntryType = if (fieldMapEntries.isEmpty) entryType else {
+      val newFieldNames = entryType.fieldNames.map { n => fieldMapEntries.getOrElse(n, n) }
+      TStruct(newFieldNames.zip(entryType.fieldType): _*)
+    }
+
+    val newGlobalType = if (fieldMapEntries.isEmpty) globalType else {
+      val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
+      TStruct(newFieldNames.zip(globalType.fieldType): _*)
+    }
+
+    val newMatrixType = MatrixType.fromParts(newGlobalType,
+      newColKey,
+      newColType,
+      pk,
+      newRowKey,
+      newRowType,
+      newEntryType)
+
+    val newRVD = if (fieldMapRows.isEmpty) rvd else {
+      val newType = newMatrixType.orvdType
+      val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
+      OrderedRVD(newType, newPartitioner, rvd.rdd)
+    }
+
+    new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
+  }
+
   def renameDuplicates(id: String): MatrixTable = {
     requireColKeyString("rename duplicates")
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)

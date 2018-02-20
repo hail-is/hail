@@ -2579,5 +2579,58 @@ class MatrixTable(object):
 
         return MatrixTable(self._jvds.sampleVariants(p, seed))
 
+    @handle_py4j
+    @typecheck_method(fields=dictof(strlike, strlike))
+    def rename(self, fields):
+        """Rename fields of a matrix table.
+
+        Examples
+        --------
+
+        Rename column key `s` to `SampleID`, still keying by `SampleID`.
+
+        >>> dataset_result = dataset.rename({'s':'SampleID'})
+
+        You can rename a field to a field name that already exists, as long as
+        that field also gets renamed (no name collisions). Here, we rename the
+        column key `s` to `info`, and the row field `info` to `vcf_info`:
+
+        >>> dataset_result = dataset.rename({'s':'info', 'info':'vcf_info'})
+
+        Parameters
+        ----------
+        fields : :obj:`dict` from :obj:`str` to :obj:`str`
+            Mapping from old fields to new fields.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table with renamed fields.
+        """
+
+        seen = {}
+
+        rowMap = {}
+        colMap = {}
+        entryMap = {}
+        globalMap = {}
+
+        for k, v in fields.items():
+            if v in seen:
+                raise ValueError("Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(seen[v], k, v))
+            if v in self._fields and v not in fields.keys():
+                raise ValueError("Cannot rename {} field to {}: field already exists.".format(k, v))
+            seen[v] = k
+            if self[k]._indices == self._row_indices:
+                rowMap[k] = v
+            elif self[k]._indices == self._col_indices:
+                colMap[k] = v
+            elif self[k]._indices == self._entry_indices:
+                entryMap[k] = v
+            elif self[k]._indices == self._global_indices:
+                globalMap[k] = v
+
+        return MatrixTable(self._jvds.renameFields(rowMap, colMap, entryMap, globalMap))
+
 
 matrix_table_type.set(MatrixTable)

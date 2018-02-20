@@ -88,8 +88,10 @@ class OrderedRVDPartitioner(
   }
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
-    val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, rangeBounds)
-    assert(newPart.pkType == pkType)
+    val (newPKType, _) = newKType.select(newPartitionKey)
+    val newRangeBounds = new UnsafeIndexedSeq(TArray(TInterval(newPKType)), rangeBounds.region, rangeBounds.aoff)
+    val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, newRangeBounds)
+    assert(newPart.pkType.fieldType.sameElements(pkType.fieldType))
     newPart
   }
 
