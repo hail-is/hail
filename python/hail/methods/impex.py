@@ -956,38 +956,72 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 @handle_py4j
 @typecheck(paths=oneof(strlike, listof(strlike)),
            row_fields=dictof(strlike, Type),
-           key=nullable(oneof(strlike, listof(strlike))),
+           key=oneof(strlike, listof(strlike)),
            entry_type=nullable(Type),
            missing=strlike,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix(paths, row_fields={}, key=[], entry_type=None, missing="NA", min_partitions=None, no_header=True, force_bgz=False):
+def import_matrix_table(paths, row_fields={}, key=[], entry_type=None, missing="NA", min_partitions=None, no_header=False, force_bgz=False):
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
-        Consider this file:
+        Consider the following file containing counts from a RNA sequencing
+        dataset:
 
     .. code-block:: text
 
         $ cat data/matrix1.tsv
-        Sample     Height  Status  Age  COL1
-        PT-1234    154.1   ADHD    24
-        PT-1236    160.9   Control 19
-        PT-1238    NA      ADHD    89
-        PT-1239    170.3   Control 55
+        Barcode  Tissue  Days GENE1  GENE2    GENE3   GENE4
+        TTAGCCAGTCCA brain   1.0 0    0   1   0
+        ATCACTTTTACA kidney  5.5 3    0   2   0
+        CTCTTCTCCCCC kidney  2.5 0    0   0   1
+        CTATATAGCTGC brain   7.0 0    0   3   0
 
     The field ``Height`` contains floating-point numbers and the field ``Age``
     contains integers.
 
     To import this matrix:
 
-    >>> matrix1 = hl.import_matrix('data/matrix1.tsv',
-    ...                              row_fields={'Height': hl.TFloat64(), 'Age': hl.TInt32()}
-    ...                              )
+    >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
+    ...                              row_fields={'Barcode': hl.TString(), 'Tissue': hl.TString(), 'Days':hl.TFloat32()},
+    ...                              key='Barcode')
+
+    If the header information is missing for the row fields, like in the following:
+
+    .. code-block:: text
+
+        $ cat data/matrix2.tsv
+        GENE1  GENE2    GENE3   GENE4
+        TTAGCCAGTCCA brain   1.0 0    0   1   0
+        ATCACTTTTACA kidney  5.5 3    0   2   0
+        CTCTTCTCCCCC kidney  2.5 0    0   0   1
+        CTATATAGCTGC brain   7.0 0    0   3   0
+
+    The row fields get imported as `f0`, `f1`, and `f2`, so we need to do:
+
+    >>> matrix2 = hl.import_matrix_table('data/matrix2.tsv',
+    ...                              row_fields={'f0': hl.TString(), 'f1': hl.TString(), 'f2':hl.TFloat32()},
+    ...                              key='f0')
+    >>> matrix2.rename({'f0': 'Barcode', 'f1': 'Tissue', 'f2': 'Days'})
+
+    Sometimes, the header and row information is missing completely:
+
+    .. code-block:: text
+
+        $ cat data/matrix3.tsv
+        0    0   1   0
+        3    0   2   0
+        0    0   0   1
+        0    0   3   0
+
+    >>> matrix3 = hl.import_matrix_table('data/matrix3.tsv', no_header=True)
+
+    In this case, the file has no row fields, so we use the default
+    row index as a key for the imported matrix table.
 
     Notes
     -----
@@ -1012,8 +1046,7 @@ def import_matrix(paths, row_fields={}, key=[], entry_type=None, missing="NA", m
         Files to import.
     row_fields: :obj:`dict` of :obj:`str` to :class:`.Type`
         Columns to take as row fields in the MatrixTable. They must be located
-        before all entry columns, and if named in the file header, the names
-        must match.
+        before all entry columns.
     key: :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s). If empty, creates an index `row_id` to use as key.
     entry_type: :class:`.Type`
@@ -1041,13 +1074,15 @@ def import_matrix(paths, row_fields={}, key=[], entry_type=None, missing="NA", m
     jrow_fields = {k: v._jtype for k, v in row_fields.items()}
     for k, v in row_fields.items():
         if v not in {TInt32(), TInt64(), TFloat32(), TFloat64(), TString()}:
-            raise FatalError("import_matrix expects field types to be one of: TInt32, TInt64, TFloat32, TFloat64, TString: field {} had type {}".format(k, v))
+            raise FatalError("""import_matrix_table expects field types to be one of: 
+            TInt32, TInt64, TFloat32, TFloat64, TString: field {} had type {}""".format(k, v))
     key = wrap_to_list(key)
     if entry_type is None:
         entry_type = TInt64()
     else:
         if entry_type not in {TInt32(), TInt64(), TFloat32(), TFloat64(), TString()}:
-            raise FatalError("import_matrix expects entry types to be one of: TInt32, TInt64, TFloat32, TFloat64, TString: found {}".format(entry_type))
+            raise FatalError("""import_matrix_table expects entry types to be one of: 
+            TInt32, TInt64, TFloat32, TFloat64, TString: found {}""".format(entry_type))
 
     jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, min_partitions, no_header, force_bgz)
     return MatrixTable(jmt)

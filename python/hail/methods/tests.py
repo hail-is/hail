@@ -6,7 +6,7 @@ from subprocess import call as syscall
 import numpy as np
 from struct import unpack
 import hail.utils as utils
-from hail.utils.misc import test_file
+from hail.utils.misc import test_file, doctest_file
 from hail.linalg import BlockMatrix
 from math import sqrt
 from hail.expr.types import TStruct, TCall, TArray, TFloat64
@@ -728,3 +728,12 @@ class Tests(unittest.TestCase):
             contig_recoding={'chr22': '22'}).rows_table()
         self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
+
+    def test_import_matrix_table(self):
+        mt = hl.import_matrix_table(doctest_file('matrix1.tsv'),
+                                    row_fields={'Barcode': hl.TString(), 'Tissue': hl.TString(), 'Days':hl.TFloat32()})
+        self.assertEqual(mt['Barcode']._indices, mt._row_indices)
+        self.assertEqual(mt['Tissue']._indices, mt._row_indices)
+        self.assertEqual(mt['Days']._indices, mt._row_indices)
+        self.assertEqual(mt['col_id']._indices, mt._col_indices)
+        self.assertEqual(mt['row_id']._indices, mt._row_indices)

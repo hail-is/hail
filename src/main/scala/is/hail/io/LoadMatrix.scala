@@ -205,9 +205,9 @@ object LoadMatrix {
       val lines = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
       lines match {
         case Array(header, first) =>
-          val nCols = first.count(_ == sep) + 1 - nRowFields
+          val nCols = first.split(sep).length - nRowFields
           if (nCols <= 0)
-            fatal(s"Found more header fields than columns in file: $file")
+            fatal(s"More row fields ($nRowFields) than columns (${ nRowFields + nCols }) in file: $file")
           (header.split(sep), nCols)
         case _ =>
           fatal(s"file in import_matrix contains no data: $file")
@@ -258,6 +258,8 @@ object LoadMatrix {
           s"""row field $name not found in provided row_fields dictionary.
              |    expected fields:
              |      ${ fieldNames.mkString("\n      ") }
+             |    found fields:
+             |      ${ fieldTypes.keys.mkString("\n      ") }
            """.stripMargin)
       }
     }
