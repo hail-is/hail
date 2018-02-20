@@ -1079,14 +1079,7 @@ class ExprSuite extends SparkSuite {
     }
     p.check()
   }
-
-  @Test def testContext() {
-    Array("s", "sa", "locus", "alleles", "va", "g").foreach { sym =>
-      val (a, t) = hc.eval(sym)
-      assert(t.typeCheck(a), s"problematic symbol: '$sym'")
-    }
-  }
-
+  
   @Test def testFloatingPoint() {
     def evalWithType[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parseExpr(s, EvalContext())
