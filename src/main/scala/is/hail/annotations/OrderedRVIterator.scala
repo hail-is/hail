@@ -30,10 +30,10 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
 
   def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
     val muple = Muple[RegionValue, RegionValue](null, null)
-    for (Muple(l, r) <- this.cogroup(other) if (l.hasNext && r.hasNext))
-    yield {
-      muple.set(l.head, r.head)
-      muple
+    for { Muple(l, r) <- this.cogroup(other) if r.isValid
+          lrv <- l
+    } yield {
+      muple.set(lrv, r.value)
     }
   }
 
@@ -42,9 +42,21 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
     for { Muple(l, r) <- this.cogroup(other)
           lrv <- l
     } yield {
-      muple.set(lrv, if (r.hasNext) r.head else null)
-      muple
+      muple.set(lrv, if (r.isValid) r.value else null)
     }
+  }
 
+  def innerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+    val muple = Muple[RegionValue, RegionValue](null, null)
+    val rBuf = new RegionValueArrayBuffer(other.t.rowType)
+    this.cogroup(other).flatMap { case Muple(l, r) =>
+      rBuf.clear()
+      rBuf ++= r
+      l.flatMap { lrv =>
+        rBuf.map { rrv =>
+          muple.set(lrv, rrv)
+        }
+      }
+    }
   }
 }

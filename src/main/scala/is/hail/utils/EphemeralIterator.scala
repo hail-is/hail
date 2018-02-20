@@ -26,7 +26,7 @@ object StagingIterator {
     new StagingIterator(sm)
 }
 
-class StagingIterator[A](sm: StateMachine[A]) extends EphemeralIterator[A] {
+class StagingIterator[A] private (sm: StateMachine[A]) extends EphemeralIterator[A] {
   def head: A = sm.curValue
   def isValid: Boolean = sm.isActive
 
@@ -151,7 +151,6 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
     sm.advance()
     EphemeralIterator(sm)
   }
-
 
   def compareUsing[B](that: Iterator[B], eq: (A, B) => Boolean): Boolean = {
     while (this.hasNext && that.hasNext)

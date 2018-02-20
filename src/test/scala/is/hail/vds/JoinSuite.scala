@@ -68,7 +68,7 @@ class JoinSuite extends SparkSuite {
 
     // Inner distinct ordered join
     val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner")
-    val jInnerOrdRDD1 = left.rdd.distinct.join(right.rdd.distinct)
+    val jInnerOrdRDD1 = left.rdd.join(right.rdd.distinct)
 
     assert(jInner.count() == jInnerOrdRDD1.count())
     assert(jInner.forall(jrv => jrv.rvLeft != null && jrv.rvRight != null))
