@@ -35,70 +35,30 @@ class ImportMatrixSuite extends SparkSuite {
     tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
 
   def reKeyRows(vsm: MatrixTable): MatrixTable = {
-    val newMatrixType = MatrixType.fromParts(vsm.matrixType.globalType,
-      vsm.matrixType.colKey,
-      vsm.matrixType.colType,
-      Array("row_id"),
-      Array("row_id"),
-      TStruct("row_id" -> TInt64()) ++ vsm.matrixType.rowType,
-      vsm.matrixType.entryType)
-    val partStarts = vsm.partitionStarts()
-    val newRowType = newMatrixType.rvRowType
-    val oldRowType = vsm.matrixType.rvRowType
-
-    val indexedRDD = vsm.rvd.rdd.mapPartitionsWithIndex { case (i, it) =>
-      val region2 = Region()
-      val rv2 = RegionValue(region2)
-      val rv2b = new RegionValueBuilder(region2)
-      val partStart = partStarts(i)
-
-      it.zipWithIndex.map { case (rv, idx) =>
-        region2.clear()
-        rv2b.start(newRowType)
-        rv2b.startStruct()
-        rv2b.addLong(partStart + idx)
-        var i = 0
-        while (i < oldRowType.size) {
-          if (oldRowType.isFieldDefined(rv, i))
-            rv2b.addRegionValue(oldRowType.fieldType(i), rv.region, oldRowType.loadField(rv, i))
-          else
-            rv2b.setMissing()
-          i += 1
-        }
-        rv2b.endStruct()
-        rv2.setOffset(rv2b.end())
-        rv2
-      }
-    }
-    new MatrixTable(hc, newMatrixType, vsm.globals, vsm.colValues, OrderedRVD(newMatrixType.orvdType, indexedRDD, None, None))
+    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows("va.row_id" +: vsm.rowType.fieldNames.map("va."+_): _*)
   }
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {
-    val keyIdx = vsm.rvd.typ.kRowFieldIdx(0)
-    val key = s"f$keyIdx"
-    val keyType = TStruct(key -> vsm.rvd.rowType.fieldType(keyIdx))
-    val newRowType = TStruct(Array.tabulate(vsm.rowType.size)(i => (s"f$i", vsm.rowType.fieldType(i))): _*)
-    val newMatrixType = vsm.matrixType.copyParts(rowType = newRowType, rowPartitionKey = Array(key), rowKey = Array(key))
-    val newPartitioner = vsm.rvd.partitioner.copy(partitionKey = Array(key), kType = keyType,
-      rangeBounds = new UnsafeIndexedSeq(TArray(TInterval(keyType)), vsm.rvd.partitioner.rangeBounds.region, vsm.rvd.partitioner.rangeBounds.aoff))
+    val rowMap = new java.util.HashMap[String, String](vsm.rowType.size)
+    vsm.rowType.fields.foreach { f => rowMap.put(f.name, s"f${ f.index }") }
 
-    vsm.copyMT(rvd = vsm.rvd.copy(typ = newMatrixType.orvdType, orderedPartitioner = newPartitioner),
-      matrixType = newMatrixType,
-      colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row("col" + i.toString) })
+    val renamed = vsm.renameFields(rowMap,
+      new java.util.HashMap[String, String](),
+      new java.util.HashMap[String, String](),
+      new java.util.HashMap[String, String]())
+
+    renamed.copy2(colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row("col" + i.toString) })
   }
 
   def renameColKeyField(vsm: MatrixTable): MatrixTable = {
-    vsm.annotateSamplesExpr("col_id = sa.s").keyColsBy("col_id").selectCols("sa.col_id")
-  }
+    val colMap = new java.util.HashMap[String, String](vsm.rowType.size)
+    colMap.put("s", "col_id")
 
-  def dropRowAnnotations(vsm: MatrixTable, dropFields: Option[Array[String]]=None): MatrixTable =
-    dropFields match {
-      case Some(fields) =>
-        val keep = vsm.rowType.fieldNames.filterNot { fn => fields.contains(fn) }
-        val keepString = keep.map { f => s"`$f`: va.`$f`" }.mkString(",")
-        vsm.annotateVariantsExpr(s"va = {$keepString}")
-      case None => vsm.annotateVariantsExpr("va = {}")
-    }
+    vsm.renameFields(new java.util.HashMap[String, String](),
+      colMap,
+      new java.util.HashMap[String, String](),
+      new java.util.HashMap[String, String]())
+  }
 
   def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
     (vsm.rowType.fieldNames, vsm.rowType.fieldType)
