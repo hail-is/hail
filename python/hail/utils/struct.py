@@ -153,9 +153,6 @@ class Struct(Mapping):
     def describe(self):
         """Print information about the fields of the struct."""
 
-        def format_type(typ):
-            return typ.pretty(indent=4)
-
         if len(self._fields) == 0:
             fields = '\n  None'
         else:

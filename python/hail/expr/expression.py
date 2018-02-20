@@ -1883,15 +1883,11 @@ class StructExpression(Mapping, Expression):
 
     def describe(self):
         """Print information about the schema of the struct."""
-
-        def format_type(typ):
-            return typ.pretty(indent=4)
-
         if len(self._fields) == 0:
             fields = '\n    None'
         else:
             fields= ''.join("\n    '{name}': {type} ".format(
-                name=name, type=format_type(value.dtype)) for name, value in self._fields.items())
+                name=name, type=value.dtype.pretty(indent=4)) for name, value in self._fields.items())
 
         s = '----------------------------------------\n' \
             'Fields:{f}\n' \
