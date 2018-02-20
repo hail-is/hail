@@ -288,8 +288,6 @@ object Call extends Serializable {
     }
   }
 
-  def oneHotAlleles(c: Call, v: Variant): IndexedSeq[Int] = oneHotAlleles(c, v.nAlleles)
-
   def check(c: Call, nAlleles: Int) {
     (ploidy(c): @switch) match {
       case 0 =>

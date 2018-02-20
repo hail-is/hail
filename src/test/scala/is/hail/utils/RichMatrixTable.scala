@@ -99,6 +99,11 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def variants: RDD[Variant] = variantRDD.keys
 
+  def locusAlleles: RDD[(Locus, IndexedSeq[String])] =
+    variants.map { v =>
+      (v.locus, v.alleles)
+    }
+
   def variantsAndAnnotations: RDD[(Variant, Annotation)] =
     variantRDD.map { case (v, (va, gs)) => (v, va) }
 }

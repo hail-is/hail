@@ -340,11 +340,10 @@ package object stats {
 
     val rdd = hc.sc.parallelize(
       (0 until callMat.cols).map { j =>
-        (Annotation(Variant("1", j + 1, "A", "C")),
+        (Annotation(Locus("1", j + 1), Array("A", "C").toFastIndexedSeq),
           (0 until callMat.rows).map { i =>
             Genotype(callMat(i, j))
-          }: Iterable[Annotation]
-        )
+          }: Iterable[Annotation])
       },
       nPartitions)
 
@@ -352,8 +351,9 @@ package object stats {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
-      rowPartitionKey = Array("v"), rowKey = Array("v"),
-      rowType = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+      rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+      rowType = TStruct("locus" -> TLocus(GenomeReference.defaultReference),
+        "alleles" -> TArray(TString())),
       entryType = Genotype.htsGenotypeType),
       Annotation.empty, sampleIds.map(Annotation(_)), rdd)
   }
@@ -374,7 +374,7 @@ package object stats {
 
     val rdd = hc.sc.parallelize(
       (0 until gpMat.cols).map { j =>
-        (Annotation(Variant("1", j + 1, "A", "C")),
+        (Annotation(Locus("1", j + 1), Array("A", "C").toFastIndexedSeq),
           (0 until gpMat.rows).map { i =>
             Row(gpMat(i, j): IndexedSeq[Annotation])
           }: Iterable[Annotation])
@@ -385,8 +385,9 @@ package object stats {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
-      rowPartitionKey = Array("v"), rowKey = Array("v"),
-      rowType = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+      rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+      rowType = TStruct("locus" -> TLocus(GenomeReference.defaultReference),
+        "alleles" -> TArray(TString())),
       entryType = TStruct(
         "GP" -> TArray(TFloat64()))),
       Annotation.empty, sampleIds.map(Annotation(_)), rdd)

@@ -4,7 +4,6 @@ import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
 import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.CompilationHelp.arrayToWrappedArray
 import is.hail.expr.types._
 import is.hail.methods._
 import is.hail.stats._
@@ -723,64 +722,11 @@ object FunctionRegistry {
   registerMethod("unphasedDiploidGtIndex", { (c: Call) => Call.unphasedDiploidGtIndex(c) })(callHr, int32Hr)
   registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
   registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
-  registerMethod("oneHotAlleles", { (c: Call, v: Variant) => Call.oneHotAlleles(c, v) })(callHr, variantHr(GR), arrayHr(int32Hr))
 
-  registerFieldCode("contig", { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) })(variantHr(GR), stringHr)
-  registerFieldCode("start", { (x: Code[Variant]) => CM.ret(boxInt(x.invoke[Int]("start"))) })(variantHr(GR), boxedInt32Hr)
-  registerFieldCode("ref", { (x: Code[Variant]) => CM.ret(x.invoke[String]("ref")) })(variantHr(GR), stringHr)
-  registerFieldCode("altAlleles", { (x: Code[Variant]) => CM.ret(x.invoke[IndexedSeq[AltAllele]]("altAlleles")) })(variantHr(GR), arrayHr(altAlleleHr))
-  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles })(variantHr(GR), int32Hr)
-  registerMethod("nAlleles", { (x: Variant) => x.nAlleles })(variantHr(GR), int32Hr)
-  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic })(variantHr(GR), boolHr)
-  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes })(variantHr(GR), int32Hr)
-  registerMethodDependent("inXPar", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.inXPar(gr)
-  })(variantHr(GR), boolHr)
-  registerMethodDependent("inYPar", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.inYPar(gr)
-  })(variantHr(GR), boolHr)
-  registerMethodDependent("inXNonPar", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.inXNonPar(gr)
-  })(variantHr(GR), boolHr)
-  registerMethodDependent("inYNonPar", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.inYNonPar(gr)
-  })(variantHr(GR), boolHr)
-  // assumes biallelic
-  registerMethod("alt", { (x: Variant) => x.alt })(variantHr(GR), stringHr)
-  registerMethod("altAllele", { (x: Variant) => x.altAllele })(variantHr(GR), altAlleleHr)
-  registerMethod("locus", { (x: Variant) => x.locus })(variantHr(GR), locusHr(GR))
-  registerMethodDependent("isAutosomal", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.isAutosomal(gr)
-  })(variantHr(GR), boolHr)
-  registerMethodDependent("isAutosomalOrPseudoAutosomal", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.isAutosomalOrPseudoAutosomal(gr)
-  })(variantHr(GR), boolHr)
-  registerMethodDependent("isMitochondrial", { () =>
-    val gr = GR.gr
-    (x: Variant) => x.isMitochondrial(gr)
-  })(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig })(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position })(locusHr(GR), int32Hr)
   registerField("start", { (x: Interval) => x.start })(intervalHr(TTHr), TTHr)
   registerField("end", { (x: Interval) => x.end })(intervalHr(TTHr), TTHr)
-  registerField("ref", { (x: AltAllele) => x.ref })
-  registerField("alt", { (x: AltAllele) => x.alt })
-  registerMethod("isSNP", { (x: AltAllele) => x.isSNP })
-  registerMethod("isMNP", { (x: AltAllele) => x.isMNP })
-  registerMethod("isIndel", { (x: AltAllele) => x.isIndel })
-  registerMethod("isInsertion", { (x: AltAllele) => x.isInsertion })
-  registerMethod("isDeletion", { (x: AltAllele) => x.isDeletion })
-  registerMethod("isStar", { (x: AltAllele) => x.isStar })
-  registerMethod("isComplex", { (x: AltAllele) => x.isComplex })
-  registerMethod("isTransition", { (x: AltAllele) => x.isTransition })
-  registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion })
-  registerMethod("category", { (x: AltAllele) => x.altAlleleType.toString })
 
   register("is_snp", { (ref: String, alt: String) => AltAlleleMethods.isSNP(ref, alt) })
   register("is_mnp", { (ref: String, alt: String) => AltAlleleMethods.isMNP(ref, alt) })
@@ -924,62 +870,11 @@ object FunctionRegistry {
   register("Call", { (s: String) => Call.parse(s) })(stringHr, callHr)
   register("UnphasedDiploidGtIndexCall", { (gt: Int) => Call2.fromUnphasedDiploidGtIndex(gt) })(int32Hr, callHr)
 
-  register("AltAllele", { (ref: String, alt: String) => AltAllele(ref, alt) })(stringHr, stringHr, altAlleleHr)
-
-  registerDependent("Variant", { () =>
-    val gr = GR.gr
-    (x: String) => Variant.parse(x, gr)
-    })(stringHr, variantHr(GR))
-
-  registerDependent("Variant", { () =>
-    val gr = GR.gr
-    (contig: String, pos: Int, ref: String, alt: String) => Variant(contig, pos, ref, alt, gr)
-    })(stringHr, int32Hr, stringHr, stringHr, variantHr(GR))
-  registerDependent("Variant", { () =>
-    val gr = GR.gr
-    (contig: String, pos: Int, ref: String, alts: IndexedSeq[String]) => Variant(contig, pos, ref, alts.toArray, gr)
-    })(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GR))
-
   register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
     if (keys.length != values.length)
       fatal(s"mismatch between length of keys (${ keys.length }) and values (${ values.length })")
     keys.zip(values).toMap
   })(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
-
-  val combineVariantsStruct = TStruct("variant" -> TVariant(GR), "laIndices" -> TDict(TInt32(), TInt32()),
-    "raIndices" -> TDict(TInt32(), TInt32()))
-
-  registerAnn("combineVariants",
-    combineVariantsStruct, { (left: Variant, right: Variant) =>
-      if (left.contig != right.contig || left.start != right.start)
-        fatal(s"Only variants with the same contig and position can be combined. Left was $left, right was $right.")
-
-      val (longer, shorter, swapped) = if (left.ref.length > right.ref.length) (left, right, false) else (right, left, true)
-      val ref_diff = longer.ref.substring(shorter.ref.length)
-
-      if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
-        fatal(s"Variants ref bases mismatch in combineVariants. Left ref: ${ left.ref }, right ref: ${ right.ref }")
-
-      val long_alleles_index = longer.altAlleles.map(_.alt).zipWithIndex.toMap
-      val short_alleles_index = mutable.Map[Int, Int](0 -> 0)
-      val short_alleles = new mutable.ArrayBuffer[AltAllele](initialSize = shorter.nAltAlleles)
-
-      (0 until shorter.nAltAlleles).foreach({
-        i =>
-          val alt = shorter.altAlleles(i).alt + ref_diff
-          long_alleles_index.get(alt) match {
-            case Some(ai) => short_alleles_index(ai + 1) = i + 1
-            case None => short_alleles += AltAllele(longer.ref, alt)
-              short_alleles_index(longer.nAltAlleles + short_alleles.length) = i + 1
-          }
-      })
-
-      val newVariant = longer.copy(altAlleles = longer.altAlleles ++ short_alleles)
-      if (swapped)
-        Annotation(newVariant, short_alleles_index.toMap, (0 to longer.nAltAlleles).zipWithIndex.toMap)
-      else
-        Annotation(newVariant, (0 to longer.nAltAlleles).zipWithIndex.toMap, short_alleles_index.toMap)
-    })(variantHr(GR), variantHr(GR))
 
   registerDependent("Locus", { () =>
     val gr = GR.gr

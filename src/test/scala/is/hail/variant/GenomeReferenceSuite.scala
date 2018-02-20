@@ -54,45 +54,15 @@ class GenomeReferenceSuite extends SparkSuite {
     TestUtils.interceptFatal("in both X and Y contigs.")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("1"), yContigs = Set("1")))
   }
 
-  @Test def testVariant() {
-    val gr = GenomeReference.GRCh37
-
-    val v1 = Variant("1", 50000, "A", "T")
-    val v2 = Variant("X", 2499520, "T", "G")
-    val v3 = Variant("Y", 59034055, "G", "C")
-    val v4 = Variant("MT", 30, "T", "G")
-    val v5 = Variant("X", 50, "G", "A")
-    val v6 = Variant("Y", 5000, "C", "T")
-
-    val expected = Array(
-      Array(true, true, false, false, false, false, false),
-      Array(false, true, false, true, false, false, false),
-      Array(false, true, false, false, true, false, false),
-      Array(false, false, true, false, false, false, false),
-      Array(false, false, false, false, false, true, false),
-      Array(false, false, false, false, false, false, true))
-
-    for ((v, e) <- Array(v1, v2, v3, v4, v5, v6).zip(expected)) {
-      assert(v.isAutosomal(gr) == e(0))
-      assert(v.isAutosomalOrPseudoAutosomal(gr) == e(1))
-      assert(v.isMitochondrial(gr) == e(2))
-      assert(v.inXPar(gr) == e(3))
-      assert(v.inYPar(gr) == e(4))
-      assert(v.inXNonPar(gr) == e(5))
-      assert(v.inYNonPar(gr) == e(6))
-    }
-  }
-
   @Test def testParser() {
     val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("v = NA: Variant(foo), l = NA: Locus(foo), i = NA: Interval[Locus(foo)]")
+      .annotateVariantsExpr("l = NA: Locus(foo), i = NA: Interval[Locus(foo)]")
 
     val vas = vds.rowType.asInstanceOf[TStruct]
 
-    assert(vas.field("v").typ == TVariant(gr))
     assert(vas.field("l").typ == TLocus(gr))
     assert(vas.field("i").typ == TInterval(TLocus(gr)))
 
@@ -113,69 +83,58 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testFuncReg() {
-    val sig = TStruct(("v37", TVariant(GenomeReference.GRCh37)), ("v38", TVariant(GenomeReference.GRCh38)))
+    val sig = TStruct(("v37", TLocus(GenomeReference.GRCh37)), ("v38", TLocus(GenomeReference.GRCh38)))
 
-    val data1 = Array(Row(Variant("X", 154931044, "A", "G"), Variant("chrX", 156030895, "A", "G")))
+    val data1 = Array(Row(Locus("X", 154931044), Locus("chrX", 156030895)))
     val kt1 = Table(hc, sc.parallelize(data1), sig)
     kt1.typeCheck()
     assert(kt1.forall("v37.inXPar() && v38.inXPar()"))
 
-    val data2 = Array(Row(Variant("Y", 2649520, "A", "G"), Variant("chrY", 2649520, "A", "G")))
+    val data2 = Array(Row(Locus("Y", 2649520), Locus("chrY", 2649520)))
     val kt2 = Table(hc, sc.parallelize(data2), sig)
     kt2.typeCheck()
     assert(kt2.forall("v37.inYPar() && v38.inYPar()"))
 
-    val data3 = Array(Row(Variant("X", 157701382, "A", "G"), Variant("chrX", 157701382, "A", "G")))
+    val data3 = Array(Row(Locus("X", 157701382), Locus("chrX", 157701382)))
     val kt3 = Table(hc, sc.parallelize(data3), sig)
     kt3.typeCheck()
     assert(kt3.forall("v37.inXNonPar() && v38.inXNonPar()"))
 
-    val data4 = Array(Row(Variant("Y", 2781480, "A", "G"), Variant("chrY", 2781480, "A", "G")))
+    val data4 = Array(Row(Locus("Y", 2781480), Locus("chrY", 2781480)))
     val kt4 = Table(hc, sc.parallelize(data4), sig)
     kt4.typeCheck()
     assert(kt4.forall("v37.inYNonPar() && v38.inYNonPar()"))
 
     val data5 = Array(
-      Row(Variant("1", 2781480, "A", "G"), Variant("X", 2781480, "A", "G"), Variant("chr1", 2781480, "A", "G"), Variant("chrX", 2781480, "A", "G")),
-      Row(Variant("6", 2781480, "A", "G"), Variant("Y", 2781480, "A", "G"), Variant("chr6", 2781480, "A", "G"), Variant("chrY", 2781480, "A", "G")),
-      Row(Variant("21", 2781480, "A", "G"), Variant("MT", 2781480, "A", "G"), Variant("chr21", 2781480, "A", "G"), Variant("chrM", 2781480, "A", "G")))
+      Row(Locus("1", 2781480), Locus("X", 2781480), Locus("chr1", 2781480), Locus("chrX", 2781480)),
+      Row(Locus("6", 2781480), Locus("Y", 2781480), Locus("chr6", 2781480), Locus("chrY", 2781480)),
+      Row(Locus("21", 2781480), Locus("MT", 2781480), Locus("chr21", 2781480), Locus("chrM", 2781480)))
     val kt5 = Table(hc, sc.parallelize(data5), TStruct(
-      ("v37a", TVariant(GenomeReference.GRCh37)), ("v37na", TVariant(GenomeReference.GRCh37)),
-      ("v38a", TVariant(GenomeReference.GRCh38)), ("v38na", TVariant(GenomeReference.GRCh38))))
+      ("v37a", TLocus(GenomeReference.GRCh37)), ("v37na", TLocus(GenomeReference.GRCh37)),
+      ("v38a", TLocus(GenomeReference.GRCh38)), ("v38na", TLocus(GenomeReference.GRCh38))))
     kt5.typeCheck()
     assert(kt5.forall("v37a.isAutosomal() && !v37na.isAutosomal() && v38a.isAutosomal() && !v38na.isAutosomal()"))
   }
 
   @Test def testConstructors() {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
-    val ktann = kt.annotate("""v1 = Variant(GRCh38)("chrX:156030895:A:T"), v2 = Variant(GRCh37)("X:154931044:A:T"),
-    |v3 = Variant(GRCh37)("1", 3, "A", "T"), l1 = Locus(GRCh38)("chr1", 100), l2 = Locus(GRCh37)("1:100"),
+    val ktann = kt.annotate("""l1 = Locus(GRCh38)("chr1", 100), l2 = Locus(GRCh37)("1:100"),
     |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
 
-    assert(ktann.signature.field("v1").typ == GenomeReference.GRCh38.variantType &&
-    ktann.signature.field("v2").typ == GenomeReference.GRCh37.variantType &&
-    ktann.signature.field("v3").typ == GenomeReference.GRCh37.variantType &&
-    ktann.signature.field("l1").typ == GenomeReference.GRCh38.locusType &&
+    assert(ktann.signature.field("l1").typ == GenomeReference.GRCh38.locusType &&
     ktann.signature.field("l2").typ == GenomeReference.GRCh37.locusType &&
     ktann.signature.field("i1").typ == TInterval(GenomeReference.GRCh37.locusType) &&
     ktann.signature.field("i2").typ == TInterval(GenomeReference.GRCh38.locusType))
 
-    assert(ktann.forall("v1.inXPar() && v2.inXPar() && v3.isAutosomal() &&" +
-      "l1.position == 100 && l2.position == 100 &&" +
+    assert(ktann.forall("l1.position == 100 && l2.position == 100 &&" +
       """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
 
     val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
     GenomeReference.setDefaultReference(gr)
-    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variantType)
     assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == TInterval(gr.locusType))
 
     // check for invalid contig names or positions
-    intercept[SparkException](kt.annotate("""v1bad = Variant("foo:1555:A:T") """).collect())
-    intercept[SparkException](kt.annotate("""v1bad = Variant("foo", 1555, "A", "T") """).collect())
-    intercept[SparkException](kt.annotate("""v1bad = Variant("foo", 1555, "A", ["T", "G"]) """).collect())
-    intercept[SparkException](kt.annotate("""v1bad = Variant("MT:17000:A:T") """).collect())
-
     intercept[SparkException](kt.annotate("""l1bad = Locus("MT:17000") """).collect())
     intercept[SparkException](kt.annotate("""l1bad = Locus("foo:17000") """).collect())
     intercept[SparkException](kt.annotate("""l1bad = Locus("foo", 17000) """).collect())
@@ -215,23 +174,6 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(gr.compare("18", "SPQR") < 0)
     assert(gr.compare("MT", "SPQR") < 0)
 
-    // Test variants
-    val v1 = Variant("1", 500, "A", "T")
-    val v2 = Variant("1", 600, "T", "A")
-    val v3 = Variant("1", 600, "G", "A")
-    val v4 = Variant("1", 600, "G", Array("A", "C"))
-    val v5 = Variant("2", 700, "T", "C")
-
-    assert(gr.compare(v1, v2) < 0)
-    assert(gr.compare(v2, v1) > 0)
-    assert(gr.compare(v1, v1) == 0)
-
-    assert(gr.compare(v2, v3) > 0)
-    assert(gr.compare(v3, v2) < 0)
-    assert(gr.compare(v3, v4) < 0)
-
-    assert(gr.compare(v5, v1) > 0)
-
     // Test loci
     val l1 = Locus("1", 25)
     val l2 = Locus("1", 13000)
@@ -270,18 +212,17 @@ class GenomeReferenceSuite extends SparkSuite {
 
     val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
-    kt.annotate("""v1 = Variant(foo)("1:3:A:T")""").write(outKT)
-    vds.annotateVariantsExpr("""v2 = Variant(foo)("1:3:A:T")""").write(outVDS)
+    kt.annotate("""l1 = Locus(foo)("1:3")""").write(outKT)
+    vds.annotateVariantsExpr("""l2 = Locus(foo)("1:3")""").write(outVDS)
     GenomeReference.removeReference("foo")
 
     val gr2 = GenomeReference("foo", Array("1"), Map("1" -> 5))
     GenomeReference.addReference(gr2)
-    kt.annotate("""v1 = Variant(foo)("1:3:A:T")""").write(outKT2)
+    kt.annotate("""l1 = Locus(foo)("1:3")""").write(outKT2)
     GenomeReference.removeReference("foo")
 
-    println("here")
-    assert(hc.readTable(outKT).signature.field("v1").typ == TVariant(gr))
-    assert(hc.read(outVDS).rowType.fieldOption("v2").get.typ == TVariant(gr))
+    assert(hc.readTable(outKT).signature.field("l1").typ == TLocus(gr))
+    assert(hc.read(outVDS).rowType.fieldOption("l2").get.typ == TLocus(gr))
     TestUtils.interceptFatal("`foo' already exists and is not identical to the imported reference from")(hc.readTable(outKT2))
     GenomeReference.removeReference("foo")
   }

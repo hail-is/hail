@@ -3,7 +3,7 @@ package is.hail.stats
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{Call, Genotype, Variant}
+import is.hail.variant.{Call, Variant}
 
 object CallStats {
   def schema = TStruct(

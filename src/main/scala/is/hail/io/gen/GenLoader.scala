@@ -49,7 +49,8 @@ object GenLoader {
     val alt = arr(5 - chrCol)
 
     val recodedContig = contigRecoding.getOrElse(chr, chr)
-    val variant = Variant(recodedContig, start.toInt, ref, alt, gr)
+    val locus = Locus(recodedContig, start.toInt, gr)
+    val alleles = Array(ref, alt).toFastIndexedSeq
 
     val nGenotypes = 3
     val gp = arr.drop(6 - chrCol).map {
@@ -78,7 +79,7 @@ object GenLoader {
       gsb += a
     }
 
-    val annotations = Annotation(variant, rsid, varid)
+    val annotations = Annotation(locus, alleles, rsid, varid)
 
     (annotations, gsb.result())
   }

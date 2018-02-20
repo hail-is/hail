@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types.{MatrixType, TString, TStruct, TVariant}
+import is.hail.expr.types._
 import is.hail.variant._
 
 import scala.util.Random
@@ -29,7 +29,7 @@ object TestRDDBuilder {
   val defaultAlt = "T"
 
   def normInt[T](mean: T, stDev: T, floor: Option[Int] = None, ceil: Option[Int] = None)
-                (implicit ev: T => Double): Int = {
+    (implicit ev: T => Double): Int = {
     // pulls a random normal variable defined by a mean, stDev, floor, and ceiling, and returns an Int
     val pull = (Random.nextGaussian() * stDev + mean).toInt
     var result = floor match {
@@ -79,9 +79,9 @@ object TestRDDBuilder {
   }
 
   def buildRDD(nSamples: Int, nVariants: Int, hc: HailContext,
-                      gqArray: Option[Array[Array[Int]]] = None,
-                      dpArray: Option[Array[Array[Int]]] = None,
-                      callArray: Option[Array[Array[Call]]] = None): MatrixTable = {
+    gqArray: Option[Array[Array[Int]]] = None,
+    dpArray: Option[Array[Array[Int]]] = None,
+    callArray: Option[Array[Array[Call]]] = None): MatrixTable = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
@@ -97,12 +97,12 @@ object TestRDDBuilder {
 
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
-      (Variant("1", i + 1, defaultRef, defaultAlt),
-        (callArray.map(_(i)),
-          gqArray.map(_(i)),
-          dpArray.map(_(i)))))
+      (Locus("1", i + 1), Array(defaultRef, defaultAlt).toFastIndexedSeq,
+        (callArray.map(_ (i)),
+          gqArray.map(_ (i)),
+          dpArray.map(_ (i)))))
       .map {
-        case (variant, (callArr, gqArr, dpArr)) =>
+        case (locus, alleles, (callArr, gqArr, dpArr)) =>
           val b = new ArrayBuilder[Annotation]()
           for (sample <- 0 until nSamples) {
             val c = callArr match {
@@ -122,17 +122,19 @@ object TestRDDBuilder {
 
             b += Genotype(c, ad, Some(dp), Some(gq), pl)
           }
-          (Annotation(variant), b.result(): Iterable[Annotation])
+          (Annotation(locus, alleles), b.result(): Iterable[Annotation])
       }.toArray
-    
+
     val variantRDD = hc.sc.parallelize(variantArray)
     MatrixTable.fromLegacy(hc,
       MatrixType.fromParts(
         globalType = TStruct.empty(),
         colKey = Array("s"),
         colType = TStruct("s" -> TString()),
-        rowPartitionKey = Array("v"), rowKey = Array("v"),
-        rowType = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+        rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+        rowType = TStruct(
+          "locus" -> TLocus(GenomeReference.defaultReference),
+          "alleles" -> TArray(TString())),
         entryType = Genotype.htsGenotypeType),
       Annotation.empty, sampleList.map(Annotation(_)), variantRDD)
   }

@@ -2,14 +2,14 @@ package is.hail.stats
 
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{Annotation, UnsafeRow}
-import is.hail.expr.types.{TString, TStruct, TVariant}
+import is.hail.annotations.Annotation
+import is.hail.expr.types.TString
 import is.hail.methods.KinshipMatrix
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Locus, MatrixTable, Variant}
+import is.hail.variant.{HardCallView, MatrixTable}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
-import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
+import org.apache.spark.mllib.linalg.Vectors
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeGramian {

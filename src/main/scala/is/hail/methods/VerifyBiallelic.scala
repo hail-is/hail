@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.types.TArray
-import is.hail.variant.{Locus, MatrixTable, Variant}
+import is.hail.variant.{Locus, MatrixTable}
 import is.hail.utils._
 
 object VerifyBiallelic {

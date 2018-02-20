@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.utils.{TestRDDBuilder, _}
-import is.hail.variant.Variant
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
