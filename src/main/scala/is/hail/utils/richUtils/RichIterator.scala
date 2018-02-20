@@ -5,20 +5,22 @@ import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.io.Source
 
-import is.hail.utils.{EphemeralIterator, StagingIterator}
+import is.hail.utils.{EphemeralIterator, StagingIterator, StateMachine}
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
-  def toStagingIterator: StagingIterator[T] = new StagingIterator[T] {
-    var head: T = _
-    var isValid = true
-    def advanceHead() {
-      if (it.hasNext)
-        head = it.next()
-      else
-        isValid = false
-    }
-    advanceHead()
+  def toStagingIterator: StagingIterator[T] = {
+    val bit = it.buffered
+    StagingIterator(
+      new StateMachine[T] {
+        def curValue: T = bit.head
+        def isActive = bit.hasNext
+        def advance() {
+          bit.next()
+        }
+      }
+    )
   }
+
   def toEphemeralIterator: EphemeralIterator[T] = toStagingIterator
 
   def foreachBetween(f: (T) => Unit)(g: => Unit) {

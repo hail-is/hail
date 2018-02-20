@@ -10,21 +10,18 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
 
   def cogroup(other: OrderedRVIterator):
       EphemeralIterator[Muple[EphemeralIterator[RegionValue], EphemeralIterator[RegionValue]]] =
-    new OrderedZipJoinIterator[EphemeralIterator[RegionValue],
-                               EphemeralIterator[RegionValue]](
-      left = this.staircase,
+    this.staircase.toEphemeralIterator.orderedZipJoin(
+      other.staircase,
       leftDefault = EphemeralIterator.empty,
-      right = other.staircase,
       rightDefault = EphemeralIterator.empty,
       (l, r) => t.kComp(other.t).compare(l.head, r.head)
     )
 
 
   def zipJoin(other: OrderedRVIterator): EphemeralIterator[JoinedRegionValue] =
-    new OrderedZipJoinIterator[RegionValue, RegionValue](
-      left = iterator.toStagingIterator,
+    iterator.toEphemeralIterator.orderedZipJoin(
+      other.iterator.toEphemeralIterator,
       leftDefault = null,
-      right = other.iterator.toStagingIterator,
       rightDefault = null,
       OrderedRVDType.selectUnsafeOrdering(
         t.rowType, t.kRowFieldIdx, other.t.rowType, other.t.kRowFieldIdx)
