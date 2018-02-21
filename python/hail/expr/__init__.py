@@ -115,4 +115,6 @@ __all__ = ['Type',
            'sum',
            'set',
            'array',
-           'delimit']
+           'delimit',
+           'abs',
+           'signum']

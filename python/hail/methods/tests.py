@@ -502,8 +502,8 @@ class Tests(unittest.TestCase):
         bad = bad.filter(~(
                 (bad.t == bad.T) &
                 (bad.u == bad.U) &
-                ((bad.chi2 - bad.Chi2).abs() < 0.001) &
-                ((bad.pval - bad.Pval).abs() < 0.001)))
+                (hl.abs(bad.chi2 - bad.Chi2) < 0.001) &
+                (hl.abs(bad.pval - bad.Pval) < 0.001)))
 
         if bad.count() != 0:
             bad.order_by(hl.asc(bad.v)).show()

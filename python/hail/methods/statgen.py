@@ -1168,8 +1168,8 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
     .. doctest::
 
-        >>> hl.dbeta(ds2.AF.min(1 - ds2.AF),
-        ...                 1.0, 25.0) ** 2
+        >>> hl.dbeta(hl.min(ds2.AF, 1 - ds2.AF),
+        ...          1.0, 25.0) ** 2
 
     In the logistic case, the response `y` must either be numeric (with all
     present values 0 or 1) or Boolean, in which case true and false are coded
