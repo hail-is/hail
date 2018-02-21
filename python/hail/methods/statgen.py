@@ -123,7 +123,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     Remove samples where imputed sex does not equal reported sex:
 
     >>> imputed_sex = hl.impute_sex(ds.GT)
-    >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
+    >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.is_female)
 
     Notes
     -----
