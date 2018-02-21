@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.io.plink.{ExportPlink, PlinkLoader}
+import is.hail.io.plink.{ExportPlink, LoadPlink}
 import is.hail.methods.{SplitMulti, VariantQC}
 import is.hail.expr.types.Type
 import is.hail.utils._
@@ -20,7 +20,7 @@ class ImportPlinkSuite extends SparkSuite {
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
       vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => SplitMulti(vds).cache())
-      nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.numCols, vds.countVariants()).toInt.min(10))
+      nPartitions <- choose(1, LoadPlink.expectedBedSize(vds.numCols, vds.countVariants()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =

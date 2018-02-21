@@ -7,9 +7,9 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.io.{CodecSpec, LoadMatrix}
-import is.hail.io.bgen.BgenLoader
-import is.hail.io.gen.GenLoader
-import is.hail.io.plink.{FamFileConfig, PlinkLoader}
+import is.hail.io.bgen.LoadBgen
+import is.hail.io.gen.LoadGen
+import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
 import is.hail.table.Table
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
@@ -287,7 +287,7 @@ class HailContext private(val sc: SparkContext,
 
     contigRecoding.foreach(gr.validateContigRemap)
 
-    BgenLoader.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
+    LoadBgen.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
       nPartitions, gr, contigRecoding.getOrElse(Map.empty[String, String]), tolerance)
   }
 
@@ -320,11 +320,11 @@ class HailContext private(val sc: SparkContext,
 
     contigRecoding.foreach(gr.validateContigRemap)
 
-    val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
+    val samples = LoadBgen.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
 
     //FIXME: can't specify multiple chromosomes
-    val results = inputs.map(f => GenLoader(f, sampleFile, sc, gr, nPartitions,
+    val results = inputs.map(f => LoadGen(f, sampleFile, sc, gr, nPartitions,
       tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String])))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
@@ -431,7 +431,7 @@ class HailContext private(val sc: SparkContext,
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
-    PlinkLoader(this, bed, bim, fam,
+    LoadPlink(this, bed, bim, fam,
       ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]), dropChr0)
   }
 
@@ -584,7 +584,7 @@ class HailContext private(val sc: SparkContext,
     val conf = new SerializableHadoopConfiguration(hadoopConf)
 
     sc.parallelize(inputs, numSlices = inputs.length).foreach { in =>
-      BgenLoader.index(conf.value, in)
+      LoadBgen.index(conf.value, in)
     }
 
     info(s"Number of BGEN files indexed: ${ inputs.length }")

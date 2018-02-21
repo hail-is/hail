@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.check.Prop
 import is.hail.expr.types._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
-import is.hail.io.plink.{FamFileConfig, PlinkLoader}
+import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -55,9 +55,9 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testSampleFamAnnotator() {
-    def assertNumeric(s: String) = assert(PlinkLoader.numericRegex.findFirstIn(s).isDefined)
+    def assertNumeric(s: String) = assert(LoadPlink.numericRegex.findFirstIn(s).isDefined)
 
-    def assertNonNumeric(s: String) = assert(PlinkLoader.numericRegex.findFirstIn(s).isEmpty)
+    def assertNonNumeric(s: String) = assert(LoadPlink.numericRegex.findFirstIn(s).isEmpty)
 
     List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
     List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)

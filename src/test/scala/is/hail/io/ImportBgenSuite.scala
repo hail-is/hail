@@ -37,7 +37,7 @@ class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends
   override def hasNext: Boolean = input.hasNext() || (dataSize >= nBitsPerProb)
 }
 
-class LoadBgenSuite extends SparkSuite {
+class ImportBgenSuite extends SparkSuite {
   val contigRecoding = Some(Map("01" -> "1"))
 
   def getNumberOfLinesInFile(file: String): Long = {
