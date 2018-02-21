@@ -150,6 +150,20 @@ class Struct(Mapping):
         d = OrderedDict((k, v) for k, v in self.items() if not k in args)
         return Struct(**d)
 
+    def describe(self):
+        """Print information about the fields of the struct."""
+
+        if len(self._fields) == 0:
+            fields = '\n  None'
+        else:
+            fields = ''.join("\n  '{}': {}".format(name, value) for name, value in self._fields.items())
+
+        s = '----------------------------------------\n' \
+            'Fields:{f}\n' \
+            '----------------------------------------'.format(f=fields)
+        print(s)
+
+
 
 @typecheck(struct=Struct)
 def to_dict(struct):
