@@ -5,9 +5,10 @@ import unittest
 import random
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.java import Env
 from hail.utils.misc import test_file, new_temp_file
 import json
-
+import pyspark.sql
 
 
 def setUpModule():
@@ -324,6 +325,14 @@ class TableTests(unittest.TestCase):
         kt_small = kt.sample(0.01)
         self.assertTrue(kt_small.count() < kt.count())
 
+    def test_from_spark_works(self):
+        sql_context = Env.sql_context()
+        df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
+        t = hl.Table.from_spark(df)
+        rows = t.collect()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].x, 5)
+        self.assertEqual(rows[0].y, 'foo')
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):

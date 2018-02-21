@@ -54,7 +54,7 @@ class HailContext(object):
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
-        self._sql_context = SQLContext(self.sc, self._jsql_context)
+        self._sql_context = SQLContext(self.sc, jsqlContext=self._jsql_context)
         self._counter = 1
 
         super(HailContext, self).__init__()
