@@ -26,7 +26,7 @@ class Call(HistoryMixin):
 
     @handle_py4j
     @record_init
-    @typecheck_method(alleles=listof(integral),
+    @typecheck_method(alleles=listof(int),
                       phased=bool)
     def __init__(self, alleles, phased=False):
         if len(alleles) > 2:
@@ -180,7 +180,7 @@ class Call(HistoryMixin):
         return Call.call_jobject().nNonRefAlleles(self._call)
 
     @handle_py4j
-    @typecheck_method(num_alleles=integral)
+    @typecheck_method(num_alleles=int)
     def one_hot_alleles(self, num_alleles):
         """Returns a list containing the one-hot encoded representation of the
         called alleles.

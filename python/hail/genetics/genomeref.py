@@ -37,13 +37,13 @@ class GenomeReference(HistoryMixin):
 
     @handle_py4j
     @record_init
-    @typecheck_method(name=strlike,
-                      contigs=listof(strlike),
-                      lengths=dictof(strlike, integral),
-                      x_contigs=oneof(strlike, listof(strlike)),
-                      y_contigs=oneof(strlike, listof(strlike)),
-                      mt_contigs=oneof(strlike, listof(strlike)),
-                      par=listof(sized_tupleof(oneof(strlike, integral), integral, integral)))
+    @typecheck_method(name=str,
+                      contigs=listof(str),
+                      lengths=dictof(str, int),
+                      x_contigs=oneof(str, listof(str)),
+                      y_contigs=oneof(str, listof(str)),
+                      mt_contigs=oneof(str, listof(str)),
+                      par=listof(sized_tupleof(oneof(str, int), int, int)))
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
@@ -171,7 +171,7 @@ class GenomeReference(HistoryMixin):
             self._par = [Interval._from_java(jrep, self) for jrep in self._jrep.par()]
         return self._par
 
-    @typecheck_method(contig=strlike)
+    @typecheck_method(contig=str)
     def contig_length(self, contig):
         """Contig length.
 
@@ -223,7 +223,7 @@ class GenomeReference(HistoryMixin):
     @classmethod
     @record_classmethod
     @handle_py4j
-    @typecheck_method(file=strlike)
+    @typecheck_method(file=str)
     def read(cls, file):
         """Load reference genome from a JSON file.
 
@@ -259,7 +259,7 @@ class GenomeReference(HistoryMixin):
         return GenomeReference._from_java(Env.hail().variant.GenomeReference.fromFile(Env.hc()._jhc, file))
 
     @handle_py4j
-    @typecheck_method(output=strlike)
+    @typecheck_method(output=str)
     def write(self, output):
         """"Write this reference genome to a file in JSON format.
 

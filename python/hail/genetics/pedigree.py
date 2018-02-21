@@ -23,10 +23,10 @@ class Trio(HistoryMixin):
 
     @handle_py4j
     @record_init
-    @typecheck_method(s=strlike,
-                      fam_id=nullable(strlike),
-                      pat_id=nullable(strlike),
-                      mat_id=nullable(strlike),
+    @typecheck_method(s=str,
+                      fam_id=nullable(str),
+                      pat_id=nullable(str),
+                      mat_id=nullable(str),
                       is_female=nullable(bool))
     def __init__(self, s, fam_id=None, pat_id=None, mat_id=None, is_female=None):
         jobject = Env.hail().variant.Sex
@@ -195,8 +195,8 @@ class Pedigree(HistoryMixin):
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(fam_path=strlike,
-                      delimiter=strlike)
+    @typecheck_method(fam_path=str,
+                      delimiter=str)
     def read(cls, fam_path, delimiter='\\s+'):
         """Read a PLINK .fam file and return a pedigree object.
 
@@ -241,7 +241,7 @@ class Pedigree(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(samples=listof(strlike))
+    @typecheck_method(samples=listof(str))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
 
@@ -263,7 +263,7 @@ class Pedigree(HistoryMixin):
 
     @handle_py4j
     @write_history('path')
-    @typecheck_method(path=strlike)
+    @typecheck_method(path=str)
     def write(self, path):
         """Write a .fam file to the given path.
 

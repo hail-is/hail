@@ -3,7 +3,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
 from hail.utils import wrap_to_list
-from hail.typecheck.check import typecheck, strlike
+from hail.typecheck.check import typecheck, str
 from hail.expr.expression import *
 from hail.expr.ast import Reference
 
@@ -134,7 +134,7 @@ def require_variant(dataset, method):
 
 @handle_py4j
 
-@typecheck(dataset=MatrixTable, method=strlike)
+@typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method):
     require_variant(dataset, method)
     dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
@@ -142,7 +142,7 @@ def require_biallelic(dataset, method):
 
 
 @handle_py4j
-@typecheck(dataset=MatrixTable, name=strlike)
+@typecheck(dataset=MatrixTable, name=str)
 def rename_duplicates(dataset, name='unique_id'):
     """Rename duplicate column keys.
 

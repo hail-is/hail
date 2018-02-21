@@ -41,7 +41,7 @@ class GroupedMatrixTable(object):
         else:
             raise KeyError(get_nice_field_error(self, item))
 
-    @typecheck_method(item=strlike)
+    @typecheck_method(item=str)
     def __getitem__(self, item):
         return self._get_field(item)
 
@@ -271,7 +271,7 @@ class MatrixTable(object):
         else:
             self.__dict__[key] = value
 
-    @typecheck_method(item=strlike)
+    @typecheck_method(item=str)
     def _get_field(self, item):
         if item in self._fields:
             return self._fields[item]
@@ -293,8 +293,8 @@ class MatrixTable(object):
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
-    @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
-                                                        oneof(slice, Expression, tupleof(Expression)))))
+    @typecheck_method(item=oneof(str, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
+                                                    oneof(slice, Expression, tupleof(Expression)))))
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
@@ -511,7 +511,7 @@ class MatrixTable(object):
                               refs=LinkedList(tuple).push(
                                   *[(f.name, self._entry_indices) for f in self.entry_schema.fields]))
 
-    @typecheck_method(keys=oneof(strlike, Expression))
+    @typecheck_method(keys=oneof(str, Expression))
     def key_cols_by(self, *keys):
         """Key columns by a new set of fields.
 
@@ -541,7 +541,7 @@ class MatrixTable(object):
                 str_keys.append(k)
         return MatrixTable(self._jvds.keyColsBy(str_keys))
 
-    @typecheck_method(fields=oneof(strlike, Expression))
+    @typecheck_method(fields=oneof(str, Expression))
     def key_rows_by(self, *keys):
         """Key rows by a new set of fields.
 
@@ -1041,7 +1041,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @handle_py4j
-    @typecheck_method(exprs=oneof(strlike, Expression))
+    @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
         """Drop fields.
 
@@ -1809,9 +1809,9 @@ class MatrixTable(object):
         return r._1(), r._2()
 
     @handle_py4j
-    @typecheck_method(output=strlike,
+    @typecheck_method(output=str,
                       overwrite=bool,
-                      _codec_spec=nullable(strlike))
+                      _codec_spec=nullable(str))
     def write(self, output, overwrite=False, _codec_spec=None):
         """Write to disk.
 
@@ -2077,7 +2077,7 @@ class MatrixTable(object):
         print(s)
 
     @handle_py4j
-    @typecheck_method(order=listof(strlike))
+    @typecheck_method(order=listof(str))
     def reorder_columns(self, order):
         """Reorder columns.
 
@@ -2137,7 +2137,7 @@ class MatrixTable(object):
         return self._jvds.nPartitions()
 
     @handle_py4j
-    @typecheck_method(num_partitions=integral,
+    @typecheck_method(num_partitions=int,
                       shuffle=bool)
     def repartition(self, num_partitions, shuffle=True):
         """Increase or decrease the number of partitions.
@@ -2193,7 +2193,7 @@ class MatrixTable(object):
         return MatrixTable(jvds)
 
     @handle_py4j
-    @typecheck_method(max_partitions=integral)
+    @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions):
         """Naively decrease the number of partitions.
 
@@ -2303,7 +2303,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unpersist())
 
     @handle_py4j
-    @typecheck_method(name=strlike)
+    @typecheck_method(name=str)
     def index_rows(self, name='row_idx'):
         """Add the integer index of each row as a new row field.
 
@@ -2332,7 +2332,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.indexRows(name))
 
     @handle_py4j
-    @typecheck_method(name=strlike)
+    @typecheck_method(name=str)
     def index_cols(self, name='col_idx'):
         """Add the integer index of each column as a new column field.
 
@@ -2478,7 +2478,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unionCols(other._jvds))
 
     @handle_py4j
-    @typecheck_method(n=integral)
+    @typecheck_method(n=int)
     def head(self, n):
         """Subset matrix to first `n` rows.
 
@@ -2512,7 +2512,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.head(n))
 
     @handle_py4j
-    @typecheck_method(parts=listof(integral), keep=bool)
+    @typecheck_method(parts=listof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
@@ -2550,7 +2550,7 @@ class MatrixTable(object):
 
     @handle_py4j
     @typecheck_method(p=numeric,
-                      seed=integral)
+                      seed=int)
     def sample_rows(self, p, seed=0):
         """Downsample the matrix table by keeping each row with probability ``p``.
 

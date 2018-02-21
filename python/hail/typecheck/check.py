@@ -362,10 +362,6 @@ def lazy():
 
 anytype = AnyChecker()
 
-strlike = str
-
-integral = int
-
 numeric = oneof(int, float)
 
 char = CharChecker()

@@ -542,7 +542,7 @@ class TStruct(Type):
         Field types.
     """
 
-    @typecheck_method(names=listof(strlike),
+    @typecheck_method(names=listof(str),
                       types=listof(Type))
     def __init__(self, names, types):
 
@@ -637,7 +637,7 @@ class TCall(Type):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TCallOptional')
         super(TCall, self).__init__()
 
-    @typecheck_method(annotation=nullable(integral))
+    @typecheck_method(annotation=nullable(int))
     def _convert_to_py(self, annotation):
         if annotation is not None:
             return genetics.Call._from_java(annotation)
@@ -672,7 +672,7 @@ class TLocus(Type):
         :meth:`hail.default_reference`.
     """
 
-    @typecheck_method(reference_genome=nullable(oneof(genetics.GenomeReference, strlike)))
+    @typecheck_method(reference_genome=nullable(oneof(genetics.GenomeReference, str)))
     def __init__(self, reference_genome=None):
         if reference_genome is not None:
             if not isinstance(reference_genome, genetics.GenomeReference):

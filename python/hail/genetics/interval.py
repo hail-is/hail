@@ -65,7 +65,7 @@ class Interval(HistoryMixin):
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(string=strlike,
+    @typecheck_method(string=str,
                       reference_genome=nullable(GenomeReference))
     def parse(cls, string, reference_genome=None):
         """Parses a genomic interval from string representation.

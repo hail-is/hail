@@ -107,7 +107,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
            include_par=bool,
            female_threshold=numeric,
            male_threshold=numeric,
-           aaf=nullable(strlike))
+           aaf=nullable(str))
 def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
     """Impute sex of samples by calculating inbreeding coefficient on the X
     chromosome.
@@ -232,8 +232,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            ys=oneof(expr_numeric, listof(expr_numeric)),
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
-           root=strlike,
-           block_size=integral)
+           root=str,
+           block_size=int)
 def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     """For each row, test a derived input variable for association with
     response variables using linear regression.
@@ -343,11 +343,11 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           test=strlike,
+           test=str,
            y=oneof(expr_bool, expr_numeric),
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
-           root=strlike)
+           root=str)
 def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
     Boolean response variable using logistic regression.
@@ -584,13 +584,13 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
            y=expr_numeric,
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
-           global_root=strlike,
-           va_root=strlike,
+           global_root=str,
+           va_root=str,
            run_assoc=bool,
            use_ml=bool,
            delta=nullable(numeric),
            sparsity_threshold=numeric,
-           n_eigs=nullable(integral),
+           n_eigs=nullable(int),
            dropped_variance_fraction=(nullable(float)))
 def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
            run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
@@ -1094,9 +1094,9 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
            logistic=bool,
-           max_size=integral,
+           max_size=int,
            accuracy=numeric,
-           iterations=integral)
+           iterations=int)
 def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000):
     r"""Test each keyed group of rows for association by linear or logistic
@@ -1282,7 +1282,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           k=integral,
+           k=int,
            compute_loadings=bool,
            as_array=bool)
 def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
@@ -1373,7 +1373,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
 @handle_py4j
 @typecheck(entry_expr=expr_numeric,
-           k=integral,
+           k=int,
            compute_loadings=bool,
            as_array=bool)
 def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
@@ -1482,9 +1482,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           k=integral,
+           k=int,
            maf=numeric,
-           block_size=integral,
+           block_size=int,
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))
 def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
@@ -2258,14 +2258,14 @@ def rrm(call_expr):
 
 
 @handle_py4j
-@typecheck(num_populations=integral,
-           num_samples=integral,
-           num_variants=integral,
-           num_partitions=nullable(integral),
+@typecheck(num_populations=int,
+           num_samples=int,
+           num_variants=int,
+           num_partitions=nullable(int),
            pop_dist=nullable(listof(numeric)),
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-           seed=integral,
+           seed=int,
            reference_genome=nullable(GenomeReference))
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
@@ -2826,10 +2826,10 @@ class FilterAlleles(object):
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
-           num_cores=integral,
+           num_cores=int,
            r2=numeric,
-           window=integral,
-           memory_per_core=integral)
+           window=int,
+           memory_per_core=int)
 def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
     jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)

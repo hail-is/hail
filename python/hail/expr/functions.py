@@ -618,7 +618,7 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 
 
 @typecheck(structs=oneof(expr_array, listof(Struct)),
-           identifier=strlike)
+           identifier=str)
 def index(structs, identifier):
     if not isinstance(structs.dtype.element_type, TStruct):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"

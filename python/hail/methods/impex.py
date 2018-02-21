@@ -12,11 +12,11 @@ from hail.methods.misc import require_biallelic
 
 @handle_py4j
 @typecheck(table=Table,
-           address=strlike,
-           keyspace=strlike,
-           table_name=strlike,
-           block_size=integral,
-           rate=integral)
+           address=str,
+           keyspace=str,
+           table_name=str,
+           block_size=int,
+           rate=int)
 def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=1000):
     """Export a :class:`.Table` to Cassandra.
 
@@ -30,8 +30,8 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           output=strlike,
-           precision=integral)
+           output=str,
+           precision=int)
 def export_gen(dataset, output, precision=4):
     """Export a :class:`.MatrixTable` as GEN and SAMPLE files.
 
@@ -97,7 +97,7 @@ def export_gen(dataset, output, precision=4):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           output=strlike,
+           output=str,
            fam_args=expr_any)
 def export_plink(dataset, output, **fam_args):
     """Export a :class:`.MatrixTable` as
@@ -186,9 +186,9 @@ def export_plink(dataset, output, **fam_args):
 
 @handle_py4j
 @typecheck(table=Table,
-           zk_host=strlike,
-           collection=strlike,
-           block_size=integral)
+           zk_host=str,
+           collection=str,
+           block_size=int)
 def export_solr(table, zk_host, collection, block_size=100):
     """Export a :class:`.Table` to Solr.
 
@@ -202,10 +202,10 @@ def export_solr(table, zk_host, collection, block_size=100):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           output=strlike,
-           append_to_header=nullable(strlike),
+           output=str,
+           append_to_header=nullable(str),
            parallel=nullable(enumeration('separate_header', 'header_per_shard')),
-           metadata=nullable(dictof(strlike, dictof(strlike, dictof(strlike, strlike)))))
+           metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
     """Export a :class:`.MatrixTable` as a VCF file.
 
@@ -316,7 +316,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 
 @handle_py4j
-@typecheck(path=strlike,
+@typecheck(path=str,
            reference_genome=nullable(GenomeReference))
 def import_interval_list(path, reference_genome=None):
     """Import an interval list as a :class:`.Table`.
@@ -383,7 +383,7 @@ def import_interval_list(path, reference_genome=None):
 
 
 @handle_py4j
-@typecheck(path=strlike,
+@typecheck(path=str,
            reference_genome=nullable(GenomeReference))
 def import_bed(path, reference_genome=None):
     """Import a UCSC .bed file as a :class:`.Table`.
@@ -471,10 +471,10 @@ def import_bed(path, reference_genome=None):
 
 
 @handle_py4j
-@typecheck(path=strlike,
+@typecheck(path=str,
            quant_pheno=bool,
-           delimiter=strlike,
-           missing=strlike)
+           delimiter=str,
+           missing=str)
 def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     """Import a PLINK FAM file into a :class:`.Table`.
 
@@ -537,20 +537,20 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
 
 
 @handle_py4j
-@typecheck(regex=strlike,
-           path=oneof(strlike, listof(strlike)),
-           max_count=integral)
+@typecheck(regex=str,
+           path=oneof(str, listof(str)),
+           max_count=int)
 def grep(regex, path, max_count=100):
     Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)),
-           sample_file=nullable(strlike),
-           entry_fields=listof(strlike),
-           min_partitions=nullable(integral),
+@typecheck(path=oneof(str, listof(str)),
+           sample_file=nullable(str),
+           entry_fields=listof(str),
+           min_partitions=nullable(int),
            reference_genome=nullable(GenomeReference),
-           contig_recoding=nullable(dictof(strlike, strlike)),
+           contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric)
 def import_bgen(path, entry_fields, sample_file=None,
                 min_partitions=None, reference_genome=None,
@@ -682,13 +682,13 @@ def import_bgen(path, entry_fields, sample_file=None,
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)),
-           sample_file=nullable(strlike),
+@typecheck(path=oneof(str, listof(str)),
+           sample_file=nullable(str),
            tolerance=numeric,
-           min_partitions=nullable(integral),
-           chromosome=nullable(strlike),
+           min_partitions=nullable(int),
+           chromosome=nullable(str),
            reference_genome=nullable(GenomeReference),
-           contig_recoding=nullable(dictof(strlike, strlike)))
+           contig_recoding=nullable(dictof(str, str)))
 def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
                contig_recoding=None):
     """
@@ -778,15 +778,15 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
 
 
 @handle_py4j
-@typecheck(paths=oneof(strlike, listof(strlike)),
-           key=oneof(strlike, listof(strlike)),
+@typecheck(paths=oneof(str, listof(str)),
+           key=oneof(str, listof(str)),
            min_partitions=nullable(int),
            impute=bool,
            no_header=bool,
-           comment=nullable(strlike),
-           delimiter=strlike,
-           missing=strlike,
-           types=dictof(strlike, Type),
+           comment=nullable(str),
+           delimiter=str,
+           missing=str,
+           types=dictof(str, Type),
            quote=nullable(char),
            reference_genome=nullable(GenomeReference))
 def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
@@ -955,16 +955,16 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
 
 @handle_py4j
-@typecheck(bed=strlike,
-           bim=strlike,
-           fam=strlike,
-           min_partitions=nullable(integral),
-           delimiter=strlike,
-           missing=strlike,
+@typecheck(bed=str,
+           bim=str,
+           fam=str,
+           min_partitions=nullable(int),
+           delimiter=str,
+           missing=str,
            quant_pheno=bool,
            a2_reference=bool,
            reference_genome=nullable(GenomeReference),
-           contig_recoding=nullable(dictof(strlike, strlike)),
+           contig_recoding=nullable(dictof(str, str)),
            drop_chr0=bool)
 def import_plink(bed, bim, fam,
                  min_partitions=None,
@@ -1090,7 +1090,7 @@ def import_plink(bed, bim, fam,
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)))
+@typecheck(path=oneof(str, listof(str)))
 def read_matrix_table(path):
     """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
 
@@ -1107,7 +1107,7 @@ def read_matrix_table(path):
 
 
 @handle_py4j
-@typecheck(path=strlike)
+@typecheck(path=str)
 def get_vcf_metadata(path):
     """Extract metadata from VCF header.
 
@@ -1166,15 +1166,15 @@ def get_vcf_metadata(path):
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)),
+@typecheck(path=oneof(str, listof(str)),
            force=bool,
            force_bgz=bool,
-           header_file=nullable(strlike),
-           min_partitions=nullable(integral),
+           header_file=nullable(str),
+           min_partitions=nullable(int),
            drop_samples=bool,
-           call_fields=oneof(strlike, listof(strlike)),
+           call_fields=oneof(str, listof(str)),
            reference_genome=nullable(GenomeReference),
-           contig_recoding=nullable(dictof(strlike, strlike)))
+           contig_recoding=nullable(dictof(str, str)))
 def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
     """Import VCF file(s) as a :class:`.MatrixTable`.
@@ -1295,7 +1295,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)))
+@typecheck(path=oneof(str, listof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.
 
@@ -1323,7 +1323,7 @@ def index_bgen(path):
 
 
 @handle_py4j
-@typecheck(path=strlike)
+@typecheck(path=str)
 def read_table(path):
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 

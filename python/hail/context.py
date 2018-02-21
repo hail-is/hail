@@ -2,7 +2,7 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.genetics.genomeref import GenomeReference
-from hail.typecheck import nullable, strlike, integral, typecheck, typecheck_method, enumeration
+from hail.typecheck import nullable, str, int, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger
 
@@ -11,16 +11,16 @@ import sys
 
 class HailContext(object):
     @typecheck_method(sc=nullable(SparkContext),
-                      app_name=strlike,
-                      master=nullable(strlike),
-                      local=strlike,
-                      log=strlike,
+                      app_name=str,
+                      master=nullable(str),
+                      local=str,
+                      log=str,
                       quiet=bool,
                       append=bool,
-                      min_block_size=integral,
-                      branching_factor=integral,
-                      tmp_dir=nullable(strlike),
-                      default_reference=strlike)
+                      min_block_size=int,
+                      branching_factor=int,
+                      tmp_dir=nullable(str),
+                      default_reference=str)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
@@ -100,15 +100,15 @@ class HailContext(object):
         Env._hc = None
 
 @typecheck(sc=nullable(SparkContext),
-           app_name=strlike,
-           master=nullable(strlike),
-           local=strlike,
-           log=strlike,
+           app_name=str,
+           master=nullable(str),
+           local=str,
+           log=str,
            quiet=bool,
            append=bool,
-           min_block_size=integral,
-           branching_factor=integral,
-           tmp_dir=strlike,
+           min_block_size=int,
+           branching_factor=int,
+           tmp_dir=str,
            default_reference=enumeration('GRCh37', 'GRCh38'))
 def init(sc=None, app_name="Hail", master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
