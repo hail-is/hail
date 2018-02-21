@@ -1925,7 +1925,7 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema,
+        return construct_expr(Select(Reference('global'), uid), self.global_schema,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     @handle_py4j
@@ -2010,7 +2010,6 @@ class MatrixTable(object):
         used_uids = set()
 
         for e in exprs:
-            rewrite_global_refs(e._ast, self)
             for j in list(e._joins)[::-1]:
                 if j.uid not in used_uids:
                     left = j.join_function(left)

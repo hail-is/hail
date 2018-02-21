@@ -238,35 +238,35 @@ class AnnotateSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val kt1 = hc.importTable(tmpf1, separator = "\\s+", impute = true)
-      .annotate("locus = Locus(str(Chr), Pos), alleles = [Ref, Alt]")
+      .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles")
     val fmt1 = vds.annotateVariantsTable(kt1, "table").annotateVariantsExpr("table = {Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt2 = vds.annotateVariantsTable(hc.importTable(tmpf2, separator = "\\s+", impute = true,
       commentChar = Some("#"))
-      .annotate("locus = Locus(str(Chr), Pos), alleles = [Ref, Alt]")
+      .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles"),
       "table").annotateVariantsExpr("table = {Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt3 = vds.annotateVariantsTable(hc.importTable(tmpf3,
       commentChar = Some("#"), separator = "\\s+", noHeader = true, impute = true)
-      .annotate("locus = Locus(str(f0), f1), alleles = [f2, f3]")
+      .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
       "table").annotateVariantsExpr("table = {Anno1: va.table.f4, Anno2: va.table.f5}")
 
     val fmt4 = vds.annotateVariantsTable(hc.importTable(tmpf4, separator = ",", noHeader = true, impute = true)
-      .annotate("locus = Locus(str(f0), f1), alleles = [f2, f3]")
+      .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
       "table").annotateVariantsExpr("table = {Anno1: va.table.f4, Anno2: va.table.f5}")
 
     val fmt5 = vds.annotateVariantsTable(hc.importTable(tmpf5, separator = "\\s+", impute = true, missing = ".")
-      .annotate("locus = Locus(str(Chr), Pos), alleles = [Ref, Alt]")
+      .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles"),
       "table").annotateVariantsExpr("table = {Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt6 = vds.annotateVariantsTable(hc.importTable(tmpf6,
       noHeader = true, impute = true, separator = ",", commentChar = Some("!"))
-      .annotate("locus = Locus(str(f0), f1), alleles = [f2, f3]")
+      .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
       "table").annotateVariantsExpr("table = {Anno1: va.table.f5, Anno2: va.table.f7}")
 
@@ -284,14 +284,14 @@ class AnnotateSuite extends SparkSuite {
 
     val kt = hc.importTable("src/test/resources/sample2_va_positions.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))
-      .annotate("locus = Locus(Chromosome, Position.toInt32())")
+      .annotate("locus = Locus(row.Chromosome, row.Position.toInt32())")
       .keyBy("locus")
 
     val byPosition = vds.annotateVariantsTable(kt, "stuff").annotateVariantsExpr("stuff = {Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
 
     val kt2 = hc.importTable("src/test/resources/sample2_va_nomulti.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))
-      .annotate("loc = Locus(Chromosome, Position.toInt32()), alleles = [Ref, Alt]")
+      .annotate("loc = Locus(row.Chromosome, row.Position.toInt32()), alleles = [row.Ref, row.Alt]")
       .keyBy("loc", "alleles")
     val byVariant = vds.annotateVariantsTable(kt2,
       "stuff").annotateVariantsExpr("stuff = {Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")

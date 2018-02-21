@@ -370,7 +370,7 @@ case class FilterVariants(
       it.filter { rv =>
         fullRow.set(rv)
         ec.set(1, row)
-        aggregatorOption.foreach(_(rv))
+        aggregatorOption.foreach(_ (rv))
         f() == true
       }
     }
@@ -419,13 +419,7 @@ abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
   def partitionCounts: Option[Array[Long]] = None
-
-  def env: Env[IR] = {
-    Env.empty[IR]
-      .bind(typ.rowType.fieldNames.map { f => (f, GetField(In(0, typ.rowType), f)) }: _*)
-      .bind(typ.globalType.fieldNames.map { f => (f, GetField(In(1, typ.globalType), f)) }: _*)
-  }
-
+  
   def execute(hc: HailContext): TableValue
 }
 
@@ -477,8 +471,9 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val ktv = child.execute(hc)
-    val f = ir.Compile(child.env, ir.RegionValueRep[Long](child.typ.rowType),
-      ir.RegionValueRep[Long](child.typ.globalType),
+    val f = ir.Compile(
+      "row", ir.RegionValueRep[Long](child.typ.rowType),
+      "global", ir.RegionValueRep[Long](child.typ.globalType),
       ir.RegionValueRep[Boolean](TBoolean()),
       pred)
     ktv.filter((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
@@ -486,10 +481,9 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 }
 
 case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: IndexedSeq[IR]) extends TableIR {
-
   val children: IndexedSeq[BaseIR] = Array(child) ++ preds
 
-  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))))
+  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds))
 
   val typ: TableType = {
     Infer(newIR, None, child.typ.env)
@@ -503,8 +497,9 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val f = ir.Compile(child.env, ir.RegionValueRep[Long](child.typ.rowType),
-      ir.RegionValueRep[Long](child.typ.globalType),
+    val f = ir.Compile(
+      "row", ir.RegionValueRep[Long](child.typ.rowType),
+      "global", ir.RegionValueRep[Long](child.typ.globalType),
       ir.RegionValueRep[Long](typ.rowType),
       newIR)
     val localGlobals = tv.globals

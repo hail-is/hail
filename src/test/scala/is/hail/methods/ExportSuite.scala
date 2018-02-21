@@ -17,7 +17,28 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.colsTable().select("Sample = s", "qc.*").export(out)
+    vds.colsTable().select("Sample = row.s",
+    "row.qc.callRate",
+    "row.qc.nCalled",
+    "row.qc.nNotCalled",
+    "row.qc.nHomRef",
+    "row.qc.nHet",
+    "row.qc.nHomVar",
+    "row.qc.nSNP",
+    "row.qc.nInsertion",
+    "row.qc.nDeletion",
+    "row.qc.nSingleton",
+    "row.qc.nTransition",
+    "row.qc.nTransversion",
+    "row.qc.nStar",
+    "row.qc.dpMean",
+    "row.qc.dpStDev",
+    "row.qc.gqMean",
+    "row.qc.gqStDev",
+    "row.qc.nNonRef",
+    "row.qc.rTiTv",
+    "row.qc.rHetHomVar",
+    "row.qc.rInsertionDeletion").export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -27,7 +48,8 @@ class ExportSuite extends SparkSuite {
     sb.tsvAppend(5.124)
     assert(sb.result() == "5.12400e+00")
 
-    val readBackAnnotated = vds.annotateSamplesTable(hc.importTable(out, types = Map("callRate" -> TFloat64(),
+    val readBackAnnotated = vds.annotateSamplesTable(hc.importTable(out, types = Map(
+      "callRate" -> TFloat64(),
       "nCalled" -> TInt64(),
       "nNotCalled" -> TInt64(),
       "nHomRef" -> TInt64(),
@@ -65,7 +87,7 @@ class ExportSuite extends SparkSuite {
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.colsTable().select("s").export(f, header = false)
+    vds.colsTable().select("row.s").export(f, header = false)
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -75,9 +97,9 @@ class ExportSuite extends SparkSuite {
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
-    vds.colsTable().select("`S.A.M.P.L.E.ID` = s").export(f)
-    vds.colsTable().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = s", "ANOTHERTHING = s").export(f2)
-    vds.colsTable().select("`I have some spaces and tabs\\there` = s", "`more weird stuff here` = s").export(f3)
+    vds.colsTable().select("`S.A.M.P.L.E.ID` = row.s").export(f)
+    vds.colsTable().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = row.s", "ANOTHERTHING = row.s").export(f2)
+    vds.colsTable().select("`I have some spaces and tabs\\there` = row.s", "`more weird stuff here` = row.s").export(f3)
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -104,7 +126,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
     vds
       .colsTable()
-      .select("computation = 5 * (if (qc.callRate < .95) 0 else 1)")
+      .select("computation = 5 * (if (row.qc.callRate < .95) 0 else 1)")
       .export(f)
   }
 }

@@ -85,9 +85,9 @@ class TableSuite extends SparkSuite {
   @Test def testAnnotate() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
-    val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
+    val kt2 = kt1.annotate("""qPhen2 = pow(row.qPhen, 2), NotStatus = row.Status == "CASE", X = row.qPhen == 5""")
     val kt3 = kt2.annotate("")
-    val kt4 = kt3.select(kt3.fieldNames).keyBy("qPhen", "NotStatus")
+    val kt4 = kt3.select(kt3.fieldNames.map(n => s"row.$n")).keyBy("qPhen", "NotStatus")
 
     val kt1columns = kt1.fieldNames.toSet
     val kt2columns = kt2.fieldNames.toSet
@@ -124,10 +124,10 @@ class TableSuite extends SparkSuite {
 
     val kt1 = Table(hc, rdd, signature, keyNames)
     kt1.typeCheck()
-    val kt2 = kt1.filter("field1 < 3", keep = true)
-    val kt3 = kt1.filter("field1 < 3 && field3 == 4", keep = true)
-    val kt4 = kt1.filter("field1 == 5 && field2 == 9 && field3 == 0", keep = false)
-    val kt5 = kt1.filter("field1 < -5 && field3 == 100", keep = true)
+    val kt2 = kt1.filter("row.field1 < 3", keep = true)
+    val kt3 = kt1.filter("row.field1 < 3 && row.field3 == 4", keep = true)
+    val kt4 = kt1.filter("row.field1 == 5 && row.field2 == 9 && row.field3 == 0", keep = false)
+    val kt5 = kt1.filter("row.field1 < -5 && row.field3 == 100", keep = true)
 
     assert(kt1.count == 3 && kt2.count == 2 && kt3.count == 1 && kt4.count == 2 && kt5.count == 0)
 
@@ -151,10 +151,10 @@ class TableSuite extends SparkSuite {
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)
 
-    val (_, leftKeyQuerier) = ktLeft.queryRow("Sample")
-    val (_, rightKeyQuerier) = ktRight.queryRow("Sample")
-    val (_, leftJoinKeyQuerier) = ktLeftJoin.queryRow("Sample")
-    val (_, rightJoinKeyQuerier) = ktRightJoin.queryRow("Sample")
+    val leftKeyQuerier = ktLeft.signature.query("Sample")
+    val rightKeyQuerier = ktRight.signature.query("Sample")
+    val leftJoinKeyQuerier = ktLeftJoin.signature.query("Sample")
+    val rightJoinKeyQuerier = ktRightJoin.signature.query("Sample")
 
     val leftKeys = ktLeft.rdd.map { a => Option(leftKeyQuerier(a)).map(_.asInstanceOf[String]) }.collect().toSet
     val rightKeys = ktRight.rdd.map { a => Option(rightKeyQuerier(a)).map(_.asInstanceOf[String]) }.collect().toSet
@@ -168,7 +168,7 @@ class TableSuite extends SparkSuite {
       ktLeftJoin.nColumns == nExpectedColumns &&
       ktLeftJoin.copy(rdd = ktLeftJoin.rdd.filter { a =>
         !rightKeys.contains(Option(leftJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
-      }).forall("isMissing(qPhen2) && isMissing(qPhen3)")
+      }).forall("isMissing(row.qPhen2) && isMissing(row.qPhen3)")
     )
 
     assert(ktRightJoin.count == ktRight.count &&
@@ -176,7 +176,7 @@ class TableSuite extends SparkSuite {
       ktRightJoin.nColumns == nExpectedColumns &&
       ktRightJoin.copy(rdd = ktRightJoin.rdd.filter { a =>
         !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
-      }).forall("isMissing(Status) && isMissing(qPhen)"))
+      }).forall("isMissing(row.Status) && isMissing(row.qPhen)"))
 
     assert(ktOuterJoin.count == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
@@ -189,7 +189,7 @@ class TableSuite extends SparkSuite {
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(outputFile)
 
-    val noNull = ktLeft.filter("isDefined(qPhen) && isDefined(Status)", keep = true).keyBy(List("Sample", "Status"))
+    val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy(List("Sample", "Status"))
     assert(noNull.join(
       noNull.rename(Map("qPhen" -> "qPhen_")), "outer"
     ).rdd.forall { r => !r.toSeq.exists(_ == null) })
@@ -203,7 +203,7 @@ class TableSuite extends SparkSuite {
     val ktRight = hc.importTable(inputFile2, impute = true)
       .keyBy("Sample")
       .rename(Map("Sample" -> "sample"))
-    val ktBad = ktRight.select(ktRight.fieldNames).keyBy("qPhen2")
+    val ktBad = ktRight.keyBy("qPhen2")
 
     intercept[HailException] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
@@ -222,12 +222,12 @@ class TableSuite extends SparkSuite {
 
     val kt1 = Table(hc, rdd, signature, keyNames)
     kt1.typeCheck()
-    val kt2 = kt1.aggregate("Status = field1",
-      "A = field2.sum(), " +
-        "B = field2.map(f => field2).sum(), " +
-        "C = field2.map(f => field2 + field3).sum(), " +
-        "D = field2.count(), " +
-        "E = field2.filter(f => field2 == 3).count()"
+    val kt2 = kt1.aggregate("Status = row.field1",
+      "A = rows.map(r => r.field2).sum(), " +
+        "B = rows.map(r => r.field2).sum(), " +
+        "C = rows.map(r => r.field2 + r.field3).sum(), " +
+        "D = rows.count(), " +
+        "E = rows.filter(r => r.field2 == 3).count()"
     )
 
     kt2.export("test.tsv")
@@ -251,10 +251,10 @@ class TableSuite extends SparkSuite {
 
     val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
-    assert(kt.forall("field2 == 5 && field1 != 0"))
-    assert(!kt.forall("field2 == 0 && field1 == 5"))
-    assert(kt.exists("""Sample == "Sample1" && field1 == 9 && field2 == 5"""))
-    assert(!kt.exists("""Sample == "Sample1" && field1 == 13 && field2 == 2"""))
+    assert(kt.forall("row.field2 == 5 && row.field1 != 0"))
+    assert(!kt.forall("row.field2 == 0 && row.field1 == 5"))
+    assert(kt.exists("""row.Sample == "Sample1" && row.field1 == 9 && row.field2 == 5"""))
+    assert(!kt.exists("""row.Sample == "Sample1" && row.field1 == 13 && row.field2 == 2"""))
   }
 
   @Test def testRename() {
@@ -291,34 +291,23 @@ class TableSuite extends SparkSuite {
     val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
 
-    val select1 = kt.select("field1").keyBy("field1")
+    val select1 = kt.select("row.field1").keyBy("field1")
     assert((select1.key sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
-    val select2 = kt.select("Sample", "field2", "field1").keyBy("Sample")
+    val select2 = kt.select("row.Sample", "row.field2", "row.field1").keyBy("Sample")
     assert((select2.key sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
-    val select3 = kt.select("field2", "field1", "Sample").keyBy()
+    val select3 = kt.select("row.field2", "row.field1", "row.Sample").keyBy()
     assert((select3.key sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
     val select4 = kt.select()
     assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
-    val select5 = kt.select(Array("field3.*", "A = field1 + field2"), qualifiedName = true)
-    assert(select5.signature == TStruct(("field3.A", TInt32()), ("field3.B", TString()), ("A", TInt32())))
-
-    val select6 = kt.select("field2", "X = field1 + field2", "Z = 5", "field1", "field3.*", "Q.R = true")
-    assert(select6.signature == TStruct(("field2", TInt32()), ("X", TInt32()), ("Z", TInt32()),
-      ("field1", TInt32()), ("A", TInt32()), ("B", TString()), ("Q.R", TBoolean())))
-
-    for (select <- Array(select1, select2, select3, select4, select5, select6)) {
+    for (select <- Array(select1, select2, select3, select4)) {
       select.export(tmpDir.createTempFile("select", "tsv"))
     }
 
     TestUtils.interceptFatal("Invalid key")(kt.select().keyBy("Sample"))
-    TestUtils.interceptFatal("symbol `field5' not found")(kt.select("Sample", "field2", "field5").keyBy("Sample"))
-    TestUtils.interceptFatal("Either rename manually or use the 'mangle' option to handle duplicates")(kt.select("field3.*", "A = field1 + field2"))
-    TestUtils.interceptFatal("left-hand side required in annotation expression")(kt.select("field1 + field2"))
-    TestUtils.interceptFatal("cannot splat non-struct type:")(kt.select("field2.*"))
   }
 
   @Test def testDrop() {
@@ -348,8 +337,6 @@ class TableSuite extends SparkSuite {
     for (drop <- Array(drop0, drop1, drop2, drop3, drop4, drop5, drop6)) {
       drop.export(tmpDir.createTempFile("drop", "tsv"))
     }
-
-    intercept[HailException](kt.drop(Array("notInKT1", "notInKT2")))
   }
 
   @Test def testExplode() {
@@ -384,7 +371,7 @@ class TableSuite extends SparkSuite {
       .rowsTable()
       .expandTypes()
       .flatten()
-      .select("`info.MQRankSum`")
+      .select("row.`info.MQRankSum`")
       .copy2(globalSignature = TStruct.empty())
 
     val df = kt.toDF(sqlContext)
@@ -396,7 +383,7 @@ class TableSuite extends SparkSuite {
 
     val kt = vds
       .rowsTable()
-      .annotate("locus = str(locus), alleles = str(alleles), filters = filters.toArray()")
+      .annotate("locus = str(row.locus), alleles = str(row.alleles), filters = row.filters.toArray()")
       .flatten()
       .copy2(globalSignature = TStruct.empty())
 
@@ -420,14 +407,14 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val Array(ktMean, ktStDev) = kt.query(Array("qPhen.stats().mean", "qPhen.stats().stdev")).map(_._1)
+    val Array(ktMean, ktStDev) = kt.query(Array("rows.map(r => r.qPhen).stats().mean", "rows.map(r => r.qPhen).stats().stdev")).map(_._1)
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))
 
     val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
 
-    val ktCounter = kt.query("Status.counter()")._1.asInstanceOf[Map[String, Long]]
+    val ktCounter = kt.query("rows.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
   }
@@ -466,8 +453,8 @@ class TableSuite extends SparkSuite {
 
   @Test def testSelfJoin() {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true).keyBy("Sample")
-    assert(kt.join(kt, "inner").forall("(isMissing(Status) || Status == Status_1) && " +
-      "(isMissing(qPhen) || qPhen == qPhen_1)"))
+    assert(kt.join(kt, "inner").forall("(isMissing(row.Status) || row.Status == row.Status_1) && " +
+      "(isMissing(row.qPhen) || row.qPhen == row.qPhen_1)"))
   }
 
   @Test def testUngroup() {
@@ -521,14 +508,12 @@ class TableSuite extends SparkSuite {
     val ungroupedKt3 = Table(hc, sc.parallelize(ungroupedData3.map(Row.fromSeq(_))), ungroupedSig3)
     ungroupedKt3.typeCheck()
 
-    assert(kt3.annotate("foo = ungroup(foo, b, false)").same(ungroupedKt3))
-    assert(!kt3.annotate("foo = ungroup(foo, b, false)").same(kt3.annotate("foo = ungroup(foo, b, true)")))
+    assert(kt3.annotate("foo = ungroup(row.foo, b, false)").same(ungroupedKt3))
+    assert(!kt3.annotate("foo = ungroup(row.foo, b, false)").same(kt3.annotate("foo = ungroup(row.foo, b, true)")))
 
     TestUtils.interceptFatal("invalid arguments for method"){ kt3.annotate("foo = ungroup(foo)") }
     TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt3.annotate("foo = ungroup(false, b, true)") }
-    TestUtils.interceptFatal("Expected boolean argument in the third position, but found a"){ kt3.annotate("foo = ungroup(foo, b, b)") }
-    TestUtils.interceptFatal("Expected struct field identifier in the second position, but found a"){ kt3.annotate("foo = ungroup(foo, 2, true)") }
-    TestUtils.interceptFatal("Struct does not have field with name"){ kt3.annotate("foo = ungroup(foo, notexist, true)") }
+    TestUtils.interceptFatal("Expected boolean argument in the third position, but found a"){ kt3.annotate("foo = ungroup(row.foo, b, b)") }
   }
 
   @Test def testGroup() {
@@ -561,13 +546,12 @@ class TableSuite extends SparkSuite {
     val kt2Expected = Table(hc, sc.parallelize(dataExpected.map(Row.fromSeq(_))), sigExpected)
     kt2Expected.typeCheck()
 
-    assert(kt2.annotate("X = group(foo, a, b, a)").same(kt2Expected))
+    assert(kt2.annotate("X = group(row.foo, a, b, a)").same(kt2Expected))
 
-    TestUtils.interceptFatal("Duplicate"){ kt2.annotate("X = group(foo, a, b, b)") }
-    TestUtils.interceptFatal("Expected struct field identifiers after the first position, but found a"){ kt2.annotate("X = group(foo, x, true)") }
-    TestUtils.interceptFatal("too few arguments for method"){ kt2.annotate("X = group(foo, a)") }
-    TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt2.annotate("X = group(2, x, true)") }
-    TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(foo, x, y)") }
+    TestUtils.interceptFatal("Duplicate"){ kt2.annotate("X = group(row.foo, a, b, b)") }
+    TestUtils.interceptFatal("Expected struct field identifiers after the first position, but found a"){ kt2.annotate("X = group(row.foo, x, true)") }
+    TestUtils.interceptFatal("too few arguments for method"){ kt2.annotate("X = group(row.foo, a)") }
+    TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(row.foo, x, y)") }
   }
 
   @Test def issue2231() {
@@ -583,25 +567,20 @@ class TableSuite extends SparkSuite {
     val kt = Table.range(hc, 10)
       .annotateGlobalExpr("foo = [1,2,3]")
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
-      .annotateGlobalExpr("another = foo[1]")
+      .annotateGlobalExpr("another = global.foo[1]")
 
-    assert(kt.filter("dict.get(index) == \"bar\"", true).count() == 1)
-    assert(kt.annotate("baz = foo").forall("baz == [1,2,3]"))
-    assert(kt.forall("foo == [1,2,3]"))
-    assert(kt.exists("dict.get(index) == \"bar\""))
+    assert(kt.filter("global.dict.get(row.index) == \"bar\"", true).count() == 1)
+    assert(kt.annotate("baz = global.foo").forall("row.baz == [1,2,3]"))
+    assert(kt.forall("global.foo == [1,2,3]"))
+    assert(kt.exists("global.dict.get(row.index) == \"bar\""))
 
-    val gkt = kt.aggregate("index = index", "x = index.map(i => dict.get(i)).collect()[0]")
-    assert(gkt.exists("x == \"bar\""))
-    assert(kt.select("baz = dict.get(index)").exists("baz == \"bar\""))
+    val gkt = kt.aggregate("index = row.index", "x = rows.map(r => global.dict.get(r.index)).collect()[0]")
+    assert(gkt.exists("row.x == \"bar\""))
+    assert(kt.select("baz = global.dict.get(row.index)").exists("row.baz == \"bar\""))
 
     val tmpPath = tmpDir.createTempFile(extension="kt")
     kt.write(tmpPath)
     assert(hc.readTable(tmpPath).same(kt))
-  }
-
-  @Test def testSchemaAttrParse() { // FIXME: This should be deleted when not parsing attributes in types
-    val kt = Table.range(hc, 10).annotate("FOO = if (false) {AC: [0, 5]} else NA:Struct{AC:Array[Int32]" +
-      "@Description=\"Allele count in genotypes, for each ALT allele, in the same order as listed\"@Number=\"A\"@Type=\"Integer\"}")
   }
 
   @Test def testFlatten() {

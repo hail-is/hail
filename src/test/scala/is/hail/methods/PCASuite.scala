@@ -56,16 +56,16 @@ class PCASuite extends SparkSuite {
 
     assert(truth.join(loadings.get, "outer").forall(
       s"""
-         |abs(loadings[0] - _PC1) < 0.001 &&
-         |abs(loadings[1] - _PC2) < 0.001 &&
-         |abs(loadings[2] - _PC3) < 0.001
+         |abs(row.loadings[0] - row._PC1) < 0.001 &&
+         |abs(row.loadings[1] - row._PC2) < 0.001 &&
+         |abs(row.loadings[2] - row._PC3) < 0.001
        """.stripMargin))
 
     assert(truth.join(loadingsStruct.get, "outer").forall(
       s"""
-         |abs(PC1 - _PC1) < 0.001 &&
-         |abs(PC2 - _PC2) < 0.001 &&
-         |abs(PC3 - _PC3) < 0.001
+         |abs(row.PC1 - row._PC1) < 0.001 &&
+         |abs(row.PC2 - row._PC2) < 0.001 &&
+         |abs(row.PC3 - row._PC3) < 0.001
        """.stripMargin))
 
     val pyEigen = IndexedSeq(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)

@@ -270,10 +270,10 @@ class LoadBgenSuite extends SparkSuite {
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
       includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
-    assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => isDefined(g.GT))")
-      .annotateVariantsExpr("va.cr2 = gs.fraction(g => isDefined(g.GT))")
+    assert(vds.annotateVariantsExpr("cr1 = gs.fraction(g => isDefined(g.GT))")
+      .annotateVariantsExpr("cr2 = gs.fraction(g => isDefined(g.GT))")
       .rowsTable()
-      .forall("va.cr1 == va.cr2"))
+      .forall("row.cr1 == row.cr2"))
   }
   
   @Test def testDosage() {

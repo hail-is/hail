@@ -9,8 +9,8 @@ class ParserSuite extends SparkSuite{
     val p = Parser.oneOfLiteral(strings)
     strings.foreach(s => assert(p.parse(s) == s))
 
-    assert(p.parse_opt("hello^&").isEmpty)
-    assert(p.parse_opt("ABhello").isEmpty)
+    assert(p.parseOpt("hello^&").isEmpty)
+    assert(p.parseOpt("ABhello").isEmpty)
 
     assert(Parser.rep(p).parse("ABCADEF") == List("AB", "CAD", "EF"))
   }

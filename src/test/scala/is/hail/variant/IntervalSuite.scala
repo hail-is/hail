@@ -38,15 +38,15 @@ class IntervalSuite extends SparkSuite {
 
     val f = tmpDir.createTempFile("example", extension = "interval_list")
 
-    ex1.annotate("""interval = "[" + interval.start.contig + ":" + interval.start.position + "-" + interval.end.position + "]"""")
+    ex1.annotate("""interval = "[" + row.interval.start.contig + ":" + row.interval.start.position + "-" + row.interval.end.position + "]"""")
       .export(f)
 
-    val ex1wr = hc.importTable(f).annotate("interval = LocusInterval(interval)").keyBy("interval")
+    val ex1wr = hc.importTable(f).annotate("interval = LocusInterval(row.interval)").keyBy("interval")
 
     assert(ex1wr.same(ex1))
 
     val ex2 = IntervalList.read(hc, "src/test/resources/example2.interval_list")
-    assert(ex1.select(Array("interval")).same(ex2))
+    assert(ex1.select(Array("row.interval")).same(ex2))
   }
 
   @Test def testAll() {
@@ -74,7 +74,7 @@ class IntervalSuite extends SparkSuite {
 
     assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
       .annotateVariantsExpr("foo = va.foo.map(x => x.target)")
-      .rowsTable().query("foo.collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+      .rowsTable().query("rows.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testNew() {

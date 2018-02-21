@@ -202,7 +202,7 @@ class GroupedTable(TableTemplate):
         :class:`.Table`
             Aggregated table.
         """
-        agg_base = self._parent.columns[0]  # FIXME hack
+        agg_base = 'rows'
 
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
@@ -308,10 +308,10 @@ class Table(TableTemplate):
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
         for fd in self.global_schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._global_indices))
+            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._global_indices, prefix='global'))
 
         for fd in self.schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._row_indices))
+            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._row_indices, prefix='row'))
 
     @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
@@ -446,6 +446,10 @@ class Table(TableTemplate):
 
         >>> table_result = table1.annotate(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
 
+        Note
+        ----
+        This method does not support aggregation.
+
         Parameters
         ----------
         named_exprs : varargs of :class:`.Expression`
@@ -578,6 +582,10 @@ class Table(TableTemplate):
         References to fields inside a top-level struct will remove the entire
         struct, as field `E` was removed in the example above since `E.B` was
         referenced.
+
+        Note
+        ----
+        This method does not support aggregation.
 
         Parameters
         ----------
@@ -797,7 +805,7 @@ class Table(TableTemplate):
             check_collisions(self._fields, k, self._row_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
-        return cleanup(Table(base._jt.select(strs, False)))
+        return cleanup(Table(base._jt.select(strs)))
 
     @handle_py4j
     @typecheck_method(exprs=oneof(str, Expression))
@@ -1039,7 +1047,7 @@ class Table(TableTemplate):
         any
             Aggregated value dependent on `expr`.
         """
-        agg_base = self.columns[0]  # FIXME hack
+        agg_base = 'rows'
 
         expr = to_expr(expr)
         base, _ = self._process_joins(expr)
@@ -1169,7 +1177,7 @@ class Table(TableTemplate):
 
             all_uids = uids[:]
             all_uids.append(uid)
-            return construct_expr(Reference(uid), new_schema, indices, aggregations,
+            return construct_expr(Select(Reference('row'), uid), new_schema, indices, aggregations,
                                   joins.push(Join(joiner, all_uids, uid)), refs)
         elif isinstance(src, MatrixTable):
             if len(exprs) == 1:
@@ -1289,7 +1297,6 @@ class Table(TableTemplate):
         used_uids = set()
 
         for e in exprs:
-            rewrite_global_refs(e._ast, self)
             for j in list(e._joins)[::-1]:
                 if j.uid not in used_uids:
                     left = j.join_function(left)

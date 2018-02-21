@@ -96,7 +96,8 @@ class ImportMatrixSuite extends SparkSuite {
 
   def exportImportableVds(vsm: MatrixTable, header: Boolean=true): String = {
     val path = tmpDir.createTempFile(extension = "txt")
-    val kt = vsm.makeKT("va.*", "`` = g.x", Array("v"))
+    val exportStrs = vsm.rowType.fieldNames.map(x => s"${ prettyIdentifier(x) } = va.${ prettyIdentifier(x) }").mkString(",")
+    val kt = vsm.makeKT(exportStrs, "`` = g.x", Array("v"))
     kt.export(path, header=header)
     path
   }

@@ -52,7 +52,7 @@ class FilterSuite extends SparkSuite {
     assert(vQcVds.filterVariantsExpr("isDefined(va.qc.rHetHomVar)").countVariants() == 117)
 
     val highGQ = vds.filterGenotypes("g.GQ < 20", keep = false)
-    assert(!highGQ.entriesTable().exists("GQ < 20"))
+    assert(!highGQ.entriesTable().exists("row.GQ < 20"))
     assert(highGQ.entriesTable().count() == 30889)
 
     val highGQorMidQGAndLowFS = vds.filterGenotypes("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30)", keep = false)
@@ -70,7 +70,7 @@ class FilterSuite extends SparkSuite {
 
     val highGQ2 = vds2.filterGenotypes("g.GQ < 20", keep = false)
 
-    assert(!highGQ2.entriesTable().exists("GQ < 20"))
+    assert(!highGQ2.entriesTable().exists("row.GQ < 20"))
 
     val chr1 = vds2.filterVariantsExpr("va.locus.contig == \"1\"")
 
