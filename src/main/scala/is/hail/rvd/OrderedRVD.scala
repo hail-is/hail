@@ -265,7 +265,8 @@ class OrderedRVD private(
     if (newPartitionIndices.isEmpty)
       OrderedRVD.empty(sparkContext, typ)
     else {
-      subsetPartitions(newPartitionIndices).copy(rdd = rdd.filter(pred))
+      val sub = subsetPartitions(newPartitionIndices)
+      sub.copy(rdd = sub.rdd.filter(pred))
     }
   }
 

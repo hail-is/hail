@@ -5,8 +5,10 @@ import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types._
 import is.hail.io.annotators.IntervalList
+import is.hail.methods.FilterIntervals
 import is.hail.utils._
 import is.hail.testUtils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class IntervalSuite extends SparkSuite {
@@ -299,5 +301,13 @@ class IntervalSuite extends SparkSuite {
       val actual = i0.queryOverlappingValues(ord, interval)
       assert(actual.sameElements(vals), s"\n for interval $interval, expected [${ vals.mkString(", ") }], got [${ actual.mkString(", ") }]")
     }
+  }
+
+  @Test def testFilterIntervals() {
+    val ds = hc.importVCF("src/test/resources/sample.vcf", nPartitions=Some(20))
+    val intervals = Array(Interval(Row(Locus("20", 10019093)), Row(Locus("20", 10026348)), true, true),
+      Interval(Row(Locus("20", 17705793)), Row(Locus("20", 17716416)), true, true))
+    val iTree = IntervalTree(ds.rvd.typ.pkType.ordering, intervals)
+    assert(FilterIntervals(ds, iTree, true).countVariants() == 4)
   }
 }
