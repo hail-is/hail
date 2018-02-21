@@ -241,6 +241,8 @@ def filter_intervals(ds, intervals, keep=True):
     :class:`.MatrixTable`
     """
 
+    require_locus(dataset, 'filter_intervals')
+
     intervals = wrap_to_list(intervals)
     jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)
     return MatrixTable(jmt)
