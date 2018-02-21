@@ -3,7 +3,8 @@ import hail as hl
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.java import jiterable_to_list
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
+from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, \
+    check_field_uniqueness, get_print_config
 
 table_type = lazy()
 
