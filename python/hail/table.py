@@ -2131,6 +2131,7 @@ class Table(TableTemplate):
           FloatType => :class:`.TFloat32`
           DoubleType => :class:`.TFloat64`
           StringType => :class:`.TString`
+          BinaryType => :class:`.TBinary`
           ArrayType => :class:`.TArray`
           StructType => :class:`.TStruct`
 
