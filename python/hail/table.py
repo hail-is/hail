@@ -2125,24 +2125,23 @@ class Table(TableTemplate):
 
         .. code-block:: text
 
-          BooleanType => Boolean
-          IntegerType => Int
-          LongType => Long
-          FloatType => Float
-          DoubleType => Double
-          StringType => String
-          BinaryType => Binary
-          ArrayType => Array
-          StructType => Struct
+          BooleanType => :class:`.TBoolean`
+          IntegerType => :class:`.TInt32`
+          LongType => :class:`.TInt64`
+          FloatType => :class:`.TFloat32`
+          DoubleType => :class:`.TFloat64`
+          StringType => :class:`.TString`
+          ArrayType => :class:`.TArray`
+          StructType => :class:`.TStruct`
 
         Unlisted Spark SQL data types are currently unsupported.
-        
+
         Parameters
         ----------
         df : :class:`.pyspark.sql.DataFrame`
             PySpark DataFrame.
         
-        key : str or list of str
+        key : :obj:`str` or :obj:`list` of :obj:`str`
             Key fields.
 
         Returns
