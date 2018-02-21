@@ -72,7 +72,6 @@ Methods
 
 .. autosummary::
 
-    filter_intervals
     grep
     maximal_independent_set
     rename_duplicates
