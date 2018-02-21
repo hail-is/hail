@@ -11,6 +11,7 @@ import org.json4s.jackson
 
 object RichDenseMatrixDouble {
   // assumes zero offset and minimal majorStride
+  // caller must close
   def read(is: InputStream, bufferSpec: BufferSpec): DenseMatrix[Double] = {
     val in = bufferSpec.buildInputBuffer(is)
     
@@ -98,6 +99,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       (m.toArray, false)
   }
 
+  // caller must close
   def write(os: OutputStream, forceRowMajor: Boolean, bufferSpec: BufferSpec) {
     val (data, isTranspose) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
@@ -107,7 +109,6 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     out.writeInt(m.rows)
     out.writeInt(m.cols)
     out.writeBoolean(isTranspose)
-    out.flush() // align block row with buffer
     out.writeDoubles(data)
     out.flush()
   }

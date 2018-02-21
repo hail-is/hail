@@ -1110,7 +1110,6 @@ class WriteBlocksRDD(path: String,
       out.writeInt(nRowsInBlock)
       out.writeInt(nColsInBlock)
       out.writeBoolean(true) // transposed, stored row major
-      out.flush() // align block row with buffer
       
       out
     }
@@ -1162,10 +1161,7 @@ class WriteBlocksRDD(path: String,
       }
     }
 
-    outPerBlockCol.foreach { out =>
-      out.flush()
-      out.close()
-    }
+    outPerBlockCol.foreach(_.close())
 
     Iterator.single(gp.nBlockCols) // number of blocks written
   }
