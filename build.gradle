@@ -416,11 +416,11 @@ task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks'
 }
 
 task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
 }
 
 task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
 }
 
 task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
@@ -435,7 +435,7 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }
-    from('build/www/docs/stable') {
+    from('build/www/docs') {
         into 'docs'
     }
     from('scripts') {
