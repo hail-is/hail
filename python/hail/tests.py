@@ -672,6 +672,24 @@ class MatrixTests(unittest.TestCase):
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
+    def test_rename(self):
+        dataset = self.get_vds()
+        renamed1 = dataset.rename({'locus':'locus2', 'info':'info2', 's': 'info'})
+
+        self.assertEqual(renamed1['locus2']._type, dataset['locus']._type)
+        self.assertEqual(renamed1['info2']._type, dataset['info']._type)
+        self.assertEqual(renamed1['info']._type, dataset['s']._type)
+
+        self.assertEqual(renamed1['info']._indices, renamed1._col_indices)
+
+        self.assertFalse('locus' in renamed1._fields)
+        self.assertFalse('s' in renamed1._fields)
+
+        self.assertRaises(ValueError, dataset.rename, {'locus': 'info'})
+        self.assertRaises(ValueError, dataset.rename, {'locus': 'a', 's': 'a'})
+        self.assertRaises(LookupError, dataset.rename, {'foo': 'a'})
+
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
