@@ -265,11 +265,8 @@ class OrderedRVD private(
     if (newPartitionIndices.isEmpty)
       OrderedRVD.empty(sparkContext, typ)
     else {
-      val newRDD = new AdjustedPartitionsRDD(rdd, newPartitionIndices.map(i => Array(Adjustment(i, (it: Iterator[RegionValue]) => it.filter(pred)))))
-      OrderedRVD(typ,
-        partitioner.copy(numPartitions = newPartitionIndices.length,
-          rangeBounds = UnsafeIndexedSeq(partitioner.rangeBoundsType, newPartitionIndices.map(partitioner.rangeBounds))),
-        newRDD)
+      val sub = subsetPartitions(newPartitionIndices)
+      sub.copy(rdd = sub.rdd.filter(pred))
     }
   }
 

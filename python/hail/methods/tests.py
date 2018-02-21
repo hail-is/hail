@@ -591,13 +591,18 @@ class Tests(unittest.TestCase):
 
 
     def test_filter_intervals(self):
-        ds = self.get_dataset()
+        ds = hl.import_vcf(test_file('sample.vcf'), min_partitions=20)
+        print(ds.num_partitions())
         self.assertEqual(
             hl.filter_intervals(ds, hl.Interval.parse('20:10639222-10644705')).count_rows(), 3)
 
-        self.assertEqual(
-            hl.filter_intervals(ds, [hl.Interval.parse('20:10639222-10644700'),
-                                     hl.Interval.parse('20:10644700-10644705')]).count_rows(), 3)
+        intervals = [hl.Interval.parse('20:10639222-10644700'),
+                     hl.Interval.parse('20:10644700-10644705')]
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
+
+        intervals = [hl.Interval.parse('[20:10019093-10026348]'),
+                     hl.Interval.parse('[20:17705793-17716416]')]
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
 
     def test_balding_nichols_model(self):
         from hail.stats import TruncatedBetaDist
