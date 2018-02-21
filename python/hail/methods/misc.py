@@ -132,8 +132,14 @@ def require_variant(dataset, method):
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
-@handle_py4j
+def require_locus(dataset, method):
+    if (len(dataset.partition_key) != 1 or
+            not isinstance(dataset[dataset.partition_key[0]].dtype, TLocus)):
+        raise TypeError("Method '{}' requires partition key of type Locus.\n"
+                        "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
+@handle_py4j
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method):
     require_variant(dataset, method)
@@ -189,7 +195,8 @@ def filter_intervals(ds, intervals, keep=True):
 
     .. note::
 
-    Requires the dataset to have a partition key of type :class:`.TLocus`.
+        Requires the dataset to have a single partition key of type
+        :class:`.TLocus`.
 
     Examples
     --------
@@ -233,12 +240,6 @@ def filter_intervals(ds, intervals, keep=True):
     -------
     :class:`.MatrixTable`
     """
-
-    if (len(ds.partition_key) != 1 or
-            not isinstance(ds[ds.partition_key[0]].dtype, TLocus)):
-        raise TypeError("Method 'filter_intervals' requires partition key of type Locus.\n"
-                        "  Found:{}".format(''.join(
-            "\n    '{}': {}".format(k, str(ds[k].dtype)) for k in ds.partition_key)))
 
     intervals = wrap_to_list(intervals)
     jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)

@@ -556,8 +556,8 @@ def grep(regex, path, max_count=100):
 
         Notes
         -----
-        :meth:`grep` mimics the basic functionality of Unix ``grep`` in
-        parallel, printing results to screen. This command is provided as a
+        :func:`grep` mimics the basic functionality of Unix ``grep`` in
+        parallel, printing results to the screen. This command is provided as a
         convenience to those in the statistical genetics community who often
         search enormous text files like VCFs. Hail uses `Java regular expression
         patterns
