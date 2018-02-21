@@ -1008,6 +1008,23 @@ class ArrayNumericExpression(ArrayExpression):
             ret_type = ret_type_f(ret_type)
         return self._bin_op_reverse(name, other, ret_type)
 
+    def __neg__(self):
+        """Negate elements of the array.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(-a1)
+            [0, -1, -2, -3, -4, -5]
+
+        Returns
+        -------
+        :class:`.ArrayNumericExpression`
+            Array expression of the same type.
+        """
+        return self * -1
+
     def __add__(self, other):
         """Positionally add an array or a scalar.
 
