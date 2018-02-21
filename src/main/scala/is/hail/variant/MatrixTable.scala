@@ -168,6 +168,48 @@ object MatrixTable {
     ds
   }
 
+  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable = {
+    val mt = MatrixType.fromParts(
+      globalType = TStruct.empty(),
+      colKey = Array("col_idx"),
+      colType = TStruct("col_idx" -> TInt32()),
+      rowPartitionKey = Array("row_idx"),
+      rowKey = Array("row_idx"),
+      rowType = TStruct("row_idx" -> TInt32()),
+      entryType = TStruct.empty(required = true)
+    )
+    val localRVType = mt.rvRowType
+    val rdd = hc.sc.parallelize(0 until nRows, nPartitions.getOrElse(hc.sc.defaultMinPartitions))
+      .mapPartitions { it =>
+        val rv = RegionValue(Region())
+        val rvb = new RegionValueBuilder()
+        it.map { idx =>
+          rvb.set(rv.region)
+          rvb.start(localRVType)
+          rvb.startStruct()
+
+          // idx field
+          rvb.addInt(idx)
+
+          // entries field
+          rvb.startArray(nCols)
+          var i = 0
+          while (i < nCols) {
+            rvb.startStruct()
+            rvb.endStruct()
+            i += 1
+          }
+          rvb.endArray()
+
+          rvb.endStruct()
+          rv.set(rv.region, rvb.end())
+          rv
+        }
+      }
+    val rvd = OrderedRVD(mt.orvdType, rdd, None, None)
+    new MatrixTable(hc, mt, Annotation.empty, (0 until nCols).map(Annotation(_)), rvd)
+  }
+
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
 

@@ -1305,44 +1305,6 @@ class Table(TableTemplate):
 
         return left, cleanup
 
-    @classmethod
-    @handle_py4j
-    @typecheck_method(n=int,
-                      num_partitions=nullable(int))
-    def range(cls, n, num_partitions=None):
-        """Construct a table with `n` rows and one field `idx` that ranges from
-        0 to ``n - 1``.
-
-        Examples
-        --------
-        Construct a table with 100 rows:
-
-        >>> range_table = hl.Table.range(100)
-
-        Construct a table with one million rows and twenty partitions:
-
-        >>> range_table = hl.Table.range(1000000, 20)
-
-        Notes
-        -----
-        The resulting table has one column:
-
-         - `idx` (**Int32**) - Unique row index from 0 to `n` - 1.
-
-        Parameters
-        ----------
-        n : :obj:`int`
-            Number of rows.
-        num_partitions : :obj:`int`
-            Number of partitions.
-
-        Returns
-        -------
-        :class:`.Table`
-            Table with one field, `index`.
-        """
-        return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(num_partitions)))
-
     @handle_py4j
     def cache(self):
         """Persist this table in memory.

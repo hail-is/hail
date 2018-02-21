@@ -511,7 +511,7 @@ class Tests(unittest.TestCase):
 
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
-        t = hl.Table.range(10)
+        t = hl.utils.range_table(10)
         graph = t.select(i=t.idx, j=t.idx + 10)
         mis = hl.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
         self.assertEqual(sorted(mis), list(range(0, 10)))

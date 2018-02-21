@@ -80,7 +80,7 @@ def broadcast(x):
     --------
     .. doctest::
 
-        >>> table = hl.Table.range(8)
+        >>> table = hl.utils.range_table(8)
         >>> greetings = hl.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
         >>> table.annotate(greeting = greetings.get(table.idx)).show()
         +-------+----------------+
