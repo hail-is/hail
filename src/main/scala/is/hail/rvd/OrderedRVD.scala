@@ -258,7 +258,7 @@ class OrderedRVD private(
       }
     }
       .toSet // distinct
-      .toArray[Int].sorted[Int]
+      .toArray.sorted[Int]
 
     info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
 
