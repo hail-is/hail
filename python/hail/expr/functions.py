@@ -883,24 +883,24 @@ def parse_interval(s, reference_genome=None):
         s._indices, s._aggregations, s._joins, s._refs)
 
 
-@typecheck(phased=expr_bool,
-           alleles=expr_int32)
-def call(phased, *alleles):  # FIXME: Python 3 allows optional kwarg after varargs
+@typecheck(alleles=expr_int32,
+           phased=expr_bool)
+def call(*alleles, phased=False):
     """Construct a call expression.
 
     Examples
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.call(True, 1, 0))
+        >>> hl.eval_expr(hl.call(1, 0))
         Call(alleles=[1, 0], phased=True)
 
     Parameters
     ----------
-    phased : :obj:`bool`
-        If ``True``, preserve the order of `alleles`.
     alleles : variable-length args of :obj:`int` or :class:`.Expression` of type :class:`.TInt32`
         List of allele indices.
+    phased : :obj:`bool`
+        If ``True``, preserve the order of `alleles`.
 
     Returns
     -------

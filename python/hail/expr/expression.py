@@ -2775,7 +2775,7 @@ class StringExpression(AtomicExpression):
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
 
-    >>> call = hl.call(False, 0, 1)
+    >>> call = hl.call(0, 1, phased=False)
     """
 
     def __getitem__(self, item):
