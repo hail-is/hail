@@ -983,5 +983,5 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(r1.same(vds))
 
     def test_transitive_fields(self):
-        self.assertEqual(TStruct(["a", "b"], [TInt32(), TStruct(["foo", "bar"], [TFloat32(), TFloat64()])]).transitive_fields(),
+        self.assertEqual(TStruct(["a", "b"], [TInt(), TStruct(["foo", "bar"], [TFloat(), TDouble()])]).transitive_fields(),
                          ["`a`", "`b.foo`", "`b.bar`"])
