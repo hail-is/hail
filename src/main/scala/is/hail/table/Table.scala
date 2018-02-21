@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
-import is.hail.io.plink.{FamFileConfig, PlinkLoader}
+import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
@@ -108,7 +108,7 @@ object Table {
 
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
 
-    val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
+    val (data, typ) = LoadPlink.parseFam(path, ffConfig, hc.hadoopConf)
 
     val rdd = hc.sc.parallelize(data)
 

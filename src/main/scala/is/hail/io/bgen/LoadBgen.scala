@@ -19,7 +19,7 @@ case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
 
 case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: Int, rdd: RDD[(LongWritable, T)])
 
-object BgenLoader {
+object LoadBgen {
 
   def load(hc: HailContext,
     files: Array[String],
@@ -35,8 +35,8 @@ object BgenLoader {
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
     
-    val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hadoop, file))
-      .getOrElse(BgenLoader.readSamples(hadoop, files.head))
+    val sampleIds = sampleFile.map(file => LoadBgen.readSampleFile(hadoop, file))
+      .getOrElse(LoadBgen.readSamples(hadoop, files.head))
 
     LoadVCF.warnDuplicates(sampleIds)
 
@@ -81,7 +81,7 @@ object BgenLoader {
     info(s"Number of variants across all BGEN files: $nVariants")
 
     val signature = TStruct("locus" -> TLocus(gr),
-      "alleles" -> TArray(TStringRequired),
+      "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "varid" -> TString())
 

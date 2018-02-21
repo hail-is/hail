@@ -8,7 +8,7 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
-class LoadGenSuite extends SparkSuite {
+class ImportGenSuite extends SparkSuite {
 
   def makeRDD(genFile: String): RDD[(String, Array[Double])] = {
     sc.textFile(genFile).map { line =>
