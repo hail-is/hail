@@ -2089,20 +2089,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val (newColKey, newColType) = if (fieldMapCols.isEmpty) (colKey, colType) else {
       val newFieldNames = colType.fieldNames.map { n => fieldMapCols.getOrElse(n, n) }
       val newKey = colKey.map { f => fieldMapCols.getOrElse(f, f) }
-      (newKey, TStruct(newFieldNames.zip(colType.fieldType): _*))
+      (newKey, TStruct(colType.required, newFieldNames.zip(colType.fieldType): _*))
     }
 
     val newEntryType = if (fieldMapEntries.isEmpty) entryType else {
       val newFieldNames = entryType.fieldNames.map { n => fieldMapEntries.getOrElse(n, n) }
-      TStruct(newFieldNames.zip(entryType.fieldType): _*)
+      TStruct(entryType.required, newFieldNames.zip(entryType.fieldType): _*)
     }
 
     val (pk, newRowKey, newRVRowType) = {
       val newPK = rowPartitionKey.map { f => fieldMapRows.getOrElse(f, f) }
       val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
-      val newRVRowType = TStruct(rvRowType.fields.map { f =>
+      val newRVRowType = TStruct(rvRowType.required, rvRowType.fields.map { f =>
           f.name match {
-            case x@MatrixType.entriesIdentifier => (x, TArray(newEntryType))
+            case x@MatrixType.entriesIdentifier => (x, TArray(newEntryType, f.typ.required))
             case x => (fieldMapRows.getOrElse(x, x), f.typ)
           }
       }: _*)
@@ -2111,7 +2111,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newGlobalType = if (fieldMapEntries.isEmpty) globalType else {
       val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
-      TStruct(newFieldNames.zip(globalType.fieldType): _*)
+      TStruct(globalType.required, newFieldNames.zip(globalType.fieldType): _*)
     }
 
     val newMatrixType = MatrixType(newGlobalType,

@@ -2580,7 +2580,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.sampleVariants(p, seed))
 
     @handle_py4j
-    @typecheck_method(fields=dictof(strlike, strlike))
+    @typecheck_method(fields=dictof(str, str))
     def rename(self, fields):
         """Rename fields of a matrix table.
 
@@ -2589,13 +2589,13 @@ class MatrixTable(object):
 
         Rename column key `s` to `SampleID`, still keying by `SampleID`.
 
-        >>> dataset_result = dataset.rename({'s':'SampleID'})
+        >>> dataset_result = dataset.rename({'s': 'SampleID'})
 
         You can rename a field to a field name that already exists, as long as
         that field also gets renamed (no name collisions). Here, we rename the
         column key `s` to `info`, and the row field `info` to `vcf_info`:
 
-        >>> dataset_result = dataset.rename({'s':'info', 'info':'vcf_info'})
+        >>> dataset_result = dataset.rename({'s': 'info', 'info': 'vcf_info'})
 
         Parameters
         ----------
@@ -2617,9 +2617,9 @@ class MatrixTable(object):
 
         for k, v in fields.items():
             if v in seen:
-                raise ValueError("Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(seen[v], k, v))
+                raise ValueError("Cannot rename two fields to the same name: attempted to rename '{}' and '{}' both to '{}'".format(seen[v], k, v))
             if v in self._fields and v not in fields.keys():
-                raise ValueError("Cannot rename {} field to {}: field already exists.".format(k, v))
+                raise ValueError("Cannot rename '{}; to '{}': field already exists.".format(k, v))
             seen[v] = k
             if self[k]._indices == self._row_indices:
                 rowMap[k] = v
