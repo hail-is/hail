@@ -1075,11 +1075,11 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     paths = wrap_to_list(paths)
     jrow_fields = {k: v._jtype for k, v in row_fields.items()}
     for k, v in row_fields.items():
-        if v not in {tint32, tint64, tfloat32, tfloat64, tstring}:
+        if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError("""import_matrix_table expects field types to be one of: 
             TInt32, TInt64, TFloat32, TFloat64, TString: field {} had type {}""".format(k, v))
     key = wrap_to_list(key)
-    if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstring}:
+    if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of: 
         TInt32, TInt64, TFloat32, TFloat64, TString: found {}""".format(entry_type))
 
