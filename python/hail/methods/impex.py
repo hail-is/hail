@@ -957,12 +957,12 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 @typecheck(paths=oneof(strlike, listof(strlike)),
            row_fields=dictof(strlike, Type),
            key=oneof(strlike, listof(strlike)),
-           entry_type=nullable(Type),
+           entry_type=oneof(TInt32, TInt64, TFloat32, TFloat64, TString),
            missing=strlike,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, key=[], entry_type=None, missing="NA", min_partitions=None, no_header=False, force_bgz=False):
+def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None, no_header=False, force_bgz=False):
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1034,11 +1034,13 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=None, missing="
     column IDs are present, but the header must then consist only of tab-delimited
     column IDs (no row field names).
 
-    If row field names are missing (or the no_header flag is ``True``), fields
+    If row field names are missing (or the no_header flag is ``True``), row fields
     are imported in column-order as `f0`, `f1`, ... (0-indexed).
 
     If the no_header flag is ``True``, column IDs will be imported as `col0`,
     `col1`, ... (also 0-indexed).
+
+    Entries are imported into an entry-indexed field `x`.
 
     Parameters
     ----------
@@ -1073,18 +1075,15 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=None, missing="
     paths = wrap_to_list(paths)
     jrow_fields = {k: v._jtype for k, v in row_fields.items()}
     for k, v in row_fields.items():
-        if v not in {TInt32(), TInt64(), TFloat32(), TFloat64(), TString()}:
+        if v not in {tint32, tint64, tfloat32, tfloat64, tstring}:
             raise FatalError("""import_matrix_table expects field types to be one of: 
             TInt32, TInt64, TFloat32, TFloat64, TString: field {} had type {}""".format(k, v))
     key = wrap_to_list(key)
-    if entry_type is None:
-        entry_type = TInt64()
-    else:
-        if entry_type not in {TInt32(), TInt64(), TFloat32(), TFloat64(), TString()}:
-            raise FatalError("""import_matrix_table expects entry types to be one of: 
-            TInt32, TInt64, TFloat32, TFloat64, TString: found {}""".format(entry_type))
+    if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstring}:
+        raise FatalError("""import_matrix_table expects entry types to be one of: 
+        TInt32, TInt64, TFloat32, TFloat64, TString: found {}""".format(entry_type))
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, min_partitions, no_header, force_bgz)
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions), no_header, force_bgz)
     return MatrixTable(jmt)
 
 

@@ -539,11 +539,11 @@ class HailContext private(val sc: SparkContext,
     keyNames: java.util.ArrayList[String],
     cellType: Type,
     missingVal: String,
-    minPartitions: java.lang.Integer,
+    minPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean): MatrixTable =
     importMatrices(files.asScala, rowFields.asScala.toMap, keyNames.asScala.toArray,
-      cellType, missingVal, if (minPartitions == null) None else Some(minPartitions.toInt), noHeader, forceBGZ)
+      cellType, missingVal, minPartitions, noHeader, forceBGZ)
 
   def importMatrices(files: Seq[String],
     rowFields: Map[String, Type],
