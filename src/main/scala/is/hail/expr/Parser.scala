@@ -137,20 +137,16 @@ object Parser extends JavaTokenParsers {
 
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Any]) = {
-    val (paths, types, fs) = named_exprs(annotationIdentifier)
-      .parse(code)
-      .map { case (l, ast) =>
-        val path = expectedHead match {
-          case Some(h) =>
-            require(l.head == h, h)
-            l.tail
-          case None => l
-        }
-        val (t, f) = eval(ast, ec)
-        (path, t, f)
-      }.unzip3
 
-    (paths, types, () => fs.map(_()))
+    val (prePaths, ts, f) = parseNamedExprs(code, annotationIdentifier, ec)
+    (prePaths.map { path =>
+      expectedHead match {
+        case Some(h) =>
+          require(path.head == h)
+          path.tail
+        case None => path
+      }
+    }, ts, f)
   }
 
   def parseAnnotationExprsToAST(code: String, ec: EvalContext): (Array[(String, AST)]) =

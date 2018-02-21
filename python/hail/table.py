@@ -446,6 +446,10 @@ class Table(TableTemplate):
 
         >>> table_result = table1.annotate(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
 
+        Note
+        ----
+        This method does not support aggregation.
+
         Parameters
         ----------
         named_exprs : varargs of :class:`.Expression`
@@ -578,6 +582,10 @@ class Table(TableTemplate):
         References to fields inside a top-level struct will remove the entire
         struct, as field `E` was removed in the example above since `E.B` was
         referenced.
+
+        Note
+        ----
+        This method does not support aggregation.
 
         Parameters
         ----------
