@@ -418,7 +418,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
 
-    if (irs.length != asts.length && globalSignature.size == 0) {
+    if (irs.length != asts.length || globalSignature.size != 0) {
       info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
       val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
 

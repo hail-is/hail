@@ -318,27 +318,27 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
-      vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      globalSig <- globalSigGen.resize(5);
-      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-      global <- globalGen(globalSig).resize(25);
-      nPartitions <- Gen.choose(1, 10);
+    vSig <- vSigGen.resize(3);
+    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    sSig <- sSigGen.resize(3);
+    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    globalSig <- globalSigGen.resize(5);
+    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
+    global <- globalGen(globalSig).resize(25);
+    nPartitions <- Gen.choose(1, 10);
 
-      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-        .map(ids => ids.distinct);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-      rows <- Gen.buildableOfN[Array](l,
-        for (
-          v <- vGen(vSig).resize(3);
-          va <- vaGen(vaSig).resize(5);
-          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-          yield (v, (va, ts: Iterable[Annotation]))))
+    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+      .map(ids => ids.distinct);
+    nSamples = sampleIds.length;
+    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+    rows <- Gen.buildableOfN[Array](l,
+      for (
+        v <- vGen(vSig).resize(3);
+        va <- vaGen(vaSig).resize(5);
+        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
+        yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))
         val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
@@ -1142,10 +1142,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val finalNames = paths.map {
       // assignment
       case Left(name) => name
-      case Right(path) => path match {
-        case List(Annotation.SAMPLE_HEAD, name) => topLevelFields += name
-        case _ =>
-      }
+      case Right(path) =>
+        assert(path.head == Annotation.SAMPLE_HEAD)
+        path match {
+          case List(Annotation.SAMPLE_HEAD, name) => topLevelFields += name
+          case _ =>
+        }
         path.last
     }
 
@@ -1177,10 +1179,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val finalNames = paths.map {
       // assignment
       case Left(name) => name
-      case Right(path) => path match {
-        case List(Annotation.VARIANT_HEAD, name) => topLevelFields += name
-        case _ =>
-      }
+      case Right(path) =>
+        assert(path.head == Annotation.VARIANT_HEAD)
+        path match {
+          case List(Annotation.VARIANT_HEAD, name) => topLevelFields += name
+          case _ =>
+        }
         path.last
     }
 
@@ -1300,9 +1304,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val finalNames = paths.map {
       // assignment
       case Left(name) => name
-      case Right(path) => path match {
-        case List(Annotation.GENOTYPE_HEAD, name) => topLevelFields += name
-      }
+      case Right(path) =>
+        assert(path.head == Annotation.GENOTYPE_HEAD)
+        path match {
+          case List(Annotation.GENOTYPE_HEAD, name) => topLevelFields += name
+        }
         path.last
     }
     assert(finalNames.areDistinct())
