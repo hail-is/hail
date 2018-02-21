@@ -1,12 +1,9 @@
 package is.hail.linalg
 
-import java.io.DataInputStream
-
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
-import is.hail.annotations.Memory
+import is.hail.io.InputBuffer
 import is.hail.utils._
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.json4s.jackson
@@ -190,7 +187,7 @@ class ReadBlocksAsRowsRDD(path: String,
   def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Double])] = {
     val ReadBlocksAsRowsRDDPartition(_, start, end) = split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
 
-    var disPerBlockCol = new Array[DataInputStream](nBlockCols)
+    var inPerBlockCol = new Array[InputBuffer](nBlockCols)
     val buf = new Array[Byte](blockSize << 3)
 
     var i = start
@@ -203,25 +200,27 @@ class ReadBlocksAsRowsRDD(path: String,
           val blockRow = (i / blockSize).toInt
           val nRowsInBlock = gp.blockRowNRows(blockRow)
           
-          disPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
+          inPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
             val pi = gp.coordinatesBlock(blockRow, blockCol)
             val filename = path + "/parts/" + partFile(d, pi)
 
-            val dis = new DataInputStream(sHadoopBc.value.value.unsafeReader(filename))
+            val is = sHadoopBc.value.value.unsafeReader(filename)
+            val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
             val nColsInBlock = gp.blockColNCols(blockCol)
 
-            assert(dis.readInt() == nRowsInBlock)
-            assert(dis.readInt() == nColsInBlock)
-            if (!dis.readBoolean())
+            assert(in.readInt() == nRowsInBlock)
+            assert(in.readInt() == nColsInBlock)
+            val isTranspose = in.readBoolean()
+            if (!isTranspose)
               fatal("BlockMatrix must be stored row major on disk in order to be read as a RowMatrix")
 
             if (i == start) {
               val skip = (start % blockSize).toInt * (nColsInBlock << 3)
-              assert(skip == dis.skipBytes(skip))
+              in.skipBytes(skip)
             }
 
-            dis
+            in
           }
         }
 
@@ -231,8 +230,7 @@ class ReadBlocksAsRowsRDD(path: String,
         while (blockCol < nBlockCols) {
           val n = gp.blockColNCols(blockCol)
           
-          disPerBlockCol(blockCol).readFully(buf, 0, n << 3)
-          Memory.memcpy(row, offset, buf, 0, n)
+          inPerBlockCol(blockCol).readDoubles(row, offset, n)
           
           offset += n
           blockCol += 1
@@ -241,7 +239,7 @@ class ReadBlocksAsRowsRDD(path: String,
         i += 1
         
         if (i % blockSize == 0 || i == end)
-          disPerBlockCol.foreach(_.close())
+          inPerBlockCol.foreach(_.close())
         
         iRow
       }

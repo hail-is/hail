@@ -4,16 +4,22 @@ import is.hail.HailContext
 import is.hail.stats.eigSymD
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import is.hail.utils._
+
 import scala.collection.immutable.Range
-import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, * => B_*,
-  svd => breezeSVD, cholesky => breezeCholesky, qr => breezeQR, _}
-import breeze.numerics.{sqrt => breezeSqrt, pow => breezePow}
+import breeze.linalg.{* => B_*, DenseMatrix => BDM, DenseVector => BDV, cholesky => breezeCholesky, qr => breezeQR, svd => breezeSVD, _}
+import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
+import is.hail.io._
 import org.apache.commons.math3.random.MersenneTwister
 
 
 object LocalMatrix {
   type M = LocalMatrix
+  
+  private val bufferSpec: BufferSpec =
+    new BlockingBufferSpec(32 * 1024,
+      new LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec))
 
   private val sclrType = 0
   private val colType = 1
@@ -47,7 +53,8 @@ object LocalMatrix {
     LocalMatrix(m)
   }
   
-  def read(hc: HailContext, path: String): M = new LocalMatrix(RichDenseMatrixDouble.read(hc, path))
+  def read(hc: HailContext, path: String): M =
+    new LocalMatrix(RichDenseMatrixDouble.read(hc, path, LocalMatrix.bufferSpec))
 
   // FIXME: if LocalMatrix name sticks, BlockMartrix toLocalMatrix should give LocalMatrix, wrapping toBreezeMatrix
   def fromBlockMatrix(bm: BlockMatrix): M = LocalMatrix(bm.toLocalMatrix())
@@ -130,7 +137,7 @@ class LocalMatrix(val m: BDM[Double]) {
   def copy() = LocalMatrix(m.copy)
 
   def write(hc: HailContext, path: String) {
-    m.write(hc: HailContext, path)
+    m.write(hc, path, bufferSpec = LocalMatrix.bufferSpec)
   }
 
   def toBlockMatrix(hc: HailContext, blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix =
