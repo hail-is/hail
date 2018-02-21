@@ -11,6 +11,7 @@ from hail.utils.java import handle_py4j, joption, jarray
 from hail.utils.misc import check_collisions
 from hail.methods.misc import require_biallelic, require_variant
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+import itertools
 
 
 @handle_py4j
@@ -106,7 +107,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
            include_par=bool,
            female_threshold=numeric,
            male_threshold=numeric,
-           aaf=nullable(strlike))
+           aaf=nullable(str))
 def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
     """Impute sex of samples by calculating inbreeding coefficient on the X
     chromosome.
@@ -231,8 +232,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            ys=oneof(expr_numeric, listof(expr_numeric)),
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
-           root=strlike,
-           block_size=integral)
+           root=str,
+           block_size=int)
 def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     """For each row, test a derived input variable for association with
     response variables using linear regression.
@@ -342,11 +343,11 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           test=strlike,
+           test=str,
            y=oneof(expr_bool, expr_numeric),
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
-           root=strlike)
+           root=str)
 def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
     Boolean response variable using logistic regression.
@@ -583,13 +584,13 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
            y=expr_numeric,
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
-           global_root=strlike,
-           va_root=strlike,
+           global_root=str,
+           va_root=str,
            run_assoc=bool,
            use_ml=bool,
            delta=nullable(numeric),
            sparsity_threshold=numeric,
-           n_eigs=nullable(integral),
+           n_eigs=nullable(int),
            dropped_variance_fraction=(nullable(float)))
 def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
            run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
@@ -1093,9 +1094,9 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
            logistic=bool,
-           max_size=integral,
+           max_size=int,
            accuracy=numeric,
-           iterations=integral)
+           iterations=int)
 def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000):
     r"""Test each keyed group of rows for association by linear or logistic
@@ -1281,7 +1282,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           k=integral,
+           k=int,
            compute_loadings=bool,
            as_array=bool)
 def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
@@ -1372,7 +1373,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
 @handle_py4j
 @typecheck(entry_expr=expr_numeric,
-           k=integral,
+           k=int,
            compute_loadings=bool,
            as_array=bool)
 def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
@@ -1481,9 +1482,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           k=integral,
+           k=int,
            maf=numeric,
-           block_size=integral,
+           block_size=int,
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))
 def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
@@ -1880,13 +1881,13 @@ class SplitMulti(object):
         if not self._entry_fields:
             self._entry_fields = {}
 
-        base, _ = self._ds._process_joins(*(
-                self._row_fields.values() + self._entry_fields.values()))
+        base, _ = self._ds._process_joins(*itertools.chain(
+                self._row_fields.values(), self._entry_fields.values()))
 
         annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
-                                  for k, v in self._row_fields.iteritems()])
+                                  for k, v in self._row_fields.items()])
         annotate_entries = ','.join(['g.`{}` = {}'.format(k, v._ast.to_hql())
-                                     for k, v in self._entry_fields.iteritems()])
+                                     for k, v in self._entry_fields.items()])
 
         jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
             self._ds._jvds,
@@ -2257,14 +2258,14 @@ def rrm(call_expr):
 
 
 @handle_py4j
-@typecheck(num_populations=integral,
-           num_samples=integral,
-           num_variants=integral,
-           num_partitions=nullable(integral),
+@typecheck(num_populations=int,
+           num_samples=int,
+           num_variants=int,
+           num_partitions=nullable(int),
            pop_dist=nullable(listof(numeric)),
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-           seed=integral,
+           seed=int,
            reference_genome=nullable(GenomeReference))
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
@@ -2456,16 +2457,16 @@ class FilterAlleles(object):
     schema and update the ``info.AC`` and entry fields.
 
     >>> fa = hl.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
-    ... fa.annotate_rows(
+    >>> fa.annotate_rows(
     ...     info = dataset.info.annotate(AC = fa.new_to_old[1:].map(lambda i: dataset.info.AC[i - 1])))
-    ... newPL = hl.cond(
+    >>> newPL = hl.cond(
     ...     hl.is_defined(dataset.PL),
     ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
     ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     hl.null(hl.tarray(hl.tint32)))
-    ... fa.annotate_entries(
+    >>> fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
@@ -2474,7 +2475,7 @@ class FilterAlleles(object):
     ...         hl.null(hl.tarray(hl.tint32))),
     ...     GQ = hl.gq_from_pl(newPL),
     ...     PL = newPL)
-    ... filtered_result = fa.filter()
+    >>> filtered_result = fa.filter()
     
     Parameters
     ----------
@@ -2799,8 +2800,8 @@ class FilterAlleles(object):
         if not self._entry_exprs:
             self._entry_exprs = {}
 
-        base, cleanup = self._ds._process_joins(*(
-                [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
+        base, cleanup = self._ds._process_joins(*itertools.chain(
+                [self._filter_expr], self._row_exprs.values(), self._entry_exprs.values()))
 
         filter_hql = self._filter_expr._ast.to_hql()
 
@@ -2825,10 +2826,10 @@ class FilterAlleles(object):
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
-           num_cores=integral,
+           num_cores=int,
            r2=numeric,
-           window=integral,
-           memory_per_core=integral)
+           window=int,
+           memory_per_core=int)
 def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
     jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)

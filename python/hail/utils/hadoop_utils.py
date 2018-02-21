@@ -3,8 +3,8 @@ from hail.typecheck import *
 import io
 
 @handle_py4j
-@typecheck(path=strlike,
-           buffer_size=integral)
+@typecheck(path=str,
+           buffer_size=int)
 def hadoop_read(path, buffer_size=8192):
     """Open a readable file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
@@ -36,11 +36,11 @@ def hadoop_read(path, buffer_size=8192):
     :return: Iterable file reader.
     :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
     """
-    return io.BufferedReader(HadoopReader(path), buffer_size=buffer_size)
+    return io.TextIOWrapper(io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size), encoding='iso-8859-1')
 
 @handle_py4j
-@typecheck(path=strlike,
-           buffer_size=integral)
+@typecheck(path=str,
+           buffer_size=int)
 def hadoop_read_binary(path, buffer_size=8192):
     """Open a readable binary file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
@@ -82,12 +82,12 @@ def hadoop_read_binary(path, buffer_size=8192):
     :class:`.io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
         Binary file reader.
     """
-    return io.BufferedReader(HadoopBinaryReader(path), buffer_size=buffer_size)
+    return io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
 
 
 @handle_py4j
-@typecheck(path=strlike,
-           buffer_size=integral)
+@typecheck(path=str,
+           buffer_size=int)
 def hadoop_write(path, buffer_size=8192):
     """Open a writable file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
@@ -117,12 +117,12 @@ def hadoop_write(path, buffer_size=8192):
     :return: File writer object.
     :rtype: `io.BufferedWriter <https://docs.python.org/2/library/io.html#io.BufferedWriter>`_
     """
-    return io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
+    return io.TextIOWrapper(io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size), encoding='iso-8859-1')
 
 
 @handle_py4j
-@typecheck(src=strlike,
-           dest=strlike)
+@typecheck(src=str,
+           dest=str)
 def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
@@ -141,28 +141,10 @@ def hadoop_copy(src, dest):
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
-
 class HadoopReader(io.RawIOBase):
-    def __init__(self, path):
-        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc)
+    def __init__(self, path, buffer_size):
+        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc, buffer_size)
         super(HadoopReader, self).__init__()
-
-    def close(self):
-        self._jfile.close()
-
-    def readable(self):
-        return True
-
-    def readinto(self, b):
-        b_from_java = self._jfile.read(len(b)).encode('iso-8859-1')
-        n_read = len(b_from_java)
-        b[:n_read] = b_from_java
-        return n_read
-
-class HadoopBinaryReader(io.RawIOBase):
-    def __init__(self, path):
-        self._jfile = Env.jutils().readBinaryFile(path, Env.hc()._jhc)
-        super(HadoopBinaryReader, self).__init__()
 
     def close(self):
         self._jfile.close()

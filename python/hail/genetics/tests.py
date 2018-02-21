@@ -1,5 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 import unittest
 
 import hail as hl
@@ -54,7 +52,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_hom_ref.is_het_non_ref())
         self.assertFalse(c_hom_ref.is_het_ref())
         self.assertTrue(c_hom_ref.unphased_diploid_gt_index() == 0)
-        
+
         c_het_phased = Call([1, 0], phased=True)
         self.assertEqual(c_het_phased.alleles, [1, 0])
         self.assertEqual(c_het_phased.ploidy, 2)
@@ -85,7 +83,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_hom_var.is_het_non_ref())
         self.assertFalse(c_hom_var.is_het_ref())
         self.assertTrue(c_hom_var.unphased_diploid_gt_index() == 2)
-        
+
         c_haploid = Call([2], phased=True)
         self.assertEqual(c_haploid.alleles, [2])
         self.assertEqual(c_haploid.ploidy, 1)
@@ -100,7 +98,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(c_haploid.is_non_ref())
         self.assertFalse(c_haploid.is_het_non_ref())
         self.assertFalse(c_haploid.is_het_ref())
-        
+
         c_zeroploid = Call([])
         self.assertEqual(c_zeroploid.alleles, [])
         self.assertEqual(c_zeroploid.ploidy, 0)
@@ -116,10 +114,10 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_zeroploid.is_het_non_ref())
         self.assertFalse(c_zeroploid.is_het_ref())
 
-        self.assertRaisesRegexp(NotImplementedError,
-                                "Calls with greater than 2 alleles are not supported.",
-                                Call,
-                                [1, 1, 1, 1])
+        self.assertRaisesRegex(NotImplementedError,
+                               "Calls with greater than 2 alleles are not supported.",
+                               Call,
+                               [1, 1, 1, 1])
 
         gr = GenomeReference.GRCh37()
         self.assertEqual(gr.name, "GRCh37")

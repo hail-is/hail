@@ -61,7 +61,7 @@ class KinshipMatrix(HistoryMixin):
         return IndexedRowMatrix(self._jkm.matrix())
 
     @handle_py4j
-    @typecheck_method(output=strlike)
+    @typecheck_method(output=str)
     @write_history('output')
     def export_tsv(self, output):
         """
@@ -76,7 +76,7 @@ class KinshipMatrix(HistoryMixin):
         self._jkm.exportTSV(output)
 
     @handle_py4j
-    @typecheck_method(output=strlike)
+    @typecheck_method(output=str)
     @write_history('output')
     def export_rel(self, output):
         """
@@ -91,7 +91,7 @@ class KinshipMatrix(HistoryMixin):
         self._jkm.exportRel(output)
 
     @handle_py4j
-    @typecheck_method(output=strlike)
+    @typecheck_method(output=str)
     @write_history('output')
     def export_gcta_grm(self, output):
         """
@@ -106,8 +106,8 @@ class KinshipMatrix(HistoryMixin):
         self._jkm.exportGctaGrm(output)
 
     @handle_py4j
-    @typecheck_method(output=strlike,
-                      opt_n_file=nullable(strlike))
+    @typecheck_method(output=str,
+                      opt_n_file=nullable(str))
     @write_history('output')
     def export_gcta_grm_bin(self, output, opt_n_file=None):
         """
@@ -125,7 +125,7 @@ class KinshipMatrix(HistoryMixin):
         self._jkm.exportGctaGrmBin(output, joption(opt_n_file))
 
     @handle_py4j
-    @typecheck_method(output=strlike)
+    @typecheck_method(output=str)
     @write_history('output')
     def export_id_file(self, output):
         """

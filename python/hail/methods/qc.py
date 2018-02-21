@@ -5,7 +5,7 @@ from hail.table import Table
 from .misc import require_biallelic
 
 @handle_py4j
-@typecheck(dataset=MatrixTable, name=strlike)
+@typecheck(dataset=MatrixTable, name=str)
 def sample_qc(dataset, name='sample_qc'):
     """Compute per-sample metrics useful for quality control.
 
@@ -90,7 +90,7 @@ def sample_qc(dataset, name='sample_qc'):
     return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, name))
 
 @handle_py4j
-@typecheck(dataset=MatrixTable, name=strlike)
+@typecheck(dataset=MatrixTable, name=str)
 def variant_qc(dataset, name='variant_qc'):
     """Compute common variant statistics (quality control metrics).
 
@@ -286,16 +286,16 @@ def concordance(left, right):
     j_global_conc = r._1()
     col_conc = Table(r._2())
     row_conc = Table(r._3())
-    global_conc = [[j_global_conc.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
+    global_conc = [[j_global_conc.apply(j).apply(i) for i in range(5)] for j in range(5)]
 
     return global_conc, col_conc, row_conc
 
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           config=strlike,
-           block_size=integral,
-           name=strlike,
+           config=str,
+           block_size=int,
+           name=str,
            csq=bool)
 def vep(dataset, config, block_size=1000, name='vep', csq=False):
     """Annotate variants with VEP.
@@ -546,9 +546,9 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
 @handle_py4j
 @typecheck_method(dataset=MatrixTable,
-                  config=strlike,
-                  block_size=integral,
-                  name=strlike)
+                  config=str,
+                  block_size=int,
+                  name=str)
 def nirvana(dataset, config, block_size=500000, name='nirvana'):
     """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
 

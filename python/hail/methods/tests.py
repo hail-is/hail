@@ -1,5 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 import unittest
 
 import hail as hl
@@ -59,8 +57,8 @@ class Tests(unittest.TestCase):
                 f.readline()
                 for line in f:
                     row = line.strip().split()
-                    results[(row[1], row[3])] = (map(float, row[6:10]),
-                                                 map(int, row[14:17]))
+                    results[(row[1], row[3])] = (list(map(float, row[6:10])),
+                                                 list(map(int, row[14:17])))
             return results
 
         def compare(ds, min=None, max=None):
@@ -204,7 +202,6 @@ class Tests(unittest.TestCase):
                         self.assertEqual(len(b), 4)
                         m[i, j] = unpack('<f', bytearray(b))[0]
                 left = f.read()
-                print(left)
                 self.assertEqual(len(left), 0)
             return m
 
@@ -330,7 +327,7 @@ class Tests(unittest.TestCase):
                 f.readline()
                 for line in f:
                     row = line.strip().split()
-                    data.append(map(float, row))
+                    data.append(list(map(float, row)))
 
             return np.array(data)
 
@@ -376,10 +373,10 @@ class Tests(unittest.TestCase):
 
         ds = self.get_dataset()
         ds = ds.annotate_entries(X=ds.GT)
-        self.assertRaisesRegexp(utils.FatalError,
-                                "split_multi_hts: entry schema must be the HTS genotype schema",
-                                hl.split_multi_hts,
-                                ds)
+        self.assertRaisesRegex(utils.FatalError,
+                               "split_multi_hts: entry schema must be the HTS genotype schema",
+                               hl.split_multi_hts,
+                               ds)
 
     def test_mendel_errors(self):
         dataset = self.get_dataset()
@@ -517,7 +514,7 @@ class Tests(unittest.TestCase):
         t = hl.Table.range(10)
         graph = t.select(i=t.idx, j=t.idx + 10)
         mis = hl.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
-        self.assertEqual(sorted(mis), range(0, 10))
+        self.assertEqual(sorted(mis), list(range(0, 10)))
 
     def test_filter_alleles(self):
         # poor man's Gen
@@ -573,9 +570,12 @@ class Tests(unittest.TestCase):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
         schema = hl.tstruct(['i', 'j', 'entry'],
-                            [hl.tint64, hl.tint64, hl.tfloat64])
+                            [hl.tint32, hl.tint32, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
-        numpy_matrix = np.reshape(map(lambda row: row['entry'], rows), (num_rows, num_cols))
+        table = table.annotate(i=table.i.to_int64(),
+                               j=table.j.to_int64())
+
+        numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (num_rows, num_cols))
 
         for block_size in [1, 2, 1024]:
             block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)

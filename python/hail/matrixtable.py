@@ -1,10 +1,9 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions
 from hail.table import Table
+import itertools
 
 
 class GroupedMatrixTable(object):
@@ -42,7 +41,7 @@ class GroupedMatrixTable(object):
         else:
             raise KeyError(get_nice_field_error(self, item))
 
-    @typecheck_method(item=strlike)
+    @typecheck_method(item=str)
     def __getitem__(self, item):
         return self._get_field(item)
 
@@ -145,7 +144,8 @@ class GroupedMatrixTable(object):
 
         strs = []
 
-        base, cleanup = self._parent._process_joins(*([x for _, x in self._groups] + named_exprs.values()))
+        base, cleanup = self._parent._process_joins(*itertools.chain(
+            [x for _, x in self._groups], named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedMatrixTable.aggregate', v, self._grouped_indices,
                     {self._parent._row_axis, self._parent._col_axis})
@@ -271,7 +271,7 @@ class MatrixTable(object):
         else:
             self.__dict__[key] = value
 
-    @typecheck_method(item=strlike)
+    @typecheck_method(item=str)
     def _get_field(self, item):
         if item in self._fields:
             return self._fields[item]
@@ -293,10 +293,10 @@ class MatrixTable(object):
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
-    @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
-                                                        oneof(slice, Expression, tupleof(Expression)))))
+    @typecheck_method(item=oneof(str, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
+                                                    oneof(slice, Expression, tupleof(Expression)))))
     def __getitem__(self, item):
-        if isinstance(item, str) or isinstance(item, unicode):
+        if isinstance(item, str):
             return self._get_field(item)
         else:
             # this is the join path
@@ -511,7 +511,7 @@ class MatrixTable(object):
                               refs=LinkedList(tuple).push(
                                   *[(f.name, self._entry_indices) for f in self.entry_schema.fields]))
 
-    @typecheck_method(keys=oneof(strlike, Expression))
+    @typecheck_method(keys=oneof(str, Expression))
     def key_cols_by(self, *keys):
         """Key columns by a new set of fields.
 
@@ -541,7 +541,7 @@ class MatrixTable(object):
                 str_keys.append(k)
         return MatrixTable(self._jvds.keyColsBy(str_keys))
 
-    @typecheck_method(fields=oneof(strlike, Expression))
+    @typecheck_method(fields=oneof(str, Expression))
     def key_rows_by(self, *keys):
         """Key rows by a new set of fields.
 
@@ -835,11 +835,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified global fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
@@ -896,11 +896,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified row fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -961,11 +961,11 @@ class MatrixTable(object):
             MatrixTable with specified column fields.
         """
 
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -1020,11 +1020,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified entry fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
+        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -1041,7 +1041,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @handle_py4j
-    @typecheck_method(exprs=oneof(strlike, Expression))
+    @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
         """Drop fields.
 
@@ -1096,7 +1096,7 @@ class MatrixTable(object):
                     raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. 'foo', matrix.foo, or matrix['foo'])")
             else:
-                assert isinstance(e, str) or isinstance(str, unicode)
+                assert isinstance(e, str)
                 if e not in self._fields:
                     raise IndexError("matrix has no field '{}'".format(e))
                 fields_to_drop.add(e)
@@ -1590,7 +1590,7 @@ class MatrixTable(object):
         :class:MatrixTable`
             Matrix table exploded row-wise for each element of `field_expr`.
         """
-        if isinstance(field_expr, str) or isinstance(field_expr, unicode):
+        if isinstance(field_expr, str):
             if not field_expr in self._fields:
                 raise KeyError("MatrixTable has no field '{}'".format(field_expr))
             elif self._fields[field_expr]._indices != self._row_indices:
@@ -1638,7 +1638,7 @@ class MatrixTable(object):
             Matrix table exploded column-wise for each element of `field_expr`.
         """
 
-        if isinstance(field_expr, str) or isinstance(field_expr, unicode):
+        if isinstance(field_expr, str):
             if not field_expr in self._fields:
                 raise KeyError("MatrixTable has no field '{}'".format(field_expr))
             elif self._fields[field_expr]._indices != self._col_indices:
@@ -1683,7 +1683,7 @@ class MatrixTable(object):
         """
         groups = []
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 e = self[e]
             else:
                 e = to_expr(e)
@@ -1733,7 +1733,7 @@ class MatrixTable(object):
         """
         groups = []
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 e = self[e]
             else:
                 e = to_expr(e)
@@ -1809,9 +1809,9 @@ class MatrixTable(object):
         return r._1(), r._2()
 
     @handle_py4j
-    @typecheck_method(output=strlike,
+    @typecheck_method(output=str,
                       overwrite=bool,
-                      _codec_spec=nullable(strlike))
+                      _codec_spec=nullable(str))
     def write(self, output, overwrite=False, _codec_spec=None):
         """Write to disk.
 
@@ -2077,7 +2077,7 @@ class MatrixTable(object):
         print(s)
 
     @handle_py4j
-    @typecheck_method(order=listof(strlike))
+    @typecheck_method(order=listof(str))
     def reorder_columns(self, order):
         """Reorder columns.
 
@@ -2137,7 +2137,7 @@ class MatrixTable(object):
         return self._jvds.nPartitions()
 
     @handle_py4j
-    @typecheck_method(num_partitions=integral,
+    @typecheck_method(num_partitions=int,
                       shuffle=bool)
     def repartition(self, num_partitions, shuffle=True):
         """Increase or decrease the number of partitions.
@@ -2193,7 +2193,7 @@ class MatrixTable(object):
         return MatrixTable(jvds)
 
     @handle_py4j
-    @typecheck_method(max_partitions=integral)
+    @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions):
         """Naively decrease the number of partitions.
 
@@ -2303,7 +2303,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unpersist())
 
     @handle_py4j
-    @typecheck_method(name=strlike)
+    @typecheck_method(name=str)
     def index_rows(self, name='row_idx'):
         """Add the integer index of each row as a new row field.
 
@@ -2332,7 +2332,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.indexRows(name))
 
     @handle_py4j
-    @typecheck_method(name=strlike)
+    @typecheck_method(name=str)
     def index_cols(self, name='col_idx'):
         """Add the integer index of each column as a new column field.
 
@@ -2478,7 +2478,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unionCols(other._jvds))
 
     @handle_py4j
-    @typecheck_method(n=integral)
+    @typecheck_method(n=int)
     def head(self, n):
         """Subset matrix to first `n` rows.
 
@@ -2512,7 +2512,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.head(n))
 
     @handle_py4j
-    @typecheck_method(parts=listof(integral), keep=bool)
+    @typecheck_method(parts=listof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
@@ -2550,7 +2550,7 @@ class MatrixTable(object):
 
     @handle_py4j
     @typecheck_method(p=numeric,
-                      seed=integral)
+                      seed=int)
     def sample_rows(self, p, seed=0):
         """Downsample the matrix table by keeping each row with probability ``p``.
 

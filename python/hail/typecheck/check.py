@@ -1,5 +1,4 @@
-from decorator import decorator, getargspec
-from types import ClassType, NoneType, InstanceType
+from decorator import decorator
 import re
 import inspect
 
@@ -176,7 +175,7 @@ class CharChecker(TypeChecker):
         super(CharChecker, self).__init__()
 
     def check(self, x, caller, param):
-        if (isinstance(x, str) or isinstance(x, unicode)) and len(x) == 1:
+        if isinstance(x, str) and len(x) == 1:
             return x
         else:
             raise TypecheckFailure
@@ -223,12 +222,15 @@ class LazyChecker(TypeChecker):
 
 
 class ExactlyTypeChecker(TypeChecker):
-    def __init__(self, v):
+    def __init__(self, v, reference_equality=False):
         self.v = v
+        self.reference_equality = reference_equality
         super(ExactlyTypeChecker, self).__init__()
 
     def check(self, x, caller, param):
-        if x == self.v:
+        if self.reference_equality and x is self.v:
+            return x
+        elif not self.reference_equality and x == self.v:
             return x
         else:
             raise TypecheckFailure
@@ -272,7 +274,7 @@ class FunctionChecker(TypeChecker):
     def check(self, x, caller, param):
         if not callable(x):
             raise TypecheckFailure
-        spec = inspect.getargspec(x)
+        spec = inspect.getfullargspec(x)
         if not len(spec.args) == self.nargs:
             raise TypecheckFailure
 
@@ -296,12 +298,12 @@ class FunctionChecker(TypeChecker):
     def format(self, arg):
         if not callable(arg):
             return super(FunctionChecker, self).format(arg)
-        spec = inspect.getargspec(arg)
+        spec = inspect.getfullargspec(arg)
         return '{}-argument function'.format(len(spec.args))
 
 
 def only(t):
-    if isinstance(t, type) or type(t) is ClassType:
+    if isinstance(t, type):
         return LiteralChecker(t)
     elif isinstance(t, TypeChecker):
         return t
@@ -309,8 +311,8 @@ def only(t):
         raise RuntimeError("invalid typecheck signature: expected 'type' or 'TypeChecker', found '%s'" % type(t))
 
 
-def exactly(v):
-    return ExactlyTypeChecker(v)
+def exactly(v, reference_equality=False):
+    return ExactlyTypeChecker(v, reference_equality)
 
 
 def oneof(*args):
@@ -322,7 +324,7 @@ def enumeration(*args):
 
 
 def nullable(t):
-    return oneof(NoneType, t)
+    return oneof(exactly(None, reference_equality=True), t)
 
 
 def listof(t):
@@ -358,21 +360,14 @@ def transformed(*tcs):
 def lazy():
     return LazyChecker()
 
-
-none = only(NoneType)
-
 anytype = AnyChecker()
 
-strlike = oneof(str, unicode)
-
-integral = oneof(int, long)
-
-numeric = oneof(int, long, float)
+numeric = oneof(int, float)
 
 char = CharChecker()
 
 def check_all(f, args, kwargs, checks, is_method):
-    spec = getargspec(f)
+    spec = inspect.getfullargspec(f)
     name = f.__name__
 
     args_ = []

@@ -1,8 +1,7 @@
-from check import *
+from .check import *
 
 __all__ = ['typecheck',
            'typecheck_method',
-           'none',
            'anytype',
            'nullable',
            'listof',
@@ -11,8 +10,6 @@ __all__ = ['typecheck',
            'dictof',
            'setof',
            'oneof',
-           'strlike',
-           'integral',
            'numeric',
            'char',
            'lazy',

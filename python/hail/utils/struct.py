@@ -100,7 +100,7 @@ class Struct(Mapping):
             d[k] = v
         return Struct(**d)
 
-    @typecheck_method(fields=strlike, kwargs=anytype)
+    @typecheck_method(fields=str, kwargs=anytype)
     def select(self, *fields, **kwargs):
         """Select existing fields and compute new ones.
 
@@ -133,7 +133,7 @@ class Struct(Mapping):
             d[k] = v
         return Struct(**d)
 
-    @typecheck_method(args=strlike)
+    @typecheck_method(args=str)
     def drop(self, *args):
         """Drop fields from the struct.
 

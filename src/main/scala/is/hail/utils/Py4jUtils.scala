@@ -9,6 +9,7 @@ import is.hail.annotations.{Memory, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Locus, MatrixTable}
+import org.apache.commons.io.IOUtils
 
 import scala.collection.JavaConverters._
 
@@ -63,12 +64,8 @@ trait Py4jUtils {
 
   def makeDouble(d: Double): Double = d
 
-  def readFile(path: String, hc: HailContext): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
-    new HadoopPyReader(hc.hadoopConf.unsafeReader(path))
-  }
-
-  def readBinaryFile(path: String, hc: HailContext): HadoopPyBinaryReader = hc.hadoopConf.readFile(path) { in =>
-    new HadoopPyBinaryReader(hc.hadoopConf.unsafeReader(path))
+  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
+    new HadoopPyReader(hc.hadoopConf.unsafeReader(path), buffSize)
   }
 
   def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
@@ -117,37 +114,19 @@ trait Py4jUtils {
   def escapeIdentifier(s: String): String = prettyIdentifier(s)
 }
 
-class HadoopPyReader(in: InputStream) {
+class HadoopPyReader(in: InputStream, buffSize: Int) {
   var eof = false
 
-  def read(n: Int): String = {
-    val b = new Array[Byte](n)
-    val bytesRead = in.read(b, 0, n)
-    if (bytesRead < 0)
-      new String(new Array[Byte](0), "ISO-8859-1")
-    else if (bytesRead == n)
-      new String(b, "ISO-8859-1")
-    else
-      new String(b.slice(0, bytesRead), "ISO-8859-1")
-  }
-
-  def close() {
-    in.close()
-  }
-}
-
-class HadoopPyBinaryReader(in: InputStream) {
-  var eof = false
+  val buff = new Array[Byte](buffSize)
 
   def read(n: Int): Array[Byte] = {
-    val b = new Array[Byte](n)
-    val bytesRead = in.read(b, 0, n)
+    val bytesRead = in.read(buff, 0, math.min(n, buffSize))
     if (bytesRead < 0)
       new Array[Byte](0)
     else if (bytesRead == n)
-      b
+      buff
     else
-      b.slice(0, bytesRead)
+      buff.slice(0, bytesRead)
   }
 
   def close() {

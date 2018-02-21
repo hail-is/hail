@@ -31,7 +31,7 @@ asttype.set(AST)
 
 
 class Reference(AST):
-    @typecheck_method(name=strlike, top_level=bool)
+    @typecheck_method(name=str, top_level=bool)
     def __init__(self, name, top_level=False):
         self.name = name
         self.top_level = top_level
@@ -42,7 +42,7 @@ class Reference(AST):
 
 
 class UnaryOperation(AST):
-    @typecheck_method(parent=AST, operation=strlike)
+    @typecheck_method(parent=AST, operation=str)
     def __init__(self, parent, operation):
         self.parent = parent
         self.operation = operation
@@ -53,7 +53,7 @@ class UnaryOperation(AST):
 
 
 class BinaryOperation(AST):
-    @typecheck_method(left=AST, right=AST, operation=strlike)
+    @typecheck_method(left=AST, right=AST, operation=str)
     def __init__(self, left, right, operation):
         self.left = left
         self.right = right
@@ -65,7 +65,7 @@ class BinaryOperation(AST):
 
 
 class Select(AST):
-    @typecheck_method(parent=AST, selection=strlike)
+    @typecheck_method(parent=AST, selection=str)
     def __init__(self, parent, selection):
         self.parent = parent
         self.selection = selection
@@ -78,7 +78,7 @@ class Select(AST):
 
 
 class ApplyMethod(AST):
-    @typecheck_method(method=strlike, args=AST)
+    @typecheck_method(method=str, args=AST)
     def __init__(self, method, *args):
         self.method = method
         self.args = args
@@ -89,7 +89,7 @@ class ApplyMethod(AST):
 
 
 class ClassMethod(AST):
-    @typecheck_method(method=strlike, callee=AST, args=AST)
+    @typecheck_method(method=str, callee=AST, args=AST)
     def __init__(self, method, callee, *args):
         self.method = method
         self.callee = callee
@@ -101,7 +101,7 @@ class ClassMethod(AST):
 
 
 class LambdaClassMethod(AST):
-    @typecheck_method(method=strlike, lambda_var=strlike, callee=AST, rhs=AST, args=AST)
+    @typecheck_method(method=str, lambda_var=str, callee=AST, rhs=AST, args=AST)
     def __init__(self, method, lambda_var, callee, rhs, *args):
         self.method = method
         self.lambda_var = lambda_var
@@ -130,7 +130,7 @@ class Index(AST):
 
 
 class Literal(AST):
-    @typecheck_method(value=strlike)
+    @typecheck_method(value=str)
     def __init__(self, value):
         self.value = value
         super(Literal, self).__init__()
@@ -150,7 +150,7 @@ class ArrayDeclaration(AST):
 
 
 class StructDeclaration(AST):
-    @typecheck_method(keys=listof(strlike), values=listof(AST))
+    @typecheck_method(keys=listof(str), values=listof(AST))
     def __init__(self, keys, values):
         self.keys = keys
         self.values = values
@@ -161,7 +161,7 @@ class StructDeclaration(AST):
 
 
 class StructOp(AST):
-    @typecheck_method(operation=strlike, parent=AST, keys=strlike)
+    @typecheck_method(operation=str, parent=AST, keys=str)
     def __init__(self, operation, parent, *keys):
         self.operation = operation
         self.parent = parent
@@ -200,7 +200,7 @@ class Slice(AST):
                                       end=self.stop.to_hql() if self.stop else '')
 
 class Bind(AST):
-    @typecheck_method(uid=strlike, definition=AST, expression=AST)
+    @typecheck_method(uid=str, definition=AST, expression=AST)
     def __init__(self, uid, definition, expression):
         self.uid = uid
         self.definition = definition
@@ -216,7 +216,7 @@ class Bind(AST):
 
 
 class RegexMatch(AST):
-    @typecheck_method(string=AST, regex=strlike)
+    @typecheck_method(string=AST, regex=str)
     def __init__(self, string, regex):
         self.string = string
         self.regex = regex
@@ -231,7 +231,7 @@ class AggregableReference(AST):
         self.is_set = False
         super(AggregableReference, self).__init__()
 
-    @typecheck_method(identifier=strlike)
+    @typecheck_method(identifier=str)
     def set(self, identifier):
         assert not self.is_set
         self.is_set = True
@@ -267,7 +267,7 @@ def rewrite_global_refs(ast, target):
     for a in ast.search(lambda a: isinstance(a, GlobalJoinReference)):
         a.set(target)
 
-@typecheck(ast=AST, identifier=strlike)
+@typecheck(ast=AST, identifier=str)
 def replace_aggregables(ast, identifier):
     for a in ast.search(lambda a: isinstance(a, AggregableReference)):
         a.set(identifier)

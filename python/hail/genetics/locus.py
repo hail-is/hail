@@ -17,8 +17,8 @@ class Locus(HistoryMixin):
 
     @handle_py4j
     @record_init
-    @typecheck_method(contig=oneof(strlike, integral),
-                      position=integral,
+    @typecheck_method(contig=oneof(str, int),
+                      position=int,
                       reference_genome=nullable(GenomeReference))
     def __init__(self, contig, position, reference_genome=None):
         if isinstance(contig, int):
@@ -58,7 +58,7 @@ class Locus(HistoryMixin):
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(string=strlike,
+    @typecheck_method(string=str,
                       reference_genome=nullable(GenomeReference))
     def parse(cls, string, reference_genome=None):
         """Parses a locus object from a CHR:POS string.

@@ -1,4 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
@@ -15,7 +14,7 @@ def _to_agg(x):
         return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins, x._refs)
 
 
-@typecheck(name=strlike, aggregable=Aggregable, ret_type=Type, args=anytype)
+@typecheck(name=str, aggregable=Aggregable, ret_type=Type, args=anytype)
 def _agg_func(name, aggregable, ret_type, *args):
     args = [to_expr(a) for a in args]
     indices, aggregations, joins, refs = unify_all(aggregable, *args)
@@ -205,7 +204,7 @@ def counter(expr):
     agg = _to_agg(expr)
     return _agg_func('counter', agg, tdict(agg._type, tint64))
 
-@typecheck(expr=oneof(Aggregable, expr_any), n=integral, ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
+@typecheck(expr=oneof(Aggregable, expr_any), n=int, ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
 def take(expr, n, ordering=None):
     """Take `n` records of `expr`, optionally ordered by `ordering`.
 

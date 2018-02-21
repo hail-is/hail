@@ -37,12 +37,12 @@ String hailVersion = "devel"
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt")
 String gitHash = exec {commandLine 'git', 'rev-parse', '--short=12', 'HEAD'}
 
-String sparkVersion = System.getProperty("spark.version", "2.0.2")
+String sparkVersion = System.getProperty("spark.version", "2.2.0")
 String breezeVersion = System.getProperty("breeze.version")
 String py4jVersion = System.getProperty("py4j.version")
 
 if (!(sparkVersion ==~ /^2\..*/))
-    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.0.2.')
+    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.2.0.')
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
@@ -52,16 +52,6 @@ if (sparkVersion == '2.2.0') {
       py4jVersion = '0.10.4'
     if (breezeVersion == null)
       breezeVersion = '0.13.1'
-} else if (sparkVersion == '2.1.0') {
-    if (py4jVersion == null)
-      py4jVersion = '0.10.4'
-    if (breezeVersion == null)
-      breezeVersion = '0.12'
-} else if (sparkVersion == '2.0.2') {
-    if (py4jVersion == null)
-      py4jVersion = '0.10.3'
-    if (breezeVersion == null)
-      breezeVersion = '0.11.2'
 } else {
   if (breezeVersion == null || py4jVersion == null)
     ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
@@ -217,7 +207,7 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python', '-m', 'unittest', 'hail.tests', 'hail.typecheck.tests', 'hail.genetics.tests', 'hail.expr.tests', 'hail.utils.tests', 'hail.methods.tests'
+     commandLine 'python3', '-m', 'unittest', 'hail.tests', 'hail.typecheck.tests', 'hail.genetics.tests', 'hail.expr.tests', 'hail.utils.tests', 'hail.methods.tests'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'

@@ -7,8 +7,8 @@ Getting Started
 You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
-- `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
-- Python 2.7 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
+- `Spark 2.2.0 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
+- Python 3.6 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------
 Running Hail locally with a pre-compiled distribution
@@ -65,10 +65,10 @@ ready-to-use JARs for Google Cloud Dataproc, see
 For all other Spark clusters, you will need to build Hail from the source code.
 
 Hail should be built on the master node of the Spark cluster with the following
-command, replacing ``2.0.2`` with the version of Spark available on your
+command, replacing ``2.2.0`` with the version of Spark available on your
 cluster::
 
-    ./gradlew -Dspark.version=2.0.2 shadowJar archiveZip
+    ./gradlew -Dspark.version=2.2.0 shadowJar archiveZip
 
 An IPython shell which can run Hail backed by the cluster can be started with
 the following command, it is important that the Spark located at ``SPARK_HOME``
@@ -79,15 +79,14 @@ has the exact same version as provided to the previous command::
     PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip" \
     ipython
 
-Within the interactive shell, check that you can create a
-``HailContext`` by running the following commands. Note that you have to pass in
-the existing ``SparkContext`` instance ``sc`` to the ``HailContext``
-constructor.
+Within the interactive shell, check that you can initialize Hail by running the
+following commands. Note that you must pass in the existing ``SparkContext``
+instance ``sc`` to the ``hail.init`` function.
 
   .. code-block:: python
 
-    >>> from hail import *
-    >>> hc = HailContext(sc)
+    >>> import hail as hl
+    >>> hl.init(sc)
     
 Files can be accessed from both Hadoop and Google Storage. If you're running on Google's Dataproc, you'll want to store your files in Google Storage. In most on premises clusters, you'll want to store your files in Hadoop.
 
@@ -95,13 +94,13 @@ To convert *sample.vcf* stored in Google Storage into Hail's **.vds** format, ru
 
   .. code-block:: python
 
-    >>> hc.import_vcf('gs:///path/to/sample.vcf').write('gs:///output/path/sample.vds')
+    >>> hl.import_vcf('gs:///path/to/sample.vcf').write('gs:///output/path/sample.vds')
     
 To convert *sample.vcf* stored in Hadoop into Hail's **.vds** format, run:
 
    .. code-block:: python
 
-    >>> hc.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
+    >>> hl.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
 
 It is also possible to run Hail non-interactively, by passing a Python script to
 ``spark-submit``. In this case, it is not necessary to set any environment
@@ -119,9 +118,8 @@ runs the script `hailscript.py` (which reads and writes files from Hadoop):
 
 .. code-block:: python
 
-    import hail
-    hc = hail.HailContext()
-    hc.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
+    import hail as hl
+    hl.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
 
 .. _running-on-a-cloudera-cluster:
 
@@ -179,16 +177,16 @@ Building with other versions of Spark 2
 =======================================
 
 Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.2.0, modify the above
+different version, such as Spark 2.2.1, modify the above
 instructions as follows:
 
  - Set the Spark version in the gradle command
 
    .. code-block:: text
 
-      ./gradlew -Dspark.version=2.2.0 shadowJar
+      ./gradlew -Dspark.version=2.2.1 shadowJar
 
- - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.2.0-bin-hadoop2.7*
+ - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.2.1-bin-hadoop2.7*
 
  - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 

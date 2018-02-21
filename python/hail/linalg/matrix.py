@@ -62,8 +62,8 @@ class BlockMatrix(object):
     @classmethod
     @handle_py4j
     @typecheck_method(entry_expr=expr_numeric,
-                      path=nullable(strlike),
-                      block_size=nullable(integral))
+                      path=nullable(str),
+                      block_size=nullable(int))
     def from_matrix_table(cls, entry_expr, path=None, block_size=None):
         if not path:
             path = new_temp_file(suffix="bm")
@@ -106,23 +106,23 @@ class BlockMatrix(object):
         return self._jbm.blockSize()
 
     @handle_py4j
-    @typecheck_method(path=strlike)
+    @typecheck_method(path=str)
     def write(self, path):
         self._jbm.write(path)
 
     @handle_py4j
-    @typecheck_method(cols_to_keep=listof(integral))
+    @typecheck_method(cols_to_keep=listof(int))
     def filter_cols(self, cols_to_keep):
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
     @handle_py4j
-    @typecheck_method(rows_to_keep=listof(integral))
+    @typecheck_method(rows_to_keep=listof(int))
     def filter_rows(self, rows_to_keep):
         return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
     @handle_py4j
-    @typecheck_method(rows_to_keep=listof(integral),
-                      cols_to_keep=listof(integral))
+    @typecheck_method(rows_to_keep=listof(int),
+                      cols_to_keep=listof(int))
     def filter(self, rows_to_keep, cols_to_keep):
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
@@ -203,7 +203,7 @@ class BlockMatrix(object):
 
     @handle_py4j
     @typecheck_method(i=numeric)
-    def __div__(self, i):
+    def __truediv__(self, i):
         return self * (1. / i)
 
 

@@ -1,5 +1,3 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
@@ -11,7 +9,7 @@ from collections import Mapping
 
 
 class Indices(object):
-    @typecheck_method(source=anytype, axes=setof(strlike))
+    @typecheck_method(source=anytype, axes=setof(str))
     def __init__(self, source=None, axes=set()):
         self.source = source
         self.axes = axes
@@ -70,7 +68,7 @@ def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggrega
         raise NotImplementedError(type)
 
 
-@typecheck(name=strlike, type=Type, indices=Indices, prefix=nullable(strlike))
+@typecheck(name=str, type=Type, indices=Indices, prefix=nullable(str))
 def construct_reference(name, type, indices, prefix=None):
     if prefix is not None:
         ast = Select(Reference(prefix, True), name)
@@ -87,14 +85,13 @@ def to_expr(e):
                                   "    These methods produce 'Aggregable' objects that can only be aggregated\n"
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
-    elif isinstance(e, str) or isinstance(e, unicode):
+    elif isinstance(e, str):
         return construct_expr(Literal('"{}"'.format(escape_str(e))), tstr)
     elif isinstance(e, bool):
         return construct_expr(Literal("true" if e else "false"), tbool)
     elif isinstance(e, int):
+        # FIXME: check int size and use int32 / int64 / error as needed
         return construct_expr(Literal(str(e)), tint32)
-    elif isinstance(e, long):
-        return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), tint64)
     elif isinstance(e, float):
         return construct_expr(Literal(str(e)), tfloat64)
     elif isinstance(e, Locus):
@@ -199,9 +196,9 @@ _lazy_call = lazy()
 _lazy_expr = lazy()
 
 expr_int32 = transformed((_lazy_int32, identity),
-                         (integral, to_expr))
+                         (int, to_expr))
 expr_numeric = transformed((_lazy_numeric, identity),
-                           (integral, to_expr),
+                           (int, to_expr),
                            (float, to_expr))
 expr_array = transformed((list, to_expr),
                          (_lazy_array, identity))
@@ -213,7 +210,7 @@ expr_bool = transformed((bool, to_expr),
                         (_lazy_bool, identity))
 expr_struct = transformed((Struct, to_expr),
                           (_lazy_struct, identity))
-expr_str = transformed((strlike, to_expr),
+expr_str = transformed((str, to_expr),
                        (_lazy_string, identity))
 expr_locus = transformed((Locus, to_expr),
                          (_lazy_locus, identity))
@@ -308,7 +305,7 @@ class Expression(object):
         if (len(sources.keys()) > 1):
             raise FatalError("verify: too many sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
-        if (len(sources.keys()) != 0 and sources.keys()[0] != self._indices.source):
+        if (len(sources.keys()) != 0 and next(iter(sources.keys())) != self._indices.source):
             raise FatalError("verify: incompatible sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
     @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
@@ -446,6 +443,9 @@ class Expression(object):
 
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
+
+    def __hash__(self):
+        return super(Expression, self).__hash__()
 
     def __eq__(self, other):
         """Returns ``True`` if the two expressions are equal.
@@ -1092,7 +1092,7 @@ class ArrayNumericExpression(ArrayExpression):
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         """Positionally divide by an array or a scalar.
 
         Examples
@@ -1127,7 +1127,7 @@ class ArrayNumericExpression(ArrayExpression):
 
         return self._bin_op_numeric("/", other, ret_type_f)
 
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         def ret_type_f(t):
             assert isinstance(t, TArray)
             assert is_numeric(t.element_type)
@@ -1698,7 +1698,7 @@ class StructExpression(Mapping, Expression):
     def __len__(self):
         return len(self._fields)
 
-    @typecheck_method(item=strlike)
+    @typecheck_method(item=str)
     def __getitem__(self, item):
         """Access a field of the struct.
 
@@ -1781,7 +1781,7 @@ class StructExpression(Mapping, Expression):
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
                               indices, aggregations, joins, refs)
 
-    @typecheck_method(fields=strlike, named_exprs=expr_any)
+    @typecheck_method(fields=str, named_exprs=expr_any)
     def select(self, *fields, **named_exprs):
         """Select existing fields and compute new ones.
 
@@ -1841,7 +1841,7 @@ class StructExpression(Mapping, Expression):
         return construct_expr(ApplyMethod('merge', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
                               result_type, indices, joins, aggregations, refs)
 
-    @typecheck_method(fields=strlike)
+    @typecheck_method(fields=str)
     def drop(self, *fields):
         """Drop fields from the struct.
 
@@ -2295,7 +2295,7 @@ class NumericExpression(AtomicExpression):
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         """Divide two numbers.
 
         Examples
@@ -2329,7 +2329,7 @@ class NumericExpression(AtomicExpression):
 
         return self._bin_op_numeric("/", other, ret_type_f)
 
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         def ret_type_f(t):
             assert is_numeric(t)
             if isinstance(t, TInt32) or isinstance(t, TInt64):
@@ -2670,7 +2670,7 @@ class StringExpression(AtomicExpression):
         else:
             return self._method("split", tarray(tstr), delim, n)
 
-    @typecheck_method(regex=strlike)
+    @typecheck_method(regex=str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
 
@@ -3368,9 +3368,9 @@ class ExpressionWarning(Warning):
         super(ExpressionWarning, self).__init__(msg)
 
 
-@typecheck(caller=strlike, expr=Expression,
+@typecheck(caller=str, expr=Expression,
            expected_indices=Indices,
-           aggregation_axes=setof(strlike))
+           aggregation_axes=setof(str))
 def analyze(caller, expr, expected_indices, aggregation_axes=set()):
     indices = expr._indices
     source = indices.source

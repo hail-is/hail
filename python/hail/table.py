@@ -24,14 +24,14 @@ class Descending(object):
         return scala_package_object(Env.hail().table).desc(self.col)
 
 
-@typecheck(col=oneof(Expression, strlike))
+@typecheck(col=oneof(Expression, str))
 def asc(col):
     """Sort by `col` ascending."""
 
     return Ascending(col)
 
 
-@typecheck(col=oneof(Expression, strlike))
+@typecheck(col=oneof(Expression, str))
 def desc(col):
     """Sort by `col` descending."""
 
@@ -138,7 +138,7 @@ class GroupedTable(TableTemplate):
             self._set_field(fd, parent._fields[fd])
 
     @handle_py4j
-    @typecheck_method(n=integral)
+    @typecheck_method(n=int)
     def partition_hint(self, n):
         """Set the target number of partitions for aggregation.
 
@@ -207,7 +207,7 @@ class GroupedTable(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        base, cleanup = self._parent._process_joins(*([v for _, v in self._groups] + named_exprs.values()))
+        base, cleanup = self._parent._process_joins(*itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
@@ -313,9 +313,9 @@ class Table(TableTemplate):
         for fd in self.schema.fields:
             self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._row_indices))
 
-    @typecheck_method(item=oneof(strlike, Expression, slice, tupleof(Expression)))
+    @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
-        if isinstance(item, str) or isinstance(item, unicode):
+        if isinstance(item, str):
             return self._get_field(item)
         elif isinstance(item, slice):
             s = item
@@ -376,10 +376,10 @@ class Table(TableTemplate):
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
+    @typecheck_method(rows=oneof(listof(Struct), listof(dictof(str, anytype))),
                       schema=TStruct,
-                      key=oneof(strlike, listof(strlike)),
-                      num_partitions=nullable(integral))
+                      key=oneof(str, listof(str)),
+                      num_partitions=nullable(int))
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
         return Table(
             Env.hail().table.Table.parallelize(
@@ -387,7 +387,7 @@ class Table(TableTemplate):
                 schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
     @handle_py4j
-    @typecheck_method(keys=oneof(strlike, Expression))
+    @typecheck_method(keys=oneof(str, Expression))
     def key_by(self, *keys):
         """Change which columns are keys.
 
@@ -510,7 +510,7 @@ class Table(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -639,7 +639,6 @@ class Table(TableTemplate):
             analyze('Table.annotate', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
 
     @handle_py4j
@@ -698,7 +697,7 @@ class Table(TableTemplate):
         return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
 
     @handle_py4j
-    @typecheck_method(exprs=oneof(Expression, strlike),
+    @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
     def select(self, *exprs, **named_exprs):
         """Select existing fields or create new fields by name, dropping the rest.
@@ -784,7 +783,7 @@ class Table(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
+        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -801,7 +800,7 @@ class Table(TableTemplate):
         return cleanup(Table(base._jt.select(strs, False)))
 
     @handle_py4j
-    @typecheck_method(exprs=oneof(strlike, Expression))
+    @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
         """Drop fields from the table.
 
@@ -848,7 +847,7 @@ class Table(TableTemplate):
                     raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. table['foo'])")
             else:
-                assert isinstance(e, str) or isinstance(e, unicode)
+                assert isinstance(e, str)
                 if e not in self._fields:
                     raise IndexError("table has no field '{}'".format(e))
                 fields_to_drop.add(e)
@@ -995,7 +994,7 @@ class Table(TableTemplate):
         """
         groups = []
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 e = self[e]
             else:
                 e = to_expr(e)
@@ -1054,9 +1053,9 @@ class Table(TableTemplate):
         return annotations[0]
 
     @handle_py4j
-    @typecheck_method(output=strlike,
+    @typecheck_method(output=str,
                       overwrite=bool,
-                      _codec_spec=nullable(strlike))
+                      _codec_spec=nullable(str))
     def write(self, output, overwrite=False, _codec_spec=None):
         """Write to disk.
 
@@ -1084,7 +1083,7 @@ class Table(TableTemplate):
         self._jt.write(output, overwrite, _codec_spec)
 
     @handle_py4j
-    @typecheck_method(n=integral, width=integral, truncate=nullable(integral), types=bool)
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
     def show(self, n=10, width=90, truncate=None, types=True):
         """Print the first few rows of the table to the console.
 
@@ -1308,8 +1307,8 @@ class Table(TableTemplate):
 
     @classmethod
     @handle_py4j
-    @typecheck_method(n=integral,
-                      num_partitions=nullable(integral))
+    @typecheck_method(n=int,
+                      num_partitions=nullable(int))
     def range(cls, n, num_partitions=None):
         """Construct a table with `n` rows and one field `idx` that ranges from
         0 to ``n - 1``.
@@ -1478,7 +1477,7 @@ class Table(TableTemplate):
         print(s)
 
     @handle_py4j
-    @typecheck_method(name=strlike)
+    @typecheck_method(name=str)
     def index(self, name='idx'):
         """Add the integer index of each row as a new row field.
 
@@ -1563,7 +1562,7 @@ class Table(TableTemplate):
         return Table(self._jt.union([table._jt for table in tables]))
 
     @handle_py4j
-    @typecheck_method(n=integral)
+    @typecheck_method(n=int)
     def take(self, n):
         """Collect the first `n` rows of the table into a local list.
 
@@ -1602,7 +1601,7 @@ class Table(TableTemplate):
         return [self.schema._convert_to_py(r) for r in self._jt.take(n)]
 
     @handle_py4j
-    @typecheck_method(n=integral)
+    @typecheck_method(n=int)
     def head(self, n):
         """Subset table to first `n` rows.
 
@@ -1637,7 +1636,7 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(p=numeric,
-                      seed=integral)
+                      seed=int)
     def sample(self, p, seed=0):
         """Downsample the table by keeping each row with probability ``p``.
 
@@ -1667,7 +1666,7 @@ class Table(TableTemplate):
         return Table(self._jt.sample(p, seed))
 
     @handle_py4j
-    @typecheck_method(n=integral,
+    @typecheck_method(n=int,
                       shuffle=bool)
     def repartition(self, n, shuffle=True):
         """Change the number of distributed partitions.
@@ -1816,7 +1815,7 @@ class Table(TableTemplate):
         return base._jt.exists(expr._ast.to_hql())
 
     @handle_py4j
-    @typecheck_method(mapping=dictof(strlike, strlike))
+    @typecheck_method(mapping=dictof(str, str))
     def rename(self, mapping):
         """Rename fields of the table.
 
@@ -1933,7 +1932,7 @@ class Table(TableTemplate):
         return Table(self._jt.flatten())
 
     @handle_py4j
-    @typecheck_method(exprs=oneof(strlike, Expression, Ascending, Descending))
+    @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
         """Sort by the specified columns.
 
@@ -1968,7 +1967,7 @@ class Table(TableTemplate):
         sort_cols = []
         fields_rev = {v: k for k, v in self._fields.items()}
         for e in exprs:
-            if isinstance(e, str) or isinstance(e, unicode):
+            if isinstance(e, str):
                 expr = self[e]
                 if not expr._indices == self._row_indices:
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
@@ -1981,7 +1980,7 @@ class Table(TableTemplate):
                 sort_cols.append(asc(fields_rev[e])._j_obj())
             else:
                 assert isinstance(e, Ascending) or isinstance(e, Descending)
-                if isinstance(e.col, str) or isinstance(e.col, unicode):
+                if isinstance(e.col, str):
                     expr = self[e.col]
                     if not expr._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
@@ -1996,7 +1995,7 @@ class Table(TableTemplate):
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
     @handle_py4j
-    @typecheck_method(field=oneof(strlike, Expression))
+    @typecheck_method(field=oneof(str, Expression))
     def explode(self, field):
         """Explode rows along a top-level field of the table.
 

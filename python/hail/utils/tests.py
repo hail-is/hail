@@ -1,10 +1,9 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 import unittest
 
 from hail.utils import *
 from .linkedlist import LinkedList
 import hail as hl
+from hail.utils.misc import test_file
 
 def setUpModule():
     hl.init(master='local[2]', min_block_size=0)
@@ -44,7 +43,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(data, data4)
 
-        with hadoop_read('src/test/resources/randomBytes', buffer_size=100) as f:
+        with hadoop_read(test_file('randomBytes'), buffer_size=100) as f:
             with hadoop_write('/tmp/randomBytesOut', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)

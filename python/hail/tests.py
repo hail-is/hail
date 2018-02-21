@@ -1,8 +1,6 @@
 """
 Unit tests for Hail.
 """
-from __future__ import print_function  # Python 2 and 3 print compatibility
-
 import unittest
 import random
 import hail as hl
@@ -28,13 +26,13 @@ def schema_eq(x, y):
 
 def convert_struct_to_dict(x):
     if isinstance(x, hl.Struct):
-        return {k: convert_struct_to_dict(v) for k, v in x._fields.iteritems()}
+        return {k: convert_struct_to_dict(v) for k, v in x._fields.items()}
     elif isinstance(x, list):
         return [convert_struct_to_dict(elt) for elt in x]
     elif isinstance(x, tuple):
         return tuple([convert_struct_to_dict(elt) for elt in x])
     elif isinstance(x, dict):
-        return {k: convert_struct_to_dict(v) for k, v in x.iteritems()}
+        return {k: convert_struct_to_dict(v) for k, v in x.items()}
     else:
         return x
 
@@ -226,14 +224,14 @@ class TableTests(unittest.TestCase):
                            ).take(1)[0])
 
         expected = {u'status': 0,
-                    u'x13': {u'n_called': 2L, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
-                             u'observed_homs': 1L},
+                    u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
+                             u'observed_homs': 1},
                     u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
                     u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
-                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'nNotMissing': 2L, u'mean': 8.0},
-                    u'x8': 1L, u'x9': 0.0, u'x16': u'apple',
+                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'nNotMissing': 2, u'mean': 8.0},
+                    u'x8': 1, u'x9': 0.0, u'x16': u'apple',
                     u'x11': {u'rExpectedHetFrequency': 0.5, u'pHWE': 0.5},
-                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39L, u'x7': 2L, u'x4': 13, u'x5': 16}
+                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16}
 
         self.assertDictEqual(result, expected)
 
@@ -841,29 +839,37 @@ class ColumnTests(unittest.TestCase):
         self.assertDictEqual(result, expected)
 
     def test_numeric_conversion(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint64])
-        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': long(5)}]
+        schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
+        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
+        kt = kt.annotate(d = kt.d.to_int64())
 
-        kt = kt.annotate(x1=[1.0, kt.a, 1, long(1)],
+        kt = kt.annotate(x1=[1.0, kt.a, 1],
                          x2=[1, 1.0],
                          x3=[kt.a, kt.c],
                          x4=[kt.c, kt.d],
-                         x5=[1, kt.c, long(1)])
+                         x5=[1, kt.c])
 
-        expected_schema = {'a': hl.tfloat64, 'b': hl.tfloat64, 'c': hl.tint32, 'd': hl.tint64,
-                           'x1': hl.tarray(hl.tfloat64), 'x2': hl.tarray(hl.tfloat64),
+        expected_schema = {'a': hl.tfloat64,
+                           'b': hl.tfloat64,
+                           'c': hl.tint32,
+                           'd': hl.tint64,
+                           'x1': hl.tarray(hl.tfloat64),
+                           'x2': hl.tarray(hl.tfloat64),
                            'x3': hl.tarray(hl.tfloat64),
-                           'x4': hl.tarray(hl.tint64), 'x5': hl.tarray(hl.tint64)}
+                           'x4': hl.tarray(hl.tint64),
+                           'x5': hl.tarray(hl.tint32)}
 
-        self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))
+        for fd in kt.schema.fields:
+            self.assertEqual(expected_schema[fd.name], fd.typ)
 
     def test_constructors(self):
         rg = hl.GenomeReference("foo", ["1"], {"1": 100})
 
-        schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint64])
-        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': long(5)}]
+        schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
+        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
+        kt = kt.annotate(d = kt.d.to_int64())
 
         kt = kt.annotate(l1=hl.parse_locus("1:51"),
                          l2=hl.locus("1", 51, reference_genome=rg),
