@@ -203,12 +203,12 @@ def filter_intervals(ds, intervals, keep=True):
 
     Filter to loci falling within one interval:
 
-    >>> ds_result = hl.filter_intervals(dataset, Interval.parse('17:38449840-38530994'))
+    >>> ds_result = hl.filter_intervals(dataset, hl.Interval.parse('17:38449840-38530994'))
 
     Remove all loci within list of intervals:
 
-    >>> intervals = [Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
-    >>> ds_result = vds.filter_intervals(intervals)
+    >>> intervals = [hl.Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
+    >>> ds_result = hl.filter_intervals(dataset, intervals)
 
     Notes
     -----
@@ -220,7 +220,7 @@ def filter_intervals(ds, intervals, keep=True):
     intervals are left-inclusive, and right-exclusive; the below interval
     includes the locus ``15:100000`` but not ``15:101000``.
 
-    >>> interval = Interval.parse('15:100000-101000')
+    >>> interval = hl.Interval.parse('15:100000-101000')
 
     When ``keep=True``, partitions that don't overlap any supplied interval
     will not be loaded at all.  This enables ``filter_intervals`` to be used for
