@@ -223,7 +223,7 @@ def filter_intervals(ds, intervals, keep=True):
     >>> interval = hl.Interval.parse('15:100000-101000')
 
     When ``keep=True``, partitions that don't overlap any supplied interval
-    will not be loaded at all.  This enables :func:`filter_intervals`` to be
+    will not be loaded at all.  This enables :func:`.filter_intervals` to be
     used for reasonably low-latency queries of small ranges of the genome, even
     on large datasets.
 
