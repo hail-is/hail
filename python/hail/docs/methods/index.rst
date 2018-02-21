@@ -26,8 +26,9 @@ Methods
     import_fam
     import_gen
     import_interval_list
-    import_plink
     import_matrix_table
+    import_plink
+    import_table
     import_vcf
     read_matrix_table
     read_table
