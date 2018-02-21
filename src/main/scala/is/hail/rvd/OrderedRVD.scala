@@ -258,18 +258,14 @@ class OrderedRVD private(
       }
     }
       .toSet // distinct
-      .toArray.sorted[Int]
+      .toArray[Int].sorted[Int]
 
     info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
 
     if (newPartitionIndices.isEmpty)
       OrderedRVD.empty(sparkContext, typ)
     else {
-      val newRDD = new AdjustedPartitionsRDD(rdd, newPartitionIndices.map(i => Array(Adjustment(i, (it: Iterator[RegionValue]) => it.filter(pred)))))
-      OrderedRVD(typ,
-        partitioner.copy(numPartitions = newPartitionIndices.length,
-          rangeBounds = UnsafeIndexedSeq(partitioner.rangeBoundsType, newPartitionIndices.map(partitioner.rangeBounds))),
-        newRDD)
+      subsetPartitions(newPartitionIndices).copy(rdd = rdd.filter(pred))
     }
   }
 
