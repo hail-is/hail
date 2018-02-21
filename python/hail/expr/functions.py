@@ -298,6 +298,8 @@ def bind(expr, f):
 
     f_input = construct_expr(Reference(uid), expr._type, expr._indices, expr._aggregations, expr._joins, expr._refs)
     lambda_result = to_expr(f(f_input))
+    if not lambda_result._aggregations.empty():
+        raise ExpressionException("aggregators may not be used inside lambda functions")
 
     indices, aggregations, joins, refs = unify_all(expr, lambda_result)
     ast = Bind(uid, expr._ast, lambda_result._ast)

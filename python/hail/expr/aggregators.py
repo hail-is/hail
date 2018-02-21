@@ -349,6 +349,9 @@ def take(expr, n, ordering=None):
             lambda_result = to_expr(
                 ordering(construct_expr(Reference(uid), agg._type, agg._indices,
                                         agg._aggregations, agg._joins, agg._refs)))
+            if not lambda_result._aggregations.empty():
+                raise ExpressionException("aggregators may not be used inside lambda functions")
+
         else:
             lambda_result = ordering
         indices, aggregations, joins, refs = unify_all(agg, lambda_result)
@@ -807,6 +810,8 @@ def filter(condition, expr):
         lambda_result = to_expr(
             condition(
                 construct_expr(Reference(uid), agg._type, agg._indices, agg._aggregations, agg._joins, agg._refs)))
+        if not lambda_result._aggregations.empty():
+            raise ExpressionException("aggregators may not be used inside lambda functions")
     else:
         lambda_result = to_expr(condition)
 
