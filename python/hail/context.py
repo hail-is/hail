@@ -2,7 +2,7 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.genetics.genomeref import GenomeReference
-from hail.typecheck import nullable, str, int, typecheck, typecheck_method, enumeration
+from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger
 

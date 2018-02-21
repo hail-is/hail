@@ -3,7 +3,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
 from hail.utils import wrap_to_list
-from hail.typecheck.check import typecheck, str
+from hail.typecheck.check import typecheck
 from hail.expr.expression import *
 from hail.expr.ast import Reference
 
