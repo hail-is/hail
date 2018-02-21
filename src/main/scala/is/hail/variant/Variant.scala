@@ -73,9 +73,32 @@ object Variant {
     Variant(contig, elts(size - 3).toInt, elts(size - 2), elts(size - 1).split(","), gr)
   }
 
+  def fromRegionValue(r: Region, offset: Long): Variant = {
+    val t = TVariant.representation()
+    val altsType = t.fieldType(3).asInstanceOf[TArray]
+
+    val contig = TString.loadString(r, t.loadField(r, offset, 0))
+    val pos = r.loadInt(t.loadField(r, offset, 1))
+    val ref = TString.loadString(r, t.loadField(r, offset, 2))
+
+    val altsOffset = t.loadField(r, offset, 3)
+    val nAlts = altsType.loadLength(r, altsOffset)
+    val altArray = new Array[AltAllele](nAlts)
+    var i = 0
+    while (i < nAlts) {
+      val o = altsType.loadElement(r, altsOffset, nAlts, i)
+      altArray(i) = AltAllele.fromRegionValue(r, o)
+      i += 1
+    }
+    Variant(contig, pos, ref, altArray)
+  }
+
+  def fromRegionValue(rv: RegionValue): Variant =
+    fromRegionValue(rv.region, rv.offset)
+
   def variantID(contig: String, start: Int, alleles: IndexedSeq[String]): String = {
     require(alleles.length >= 2)
-    s"$contig:$start:${ alleles(0) }:${ alleles.tail.mkString(",") }"
+    s"$contig:$start:${alleles(0)}:${alleles.tail.mkString(",")}"
   }
 
   def variantID(view: RegionValueVariant): String = variantID(view.contig(), view.position(), view.alleles())
@@ -145,10 +168,6 @@ object VariantSubgen {
 
   def fromGenomeRef(gr: GenomeReference): VariantSubgen =
     random.copy(contigGen = Contig.gen(gr))
-
-  def locusAllelesType(gr: GenomeReference): TStruct =
-    TStruct("locus" -> TLocus(gr),
-      "alleles" -> TArray(TString()))
 }
 
 case class VariantSubgen(
@@ -167,21 +186,9 @@ case class VariantSubgen(
         altGen)
         .filter(!_.contains(ref))) yield
       Variant(contig, start, ref, altAlleles.map(alt => AltAllele(ref, alt)))
-
-  def genLocusAlleles: Gen[Annotation] =
-    for {
-      (contig, length) <- contigGen;
-      start <- Gen.choose(1, length);
-      nAlleles <- nAllelesGen;
-      ref <- refGen;
-      altAlleles <- Gen.distinctBuildableOfN[Array](nAlleles - 1, altGen)
-        .filter(_ == ref)
-    } yield
-      Annotation(Locus(contig, start), Array(ref) ++ altAlleles)
 }
 
-trait IVariant {
-  self =>
+trait IVariant { self =>
   def contig(): String
 
   def start(): Int

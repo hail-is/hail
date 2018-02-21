@@ -415,7 +415,7 @@ object VSMSubgen {
   val random = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = GenomeReference.gen.map(VariantSubgen.locusAllelesType),
+    vSigGen = GenomeReference.gen.map(TVariant(_)),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(Genotype.htsGenotypeType),
@@ -423,9 +423,7 @@ object VSMSubgen {
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genNonmissingValue,
-    vGen = (t: Type) =>
-      VariantSubgen.fromGenomeRef(t.asInstanceOf[TStruct].fieldByName("locus").asInstanceOf[TLocus].gr.asInstanceOf[GenomeReference])
-        .genLocusAlleles,
+    vGen = (t: Type) => t.genNonmissingValue,
     tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant]))
 
   val plinkSafeBiallelic = random.copy(
