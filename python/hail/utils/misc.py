@@ -38,6 +38,7 @@ storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_AND_DISK_SER_2', 'OFF_HEAP')
 
 _test_dir = None
+_doctest_dir = None
 
 
 def test_file(filename):
@@ -51,6 +52,19 @@ def test_file(filename):
         info('Test dir relative path is {}'.format(_test_dir))
 
     return os.path.join(_test_dir, filename)
+
+
+def doctest_file(filename):
+    global _doctest_dir
+    if _doctest_dir is None:
+        path = '.'
+        while not os.path.exists(os.path.join(path, 'LICENSE')):
+            path = os.path.join(path, '..')
+        _doctest_dir = os.path.join(path, 'python', 'hail', 'docs', 'data')
+        from hail.utils import info
+        info('Doctest dir relative path is {}'.format(_doctest_dir))
+
+    return os.path.join(_doctest_dir, filename)
 
 
 def plural(orig, n, alternate=None):

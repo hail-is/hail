@@ -534,34 +534,30 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def importMatrix(file: String,
-    fieldHeaders: Option[Array[String]],
-    fieldTypes: Array[Type],
-    optKeyFields: Option[Array[String]],
-    nPartitions: Option[Int] = None,
-    forceBGZ: Boolean = false,
-    dropSamples: Boolean = false,
-    cellType: Type = TInt64(),
-    missingVal: String = "NA",
-    noHeader: Boolean = false): MatrixTable =
-    importMatrices(List(file), fieldHeaders, fieldTypes, optKeyFields, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
+  def importMatrix(files: java.util.ArrayList[String],
+    rowFields: java.util.HashMap[String, Type],
+    keyNames: java.util.ArrayList[String],
+    cellType: Type,
+    missingVal: String,
+    minPartitions: Option[Int],
+    noHeader: Boolean,
+    forceBGZ: Boolean): MatrixTable =
+    importMatrices(files.asScala, rowFields.asScala.toMap, keyNames.asScala.toArray,
+      cellType, missingVal, minPartitions, noHeader, forceBGZ)
 
-  def importMatrices(files: List[String],
-    fieldHeaders: Option[Array[String]],
-    fieldTypes: Array[Type],
-    optKeyFields: Option[Array[String]],
-    nPartitions: Option[Int] = None,
-    forceBGZ: Boolean = false,
-    dropSamples: Boolean = false,
-    cellType: Type = TInt64(),
+  def importMatrices(files: Seq[String],
+    rowFields: Map[String, Type],
+    keyNames: Array[String],
+    cellType: Type,
     missingVal: String = "NA",
-    noHeader: Boolean = false): MatrixTable = {
+    nPartitions: Option[Int],
+    noHeader: Boolean,
+    forceBGZ: Boolean): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files)
 
     forceBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, fieldHeaders, fieldTypes, optKeyFields, nPartitions = nPartitions,
-        dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
+      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader)
     }
   }
 

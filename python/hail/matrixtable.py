@@ -541,7 +541,7 @@ class MatrixTable(object):
                 str_keys.append(k)
         return MatrixTable(self._jvds.keyColsBy(str_keys))
 
-    @typecheck_method(fields=oneof(str, Expression))
+    @typecheck_method(keys=oneof(str, Expression))
     def key_rows_by(self, *keys):
         """Key rows by a new set of fields.
 
