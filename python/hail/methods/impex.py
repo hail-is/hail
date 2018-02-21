@@ -954,11 +954,11 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     return Table(jt)
 
 @handle_py4j
-@typecheck(paths=oneof(strlike, listof(strlike)),
-           row_fields=dictof(strlike, Type),
-           key=oneof(strlike, listof(strlike)),
+@typecheck(paths=oneof(str, listof(str)),
+           row_fields=dictof(str, Type),
+           key=oneof(str, listof(str)),
            entry_type=oneof(TInt32, TInt64, TFloat32, TFloat64, TString),
-           missing=strlike,
+           missing=str,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
