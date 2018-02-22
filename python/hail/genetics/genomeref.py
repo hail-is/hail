@@ -7,7 +7,8 @@ from hail.utils.java import handle_py4j, jiterable_to_list, Env
 class GenomeReference(HistoryMixin):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
-    :param str name: Name of reference. Must be unique and not one of Hail's predefined references "GRCh37" and "GRCh38".
+    :param str name: Name of reference. Must be unique and not one of Hail's
+    predefined references "GRCh37", "GRCh38", and "default".
 
     :param contigs: Contig names.
     :type contigs: list of str

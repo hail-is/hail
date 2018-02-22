@@ -17,8 +17,6 @@ class Interval(HistoryMixin):
     :type start: :class:`.Locus`
     :param end: exclusive end locus
     :type end: :class:`.Locus`
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
-    :type reference_genome: :class:`.GenomeReference`
     """
 
     @handle_py4j
@@ -66,8 +64,8 @@ class Interval(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=nullable(GenomeReference))
-    def parse(cls, string, reference_genome=None):
+                      reference_genome=oneof(str, GenomeReference))
+    def parse(cls, string, reference_genome='default'):
         """Parses a genomic interval from string representation.
 
         **Examples**:
@@ -102,16 +100,26 @@ class Interval(HistoryMixin):
 
         Note that the start locus must precede the start locus.
 
-        :param str string: String to parse.
-        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
-        :type reference_genome: :class:`.GenomeReference`
+        Parameters
+        ----------
+        string : :obj:`str`
+            String to parse.
+        reference_genome : :obj:`str` or :class:`.GenomeReference`
+            Reference genome to use. ``default`` is :class:`~hail.default_reference`.
 
-        :rtype: :class:`.Interval`
+        Returns
+        -------
+        :class:`.Interval`
         """
 
-        rg = reference_genome if reference_genome else Env.hc().default_reference
-        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, rg._jrep)
-        return Interval._from_java(jrep, rg)
+        from hail import default_reference, get_reference
+        if reference_genome == 'default':
+            reference_genome = default_reference()
+        elif isinstance(reference_genome, str):
+            reference_genome = get_reference(reference_genome)
+
+        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, reference_genome._jrep)
+        return Interval._from_java(jrep, reference_genome)
 
     @property
     def start(self):

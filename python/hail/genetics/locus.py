@@ -11,19 +11,24 @@ class Locus(HistoryMixin):
     :param contig: chromosome identifier
     :type contig: str or int
     :param int position: chromosomal position (1-indexed)
-    :param reference_genome: Reference genome to use. Default is :meth:`hail.default_reference`.
-    :type reference_genome: :class:`.GenomeReference`
+    :param reference_genome: Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+    :type reference_genome: :obj:`str` or :class:`.GenomeReference`
     """
 
     @handle_py4j
     @record_init
     @typecheck_method(contig=oneof(str, int),
                       position=int,
-                      reference_genome=nullable(GenomeReference))
-    def __init__(self, contig, position, reference_genome=None):
+                      reference_genome=oneof(str, GenomeReference))
+    def __init__(self, contig, position, reference_genome='default'):
         if isinstance(contig, int):
             contig = str(contig)
-        self._rg = reference_genome if reference_genome else Env.hc().default_reference
+
+        from hail import get_reference
+        if isinstance(reference_genome, str):
+            reference_genome = get_reference(reference_genome)
+        self._rg = reference_genome
+
         jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position, self._rg._jrep)
         self._init_from_java(jrep)
         self._contig = contig
@@ -59,8 +64,8 @@ class Locus(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=nullable(GenomeReference))
-    def parse(cls, string, reference_genome=None):
+                      reference_genome=oneof(str, GenomeReference))
+    def parse(cls, string, reference_genome='default'):
         """Parses a locus object from a CHR:POS string.
 
         **Examples**
@@ -69,12 +74,16 @@ class Locus(HistoryMixin):
         >>> l2 = hl.Locus.parse('X:4201230')
 
         :param str string: String to parse.
-        :param reference_genome: Reference genome to use. Default is :meth:`hail.default_reference`.
-        :type reference_genome: :class:`.GenomeReference`
+        :param reference_genome: Reference genome to use. Default is :func:`~hail.default_reference`.
+        :type reference_genome: :obj:`str` or :class:`.GenomeReference`
 
         :rtype: :class:`.Locus`
         """
-        rg = reference_genome if reference_genome else Env.hc().default_reference
+        from hail import get_reference
+        if isinstance(reference_genome, str):
+            reference_genome = get_reference(reference_genome)
+        rg = reference_genome
+
         return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string, rg._jrep), rg)
 
     @property

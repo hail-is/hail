@@ -33,7 +33,7 @@ class ImportPlinkSuite extends SparkSuite {
 
         if (vds.numCols == 0) {
           TestUtils.interceptFatal("Empty .fam file") {
-            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference)
+            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = Some(vds.genomeReference))
           }
           true
         } else if (vds.countVariants() == 0) {
@@ -42,7 +42,7 @@ class ImportPlinkSuite extends SparkSuite {
           }
           true
         } else {
-          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference),
+          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = Some(vds.genomeReference)),
             testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
@@ -113,13 +113,5 @@ class ImportPlinkSuite extends SparkSuite {
       "row.nHetA1 == row.nHetA2 && " +
       "row.nHomRefA1 == row.nHomVarA2 && " +
       "row.nHomVarA1 == row.nHomRefA2"))
-  }
-
-  @Test def testDropChr0() {
-    val vds = VSMSubgen.plinkSafeBiallelic.copy(vGen = (t: Type) =>
-      VariantSubgen.biallelic.copy(contigGen = Contig.gen(Gen.const("0"))).gen).gen(hc).sample()
-    val outFile = tmpDir.createTempFile("plink_drop_chr0")
-    ExportPlink(vds, outFile)
-    assert(hc.importPlinkBFile(outFile, dropChr0 = true).countVariants() == 0)
   }
 }

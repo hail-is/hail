@@ -187,7 +187,7 @@ final class VCFLine(val line: String) {
   }
 
   // return false if it should be filtered
-  def parseAddVariant(rvb: RegionValueBuilder, gr: GenomeReference, contigRecoding: Map[String, String]): Boolean = {
+  def parseAddVariant(rvb: RegionValueBuilder, gr: Option[GenomeReference], contigRecoding: Map[String, String]): Boolean = {
     assert(pos == 0)
 
     if (line.isEmpty || line(0) == '#')
@@ -202,7 +202,7 @@ final class VCFLine(val line: String) {
     val start = parseInt()
     nextField()
 
-    gr.checkLocus(recodedContig, start)
+    gr.foreach(_.checkLocus(recodedContig, start))
 
     skipField() // ID
     nextField()
@@ -693,7 +693,7 @@ object LoadVCF {
 
   // parses the Variant (key), leaves the rest to f
   def parseLines[C](makeContext: () => C)(f: (C, VCFLine, RegionValueBuilder) => Unit)(
-    lines: RDD[WithContext[String]], t: Type, gr: GenomeReference, contigRecoding: Map[String, String]): RDD[RegionValue] = {
+    lines: RDD[WithContext[String]], t: Type, gr: Option[GenomeReference], contigRecoding: Map[String, String]): RDD[RegionValue] = {
     lines.mapPartitions { it =>
       new Iterator[RegionValue] {
         val region = Region()
@@ -762,7 +762,7 @@ object LoadVCF {
     files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
     arrayElementsRequired: Boolean = true): MatrixTable = {
     val sc = hc.sc
@@ -831,7 +831,7 @@ object LoadVCF {
       TStruct.empty(true),
       colType = TStruct("s" -> TString()),
       colKey = Array("s"),
-      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowType = TStruct("locus" -> TLocus.schemaFromGR(gr), "alleles" -> TArray(TString())) ++ vaSignature,
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)

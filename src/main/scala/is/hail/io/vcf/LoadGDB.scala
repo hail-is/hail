@@ -103,7 +103,7 @@ object LoadGDB {
                vcfHeaderPath: Option[String],
                nPartitions: Option[Int] = None,
                dropSamples: Boolean = false,
-               gr: GenomeReference = GenomeReference.defaultReference): MatrixTable = {
+               gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): MatrixTable = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -143,7 +143,7 @@ object LoadGDB {
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(
-      "locus" -> TLocus(gr),
+      "locus" -> TLocus.schemaFromGR(gr),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "qual" -> TFloat64(),

@@ -330,7 +330,7 @@ object GenomeReference {
   val GRCh37: GenomeReference = fromResource("reference/grch37.json")
   val GRCh38: GenomeReference = fromResource("reference/grch38.json")
   var defaultReference = GRCh37
-  val hailReferences = references.keySet
+  val hailReferences = references.keySet + "default"
 
   def addReference(gr: GenomeReference) {
     if (hasReference(gr.name))
@@ -348,7 +348,7 @@ object GenomeReference {
     }
   }
 
-  def hasReference(name: String): Boolean = references.contains(name)
+  def hasReference(name: String): Boolean = references.contains(name) || name == "default"
 
   def removeReference(name: String): Unit = {
     val nonBuiltInReferences = references.keySet -- hailReferences

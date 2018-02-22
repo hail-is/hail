@@ -15,6 +15,11 @@ object TLocus {
       "position" -> +TInt32())
     rep.setRequired(required).asInstanceOf[TStruct]
   }
+
+  def schemaFromGR(gr: Option[GenomeReference], required: Boolean = false): Type = gr match {
+    case Some(ref) => TLocus(ref)
+    case None => TLocus.representation(required)
+  }
 }
 
 case class TLocus(gr: GRBase, override val required: Boolean = false) extends ComplexType {

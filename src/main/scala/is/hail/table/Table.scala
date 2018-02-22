@@ -93,12 +93,12 @@ object Table {
   }
 
   def importIntervalList(hc: HailContext, filename: String,
-    gr: GenomeReference = GenomeReference.defaultReference): Table = {
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
     IntervalList.read(hc, filename, gr)
   }
 
   def importBED(hc: HailContext, filename: String,
-    gr: GenomeReference = GenomeReference.defaultReference): Table = {
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
     BedAnnotator.apply(hc, filename, gr)
   }
 

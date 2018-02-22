@@ -137,7 +137,11 @@ def get_reference(name):
     :class:`.GenomeReference`
     """
     from hail import GenomeReference
-    return GenomeReference._references.get(
-        name,
-        GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
-    )
+
+    if name == "default":
+        return default_reference()
+    else:
+        return GenomeReference._references.get(
+            name,
+            GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
+        )
