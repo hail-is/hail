@@ -1,6 +1,11 @@
 from subprocess import call, check_output
+import sys
 
-COMPATIBILITY_VERSION = 5
+COMPATIBILITY_VERSION_01 = 1
+init_script_01 = 'gs://hail-common/cloudtools/init_notebook-0.1-{}.py'.format(COMPATIBILITY_VERSION_01)
+
+COMPATIBILITY_VERSION_02 = 1
+init_script_02 = 'gs://hail-common/cloudtools/init_notebook-0.2-{}.py'.format(COMPATIBILITY_VERSION_02)
 
 # master machine type to memory map, used for setting spark.driver.memory property
 machine_mem = {
@@ -70,15 +75,16 @@ def init_parser(parser):
     # initialization action flags
     parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
     parser.add_argument('--vep', action='store_true', help='Configure the cluster to run VEP.')
+    parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
 def main(args):
-    print("Starting cluster '{}'...".format(args.name))
 
     # Google dataproc image version to use
     if args.spark == '2.0.2':
         image_version = '1.1'
-    elif args.spark == '2.2.0':
+    else:
+        assert args.spark == '2.2.0'
         image_version = '1.2'
 
     # default to highmem machines if using VEP
@@ -102,7 +108,11 @@ def main(args):
         properties.append(args.properties)
 
     # default initialization script to start up cluster with
-    init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
+    init_actions = init_script_01 if args.version == '0.1' else init_script_02
+
+    if args.version == 'devel' and args.spark != '2.2.0':
+        sys.stderr.write("ERROR: Hail version 'devel' requires Spark 2.2.0.")
+        sys.exit(1)
 
     # add VEP init script
     if args.vep:
@@ -161,4 +171,6 @@ def main(args):
     print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
     # spin up cluster
-    call(cmd)
+    if not args.dry_run:
+        print("Starting cluster '{}'...".format(args.name))
+        call(cmd)
