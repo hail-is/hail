@@ -5,28 +5,32 @@ import org.apache.spark.Partitioner
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Partitioner {
   require(nRows > 0)
   require(nCols > 0)
-  require((nRows - 1) / blockSize + 1 < Int.MaxValue)
-  require((nCols - 1) / blockSize + 1 < Int.MaxValue)
+  
+  def blockIndex(index: Long): Int = (index / blockSize).toInt
+  def blockOffset(index: Long): Int = (index % blockSize).toInt  
 
-  val nBlockRows: Int = ((nRows - 1) / blockSize + 1).toInt
-  val nBlockCols: Int = ((nCols - 1) / blockSize + 1).toInt
+  require((nRows - 1) / blockSize + 1 <= Int.MaxValue)
+  val nBlockRows: Int = blockIndex(nRows - 1) + 1
 
+  require((nCols - 1) / blockSize + 1 <= Int.MaxValue)    
+  val nBlockCols: Int = blockIndex(nCols - 1) + 1
+
+  require(nBlockRows.toLong * nBlockCols <= Int.MaxValue)
+  override val numPartitions: Int = nBlockRows * nBlockCols
+  
   def blockRowNRows(i: Int): Int =
     if (i < nBlockRows - 1)
       blockSize
     else
-      (nRows - (nBlockRows - 1) * blockSize).toInt
+      blockOffset(nRows - 1) + 1
 
   def blockColNCols(j: Int): Int =
     if (j < nBlockCols - 1)
       blockSize
     else
-      (nCols - (nBlockCols - 1) * blockSize).toInt
+      blockOffset(nRows - 1) + 1
 
   def blockDims(pi: Int): (Int, Int) = (blockRowNRows(blockBlockRow(pi)), blockColNCols(blockBlockCol(pi)))
-
-  override val numPartitions: Int = nBlockRows * nBlockCols
-  assert(numPartitions >= nBlockRows && numPartitions >= nBlockCols)
 
   override def getPartition(key: Any): Int = key match {
     case (i: Int, j: Int) => coordinatesBlock(i, j)
