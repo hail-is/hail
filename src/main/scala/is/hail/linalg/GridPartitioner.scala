@@ -10,11 +10,11 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
 
   def blockOffset(index: Long): Int = (index % blockSize).toInt
 
-  val nBlockRows: Int = (nRows / blockSize).toInt
-  val nBlockCols: Int = (nCols / blockSize).toInt
+  val nBlockRows: Int = blockIndex(nRows - 1) + 1
+  val nBlockCols: Int = blockIndex(nCols - 1) + 1
   
   val lastBlockRowNRows: Int = blockOffset(nRows - 1) + 1
-  val lastBlockColNCols: Int = blockOffset(nCols - 1) + 1  
+  val lastBlockColNCols: Int = blockOffset(nCols - 1) + 1
   
   def blockRowNRows(i: Int): Int = if (i < nBlockRows - 1) blockSize else lastBlockRowNRows
   def blockColNCols(j: Int): Int = if (j < nBlockCols - 1) blockSize else lastBlockColNCols
