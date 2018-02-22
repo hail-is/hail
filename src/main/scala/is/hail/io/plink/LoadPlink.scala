@@ -132,7 +132,7 @@ object LoadPlink {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = sampleAnnotationSignature,
-      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TStringRequired), "rsid" -> TString()),
+      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString()), "rsid" -> TString()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))
