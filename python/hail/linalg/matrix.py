@@ -5,6 +5,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import expr_numeric, to_expr, analyze
 import numpy as np
+import itertools
 
 block_matrix_type = lazy()
 
@@ -90,6 +91,17 @@ class BlockMatrix(object):
     def __init__(self, jbm):
         self._jbm = jbm
 
+    @staticmethod
+    @handle_py4j
+    # @typecheck_method(input_path=str,
+    #                   output_path=str,
+    #                   rectangles=listof(listof(integral)))
+    def export_rectangles(input_path, output_path, rectangles):
+        hc = Env.hc()
+        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
+        Env.hail().linalg.BlockMatrix.exportRectangles(
+            hc._jhc, input_path, output_path, jarray(Env.jvm().long, flattened_rectangles))
+
     @property
     @handle_py4j
     def num_rows(self):
@@ -107,9 +119,28 @@ class BlockMatrix(object):
 
     @handle_py4j
     @typecheck_method(path=str,
+                      force_row_major=bool,
+                      blocks_to_keep=nullable(listof(int)))
+    def write(self, path, force_row_major=False, blocks_to_keep=None):
+        if blocks_to_keep is not None:
+            blocks_to_keep=jarray(Env.jvm().int, blocks_to_keep)
+        self._jbm.write(path, force_row_major, joption(blocks_to_keep))
+
+    @handle_py4j
+    @typecheck_method(path=str,
+                      lower_bandwidth=int,
+                      upper_bandwidth=int,
                       force_row_major=bool)
-    def write(self, path, force_row_major=False):
-        self._jbm.write(path, force_row_major, joption(None))
+    def write_band(self, path, lower_bandwidth=0, upper_bandwidth=0, force_row_major=False):
+        self._jbm.writeBand(path, long(lower_bandwidth), long(upper_bandwidth), force_row_major)
+
+    @handle_py4j
+    @typecheck_method(path=str,
+                      rectangles=listof(listof(int)),
+                      force_row_major=bool)
+    def write_rectangles(self, path, rectangles, force_row_major=False):
+        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
+        self._jbm.writeRectangles(path, jarray(Env.jvm().long, flattened_rectangles), force_row_major)
 
     @handle_py4j
     @typecheck_method(cols_to_keep=listof(int))
