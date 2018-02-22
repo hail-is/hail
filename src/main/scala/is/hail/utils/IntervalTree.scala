@@ -18,29 +18,14 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
   }
 
-  // like contains, but excluding endpoints
-  private def containsWithin(pord: ExtendedOrdering, position: Any): Boolean = {
-    val compareStart = pord.compare(position, start)
-    val compareEnd = pord.compare(position, end)
-    compareStart > 0 && compareEnd < 0
-  }
-
   def probablyOverlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
-    !this.definitelyEmpty(pord) && !other.definitelyEmpty(pord) &&
-      ((this.contains(pord, other.start) && (other.includeStart || !pord.equiv(this.end, other.start))) ||
-        (other.contains(pord, this.start) && (this.includeStart || !pord.equiv(other.end, this.start))) ||
-        (this.contains(pord, other.end) && (other.includeEnd || !pord.equiv(this.start, other.end))) ||
-        (other.contains(pord, this.end) && (this.includeEnd || !pord.equiv(other.start, this.end))) ||
-        (pord.equiv(this.start, other.start) && pord.equiv(this.end, other.end)))
+    !definitelyDisjoint(pord, other)
   }
 
   def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
-    !this.probablyOverlaps(pord, other)
+    definitelyEmpty(pord) || other.definitelyEmpty(pord) ||
+      disjointAndLessThan(pord, other) || disjointAndGreaterThan(pord, other)
 
-  // true indicates definitely-empty interval, but false does not guarantee
-  // non-empty interval in the (a, b) case;
-  // e.g. (1,2) is an empty Interval(Int32), but we cannot guarantee distance
-  // like that right now.
   def definitelyEmpty(pord: ExtendedOrdering): Boolean = if (includeStart && includeEnd) pord.gt(start, end) else pord.gteq(start, end)
 
   def copy(start: Any = start, end: Any = end, includeStart: Boolean = includeStart, includeEnd: Boolean = includeEnd): Interval =
@@ -52,6 +37,15 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
       "includeStart" -> TBoolean().toJSON(includeStart),
       "includeEnd" -> TBoolean().toJSON(includeEnd))
 
+  def disjointAndLessThan(pord: ExtendedOrdering, other: Interval): Boolean = {
+    val c = pord.compare(this.end, other.start)
+    c < 0 || ((!this.includeEnd || !other.includeStart) && c == 0)
+  }
+
+  def disjointAndGreaterThan(pord: ExtendedOrdering, other: Interval): Boolean = {
+    val c = pord.compare(this.start, other.end)
+    c > 0 || ((!this.includeStart || !other.includeEnd) && c == 0)
+  }
 
   override def toString: String = (if (includeStart) "[" else "(") + start + "-" + end + (if (includeEnd) "]" else ")")
 }
@@ -96,13 +90,13 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
   Traversable[(Interval, U)] with Serializable {
   override def size: Int = root.map(_.size).getOrElse(0)
 
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = root.exists(_.definitelyEmpty(pord))
+  def definitelyEmpty(pord: ExtendedOrdering): Boolean = root.forall(_.definitelyEmpty(pord))
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = root.exists(_.contains(pord, position))
 
   def probablyOverlaps(pord: ExtendedOrdering, interval: Interval): Boolean = root.exists(_.probablyOverlaps(pord, interval))
 
-  def definitelyDisjoint(pord: ExtendedOrdering, interval: Interval): Boolean = root.exists(_.definitelyDisjoint(pord, interval))
+  def definitelyDisjoint(pord: ExtendedOrdering, interval: Interval): Boolean = root.forall(_.definitelyDisjoint(pord, interval))
 
   def queryIntervals(pord: ExtendedOrdering, position: Any): Array[Interval] = {
     val b = Array.newBuilder[Interval]
@@ -204,9 +198,9 @@ case class IntervalTreeNode[U](i: Interval,
     left.map(_.size).getOrElse(0) + right.map(_.size).getOrElse(0) + 1
 
   def definitelyEmpty(pord: ExtendedOrdering): Boolean = {
-    left.fold(true)(_.definitelyEmpty(pord)) &&
+    left.forall(_.definitelyEmpty(pord)) &&
       i.definitelyEmpty(pord) &&
-      right.fold(true)(_.definitelyEmpty(pord))
+      right.forall(_.definitelyEmpty(pord))
   }
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
@@ -218,14 +212,14 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def probablyOverlaps(pord: ExtendedOrdering, interval: Interval): Boolean = {
-    pord.gteq(interval.end, minimum) && pord.lteq(interval.start, maximum) &&
-      (left.exists(_.probablyOverlaps(pord, interval))) ||
-      i.probablyOverlaps(pord, interval) ||
-      (right.exists(_.probablyOverlaps(pord, interval)))
+    !definitelyDisjoint(pord, interval)
   }
 
   def definitelyDisjoint(pord: ExtendedOrdering, interval: Interval): Boolean =
-    !probablyOverlaps(pord, interval)
+    pord.lt(interval.end, minimum) || pord.gt(interval.start, maximum) ||
+      (left.forall(_.definitelyDisjoint(pord, interval)) &&
+        i.definitelyDisjoint(pord, interval) &&
+        right.forall(_.definitelyDisjoint(pord, interval)))
 
   def query(pord: ExtendedOrdering, b: mutable.Builder[Interval, _], position: Any) {
     if (pord.gteq(position, minimum) && pord.lteq(position, maximum)) {
