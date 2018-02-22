@@ -7,7 +7,9 @@ from hail.utils.java import *
 class KinshipMatrix(HistoryMixin):
     """
     Represents a symmetric matrix encoding the relatedness of each pair of samples in the accompanying sample list.
-    
+
+    **We plan to remove this class in Hail 0.2 while maintaining its functionality**.
+
     The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
     """
