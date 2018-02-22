@@ -1,8 +1,9 @@
 package is.hail.annotations
 
+import scala.collection.generic.Growable
+import scala.collection.mutable.ArrayBuffer
+
 import is.hail.expr.types._
-import is.hail.utils.StateMachine
-import scala.collection.mutable.{ ArrayBuffer, ArrayBuilder }
 
 object WritableRegionValue {
   def apply(t: Type, initial: RegionValue): WritableRegionValue =
@@ -55,7 +56,7 @@ class WritableRegionValue private (val t: Type) {
 }
 
 class RegionValueArrayBuffer(val t: Type)
-  extends Iterable[RegionValue] {
+  extends Iterable[RegionValue] with Growable[RegionValue] {
 
   val region = Region()
   val value = RegionValue(region, 0)
@@ -64,20 +65,20 @@ class RegionValueArrayBuffer(val t: Type)
   val idx = ArrayBuffer.empty[Long]
   private val wrv = WritableRegionValue(t)
 
-  def +=(rv: RegionValue): RegionValueArrayBuffer = {
-    this += (rv.region, rv.offset)
+  def +=(rv: RegionValue): this.type = {
+    this.append(rv.region, rv.offset)
   }
 
-  def +=(fromRegion: Region, fromOffset: Long): RegionValueArrayBuffer = {
+  def append(fromRegion: Region, fromOffset: Long): this.type = {
     rvb.start(t)
     rvb.addRegionValue(t, fromRegion, fromOffset)
     idx += rvb.end()
     this
   }
 
-  def +=(fromT: TStruct,
+  def appendSelect(fromT: TStruct,
          toFromFieldIdx: Array[Int],
-         fromRV: RegionValue): RegionValueArrayBuffer = {
+         fromRV: RegionValue): this.type = {
     (t: @unchecked) match {
       case t: TStruct =>
         rvb.start(t)
@@ -93,10 +94,10 @@ class RegionValueArrayBuffer(val t: Type)
     this
   }
 
-  def ++=(rvs: Iterator[RegionValue]): RegionValueArrayBuffer = {
-    while (rvs.hasNext) this += rvs.next()
-    this
-  }
+  // def ++=(rvs: Iterator[RegionValue]): RegionValueArrayBuffer = {
+  //   while (rvs.hasNext) this += rvs.next()
+  //   this
+  // }
 
   def clear() {
     region.clear()

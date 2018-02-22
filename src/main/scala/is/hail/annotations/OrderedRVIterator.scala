@@ -10,13 +10,12 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
 
   def cogroup(other: OrderedRVIterator):
       EphemeralIterator[Muple[EphemeralIterator[RegionValue], EphemeralIterator[RegionValue]]] =
-    this.staircase.toEphemeralIterator.orderedZipJoin(
-      other.staircase,
-      leftDefault = EphemeralIterator.empty,
-      rightDefault = EphemeralIterator.empty,
-      (l, r) => t.kComp(other.t).compare(l.head, r.head)
+    this.iterator.toEphemeralIterator.cogroup(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      this.t.kComp(other.t).compare
     )
-
 
   def zipJoin(other: OrderedRVIterator): EphemeralIterator[JoinedRegionValue] =
     iterator.toEphemeralIterator.orderedZipJoin(
@@ -28,35 +27,71 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
         .compare
     )
 
-  def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    val muple = Muple[RegionValue, RegionValue](null, null)
-    for { Muple(l, r) <- this.cogroup(other) if r.isValid
-          lrv <- l
-    } yield {
-      muple.set(lrv, r.value)
-    }
-  }
+  def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
+    iterator.toEphemeralIterator.innerJoinDistinct(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      null,
+      null,
+      this.t.kComp(other.t).compare
+    )
 
-  def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    val muple = Muple[RegionValue, RegionValue](null, null)
-    for { Muple(l, r) <- this.cogroup(other)
-          lrv <- l
-    } yield {
-      muple.set(lrv, if (r.isValid) r.value else null)
-    }
-  }
+  def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
+    iterator.toEphemeralIterator.leftJoinDistinct(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      null,
+      null,
+      this.t.kComp(other.t).compare
+    )
 
   def innerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    val muple = Muple[RegionValue, RegionValue](null, null)
-    val rBuf = new RegionValueArrayBuffer(other.t.rowType)
-    this.cogroup(other).flatMap { case Muple(l, r) =>
-      rBuf.clear()
-      rBuf ++= r
-      l.flatMap { lrv =>
-        rBuf.map { rrv =>
-          muple.set(lrv, rrv)
-        }
-      }
-    }
+    iterator.toEphemeralIterator.innerJoin(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      null,
+      null,
+      new RegionValueArrayBuffer(other.t.rowType),
+      this.t.kComp(other.t).compare
+    )
+  }
+
+  def leftJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+    iterator.toEphemeralIterator.leftJoin(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      null,
+      null,
+      new RegionValueArrayBuffer(other.t.rowType),
+      this.t.kComp(other.t).compare
+    )
+  }
+
+  def rightJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+    iterator.toEphemeralIterator.rightJoin(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      null,
+      null,
+      new RegionValueArrayBuffer(other.t.rowType),
+      this.t.kComp(other.t).compare
+    )
+  }
+
+  def outerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+    iterator.toEphemeralIterator.outerJoin(
+      other.iterator.toEphemeralIterator,
+      this.t.mutableEquiv,
+      other.t.mutableEquiv,
+      null,
+      null,
+      new RegionValueArrayBuffer(other.t.rowType),
+      this.t.kComp(other.t).compare
+    )
   }
 }

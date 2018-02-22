@@ -1,5 +1,8 @@
 package is.hail.utils
 
+import scala.collection.generic.Growable
+
+
 trait StateMachine[A] {
   def isActive: Boolean
   def curValue: A
@@ -81,6 +84,9 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   def next(): A
   def hasNext: Boolean
 
+  def valueOrElse(default: A): A =
+    if (isValid) value else default
+
   def exhaust() { while (isValid) advance() }
 
   def toStagingIterator: StagingIterator[A]
@@ -110,6 +116,20 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
     }
     sm.advance()
     StagingIterator(sm)
+  }
+
+  def cogroup[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    ord: (A, B) => Int
+  ): EphemeralIterator[Muple[EphemeralIterator[A], EphemeralIterator[B]]] = {
+    this.staircased(leftECV).orderedZipJoin(
+      that.staircased(rightECV),
+      EphemeralIterator.empty,
+      EphemeralIterator.empty,
+      (l, r) => ord(l.head, r.head)
+    )
   }
 
   def orderedZipJoin[B](
@@ -150,6 +170,110 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
     sm.advance()
     EphemeralIterator(sm)
+  }
+
+  def innerJoinDistinct[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    leftDefault: A,
+    rightDefault: B,
+    ord: (A, B) => Int
+  ): Iterator[Muple[A, B]] = {
+    val result = Muple[A, B](leftDefault, rightDefault)
+    for { Muple(l, r) <- this.cogroup(that, leftECV, rightECV, ord) if r.isValid
+          lrv <- l
+    } yield result.set(lrv, r.value)
+  }
+
+  def leftJoinDistinct[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    leftDefault: A,
+    rightDefault: B,
+    ord: (A, B) => Int
+  ): Iterator[Muple[A, B]] = {
+    val result = Muple[A, B](leftDefault, rightDefault)
+    for { Muple(l, r) <- this.cogroup(that, leftECV, rightECV, ord)
+          lrv <- l
+    } yield result.set(lrv, r.valueOrElse(rightDefault))
+  }
+
+  def innerJoin[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    leftDefault: A,
+    rightDefault: B,
+    rightBuffer: Growable[B] with Iterable[B],
+    ord: (A, B) => Int
+  ): Iterator[Muple[A, B]] = {
+    val result = Muple[A, B](leftDefault, rightDefault)
+    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+      lIt.product(rIt, rightBuffer, result)
+    }
+  }
+
+  def leftJoin[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    leftDefault: A,
+    rightDefault: B,
+    rightBuffer: Growable[B] with Iterable[B],
+    ord: (A, B) => Int
+  ): Iterator[Muple[A, B]] = {
+    val result = Muple[A, B](leftDefault, rightDefault)
+    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+      if (rIt.isValid) lIt.product(rIt, rightBuffer, result)
+      else lIt.map( lElem => result.set(lElem, rightDefault) )
+    }
+  }
+
+  def rightJoin[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    leftDefault: A,
+    rightDefault: B,
+    rightBuffer: Growable[B] with Iterable[B],
+    ord: (A, B) => Int
+  ): Iterator[Muple[A, B]] = {
+    val result = Muple[A, B](leftDefault, rightDefault)
+    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+      if (lIt.isValid) lIt.product(rIt, rightBuffer, result)
+      else rIt.map( rElem => result.set(leftDefault, rElem) )
+    }
+  }
+
+  def outerJoin[B](
+    that: EphemeralIterator[B],
+    leftECV: EquivalenceClassView[A],
+    rightECV: EquivalenceClassView[B],
+    leftDefault: A,
+    rightDefault: B,
+    rightBuffer: Growable[B] with Iterable[B],
+    ord: (A, B) => Int
+  ): Iterator[Muple[A, B]] = {
+    val result = Muple[A, B](leftDefault, rightDefault)
+    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+      if (!lIt.isValid) rIt.map( rElem => result.set(leftDefault, rElem) )
+      else if (!rIt.isValid) lIt.map( lElem => result.set(lElem, rightDefault) )
+      else lIt.product(rIt, rightBuffer, result)
+    }
+  }
+
+  private def product[B](
+    that: EphemeralIterator[B],
+    buffer: Growable[B] with Iterable[B],
+    result: Muple[A, B]
+  ): Iterator[Muple[A, B]] = {
+    buffer.clear()
+    if (this.isValid) buffer ++= that //avoid copying right iterator when not needed
+    for { lElem <- this
+          rElem <- buffer
+    } yield result.set(lElem, rElem)
   }
 
   def compareUsing[B](that: Iterator[B], eq: (A, B) => Boolean): Boolean = {
