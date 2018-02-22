@@ -51,7 +51,7 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None):
 
 @typecheck(n=int, n_partitions=nullable(int))
 def range_table(n, n_partitions=None):
-    """Construct a table row index and no other fields..
+    """Construct a table with the row index and no other fields.
 
     Examples
     --------
