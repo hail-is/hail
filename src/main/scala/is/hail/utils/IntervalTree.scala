@@ -50,6 +50,45 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     c > 0 || (c == 0 && (!this.includeStart || !other.includeEnd))
   }
 
+  def adjacent(pord: ExtendedOrdering, other: Interval): Boolean = {
+    (this.start == other.end && (this.includeStart || other.includeEnd)) ||
+      (this.end == other.start && (this.includeEnd || other.includeStart))
+  }
+
+  // only unions if overlapping or adjacent
+  def unionNonEmpty(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
+    if (probablyOverlaps(pord, other) || adjacent(pord, other)) {
+      val (s, is) = pord.compare(this.start, other.start) match {
+        case 0 => (this.start, this.includeStart || other.includeStart)
+        case x if x < 0 => (this.start, this.includeStart)
+        case x if x > 0 => (other.start, other.includeStart)
+      }
+      val (e, ie) = pord.compare(this.end, other.end) match {
+        case 0 => (this.end, this.includeEnd || other.includeEnd)
+        case x if x > 0 => (this.end, this.includeEnd)
+        case x if x < 0 => (other.end, other.includeEnd)
+      }
+      Some(Interval(s, e, is, ie))
+    } else None
+  }
+
+  // only intersects if overlapping
+  def intersect(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
+    if (probablyOverlaps(pord, other)) {
+      val (s, is) = pord.compare(this.start, other.start) match {
+        case 0 => (this.start, this.includeStart && other.includeStart)
+        case x if x > 0 => (this.start, this.includeStart)
+        case x if x < 0 => (other.start, other.includeStart)
+      }
+      val (e, ie) = pord.compare(this.end, other.end) match {
+        case 0 => (this.end, this.includeEnd && other.includeEnd)
+        case x if x < 0 => (this.end, this.includeEnd)
+        case x if x > 0 => (other.end, other.includeEnd)
+      }
+      Some(Interval(s, e, is, ie))
+    } else None
+  }
+
   override def toString: String = (if (includeStart) "[" else "(") + start + "-" + end + (if (includeEnd) "]" else ")")
 }
 
@@ -140,6 +179,20 @@ object IntervalTree {
       var i = 1
       var pruned = 0
       while (i < unpruned.length) {
+//        unpruned(i) match {
+//          case x if x.definitelyEmpty(pord) =>
+//          case interval =>
+//
+//            if (interval.disjointAndGreaterThan(pord, tmp))
+//            val c = pord.compare(interval.start, tmp.end)
+//            if (c < 0 || (c == 0 && (interval.includeStart || tmp.includeEnd))) {
+//
+//            } else {
+//              ab += tmp
+//            }
+//        }
+//
+//        i += 1
         val interval = unpruned(i)
         val c = pord.compare(interval.start, tmp.end)
         if (c < 0 || (c == 0 && (interval.includeStart || tmp.includeEnd))) {

@@ -62,6 +62,14 @@ class IntervalSuite extends TestNGSuite {
     }
   }
 
+  @Test def interval_agrees_with_set_interval_union() {
+    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.unionNonEmpty(pord, interval2), set_interval1.definitelyDisjoint(set_interval2))
+    }
+  }
+
   @Test def interval_tree_agrees_with_set_interval_tree_contains() {
     for {
       set_itree <- test_itrees
@@ -167,6 +175,16 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
   def definitelyEmpty(): Boolean = doublepointset.isEmpty
 
   def definitelyDisjoint(other: SetInterval): Boolean = doublepointset.intersect(other.doublepointset).isEmpty
+
+  def union(other: SetInterval): Option[SetInterval] = {
+    val combined = doublepointset.union(other.doublepointset)
+    None
+  }
+
+  def intersect(other: SetInterval): Option[SetInterval] = {
+    doublepointset.intersect(other.doublepointset)
+    None
+  }
 }
 
 case class SetIntervalTree(annotations: Array[(SetInterval, Int)]) {
