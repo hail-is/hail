@@ -59,7 +59,7 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   def union(pord: ExtendedOrdering, other: Interval): Array[Interval] = {
     unionNonEmpty(pord, other) match {
       case Some(i) => Array(i)
-      case None => Array(this, other).filter(!_.definitelyEmpty(pord))
+      case None => Array(this, other).filter(!_.definitelyEmpty(pord)).sorted(Interval.ordering(pord).toOrdering)
     }
   }
   // only unions if overlapping or adjacent
@@ -77,6 +77,14 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
       }
       Some(Interval(s, e, is, ie))
     } else None
+  }
+
+  def minimumSpanningInterval(pord: ExtendedOrdering, other: Interval): Interval = {
+    union(pord, other) match {
+      case Array() => this
+      case Array(i1) => i1
+      case Array(i1, i2) => Interval(i1.start, i2.end, i1.includeStart, i2.includeEnd)
+    }
   }
 
   // only intersects if overlapping
@@ -217,15 +225,15 @@ object IntervalTree {
     else {
       val mid = (start + end) / 2
       val (i, v) = intervals(mid)
-      val lft = fromSorted(pord, intervals, start, mid)
-      val rt = fromSorted(pord, intervals, mid + 1, end)
-      Some(IntervalTreeNode(i, lft, rt, {
-        val min1 = lft.map(x => pord.min(x.minimum, i.start)).getOrElse(i.start)
-        rt.map(x => pord.min(x.minimum, min1)).getOrElse(min1)
-      },
-        {
-          val max1 = lft.map(x => pord.max(x.maximum, i.end)).getOrElse(i.end)
-          rt.map(x => pord.max(x.maximum, max1)).getOrElse(max1)
+      val left = fromSorted(pord, intervals, start, mid)
+      val right = fromSorted(pord, intervals, mid + 1, end)
+      val range = Array(left, right).flatten.map(_.range)
+      Some(IntervalTreeNode(i, left, right, {
+        left.map(_.range.start)
+        val min1 = left.map(x => pord.min(x.minimum, i.start)).getOrElse(i.start)
+        right.map(x => pord.min(x.minimum, min1)).getOrElse(min1)
+          val max1 = left.map(x => pord.max(x.maximum, i.end)).getOrElse(i.end)
+        right.map(x => pord.max(x.maximum, max1)).getOrElse(max1)
         }, v))
     }
   }
@@ -238,7 +246,7 @@ object IntervalTree {
 case class IntervalTreeNode[U](i: Interval,
   left: Option[IntervalTreeNode[U]],
   right: Option[IntervalTreeNode[U]],
-  minimum: Any, maximum: Any, value: U) extends Traversable[(Interval, U)] {
+  range: Interval, value: U) extends Traversable[(Interval, U)] {
 
   override val size: Int =
     left.map(_.size).getOrElse(0) + right.map(_.size).getOrElse(0) + 1
@@ -250,7 +258,7 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    pord.gteq(position, minimum) && pord.lteq(position, maximum) &&
+    range.contains(pord, position) &&
       (left.exists(_.contains(pord, position)) ||
         (pord.gteq(position, i.start) &&
           (i.contains(pord, position) ||
