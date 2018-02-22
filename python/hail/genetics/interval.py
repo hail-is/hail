@@ -177,6 +177,6 @@ class Interval(HistoryMixin):
 
         if self._rg != interval._rg:
             raise TypeError("expect `interval' has reference genome `{}' but found `{}'".format(self._rg.name, interval._rg.name))
-        return self._jrep.overlaps(self._typ._jtype.ordering(), interval._jrep)
+        return self._jrep.probablyOverlaps(self._typ._jtype.ordering(), interval._jrep)
 
 interval_type.set(Interval)
