@@ -545,13 +545,13 @@ class MatrixTests(unittest.TestCase):
     def test_computed_key_join_2(self):
         # multiple keys
         ds = self.get_vds()
-        kt =hl.Table.parallelize(
+        kt = hl.Table.parallelize(
             [{'key1': 0, 'key2': 0, 'value': 0},
              {'key1': 1, 'key2': 0, 'value': 1},
              {'key1': 0, 'key2': 1, 'value': -2},
              {'key1': 1, 'key2': 1, 'value': -1}],
             hl.tstruct(['key1', 'key2', 'value'],
-                    [hl.tint32, hl.tint32, hl.tint32]),
+                       [hl.tint32, hl.tint32, hl.tint32]),
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
         ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
@@ -562,10 +562,10 @@ class MatrixTests(unittest.TestCase):
     def test_computed_key_join_3(self):
         # duplicate row keys
         ds = self.get_vds()
-        kt =hl.Table.parallelize(
+        kt = hl.Table.parallelize(
             [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
             hl.tstruct(['culprit', 'foo', 'value'],
-                    [hl.tstr, hl.tstr, hl.tstr]),
+                       [hl.tstr, hl.tstr, hl.tstr]),
             key=['culprit', 'foo'])
         ds = ds.annotate_rows(
             dsfoo='bar',
