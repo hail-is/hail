@@ -132,8 +132,14 @@ def require_variant(dataset, method):
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
-@handle_py4j
+def require_locus(dataset, method):
+    if (len(dataset.partition_key) != 1 or
+            not isinstance(dataset[dataset.partition_key[0]].dtype, TLocus)):
+        raise TypeError("Method '{}' requires partition key of type Locus.\n"
+                        "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
+@handle_py4j
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method):
     require_variant(dataset, method)
@@ -185,6 +191,58 @@ def rename_duplicates(dataset, name='unique_id'):
            intervals=oneof(Interval, listof(Interval)),
            keep=bool)
 def filter_intervals(ds, intervals, keep=True):
+    """Filter rows with an interval or list of intervals.
+
+    .. note::
+
+        Requires the dataset to have a single partition key of type
+        :class:`.TLocus`.
+
+    Examples
+    --------
+
+    Filter to loci falling within one interval:
+
+    >>> ds_result = hl.filter_intervals(dataset, hl.Interval.parse('17:38449840-38530994'))
+
+    Remove all loci within list of intervals:
+
+    >>> intervals = [hl.Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
+    >>> ds_result = hl.filter_intervals(dataset, intervals)
+
+    Notes
+    -----
+    This method takes an argument of :class:`.Interval` or list of
+    :class:`.Interval`.
+
+    Based on the ``keep`` argument, this method will either restrict to loci in
+    the supplied interval ranges, or remove all loci in those ranges.  Note that
+    intervals are left-inclusive, and right-exclusive; the below interval
+    includes the locus ``15:100000`` but not ``15:101000``.
+
+    >>> interval = hl.Interval.parse('15:100000-101000')
+
+    When ``keep=True``, partitions that don't overlap any supplied interval
+    will not be loaded at all.  This enables :func:`.filter_intervals` to be
+    used for reasonably low-latency queries of small ranges of the genome, even
+    on large datasets.
+
+    Parameters
+    ----------
+    intervals : :class:`.Interval` or :obj:`list` of :class:`.Interval`
+        Interval(s) to filter on.
+    keep : :obj:`bool`
+        If ``True``, keep only loci fall within any interval in `intervals`. If
+        ``False``, keep only loci that fall outside all intervals in
+        `intervals`.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+
+    require_locus(ds, 'filter_intervals')
+
     intervals = wrap_to_list(intervals)
     jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)
     return MatrixTable(jmt)

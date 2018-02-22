@@ -74,5 +74,6 @@ Methods
 
 .. autosummary::
 
+    grep
     maximal_independent_set
     rename_duplicates
