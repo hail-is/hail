@@ -975,11 +975,11 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     .. code-block:: text
 
         $ cat data/matrix1.tsv
-        Barcode  Tissue  Days GENE1  GENE2    GENE3   GENE4
-        TTAGCCAGTCCA brain   1.0 0    0   1   0
-        ATCACTTTTACA kidney  5.5 3    0   2   0
-        CTCTTCTCCCCC kidney  2.5 0    0   0   1
-        CTATATAGCTGC brain   7.0 0    0   3   0
+        Barcode Tissue  Days    GENE1   GENE2   GENE3   GENE4
+        TTAGCCA brain   1.0     0       0       1       0
+        ATCACTT kidney  5.5     3       0       2       0
+        CTCTTCT kidney  2.5     0       0       0       1
+        CTATATA brain   7.0     0       0       3       0
 
     The field ``Height`` contains floating-point numbers and the field ``Age``
     contains integers.
@@ -995,11 +995,11 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     .. code-block:: text
 
         $ cat data/matrix2.tsv
-        GENE1  GENE2    GENE3   GENE4
-        TTAGCCAGTCCA brain   1.0 0    0   1   0
-        ATCACTTTTACA kidney  5.5 3    0   2   0
-        CTCTTCTCCCCC kidney  2.5 0    0   0   1
-        CTATATAGCTGC brain   7.0 0    0   3   0
+        GENE1   GENE2   GENE3   GENE4
+        TTAGCCA brain   1.0     0       0       1       0
+        ATCACTT kidney  5.5     3       0       2       0
+        CTCTTCT kidney  2.5     0       0       0       1
+        CTATATA brain   7.0     0       0       3       0
 
     The row fields get imported as `f0`, `f1`, and `f2`, so we need to do:
 
@@ -1013,10 +1013,10 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     .. code-block:: text
 
         $ cat data/matrix3.tsv
-        0    0   1   0
-        3    0   2   0
-        0    0   0   1
-        0    0   3   0
+        0       0       1       0
+        3       0       2       0
+        0       0       0       1
+        0       0       3       0
 
     >>> matrix3 = hl.import_matrix_table('data/matrix3.tsv', no_header=True)
 
