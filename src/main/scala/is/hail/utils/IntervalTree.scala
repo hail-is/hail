@@ -51,10 +51,17 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   }
 
   def adjacent(pord: ExtendedOrdering, other: Interval): Boolean = {
-    (this.start == other.end && (this.includeStart || other.includeEnd)) ||
-      (this.end == other.start && (this.includeEnd || other.includeStart))
+    !definitelyEmpty(pord) && !other.definitelyEmpty(pord) &&
+      ((this.start == other.end && (this.includeStart || other.includeEnd)) ||
+      (this.end == other.start && (this.includeEnd || other.includeStart)))
   }
 
+  def union(pord: ExtendedOrdering, other: Interval): Array[Interval] = {
+    unionNonEmpty(pord, other) match {
+      case Some(i) => Array(i)
+      case None => Array(this, other).filter(!_.definitelyEmpty(pord))
+    }
+  }
   // only unions if overlapping or adjacent
   def unionNonEmpty(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
     if (probablyOverlaps(pord, other) || adjacent(pord, other)) {
@@ -174,45 +181,28 @@ object IntervalTree {
     val iord = Interval.ordering(pord)
     val sorted = if (intervals.nonEmpty) {
       val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
-      val ab = new ArrayBuilder[Interval](intervals.length)
-      var tmp = unpruned.head
-      var i = 1
-      var pruned = 0
-      while (i < unpruned.length) {
-//        unpruned(i) match {
-//          case x if x.definitelyEmpty(pord) =>
-//          case interval =>
-//
-//            if (interval.disjointAndGreaterThan(pord, tmp))
-//            val c = pord.compare(interval.start, tmp.end)
-//            if (c < 0 || (c == 0 && (interval.includeStart || tmp.includeEnd))) {
-//
-//            } else {
-//              ab += tmp
-//            }
-//        }
-//
-//        i += 1
-        val interval = unpruned(i)
-        val c = pord.compare(interval.start, tmp.end)
-        if (c < 0 || (c == 0 && (interval.includeStart || tmp.includeEnd))) {
-          tmp = if (pord.lt(interval.end, tmp.end))
-            tmp
-          else if (pord.equiv(interval.end, tmp.end))
-            tmp.copy(includeEnd = tmp.includeEnd || interval.includeEnd)
-          else
-            tmp.copy(end = interval.end, includeEnd = interval.includeEnd)
-          pruned += 1
-        } else {
-          ab += tmp
-          tmp = interval
-        }
-
+      var i = 0
+      while (i < unpruned.length && unpruned(i).definitelyEmpty(pord)) {
         i += 1
       }
-      ab += tmp
-
-      ab.result()
+      if (i == unpruned.length)
+        Array[Interval]()
+      else {
+        val ab = new ArrayBuilder[Interval](intervals.length)
+        var tmp = unpruned(i)
+        while (i < unpruned.length) {
+          tmp.union(pord, unpruned(i)) match {
+            case Array(i1, i2) =>
+              ab += i1
+              tmp = i2
+            case Array(interval) =>
+              tmp = interval
+          }
+          i += 1
+        }
+        ab += tmp
+        ab.result()
+      }
     } else intervals
 
     new IntervalTree[Unit](fromSorted(pord, sorted.map(i => (i, ())), 0, sorted.length))
