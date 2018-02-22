@@ -13,6 +13,6 @@ utils
 
 .. autofunction:: range_table
 
-.. autofunction:: range_matrixtable
+.. autofunction:: range_matrix_table
 
 .. autoclass:: Summary

@@ -188,7 +188,7 @@ object MatrixTable {
           rvb.start(localRVType)
           rvb.startStruct()
 
-          // idx field
+          // row idx field
           rvb.addInt(idx)
 
           // entries field
@@ -207,7 +207,7 @@ object MatrixTable {
         }
       }
     val rvd = OrderedRVD(mt.orvdType, rdd, None, None)
-    new MatrixTable(hc, mt, Annotation.empty, (0 until nCols).map(Annotation(_)), rvd)
+    new MatrixTable(hc, mt, Annotation.empty, Array.tabulate(nCols)(Annotation(_)), rvd)
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =

@@ -690,7 +690,7 @@ class MatrixTests(unittest.TestCase):
         self.assertRaises(LookupError, dataset.rename, {'foo': 'a'})
 
     def test_range(self):
-        ds = hl.utils.range_matrixtable(100, 10)
+        ds = hl.utils.range_matrix_table(100, 10)
         self.assertEqual(ds.count_rows(), 100)
         self.assertEqual(ds.count_cols(), 10)
         et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries_table().index()

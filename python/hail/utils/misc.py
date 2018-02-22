@@ -7,14 +7,14 @@ import os
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
-def range_matrixtable(n_rows, n_cols, n_partitions=None):
-    """Construct a dummy matrix table with `n_rows` rows and `n_cols` columns.
+def range_matrix_table(n_rows, n_cols, n_partitions=None):
+    """Construct a matrix table with row and column indices and no entry fields.
 
     Examples
     --------
     .. doctest::
 
-        >>> ds = hl.utils.range_matrixtable(n_rows=100, n_cols=10)
+        >>> ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
 
         >>> ds.count_rows()
         100
@@ -24,7 +24,7 @@ def range_matrixtable(n_rows, n_cols, n_partitions=None):
 
     Notes
     -----
-    The matrix table will contain the following fields:
+    The resulting matrix table contains the following fields:
 
      - `row_idx` (:class:`.TInt32`) - Row index (row key).
      - `col_idx` (:class:`.TInt32`) - Column index (column key).
@@ -36,9 +36,9 @@ def range_matrixtable(n_rows, n_cols, n_partitions=None):
 
     Parameters
     ----------
-    n_rows : int
+    n_rows : :obj:`int`
         Number of rows.
-    n_cols : int
+    n_cols : :obj:`int`
         Number of columns.
     n_partitions : int, optional
         Number of partitions (uses Spark default parallelism if None).
@@ -51,7 +51,7 @@ def range_matrixtable(n_rows, n_cols, n_partitions=None):
 
 @typecheck(n=int, n_partitions=nullable(int))
 def range_table(n, n_partitions=None):
-    """Construct a dummy table with `n`.
+    """Construct a table row index and no other fields..
 
     Examples
     --------
@@ -64,7 +64,7 @@ def range_table(n, n_partitions=None):
 
     Notes
     -----
-    The table will contain the following field:
+    The resulting table contains one field:
 
      - `idx` (:class:`.TInt32`) - Row index (key).
 
