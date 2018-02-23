@@ -1231,7 +1231,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     assert(finalNames.areDistinct())
-    val touchesKeys = rowKey.forall(topLevelFields.contains)
+    val touchesKeys = !rowKey.forall(topLevelFields.contains)
 
     val finalNameSet = finalNames.toSet
     val newRowType = TStruct(finalNames.zip(types): _*)
