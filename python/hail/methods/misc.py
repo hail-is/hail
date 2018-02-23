@@ -8,15 +8,14 @@ from hail.expr.ast import Reference
 
 
 @handle_py4j
-@typecheck(vertices=Expression,
-           i=Expression,
+@typecheck(i=Expression,
            j=Expression,
+           keep=bool,
            tie_breaker=nullable(func_spec(2, expr_numeric)))
-def maximal_independent_set(vertices, i, j, tie_breaker=None):
-    """Filter a table to contain only those rows that belong in a near `maximal independent set`,
-    where edges between the rows are given by a two-column table.
-
-    .. _maximal independent set: https://en.wikipedia.org/wiki/Maximal_independent_set
+def maximal_independent_set(i, j, keep, tie_breaker=None):
+    """Return a Table containing the vertices in a near
+    `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
+    of an undirected graph whose edges are given by a two-column table.
 
     Examples
     --------
@@ -26,8 +25,8 @@ def maximal_independent_set(vertices, i, j, tie_breaker=None):
 
     >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> individuals = pairs.annotate(id=[pairs.i,pairs.j]).select('id').explode('id')
-    >>> result_table = hl.maximal_independent_set(individuals.id, pairs.i, pairs.j)
+    >>> related_samples_to_remove = hl.maximal_independent_set(pairs.i, pairs.j, False)
+    >>> result = dataset.filter_cols(hl.is_defined(related_samples_to_remove[dataset.s]), keep=False)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
@@ -40,10 +39,11 @@ def maximal_independent_set(vertices, i, j, tie_breaker=None):
     >>> def tie_breaker(l, r):
     ...     return hl.cond(l.is_case & ~r.is_case, -1,
     ...                    hl.cond(~l.is_case & r.is_case, 1, 0))
-    >>> individuals = (pairs_with_case.annotate(id_with_case=[pairs_with_case.i, pairs_with_case.j])
-    ...     .select('id_with_case').explode('id_with_case'))
-    >>> result_table = hl.maximal_independent_set(
-    ...     individuals.id_with_case, pairs_with_case.i, pairs_with_case.j, tie_breaker)
+    >>> related_samples_to_remove = hl.maximal_independent_set(
+    ...    pairs_with_case.i, pairs_with_case.j, False, tie_breaker)
+    >>> result = dataset.filter_cols(hl.is_defined(
+    ...     related_samples_to_remove.select(
+    ...        s = related_samples_to_remove.node.id).key_by('s')[dataset.s]), keep=False)
 
     Notes
     -----
@@ -53,12 +53,14 @@ def maximal_independent_set(vertices, i, j, tie_breaker=None):
     undirected edge between the vertices given by evaluating `i` and `j` on
     that row. An undirected edge may appear multiple times in the table and
     will not affect the output. Vertices with self-edges are removed as they
-    are not independent of themselves. Vertices with no edges will be kept in
-    the final filtered table.
+    are not independent of themselves.
 
-    The expressions for `vertices`, `i`, and `j` must have the same type.
-    The vertices should be stored in a single column of one table, while the edges
-    are stored as columns i and j of another table.
+    The expressions for `i` and `j` must have the same type.
+
+    The value of `keep` determines whether the vertices returned are those
+    in the maximal independent set, or those in the complement of this set.
+    This is useful if you need to filter a table without removing vertices that
+    don't appear in the graph at all.
 
     This method implements a greedy algorithm which iteratively removes a
     vertex of highest degree until the graph contains no edges. The greedy
@@ -82,27 +84,23 @@ def maximal_independent_set(vertices, i, j, tie_breaker=None):
 
     Parameters
     ----------
-    vertices : :class:`.Expression`
-        Expression representing the nodes of the table being filtered. Must be same type as i and j.
     i : :class:`.Expression`
         Expression to compute one endpoint of an edge.
     j : :class:`.Expression`
         Expression to compute another endpoint of an edge.
+    keep : boolean
+        Boolean specifying whether to return vertices in set, or outside of set.
     tie_breaker : function
         Function used to order nodes with equal degree.
 
     Returns
     -------
-    :class:`Table` filtered to the rows that belong in the approximate maximal independent set.
+    :class:`Table` filtered to the rows that belong in the approximate maximal independent set,
+    or the rows that belong in the complement of this set, if keep is False.
     """
-    vertices_source = vertices._indices.source
-    if not isinstance(vertices_source, Table):
-        raise ValueError("Expects an expression of 'Table', found {}".format(
-            "expression of '{}'".format(
-                vertices_source.__class__) if vertices_source is not None else 'scalar expression'))
-    if i.dtype != j.dtype or vertices.dtype != i.dtype:
-        raise ValueError("Expects arguments `vertices`, `i` and `j` to have same type. "
-                         "Found {}, {} and {}.".format(vertices.dtype, i.dtype, j.dtype))
+    if i.dtype != j.dtype:
+        raise ValueError("Expects arguments `i` and `j` to have same type. "
+                         "Found {} and {}.".format(i.dtype, j.dtype))
     source = i._indices.source
     if not isinstance(source, Table):
         raise ValueError("Expects an expression of 'Table', found {}".format(
@@ -117,14 +115,14 @@ def maximal_independent_set(vertices, i, j, tie_breaker=None):
     l = construct_expr(Reference('l'), node_t)
     r = construct_expr(Reference('r'), node_t)
     if tie_breaker:
-        tie_breaker_expr = tie_breaker(l, r).to_int64()
+        tie_breaker_expr = hl.int64(tie_breaker(l, r))
         edges, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_hql = tie_breaker_expr._ast.to_hql()
     else:
         edges, _ = source._process_joins(i, j)
         tie_breaker_hql = None
     return Table(edges._jt.maximalIndependentSet(
-        vertices_source._jt, vertices._ast.to_hql(), i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker_hql)))
+        i._ast.to_hql(), j._ast.to_hql(), keep, joption(tie_breaker_hql)))
 
 
 def require_variant(dataset, method):

@@ -117,31 +117,4 @@ class GraphSuite {
     assert(actual.length == 3)
     actual should contain theSameElementsAs Array[Int](1, 3, 6)
   }
-
-  @Test def misOnTableWithSingletons() {
-    val edges = List((0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
-    val nodes = List("A", "B", "C", "D", "E", "F", "G", "H", "I", "J").map(str => Row(str))
-
-    val nodeTable = Table
-      .parallelize(SparkSuite.hc, nodes.toIndexedSeq, TStruct("letter" -> TString()), Array.empty[String], None)
-      .index("idx")
-
-    val edgeTable = Table
-      .parallelize(SparkSuite.hc, edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) }.toIndexedSeq,
-        TStruct("i" -> TInt64(), "j" -> TInt64()), Array.empty[String], None)
-
-    val misTable = edgeTable.maximalIndependentSet(nodeTable, "row.idx", "row.i", "row.j", None)
-
-    val mis = misTable.select("row.letter").collect().map(row => row.getString(0))
-
-    val maximalIndependentSets = List(Set("A", "G", "F", "D", "I", "J"), Set("B", "E", "H", "C", "I", "J"))
-    // imperfect greedy algorithm may also give non-maximal independent sets
-    val nonMaximalIndependentSets = List(Set("A", "H", "I", "J"), Set("G", "B", "I", "J"))
-
-    assert(nonMaximalIndependentSets.contains(mis.toSet) || maximalIndependentSets.contains(mis.toSet))
-
-    assert(misTable.signature == nodeTable.signature
-      && misTable.key == nodeTable.key
-      && misTable.globalSignature == nodeTable.globalSignature)
-  }
 }

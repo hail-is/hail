@@ -1219,25 +1219,18 @@ class Table(val hc: HailContext, val ir: TableIR) {
     Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
   }
 
-  def maximalIndependentSet(nodes: Table, nodeExpr: String, iExpr: String, jExpr: String,
+  def maximalIndependentSet(iExpr: String, jExpr: String, keep: Boolean,
     maybeTieBreaker: Option[String] = None): Table = {
 
     val (iType, _) = Parser.parseExpr(iExpr, rowEvalContext())
-    val (nodeType, _) = Parser.parseExpr(nodeExpr, nodes.rowEvalContext())
 
-    if (iType != nodeType) {
-      fatal(s"type of node in nodes table must match type of $iExpr in edges table, but type of" +
-        s" `$nodeExpr` is $nodeType, while type of $iExpr is $iType")
-    }
-
-    val relatedNodes = this.annotate("nodes = [" + iExpr + "," + jExpr + "]").select("row.nodes").explode("nodes").rdd
-      .mapPartitions(it => it.map(row => row.get(0))).collectAsSet()
     val relatedNodesToKeep = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
-    val relatedNodesToRemove = relatedNodes -- relatedNodesToKeep
 
-    nodes.annotateGlobal(relatedNodesToRemove.toSet, TSet(iType), "relatedNodesToRemove")
-      .filter(s"global.relatedNodesToRemove.contains($nodeExpr)", keep = false)
-      .selectGlobal(nodes.globalSignature.fieldNames: _*)
+    val nodes = this.annotate(s"node = [$iExpr, $jExpr]").select("row.node").explode("node").keyBy("node")
+
+    nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
+      .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
+      .selectGlobal()
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
