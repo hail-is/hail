@@ -478,6 +478,8 @@ object OrderedRVD {
     // keys: RDD[kType]
     keys: RDD[RegionValue]): Array[OrderedRVPartitionInfo] = {
     val nPartitions = keys.getNumPartitions
+    if (nPartitions == 0)
+      return Array()
 
     val rng = new java.util.Random(1)
     val partitionSeed = Array.tabulate[Int](nPartitions)(i => rng.nextInt())
