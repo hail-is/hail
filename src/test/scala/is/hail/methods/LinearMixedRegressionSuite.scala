@@ -300,7 +300,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
   lazy val vdsFastLMM = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
     bim = "src/test/resources/fastlmmTest.bim",
-    fam = "src/test/resources/fastlmmTest.fam")
+    fam = "src/test/resources/fastlmmTest.fam",
+    gr = None)
     .annotateSamplesTable(covariates, root = "cov").annotateSamplesExpr("cov = sa.cov.f2")
     .annotateSamplesTable(phenotypes, root = "pheno").annotateSamplesExpr("pheno = sa.pheno.f2")
 

@@ -132,6 +132,8 @@ def default_reference():
 def get_reference(name):
     """Return the reference genome corresponding to `name`.
 
+    If `name` is ``default``, return the reference from :func:`.default_reference`.
+
     Returns
     -------
     :class:`.GenomeReference`

@@ -771,16 +771,13 @@ class TLocus(Type):
     Parameters
     ----------
     reference_genome: :class:`.GenomeReference` or :obj:`str`
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
     """
 
-    @typecheck_method(reference_genome=oneof(genetics.GenomeReference, str))
+    @typecheck_method(reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), genetics.GenomeReference))
     def __init__(self, reference_genome='default'):
-        if isinstance(reference_genome, str):
-            reference_genome = hl.get_reference(reference_genome)
-
         self._rg = reference_genome
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self.reference_genome._jrep,
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self._rg._jrep,
                                                                                       False)
         super(TLocus, self).__init__()
 

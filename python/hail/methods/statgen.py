@@ -2267,7 +2267,7 @@ def rrm(call_expr):
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
-           reference_genome=oneof(str, GenomeReference))
+           reference_genome=oneof(transformed((str, lambda x: get_reference(x))), GenomeReference))
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                           seed=0, reference_genome='default'):
@@ -2405,7 +2405,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     seed : :obj:`int`
         Random seed.
     reference_genome : :obj:`str` or :class:`.GenomeReference`
-        Reference genome to use. ``default`` is :class:`~.HailContext.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
@@ -2422,9 +2422,6 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         jvm_fst_opt = joption(fst)
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
-
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
 
     jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
                                             joption(num_partitions),

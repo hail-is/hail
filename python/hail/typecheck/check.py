@@ -346,8 +346,10 @@ def setof(t):
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
+
 def func_spec(n, tc):
     return FunctionChecker(n, only(tc))
+
 
 def transformed(*tcs):
     fs = []

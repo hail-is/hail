@@ -2,7 +2,7 @@ from hail.genetics.genomeref import GenomeReference
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import scala_object, handle_py4j, Env
-
+import hail as hl
 
 class Locus(HistoryMixin):
     """
@@ -11,7 +11,7 @@ class Locus(HistoryMixin):
     :param contig: chromosome identifier
     :type contig: str or int
     :param int position: chromosomal position (1-indexed)
-    :param reference_genome: Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+    :param reference_genome: Reference genome to use.
     :type reference_genome: :obj:`str` or :class:`.GenomeReference`
     """
 
@@ -19,14 +19,11 @@ class Locus(HistoryMixin):
     @record_init
     @typecheck_method(contig=oneof(str, int),
                       position=int,
-                      reference_genome=oneof(str, GenomeReference))
+                      reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference))
     def __init__(self, contig, position, reference_genome='default'):
         if isinstance(contig, int):
             contig = str(contig)
 
-        from hail import get_reference
-        if isinstance(reference_genome, str):
-            reference_genome = get_reference(reference_genome)
         self._rg = reference_genome
 
         jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position, self._rg._jrep)
@@ -64,7 +61,7 @@ class Locus(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=oneof(str, GenomeReference))
+                      reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference))
     def parse(cls, string, reference_genome='default'):
         """Parses a locus object from a CHR:POS string.
 
@@ -79,12 +76,8 @@ class Locus(HistoryMixin):
 
         :rtype: :class:`.Locus`
         """
-        from hail import get_reference
-        if isinstance(reference_genome, str):
-            reference_genome = get_reference(reference_genome)
-        rg = reference_genome
 
-        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string, rg._jrep), rg)
+        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string, reference_genome._jrep), reference_genome)
 
     @property
     def contig(self):

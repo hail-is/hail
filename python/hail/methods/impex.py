@@ -318,7 +318,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 @handle_py4j
 @typecheck(path=str,
-           reference_genome=nullable(oneof(str, GenomeReference)))
+           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)))
 def import_interval_list(path, reference_genome='default'):
     """Import an interval list as a :class:`.Table`.
 
@@ -373,16 +373,13 @@ def import_interval_list(path, reference_genome='default'):
         Path to file.
 
     reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
     :class:`.Table`
         Interval-keyed table.
     """
-
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
     rg = reference_genome._jrep if reference_genome else None
 
     t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg))
@@ -391,7 +388,7 @@ def import_interval_list(path, reference_genome='default'):
 
 @handle_py4j
 @typecheck(path=str,
-           reference_genome=nullable(oneof(str, GenomeReference)))
+           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)))
 def import_bed(path, reference_genome='default'):
     """Import a UCSC .bed file as a :class:`.Table`.
 
@@ -454,7 +451,7 @@ def import_bed(path, reference_genome='default'):
         Path to .bed file.
 
     reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
@@ -474,10 +471,6 @@ def import_bed(path, reference_genome='default'):
     # >>> bed = hl.import_bed('data/file2.bed')
     # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
 
-    from hail import get_reference
-
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
     rg = reference_genome._jrep if reference_genome else None
 
     jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg))
@@ -595,7 +588,7 @@ def grep(regex, path, max_count=100):
            sample_file=nullable(str),
            entry_fields=listof(str),
            min_partitions=nullable(int),
-           reference_genome=nullable(oneof(str, GenomeReference)),
+           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric)
 def import_bgen(path, entry_fields, sample_file=None,
@@ -694,7 +687,7 @@ def import_bgen(path, entry_fields, sample_file=None,
     min_partitions : :obj:`int`, optional
         Number of partitions.
     reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
@@ -707,8 +700,6 @@ def import_bgen(path, entry_fields, sample_file=None,
     :class:`.MatrixTable`
     """
 
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
     rg = reference_genome._jrep if reference_genome else None
 
     if not entry_fields:
@@ -738,7 +729,7 @@ def import_bgen(path, entry_fields, sample_file=None,
            tolerance=numeric,
            min_partitions=nullable(int),
            chromosome=nullable(str),
-           reference_genome=nullable(oneof(str, GenomeReference)),
+           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
            contig_recoding=nullable(dictof(str, str)))
 def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None,
                reference_genome='default', contig_recoding=None):
@@ -813,7 +804,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     chromosome : :obj:`str`, optional
         Chromosome if not included in the GEN file
     reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
@@ -823,8 +814,6 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     :class:`.MatrixTable`
     """
 
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
     rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding:
@@ -1147,7 +1136,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
            missing=str,
            quant_pheno=bool,
            a2_reference=bool,
-           reference_genome=nullable(oneof(GenomeReference, str)),
+           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
            contig_recoding=nullable(dictof(str, str)))
 def import_plink(bed, bim, fam,
                  min_partitions=None,
@@ -1250,7 +1239,7 @@ def import_plink(bed, bim, fam,
         as the reference allele.
 
     reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
@@ -1261,8 +1250,6 @@ def import_plink(bed, bim, fam,
     :class:`.MatrixTable`
     """
 
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
     rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding:
@@ -1361,7 +1348,7 @@ def get_vcf_metadata(path):
            min_partitions=nullable(int),
            drop_samples=bool,
            call_fields=oneof(str, listof(str)),
-           reference_genome=nullable(oneof(str, GenomeReference)),
+           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
            contig_recoding=nullable(dictof(str, str)))
 def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                drop_samples=False, call_fields=[], reference_genome='default', contig_recoding=None):
@@ -1466,7 +1453,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         List of FORMAT fields to load as :class:`.TCall`. "GT" is loaded as
         a call automatically.
     reference_genome: :obj:`str` or :class:`.GenomeReference`, optional
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
@@ -1477,8 +1464,6 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     :class:`.MatrixTable`
     """
 
-    if isinstance(reference_genome, str):
-        reference_genome = get_reference(reference_genome)
     rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding:

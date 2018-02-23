@@ -641,7 +641,8 @@ def index(structs, identifier):
                           structs._indices, structs._aggregations, structs._joins, structs._refs)
 
 
-@typecheck(contig=expr_str, pos=expr_int32, reference_genome=oneof(str, GenomeReference))
+@typecheck(contig=expr_str, pos=expr_int32,
+           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
 def locus(contig, pos, reference_genome='default'):
     """Construct a locus expression from a chromosome and position.
 
@@ -659,7 +660,7 @@ def locus(contig, pos, reference_genome='default'):
     pos : int or :class:`.Expression` of type :class:`.TInt32`
         Base position along the chromosome.
     reference_genome : :obj:`str` or :class:`.GenomeReference`
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
@@ -668,15 +669,13 @@ def locus(contig, pos, reference_genome='default'):
     contig = to_expr(contig)
     pos = to_expr(pos)
 
-    if isinstance(reference_genome, std_str):
-        reference_genome = get_reference(reference_genome)
-
     indices, aggregations, joins, refs = unify_all(contig, pos)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
                           tlocus(reference_genome), indices, aggregations, joins, refs)
 
 
-@typecheck(s=expr_str, reference_genome=oneof(str, GenomeReference))
+@typecheck(s=expr_str,
+           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
 def parse_locus(s, reference_genome='default'):
     """Construct a locus expression by parsing a string or string expression.
 
@@ -697,22 +696,19 @@ def parse_locus(s, reference_genome='default'):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :obj:`str` or :class:`.GenomeReference`
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
     :class:`.LocusExpression`
     """
     s = to_expr(s)
-
-    if isinstance(reference_genome, std_str):
-        reference_genome = get_reference(reference_genome)
-
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
 
-@typecheck(s=expr_str, reference_genome=oneof(str, GenomeReference))
+@typecheck(s=expr_str,
+           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
 def parse_variant(s, reference_genome='default'):
     """Construct a struct with a locus and alleles by parsing a string.
 
@@ -736,7 +732,7 @@ def parse_variant(s, reference_genome='default'):
     s : :class:`.StringExpression`
         String to parse.
     reference_genome: :obj:`str` or :class:`.GenomeReference`
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
@@ -744,10 +740,6 @@ def parse_variant(s, reference_genome='default'):
         Struct with fields `locus` and `alleles`.
     """
     s = to_expr(s)
-
-    if isinstance(reference_genome, std_str):
-        reference_genome = get_reference(reference_genome)
-
     t = tstruct(['locus', 'alleles'], [tlocus(reference_genome), tarray(tstr)])
     return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
                           s._indices, s._aggregations, s._joins, s._refs)
@@ -832,8 +824,6 @@ def interval(start, end):
         Starting locus (inclusive).
     end : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
         End locus (exclusive).
-    reference_genome : :class:`.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -850,7 +840,8 @@ def interval(start, end):
         indices, aggregations, joins, refs)
 
 
-@typecheck(s=expr_str, reference_genome=oneof(str, GenomeReference))
+@typecheck(s=expr_str,
+           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
 def parse_interval(s, reference_genome='default'):
     """Construct an interval expression by parsing a string or string expression.
 
@@ -876,17 +867,13 @@ def parse_interval(s, reference_genome='default'):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :obj:`str` or :class:`.hail.genetics.GenomeReference`
-        Reference genome to use. ``default`` is :func:`~hail.default_reference`.
+        Reference genome to use.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
     s = to_expr(s)
-
-    if isinstance(reference_genome, std_str):
-        reference_genome = get_reference(reference_genome)
-
     return construct_expr(
         ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), tinterval(tlocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)

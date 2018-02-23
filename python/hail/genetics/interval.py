@@ -3,6 +3,7 @@ from hail.genetics.locus import Locus
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
+import hail as hl
 
 interval_type = lazy()
 
@@ -64,7 +65,7 @@ class Interval(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=oneof(str, GenomeReference))
+                      reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference))
     def parse(cls, string, reference_genome='default'):
         """Parses a genomic interval from string representation.
 
@@ -105,18 +106,12 @@ class Interval(HistoryMixin):
         string : :obj:`str`
             String to parse.
         reference_genome : :obj:`str` or :class:`.GenomeReference`
-            Reference genome to use. ``default`` is :class:`~hail.default_reference`.
+            Reference genome to use.
 
         Returns
         -------
         :class:`.Interval`
         """
-
-        from hail import default_reference, get_reference
-        if reference_genome == 'default':
-            reference_genome = default_reference()
-        elif isinstance(reference_genome, str):
-            reference_genome = get_reference(reference_genome)
 
         jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, reference_genome._jrep)
         return Interval._from_java(jrep, reference_genome)
