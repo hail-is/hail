@@ -190,7 +190,7 @@ class MatrixTable(object):
     >>> dataset = dataset.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
     ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
-    >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.rand_unif(0, 6).to_int32()],
+    >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.int(hl.rand_unif(0, 6))],
     ...                                 sample_gq = agg.mean(dataset.GQ),
     ...                                 sample_dp = agg.mean(dataset.DP))
 

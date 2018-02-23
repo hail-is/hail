@@ -117,4 +117,11 @@ __all__ = ['Type',
            'array',
            'delimit',
            'abs',
-           'signum']
+           'signum',
+           'float',
+           'float32',
+           'float64',
+           'int',
+           'int32',
+           'int64',
+           'bool']

@@ -269,14 +269,14 @@ class Tests(unittest.TestCase):
 
     def test_str_ops(self):
         s = hl.capture("123")
-        self.assertEqual(hl.eval_expr(s.to_int32()), 123)
+        self.assertEqual(hl.eval_expr(hl.int32(s)), 123)
 
         s = hl.capture("123123123123")
-        self.assertEqual(hl.eval_expr(s.to_int64()), 123123123123)
+        self.assertEqual(hl.eval_expr(hl.int64(s)), 123123123123)
 
         s = hl.capture("1.5")
-        self.assertEqual(hl.eval_expr(s.to_float32()), 1.5)
-        self.assertEqual(hl.eval_expr(s.to_float64()), 1.5)
+        self.assertEqual(hl.eval_expr(hl.float32(s)), 1.5)
+        self.assertEqual(hl.eval_expr(hl.float64(s)), 1.5)
 
         s1 = hl.capture('true')
         s2 = hl.capture('True')
@@ -286,13 +286,13 @@ class Tests(unittest.TestCase):
         s5 = hl.capture('False')
         s6 = hl.capture('FALSE')
 
-        self.assertTrue(hl.eval_expr(s1.to_boolean()))
-        self.assertTrue(hl.eval_expr(s2.to_boolean()))
-        self.assertTrue(hl.eval_expr(s3.to_boolean()))
+        self.assertTrue(hl.eval_expr(hl.bool(s1)))
+        self.assertTrue(hl.eval_expr(hl.bool(s2)))
+        self.assertTrue(hl.eval_expr(hl.bool(s3)))
 
-        self.assertFalse(hl.eval_expr(s4.to_boolean()))
-        self.assertFalse(hl.eval_expr(s5.to_boolean()))
-        self.assertFalse(hl.eval_expr(s6.to_boolean()))
+        self.assertFalse(hl.eval_expr(hl.bool(s4)))
+        self.assertFalse(hl.eval_expr(hl.bool(s5)))
+        self.assertFalse(hl.eval_expr(hl.bool(s6)))
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
@@ -300,16 +300,16 @@ class Tests(unittest.TestCase):
 
     def test_division(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
-        int64_4 = hl.capture(4).to_int64()
-        int64_4s = int32_4s.map(lambda x: x.to_int64())
-        float32_4 = hl.capture(4).to_float32()
-        float32_4s = int32_4s.map(lambda x: x.to_float32())
-        float64_4 = hl.capture(4).to_float64()
-        float64_4s = int32_4s.map(lambda x: x.to_float64())
+        int64_4 = hl.int64(4)
+        int64_4s = int32_4s.map(lambda x: hl.int64(x))
+        float32_4 = hl.float32(4)
+        float32_4s = int32_4s.map(lambda x: hl.float32(x))
+        float64_4 = hl.float64(4)
+        float64_4s = int32_4s.map(lambda x: hl.float64(x))
 
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
@@ -376,17 +376,17 @@ class Tests(unittest.TestCase):
 
     def test_floor_division(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
-        int64_3 = hl.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = hl.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = hl.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
+        int64_3 = hl.int64(3)
+        int64_3s = int32_3s.map(lambda x: hl.int64(x))
+        float32_3 = hl.float32(3)
+        float32_3s = int32_3s.map(lambda x: hl.float32(x))
+        float64_3 = hl.float64(3)
+        float64_3s = int32_3s.map(lambda x: hl.float64(x))
 
         expected = [0, 1, 2, 5, None]
         expected_inv = [1, 0, 0, 0, None]
@@ -453,17 +453,17 @@ class Tests(unittest.TestCase):
 
     def test_addition(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
-        int64_3 = hl.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = hl.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = hl.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
+        int64_3 = hl.int64(3)
+        int64_3s = int32_3s.map(lambda x: hl.int64(x))
+        float32_3 = hl.float32(3)
+        float32_3s = int32_3s.map(lambda x: hl.float32(x))
+        float64_3 = hl.float64(3)
+        float64_3s = int32_3s.map(lambda x: hl.float64(x))
 
         expected = [5, 7, 11, 19, None]
         expected_inv = expected
@@ -530,17 +530,17 @@ class Tests(unittest.TestCase):
 
     def test_subtraction(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
-        int64_3 = hl.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = hl.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = hl.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
+        int64_3 = hl.int64(3)
+        int64_3s = int32_3s.map(lambda x: hl.int64(x))
+        float32_3 = hl.float32(3)
+        float32_3s = int32_3s.map(lambda x: hl.float32(x))
+        float64_3 = hl.float64(3)
+        float64_3s = int32_3s.map(lambda x: hl.float64(x))
 
         expected = [-1, 1, 5, 13, None]
         expected_inv = [1, -1, -5, -13, None]
@@ -607,17 +607,17 @@ class Tests(unittest.TestCase):
 
     def test_multiplication(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
-        int64_3 = hl.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = hl.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = hl.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
+        int64_3 = hl.int64(3)
+        int64_3s = int32_3s.map(lambda x: hl.int64(x))
+        float32_3 = hl.float32(3)
+        float32_3s = int32_3s.map(lambda x: hl.float32(x))
+        float64_3 = hl.float64(3)
+        float64_3s = int32_3s.map(lambda x: hl.float64(x))
 
         expected = [6, 12, 24, 48, None]
         expected_inv = expected
@@ -684,17 +684,17 @@ class Tests(unittest.TestCase):
 
     def test_exponentiation(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
-        int64_3 = hl.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = hl.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = hl.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
+        int64_3 = hl.int64(3)
+        int64_3s = int32_3s.map(lambda x: hl.int64(x))
+        float32_3 = hl.float32(3)
+        float32_3s = int32_3s.map(lambda x: hl.float32(x))
+        float64_3 = hl.float64(3)
+        float64_3s = int32_3s.map(lambda x: hl.float64(x))
 
         expected = [8, 64, 512, 4096, None]
         expected_inv = [9.0, 81.0, 6561.0, 43046721.0, None]
@@ -761,17 +761,17 @@ class Tests(unittest.TestCase):
 
     def test_modulus(self):
         a_int32 = hl.capture([2, 4, 8, 16, hl.null(tint32)])
-        a_int64 = a_int32.map(lambda x: x.to_int64())
-        a_float32 = a_int32.map(lambda x: x.to_float32())
-        a_float64 = a_int32.map(lambda x: x.to_float64())
+        a_int64 = a_int32.map(lambda x: hl.int64(x))
+        a_float32 = a_int32.map(lambda x: hl.float32(x))
+        a_float64 = a_int32.map(lambda x: hl.float64(x))
         int32_4s = hl.capture([4, 4, 4, 4, hl.null(tint32)])
         int32_3s = hl.capture([3, 3, 3, 3, hl.null(tint32)])
-        int64_3 = hl.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = hl.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = hl.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
+        int64_3 = hl.int64(3)
+        int64_3s = int32_3s.map(lambda x: hl.int64(x))
+        float32_3 = hl.float32(3)
+        float32_3s = int32_3s.map(lambda x: hl.float32(x))
+        float64_3 = hl.float64(3)
+        float64_3s = int32_3s.map(lambda x: hl.float64(x))
 
         expected = [2, 1, 2, 1, None]
         expected_inv = [1, 3, 3, 3, None]

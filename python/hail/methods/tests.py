@@ -79,7 +79,7 @@ class Tests(unittest.TestCase):
         compare(dataset, min=0.0, max=1.0)
         dataset = dataset.annotate_rows(dummy_maf=0.01)
         hl.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
-        hl.ibd(dataset, dataset['dummy_maf'].to_float32(), min=0.0, max=1.0)
+        hl.ibd(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
 
     def test_impute_sex_same_as_plink(self):
         import subprocess as sp
@@ -465,7 +465,7 @@ class Tests(unittest.TestCase):
                         mat_id="nada", is_female=True, is_case=False)
 
         hl.export_plink(ds, '/tmp/plink_example3', id=ds.s, fam_id=ds.s, pat_id="nope",
-                        mat_id="nada", is_female=True, quant_pheno=ds.s.length().to_float64())
+                        mat_id="nada", is_female=True, quant_pheno=hl.float64(hl.len(ds.s)))
 
         self.assertRaises(ValueError,
                           lambda: hl.export_plink(ds, '/tmp/plink_example', is_case=True, quant_pheno=0.0))
@@ -572,8 +572,8 @@ class Tests(unittest.TestCase):
         schema = hl.tstruct(['i', 'j', 'entry'],
                             [hl.tint32, hl.tint32, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
-        table = table.annotate(i=table.i.to_int64(),
-                               j=table.j.to_int64())
+        table = table.annotate(i=hl.int64(table.i),
+                               j=hl.int64(table.j))
 
         numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (num_rows, num_cols))
 

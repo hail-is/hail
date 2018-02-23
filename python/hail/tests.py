@@ -212,11 +212,11 @@ class TableTests(unittest.TestCase):
                            x3=agg.min(kt.qPheno),
                            x4=agg.max(kt.qPheno),
                            x5=agg.sum(kt.qPheno),
-                           x6=agg.product(kt.qPheno.to_int64()),
+                           x6=agg.product(hl.int64(kt.qPheno)),
                            x7=agg.count(),
                            x8=agg.count_where(kt.qPheno == 3),
                            x9=agg.fraction(kt.qPheno == 1),
-                           x10=agg.stats(kt.qPheno.to_float64()),
+                           x10=agg.stats(hl.float64(kt.qPheno)),
                            x11=agg.hardy_weinberg(kt.GT),
                            x13=agg.inbreeding(kt.GT, 0.1),
                            x14=agg.call_stats(kt.GT, ["A", "T"]),
@@ -731,18 +731,18 @@ class FunctionsTests(unittest.TestCase):
             index=hl.index(kt.g, 'z'),
             is_defined=hl.is_defined(kt.i),
             is_missing=hl.is_missing(kt.i),
-            is_nan=hl.is_nan(kt.a.to_float64()),
+            is_nan=hl.is_nan(hl.float64(kt.a)),
             json=hl.json(kt.g),
-            log=hl.log(kt.a.to_float64(), kt.b.to_float64()),
-            log10=hl.log10(kt.c.to_float64()),
+            log=hl.log(kt.a, kt.b),
+            log10=hl.log10(kt.c),
             or_else=hl.or_else(kt.a, 5),
             or_missing=hl.or_missing(kt.i, kt.j),
-            pchisqtail=hl.pchisqtail(kt.a.to_float64(), kt.b.to_float64()),
+            pchisqtail=hl.pchisqtail(kt.a, kt.b),
             pcoin=hl.rand_bool(0.5),
             pnorm=hl.pnorm(0.2),
             pow=2.0 ** kt.b,
-            ppois=hl.ppois(kt.a.to_float64(), kt.b.to_float64()),
-            qchisqtail=hl.qchisqtail(kt.a.to_float64(), kt.b.to_float64()),
+            ppois=hl.ppois(kt.a, kt.b),
+            qchisqtail=hl.qchisqtail(kt.a, kt.b),
             range=hl.range(0, 5, kt.b),
             rnorm=hl.rand_norm(0.0, kt.b),
             rpois=hl.rand_pois(kt.a),
@@ -871,7 +871,7 @@ class ColumnTests(unittest.TestCase):
         schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
-        kt = kt.annotate(d = kt.d.to_int64())
+        kt = kt.annotate(d = hl.int64(kt.d))
 
         kt = kt.annotate(x1=[1.0, kt.a, 1],
                          x2=[1, 1.0],
@@ -898,7 +898,7 @@ class ColumnTests(unittest.TestCase):
         schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
-        kt = kt.annotate(d = kt.d.to_int64())
+        kt = kt.annotate(d = hl.int64(kt.d))
 
         kt = kt.annotate(l1=hl.parse_locus("1:51"),
                          l2=hl.locus("1", 51, reference_genome=rg),

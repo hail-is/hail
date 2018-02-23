@@ -881,7 +881,7 @@ def inbreeding(expr, prior):
             agg._type.__class__))
 
     if isinstance(prior._type, TFloat32):
-        prior = prior.to_float64()
+        prior = hl.float64(prior)
     if not isinstance(prior._type, TFloat64):
         raise TypeError("'inbreeding' expects 'prior' to be type 'Float32' or 'Float64', found '{}'".format(prior._type))
 

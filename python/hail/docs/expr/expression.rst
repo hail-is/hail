@@ -12,7 +12,6 @@ Expressions
     Expression
     ArrayExpression
     ArrayNumericExpression
-    AtomicExpression
     BooleanExpression
     CallExpression
     CollectionExpression
@@ -35,9 +34,6 @@ Expressions
 .. autoclass:: ArrayNumericExpression
     :show-inheritance:
     :special-members: __add__, __sub__, __mul__, __div__, __floordiv__, __pow__, __mod__, __neg__
-
-.. autoclass:: AtomicExpression
-    :show-inheritance:
 
 .. autoclass:: BooleanExpression
     :show-inheritance:

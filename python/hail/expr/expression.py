@@ -1903,7 +1903,7 @@ class StructExpression(Mapping, Expression):
         if len(self._fields) == 0:
             fields = '\n    None'
         else:
-            fields= ''.join("\n    '{name}': {type} ".format(
+            fields = ''.join("\n    '{name}': {type} ".format(
                 name=name, type=value.dtype.pretty(indent=4)) for name, value in self._fields.items())
 
         s = '----------------------------------------\n' \
@@ -1912,48 +1912,7 @@ class StructExpression(Mapping, Expression):
         print(s)
 
 
-
-class AtomicExpression(Expression):
-    """Abstract base class for numeric and logical types."""
-
-    def to_float64(self):
-        """Convert to a 64-bit floating point expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat64`
-        """
-        return self._method("toFloat64", tfloat64)
-
-    def to_float32(self):
-        """Convert to a 32-bit floating point expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat32`
-        """
-        return self._method("toFloat32", tfloat32)
-
-    def to_int64(self):
-        """Convert to a 64-bit integer expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt64`
-        """
-        return self._method("toInt64", tint64)
-
-    def to_int32(self):
-        """Convert to a 32-bit integer expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt32`
-        """
-        return self._method("toInt32", tint32)
-
-
-class BooleanExpression(AtomicExpression):
+class BooleanExpression(Expression):
     """Expression of type :class:`.TBoolean`.
 
     >>> t = hl.capture(True)
@@ -2089,7 +2048,7 @@ class BooleanExpression(AtomicExpression):
         return self._unary_op("!")
 
 
-class NumericExpression(AtomicExpression):
+class NumericExpression(Expression):
     """Expression of numeric type.
 
     >>> x = hl.capture(3)
@@ -2480,7 +2439,7 @@ class Int64Expression(NumericExpression):
     pass
 
 
-class StringExpression(AtomicExpression):
+class StringExpression(Expression):
     """Expression of type :class:`.TString`.
 
     >>> s = hl.capture('The quick brown fox')
@@ -2673,79 +2632,6 @@ class StringExpression(AtomicExpression):
         """
         return construct_expr(RegexMatch(self._ast, regex), tbool,
                               self._indices, self._aggregations, self._joins, self._refs)
-
-    def to_int32(self):
-        """Parse the string to a 32-bit integer.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('123')
-            >>> hl.eval_expr(s.to_int32())
-            123
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt32`
-            Parsed integer expression.
-        """
-        return self._method("toInt32", tint32)
-
-    def to_int64(self):
-        """Parse the string to a 64-bit integer.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('123123123123')
-            >>> hl.eval_expr(s.to_int64())
-            123123123123L
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt64`
-            Parsed integer expression.
-        """
-
-        return self._method("toInt64", tint64)
-
-    def to_float32(self):
-        """Parse the string to a 32-bit float.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('1.5')
-            >>> hl.eval_expr(s.to_float32())
-            1.5
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat32`
-            Parsed float expression.
-        """
-        return self._method("toFloat32", tfloat32)
-
-    def to_float64(self):
-        """Parse the string to a 64-bit float.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('1.15e80')
-            >>> hl.eval_expr(s.to_float64())
-            1.15e+80
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat64`
-            Parsed float expression.
-        """
-        return self._method("toFloat64", tfloat64)
 
     def to_boolean(self):
         """Parse the string to a Boolean.
