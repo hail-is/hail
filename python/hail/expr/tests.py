@@ -235,6 +235,38 @@ class Tests(unittest.TestCase):
         a = hl.capture([1, 2, 3])
         self.assertRaises(TypeError, lambda: hl.eval_expr(list(a)))
 
+    def test_aggregator_any_and_all(self):
+        df = hl.utils.range_table(10)
+        df = df.annotate(all_true=True,
+                         all_false=False,
+                         true_or_missing=hl.cond(df.idx % 2 == 0, True, hl.null(tbool)),
+                         false_or_missing=hl.cond(df.idx % 2 == 0, False, hl.null(tbool)),
+                         all_missing=hl.null(tbool),
+                         mixed_true_false=hl.cond(df.idx % 2 == 0, True, False),
+                         mixed_all=hl.switch(df.idx % 3)
+                         .when(0, True)
+                         .when(1, False)
+                         .or_missing()).cache()
+
+
+        self.assertEqual(df.aggregate(agg.any(df.all_true)), True)
+        self.assertEqual(df.aggregate(agg.all(df.all_true)), True)
+        self.assertEqual(df.aggregate(agg.any(df.all_false)), False)
+        self.assertEqual(df.aggregate(agg.any(df.all_false)), False)
+        self.assertEqual(df.aggregate(agg.any(df.true_or_missing)), True)
+        self.assertEqual(df.aggregate(agg.all(df.true_or_missing)), True)
+        self.assertEqual(df.aggregate(agg.any(df.false_or_missing)), False)
+        self.assertEqual(df.aggregate(agg.all(df.false_or_missing)), False)
+        self.assertEqual(df.aggregate(agg.any(df.all_missing)), False)
+        self.assertEqual(df.aggregate(agg.all(df.all_missing)), True)
+        self.assertEqual(df.aggregate(agg.any(df.mixed_true_false)), True)
+        self.assertEqual(df.aggregate(agg.all(df.mixed_true_false)), False)
+        self.assertEqual(df.aggregate(agg.any(df.mixed_all)), True)
+        self.assertEqual(df.aggregate(agg.all(df.mixed_all)), False)
+
+        self.assertEqual(df.aggregate(agg.any(agg.filter(lambda x: False, df.all_true))), False)
+        self.assertEqual(df.aggregate(agg.all(agg.filter(lambda x: False, df.all_true))), True)
+
     def test_str_ops(self):
         s = hl.capture("123")
         self.assertEqual(hl.eval_expr(s.to_int32()), 123)
