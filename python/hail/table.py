@@ -49,10 +49,12 @@ class TableTemplate(HistoryMixin):
         self._key = None
         self._column_names = None
         self._fields = {}
+        self._fields_inverse = {}
         super(TableTemplate, self).__init__()
 
     def _set_field(self, key, value):
         self._fields[key] = value
+        self._fields_inverse[value] = key
         if key in dir(self):
             warn("Name collision: field '{}' already in object dict. "
                  "This field must be referenced with indexing syntax".format(key))
@@ -417,15 +419,14 @@ class Table(TableTemplate):
             Table with new set of keys.
         """
         str_keys = []
-        fields_rev = {expr: name for name, expr in self._fields.items()}
         for k in keys:
             if isinstance(k, Expression):
-                if k not in fields_rev:
+                if k not in self._fields_inverse:
                     raise ExpressionException("'key_by' permits only top-level fields of the table")
                 elif k._indices != self._row_indices:
                     raise ExpressionException("key_by' expects row fields, found index {}"
                                               .format(list(k._indices.axes)))
-                str_keys.append(fields_rev[k])
+                str_keys.append(self._fields_inverse[k])
             else:
                 if k not in self._fields:
                     raise LookupError(get_nice_field_error(self, k))
@@ -1934,7 +1935,6 @@ class Table(TableTemplate):
             Table sorted by the given fields.
         """
         sort_cols = []
-        fields_rev = {v: k for k, v in self._fields.items()}
         for e in exprs:
             if isinstance(e, str):
                 expr = self[e]
@@ -1942,11 +1942,11 @@ class Table(TableTemplate):
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
                 sort_cols.append(asc(e)._j_obj())
             elif isinstance(e, Expression):
-                if not e in fields_rev:
+                if not e in self._fields_inverse:
                     raise ValueError("Expect top-level field, found a complex expression")
                 if not e._indices == self._row_indices:
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_cols.append(asc(fields_rev[e])._j_obj())
+                sort_cols.append(asc(self._fields_inverse[e])._j_obj())
             else:
                 assert isinstance(e, Ascending) or isinstance(e, Descending)
                 if isinstance(e.col, str):
@@ -1955,11 +1955,11 @@ class Table(TableTemplate):
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
                     sort_cols.append(e._j_obj())
                 else:
-                    if not e.col in fields_rev:
+                    if not e.col in self._fields_inverse:
                         raise ValueError("Expect top-level field, found a complex expression")
                     if not e.col._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    e.col = fields_rev[e.col]
+                    e.col = self._fields_inverse[e.col]
                     sort_cols.append(e._j_obj())
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
@@ -2038,8 +2038,7 @@ class Table(TableTemplate):
             # field is a str
             field = self[field]
 
-        fields_rev = {expr: k for k, expr in self._fields.items()}
-        if not field in fields_rev:
+        if not field in self._fields_inverse:
             # nested or complex expression
             raise ValueError("method 'explode' expects a top-level field name or expression")
         if not field._indices == self._row_indices:
@@ -2047,7 +2046,7 @@ class Table(TableTemplate):
             assert field._indices == self._global_indices
             raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
 
-        return Table(self._jt.explode(fields_rev[field]))
+        return Table(self._jt.explode(self._fields_inverse[field]))
 
     @typecheck_method(row_key=expr_any,
                       col_key=expr_any,
