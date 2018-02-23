@@ -2,8 +2,11 @@ package is.hail.variant.vsm
 
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.variant.{GenomeReference, VSMSubgen, MatrixTable}
+import is.hail.expr.types._
+import is.hail.table.Table
+import is.hail.variant.{GenomeReference, MatrixTable, VSMSubgen}
 import is.hail.testUtils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class PartitioningSuite extends SparkSuite {
@@ -45,5 +48,14 @@ class PartitioningSuite extends SparkSuite {
       GenomeReference.removeReference(vds.genomeReference.name)
       result
     }.check()
+  }
+
+  @Test def testHintPartitionerAdjustedCorrectly() {
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, "idx", partitions=Some(6)))
+
+    val trows = (for (i <- -5 to 200) yield { Row(i, "foo") }).reverse
+    val t = Table.parallelize(hc, trows, TStruct("tidx"-> TInt32(), "foo"-> TString()), Array("tidx"), nPartitions=Some(6))
+
+    mt.annotateVariantsTable(t, "foo").forceCountRows()
   }
 }

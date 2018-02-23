@@ -2206,7 +2206,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     metadataSame &&
       rvd.rdd.zipPartitions(
-        OrderedRVD.shuffle(
+        OrderedRVD.adjustBoundsAndShuffle(
           that.rvd.typ,
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
           that.rvd.rdd)
