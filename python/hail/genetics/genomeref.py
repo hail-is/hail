@@ -8,7 +8,7 @@ class GenomeReference(HistoryMixin):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     :param str name: Name of reference. Must be unique and not one of Hail's
-    predefined references "GRCh37", "GRCh38", and "default".
+        predefined references "GRCh37", "GRCh38", and "default".
 
     :param contigs: Contig names.
     :type contigs: list of str
