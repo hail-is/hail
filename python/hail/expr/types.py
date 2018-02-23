@@ -652,7 +652,7 @@ class TTuple(Type):
 
         Returns
         -------
-        :obj:`list` of :class:`.Type`
+        :obj:`tuple` of :class:`.Type`
         """
         return self._types
 
@@ -670,7 +670,7 @@ class TTuple(Type):
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
-            return tuple([t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types)])
+            return tuple(t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types))
         else:
             return None
 

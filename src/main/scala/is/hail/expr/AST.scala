@@ -405,10 +405,6 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
   override def typecheckThis(ec: EvalContext): Type = {
     elements.foreach(_.typecheck(ec))
     val types = elements.map(_.`type`)
-      .map {
-        case t: Type => t
-        case bt => parseError(s"invalid struct element found: `$bt'")
-      }
     TStruct((names, types, names.indices).zipped.map { case (id, t, i) => Field(id, t, i) })
   }
 
@@ -422,10 +418,6 @@ case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseSt
   override def typecheckThis(ec: EvalContext): Type = {
     elements.foreach(_.typecheck(ec))
     val types = elements.map(_.`type`)
-      .map {
-        case t: Type => t
-        case bt => parseError(s"invalid tuple element found: `$bt'")
-      }
     TTuple(types)
   }
 
@@ -786,10 +778,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           .valueOr(x => parseError(x.message))
 
       case (tt: TTuple, "[]", Array(Const(_, v, t))) =>
-        val idx = (t: @unchecked) match {
-          case TInt32(_) => v.asInstanceOf[Int]
-          case _ => fatal(s"Tuple index must have type `Int32'. Found ${ t.toString }.")
-        }
+        val idx = v.asInstanceOf[Int]
         assert(idx >= 0 && idx < tt.size)
         `type` = tt.types(idx)
 

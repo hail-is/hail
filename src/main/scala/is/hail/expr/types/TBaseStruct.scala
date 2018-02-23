@@ -108,7 +108,7 @@ abstract class TBaseStruct extends Type {
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val fieldOrderings = types.map(_.unsafeOrdering(missingGreatest)).toArray
+    val fieldOrderings = types.map(_.unsafeOrdering(missingGreatest))
 
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

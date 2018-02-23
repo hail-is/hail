@@ -134,11 +134,11 @@ def to_expr(e):
                               tarray(t), indices, aggregations, joins, refs)
     elif isinstance(e, tuple):
         if len(e) == 0:
-            return construct_expr(TupleDeclaration([]), ttuple())
+            return construct_expr(TupleDeclaration(), ttuple())
         cols = [to_expr(x) for x in e]
         indices, aggregations, joins, refs = unify_all(*cols)
-        t = ttuple(*[col._type for col in cols])
-        return construct_expr(TupleDeclaration([c._ast for c in cols]),
+        t = ttuple(*[col.dtype for col in cols])
+        return construct_expr(TupleDeclaration(*[c._ast for c in cols]),
                               t, indices, aggregations, joins, refs)
     elif isinstance(e, set):
         if len(e) == 0:

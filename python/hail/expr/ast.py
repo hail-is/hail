@@ -161,8 +161,8 @@ class StructDeclaration(AST):
 
 
 class TupleDeclaration(AST):
-    @typecheck_method(values=listof(AST))
-    def __init__(self, values):
+    @typecheck_method(values=AST)
+    def __init__(self, *values):
         self.values = values
         super(TupleDeclaration, self).__init__(*values)
 

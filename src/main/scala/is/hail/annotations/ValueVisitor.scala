@@ -96,11 +96,11 @@ final class PrettyVisitor extends ValueVisitor {
   }
 
   def enterTuple(t: TTuple) {
-    sb.append("(")
+    sb.append('(')
   }
 
   def leaveTuple() {
-    sb.append(")")
+    sb.append(')')
   }
 
   def enterArray(t: TContainer, length: Int) {
