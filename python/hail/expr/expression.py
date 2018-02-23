@@ -537,7 +537,7 @@ class Expression(object):
             raise NotImplementedError('cannot convert aggregated expression to table')
         if source is None:
             # scalar expression
-            df = hail.utils.range_table(1) # wat
+            df = hail.utils.range_table(1)
             df = df.select(**{name: self})
             return df
         elif len(axes) == 0:
