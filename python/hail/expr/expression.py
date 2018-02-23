@@ -549,8 +549,8 @@ class Expression(object):
         elif len(axes) == 1:
             if isinstance(source, hail.Table):
                 df = source
-                df = df.select(*df.key, **{name: self}).select_globals()
-                return df
+                df = df.select(*filter(lambda f: f != name, df.key), **{name: self})
+                return df.select_globals()
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
@@ -558,7 +558,7 @@ class Expression(object):
                     return source.rows_table().select_globals()
                 else:
                     assert self._indices == source._col_indices
-                    source = source.select_cols(*source.col_key, **{name: self})
+                    source = source.select_cols(*filter(lambda f: f != name, source.col_key), **{name: self})
                     return source.cols_table().select_globals()
         else:
             assert len(axes) == 2

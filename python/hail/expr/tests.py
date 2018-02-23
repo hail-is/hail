@@ -1022,3 +1022,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.signum(10.0)), 1)
         self.assertEqual(hl.eval_expr(hl.signum([-5, 0, 10])), [-1, 0, 1])
 
+    def test_show_row_key_regression(self):
+        ds = hl.utils.range_matrix_table(3, 3)
+        ds.col_idx.show(3)
