@@ -478,6 +478,8 @@ object OrderedRVD {
     // keys: RDD[kType]
     keys: RDD[RegionValue]): Array[OrderedRVPartitionInfo] = {
     val nPartitions = keys.getNumPartitions
+    if (nPartitions == 0)
+      return Array()
 
     val rng = new java.util.Random(1)
     val partitionSeed = Array.tabulate[Int](nPartitions)(i => rng.nextInt())
@@ -548,13 +550,15 @@ object OrderedRVD {
       }
     } else {
       info("Ordering unsorted dataset with network shuffle")
-      val p = hintPartitioner
+      val orvd = hintPartitioner
         .filter(_.numPartitions >= rdd.partitions.length)
+        .map(adjustBoundsAndShuffle(typ, _, rdd))
         .getOrElse {
           val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
-          new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges)
+          val p = new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges)
+          shuffle(typ, p, rdd)
         }
-      (SHUFFLE, shuffle(typ, p, rdd))
+      (SHUFFLE, orvd)
     }
   }
 
