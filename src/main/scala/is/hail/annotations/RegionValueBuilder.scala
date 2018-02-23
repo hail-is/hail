@@ -86,7 +86,8 @@ class RegionValueBuilder(var region: Region) {
       indexstk(0) = indexstk(0) + 1
   }
 
-  def startBaseStruct(t: TBaseStruct, init: Boolean = true) {
+  def startBaseStruct(init: Boolean = true) {
+    val t = currentType().asInstanceOf[TBaseStruct]
     if (typestk.isEmpty)
       allocateRoot()
 
@@ -99,7 +100,8 @@ class RegionValueBuilder(var region: Region) {
       t.clearMissingBits(region, off)
   }
 
-  def endBaseStruct(t: TBaseStruct) {
+  def endBaseStruct() {
+    val t = typestk.top.asInstanceOf[TBaseStruct]
     typestk.pop()
     offsetstk.pop()
     val last = indexstk.pop()
@@ -109,27 +111,23 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def startStruct(init: Boolean = true) {
-    val t = currentType().asInstanceOf[TStruct]
-    startBaseStruct(t, init)
+    assert(currentType().isInstanceOf[TStruct])
+    startBaseStruct(init)
   }
 
   def endStruct() {
-    typestk.top match {
-      case t: TStruct =>
-        endBaseStruct(t)
-    }
+    assert(typestk.top.isInstanceOf[TStruct])
+    endBaseStruct()
   }
 
   def startTuple(init: Boolean = true) {
-    val t = currentType().asInstanceOf[TTuple]
-    startBaseStruct(t, init)
+    assert(currentType().isInstanceOf[TTuple])
+    startBaseStruct(init)
   }
 
   def endTuple() {
-    typestk.top match {
-      case t: TTuple =>
-        endBaseStruct(t)
-    }
+    assert(typestk.top.isInstanceOf[TTuple])
+    endBaseStruct()
   }
 
   def startArray(length: Int, init: Boolean = true) {
@@ -251,14 +249,13 @@ class RegionValueBuilder(var region: Region) {
 
   def addRow(t: TBaseStruct, r: Row) {
     assert(r != null)
-
-    startStruct()
+    startBaseStruct()
     var i = 0
     while (i < t.size) {
       addAnnotation(t.types(i), r.get(i))
       i += 1
     }
-    endStruct()
+    endBaseStruct()
   }
 
   def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
