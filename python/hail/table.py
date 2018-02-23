@@ -2109,7 +2109,7 @@ class Table(TableTemplate):
     @staticmethod
     @handle_py4j
     @typecheck(df=DataFrame,
-               key=oneof(strlike, listof(strlike)))
+               key=oneof(str, listof(str)))
     def from_spark(df, key=[]):
         """Convert PySpark SQL DataFrame to a table.
 
