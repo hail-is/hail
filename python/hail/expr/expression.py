@@ -537,13 +537,13 @@ class Expression(object):
             raise NotImplementedError('cannot convert aggregated expression to table')
         if source is None:
             # scalar expression
-            df = hail.Table.range(1) # wat
+            df = hail.utils.range_table(1) # wat
             df = df.select(**{name: self})
             return df
         elif len(axes) == 0:
             uid = Env._get_uid()
             source = source.select_globals(**{uid: self})
-            df = hail.Table.range(1)
+            df = hail.utils.range_table(1)
             df = df.select(**{name: source.view_join_globals()[uid]})
             return df
         elif len(axes) == 1:
