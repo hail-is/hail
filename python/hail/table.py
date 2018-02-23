@@ -2106,6 +2106,52 @@ class Table(TableTemplate):
         # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
         raise NotImplementedError()
 
+    @staticmethod
+    @handle_py4j
+    @typecheck(df=DataFrame,
+               key=oneof(str, listof(str)))
+    def from_spark(df, key=[]):
+        """Convert PySpark SQL DataFrame to a table.
+
+        Examples
+        --------
+
+        >>> t = Table.from_spark(df) # doctest: +SKIP
+
+        Notes
+        -----
+
+        Spark SQL data types are converted to Hail types as follows:
+
+        .. code-block:: text
+
+          BooleanType => :class:`.TBoolean`
+          IntegerType => :class:`.TInt32`
+          LongType => :class:`.TInt64`
+          FloatType => :class:`.TFloat32`
+          DoubleType => :class:`.TFloat64`
+          StringType => :class:`.TString`
+          BinaryType => :class:`.TBinary`
+          ArrayType => :class:`.TArray`
+          StructType => :class:`.TStruct`
+
+        Unlisted Spark SQL data types are currently unsupported.
+
+        Parameters
+        ----------
+        df : :class:`.pyspark.sql.DataFrame`
+            PySpark DataFrame.
+        
+        key : :obj:`str` or :obj:`list` of :obj:`str`
+            Key fields.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table constructed from the Spark SQL DataFrame.
+        """
+        return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
+
     @handle_py4j
     @typecheck_method(expand=bool,
                       flatten=bool)
