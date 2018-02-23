@@ -22,12 +22,13 @@ To update to the latest version: `pip install cloudtools --upgrade`
 
 All functionality in cloudtools is accessed through the `cluster` module.
 
-There are 5 commands within the `cluster` module:
+There are 6 commands within the `cluster` module:
 - `cluster start <name> [args]`
 - `cluster submit <name> [args]`
 - `cluster connect <name> [args]`
 - `cluster diagnose <name> [args]`
 - `cluster stop <name>`
+- `cluster list`
 
 where `<name>` is the required, user-supplied name of the Dataproc cluster.
 
@@ -61,8 +62,6 @@ $ cluster submit testcluster myhailscript.py --args "arg1 arg2"
 where `myhailscript.py` is
 ```
 import sys
-from hail import *
-hc = HailContext()
 print('First argument: ', sys.argv[1])
 print('Second argument: ', sys.argv[2])
 ```
@@ -217,13 +216,13 @@ optional arguments:
   --zip ZIP             Hail zip to use for Jupyter notebook.
   --init INIT           Comma-separated list of init scripts to run.
   --vep                 Configure the cluster to run VEP.
+  --dry-run             Don't start a cluster, just print the gcloud command.
 ```
 
 ```
 $ cluster submit -h
-usage: cluster submit [-h] [--hash HASH] [--spark {2.0.2,2.2.0}]
-                      [--version {0.1,devel}] [--jar JAR] [--zip ZIP]
-                      [--properties PROPERTIES]
+usage: cluster submit [-h] [--properties PROPERTIES]
+                      [--args ARGS]
                       name script
 
 Submit a Python script to a running Dataproc cluster.
@@ -234,14 +233,6 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --hash HASH           Hail build to use for notebook initialization
-                        (default: latest).
-  --spark {2.0.2,2.2.0}
-                        Spark version used to build Hail (default: 2.0.2).
-  --version {0.1,devel}
-                        Hail version to use (default: 0.1).
-  --jar JAR             Custom Hail jar to use.
-  --zip ZIP             Custom Hail zip to use.
   --properties PROPERTIES, -p PROPERTIES
                         Extra Spark properties to set.
   --args ARGS           Quoted string of arguments to pass to the Hail script

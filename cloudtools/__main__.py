@@ -1,10 +1,11 @@
 import argparse
 import sys
-import start
-import submit
-import connect
-import diagnose
-import stop
+from cloudtools import start
+from cloudtools import submit
+from cloudtools import connect
+from cloudtools import diagnose
+from cloudtools import stop
+from cloudtools import list_clusters
 
 
 def main():
@@ -27,6 +28,10 @@ def main():
                                   help='Shut down a Dataproc cluster.',
                                   description='Shut down a Dataproc cluster.')
 
+    list_parser = subs.add_parser('list',
+                                  help='List active Dataproc clusters.',
+                                  description='List active Dataproc clusters.')
+
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
 
@@ -41,6 +46,8 @@ def main():
 
     stop_parser.set_defaults(module='stop')
     stop.init_parser(stop_parser)
+
+    list_parser.set_defaults(module='list')
 
     if len(sys.argv) == 1:
         main_parser.print_help()
@@ -62,6 +69,9 @@ def main():
 
     elif args.module == 'stop':
         stop.main(args)
+
+    elif args.module == 'list':
+        list_clusters.main(args)
 
 
 if __name__ == '__main__':

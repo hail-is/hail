@@ -1,11 +1,9 @@
 from subprocess import call, check_output
 import sys
 
-COMPATIBILITY_VERSION_01 = 1
-init_script_01 = 'gs://hail-common/cloudtools/init_notebook-0.1-{}.py'.format(COMPATIBILITY_VERSION_01)
 
-COMPATIBILITY_VERSION_02 = 1
-init_script_02 = 'gs://hail-common/cloudtools/init_notebook-0.2-{}.py'.format(COMPATIBILITY_VERSION_02)
+COMPATIBILITY_VERSION = 1
+init_script = 'gs://hail-common/cloudtools/init_notebook{}.py'.format(COMPATIBILITY_VERSION)
 
 # master machine type to memory map, used for setting spark.driver.memory property
 machine_mem = {
@@ -108,7 +106,8 @@ def main(args):
         properties.append(args.properties)
 
     # default initialization script to start up cluster with
-    init_actions = init_script_01 if args.version == '0.1' else init_script_02
+    init_actions = ['gs://dataproc-initialization-actions/conda/bootstrap-conda.sh',
+                    init_script]
 
     if args.version == 'devel' and args.spark != '2.2.0':
         sys.stderr.write("ERROR: Hail version 'devel' requires Spark 2.2.0.")
@@ -116,32 +115,58 @@ def main(args):
 
     # add VEP init script
     if args.vep:
-        init_actions += ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
+        init_actions.append('gs://hail-common/vep/vep/vep85-init.sh')
 
     # add custom init scripts
     if args.init:
-        init_actions += ',' + args.init
+        init_actions.append(args.init)
+
+
+    if (not (args.jar and args.zip)) and (args.jar or args.zip):
+        sys.stderr.write('ERROR: pass both --jar and --zip or neither')
+        sys.exit(1)
+
+    jar = None
+    py_zip = None
+
+    if args.jar:
+        jar = args.jar
+        py_zip = args.zip
+    else:
+        if sys.version_info >= (3,0):
+            # Python 3 check_output returns a byte string
+            decode_f = lambda x: x.decode()
+        else:
+            # In Python 2, bytes and str are the same
+            decode_f = lambda x: x
+
+        if args.hash == 'latest':
+            hail_hash = decode_f(check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(args.version, args.spark)]).strip())
+        else:
+            hail_hash = args.hash
+
+        hail_jar = 'hail-{0}-{1}-Spark-{2}.jar'.format(args.version, hail_hash, args.spark)
+        jar = 'gs://hail-common/builds/{0}/jars/{1}'.format(args.version, hail_jar)
+        hail_zip = 'hail-{0}-{1}.zip'.format(args.version, hail_hash)
+        py_zip = 'gs://hail-common/builds/{0}/python/{1}'.format(args.version, hail_zip)
 
     # get Hail build (default to latest)
-    if args.hash == 'latest':
-        hail_hash = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(args.version, args.spark)]).strip()
-    else:
-        hail_hash = args.hash
 
     # prepare metadata values
-    metadata = 'HASH={0},SPARK={1},HAIL_VERSION={2}'.format(hail_hash, args.spark, args.version)
+    metadata = []
+    metadata.append('JAR={}'.format(jar))
+    metadata.append('ZIP={}'.format(py_zip))
     if args.metadata:
-        metadata += ("," + args.metadata)
-
-    # if Hail jar and zip, add to metadata
-    if args.jar:
-        metadata += ',JAR={}'.format(args.jar)
-    if args.zip:
-        metadata += ',ZIP={}'.format(args.zip)
+        metadata.append(args.metadata)
 
     # if Python packages requested, add metadata variable
     if args.packages:
-        metadata = '^:^' + metadata.replace(',', ':') + ':PKGS={}'.format(args.packages)
+        metadata.append('PKGS={}'.format(args.packages.replace(',', '|')))
+
+    if args.version == 'devel':
+        metadata.append('MINICONDA_VERSION=4.4.10')
+    else:
+        metadata.append('MINICONDA_VARIANT=2')
 
     # command to start cluster
     cmd = [
@@ -152,7 +177,7 @@ def main(args):
         args.name,
         '--image-version={}'.format(image_version),
         '--master-machine-type={}'.format(args.master_machine_type),
-        '--metadata={}'.format(metadata),
+        '--metadata={}'.format(','.join(metadata)),
         '--master-boot-disk-size={}GB'.format(args.master_boot_disk_size),
         '--num-master-local-ssds={}'.format(args.num_master_local_ssds),
         '--num-preemptible-workers={}'.format(args.num_preemptible_workers),
@@ -163,7 +188,7 @@ def main(args):
         '--worker-machine-type={}'.format(args.worker_machine_type),
         '--zone={}'.format(args.zone),
         '--properties={}'.format(",".join(properties)),
-        '--initialization-actions={}'.format(init_actions)
+        '--initialization-actions={}'.format(','.join(init_actions))
     ]
 
     # print underlying gcloud command
