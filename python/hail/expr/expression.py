@@ -1,3 +1,4 @@
+import hail
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
@@ -529,6 +530,157 @@ class Expression(object):
             ))
         return self._bin_op("!=", other, tbool)
 
+    def _to_table(self):
+        source = self._indices.source
+        axes = self._indices.axes
+        if not self._aggregations.empty():
+            raise NotImplementedError('cannot convert aggregated expression to table')
+        if source is None:
+            # scalar expression
+            df = hail.Table.range(1) # wat
+            df = df.select(**{'<expr>': self})
+            return df
+        elif len(axes) == 0:
+            source = source.select_globals(**{'<expr>': self})
+            df = hail.Table.range(1)
+            df = df.select(**{'<expr>': source.view_join_globals()['<expr>']})
+            return df
+        elif len(axes) == 1:
+            if isinstance(source, hail.Table):
+                df = source
+                df = df.select(*df.key, **{'<expr>': self}).select_globals()
+                return df
+            else:
+                assert isinstance(source, hail.MatrixTable)
+                if self._indices == source._row_indices:
+                    source = source.select_rows(*source.row_key, **{'<expr>': self})
+                    return source.rows_table()
+                else:
+                    assert self._indices == source._col_indices
+                    source = source.select_cols(*source.col_key, **{'<expr>': self})
+                    return source.cols_table()
+        else:
+            assert len(axes) == 2
+            assert isinstance(source, hail.MatrixTable)
+            source = source.select_entries(**{'<expr>': self})
+            source = source.select_rows(*source.row_key)
+            source = source.select_cols(*source.col_key)
+            return source.entries_table()
+
+    @handle_py4j
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
+    def show(self, n=10, width=90, truncate=None, types=True):
+        """Print the first few rows of the table to the console.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> table1.SEX.show()
+            +-------+--------+
+            |    ID | SEX    |
+            +-------+--------+
+            | Int32 | String |
+            +-------+--------+
+            |     1 | M      |
+            |     2 | M      |
+            |     3 | F      |
+            |     4 | F      |
+            +-------+--------+
+
+            >>> hl.capture(123).show()
+            +--------+
+            | <expr> |
+            +--------+
+            |  Int32 |
+            +--------+
+            |    123 |
+            +--------+
+
+        Warning
+        -------
+        Extremely experimental.
+
+        Parameters
+        ----------
+        n : :obj:`int`
+            Maximum number of rows to show.
+        width : :obj:`int`
+            Horizontal width at which to break columns.
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
+            ``None``, truncate fields to the given `width`.
+        types : :obj:`bool`
+            Print an extra header line with the type of each field.
+        """
+        name = None
+        source = self._indices.source
+        if source is not None:
+            fields_rev = {v: k for k, v in source._fields.items()}
+            name = fields_rev.get(self, None)
+        t = self._to_table()
+        if name is not None:
+            if name in t.key:
+                t = t.select(name)
+            else:
+                t = t.rename({'<expr>': name})
+        t.show(n, width, truncate, types)
+
+    @handle_py4j
+    @typecheck_method(n=int)
+    def take(self, n):
+        """Collect the first `n` records of an expression.
+
+        Examples
+        --------
+        Take the first three rows:
+
+        .. doctest::
+
+            >>> first3 = table1.X.take(3)
+            [5, 6, 7]
+
+        Warning
+        -------
+        Extremely experimental.
+
+        Parameters
+        ----------
+        n : int
+            Number of records to take.
+
+        Returns
+        -------
+        :obj:`list`
+        """
+        return [r['<expr>'] for r in self._to_table().take(n)]
+
+    @handle_py4j
+    def collect(self):
+        """Collect all records of an expression into a local list.
+
+        Examples
+        --------
+        Take the first three rows:
+
+        .. doctest::
+
+            >>> first3 = table1.C1.collect()
+            [2, 2, 10, 11]
+
+        Warning
+        -------
+        Extremely experimental.
+
+        Warning
+        -------
+        The list of records may be very large.
+
+        Returns
+        -------
+        :obj:`list`
+        """
+        return [r['<expr>'] for r in self._to_table().collect()]
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`

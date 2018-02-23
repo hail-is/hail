@@ -1029,6 +1029,10 @@ class MatrixTable(object):
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
+            if not e._indices == self._entry_indices:
+                # detect row or col fields here
+                raise ExpressionException("method 'select_entries' parameter 'exprs' expects entry-indexed fields,"
+                                          " found indices {}".format(list(e._indices.axes)))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
