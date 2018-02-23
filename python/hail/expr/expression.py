@@ -554,18 +554,18 @@ class Expression(object):
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
                     source = source.select_rows(*source.row_key, **{'<expr>': self})
-                    return source.rows_table()
+                    return source.rows_table().select_globals()
                 else:
                     assert self._indices == source._col_indices
                     source = source.select_cols(*source.col_key, **{'<expr>': self})
-                    return source.cols_table()
+                    return source.cols_table().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{'<expr>': self})
             source = source.select_rows(*source.row_key)
             source = source.select_cols(*source.col_key)
-            return source.entries_table()
+            return source.entries_table().select_globals()
 
     @handle_py4j
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
