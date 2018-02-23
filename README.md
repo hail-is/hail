@@ -16,6 +16,8 @@ Prerequisites:
 
 cloudtools can be installed from the Python package index using the pip installer: `pip install cloudtools`
 
+To update to the latest version: `pip install cloudtools --upgrade`
+
 ## Usage
 
 All functionality in cloudtools is accessed through the `cluster` module.
