@@ -91,12 +91,12 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
   def toStagingIterator: StagingIterator[A]
 
-  def staircased(equiv: EquivalenceClassView[A]): StagingIterator[EphemeralIterator[A]] = {
-    equiv.setEmpty()
+  def staircased(ord: OrderingView[A]): StagingIterator[EphemeralIterator[A]] = {
+    ord.setBottom()
     val stepIterator: EphemeralIterator[A] = EphemeralIterator(
       new StateMachine[A] {
         def curValue: A = self.value
-        def isActive: Boolean = self.isValid && equiv.inEquivClass(curValue)
+        def isActive: Boolean = self.isValid && ord.isEquivalent(curValue)
         def advance() = { self.advance() }
       }
     )
@@ -106,10 +106,10 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
       def advance() = {
         stepIterator.exhaust()
         if (self.isValid) {
-          equiv.setEquivClass(self.value)
+          ord.setValue(self.value)
         }
         else {
-          equiv.setEmpty()
+          ord.setBottom()
           isActive = false
         }
       }
@@ -120,15 +120,15 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
   def cogroup[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
-    ord: (A, B) => Int
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
+    mixedOrd: (A, B) => Int
   ): EphemeralIterator[Muple[EphemeralIterator[A], EphemeralIterator[B]]] = {
-    this.staircased(leftECV).orderedZipJoin(
-      that.staircased(rightECV),
+    this.staircased(leftOrd).orderedZipJoin(
+      that.staircased(rightOrd),
       EphemeralIterator.empty,
       EphemeralIterator.empty,
-      (l, r) => ord(l.head, r.head)
+      (l, r) => mixedOrd(l.head, r.head)
     )
   }
 
@@ -136,7 +136,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
     that: EphemeralIterator[B],
     leftDefault: A,
     rightDefault: B,
-    ordering: (A, B) => Int): EphemeralIterator[Muple[A, B]] = {
+    mixedOrd: (A, B) => Int): EphemeralIterator[Muple[A, B]] = {
     val left = self.toStagingIterator
     val right = that.toStagingIterator
     val sm = new StateMachine[Muple[A, B]] {
@@ -148,7 +148,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
         val c = {
           if (left.isValid) {
             if (right.isValid)
-              ordering(left.value, right.value)
+              mixedOrd(left.value, right.value)
             else
               -1
           } else if (right.isValid)
@@ -174,58 +174,58 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
   def innerJoinDistinct[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
-    ord: (A, B) => Int
+    mixedOrd: (A, B) => Int
   ): Iterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
-    for { Muple(l, r) <- this.cogroup(that, leftECV, rightECV, ord) if r.isValid
+    for { Muple(l, r) <- this.cogroup(that, leftOrd, rightOrd, mixedOrd) if r.isValid
           lrv <- l
     } yield result.set(lrv, r.value)
   }
 
   def leftJoinDistinct[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
-    ord: (A, B) => Int
+    mixedOrd: (A, B) => Int
   ): Iterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
-    for { Muple(l, r) <- this.cogroup(that, leftECV, rightECV, ord)
+    for { Muple(l, r) <- this.cogroup(that, leftOrd, rightOrd, mixedOrd)
           lrv <- l
     } yield result.set(lrv, r.valueOrElse(rightDefault))
   }
 
   def innerJoin[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
-    ord: (A, B) => Int
+    mixedOrd: (A, B) => Int
   ): Iterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
-    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+    this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
       lIt.product(rIt, rightBuffer, result)
     }
   }
 
   def leftJoin[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
-    ord: (A, B) => Int
+    mixedOrd: (A, B) => Int
   ): Iterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
-    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+    this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
       if (rIt.isValid) lIt.product(rIt, rightBuffer, result)
       else lIt.map( lElem => result.set(lElem, rightDefault) )
     }
@@ -233,15 +233,15 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
   def rightJoin[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
-    ord: (A, B) => Int
+    mixedOrd: (A, B) => Int
   ): Iterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
-    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+    this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
       if (lIt.isValid) lIt.product(rIt, rightBuffer, result)
       else rIt.map( rElem => result.set(leftDefault, rElem) )
     }
@@ -249,15 +249,15 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
   def outerJoin[B](
     that: EphemeralIterator[B],
-    leftECV: EquivalenceClassView[A],
-    rightECV: EquivalenceClassView[B],
+    leftOrd: OrderingView[A],
+    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
-    ord: (A, B) => Int
+    mixedOrd: (A, B) => Int
   ): Iterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
-    this.cogroup(that, leftECV, rightECV, ord).flatMap { case Muple(lIt, rIt) =>
+    this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
       if (!lIt.isValid) rIt.map( rElem => result.set(leftDefault, rElem) )
       else if (!rIt.isValid) lIt.map( lElem => result.set(lElem, rightDefault) )
       else lIt.product(rIt, rightBuffer, result)

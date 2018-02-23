@@ -47,19 +47,20 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
-  def kComp(other: OrderedRVDType): UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(
-    this.rowType,
-    this.kRowFieldIdx,
-    other.rowType,
-    other.kRowFieldIdx)
+  def kComp(other: OrderedRVDType): UnsafeOrdering =
+    OrderedRVDType.selectUnsafeOrdering(
+      this.rowType,
+      this.kRowFieldIdx,
+      other.rowType,
+      other.kRowFieldIdx)
 
-  def mutableEquiv = new EquivalenceClassView[RegionValue] {
+  def kRowOrdView = new OrderingView[RegionValue] {
     val wrv = WritableRegionValue(kType)
-    def setNonEmptyEquivClass(representative: RegionValue) {
+    def basicSetValue(representative: RegionValue) {
       wrv.setSelect(rowType, kRowFieldIdx, representative)
     }
-    def inNonEmptyEquivClass(rv: RegionValue): Boolean =
-      kRowOrd.compare(wrv.value, rv) == 0
+    def basicCompare(rv: RegionValue): Int =
+      kRowOrd.compare(wrv.value, rv)
   }
 
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {

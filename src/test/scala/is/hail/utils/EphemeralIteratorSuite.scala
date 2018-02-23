@@ -27,13 +27,13 @@ class EphemeralIteratorSuite extends SparkSuite {
     }
   }
 
-  def boxEquiv[A]: EquivalenceClassView[Box[A]] = new EquivalenceClassView[Box[A]] {
+  def boxOrdView[A](implicit ord: Ordering[A]): OrderingView[Box[A]] = new OrderingView[Box[A]] {
     var value: A = _
-    def setNonEmptyEquivClass(a: Box[A]) {
+    def basicSetValue(a: Box[A]) {
       value = a.value
     }
-    def inNonEmptyEquivClass(a: Box[A]): Boolean = {
-      a.value == value
+    def basicCompare(a: Box[A]): Int = {
+      ord.compare(value, a.value)
     }
   }
 
@@ -99,7 +99,7 @@ class EphemeralIteratorSuite extends SparkSuite {
       makeTestIterator(2),
       makeTestIterator(3, 3, 3))
       .map(_.value)
-    assert(testIt.staircased(boxEquiv[Int]).compareUsing[StagingIterator[Box[Int]]](it, _.sameElements(_)))
+    assert(testIt.staircased(boxOrdView[Int]).compareUsing[StagingIterator[Box[Int]]](it, _.sameElements(_)))
   }
 
   @Test def orderedZipJoinWorks() {
@@ -123,8 +123,8 @@ class EphemeralIteratorSuite extends SparkSuite {
     val right = makeTestIterator(2, 4, 4, 5)
     val joined = left.innerJoinDistinct(
       right,
-      boxEquiv[Int],
-      boxEquiv[Int],
+      boxOrdView[Int],
+      boxOrdView[Int],
       Box(0),
       Box(0),
       boxIntOrd
@@ -140,8 +140,8 @@ class EphemeralIteratorSuite extends SparkSuite {
     val right = makeTestIterator(2, 4, 4, 5)
     val joined = left.innerJoinDistinct(
       right,
-      boxEquiv[Int],
-      boxEquiv[Int],
+      boxOrdView[Int],
+      boxOrdView[Int],
       Box(0),
       Box(0),
       boxIntOrd
@@ -157,8 +157,8 @@ class EphemeralIteratorSuite extends SparkSuite {
     val right = makeTestIterator(2, 2, 4, 4, 5, 6)
     val joined = left.innerJoin(
       right,
-      boxEquiv[Int],
-      boxEquiv[Int],
+      boxOrdView[Int],
+      boxOrdView[Int],
       Box(0),
       Box(0),
       boxBuffer[Int],
@@ -175,8 +175,8 @@ class EphemeralIteratorSuite extends SparkSuite {
     val right = makeTestIterator(2, 2, 4, 4, 5, 6)
     val joined = left.leftJoin(
       right,
-      boxEquiv[Int],
-      boxEquiv[Int],
+      boxOrdView[Int],
+      boxOrdView[Int],
       Box(0),
       Box(0),
       boxBuffer[Int],

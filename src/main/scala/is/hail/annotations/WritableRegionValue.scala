@@ -94,11 +94,6 @@ class RegionValueArrayBuffer(val t: Type)
     this
   }
 
-  // def ++=(rvs: Iterator[RegionValue]): RegionValueArrayBuffer = {
-  //   while (rvs.hasNext) this += rvs.next()
-  //   this
-  // }
-
   def clear() {
     region.clear()
     idx.clear()
