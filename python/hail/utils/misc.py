@@ -1,9 +1,88 @@
+import hail as hl
 from hail.utils.java import handle_py4j, Env, joption, error
-from hail.typecheck import enumeration
+from hail.typecheck import enumeration, typecheck, nullable
 import difflib
 from collections import defaultdict
 import os
 
+
+@typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
+def range_matrix_table(n_rows, n_cols, n_partitions=None):
+    """Construct a matrix table with row and column indices and no entry fields.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
+
+        >>> ds.count_rows()
+        100
+
+        >>> ds.count_cols()
+        10
+
+    Notes
+    -----
+    The resulting matrix table contains the following fields:
+
+     - `row_idx` (:class:`.TInt32`) - Row index (row key).
+     - `col_idx` (:class:`.TInt32`) - Column index (column key).
+
+    It contains no entry fields.
+
+    This method is meant for testing and learning, and is not optimized for
+    production performance.
+
+    Parameters
+    ----------
+    n_rows : :obj:`int`
+        Number of rows.
+    n_cols : :obj:`int`
+        Number of columns.
+    n_partitions : int, optional
+        Number of partitions (uses Spark default parallelism if None).
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    return hl.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
+
+@typecheck(n=int, n_partitions=nullable(int))
+def range_table(n, n_partitions=None):
+    """Construct a table with the row index and no other fields.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> df = hl.utils.range_table(100)
+
+        >>> df.count()
+        100
+
+    Notes
+    -----
+    The resulting table contains one field:
+
+     - `idx` (:class:`.TInt32`) - Row index (key).
+
+    This method is meant for testing and learning, and is not optimized for
+    production performance.
+
+    Parameters
+    ----------
+    n : int
+        Number of rows.
+    n_partitions : int, optional
+        Number of partitions (uses Spark default parallelism if None).
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+    return hl.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(n_partitions)))
 
 def wrap_to_list(s):
     if isinstance(s, list):

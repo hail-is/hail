@@ -251,19 +251,19 @@ class TableTests(unittest.TestCase):
         self.assertRaises(NotImplementedError, f)
 
     def test_joins(self):
-        kt = hl.Table.range(1).drop('idx')
+        kt = hl.utils.range_table(1).drop('idx')
         kt = kt.annotate(a='foo')
 
-        kt1 = hl.Table.range(1).drop('idx')
+        kt1 = hl.utils.range_table(1).drop('idx')
         kt1 = kt1.annotate(a='foo', b='bar').key_by('a')
 
-        kt2 = hl.Table.range(1).drop('idx')
+        kt2 = hl.utils.range_table(1).drop('idx')
         kt2 = kt2.annotate(b='bar', c='baz').key_by('b')
 
-        kt3 = hl.Table.range(1).drop('idx')
+        kt3 = hl.utils.range_table(1).drop('idx')
         kt3 = kt3.annotate(c='baz', d='qux').key_by('c')
 
-        kt4 = hl.Table.range(1).drop('idx')
+        kt4 = hl.utils.range_table(1).drop('idx')
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
@@ -286,23 +286,23 @@ class TableTests(unittest.TestCase):
         m3 = m.annotate_rows(qual2=m[(m.locus, m.alleles), :].qual)
         self.assertTrue(m3.filter_rows(m3.qual != m3.qual2).count_rows() == 0)
 
-        kt = hl.Table.range(1)
+        kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
 
-        kt2 = hl.Table.range(1)
+        kt2 = hl.utils.range_table(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.get_globals().kt_foo, 5)
 
     def test_drop(self):
-        kt = hl.Table.range(10)
+        kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
 
         self.assertEqual(kt.drop('idx', 'foo').columns, ['sq', 'bar'])
         self.assertEqual(kt.drop(kt['idx'], kt['foo']).columns, ['sq', 'bar'])
 
     def test_weird_names(self):
-        df = hl.Table.range(10)
+        df = hl.utils.range_table(10)
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
 
         df.annotate_globals(**exprs)
@@ -320,7 +320,7 @@ class TableTests(unittest.TestCase):
         df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
 
     def test_sample(self):
-        kt = hl.Table.range(10)
+        kt = hl.utils.range_table(10)
         kt_small = kt.sample(0.01)
         self.assertTrue(kt_small.count() < kt.count())
 
@@ -689,6 +689,12 @@ class MatrixTests(unittest.TestCase):
         self.assertRaises(ValueError, dataset.rename, {'locus': 'a', 's': 'a'})
         self.assertRaises(LookupError, dataset.rename, {'foo': 'a'})
 
+    def test_range(self):
+        ds = hl.utils.range_matrix_table(100, 10)
+        self.assertEqual(ds.count_rows(), 100)
+        self.assertEqual(ds.count_cols(), 10)
+        et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries_table().index()
+        self.assertTrue(et.all(et.idx == et.entry_idx))
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
