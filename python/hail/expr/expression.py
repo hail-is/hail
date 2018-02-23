@@ -530,7 +530,7 @@ class Expression(object):
             ))
         return self._bin_op("!=", other, tbool)
 
-    def _to_table(self):
+    def _to_table(self, name):
         source = self._indices.source
         axes = self._indices.axes
         if not self._aggregations.empty():
@@ -538,31 +538,32 @@ class Expression(object):
         if source is None:
             # scalar expression
             df = hail.Table.range(1) # wat
-            df = df.select(**{'<expr>': self})
+            df = df.select(**{name: self})
             return df
         elif len(axes) == 0:
-            source = source.select_globals(**{'<expr>': self})
+            uid = Env._get_uid()
+            source = source.select_globals(**{uid: self})
             df = hail.Table.range(1)
-            df = df.select(**{'<expr>': source.view_join_globals()['<expr>']})
+            df = df.select(**{name: source.view_join_globals()[uid]})
             return df
         elif len(axes) == 1:
             if isinstance(source, hail.Table):
                 df = source
-                df = df.select(*df.key, **{'<expr>': self}).select_globals()
+                df = df.select(*df.key, **{name: self}).select_globals()
                 return df
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
-                    source = source.select_rows(*source.row_key, **{'<expr>': self})
+                    source = source.select_rows(*source.row_key, **{name: self})
                     return source.rows_table().select_globals()
                 else:
                     assert self._indices == source._col_indices
-                    source = source.select_cols(*source.col_key, **{'<expr>': self})
+                    source = source.select_cols(*source.col_key, **{name: self})
                     return source.cols_table().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
-            source = source.select_entries(**{'<expr>': self})
+            source = source.select_entries(**{name: self})
             source = source.select_rows(*source.row_key)
             source = source.select_cols(*source.col_key)
             return source.entries_table().select_globals()
@@ -613,17 +614,13 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        name = None
+        name = '<expr>'
         source = self._indices.source
         if source is not None:
-            fields_rev = {v: k for k, v in source._fields.items()}
-            name = fields_rev.get(self, None)
-        t = self._to_table()
-        if name is not None:
-            if name in t.key:
-                t = t.select(name)
-            else:
-                t = t.rename({'<expr>': name})
+            name = source._fields_inverse.get(self, name)
+        t = self._to_table(name)
+        if name in t.key:
+            t = t.select(name)
         t.show(n, width, truncate, types)
 
     @handle_py4j
@@ -653,7 +650,8 @@ class Expression(object):
         -------
         :obj:`list`
         """
-        return [r['<expr>'] for r in self._to_table().take(n)]
+        uid = Env._get_uid()
+        return [r[uid] for r in self._to_table(uid).take(n)]
 
     @handle_py4j
     def collect(self):
@@ -680,7 +678,8 @@ class Expression(object):
         -------
         :obj:`list`
         """
-        return [r['<expr>'] for r in self._to_table().collect()]
+        uid = Env._get_uid()
+        return [r[uid] for r in self._to_table(uid).collect()]
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
