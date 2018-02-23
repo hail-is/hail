@@ -1384,7 +1384,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         queried for filter membership with expressions like
         ``ds.filters.contains("VQSRTranche99.5...")``. Variants that are flagged
         as "PASS" will have no filters applied; for these variants,
-        ``ds.filters.is_empty()`` is ``True``. Thus, filtering to PASS variants
+        ``hl.len(ds.filters)`` is ``0``. Thus, filtering to PASS variants
         can be done with :meth:`.MatrixTable.filter_rows` as follows:
 
         >>> pass_ds = dataset.filter_rows(hl.len(dataset.filters) == 0)
