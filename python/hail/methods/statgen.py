@@ -123,7 +123,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     Remove samples where imputed sex does not equal reported sex:
 
     >>> imputed_sex = hl.impute_sex(ds.GT)
-    >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.is_female)
+    >>> ds.filter_cols(imputed_sex[ds.s].is_female != ds.pheno.is_female)
 
     Notes
     -----
@@ -243,7 +243,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     --------
 
     >>> dataset_result = hl.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
-    ...                                 covariates=[dataset.pheno.age, dataset.pheno.isFemale])
+    ...                                 covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -278,11 +278,11 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
         \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
                           + \\beta_2 \, \mathrm{age}
-                          + \\beta_3 \, \mathrm{isFemale}
+                          + \\beta_3 \, \mathrm{is_female}
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
-    Boolean covariates like :math:`\mathrm{isFemale}` are encoded as 1 for true
+    Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for true
     and 0 for false. The null model sets :math:`\\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
@@ -364,7 +364,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     ...     test='wald',
     ...     y=dataset.pheno.isCase,
     ...     x=dataset.GT.num_alt_alleles(),
-    ...     covariates=[dataset.pheno.age, dataset.pheno.isFemale])
+    ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
     -----
@@ -388,13 +388,13 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
         \mathrm{Prob}(\mathrm{isCase}) =
             \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
                             + \beta_2 \, \mathrm{age}
-                            + \beta_3 \, \mathrm{isFemale} + \varepsilon),
+                            + \beta_3 \, \mathrm{is_female} + \varepsilon),
         \quad
         \varepsilon \sim \mathrm{N}(0, \sigma^2)
 
     where :math:`\mathrm{sigmoid}` is the `sigmoid function`_, the genotype
     :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
-    HomVar, and the Boolean covariate :math:`\mathrm{isFemale}` is coded as
+    HomVar, and the Boolean covariate :math:`\mathrm{is_female}` is coded as
     for true (female) and 0 for false (male). The null model sets
     :math:`\beta_1 = 0`.
 
@@ -521,7 +521,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
 
     .. code-block:: text
 
-        if (ds.isFemale) ds.cov.age else (2 * ds.cov.age + 10)
+        if (ds.is_female) ds.cov.age else (2 * ds.cov.age + 10)
 
     For Boolean covariate types, true is coded as 1 and false as 0. In
     particular, for the sample annotation `fam.isCase` added by importing a FAM
