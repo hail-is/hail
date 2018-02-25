@@ -191,7 +191,7 @@ class GroupedTable(TableTemplate):
 
         Group by a height bin and compute sex ratio per bin:
 
-        >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
+        >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
         ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
         Parameters
@@ -923,7 +923,7 @@ class Table(TableTemplate):
 
         Group by a height bin and compute sex ratio per bin:
 
-        >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
+        >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
         ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
         Notes
@@ -982,7 +982,7 @@ class Table(TableTemplate):
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
-        >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = (table1.HT / 20).to_int32())
+        >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = table1.HT // 20)
         ...                       .aggregate(meanX = agg.mean(table1.X)))
 
         Note
