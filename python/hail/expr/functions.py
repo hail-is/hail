@@ -626,7 +626,7 @@ def index(structs, identifier):
                         .format(structs.dtype))
     structs = to_expr(structs)
     struct_type = structs._type.element_type
-    struct_fields = {fd.name: fd.typ for fd in struct_type.fields}
+    struct_fields = {fd.name: fd.dtype for fd in struct_type.fields}
 
     if identifier not in struct_fields:
         raise RuntimeError("`structs' does not have a field with identifier `{}'. " \

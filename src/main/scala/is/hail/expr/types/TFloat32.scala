@@ -14,6 +14,9 @@ case object TFloat32Required extends TFloat32(true)
 class TFloat32(override val required: Boolean) extends TNumeric {
   def _toString = "Float32"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("float32")
+  }
   val conv = FloatNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]

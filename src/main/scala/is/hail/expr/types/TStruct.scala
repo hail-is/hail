@@ -550,6 +550,16 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("struct{")
+    fields.foreachBetween({ field =>
+      sb.append(prettyIdentifier(field.name))
+      sb.append(": ")
+      field.typ._toPyString(sb)
+    }) { sb.append(", ")}
+    sb.append('}')
+  }
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
       sb.append("Struct{")

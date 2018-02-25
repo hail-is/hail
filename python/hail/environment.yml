@@ -9,3 +9,4 @@ dependencies:
   - pandas
   - matplotlib
   - seaborn
+  - parsimonious

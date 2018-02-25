@@ -210,6 +210,15 @@ abstract class Type extends BaseType with Serializable {
 
   def _toString: String
 
+  def toPyString: String = {
+    val sb = new StringBuilder
+    _toPyString(sb)
+    sb.result()
+  }
+
+  def _toPyString(sb: StringBuilder): Unit = ???
+
+
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append(_toString)
   }

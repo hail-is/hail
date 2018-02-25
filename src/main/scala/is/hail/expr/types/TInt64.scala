@@ -14,6 +14,9 @@ case object TInt64Required extends TInt64(true)
 class TInt64(override val required: Boolean) extends TIntegral {
   def _toString = "Int64"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("int64")
+  }
   val conv = LongNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]

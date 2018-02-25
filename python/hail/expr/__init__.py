@@ -2,8 +2,8 @@ import hail.expr.functions
 from .types import *
 from .expression import eval_expr, eval_expr_typed
 from .functions import *
-
 __all__ = ['Type',
+           'dtype',
            'tint',
            'tint32',
            'tint64',

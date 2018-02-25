@@ -32,8 +32,6 @@ class Indices(object):
                 if ind.source is not None and ind.source is not src:
                     raise ExpressionException()
 
-            both = axes.intersection(ind.axes)
-
             axes = axes.union(ind.axes)
 
         return Indices(src, axes)
@@ -1854,7 +1852,7 @@ class StructExpression(Mapping, Expression):
         self._fields = OrderedDict()
 
         for fd in self._type.fields:
-            expr = construct_expr(Select(self._ast, fd.name), fd.typ, self._indices,
+            expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
                                   self._aggregations, self._joins, self._refs)
             self._set_field(fd.name, expr)
 
@@ -1947,13 +1945,13 @@ class StructExpression(Mapping, Expression):
         types = []
         for fd in self.dtype.fields:
             names.append(fd.name)
-            types.append(fd.typ)
+            types.append(fd.dtype)
         kwargs_struct = to_expr(Struct(**named_exprs))
 
         for fd in kwargs_struct.dtype.fields:
             if not fd.name in self._fields:
                 names.append(fd.name)
-                types.append(fd.typ)
+                types.append(fd.dtype)
 
         result_type = tstruct(names, types)
         indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
@@ -2013,7 +2011,7 @@ class StructExpression(Mapping, Expression):
             if fd.name in select_name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
             names.append(fd.name)
-            types.append(fd.typ)
+            types.append(fd.dtype)
         result_type = tstruct(names, types)
 
         indices, joins, aggregations, refs = unify_all(self, kwargs_struct)
@@ -2056,7 +2054,7 @@ class StructExpression(Mapping, Expression):
         for fd in self.dtype.fields:
             if not fd.name in to_drop:
                 names.append(fd.name)
-                types.append(fd.typ)
+                types.append(fd.dtype)
         result_type = tstruct(names, types)
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._joins, self._aggregations, self._refs)

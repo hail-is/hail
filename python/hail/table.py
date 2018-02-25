@@ -310,10 +310,10 @@ class Table(TableTemplate):
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
         for fd in self.global_schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._global_indices, prefix='global'))
+            self._set_field(fd.name, construct_reference(fd.name, fd.dtype, self._global_indices, prefix='global'))
 
         for fd in self.schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._row_indices, prefix='row'))
+            self._set_field(fd.name, construct_reference(fd.name, fd.dtype, self._row_indices, prefix='row'))
 
     @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
@@ -1427,10 +1427,10 @@ class Table(TableTemplate):
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
+                name=fd.name, type=format_type(fd.dtype)) for fd in self.global_schema.fields)
 
         row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.typ)) for fd in self.schema.fields)
+            name=fd.name, type=format_type(fd.dtype)) for fd in self.schema.fields)
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.key) if self.key else '\n    None'

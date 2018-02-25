@@ -1,6 +1,7 @@
 import socketserver
 import socket
 import sys
+import re
 from threading import Thread
 
 import py4j
@@ -122,8 +123,24 @@ def jiterable_to_list(it):
     else:
         return None
 
+
 def escape_str(s):
     return Env.jutils().escapePyString(s)
+
+
+_parsable_str = re.compile(r'[\w_]+')
+
+
+def escape_parsable(s):
+    if _parsable_str.fullmatch(s):
+        return s
+    else:
+        return '`' + s.encode('unicode_escape').decode('utf-8').replace('`', '\\`') + '`'
+
+
+def unescape_parsable(s):
+    return bytes(s.replace('\\`', '`'), 'utf-8').decode('unicode_escape')
+
 
 def escape_id(s):
     return Env.jutils().escapeIdentifier(s)

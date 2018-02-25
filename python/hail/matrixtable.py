@@ -1,3 +1,4 @@
+import hail
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
@@ -254,16 +255,16 @@ class MatrixTable(object):
         assert isinstance(self.entry_schema, TStruct), self.entry_schema
 
         for f in self.global_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._global_indices, prefix='global'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._global_indices, prefix='global'))
 
         for f in self.col_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._col_indices, prefix='sa'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._col_indices, prefix='sa'))
 
         for f in self.row_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._row_indices, prefix='va'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._row_indices, prefix='va'))
 
         for f in self.entry_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._entry_indices, prefix='g'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._entry_indices, prefix='g'))
 
     def _set_field(self, key, value):
         assert key not in self._fields, key
@@ -2008,7 +2009,6 @@ class MatrixTable(object):
         else:
             raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
 
-    @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
 
         all_uids = []
@@ -2038,10 +2038,10 @@ class MatrixTable(object):
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
+                name=fd.name, type=format_type(fd.dtype)) for fd in self.global_schema.fields)
 
         row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.typ)) for fd in self.row_schema.fields)
+            name=fd.name, type=format_type(fd.dtype)) for fd in self.row_schema.fields)
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.row_key) if self.row_key else '\n    None'
@@ -2049,7 +2049,7 @@ class MatrixTable(object):
                                 for f in self.partition_key) if self.partition_key else '\n    None'
 
         col_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.typ)) for fd in self.col_schema.fields)
+            name=fd.name, type=format_type(fd.dtype)) for fd in self.col_schema.fields)
 
         col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.col_key) if self.col_key else '\n    None'
@@ -2058,7 +2058,7 @@ class MatrixTable(object):
             entry_fields = '\n    None'
         else:
             entry_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.typ)) for fd in self.entry_schema.fields)
+                name=fd.name, type=format_type(fd.dtype)) for fd in self.entry_schema.fields)
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \

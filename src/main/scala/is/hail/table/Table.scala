@@ -1243,7 +1243,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
           convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
         }
         case _ =>
-          ab += (name, t.toString, t.isInstanceOf[TNumeric])
+          ab += (name, t.toPyString, t.isInstanceOf[TNumeric])
       }
     }
 
