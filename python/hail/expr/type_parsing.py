@@ -22,7 +22,7 @@ type_grammar = Grammar(
     field = identifier _ ":" _ type
     interval = ("tinterval" / "interval") _ "<" _ type _ ">"  
     identifier = simple_identifier / escaped_identifier
-    simple_identifier = ~"[\w_]+"
+    simple_identifier = ~"\w+"
     escaped_identifier = "`" ~"([^`\\\\]|\\\\.)*" "`"
     _ = ~"\s*"
     """)
