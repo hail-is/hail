@@ -825,7 +825,7 @@ def inbreeding(expr, prior):
     .. doctest::
 
         >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
-        >>> dataset_result.cols_table().show()
+        >>> dataset_result.cols().show()
         +----------------+--------------+-------------+------------------+------------------+
         | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
         +----------------+--------------+-------------+------------------+------------------+
@@ -908,7 +908,7 @@ def call_stats(expr, alleles):
     .. doctest::
 
         >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
-        >>> dataset_result.rows_table().select('locus', 'alleles', 'gt_stats').show()
+        >>> dataset_result.rows().select('locus', 'alleles', 'gt_stats').show()
         +-----------------+--------------+----------------+-------------+
         | v               | gt_stats.AC  | gt_stats.AF    | gt_stats.AN |
         +-----------------+--------------+----------------+-------------+

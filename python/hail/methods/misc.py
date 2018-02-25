@@ -37,7 +37,7 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> related_samples = pairs.aggregate(
     ...     agg.collect_as_set(agg.explode([pairs.i, pairs.j])))
-    >>> samples = dataset.cols_table()
+    >>> samples = dataset.cols()
     >>> pairs_with_case = pairs.select(
     ...     i = hl.Struct(id = pairs.i, is_case = samples[pairs.i].isCase),
     ...     j = hl.Struct(id = pairs.j, is_case = samples[pairs.j].isCase))
@@ -157,7 +157,7 @@ def rename_duplicates(dataset, name='unique_id'):
     Examples
     --------
 
-    >>> renamed = hl.rename_duplicates(dataset).cols_table()
+    >>> renamed = hl.rename_duplicates(dataset).cols()
     >>> duplicate_samples = (renamed.filter(renamed.s != renamed.unique_id)
     ...                             .select('s')
     ...                             .collect())

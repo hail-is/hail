@@ -221,7 +221,7 @@ class Tests(unittest.TestCase):
 
         hl.export_plink(dataset, b_file, id=dataset.s)
 
-        sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]
+        sample_ids = [row.s for row in dataset.cols().select('s').collect()]
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
@@ -358,14 +358,14 @@ class Tests(unittest.TestCase):
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset()  # FIXME - want to rename samples with same id
-        renamed_ids = hl.rename_duplicates(dataset).cols_table().select('s').collect()
+        renamed_ids = hl.rename_duplicates(dataset).cols().select('s').collect()
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(test_file('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
         ds2 = hl.import_vcf(test_file('split_test_b.vcf'))
-        df = ds1.rows_table()
+        df = ds1.rows()
         self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
         # required python3
@@ -599,7 +599,7 @@ class Tests(unittest.TestCase):
 
         for block_size in [1, 2, 1024]:
             block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
-            entries_table = block_matrix.entries_table()
+            entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), num_cols * num_rows)
             self.assertEqual(entries_table.num_columns, 3)
             self.assertTrue(table._same(entries_table))
@@ -696,7 +696,7 @@ class Tests(unittest.TestCase):
         gen = hl.import_gen(test_file('example.gen'),
                             sample_file=test_file('example.sample'),
                             contig_recoding={"01": "1"},
-                            reference_genome = 'GRCh37').rows_table()
+                            reference_genome = 'GRCh37').rows()
         self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, TLocus('GRCh37'))
@@ -717,7 +717,7 @@ class Tests(unittest.TestCase):
                                    entry_fields=['GT', 'GP'],
                                    sample_file=test_file('example.sample'),
                                    contig_recoding={'01': '1'},
-                                   reference_genome='GRCh37').rows_table()
+                                   reference_genome='GRCh37').rows()
         self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == '1'))
         self.assertEqual(bgen_rows.count(), 199)
 
@@ -761,7 +761,7 @@ class Tests(unittest.TestCase):
                           reference_genome=hl.GenomeReference.GRCh38(),
                           contig_recoding={"22": "chr22"}))
 
-        vcf_table = vcf.rows_table()
+        vcf_table = vcf.rows()
         self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
         self.assertTrue(vcf.locus.dtype, TLocus('GRCh37'))
 
@@ -785,7 +785,7 @@ class Tests(unittest.TestCase):
             bfile + '.bed', bfile + '.bim', bfile + '.fam',
             a2_reference=True,
             contig_recoding={'chr22': '22'},
-            reference_genome='GRCh37').rows_table()
+            reference_genome='GRCh37').rows()
         self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
         self.assertTrue(plink.locus.dtype, TLocus('GRCh37'))

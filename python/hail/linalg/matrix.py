@@ -171,7 +171,7 @@ class BlockMatrix(object):
         >>> from hail.linalg import BlockMatrix
         >>> import numpy as np
         >>> block_matrix = BlockMatrix._from_numpy_matrix(np.matrix([[5, 7], [2, 8]]), 2)
-        >>> entries_table = block_matrix.entries_table()
+        >>> entries_table = block_matrix.entries()
         >>> entries_table.show()
         +--------+--------+-------------+
         |      i |      j |       entry |
