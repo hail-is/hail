@@ -162,7 +162,7 @@ class BlockMatrix(object):
     def dot(self, that):
         return BlockMatrix(self._jbm.multiply(that._jbm))
 
-    def entries_table(self):
+    def entries(self):
         """Returns a table with the coordinates and numeric value of each block matrix entry.
 
         Examples
