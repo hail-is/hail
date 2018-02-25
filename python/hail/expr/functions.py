@@ -3037,7 +3037,7 @@ def float(expr):
 
     Note
     ----
-    Alis for :func:`.float64`.
+    Alias for :func:`.float64`.
 
     Parameters
     ----------
