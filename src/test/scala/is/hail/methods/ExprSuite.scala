@@ -808,10 +808,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("calls.homVar.nNonRefAlleles() == 2").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and alleles = ["A", "T"] in c.oneHotAlleles(alleles)""").contains(IndexedSeq(0, 2)))
 
-    assert(eval[Int]("let x = Call(true, 1, 2) in x.ploidy").contains(2))
-    assert(eval[Int]("let x = Call(true, 1, 2) in x[1]").contains(2))
-    assert(eval[Int]("let x = Call(false, 3) in x.ploidy").contains(1))
-    assert(eval[Int]("let x = Call(false, 3) in x[0]").contains(3))
+    assert(eval[Int]("let x = Call(1, 2, true) in x.ploidy").contains(2))
+    assert(eval[Int]("let x = Call(1, 2, true) in x[1]").contains(2))
+    assert(eval[Int]("let x = Call(3, false) in x.ploidy").contains(1))
+    assert(eval[Int]("let x = Call(3, false) in x[0]").contains(3))
     assert(eval[Int]("let x = Call(false) in x.ploidy").contains(0))
 
     {

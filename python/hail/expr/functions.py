@@ -893,7 +893,7 @@ def call(*alleles, phased=False):
     .. doctest::
 
         >>> hl.eval_expr(hl.call(1, 0))
-        Call(alleles=[1, 0], phased=True)
+        Call(alleles=[1, 0], phased=False)
 
     Parameters
     ----------
