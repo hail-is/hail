@@ -2,9 +2,8 @@ import hail as hl
 from hail.utils.java import handle_py4j, Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
-from collections import defaultdict
+from collections import defaultdict, Counter
 import os
-
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None):
@@ -275,3 +274,9 @@ def check_collisions(fields, name, indices):
         msg = 'name collision with field indexed by {}: {}'.format(list(fields[name]._indices.axes), name)
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
+
+def check_field_uniqueness(fields):
+    for k, v in Counter(fields).items():
+        if v > 1:
+            from hail.expr.expression import ExpressionException
+            raise ExpressionException("selection would produce duplicate field {}".format(repr(k)))
