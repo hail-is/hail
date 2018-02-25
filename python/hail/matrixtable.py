@@ -1702,7 +1702,7 @@ class MatrixTable(object):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
@@ -1752,7 +1752,7 @@ class MatrixTable(object):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
