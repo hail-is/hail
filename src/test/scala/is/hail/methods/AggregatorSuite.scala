@@ -139,12 +139,12 @@ class AggregatorSuite extends SparkSuite {
     val ktMax = Table(hc, rdd, signature)
       .aggregate("group = row.group", (0 until 11).map(i => s"s$i = rows.map(r => r.s$i).max()").mkString(","))
 
-    assert(ktMax.collect() == IndexedSeq(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
+    assert(ktMax.collect() sameElements Array(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
     val ktMin = Table(hc, rdd, signature)
       .aggregate("group = row.group", (0 until 11).map(i => s"s$i = rows.map(r => r.s$i).min()").mkString(","))
 
-    assert(ktMin.collect() == IndexedSeq(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
+    assert(ktMin.collect() sameElements Array(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
   }
 
   @Test def testProduct() {
@@ -159,7 +159,7 @@ class AggregatorSuite extends SparkSuite {
     val ktProduct = Table(hc, rdd, signature)
       .aggregate("group = row.group", ((0 until 11).map(i => s"s$i = rows.map(r => r.s$i).product()") :+ ("empty = rows.map(r => r.s10).filter(x => false).product()")).mkString(","))
 
-    assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
+    assert(ktProduct.collect() sameElements Array(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
 
   }
 
