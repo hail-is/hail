@@ -1051,7 +1051,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.toArray)
 
-  def collect(): IndexedSeq[Row] = rdd.collect()
+  def collect(): Array[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
     val codecSpec =
@@ -1234,7 +1234,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     else {
       val takeResult = take(n + 1)
       val hasMoreData = takeResult.length > n
-      (takeResult.take(n): IndexedSeq[Row]) -> hasMoreData
+      takeResult.take(n) -> hasMoreData
     }
 
     def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
