@@ -29,7 +29,7 @@ def _agg_func(name, aggregable, ret_type, *args):
                           aggregations.push(Aggregation(indices, refs)), joins)
 
 def _check_agg_bindings(expr):
-    bound_references = {ast.name for ast in expr._ast.search(lambda ast: isinstance(ast, Reference))}
+    bound_references = {ast.name for ast in expr._ast.search(lambda ast: isinstance(ast, Reference) and not ast.top_level)}
     bind_vars = {ast.uid for ast in expr._ast.search(lambda ast: isinstance(ast, Bind))}
     lambda_vars = {ast.lambda_var for ast in expr._ast.search(lambda ast: isinstance(ast, LambdaClassMethod))}
     declared_temp_vars = bind_vars.union(lambda_vars)
