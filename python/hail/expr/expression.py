@@ -679,7 +679,8 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env._get_uid()
-        return [r[uid] for r in self._to_table(uid).collect()]
+        t = self._to_table(uid)
+        return t.aggregate(hl.agg.collect(t[uid]))
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`

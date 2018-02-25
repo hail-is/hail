@@ -1415,7 +1415,7 @@ class Table(TableTemplate):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return tarray(self.schema)._convert_to_py(self._jt.collect())
+        return [self.schema._convert_to_py(x) for x in self._jt.collect()]
 
     def describe(self):
         """Print information about the fields in the table."""
