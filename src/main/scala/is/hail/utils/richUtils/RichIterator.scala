@@ -5,7 +5,7 @@ import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.io.Source
 
-import is.hail.utils.{EphemeralIterator, StagingIterator, StateMachine}
+import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def toStagingIterator: StagingIterator[T] = {
@@ -21,7 +21,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     )
   }
 
-  def toEphemeralIterator: EphemeralIterator[T] = toStagingIterator
+  def toEphemeralIterator: FlipbookIterator[T] = toStagingIterator
 
   def foreachBetween(f: (T) => Unit)(g: => Unit) {
     if (it.hasNext) {

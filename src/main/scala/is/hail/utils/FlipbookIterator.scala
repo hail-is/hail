@@ -17,51 +17,56 @@ object StateMachine {
   }
 }
 
-object EphemeralIterator {
-  def apply[A](sm: StateMachine[A]): EphemeralIterator[A] =
-    StagingIterator(sm).toEphemeralIterator
-
-  def empty[A] = StagingIterator(StateMachine.terminal[A])
-}
-
 object StagingIterator {
   def apply[A](sm: StateMachine[A]): StagingIterator[A] =
     new StagingIterator(sm)
 }
 
-class StagingIterator[A] private (sm: StateMachine[A]) extends EphemeralIterator[A] {
-  def head: A = sm.curValue
-  def isValid: Boolean = sm.isActive
-
+class StagingIterator[A] private (sm: StateMachine[A]) extends FlipbookIterator[A] {
   private var isConsumed: Boolean = false
-  def consume(): A = { assert(isValid && !isConsumed); isConsumed = true; head }
+
+  // EphemeralIterator interface
+  def isValid: Boolean = sm.isActive
+  def value: A = { assert(isValid && !isConsumed); sm.curValue }
+  def advance(): Unit = {
+    assert(isValid)
+    sm.advance()
+    isConsumed = false
+  }
+
+  // Additional StagingIterator methods
+  def consume(): A = { assert(isValid && !isConsumed); isConsumed = true; sm.curValue }
   def stage(): Unit = {
     if (isConsumed) {
       sm.advance()
       isConsumed = false
     }
   }
-  def consumedValue: A = { assert(isValid && isConsumed); head }
+  def consumedValue: A = { assert(isValid && isConsumed); sm.curValue }
 
-  def value: A = { assert(isValid && !isConsumed); head }
-  def advance(): Unit = {
-    assert(isValid)
-    sm.advance()
-    isConsumed = false
-  }
-  def next(): A = {
-    stage()
-    assert(isValid)
-    consume()
-  }
+  // (Buffered)Iterator interface, not intended to be used directly, only for
+  // passing a StagingIterator where an Iterator is expected
+  def head: A = sm.curValue
   def hasNext: Boolean = {
     if (isValid) {
       stage()
       isValid
     } else false
   }
+  def next(): A = {
+    stage()
+    assert(isValid)
+    consume()
+  }
 
   def toStagingIterator: StagingIterator[A] = this
+}
+
+object FlipbookIterator {
+  def apply[A](sm: StateMachine[A]): FlipbookIterator[A] =
+    StagingIterator(sm)
+
+  def empty[A] = StagingIterator(StateMachine.terminal[A])
 }
 
 /**
@@ -72,17 +77,15 @@ class StagingIterator[A] private (sm: StateMachine[A]) extends EphemeralIterator
   *
   * It also extends BufferedIterator[A] for interoperability with Scala and
   * Spark
+  *
+  * To define a new FlipbookIterator, define a StateMachine (which has the same
+  * abstract methods as FlipbookIterator, but is unchecked), then use the
+  * factory method FlipbookIterator(sm).
   */
-abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
-  // There are three abstract methods that must be implemented to define an
-  // EphemeralIterator
+abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
   def isValid: Boolean
   def value: A
   def advance(): Unit
-
-  def head: A
-  def next(): A
-  def hasNext: Boolean
 
   def valueOrElse(default: A): A =
     if (isValid) value else default
@@ -91,18 +94,18 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
 
   def toStagingIterator: StagingIterator[A]
 
-  def staircased(ord: OrderingView[A]): StagingIterator[EphemeralIterator[A]] = {
+  def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
     ord.setBottom()
-    val stepIterator: EphemeralIterator[A] = EphemeralIterator(
+    val stepIterator: FlipbookIterator[A] = FlipbookIterator(
       new StateMachine[A] {
         def curValue: A = self.value
         def isActive: Boolean = self.isValid && ord.isEquivalent(curValue)
         def advance() = { self.advance() }
       }
     )
-    val sm = new StateMachine[EphemeralIterator[A]] {
+    val sm = new StateMachine[FlipbookIterator[A]] {
       var isActive: Boolean = true
-      val curValue: EphemeralIterator[A] = stepIterator
+      val curValue: FlipbookIterator[A] = stepIterator
       def advance() = {
         stepIterator.exhaust()
         if (self.isValid) {
@@ -119,24 +122,24 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   def cogroup[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     mixedOrd: (A, B) => Int
-  ): EphemeralIterator[Muple[EphemeralIterator[A], EphemeralIterator[B]]] = {
+  ): FlipbookIterator[Muple[FlipbookIterator[A], FlipbookIterator[B]]] = {
     this.staircased(leftOrd).orderedZipJoin(
       that.staircased(rightOrd),
-      EphemeralIterator.empty,
-      EphemeralIterator.empty,
+      FlipbookIterator.empty,
+      FlipbookIterator.empty,
       (l, r) => mixedOrd(l.head, r.head)
     )
   }
 
   def orderedZipJoin[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftDefault: A,
     rightDefault: B,
-    mixedOrd: (A, B) => Int): EphemeralIterator[Muple[A, B]] = {
+    mixedOrd: (A, B) => Int): FlipbookIterator[Muple[A, B]] = {
     val left = self.toStagingIterator
     val right = that.toStagingIterator
     val sm = new StateMachine[Muple[A, B]] {
@@ -169,11 +172,11 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
     }
 
     sm.advance()
-    EphemeralIterator(sm)
+    FlipbookIterator(sm)
   }
 
   def innerJoinDistinct[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     leftDefault: A,
@@ -187,7 +190,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   def leftJoinDistinct[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     leftDefault: A,
@@ -201,7 +204,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   def innerJoin[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     leftDefault: A,
@@ -216,7 +219,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   def leftJoin[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     leftDefault: A,
@@ -232,7 +235,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   def rightJoin[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     leftDefault: A,
@@ -248,7 +251,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   def outerJoin[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     leftOrd: OrderingView[A],
     rightOrd: OrderingView[B],
     leftDefault: A,
@@ -265,7 +268,7 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
   }
 
   private def product[B](
-    that: EphemeralIterator[B],
+    that: FlipbookIterator[B],
     buffer: Growable[B] with Iterable[B],
     result: Muple[A, B]
   ): Iterator[Muple[A, B]] = {
@@ -282,4 +285,10 @@ abstract class EphemeralIterator[A] extends BufferedIterator[A] { self =>
         return false
     !this.hasNext && !that.hasNext
   }
+
+  // head, next, and hasNext are not meant to be used directly, only to enable
+  // EphemeralIterator to be used where an Iterator is expected.
+  def head: A
+  def next(): A
+  def hasNext: Boolean
 }

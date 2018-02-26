@@ -5,11 +5,11 @@ import is.hail.utils._
 
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
-  def staircase: StagingIterator[EphemeralIterator[RegionValue]] =
+  def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
     iterator.toEphemeralIterator.staircased(t.kRowOrdView)
 
   def cogroup(other: OrderedRVIterator):
-      EphemeralIterator[Muple[EphemeralIterator[RegionValue], EphemeralIterator[RegionValue]]] =
+      FlipbookIterator[Muple[FlipbookIterator[RegionValue], FlipbookIterator[RegionValue]]] =
     this.iterator.toEphemeralIterator.cogroup(
       other.iterator.toEphemeralIterator,
       this.t.kRowOrdView,
@@ -17,7 +17,7 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
       this.t.kComp(other.t).compare
     )
 
-  def zipJoin(other: OrderedRVIterator): EphemeralIterator[JoinedRegionValue] =
+  def zipJoin(other: OrderedRVIterator): FlipbookIterator[JoinedRegionValue] =
     iterator.toEphemeralIterator.orderedZipJoin(
       other.iterator.toEphemeralIterator,
       leftDefault = null,

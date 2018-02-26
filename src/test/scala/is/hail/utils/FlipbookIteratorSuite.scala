@@ -5,7 +5,7 @@ import org.testng.annotations.Test
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 
-class EphemeralIteratorSuite extends SparkSuite {
+class FlipbookIteratorSuite extends SparkSuite {
   class Box[A] extends AnyRef {
     var value: A = _
 
@@ -77,7 +77,7 @@ class EphemeralIteratorSuite extends SparkSuite {
   }
 
   @Test def ephemeralIteratorStartsWithRightValue() {
-    val it: EphemeralIterator[Box[Int]] =
+    val it: FlipbookIterator[Box[Int]] =
       makeTestIterator(1, 2, 3, 4, 5)
     assert(it.value.value == 1)
   }
