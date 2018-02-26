@@ -36,9 +36,35 @@ object RichDenseMatrixDouble {
   }
 }
 
-// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
-// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
 class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+  
+  def filterRows(keep: Array[Int]): DenseMatrix[Double] = {
+    require(keep.nonEmpty && keep.isIncreasing && keep.head >= 0 && keep.last < m.rows)
+    val nRows = keep.length
+    val res = new DenseMatrix[Double](nRows, m.cols)   
+    var i = 0
+    while (i < nRows) {
+      res(i, ::) := m(keep(i), ::)
+      i += 1
+    }
+    res
+  }
+
+  def filterCols(keep: Array[Int]): DenseMatrix[Double] = {
+    require(keep.nonEmpty && keep.isIncreasing && keep.head >= 0 && keep.last < m.cols)
+    val nCols = keep.length
+    val res = new DenseMatrix[Double](m.rows, nCols)    
+    var j = 0
+    while (j < nCols) {
+      res(::, j) := m(::, keep(j))
+      j += 1
+    }
+    res
+  }
+  
+  def filter(keepRows: Array[Int], keepCols: Array[Int]): DenseMatrix[Double] =
+    m.filterCols(keepCols).filterRows(keepRows)
+
   def forceSymmetry() {
     require(m.rows == m.cols, "only square matrices can be made symmetric")
 

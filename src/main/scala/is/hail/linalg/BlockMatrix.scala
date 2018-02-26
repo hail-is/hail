@@ -364,7 +364,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     this
   }
 
-  def toLocalMatrix(): BDM[Double] = {
+  def toLocalMatrix(): LocalMatrix = LocalMatrix(toBreezeMatrix())
+  
+  def toBreezeMatrix(): BDM[Double] = {
     require(this.nRows <= Int.MaxValue, "The number of rows of this matrix should be less than or equal to " +
       s"Int.MaxValue. Currently numRows: ${ this.nRows }")
     require(this.nCols <= Int.MaxValue, "The number of columns of this matrix should be less than or equal to " +

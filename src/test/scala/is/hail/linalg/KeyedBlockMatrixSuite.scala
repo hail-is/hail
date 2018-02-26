@@ -21,7 +21,7 @@ class KeyedBlockMatrixSuite extends SparkSuite {
       case _ => assert(false)
     }
     
-    assert(left.bm.toLocalMatrix() === right.bm.toLocalMatrix())
+    assert(left.bm.toBreezeMatrix() === right.bm.toBreezeMatrix())
   }
 
   @Test
