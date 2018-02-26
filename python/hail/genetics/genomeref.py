@@ -2,6 +2,8 @@ from hail.history import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import handle_py4j, jiterable_to_list, Env
+from hail.typecheck import oneof, transformed
+import hail as hl
 
 
 class GenomeReference(HistoryMixin):
@@ -306,3 +308,5 @@ class GenomeReference(HistoryMixin):
     @handle_py4j
     def _check_interval(self, interval_jrep):
         self._jrep.checkInterval(interval_jrep)
+
+reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference)

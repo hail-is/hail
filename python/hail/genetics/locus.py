@@ -1,4 +1,4 @@
-from hail.genetics.genomeref import GenomeReference
+from hail.genetics.genomeref import GenomeReference, reference_genome_type
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import scala_object, handle_py4j, Env
@@ -19,7 +19,7 @@ class Locus(HistoryMixin):
     @record_init
     @typecheck_method(contig=oneof(str, int),
                       position=int,
-                      reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference))
+                      reference_genome=reference_genome_type)
     def __init__(self, contig, position, reference_genome='default'):
         if isinstance(contig, int):
             contig = str(contig)
@@ -61,7 +61,7 @@ class Locus(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference))
+                      reference_genome=reference_genome_type)
     def parse(cls, string, reference_genome='default'):
         """Parses a locus object from a CHR:POS string.
 

@@ -6,9 +6,8 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
-from hail.genetics import GenomeReference
+from hail.genetics.genomeref import reference_genome_type
 from hail.methods.misc import require_biallelic
-from hail.context import get_reference
 
 
 @handle_py4j
@@ -318,7 +317,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 @handle_py4j
 @typecheck(path=str,
-           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)))
+           reference_genome=nullable(reference_genome_type))
 def import_interval_list(path, reference_genome='default'):
     """Import an interval list as a :class:`.Table`.
 
@@ -388,7 +387,7 @@ def import_interval_list(path, reference_genome='default'):
 
 @handle_py4j
 @typecheck(path=str,
-           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)))
+           reference_genome=nullable(reference_genome_type))
 def import_bed(path, reference_genome='default'):
     """Import a UCSC .bed file as a :class:`.Table`.
 
@@ -588,7 +587,7 @@ def grep(regex, path, max_count=100):
            sample_file=nullable(str),
            entry_fields=listof(str),
            min_partitions=nullable(int),
-           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric)
 def import_bgen(path, entry_fields, sample_file=None,
@@ -729,7 +728,7 @@ def import_bgen(path, entry_fields, sample_file=None,
            tolerance=numeric,
            min_partitions=nullable(int),
            chromosome=nullable(str),
-           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
 def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None,
                reference_genome='default', contig_recoding=None):
@@ -1136,7 +1135,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
            missing=str,
            quant_pheno=bool,
            a2_reference=bool,
-           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
 def import_plink(bed, bim, fam,
                  min_partitions=None,
@@ -1348,7 +1347,7 @@ def get_vcf_metadata(path):
            min_partitions=nullable(int),
            drop_samples=bool,
            call_fields=oneof(str, listof(str)),
-           reference_genome=nullable(oneof(transformed((str, lambda x: get_reference(x))), GenomeReference)),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
 def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                drop_samples=False, call_fields=[], reference_genome='default', contig_recoding=None):

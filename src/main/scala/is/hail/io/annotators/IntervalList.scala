@@ -50,24 +50,16 @@ object IntervalList {
             val split = line.split("\\s+")
             split match {
               case Array(contig, start, end, dir, target) =>
-                val interval = gr match {
-                  case Some(ref) => Interval(Locus(contig, start.toInt, ref), Locus(contig, end.toInt, ref),
-                    includeStart = true, includeEnd = true)
-                  case None => Interval(Annotation(contig, start.toInt), Annotation(contig, end.toInt),
-                    includeStart = true, includeEnd = true)
-                }
+                val interval = Interval(Locus(contig, start.toInt, gr), Locus(contig, end.toInt, gr),
+                  includeStart = true, includeEnd = true)
                 Row(interval, target)
               case arr => fatal(s"expected 5 fields, but found ${ arr.length }")
             }
           } else {
             line match {
               case intervalRegex(contig, start, end) =>
-                val interval = gr match {
-                  case Some(ref) => Interval(Locus(contig, start.toInt, ref), Locus(contig, end.toInt, ref),
-                    includeStart = true, includeEnd = true)
-                  case None => Interval(Annotation(contig, start.toInt), Annotation(contig, end.toInt),
-                    includeStart = true, includeEnd = true)
-                }
+                val interval = Interval(Locus(contig, start.toInt, gr), Locus(contig, end.toInt, gr),
+                  includeStart = true, includeEnd = true)
                 Row(interval)
               case _ => fatal("invalid interval")
             }

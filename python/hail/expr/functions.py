@@ -1,8 +1,8 @@
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics import Locus, Call, GenomeReference
-from hail.context import get_reference
+# from hail.genetics import Locus, Call, GenomeReference
+from hail.genetics.genomeref import reference_genome_type
 
 std_len = len
 std_str = str
@@ -642,7 +642,7 @@ def index(structs, identifier):
 
 
 @typecheck(contig=expr_str, pos=expr_int32,
-           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
+           reference_genome=reference_genome_type)
 def locus(contig, pos, reference_genome='default'):
     """Construct a locus expression from a chromosome and position.
 
@@ -675,7 +675,7 @@ def locus(contig, pos, reference_genome='default'):
 
 
 @typecheck(s=expr_str,
-           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
+           reference_genome=reference_genome_type)
 def parse_locus(s, reference_genome='default'):
     """Construct a locus expression by parsing a string or string expression.
 
@@ -708,7 +708,7 @@ def parse_locus(s, reference_genome='default'):
 
 
 @typecheck(s=expr_str,
-           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
+           reference_genome=reference_genome_type)
 def parse_variant(s, reference_genome='default'):
     """Construct a struct with a locus and alleles by parsing a string.
 
@@ -841,7 +841,7 @@ def interval(start, end):
 
 
 @typecheck(s=expr_str,
-           reference_genome=oneof(transformed((std_str, lambda x: get_reference(x))), GenomeReference))
+           reference_genome=reference_genome_type)
 def parse_interval(s, reference_genome='default'):
     """Construct an interval expression by parsing a string or string expression.
 

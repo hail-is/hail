@@ -1,4 +1,4 @@
-from hail.genetics.genomeref import GenomeReference
+from hail.genetics.genomeref import GenomeReference, reference_genome_type
 from hail.genetics.locus import Locus
 from hail.history import *
 from hail.typecheck import *
@@ -65,7 +65,7 @@ class Interval(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference))
+                      reference_genome=reference_genome_type)
     def parse(cls, string, reference_genome='default'):
         """Parses a genomic interval from string representation.
 

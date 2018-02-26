@@ -4,6 +4,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix, GenomeReference
+from hail.genetics.genomeref import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
@@ -11,7 +12,6 @@ from hail.utils.java import handle_py4j, joption, jarray
 from hail.utils.misc import check_collisions
 from hail.methods.misc import require_biallelic, require_variant
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
-from hail.context import get_reference
 import itertools
 
 
@@ -2267,7 +2267,7 @@ def rrm(call_expr):
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
-           reference_genome=oneof(transformed((str, lambda x: get_reference(x))), GenomeReference))
+           reference_genome=reference_genome_type)
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                           seed=0, reference_genome='default'):

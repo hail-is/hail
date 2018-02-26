@@ -154,16 +154,8 @@ object LoadBgen {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
+        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, gr))
 
-        gr match {
-          case Some(gr) =>
-            rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, gr))
-          case None =>
-            rvb.startStruct()
-            rvb.addString(contigRecoded)
-            rvb.addInt(pos)
-            rvb.endStruct()
-        }
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)
         var i = 0

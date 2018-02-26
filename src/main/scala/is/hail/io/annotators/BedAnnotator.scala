@@ -64,17 +64,7 @@ object BedAnnotator {
           val start = spl(1).toInt + 1
           val end = spl(2).toInt + 1
 
-          val startLocus = gr match {
-            case Some(ref) => Locus(chrom, start, ref)
-            case None => Annotation(chrom, start)
-          }
-
-          val endLocus = gr match {
-            case Some(ref) => Locus(chrom, end, ref)
-            case None => Annotation(chrom, end)
-          }
-
-          val interval = Interval(startLocus, endLocus, true, false)
+          val interval = Interval(Locus(chrom, start, gr), Locus(chrom, end, gr), true, false)
 
           if (hasTarget)
             Row(interval, spl(3))

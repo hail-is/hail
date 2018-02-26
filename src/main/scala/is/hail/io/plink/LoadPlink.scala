@@ -149,15 +149,7 @@ object LoadPlink {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        gr match {
-          case Some(gr) =>
-            rvb.addAnnotation(kType.types(0), Locus(contig, pos, gr))
-          case None =>
-            rvb.startStruct()
-            rvb.addString(contig)
-            rvb.addInt(pos)
-            rvb.endStruct()
-        }
+        rvb.addAnnotation(kType.types(0), Locus(contig, pos, gr))
         rvb.startArray(2)
         rvb.addString(ref)
         rvb.addString(alt)
@@ -180,15 +172,7 @@ object LoadPlink {
         region.clear()
         rvb.start(rvRowType)
         rvb.startStruct()
-        gr match {
-          case Some(gr) =>
-            rvb.addAnnotation(kType.types(0), Locus(contig, pos, gr))
-          case None =>
-            rvb.startStruct()
-            rvb.addString(contig)
-            rvb.addInt(pos)
-            rvb.endStruct()
-        }
+        rvb.addAnnotation(kType.types(0), Locus(contig, pos, gr))
         rvb.startArray(2)
         rvb.addString(ref)
         rvb.addString(alt)
