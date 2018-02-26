@@ -846,9 +846,8 @@ class MatrixTable(object):
             analyze('MatrixTable.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append(
-                '{}: {}'.format(e._ast.name if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
-            ids.append(e._ast.expand()[0].name)
+            strs.append('{}: {}'.format(escape_id(e._ast.name), e._ast.to_hql()))
+            ids.append(e._ast.name)
 
         for k, e in named_exprs.items():
             all_exprs.append(e)
@@ -914,7 +913,7 @@ class MatrixTable(object):
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
-            ids.append(e._ast.expand()[0].name)
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
@@ -981,7 +980,7 @@ class MatrixTable(object):
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
-            ids.append(e._ast.expand()[0].name)
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
@@ -1045,7 +1044,7 @@ class MatrixTable(object):
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
-            ids.append(e._ast.expand()[0].name)
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)

@@ -339,7 +339,7 @@ class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
         return hl.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
 
-    def test_key_show(self):
+    def test_row_key_field_show_runs(self):
         ds = self.get_vds()
         ds.locus.show()
 
