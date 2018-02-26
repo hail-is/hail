@@ -62,23 +62,12 @@ class IntervalSuite extends TestNGSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_union_nonempty() {
-    for {set_interval1 <- test_intervals if !set_interval1.definitelyEmpty()
-    set_interval2 <- test_intervals if !set_interval2.definitelyEmpty()} {
-      val interval1 = set_interval1.interval
-      val interval2 = set_interval2.interval
-      assertEquals(interval1.unionNonEmpty(pord, interval2), set_interval1.unionNonEmpty(set_interval2).map(_.interval))
-    }
-  }
-
   @Test def interval_agrees_with_set_interval_union() {
-    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      val result = interval1.union(pord, interval2)
-      val expected_points = set_interval1.unionedPoints(set_interval2)
-      val actual_points = result.foldLeft(Set[Int]()) { (s, i) => s.union(SetInterval.from(i).doublepointset) }
-      assertEquals(actual_points, expected_points)
+      assertEquals(interval1.union(pord, interval2), set_interval1.union(set_interval2).map(_.interval))
     }
   }
 
@@ -86,7 +75,7 @@ class IntervalSuite extends TestNGSuite {
     for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.intersect(pord, interval2), set_interval1.intersect(set_interval2).map(_.interval))
+      assertEquals(interval1.intersect(pord, interval2), set_interval1.intersect(set_interval2).interval)
     }
   }
 
@@ -205,8 +194,10 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
 
   def unionedPoints(other: SetInterval): Set[Int] = doublepointset.union(other.doublepointset)
 
-  def unionNonEmpty(other: SetInterval): Option[SetInterval] = {
+  def union(other: SetInterval): Option[SetInterval] = {
     val combined = doublepointset.union(other.doublepointset)
+    if (combined.isEmpty)
+      return None
     val start = combined.min(pord.toOrdering)
     val end = combined.max(pord.toOrdering)
     if ((start to end).forall(combined.contains))
@@ -214,14 +205,14 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
     else None
   }
 
-  def intersect(other: SetInterval): Option[SetInterval] = {
+  def intersect(other: SetInterval): SetInterval = {
     val intersection = doublepointset.intersect(other.doublepointset)
     if (intersection.isEmpty)
-      None
+      SetInterval(start, start, includeStart, false)
     else {
       val start = intersection.min(pord.toOrdering)
       val end = intersection.max(pord.toOrdering)
-      Some(SetInterval(start / 2, (end + 1) / 2, start % 2 == 0, end % 2 == 0))
+      SetInterval(start / 2, (end + 1) / 2, start % 2 == 0, end % 2 == 0)
     }
   }
 }
