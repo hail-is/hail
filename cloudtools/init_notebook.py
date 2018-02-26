@@ -32,6 +32,7 @@ if role == 'Master':
         'matplotlib',
         'seaborn',
         'decorator',
+        'parsimonious',
         'jupyter',
         'lxml',
         'jupyter-spark',
