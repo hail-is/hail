@@ -368,15 +368,12 @@ class Tests(unittest.TestCase):
         df = ds1.rows()
         self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
-        # required python3
-        # self.assertTrue(ds1._same(ds2))
+        self.assertTrue(ds1._same(ds2))
 
         ds = self.get_dataset()
         ds = ds.annotate_entries(X=ds.GT)
-        self.assertRaisesRegex(utils.FatalError,
-                               "split_multi_hts: entry schema must be the HTS genotype schema",
-                               hl.split_multi_hts,
-                               ds)
+        with self.assertRaises(utils.FatalError):
+            hl.split_multi_hts(ds)
 
     def test_mendel_errors(self):
         dataset = self.get_dataset()
@@ -589,8 +586,8 @@ class Tests(unittest.TestCase):
     def test_entries_table(self):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
-        schema = hl.tstruct(['i', 'j', 'entry'],
-                            [hl.tint32, hl.tint32, hl.tfloat64])
+        schema = hl.tstruct.from_lists(['i', 'j', 'entry'],
+                                       [hl.tint32, hl.tint32, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))
@@ -608,7 +605,6 @@ class Tests(unittest.TestCase):
         # FIXME actually test
         ds = self.get_dataset()
         hl.min_rep(ds).count()
-
 
     def test_filter_intervals(self):
         ds = hl.import_vcf(test_file('sample.vcf'), min_partitions=20)
@@ -727,23 +723,22 @@ class Tests(unittest.TestCase):
                               entry_fields=['dosage'],
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
-        self.assertTrue(bgen.entry_schema == TStruct(['dosage'], [TFloat64()]))
-
+        self.assertEqual(bgen.entry_schema, hl.tstruct(dosage=hl.tfloat64))
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=test_file('example.sample'),
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
-        self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP'], [TCall(), TArray(TFloat64())]))
-        self.assertTrue(bgen.count_rows() == 199)
+        self.assertEqual(bgen.entry_schema, TStruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
+        self.assertEqual(bgen.count_rows(), 199)
 
         hl.index_bgen(test_file('example.10bits.bgen'))
         bgen = hl.import_bgen(test_file('example.10bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
-        self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP', 'dosage'], [TCall(), TArray(TFloat64()), TFloat64()]))
+        self.assertEqual(bgen.entry_schema, TStruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64), dosage=hl.tfloat64))
         self.assertEqual(bgen.locus.dtype, TLocus('GRCh37'))
 
     def test_import_bgen_no_reference_specified(self):
@@ -799,7 +794,7 @@ class Tests(unittest.TestCase):
 
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_file('matrix1.tsv'),
-                                    row_fields={'Barcode': hl.TString(), 'Tissue': hl.TString(), 'Days':hl.TFloat32()})
+                                    row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
         self.assertEqual(mt['Barcode']._indices, mt._row_indices)
         self.assertEqual(mt['Tissue']._indices, mt._row_indices)
         self.assertEqual(mt['Days']._indices, mt._row_indices)

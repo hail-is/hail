@@ -80,30 +80,6 @@ class Type(object):
     Hail type superclass.
     """
 
-    _hts_schema = None
-
-    @classmethod
-    def hts_schema(cls):
-        """
-        The high-through sequencing (HTS) genotype schema:
-
-        .. code-block:: text
-
-          Struct {
-            GT: Call,
-            AD: Array[!Int32],
-            DP: Int32,
-            GQ: Int32,
-            PL: Array[!Int32].
-          }
-        """
-
-        if not cls._hts_schema:
-            cls._hts_schema = TStruct(
-                ['GT', 'AD', 'DP', 'GQ', 'PL'],
-                [tcall, tarray(tint32), tint32, tint32, tarray(tint32)])
-        return cls._hts_schema
-
     def __init__(self):
         self._cached_jtype = None
         super(Type, self).__init__()
@@ -586,22 +562,18 @@ class TStruct(Type):
 
     Parameters
     ----------
-    names: :obj:`list` of :obj:`str`
-        Field names.
-    types: :obj:`list` of :class:`.Type`
-        Field types.
+    field_types : keyword args of :class:`.Type`
+        Fields.
     """
 
-    @typecheck_method(names=listof(str),
-                      types=listof(Type))
-    def __init__(self, names, types):
+    @typecheck_method(field_types=Type)
+    def __init__(self, **field_types):
 
-        if len(names) != len(types):
-            raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply(names,
-                                                                                       map(lambda t: t._jtype, types),
-                                                                                       False)
-        self._fields = tuple(Field(names[i], types[i]) for i in range(len(names)))
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply(
+            list(field_types.keys()),
+            list(map(lambda t: t._jtype, field_types.values())), False)
+        fields = tuple(Field(name, dtype) for name, dtype in field_types.items())
+        self._fields = fields
 
         super(TStruct, self).__init__()
 
@@ -617,16 +589,46 @@ class TStruct(Type):
         return self._fields
 
     @classmethod
+    @typecheck_method(fields=listof(Field))
     def from_fields(cls, fields):
-        """Creates a new TStruct from field objects.
+        """Construct a :class:`.TStruct` from a list of fields.
 
-        :param fields: The TStruct fields.
-        :type fields: list of :class:`.Field`
+        Parameters
+        ----------
+        fields : :obj:`list` of :class:`.Field`
+            Struct fields.
 
-        :return: TStruct from input fields
-        :rtype: :class:`.TStruct`
+        Returns
+        -------
+        :class:`.TStruct`
         """
-        return TStruct([f.name for f in fields], [f.dtype for f in fields])
+        ts = TStruct.__new__(cls)
+        ts._fields = tuple(fields)
+        ts._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply([f.name for f in fields],
+                                                                                     [f.dtype._jtype for f in fields],
+                                                                                     False)
+        super(TStruct, ts).__init__()
+        return ts
+
+    @staticmethod
+    @typecheck(names=listof(str), types=listof(Type))
+    def from_lists(names, types):
+        """Construct a :class:`.TStruct` from lists of names and types.
+
+        Parameters
+        ----------
+        names : :obj:`list` of :obj:`str`
+            Field names.
+        types : :obj:`list` of :class:`.Type`
+
+        Returns
+        -------
+        :class:`.TStruct`
+        """
+        if not len(names) == len(types):
+            raise ValueError("'from_lists': parameters 'names' and 'types' had different lengths ({} / {})"
+                             .format(len(names), len(types)))
+        return TStruct.from_fields([Field(name, dtype) for name, dtype in zip(names, types)])
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
@@ -895,6 +897,8 @@ tstruct = TStruct
 ttuple = TTuple
 tlocus = TLocus
 tinterval = TInterval
+
+hts_entry_schema = tstruct(GT=tcall, AD=tarray(tint32), DP=tint32, GQ=tint32, PL=tarray(tint32))
 
 _numeric_types = {tint32, tint64, tfloat32, tfloat64}
 

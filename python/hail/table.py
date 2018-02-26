@@ -542,9 +542,9 @@ class Table(TableTemplate):
         .. testsetup::
 
             table4 = hl.import_table('data/kt_example4.tsv', impute=True,
-                                  types={'B': hl.tstruct(['B0', 'B1'], [hl.tbool, hl.tstr]),
-                                 'D': hl.tstruct(['cat', 'dog'], [hl.tint32, hl.tint32]),
-                                 'E': hl.tstruct(['A', 'B'], [hl.tint32, hl.tint32])})
+                                  types={'B': hl.tstruct(B0=hl.tbool, B1=hl.tstr),
+                                 'D': hl.tstruct(cat=hl.tint32, dog=hl.tint32),
+                                 'E': hl.tstruct(A=hl.tint32, B=hl.tint32)})
 
         .. doctest::
 

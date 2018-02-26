@@ -2035,15 +2035,13 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     """
 
-    hts_genotype_schema = TStruct._from_java(Env.hail().variant.Genotype.htsGenotypeType().deepOptional())
-    if ds.entry_schema != hts_genotype_schema:
-        raise FatalError("""
-split_multi_hts: entry schema must be the HTS genotype schema
-  found: {}
-  expected: {}
-
-hint: Use `split_multi` to split entries with a non-HTS genotype schema.
-""".format(ds.entry_schema, hts_genotype_schema))
+    if ds.entry_schema != hl.hts_entry_schema:
+        raise FatalError("'split_multi_hts': entry schema must be the HTS entry schema:\n"
+                         "  found: {}\n"
+                         "  expected: {}\n"
+                         "  Use 'split_multi' to split entries with non-HTS entry fields.".format(
+            ds.entry_schema, hl.hts_entry_schema
+        ))
 
     sm = SplitMulti(ds)
     pl = hl.or_missing(
