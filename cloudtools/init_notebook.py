@@ -74,7 +74,7 @@ if role == 'Master':
         'spark.jars=/home/hail/hail.jar',
         'spark.executorEnv.PYTHONHASHSEED=0',
         'spark.submit.pyFiles=/home/hail/hail.zip',
-        'spark.driver.extraClassPath=./hail.jar',
+        'spark.driver.extraClassPath=/home/hail/hail.jar',
         'spark.executor.extraClassPath=./hail.jar'
     ]
 
