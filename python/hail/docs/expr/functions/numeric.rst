@@ -29,8 +29,8 @@ Numeric functions
     median
     product
     sum
-    unique_max_index
-    unique_min_index
+    argmin
+    argmax
 
 
 .. autofunction:: abs
@@ -51,5 +51,5 @@ Numeric functions
 .. autofunction:: median
 .. autofunction:: product
 .. autofunction:: sum
-.. autofunction:: unique_max_index
-.. autofunction:: unique_min_index
+.. autofunction:: argmin
+.. autofunction:: argmax

@@ -91,8 +91,8 @@ Functions
     median
     product
     sum
-    unique_max_index
-    unique_min_index
+    argmin
+    argmax
 
 .. rubric:: Collection functions
 

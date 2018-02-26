@@ -2463,7 +2463,7 @@ class FilterAlleles(object):
     ...             lambda newc: dataset.PL[hl.call(fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     hl.null(hl.tarray(hl.tint32)))
     >>> fa.annotate_entries(
-    ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
+    ...     GT = hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
     ...         hl.range(0, fa.new_alleles.length()).map(
@@ -2674,7 +2674,7 @@ class FilterAlleles(object):
                 lambda unnorm: unnorm - hl.min(unnorm)),
             hl.null(tarray(tint32)))
         self.annotate_entries(
-            GT=hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
+            GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
             AD=hl.cond(
                 hl.is_defined(ds.AD),
                 hl.range(0, self.new_alleles.length()).map(
