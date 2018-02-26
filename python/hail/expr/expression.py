@@ -1664,8 +1664,8 @@ class DictExpression(Expression):
                             "    type of 'item': '{}'".format(self._type.key_type, item._type))
         return self._method("contains", tbool, item)
 
-    @typecheck_method(item=expr_any)
-    def get(self, item):
+    @typecheck_method(item=expr_any, default=nullable(expr_any))
+    def get(self, item, default=None):
         """Returns the value associated with key `k`, or missing if that key is not present.
 
         Examples
@@ -1678,21 +1678,32 @@ class DictExpression(Expression):
             >>> hl.eval_expr(d.get('Anne'))
             None
 
+            >>> hl.eval_expr(d.get('Anne', 0))
+            0
+
         Parameters
         ----------
         item : :class:`.Expression`
             Key.
+        default : :class:`.Expression`
+            Default value, must be same type as dictionary value.
 
         Returns
         -------
         :class:`.Expression`
             The value associated with `item`, or missing.
         """
-        if not item._type == self._type.key_type:
+        if not item.dtype == self.dtype.key_type:
             raise TypeError("'DictExpression.get' encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
-                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
-        return self._method("get", self._value_typ, item)
+                            "    type of 'item': '{}'".format(self.dtype.key_type, item._type))
+        res = self._method("get", self._value_typ, item)
+        if default is not None:
+            result_type = unify_types_limited(self.dtype.value_type, default.dtype)
+            if not result_type:
+                raise TypeError("'get' expects parameter 'default' to have the same type as the dictionary value type, found '{}' and '{}'".format(self.dtype, default.dtype))
+            res = hl.or_else(res, default)
+        return res
 
     def key_set(self):
         """Returns the set of keys in the dictionary.
@@ -1843,7 +1854,7 @@ class StructExpression(Mapping, Expression):
     def _init(self):
         self._fields = OrderedDict()
 
-        for fd in self._type.fields:
+        for fd in self.dtype.fields:
             expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
                                   self._aggregations, self._joins, self._refs)
             self._set_field(fd.name, expr)
@@ -2257,13 +2268,13 @@ class NumericExpression(Expression):
     """
 
     def _bin_op_ret_typ(self, other):
-        if isinstance(other._type, TArray):
-            t = other._type.element_type
+        if isinstance(other.dtype, TArray):
+            t = other.dtype.element_type
             wrapper = lambda t: tarray(t)
         else:
-            t = other._type
+            t = other.dtype
             wrapper = lambda t: t
-        t = unify_types(self._type, t)
+        t = unify_types(self.dtype, t)
         if not t:
             return None
         else:
@@ -2274,7 +2285,7 @@ class NumericExpression(Expression):
         ret_type, wrapper = self._bin_op_ret_typ(other)
         if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
-                self._type, name, other._type))
+                self.dtype, name, other.dtype))
         if ret_type_f:
             ret_type = ret_type_f(ret_type)
         return self._bin_op(name, other, wrapper(ret_type))
@@ -2284,7 +2295,7 @@ class NumericExpression(Expression):
         ret_type, wrapper = self._bin_op_ret_typ(other)
         if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
-                self._type, name, other._type))
+                self.dtype, name, other.dtype))
         if ret_type_f:
             ret_type = ret_type_f(ret_type)
         return self._bin_op_reverse(name, other, wrapper(ret_type))
@@ -2672,9 +2683,9 @@ class StringExpression(Expression):
             return self._slice(tstr, item.start, item.stop, item.step)
         else:
             item = to_expr(item)
-            if not isinstance(item._type, TInt32):
+            if not isinstance(item.dtype, TInt32):
                 raise TypeError("String expects index to be type 'slice' or expression of type 'Int32', "
-                                "found expression of type '{}'".format(item._type))
+                                "found expression of type '{}'".format(item.dtype))
             return self._index(tstr, item)
 
     def __add__(self, other):
@@ -2698,15 +2709,15 @@ class StringExpression(Expression):
             Concatenated string.
         """
         other = to_expr(other)
-        if not isinstance(other._type, TString):
-            raise NotImplementedError("'{}' + '{}'".format(self._type, other._type))
-        return self._bin_op("+", other, self._type)
+        if not isinstance(other.dtype, TString):
+            raise NotImplementedError("'{}' + '{}'".format(self.dtype, other.dtype))
+        return self._bin_op("+", other, self.dtype)
 
     def __radd__(self, other):
         other = to_expr(other)
-        if not isinstance(other._type, TString):
-            raise NotImplementedError("'{}' + '{}'".format(other._type, self._type))
-        return self._bin_op_reverse("+", other, self._type)
+        if not isinstance(other.dtype, TString):
+            raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
+        return self._bin_op_reverse("+", other, self.dtype)
 
     def length(self):
         """Returns the length of the string.
@@ -2893,9 +2904,9 @@ class CallExpression(Expression):
             raise NotImplementedError("CallExpression does not support indexing with a slice.")
         else:
             item = to_expr(item)
-            if not isinstance(item._type, TInt32):
+            if not isinstance(item.dtype, TInt32):
                 raise TypeError("Call expects allele index to be an expression of type 'Int32', "
-                                "found expression of type '{}'".format(item._type))
+                                "found expression of type '{}'".format(item.dtype))
             return self._index(tint32, item)
 
     @property
@@ -3338,8 +3349,8 @@ class IntervalExpression(Expression):
             ``True`` if `locus` is contained in the interval, ``False`` otherwise.
         """
         locus = to_expr(locus)
-        if self._type.point_type != locus._type:
-            raise TypeError('expected {}, found: {}'.format(self._type.point_type, locus._type))
+        if self.dtype.point_type != locus.dtype:
+            raise TypeError('expected {}, found: {}'.format(self.dtype.point_type, locus.dtype))
         return self._method("contains", tbool, locus)
 
     @property
