@@ -906,7 +906,6 @@ def call(*alleles, phased=False):
     -------
     :class:`.CallExpression`
     """
-
     indices, aggregations, joins, refs = unify_all(phased, *alleles)
     if std_len(alleles) > 2:
         raise NotImplementedError("'call' supports a maximum of 2 alleles.")
