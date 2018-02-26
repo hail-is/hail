@@ -13,6 +13,8 @@ Aggregators
     count
     count_where
     counter
+    any
+    all
     take
     min
     max
@@ -34,6 +36,8 @@ Aggregators
 .. autofunction:: count
 .. autofunction:: count_where
 .. autofunction:: counter
+.. autofunction:: any
+.. autofunction:: all
 .. autofunction:: take
 .. autofunction:: min
 .. autofunction:: max

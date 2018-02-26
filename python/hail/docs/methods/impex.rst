@@ -19,6 +19,7 @@ Import / Export
     import_fam
     import_gen
     import_interval_list
+    import_matrix_table
     import_plink
     import_table
     import_vcf
@@ -36,6 +37,7 @@ Import / Export
 .. autofunction:: import_fam
 .. autofunction:: import_gen
 .. autofunction:: import_interval_list
+.. autofunction:: import_matrix_table
 .. autofunction:: import_plink
 .. autofunction:: import_table
 .. autofunction:: import_vcf

@@ -15,6 +15,12 @@ class SelectSuite extends SparkSuite {
     assert(t1.same(t2))
   }
 
+  @Test def test_key_change_typechecks() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+
+    vds.selectRows("va.alleles").typecheck()
+  }
+
   @Test def testCols() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .annotateSamplesExpr("foo = gs.count(), bar.baz = 5")

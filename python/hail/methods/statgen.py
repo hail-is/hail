@@ -1113,7 +1113,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
         burden_ds = hl.import_vcf('data/example_burden.vcf')
         burden_kt = hl.import_table('data/example_burden.tsv', key='Sample', impute=True)
         burden_ds = burden_ds.annotate_cols(burden = burden_kt[burden_ds.s])
-        burden_ds = burden_ds.annotate_rows(weight = burden_ds.locus.position.to_float64())
+        burden_ds = burden_ds.annotate_rows(weight = hl.float64(burden_ds.locus.position))
         burden_ds = hl.variant_qc(burden_ds)
         genekt = hl.import_interval_list('data/gene.interval_list')
         burden_ds = burden_ds.annotate_rows(gene = genekt[burden_ds.locus])
@@ -1387,7 +1387,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     compute the top 2 PC sample scores and eigenvalues of the matrix of 0s and
     1s encoding missingness of genotype calls.
 
-    >>> eigenvalues, scores, _ = hl.pca(hl.is_defined(dataset.GT).to_int32(),
+    >>> eigenvalues, scores, _ = hl.pca(hl.int(hl.is_defined(dataset.GT)),
     ...                                      k=2)
 
     Warning

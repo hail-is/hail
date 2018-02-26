@@ -207,10 +207,11 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python3', '-m', 'unittest', 'hail.tests', 'hail.typecheck.tests', 'hail.genetics.tests', 'hail.expr.tests', 'hail.utils.tests', 'hail.methods.tests'
+     commandLine 'python3', '-m', 'unittest', 'hail.tests', 'hail.typecheck.tests', 'hail.genetics.tests', 'hail.expr.tests', 'hail.utils.tests', 'hail.methods.tests', 'hail.linalg.tests'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+     environment PYSPARK_PYTHON: 'python3'
 }
 
 task testAll(dependsOn: ['testPython', 'test'])
@@ -416,11 +417,11 @@ task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks'
 }
 
 task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
 }
 
 task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
 }
 
 task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
@@ -435,7 +436,7 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }
-    from('build/www/docs/stable') {
+    from('build/www/docs') {
         into 'docs'
     }
     from('scripts') {

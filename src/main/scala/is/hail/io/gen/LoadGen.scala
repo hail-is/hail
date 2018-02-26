@@ -1,8 +1,7 @@
 package is.hail.io.gen
 
 import is.hail.annotations._
-import is.hail.expr.types._
-import is.hail.io.bgen.BgenLoader
+import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
 import is.hail.utils._
 import is.hail.variant._
@@ -13,13 +12,13 @@ import scala.collection.mutable
 
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
-object GenLoader {
+object LoadGen {
   def apply(genFile: String, sampleFile: String, sc: SparkContext, gr: GenomeReference,
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
     chromosome: Option[String] = None, contigRecoding: Map[String, String] = Map.empty[String, String]): GenResult = {
 
     val hConf = sc.hadoopConfiguration
-    val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
+    val sampleIds = LoadBgen.readSampleFile(hConf, sampleFile)
 
     LoadVCF.warnDuplicates(sampleIds)
 

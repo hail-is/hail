@@ -50,7 +50,7 @@ __all__ = ['init',
 __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
 
-# don't import the following with `from hail import *`
-builtins = {'str', 'any', 'all', 'set', 'dict', 'sum', 'min', 'max', 'len', 'sorted', 'map', 'filter', 'range'}
-__all__.extend([x for x in expr.__all__ if x not in builtins])
+# don't overwrite builtins in `from hail import *`
+import builtins
+__all__.extend([x for x in expr.__all__ if not hasattr(builtins, x)])
 del builtins

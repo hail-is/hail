@@ -31,6 +31,7 @@ class GroupedMatrixTable(object):
         self._partitions = None
         self._partition_key = None
         self._fields = {}
+        self._fields_inverse = {}
 
         for f in parent._fields:
             self._set_field(f, parent._fields[f])
@@ -112,6 +113,7 @@ class GroupedMatrixTable(object):
     def _set_field(self, key, value):
         assert key not in self._fields, key
         self._fields[key] = value
+        self._fields_inverse[value] = key
         if key in dir(self):
             warn("Name collision: field '{}' already in object dict."
                  " This field must be referenced with indexing syntax".format(key))
@@ -190,7 +192,7 @@ class MatrixTable(object):
     >>> dataset = dataset.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
     ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
-    >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.rand_unif(0, 6).to_int32()],
+    >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.int(hl.rand_unif(0, 6))],
     ...                                 sample_gq = agg.mean(dataset.GQ),
     ...                                 sample_dp = agg.mean(dataset.DP))
 
@@ -244,6 +246,7 @@ class MatrixTable(object):
         self._col_indices = Indices(self, {self._col_axis})
         self._entry_indices = Indices(self, {self._row_axis, self._col_axis})
         self._fields = {}
+        self._fields_inverse = {}
 
         assert isinstance(self.global_schema, TStruct), self.col_schema
         assert isinstance(self.col_schema, TStruct), self.col_schema
@@ -265,6 +268,7 @@ class MatrixTable(object):
     def _set_field(self, key, value):
         assert key not in self._fields, key
         self._fields[key] = value
+        self._fields_inverse[value] = key
         if key in self.__dict__:
             warn("Name collision: field '{}' already in object dict."
                  " This field must be referenced with indexing syntax".format(key))
@@ -524,15 +528,14 @@ class MatrixTable(object):
         :class:`.MatrixTable`
         """
         str_keys = []
-        fields_rev = {expr: name for name, expr in self._fields.items()}
         for k in keys:
             if isinstance(k, Expression):
-                if k not in fields_rev:
+                if k not in self._fields_inverse:
                     raise ExpressionException("'key_cols_by' permits only top-level fields of the matrix table")
                 elif k._indices != self._col_indices:
                     raise ExpressionException("key_cols_by' expects column fields, found index {}"
                                               .format(list(k._indices.axes)))
-                str_keys.append(fields_rev[k])
+                str_keys.append(self._fields_inverse[k])
             else:
                 if k not in self._fields:
                     raise LookupError(get_nice_field_error(self, k))
@@ -541,7 +544,7 @@ class MatrixTable(object):
                 str_keys.append(k)
         return MatrixTable(self._jvds.keyColsBy(str_keys))
 
-    @typecheck_method(fields=oneof(str, Expression))
+    @typecheck_method(keys=oneof(str, Expression))
     def key_rows_by(self, *keys):
         """Key rows by a new set of fields.
 
@@ -554,15 +557,14 @@ class MatrixTable(object):
         :class:`.MatrixTable`
         """
         str_keys = []
-        fields_rev = {expr: name for name, expr in self._fields.items()}
         for k in keys:
             if isinstance(k, Expression):
-                if k not in fields_rev:
+                if k not in self._fields_inverse:
                     raise ExpressionException("'key_rows_by' permits only top-level fields of the matrix table")
                 elif k._indices != self._row_indices:
                     raise ExpressionException("key_rows_by' expects row fields, found index {}"
                                               .format(list(k._indices.axes)))
-                str_keys.append(fields_rev[k])
+                str_keys.append(self._fields_inverse[k])
             else:
                 if k not in self._fields:
                     raise LookupError(get_nice_field_error(self, k))
@@ -1029,6 +1031,10 @@ class MatrixTable(object):
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
+            if not e._indices == self._entry_indices:
+                # detect row or col fields here
+                raise ExpressionException("method 'select_entries' parameter 'exprs' expects entry-indexed fields,"
+                                          " found indices {}".format(list(e._indices.axes)))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())

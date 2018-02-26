@@ -5,9 +5,10 @@ import unittest
 import random
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.java import Env
 from hail.utils.misc import test_file, new_temp_file
 import json
-
+import pyspark.sql
 
 
 def setUpModule():
@@ -211,11 +212,11 @@ class TableTests(unittest.TestCase):
                            x3=agg.min(kt.qPheno),
                            x4=agg.max(kt.qPheno),
                            x5=agg.sum(kt.qPheno),
-                           x6=agg.product(kt.qPheno.to_int64()),
+                           x6=agg.product(hl.int64(kt.qPheno)),
                            x7=agg.count(),
                            x8=agg.count_where(kt.qPheno == 3),
                            x9=agg.fraction(kt.qPheno == 1),
-                           x10=agg.stats(kt.qPheno.to_float64()),
+                           x10=agg.stats(hl.float64(kt.qPheno)),
                            x11=agg.hardy_weinberg(kt.GT),
                            x13=agg.inbreeding(kt.GT, 0.1),
                            x14=agg.call_stats(kt.GT, ["A", "T"]),
@@ -251,19 +252,19 @@ class TableTests(unittest.TestCase):
         self.assertRaises(NotImplementedError, f)
 
     def test_joins(self):
-        kt = hl.Table.range(1).drop('idx')
+        kt = hl.utils.range_table(1).drop('idx')
         kt = kt.annotate(a='foo')
 
-        kt1 = hl.Table.range(1).drop('idx')
+        kt1 = hl.utils.range_table(1).drop('idx')
         kt1 = kt1.annotate(a='foo', b='bar').key_by('a')
 
-        kt2 = hl.Table.range(1).drop('idx')
+        kt2 = hl.utils.range_table(1).drop('idx')
         kt2 = kt2.annotate(b='bar', c='baz').key_by('b')
 
-        kt3 = hl.Table.range(1).drop('idx')
+        kt3 = hl.utils.range_table(1).drop('idx')
         kt3 = kt3.annotate(c='baz', d='qux').key_by('c')
 
-        kt4 = hl.Table.range(1).drop('idx')
+        kt4 = hl.utils.range_table(1).drop('idx')
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
@@ -286,23 +287,23 @@ class TableTests(unittest.TestCase):
         m3 = m.annotate_rows(qual2=m[(m.locus, m.alleles), :].qual)
         self.assertTrue(m3.filter_rows(m3.qual != m3.qual2).count_rows() == 0)
 
-        kt = hl.Table.range(1)
+        kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
 
-        kt2 = hl.Table.range(1)
+        kt2 = hl.utils.range_table(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.get_globals().kt_foo, 5)
 
     def test_drop(self):
-        kt = hl.Table.range(10)
+        kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
 
         self.assertEqual(kt.drop('idx', 'foo').columns, ['sq', 'bar'])
         self.assertEqual(kt.drop(kt['idx'], kt['foo']).columns, ['sq', 'bar'])
 
     def test_weird_names(self):
-        df = hl.Table.range(10)
+        df = hl.utils.range_table(10)
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
 
         df.annotate_globals(**exprs)
@@ -320,10 +321,18 @@ class TableTests(unittest.TestCase):
         df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
 
     def test_sample(self):
-        kt = hl.Table.range(10)
+        kt = hl.utils.range_table(10)
         kt_small = kt.sample(0.01)
         self.assertTrue(kt_small.count() < kt.count())
 
+    def test_from_spark_works(self):
+        sql_context = Env.sql_context()
+        df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
+        t = hl.Table.from_spark(df)
+        rows = t.collect()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].x, 5)
+        self.assertEqual(rows[0].y, 'foo')
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
@@ -544,44 +553,40 @@ class MatrixTests(unittest.TestCase):
 
     def test_computed_key_join_2(self):
         # multiple keys
-        # FIXME: reenable with Python 3
-        # ds = self.get_vds()
-        # kt =hl.Table.parallelize(
-        #     [{'key1': 0, 'key2': 0, 'value': 0},
-        #      {'key1': 1, 'key2': 0, 'value': 1},
-        #      {'key1': 0, 'key2': 1, 'value': -2},
-        #      {'key1': 1, 'key2': 1, 'value': -1}],
-        #     hl.tstruct(['key1', 'key2', 'value'],
-        #             [hl.tint32, hl.tint32, hl.tint32]),
-        #     key=['key1', 'key2'])
-        # ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
-        # ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
-        # rt = ds.rows_table()
-        # self.assertTrue(
-        #     rt.forall((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
-        pass
+        ds = self.get_vds()
+        kt = hl.Table.parallelize(
+            [{'key1': 0, 'key2': 0, 'value': 0},
+             {'key1': 1, 'key2': 0, 'value': 1},
+             {'key1': 0, 'key2': 1, 'value': -2},
+             {'key1': 1, 'key2': 1, 'value': -1}],
+            hl.tstruct(['key1', 'key2', 'value'],
+                       [hl.tint32, hl.tint32, hl.tint32]),
+            key=['key1', 'key2'])
+        ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
+        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
+        rt = ds.rows_table()
+        self.assertTrue(
+            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
 
     def test_computed_key_join_3(self):
         # duplicate row keys
-        # FIXME: reenable with Python 3
-        # ds = self.get_vds()
-        # kt =hl.Table.parallelize(
-        #     [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
-        #     hl.tstruct(['culprit', 'foo', 'value'],
-        #             [hl.tstr, hl.tstr, hl.tstr]),
-        #     key=['culprit', 'foo'])
-        # ds = ds.annotate_rows(
-        #     dsfoo='bar',
-        #     info=ds.info.annotate(culprit=[ds.info.culprit, "foo"]))
-        # ds = ds.explode_rows(ds.info.culprit)
-        # ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo].value)
-        # rt = ds.rows_table()
-        # self.assertTrue(
-        #     rt.forall(hl.cond(
-        #         rt.info.culprit == "InbreedingCoeff",
-        #         rt.value == "IB",
-        #         hl.is_missing(rt.value))))
-        pass
+        ds = self.get_vds()
+        kt = hl.Table.parallelize(
+            [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
+            hl.tstruct(['culprit', 'foo', 'value'],
+                       [hl.tstr, hl.tstr, hl.tstr]),
+            key=['culprit', 'foo'])
+        ds = ds.annotate_rows(
+            dsfoo='bar',
+            info=ds.info.annotate(culprit=[ds.info.culprit, "foo"]))
+        ds = ds.explode_rows(ds.info.culprit)
+        ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo].value)
+        rt = ds.rows_table()
+        self.assertTrue(
+            rt.all(hl.cond(
+                rt.info.culprit == "InbreedingCoeff",
+                rt.value == "IB",
+                hl.is_missing(rt.value))))
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(test_file('33alleles.vcf'))
@@ -689,6 +694,12 @@ class MatrixTests(unittest.TestCase):
         self.assertRaises(ValueError, dataset.rename, {'locus': 'a', 's': 'a'})
         self.assertRaises(LookupError, dataset.rename, {'foo': 'a'})
 
+    def test_range(self):
+        ds = hl.utils.range_matrix_table(100, 10)
+        self.assertEqual(ds.count_rows(), 100)
+        self.assertEqual(ds.count_cols(), 10)
+        et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries_table().index()
+        self.assertTrue(et.all(et.idx == et.entry_idx))
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
@@ -720,18 +731,18 @@ class FunctionsTests(unittest.TestCase):
             index=hl.index(kt.g, 'z'),
             is_defined=hl.is_defined(kt.i),
             is_missing=hl.is_missing(kt.i),
-            is_nan=hl.is_nan(kt.a.to_float64()),
+            is_nan=hl.is_nan(hl.float64(kt.a)),
             json=hl.json(kt.g),
-            log=hl.log(kt.a.to_float64(), kt.b.to_float64()),
-            log10=hl.log10(kt.c.to_float64()),
+            log=hl.log(kt.a, kt.b),
+            log10=hl.log10(kt.c),
             or_else=hl.or_else(kt.a, 5),
             or_missing=hl.or_missing(kt.i, kt.j),
-            pchisqtail=hl.pchisqtail(kt.a.to_float64(), kt.b.to_float64()),
+            pchisqtail=hl.pchisqtail(kt.a, kt.b),
             pcoin=hl.rand_bool(0.5),
             pnorm=hl.pnorm(0.2),
             pow=2.0 ** kt.b,
-            ppois=hl.ppois(kt.a.to_float64(), kt.b.to_float64()),
-            qchisqtail=hl.qchisqtail(kt.a.to_float64(), kt.b.to_float64()),
+            ppois=hl.ppois(kt.a, kt.b),
+            qchisqtail=hl.qchisqtail(kt.a, kt.b),
             range=hl.range(0, 5, kt.b),
             rnorm=hl.rand_norm(0.0, kt.b),
             rpois=hl.rand_pois(kt.a),
@@ -860,7 +871,7 @@ class ColumnTests(unittest.TestCase):
         schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
-        kt = kt.annotate(d = kt.d.to_int64())
+        kt = kt.annotate(d = hl.int64(kt.d))
 
         kt = kt.annotate(x1=[1.0, kt.a, 1],
                          x2=[1, 1.0],
@@ -887,7 +898,7 @@ class ColumnTests(unittest.TestCase):
         schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
-        kt = kt.annotate(d = kt.d.to_int64())
+        kt = kt.annotate(d = hl.int64(kt.d))
 
         kt = kt.annotate(l1=hl.parse_locus("1:51"),
                          l2=hl.locus("1", 51, reference_genome=rg),

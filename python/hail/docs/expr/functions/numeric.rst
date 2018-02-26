@@ -11,7 +11,12 @@ Numeric functions
     log
     log10
     sqrt
-
+    hail.expr.functions.int
+    int32
+    int64
+    hail.expr.functions.float
+    float32
+    float64
 
 .. rubric:: Numeric collection functions
 
@@ -32,6 +37,12 @@ Numeric functions
 .. autofunction:: log
 .. autofunction:: log10
 .. autofunction:: sqrt
+.. autoattribute:: hail.expr.functions.int
+.. autofunction:: int32
+.. autofunction:: int64
+.. autoattribute:: hail.expr.functions.float
+.. autofunction:: float32
+.. autofunction:: float64
 .. autofunction:: min
 .. autofunction:: max
 .. autofunction:: mean

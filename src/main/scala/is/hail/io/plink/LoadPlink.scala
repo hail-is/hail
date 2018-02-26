@@ -2,7 +2,6 @@ package is.hail.io.plink
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.OrderedRVD
@@ -20,7 +19,7 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
   missingValue: String = "NA")
 
-object PlinkLoader {
+object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
   private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
@@ -133,7 +132,7 @@ object PlinkLoader {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = sampleAnnotationSignature,
-      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TStringRequired), "rsid" -> TString()),
+      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString()), "rsid" -> TString()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))

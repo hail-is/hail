@@ -324,6 +324,8 @@ trait InputBuffer extends Closeable {
   def readDouble(): Double
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit
+  
+  def skipBytes(n: Int): Unit
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit
 
@@ -369,6 +371,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
 
+  def skipBytes(n: Int): Unit = in.skipBytes(n)
+  
   def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit = in.readDoubles(to, toOff, n)
 }
 
@@ -457,6 +461,17 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       assert(p > 0)
       toRegion.storeBytes(toOff, buf, off, p)
       toOff += p
+      n -= p
+      off += p
+    }
+  }
+  
+  def skipBytes(n0: Int) {
+    var n = n0
+    while (n > 0) {
+      if (end == off)
+        readBlock()
+      val p = math.min(end - off, n)
       n -= p
       off += p
     }

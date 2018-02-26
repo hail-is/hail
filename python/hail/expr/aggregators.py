@@ -164,6 +164,84 @@ def count_where(condition):
 
     return _agg_func('count', filter(condition, 0), tint64)
 
+@typecheck(condition=oneof(Aggregable, expr_bool))
+def any(condition):
+    """Returns ``True`` if `condition` is ``True`` for any record.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> (table1.group_by(table1.SEX)
+        ... .aggregate(any_over_70 = agg.any(table1.HT > 70))
+        ... .show())
+        +--------+-------------+
+        | SEX    | any_over_70 |
+        +--------+-------------+
+        | String | Boolean     |
+        +--------+-------------+
+        | M      | true        |
+        | F      | false       |
+        +--------+-------------+
+
+    Notes
+    -----
+    If there are no records to aggregate, the result is ``False``.
+
+    Missing records are not considered. If every record is missing,
+    the result is also ``False``.
+
+    Parameters
+    ----------
+    condition : :class:`.BooleanExpression`
+        Condition to test.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return count(filter(lambda x: x, condition)) > 0
+
+@typecheck(condition=oneof(Aggregable, expr_bool))
+def all(condition):
+    """Returns ``True`` if `condition` is ``True`` for every record.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> (table1.group_by(table1.SEX)
+        ... .aggregate(all_under_70 = agg.all(table1.HT < 70))
+        ... .show())
+        +--------+--------------+
+        | SEX    | all_under_70 |
+        +--------+--------------+
+        | String | Boolean      |
+        +--------+--------------+
+        | M      | false        |
+        | F      | false        |
+        +--------+--------------+
+
+    Notes
+    -----
+    If there are no records to aggregate, the result is ``True``.
+
+    Missing records are not considered. If every record is missing,
+    the result is also ``True``.
+
+    Parameters
+    ----------
+    condition : :class:`.BooleanExpression`
+        Condition to test.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    n_defined = count(filter(lambda x: hl.is_defined(x), condition))
+    n_true = count(filter(lambda x: hl.is_defined(x) & x, condition))
+    return n_defined == n_true
+
 @typecheck(expr=oneof(Aggregable, expr_any))
 def counter(expr):
     """Count the occurrences of each unique record and return a dictionary.
@@ -682,7 +760,7 @@ def explode(expr):
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, Reference(uid)),
                       agg._type.element_type, agg._indices, agg._aggregations, agg._joins, agg._refs)
 
-@typecheck(condition=oneof(expr_bool, func_spec(1, expr_bool)), expr=oneof(Aggregable, expr_any))
+@typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=oneof(Aggregable, expr_any))
 def filter(condition, expr):
     """Filter records according to a predicate.
 
@@ -803,7 +881,7 @@ def inbreeding(expr, prior):
             agg._type.__class__))
 
     if isinstance(prior._type, TFloat32):
-        prior = prior.to_float64()
+        prior = hl.float64(prior)
     if not isinstance(prior._type, TFloat64):
         raise TypeError("'inbreeding' expects 'prior' to be type 'Float32' or 'Float64', found '{}'".format(prior._type))
 

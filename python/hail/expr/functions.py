@@ -80,7 +80,7 @@ def broadcast(x):
     --------
     .. doctest::
 
-        >>> table = hl.Table.range(8)
+        >>> table = hl.utils.range_table(8)
         >>> greetings = hl.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
         >>> table.annotate(greeting = greetings.get(table.idx)).show()
         +-------+----------------+
@@ -2308,7 +2308,7 @@ def map(f, collection):
 
 @typecheck(x=oneof(expr_set, expr_array, expr_dict, expr_str))
 def len(x):
-    """Returns the size of a collection.
+    """Returns the size of a collection or string.
 
     Examples
     --------
@@ -2874,3 +2874,209 @@ def unique_max_index(collection):
         raise TypeError("'unique_max_index' expects an array with numeric element type, found '{}'"
                         .format(collection.dtype))
     return collection._method("uniqueMaxIndex", tint32)
+
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def float64(expr):
+    """Convert to a 64-bit floating point expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.float64('1.1'))
+        1.1
+
+        >>> hl.eval_expr(hl.float64(1))
+        1.0
+
+        >>> hl.eval_expr(hl.float64(True))
+        1.0
+
+    Parameters
+    ----------
+    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :class:`.TFloat64`
+    """
+    return expr._method("toFloat64", tfloat64)
+
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def float32(expr):
+    """Convert to a 32-bit floating point expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.float32('1.1'))
+        1.1
+
+        >>> hl.eval_expr(hl.float32(1))
+        1.0
+
+        >>> hl.eval_expr(hl.float32(True))
+        1.0
+
+    Parameters
+    ----------
+    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :class:`.TFloat32`
+    """
+    return expr._method("toFloat32", tfloat32)
+
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def int64(expr):
+    """Convert to a 64-bit integer expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.int64('1'))
+        1
+
+        >>> hl.eval_expr(hl.int64(1.5))
+        1
+
+        >>> hl.eval_expr(hl.int64(True))
+        1
+
+    Parameters
+    ----------
+    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :class:`.TInt64`
+    """
+    return expr._method("toInt64", tint64)
+
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def int32(expr):
+    """Convert to a 32-bit integer expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.int32('1'))
+        1
+
+        >>> hl.eval_expr(hl.int32(1.5))
+        1
+
+        >>> hl.eval_expr(hl.int32(True))
+        1
+
+    Parameters
+    ----------
+    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :class:`.TInt32`
+    """
+    return expr._method("toInt32", tint32)
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def int(expr):
+    """Convert to a 32-bit integer expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.int('1'))
+        1
+
+        >>> hl.eval_expr(hl.int(1.5))
+        1
+
+        >>> hl.eval_expr(hl.int(True))
+        1
+
+    Note
+    ----
+    Alias for :func:`.int32`.
+
+    Parameters
+    ----------
+    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :class:`.TInt32`
+    """
+    return int32(expr)
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def float(expr):
+    """Convert to a 64-bit floating point expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.float('1.1'))
+        1.1
+
+        >>> hl.eval_expr(hl.float(1))
+        1.0
+
+        >>> hl.eval_expr(hl.float(True))
+        1.0
+
+    Note
+    ----
+    Alias for :func:`.float64`.
+
+    Parameters
+    ----------
+    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :class:`.TFloat64`
+    """
+    return float64(expr)
+
+
+@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+def bool(expr):
+    """Convert to a Boolean expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.bool('TRUE'))
+        True
+
+        >>> hl.eval_expr(hl.bool(1.5))
+        True
+
+    Notes
+    -----
+    Numeric expressions return ``True`` if they are non-zero, and ``False``
+    if they are zero.
+
+    Acceptable string values are: ``'True'``, ``'true'``, ``'TRUE'``,
+    ``'False'``, ``'false'``, and ``'FALSE'``.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    if is_numeric(expr.dtype):
+        return expr != 0
+    else:
+        return expr._method("toBoolean", tbool)

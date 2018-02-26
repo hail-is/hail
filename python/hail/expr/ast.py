@@ -233,7 +233,6 @@ class AggregableReference(AST):
 
     @typecheck_method(identifier=str)
     def set(self, identifier):
-        assert not self.is_set
         self.is_set = True
         self.identifier = identifier
 

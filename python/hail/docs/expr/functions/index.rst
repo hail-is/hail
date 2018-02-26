@@ -64,6 +64,35 @@ Functions
     array
     set
 
+.. rubric:: Numeric functions
+
+.. autosummary::
+
+    exp
+    is_nan
+    log
+    log10
+    sqrt
+    int
+    int32
+    int64
+    float
+    float32
+    float64
+
+.. rubric:: Numeric collection functions
+
+.. autosummary::
+
+    min
+    max
+    mean
+    median
+    product
+    sum
+    unique_max_index
+    unique_min_index
+
 .. rubric:: Collection functions
 
 .. autosummary::

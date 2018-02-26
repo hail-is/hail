@@ -6,7 +6,7 @@ from subprocess import call as syscall
 import numpy as np
 from struct import unpack
 import hail.utils as utils
-from hail.utils.misc import test_file
+from hail.utils.misc import test_file, doctest_file
 from hail.linalg import BlockMatrix
 from math import sqrt
 from hail.expr.types import TStruct, TCall, TArray, TFloat64
@@ -79,7 +79,7 @@ class Tests(unittest.TestCase):
         compare(dataset, min=0.0, max=1.0)
         dataset = dataset.annotate_rows(dummy_maf=0.01)
         hl.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
-        hl.ibd(dataset, dataset['dummy_maf'].to_float32(), min=0.0, max=1.0)
+        hl.ibd(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
 
     def test_impute_sex_same_as_plink(self):
         import subprocess as sp
@@ -465,7 +465,7 @@ class Tests(unittest.TestCase):
                         mat_id="nada", is_female=True, is_case=False)
 
         hl.export_plink(ds, '/tmp/plink_example3', id=ds.s, fam_id=ds.s, pat_id="nope",
-                        mat_id="nada", is_female=True, quant_pheno=ds.s.length().to_float64())
+                        mat_id="nada", is_female=True, quant_pheno=hl.float64(hl.len(ds.s)))
 
         self.assertRaises(ValueError,
                           lambda: hl.export_plink(ds, '/tmp/plink_example', is_case=True, quant_pheno=0.0))
@@ -511,7 +511,7 @@ class Tests(unittest.TestCase):
 
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
-        t = hl.Table.range(10)
+        t = hl.utils.range_table(10)
         graph = t.select(i=t.idx, j=t.idx + 10)
         mis = hl.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
         self.assertEqual(sorted(mis), list(range(0, 10)))
@@ -572,8 +572,8 @@ class Tests(unittest.TestCase):
         schema = hl.tstruct(['i', 'j', 'entry'],
                             [hl.tint32, hl.tint32, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
-        table = table.annotate(i=table.i.to_int64(),
-                               j=table.j.to_int64())
+        table = table.annotate(i=hl.int64(table.i),
+                               j=hl.int64(table.j))
 
         numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (num_rows, num_cols))
 
@@ -591,13 +591,18 @@ class Tests(unittest.TestCase):
 
 
     def test_filter_intervals(self):
-        ds = self.get_dataset()
+        ds = hl.import_vcf(test_file('sample.vcf'), min_partitions=20)
+        print(ds.num_partitions())
         self.assertEqual(
             hl.filter_intervals(ds, hl.Interval.parse('20:10639222-10644705')).count_rows(), 3)
 
-        self.assertEqual(
-            hl.filter_intervals(ds, [hl.Interval.parse('20:10639222-10644700'),
-                                     hl.Interval.parse('20:10644700-10644705')]).count_rows(), 3)
+        intervals = [hl.Interval.parse('20:10639222-10644700'),
+                     hl.Interval.parse('20:10644700-10644705')]
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
+
+        intervals = [hl.Interval.parse('[20:10019093-10026348]'),
+                     hl.Interval.parse('[20:17705793-17716416]')]
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
 
     def test_balding_nichols_model(self):
         from hail.stats import TruncatedBetaDist
@@ -728,3 +733,12 @@ class Tests(unittest.TestCase):
             contig_recoding={'chr22': '22'}).rows_table()
         self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
+
+    def test_import_matrix_table(self):
+        mt = hl.import_matrix_table(doctest_file('matrix1.tsv'),
+                                    row_fields={'Barcode': hl.TString(), 'Tissue': hl.TString(), 'Days':hl.TFloat32()})
+        self.assertEqual(mt['Barcode']._indices, mt._row_indices)
+        self.assertEqual(mt['Tissue']._indices, mt._row_indices)
+        self.assertEqual(mt['Days']._indices, mt._row_indices)
+        self.assertEqual(mt['col_id']._indices, mt._col_indices)
+        self.assertEqual(mt['row_id']._indices, mt._row_indices)

@@ -49,10 +49,12 @@ class TableTemplate(HistoryMixin):
         self._key = None
         self._column_names = None
         self._fields = {}
+        self._fields_inverse = {}
         super(TableTemplate, self).__init__()
 
     def _set_field(self, key, value):
         self._fields[key] = value
+        self._fields_inverse[value] = key
         if key in dir(self):
             warn("Name collision: field '{}' already in object dict. "
                  "This field must be referenced with indexing syntax".format(key))
@@ -189,7 +191,7 @@ class GroupedTable(TableTemplate):
 
         Group by a height bin and compute sex ratio per bin:
 
-        >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
+        >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
         ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
         Parameters
@@ -417,15 +419,14 @@ class Table(TableTemplate):
             Table with new set of keys.
         """
         str_keys = []
-        fields_rev = {expr: name for name, expr in self._fields.items()}
         for k in keys:
             if isinstance(k, Expression):
-                if k not in fields_rev:
+                if k not in self._fields_inverse:
                     raise ExpressionException("'key_by' permits only top-level fields of the table")
                 elif k._indices != self._row_indices:
                     raise ExpressionException("key_by' expects row fields, found index {}"
                                               .format(list(k._indices.axes)))
-                str_keys.append(fields_rev[k])
+                str_keys.append(self._fields_inverse[k])
             else:
                 if k not in self._fields:
                     raise LookupError(get_nice_field_error(self, k))
@@ -922,7 +923,7 @@ class Table(TableTemplate):
 
         Group by a height bin and compute sex ratio per bin:
 
-        >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
+        >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
         ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
         Notes
@@ -981,7 +982,7 @@ class Table(TableTemplate):
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
-        >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = (table1.HT / 20).to_int32())
+        >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = table1.HT // 20)
         ...                       .aggregate(meanX = agg.mean(table1.X)))
 
         Note
@@ -1312,44 +1313,6 @@ class Table(TableTemplate):
 
         return left, cleanup
 
-    @classmethod
-    @handle_py4j
-    @typecheck_method(n=int,
-                      num_partitions=nullable(int))
-    def range(cls, n, num_partitions=None):
-        """Construct a table with `n` rows and one field `idx` that ranges from
-        0 to ``n - 1``.
-
-        Examples
-        --------
-        Construct a table with 100 rows:
-
-        >>> range_table = hl.Table.range(100)
-
-        Construct a table with one million rows and twenty partitions:
-
-        >>> range_table = hl.Table.range(1000000, 20)
-
-        Notes
-        -----
-        The resulting table has one column:
-
-         - `idx` (**Int32**) - Unique row index from 0 to `n` - 1.
-
-        Parameters
-        ----------
-        n : :obj:`int`
-            Number of rows.
-        num_partitions : :obj:`int`
-            Number of partitions.
-
-        Returns
-        -------
-        :class:`.Table`
-            Table with one field, `index`.
-        """
-        return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(num_partitions)))
-
     @handle_py4j
     def cache(self):
         """Persist this table in memory.
@@ -1452,7 +1415,7 @@ class Table(TableTemplate):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return tarray(self.schema)._convert_to_py(self._jt.collect())
+        return [self.schema._convert_to_py(x) for x in self._jt.collect()]
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1972,7 +1935,6 @@ class Table(TableTemplate):
             Table sorted by the given fields.
         """
         sort_cols = []
-        fields_rev = {v: k for k, v in self._fields.items()}
         for e in exprs:
             if isinstance(e, str):
                 expr = self[e]
@@ -1980,11 +1942,11 @@ class Table(TableTemplate):
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
                 sort_cols.append(asc(e)._j_obj())
             elif isinstance(e, Expression):
-                if not e in fields_rev:
+                if not e in self._fields_inverse:
                     raise ValueError("Expect top-level field, found a complex expression")
                 if not e._indices == self._row_indices:
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_cols.append(asc(fields_rev[e])._j_obj())
+                sort_cols.append(asc(self._fields_inverse[e])._j_obj())
             else:
                 assert isinstance(e, Ascending) or isinstance(e, Descending)
                 if isinstance(e.col, str):
@@ -1993,11 +1955,11 @@ class Table(TableTemplate):
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
                     sort_cols.append(e._j_obj())
                 else:
-                    if not e.col in fields_rev:
+                    if not e.col in self._fields_inverse:
                         raise ValueError("Expect top-level field, found a complex expression")
                     if not e.col._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    e.col = fields_rev[e.col]
+                    e.col = self._fields_inverse[e.col]
                     sort_cols.append(e._j_obj())
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
@@ -2076,8 +2038,7 @@ class Table(TableTemplate):
             # field is a str
             field = self[field]
 
-        fields_rev = {expr: k for k, expr in self._fields.items()}
-        if not field in fields_rev:
+        if not field in self._fields_inverse:
             # nested or complex expression
             raise ValueError("method 'explode' expects a top-level field name or expression")
         if not field._indices == self._row_indices:
@@ -2085,7 +2046,7 @@ class Table(TableTemplate):
             assert field._indices == self._global_indices
             raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
 
-        return Table(self._jt.explode(fields_rev[field]))
+        return Table(self._jt.explode(self._fields_inverse[field]))
 
     @typecheck_method(row_key=expr_any,
                       col_key=expr_any,
@@ -2143,6 +2104,52 @@ class Table(TableTemplate):
         # FIXME: Impossible to correct a struct with the correct schema
         # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
         raise NotImplementedError()
+
+    @staticmethod
+    @handle_py4j
+    @typecheck(df=DataFrame,
+               key=oneof(str, listof(str)))
+    def from_spark(df, key=[]):
+        """Convert PySpark SQL DataFrame to a table.
+
+        Examples
+        --------
+
+        >>> t = Table.from_spark(df) # doctest: +SKIP
+
+        Notes
+        -----
+
+        Spark SQL data types are converted to Hail types as follows:
+
+        .. code-block:: text
+
+          BooleanType => :class:`.TBoolean`
+          IntegerType => :class:`.TInt32`
+          LongType => :class:`.TInt64`
+          FloatType => :class:`.TFloat32`
+          DoubleType => :class:`.TFloat64`
+          StringType => :class:`.TString`
+          BinaryType => :class:`.TBinary`
+          ArrayType => :class:`.TArray`
+          StructType => :class:`.TStruct`
+
+        Unlisted Spark SQL data types are currently unsupported.
+
+        Parameters
+        ----------
+        df : :class:`.pyspark.sql.DataFrame`
+            PySpark DataFrame.
+        
+        key : :obj:`str` or :obj:`list` of :obj:`str`
+            Key fields.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table constructed from the Spark SQL DataFrame.
+        """
+        return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
     @handle_py4j
     @typecheck_method(expand=bool,

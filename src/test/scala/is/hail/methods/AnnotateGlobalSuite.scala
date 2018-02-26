@@ -77,7 +77,7 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     val kt = hc.importTable(out1, impute = true)
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateGlobal(kt.collect(), TArray(kt.signature), "global.genes")
+      .annotateGlobal(kt.collect().toFastIndexedSeq, TArray(kt.signature), "global.genes")
 
     val (t, res) = vds.queryGlobal("global.genes")
 

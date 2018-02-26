@@ -160,8 +160,7 @@ class VSMSuite extends SparkSuite {
           .collect()
           .map(_.getAs[Double](0))
 
-
-      val lm = new DenseMatrix[Double](6, 9, data.asInstanceOf[IndexedSeq[Double]].toArray).t // data is row major
+      val lm = new DenseMatrix[Double](6, 9, data).t // data is row major
       
       assert(BlockMatrix.read(hc, dirname).toLocalMatrix() === lm)
     }
@@ -180,7 +179,7 @@ class VSMSuite extends SparkSuite {
       .select("x = row.GT.unphasedDiploidGtIndex() + row.rowIdx + 1 + row.colIdx.toFloat64()")
       .collect()
       .map(_.getAs[Double](0))
-    val lm = new DenseMatrix[Double](nSamples, nVariants, data.asInstanceOf[IndexedSeq[Double]].toArray).t // data is row major
+    val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
     val rowKeys = new Keys(TStruct("locus" -> TLocus(GenomeReference.defaultReference), "alleles" -> TArray(TString())),
       Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
     val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))

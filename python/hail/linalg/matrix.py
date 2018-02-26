@@ -1,5 +1,5 @@
 from hail.utils import new_temp_file, storage_level
-from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_breeze
+from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_breeze, joption
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -106,9 +106,10 @@ class BlockMatrix(object):
         return self._jbm.blockSize()
 
     @handle_py4j
-    @typecheck_method(path=str)
-    def write(self, path):
-        self._jbm.write(path)
+    @typecheck_method(path=str,
+                      force_row_major=bool)
+    def write(self, path, force_row_major=False):
+        self._jbm.write(path, force_row_major, joption(None))
 
     @handle_py4j
     @typecheck_method(cols_to_keep=listof(int))

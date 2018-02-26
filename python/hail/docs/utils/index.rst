@@ -11,4 +11,8 @@ utils
 
 .. autofunction:: hadoop_write
 
+.. autofunction:: range_table
+
+.. autofunction:: range_matrix_table
+
 .. autoclass:: Summary

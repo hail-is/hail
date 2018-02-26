@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
-import is.hail.io.plink.{FamFileConfig, PlinkLoader}
+import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
@@ -108,7 +108,7 @@ object Table {
 
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
 
-    val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
+    val (data, typ) = LoadPlink.parseFam(path, ffConfig, hc.hadoopConf)
 
     val rdd = hc.sc.parallelize(data)
 
@@ -1051,7 +1051,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.toArray)
 
-  def collect(): IndexedSeq[Row] = rdd.collect()
+  def collect(): Array[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
     val codecSpec =
@@ -1234,7 +1234,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     else {
       val takeResult = take(n + 1)
       val hasMoreData = takeResult.length > n
-      (takeResult.take(n): IndexedSeq[Row]) -> hasMoreData
+      takeResult.take(n) -> hasMoreData
     }
 
     def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {

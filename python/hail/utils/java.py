@@ -62,6 +62,10 @@ class Env:
             assert Env._hc is not None
         return Env._hc
 
+    @staticmethod
+    def sql_context():
+        return Env.hc()._sql_context
+
 
 def jarray(jtype, lst):
     jarr = Env.gateway().new_array(jtype, len(lst))

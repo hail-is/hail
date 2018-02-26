@@ -1,3 +1,4 @@
+import hail
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
@@ -529,6 +530,157 @@ class Expression(object):
             ))
         return self._bin_op("!=", other, tbool)
 
+    def _to_table(self, name):
+        source = self._indices.source
+        axes = self._indices.axes
+        if not self._aggregations.empty():
+            raise NotImplementedError('cannot convert aggregated expression to table')
+        if source is None:
+            # scalar expression
+            df = hail.utils.range_table(1)
+            df = df.select(**{name: self})
+            return df
+        elif len(axes) == 0:
+            uid = Env._get_uid()
+            source = source.select_globals(**{uid: self})
+            df = hail.utils.range_table(1)
+            df = df.select(**{name: source.view_join_globals()[uid]})
+            return df
+        elif len(axes) == 1:
+            if isinstance(source, hail.Table):
+                df = source
+                df = df.select(*filter(lambda f: f != name, df.key), **{name: self})
+                return df.select_globals()
+            else:
+                assert isinstance(source, hail.MatrixTable)
+                if self._indices == source._row_indices:
+                    source = source.select_rows(*source.row_key, **{name: self})
+                    return source.rows_table().select_globals()
+                else:
+                    assert self._indices == source._col_indices
+                    source = source.select_cols(*filter(lambda f: f != name, source.col_key), **{name: self})
+                    return source.cols_table().select_globals()
+        else:
+            assert len(axes) == 2
+            assert isinstance(source, hail.MatrixTable)
+            source = source.select_entries(**{name: self})
+            source = source.select_rows(*source.row_key)
+            source = source.select_cols(*source.col_key)
+            return source.entries_table().select_globals()
+
+    @handle_py4j
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
+    def show(self, n=10, width=90, truncate=None, types=True):
+        """Print the first few rows of the table to the console.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> table1.SEX.show()
+            +-------+--------+
+            |    ID | SEX    |
+            +-------+--------+
+            | Int32 | String |
+            +-------+--------+
+            |     1 | M      |
+            |     2 | M      |
+            |     3 | F      |
+            |     4 | F      |
+            +-------+--------+
+
+            >>> hl.capture(123).show()
+            +--------+
+            | <expr> |
+            +--------+
+            |  Int32 |
+            +--------+
+            |    123 |
+            +--------+
+
+        Warning
+        -------
+        Extremely experimental.
+
+        Parameters
+        ----------
+        n : :obj:`int`
+            Maximum number of rows to show.
+        width : :obj:`int`
+            Horizontal width at which to break columns.
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
+            ``None``, truncate fields to the given `width`.
+        types : :obj:`bool`
+            Print an extra header line with the type of each field.
+        """
+        name = '<expr>'
+        source = self._indices.source
+        if source is not None:
+            name = source._fields_inverse.get(self, name)
+        t = self._to_table(name)
+        if name in t.key:
+            t = t.select(name)
+        t.show(n, width, truncate, types)
+
+    @handle_py4j
+    @typecheck_method(n=int)
+    def take(self, n):
+        """Collect the first `n` records of an expression.
+
+        Examples
+        --------
+        Take the first three rows:
+
+        .. doctest::
+
+            >>> first3 = table1.X.take(3)
+            [5, 6, 7]
+
+        Warning
+        -------
+        Extremely experimental.
+
+        Parameters
+        ----------
+        n : int
+            Number of records to take.
+
+        Returns
+        -------
+        :obj:`list`
+        """
+        uid = Env._get_uid()
+        return [r[uid] for r in self._to_table(uid).take(n)]
+
+    @handle_py4j
+    def collect(self):
+        """Collect all records of an expression into a local list.
+
+        Examples
+        --------
+        Take the first three rows:
+
+        .. doctest::
+
+            >>> first3 = table1.C1.collect()
+            [2, 2, 10, 11]
+
+        Warning
+        -------
+        Extremely experimental.
+
+        Warning
+        -------
+        The list of records may be very large.
+
+        Returns
+        -------
+        :obj:`list`
+        """
+        uid = Env._get_uid()
+        t = self._to_table(uid)
+        return t.aggregate(hl.agg.collect(t[uid]))
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
@@ -1903,7 +2055,7 @@ class StructExpression(Mapping, Expression):
         if len(self._fields) == 0:
             fields = '\n    None'
         else:
-            fields= ''.join("\n    '{name}': {type} ".format(
+            fields = ''.join("\n    '{name}': {type} ".format(
                 name=name, type=value.dtype.pretty(indent=4)) for name, value in self._fields.items())
 
         s = '----------------------------------------\n' \
@@ -1912,48 +2064,7 @@ class StructExpression(Mapping, Expression):
         print(s)
 
 
-
-class AtomicExpression(Expression):
-    """Abstract base class for numeric and logical types."""
-
-    def to_float64(self):
-        """Convert to a 64-bit floating point expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat64`
-        """
-        return self._method("toFloat64", tfloat64)
-
-    def to_float32(self):
-        """Convert to a 32-bit floating point expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat32`
-        """
-        return self._method("toFloat32", tfloat32)
-
-    def to_int64(self):
-        """Convert to a 64-bit integer expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt64`
-        """
-        return self._method("toInt64", tint64)
-
-    def to_int32(self):
-        """Convert to a 32-bit integer expression.
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt32`
-        """
-        return self._method("toInt32", tint32)
-
-
-class BooleanExpression(AtomicExpression):
+class BooleanExpression(Expression):
     """Expression of type :class:`.TBoolean`.
 
     >>> t = hl.capture(True)
@@ -2089,7 +2200,7 @@ class BooleanExpression(AtomicExpression):
         return self._unary_op("!")
 
 
-class NumericExpression(AtomicExpression):
+class NumericExpression(Expression):
     """Expression of numeric type.
 
     >>> x = hl.capture(3)
@@ -2480,7 +2591,7 @@ class Int64Expression(NumericExpression):
     pass
 
 
-class StringExpression(AtomicExpression):
+class StringExpression(Expression):
     """Expression of type :class:`.TString`.
 
     >>> s = hl.capture('The quick brown fox')
@@ -2673,79 +2784,6 @@ class StringExpression(AtomicExpression):
         """
         return construct_expr(RegexMatch(self._ast, regex), tbool,
                               self._indices, self._aggregations, self._joins, self._refs)
-
-    def to_int32(self):
-        """Parse the string to a 32-bit integer.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('123')
-            >>> hl.eval_expr(s.to_int32())
-            123
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt32`
-            Parsed integer expression.
-        """
-        return self._method("toInt32", tint32)
-
-    def to_int64(self):
-        """Parse the string to a 64-bit integer.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('123123123123')
-            >>> hl.eval_expr(s.to_int64())
-            123123123123L
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TInt64`
-            Parsed integer expression.
-        """
-
-        return self._method("toInt64", tint64)
-
-    def to_float32(self):
-        """Parse the string to a 32-bit float.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('1.5')
-            >>> hl.eval_expr(s.to_float32())
-            1.5
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat32`
-            Parsed float expression.
-        """
-        return self._method("toFloat32", tfloat32)
-
-    def to_float64(self):
-        """Parse the string to a 64-bit float.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.capture('1.15e80')
-            >>> hl.eval_expr(s.to_float64())
-            1.15e+80
-
-        Returns
-        -------
-        :class:`.Expression` of type :class:`.TFloat64`
-            Parsed float expression.
-        """
-        return self._method("toFloat64", tfloat64)
 
     def to_boolean(self):
         """Parse the string to a Boolean.
