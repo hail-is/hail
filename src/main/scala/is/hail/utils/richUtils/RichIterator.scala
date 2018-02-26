@@ -14,9 +14,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       new StateMachine[T] {
         def curValue: T = bit.head
         def isActive = bit.hasNext
-        def advance() {
-          bit.next()
-        }
+        def advance() { bit.next() }
       }
     )
   }
