@@ -8,7 +8,9 @@ Collection functions
 
     dict
     array
+    empty_array
     set
+    empty_set
 
 .. rubric:: Collection functions
 

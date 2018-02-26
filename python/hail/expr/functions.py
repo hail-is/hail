@@ -2661,6 +2661,30 @@ def set(collection):
     return collection._method("toSet", tset(collection.dtype.element_type))
 
 
+@typecheck(t=Type)
+def empty_set(t):
+    """Returns an empty set of elements of a type `t`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(empty_set(hl.tstr))
+        set()
+
+    Parameters
+    ----------
+    t : :class:`.Type`
+        Type of the set elements.
+
+    Returns
+    -------
+    :class:`.SetExpression`
+        Empty set of elements of type `t`.
+    """
+    return filter(lambda x: False, set([null(t)]))
+
+
 @typecheck(collection=oneof(expr_set, expr_array))
 def array(collection):
     """Construct an array expression.
@@ -2682,6 +2706,30 @@ def array(collection):
     if isinstance(collection.dtype, TArray):
         return collection
     return collection._method("toArray", tarray(collection.dtype.element_type))
+
+
+@typecheck(t=Type)
+def empty_array(t):
+    """Returns an empty array of elements of a type `t`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(empty_array(t.tint32))
+        []
+
+    Parameters
+    ----------
+    t : :class:`.Type`
+        Type of the array elements.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Empty array of elements of type `t`.
+    """
+    return filter(lambda x: False, array([null(t)]))
 
 
 @typecheck(collection=oneof(expr_set, expr_array))
