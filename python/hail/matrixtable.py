@@ -20,7 +20,7 @@ class GroupedMatrixTable(object):
         table1 = table1.annotate_globals(global_field=5)
         table1 = table1.annotate(consequence='SYN')
 
-        table2 = dataset.rows()
+        table2 = dataset.cols()
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     """
