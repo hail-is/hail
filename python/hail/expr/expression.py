@@ -132,6 +132,14 @@ def to_expr(e):
         indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ArrayDeclaration([col._ast for col in cols]),
                               tarray(t), indices, aggregations, joins, refs)
+    elif isinstance(e, tuple):
+        if len(e) == 0:
+            return construct_expr(TupleDeclaration(), ttuple())
+        cols = [to_expr(x) for x in e]
+        indices, aggregations, joins, refs = unify_all(*cols)
+        t = ttuple(*[col.dtype for col in cols])
+        return construct_expr(TupleDeclaration(*[c._ast for c in cols]),
+                              t, indices, aggregations, joins, refs)
     elif isinstance(e, set):
         if len(e) == 0:
             raise ExpressionException('Cannot convert empty set to expression.')
@@ -190,6 +198,7 @@ _lazy_set = lazy()
 _lazy_dict = lazy()
 _lazy_bool = lazy()
 _lazy_struct = lazy()
+_lazy_tuple = lazy()
 _lazy_string = lazy()
 _lazy_locus = lazy()
 _lazy_interval = lazy()
@@ -211,6 +220,8 @@ expr_bool = transformed((bool, to_expr),
                         (_lazy_bool, identity))
 expr_struct = transformed((Struct, to_expr),
                           (_lazy_struct, identity))
+expr_tuple = transformed((tuple, to_expr),
+                         (_lazy_tuple, identity))
 expr_str = transformed((str, to_expr),
                        (_lazy_string, identity))
 expr_locus = transformed((Locus, to_expr),
@@ -1463,7 +1474,7 @@ class SetExpression(CollectionExpression):
         Parameters
         ----------
         item : :class:`.Expression`
-            Value for inclusion test..
+            Value for inclusion test.
 
         Returns
         -------
@@ -2062,6 +2073,53 @@ class StructExpression(Mapping, Expression):
             'Fields:{f}\n' \
             '----------------------------------------'.format(f=fields)
         print(s)
+
+
+class TupleExpression(Expression):
+    """Expression of type :class:`.TTuple`.
+
+    >>> t = hl.capture(("a", 1, [1, 2, 3]))
+    """
+
+    @typecheck_method(item=int)
+    def __getitem__(self, item):
+        """Index into the tuple.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(t[1])
+            1
+
+        Parameters
+        ----------
+        item : :obj:`int`
+            Element index.
+
+        Returns
+        -------
+        :class:`.Expression`
+        """
+        if not 0 <= item < len(self):
+            raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
+        return self._index(self.dtype.types[item], item)
+
+    def __len__(self):
+        """Returns the length of the tuple.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(len(t))
+            3
+
+        Returns
+        -------
+        :obj:`int`
+        """
+        return len(self.dtype.types)
 
 
 class BooleanExpression(Expression):
@@ -3344,7 +3402,8 @@ typ_to_expr = {
     TDict: DictExpression,
     TArray: ArrayExpression,
     TSet: SetExpression,
-    TStruct: StructExpression
+    TStruct: StructExpression,
+    TTuple: TupleExpression
 }
 
 elt_typ_to_array_expr = {

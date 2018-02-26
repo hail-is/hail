@@ -23,6 +23,7 @@ class Tests(unittest.TestCase):
         self.assertNotEqual(tset(tfloat64), tarray(tfloat64))
         self.assertEqual(tset(tfloat64), tset(tfloat64))
         self.assertEqual(tdict(tstr, tarray(tint32)), tdict(tstr, tarray(tint32)))
+        self.assertEqual(ttuple(tstr, tint), ttuple(tstr, tint))
 
         some_random_types = [
             tint32,
@@ -39,7 +40,8 @@ class Tests(unittest.TestCase):
             tset(tinterval(tlocus())),
             tstruct(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
             tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
-            tstruct(['a', 'b'], [tint32, tint32])]
+            tstruct(['a', 'b'], [tint32, tint32]),
+            ttuple(tstr, tint32)]
 
         #  copy and reinitialize to check that two initializations produce equality (not reference equality)
         some_random_types_cp = [
@@ -57,7 +59,8 @@ class Tests(unittest.TestCase):
             tset(tinterval(tlocus())),
             tstruct(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
             tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
-            tstruct(['a', 'b'], [tint32, tint32])]
+            tstruct(['a', 'b'], [tint32, tint32]),
+            ttuple(tstr, tint32)]
 
         for i in range(len(some_random_types)):
             for j in range(len(some_random_types)):
@@ -85,10 +88,12 @@ class Tests(unittest.TestCase):
         tset_ = tarray(tlocus())
         tarray_ = tarray(tstr)
         tstruct_ = tstruct(['a', 'b'], [tbool, tarray(tstr)])
+        ttuple_ = ttuple(tstr, tint)
 
         for typ in [tl, ti, tc,
                     ti32, ti64, tf32, tf64, ts, tb,
-                    tdict_, tarray_, tset_, tstruct_]:
+                    tdict_, tarray_, tset_, tstruct_,
+                    ttuple_]:
             self.assertEqual(eval(repr(typ)), typ)
 
     def test_matches(self):
@@ -863,6 +868,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.is_star("A", "*")))
         self.assertTrue(hl.eval_expr(hl.is_star("*", "ATC")))
         self.assertTrue(hl.eval_expr(hl.is_star("*", "A")))
+        self.assertTrue(hl.eval_expr(hl.is_strand_ambiguous("A", "T")))
+        self.assertFalse(hl.eval_expr(hl.is_strand_ambiguous("G", "T")))
 
     def test_hamming(self):
         self.assertEqual(hl.eval_expr(hl.hamming('A', 'T')), 1)
@@ -1025,3 +1032,22 @@ class Tests(unittest.TestCase):
     def test_show_row_key_regression(self):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
+
+    def test_tuple_ops(self):
+        t0 = hl.capture(())
+        t1 = hl.capture((1,))
+        t2 = hl.capture((1, "hello"))
+        tn1 = hl.capture((1, (2, (3, 4))))
+
+        t = hl.capture((1, t1, hl.dict(["a", "b"], [t2, t2]), [1, 5], tn1))
+
+        self.assertTrue(hl.eval_expr(t[0]) == 1)
+        self.assertTrue(hl.eval_expr(t[1][0]) == 1)
+        self.assertTrue(hl.eval_expr(t[2]["a"]) == (1, "hello"))
+        self.assertTrue(hl.eval_expr(t[2]["b"][1]) == "hello")
+        self.assertTrue(hl.eval_expr(t[3][1]) == 5)
+        self.assertTrue(hl.eval_expr(t[4][1][1][1]) == 4)
+
+        self.assertTrue(hl.eval_expr(len(t0) == 0))
+        self.assertTrue(hl.eval_expr(len(t2) == 2))
+        self.assertTrue(hl.eval_expr(len(t)) == 5)

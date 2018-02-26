@@ -152,7 +152,7 @@ object MatrixTable {
             rvb.startStruct()
             var i = 0
             while (i < vaRow.length) {
-              rvb.addAnnotation(localRVRowType.fieldType(i), vaRow.get(i))
+              rvb.addAnnotation(localRVRowType.types(i), vaRow.get(i))
               i += 1
             }
             rvb.startArray(localNSamples) // gs
@@ -512,17 +512,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   val colKey: IndexedSeq[String] = matrixType.colKey
 
   def colKeyTypes: Array[Type] = colKey
-    .map(s => matrixType.colType.fieldType(matrixType.colType.fieldIdx(s)))
+    .map(s => matrixType.colType.types(matrixType.colType.fieldIdx(s)))
     .toArray
 
   val rowKeyTypes: Array[Type] = rowKey
-    .map(s => matrixType.rowType.fieldType(matrixType.rowType.fieldIdx(s)))
+    .map(s => matrixType.rowType.types(matrixType.rowType.fieldIdx(s)))
     .toArray
 
   val rowKeyStruct: TStruct = TStruct(rowKey.zip(rowKeyTypes): _*)
 
   val rowPartitionKeyTypes: Array[Type] = rowPartitionKey
-    .map(s => matrixType.rowType.fieldType(matrixType.rowType.fieldIdx(s)))
+    .map(s => matrixType.rowType.types(matrixType.rowType.fieldIdx(s)))
     .toArray
 
   lazy val value: MatrixValue = {
@@ -651,7 +651,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val fields = entryF()
         var j = 0
         while (j < fields.length) {
-          rvb.addAnnotation(newEntryType.fieldType(j), fields(j))
+          rvb.addAnnotation(newEntryType.types(j), fields(j))
           j += 1
         }
         rvb.endStruct()
@@ -708,7 +708,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           rvb.startStruct()
           var i = 0
           while (i < keyStruct.size) {
-            rvb.addAnnotation(keyStruct.fieldType(i), k.get(i))
+            rvb.addAnnotation(keyStruct.types(i), k.get(i))
             i += 1
           }
           resultOp(agg, rvb)
@@ -952,7 +952,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val newRow = newAnn.asInstanceOf[Row]
         i = 0
         while (i < newRow.size) {
-          rvb.addAnnotation(newRowType.fieldType(i), newRow.get(i))
+          rvb.addAnnotation(newRowType.types(i), newRow.get(i))
           i += 1
         }
 
@@ -975,11 +975,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
-    assert(right.typ.pkType.fieldType.map(_.deepOptional())
+    assert(right.typ.pkType.types.map(_.deepOptional())
       .sameElements(rowPartitionKeyTypes.map(_.deepOptional())))
 
 
-    val (leftRVD, upcastKeys) = if (right.typ.kType.fieldType.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
+    val (leftRVD, upcastKeys) = if (right.typ.kType.types.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
       (rvd.downcastToPK(), rowKey.drop(rowPartitionKey.length).toArray)
     } else (rvd, Array.empty[String])
 
@@ -1049,7 +1049,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   private def annotateVariantsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
     assert(rowPartitionKeyTypes.length == 1)
     assert(kt.keySignature.size == 1)
-    assert(kt.keySignature.fieldType(0) == TInterval(rowPartitionKeyTypes(0)))
+    assert(kt.keySignature.types(0) == TInterval(rowPartitionKeyTypes(0)))
 
     val typOrdering = rowPartitionKeyTypes(0).ordering
 
@@ -1164,7 +1164,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val keepIndices = fieldsToKeep.map(globalType.fieldIdx)
 
-    val newGlobalType = TStruct(keepIndices.zip(fieldsToKeep).map { case (i, f) => f -> globalType.fieldType(i) }: _*)
+    val newGlobalType = TStruct(keepIndices.zip(fieldsToKeep).map { case (i, f) => f -> globalType.types(i) }: _*)
 
     val newMatrixType = matrixType.copy(globalType = newGlobalType)
 
@@ -2128,12 +2128,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val (newColKey, newColType) = if (fieldMapCols.isEmpty) (colKey, colType) else {
       val newFieldNames = colType.fieldNames.map { n => fieldMapCols.getOrElse(n, n) }
       val newKey = colKey.map { f => fieldMapCols.getOrElse(f, f) }
-      (newKey, TStruct(colType.required, newFieldNames.zip(colType.fieldType): _*))
+      (newKey, TStruct(colType.required, newFieldNames.zip(colType.types): _*))
     }
 
     val newEntryType = if (fieldMapEntries.isEmpty) entryType else {
       val newFieldNames = entryType.fieldNames.map { n => fieldMapEntries.getOrElse(n, n) }
-      TStruct(entryType.required, newFieldNames.zip(entryType.fieldType): _*)
+      TStruct(entryType.required, newFieldNames.zip(entryType.types): _*)
     }
 
     val (pk, newRowKey, newRVRowType) = {
@@ -2150,7 +2150,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newGlobalType = if (fieldMapEntries.isEmpty) globalType else {
       val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
-      TStruct(globalType.required, newFieldNames.zip(globalType.fieldType): _*)
+      TStruct(globalType.required, newFieldNames.zip(globalType.types): _*)
     }
 
     val newMatrixType = MatrixType(newGlobalType,
@@ -2821,8 +2821,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.set(rv.region)
             rvb.start(localRVRowType)
             rvb.startStruct()
-            rvb.addAnnotation(localRVRowType.fieldType(0), minv.locus)
-            rvb.addAnnotation(localRVRowType.fieldType(1), minv.alleles)
+            rvb.addAnnotation(localRVRowType.types(0), minv.locus)
+            rvb.addAnnotation(localRVRowType.types(1), minv.alleles)
             var i = 2
             while (i < localRVRowType.size) {
               rvb.addField(localRVRowType, rv, i)

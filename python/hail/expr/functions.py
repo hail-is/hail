@@ -407,7 +407,7 @@ def dict(keys, values):
     ----------
     keys : list or :class:`.ArrayExpression`
         The keys of the resulting dictionary.
-    values : list or :class:`.Expression` of type :class:`.TInt32`
+    values : list or :class:`.ArrayExpression`
         The values of the resulting dictionary.
 
     Returns
@@ -1870,6 +1870,36 @@ def is_complex(ref, alt):
     :class:`.BooleanExpression`
     """
     return _func("is_complex", tbool, ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_strand_ambiguous(ref, alt):
+    """Returns ``True`` if the alleles are strand ambiguous.
+
+    Strand ambiguous allele pairs are ``A/T``, ``T/A``,
+    ``C/G``, and ``G/C`` where the first allele is `ref`
+    and the second allele is `alt`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.is_strand_ambiguous('A', 'T'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    alleles = hl.capture({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
+    return alleles.contains((ref, alt))
 
 
 @typecheck(ref=expr_str, alt=expr_str)

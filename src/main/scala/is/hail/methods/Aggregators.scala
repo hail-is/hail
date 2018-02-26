@@ -274,7 +274,7 @@ object Aggregators {
         val fields = aggF()
         var k = 0
         while (k < fields.size) {
-          rvb.addAnnotation(newType.fieldType(k), fields(k))
+          rvb.addAnnotation(newType.types(k), fields(k))
           k += 1
         }
         rvb.endStruct()

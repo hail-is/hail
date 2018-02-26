@@ -37,7 +37,7 @@ class RegionValueBuilder(var region: Region) {
     else {
       val i = indexstk.top
       typestk.top match {
-        case t: TStruct =>
+        case t: TBaseStruct =>
           offsetstk.top + t.byteOffsets(i)
         case t: TArray =>
           elementsOffsetstk.top + i * t.elementByteSize
@@ -50,9 +50,9 @@ class RegionValueBuilder(var region: Region) {
       root
     else {
       typestk.top match {
-        case t: TStruct =>
+        case t: TBaseStruct =>
           val i = indexstk.top
-          t.fields(i).typ
+          t.types(i)
         case t: TArray =>
           t.elementType
       }
@@ -86,11 +86,11 @@ class RegionValueBuilder(var region: Region) {
       indexstk(0) = indexstk(0) + 1
   }
 
-  def startStruct(init: Boolean = true) {
+  def startBaseStruct(init: Boolean = true) {
+    val t = currentType().asInstanceOf[TBaseStruct]
     if (typestk.isEmpty)
       allocateRoot()
 
-    val t = currentType().asInstanceOf[TStruct]
     val off = currentOffset()
     typestk.push(t)
     offsetstk.push(off)
@@ -100,16 +100,34 @@ class RegionValueBuilder(var region: Region) {
       t.clearMissingBits(region, off)
   }
 
-  def endStruct() {
-    typestk.top match {
-      case t: TStruct =>
-        typestk.pop()
-        offsetstk.pop()
-        val last = indexstk.pop()
-        assert(last == t.size)
+  def endBaseStruct() {
+    val t = typestk.top.asInstanceOf[TBaseStruct]
+    typestk.pop()
+    offsetstk.pop()
+    val last = indexstk.pop()
+    assert(last == t.size)
 
-        advance()
-    }
+    advance()
+  }
+
+  def startStruct(init: Boolean = true) {
+    assert(currentType().isInstanceOf[TStruct])
+    startBaseStruct(init)
+  }
+
+  def endStruct() {
+    assert(typestk.top.isInstanceOf[TStruct])
+    endBaseStruct()
+  }
+
+  def startTuple(init: Boolean = true) {
+    assert(currentType().isInstanceOf[TTuple])
+    startBaseStruct(init)
+  }
+
+  def endTuple() {
+    assert(typestk.top.isInstanceOf[TTuple])
+    endBaseStruct()
   }
 
   def startArray(length: Int, init: Boolean = true) {
@@ -146,16 +164,16 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def setFieldIndex(newI: Int) {
-    assert(typestk.top.isInstanceOf[TStruct])
+    assert(typestk.top.isInstanceOf[TBaseStruct])
     indexstk(0) = newI
   }
 
   def setMissing() {
     val i = indexstk.top
     typestk.top match {
-      case t: TStruct =>
-        if (t.fieldType(i).required)
-          fatal(s"cannot set missing field for required type ${ t.fieldType(i) }")
+      case t: TBaseStruct =>
+        if (t.types(i).required)
+          fatal(s"cannot set missing field for required type ${ t.types(i) }")
         t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
         if (t.elementType.required)
@@ -229,16 +247,15 @@ class RegionValueBuilder(var region: Region) {
     addBinary(s.getBytes)
   }
 
-  def addRow(t: TStruct, r: Row) {
+  def addRow(t: TBaseStruct, r: Row) {
     assert(r != null)
-
-    startStruct()
+    startBaseStruct()
     var i = 0
     while (i < t.size) {
-      addAnnotation(t.fields(i).typ, r.get(i))
+      addAnnotation(t.types(i), r.get(i))
       i += 1
     }
-    endStruct()
+    endBaseStruct()
   }
 
   def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
@@ -250,7 +267,7 @@ class RegionValueBuilder(var region: Region) {
 
   def requiresFixup(t: Type): Boolean = {
     t match {
-      case t: TStruct => t.fields.exists(f => requiresFixup(f.typ))
+      case t: TBaseStruct => t.types.exists(requiresFixup)
       case _: TArray | _: TBinary => true
       case _ => false
     }
@@ -267,7 +284,7 @@ class RegionValueBuilder(var region: Region) {
       while (i < length) {
         if (t.isElementDefined(fromRegion, fromAOff, i)) {
           t.elementType match {
-            case t2: TStruct =>
+            case t2: TBaseStruct =>
               fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
 
             case t2: TArray =>
@@ -288,14 +305,14 @@ class RegionValueBuilder(var region: Region) {
     toAOff
   }
 
-  def fixupStruct(t: TStruct, toOff: Long, fromRegion: Region, fromOff: Long) {
+  def fixupStruct(t: TBaseStruct, toOff: Long, fromRegion: Region, fromOff: Long) {
     assert(region.ne(fromRegion))
 
     var i = 0
     while (i < t.size) {
       if (t.isFieldDefined(fromRegion, fromOff, i)) {
-        t.fields(i).typ match {
-          case t2: TStruct =>
+        t.types(i) match {
+          case t2: TBaseStruct =>
             fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
 
           case _: TBinary =>
@@ -313,14 +330,14 @@ class RegionValueBuilder(var region: Region) {
     }
   }
 
-  def addField(t: TStruct, fromRegion: Region, fromOff: Long, i: Int) {
+  def addField(t: TBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
     if (t.isFieldDefined(fromRegion, fromOff, i))
-      addRegionValue(t.fieldType(i), fromRegion, t.loadField(fromRegion, fromOff, i))
+      addRegionValue(t.types(i), fromRegion, t.loadField(fromRegion, fromOff, i))
     else
       setMissing()
   }
 
-  def addField(t: TStruct, rv: RegionValue, i: Int) {
+  def addField(t: TBaseStruct, rv: RegionValue, i: Int) {
     addField(t, rv.region, rv.offset, i)
   }
 
@@ -332,7 +349,7 @@ class RegionValueBuilder(var region: Region) {
     }
   }
 
-  def addAllFields(t: TStruct, fromRegion: Region, fromOff: Long) {
+  def addAllFields(t: TBaseStruct, fromRegion: Region, fromOff: Long) {
     var i = 0
     while (i < t.size) {
       addField(t, fromRegion, fromOff, i)
@@ -340,11 +357,11 @@ class RegionValueBuilder(var region: Region) {
     }
   }
 
-  def addAllFields(t: TStruct, fromRV: RegionValue) {
+  def addAllFields(t: TBaseStruct, fromRV: RegionValue) {
     addAllFields(t, fromRV.region, fromRV.offset)
   }
 
-  def addFields(t: TStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]) {
+  def addFields(t: TBaseStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]) {
     var i = 0
     while (i < fieldIdx.length) {
       addField(t, fromRegion, fromOff, fieldIdx(i))
@@ -352,7 +369,7 @@ class RegionValueBuilder(var region: Region) {
     }
   }
 
-  def addFields(t: TStruct, fromRV: RegionValue, fieldIdx: Array[Int]) {
+  def addFields(t: TBaseStruct, fromRV: RegionValue, fieldIdx: Array[Int]) {
     addFields(t, fromRV.region, fromRV.offset, fieldIdx)
   }
 
@@ -390,7 +407,7 @@ class RegionValueBuilder(var region: Region) {
     assert(typestk.nonEmpty || toOff == start)
 
     t.fundamentalType match {
-      case t: TStruct =>
+      case t: TBaseStruct =>
         region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
         if (region.ne(fromRegion))
           fixupStruct(t, toOff, fromRegion, fromOff)
@@ -422,7 +439,7 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
-  def addUnsafeRow(t: TStruct, ur: UnsafeRow) {
+  def addUnsafeRow(t: TBaseStruct, ur: UnsafeRow) {
     assert(t == ur.t)
     addRegionValue(t, ur.region, ur.offset)
   }
@@ -460,7 +477,7 @@ class RegionValueBuilder(var region: Region) {
               endArray()
           }
 
-        case t: TStruct =>
+        case t: TBaseStruct =>
           a match {
             case ur: UnsafeRow if t == ur.t =>
               addUnsafeRow(t, ur)

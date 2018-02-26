@@ -116,8 +116,8 @@ object LoadBgen {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.fieldType(0), vRecoded.locus) // locus/pk
-        rvb.addAnnotation(kType.fieldType(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
+        rvb.addAnnotation(kType.types(0), vRecoded.locus) // locus/pk
+        rvb.addAnnotation(kType.types(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
         rvb.endStruct()
 
         rv.setOffset(rvb.end())
@@ -140,10 +140,10 @@ object LoadBgen {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), vRecoded.locus)
-        rvb.addAnnotation(kType.fieldType(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
-        rvb.addAnnotation(rowType.fieldType(2), va.get(0))
-        rvb.addAnnotation(rowType.fieldType(3), va.get(1))
+        rvb.addAnnotation(rowType.types(0), vRecoded.locus)
+        rvb.addAnnotation(kType.types(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
+        rvb.addAnnotation(rowType.types(2), va.get(0))
+        rvb.addAnnotation(rowType.types(3), va.get(1))
         record.getValue(rvb) // gs
         rvb.endStruct()
 

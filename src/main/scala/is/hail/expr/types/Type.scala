@@ -33,16 +33,36 @@ object Type {
 
   val requiredComplex: Gen[Type] = genComplexType(true)
 
-  def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] =
+  def genFields(required: Boolean, genFieldType: Gen[Type]): Gen[Array[Field]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
-      .map(fields => TStruct(fields
+      .map(fields => fields
         .iterator
         .zipWithIndex
         .map { case ((k, t), i) => Field(k, t, i) }
-        .toIndexedSeq))
-      .map(t => if (required) (+t).asInstanceOf[TStruct] else t)
+        .toArray)
+  }
+
+  def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] = {
+    for (fields <- genFields(required, genFieldType)) yield {
+      val t = TStruct(fields)
+      if (required)
+        (+t).asInstanceOf[TStruct]
+      else
+        t
+    }
+  }
+
+  def preGenTuple(required: Boolean, genFieldType: Gen[Type]): Gen[TTuple] = {
+    for (fields <- genFields(required, genFieldType)) yield {
+      val t = TTuple(fields.map(_.typ))
+      if (required)
+        (+t).asInstanceOf[TTuple]
+      else
+        t
+    }
+  }
 
   private val defaultRequiredGenRatio = 0.2
 
@@ -76,6 +96,7 @@ object Type {
         (1, genArb.map {
           TInterval(_)
         }),
+        (1, preGenTuple(required, genArb)),
         (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
         (1, genTStruct.resize(size)))
     }
@@ -267,6 +288,7 @@ abstract class Type extends BaseType with Serializable {
       case t: TLocus => t.copy(required = required)
       case t: TInterval => t.copy(required = required)
       case t: TStruct => t.copy(required = required)
+      case t: TTuple => t.copy(required = required)
       case t: TAggregable =>
         assert(t.required == required)
         t
@@ -291,6 +313,10 @@ abstract class Type extends BaseType with Serializable {
         t.isInstanceOf[TStruct] &&
           t.asInstanceOf[TStruct].size == t2.size &&
           t.asInstanceOf[TStruct].fields.zip(t2.fields).forall { case (f1: Field, f2: Field) => f1.typ.isOfType(f2.typ) && f1.name == f2.name }
+      case t2: TTuple =>
+        t.isInstanceOf[TTuple] &&
+          t.asInstanceOf[TTuple].size == t2.size &&
+          t.asInstanceOf[TTuple].types.zip(t2.types).forall { case (typ1, typ2) => typ1 == typ2 }
       case t2: TArray => t.isInstanceOf[TArray] && t.asInstanceOf[TArray].elementType.isOfType(t2.elementType)
       case t2: TSet => t.isInstanceOf[TSet] && t.asInstanceOf[TSet].elementType.isOfType(t2.elementType)
       case t2: TDict => t.isInstanceOf[TDict] && t.asInstanceOf[TDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[TDict].valueType.isOfType(t2.valueType)
@@ -304,6 +330,8 @@ abstract class Type extends BaseType with Serializable {
       case t: TDict => TDict(t.keyType.deepOptional(), t.valueType.deepOptional())
       case t: TStruct =>
         TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index)))
+      case t: TTuple =>
+        TTuple(t.types.map(_.deepOptional()))
       case t =>
         t.setRequired(false)
     }

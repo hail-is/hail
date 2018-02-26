@@ -54,8 +54,8 @@ object LDPruneSuite {
     val rvb = new RegionValueBuilder(Region())
     rvb.start(rvRowType)
     rvb.startStruct()
-    rvb.addAnnotation(rvRowType.fieldType(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
+    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
     rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
     rvb.endStruct()
     rvb.end()
@@ -87,8 +87,8 @@ object LDPruneSuite {
 
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
-    rvb.addAnnotation(rvRowType.fieldType(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
+    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
     val keep = LDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {

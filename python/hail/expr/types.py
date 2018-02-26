@@ -4,7 +4,7 @@ import hail as hl
 from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
-from hail.utils.java import scala_object, jset, jindexed_seq, Env
+from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list
 from hail import genetics
 
 
@@ -105,6 +105,8 @@ class Type(object):
             return TDict._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TStruct':
             return TStruct._from_java(jtype)
+        elif class_name == 'is.hail.expr.types.TTuple':
+            return TTuple._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TLocus':
             return TLocus._from_java(jtype)
         elif class_name == 'is.hail.expr.types.TInterval':
@@ -587,7 +589,6 @@ class TStruct(Type):
         return struct
 
     def _init_from_java(self, jtype):
-
         jfields = Env.jutils().iterableToArrayList(jtype.fields())
         self._fields = [Field(f.name(), Type._from_java(f.typ())) for f in jfields]
 
@@ -625,6 +626,75 @@ class TStruct(Type):
         names = [str(fd.name) for fd in self.fields]
         types = [fd.typ for fd in self.fields]
         return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
+
+
+class TTuple(Type):
+    """Hail type for tuples.
+
+    In Python, these are represented as :obj:`tuple`.
+
+    Parameters
+    ----------
+    types: varargs of :class:`.Type`
+        Element types.
+    """
+
+    @typecheck_method(types=Type)
+    def __init__(self, *types):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TTuple').apply(map(lambda t: t._jtype, types),
+                                                                                      False)
+        self._types = types
+        super(TTuple, self).__init__()
+
+    @property
+    def types(self):
+        """Tuple element types.
+
+        Returns
+        -------
+        :obj:`tuple` of :class:`.Type`
+        """
+        return self._types
+
+    @classmethod
+    def _from_java(cls, jtype):
+        tup = TTuple.__new__(cls)
+        tup._init_from_java(jtype)
+        tup._get_jtype = lambda: jtype
+        super(TTuple, tup).__init__()
+        return tup
+
+    def _init_from_java(self, jtype):
+        jtypes = jarray_to_list(jtype.types())
+        self._types = [Type._from_java(t) for t in jtypes]
+
+    def _convert_to_py(self, annotation):
+        if annotation is not None:
+            return tuple(t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types))
+        else:
+            return None
+
+    def _convert_to_j(self, annotation):
+        if annotation is not None:
+            return Env.jutils().arrayListToISeq(
+                [self.types[i]._convert_to_j(elt) for i, elt in enumerate(annotation)]
+            )
+        else:
+            return None
+
+    def _typecheck(self, annotation):
+        if annotation:
+            if not isinstance(annotation, tuple):
+                raise TypeCheckError("ttuple expected tuple, but found '%s'" %
+                                     type(annotation))
+            if len(annotation) != len(self.types):
+                raise TypeCheckError("ttuple expected tuple of size '%i', but found '%s'" %
+                                     (len(self.types), annotation))
+            for i, t in enumerate(self.types):
+                t._typecheck((annotation[i]))
+
+    def __str__(self):
+        return "TTuple({})".format(",".join([repr(t) for t in self.types]))
 
 
 class TCall(Type):
@@ -803,6 +873,7 @@ tarray = TArray
 tset = TSet
 tdict = TDict
 tstruct = TStruct
+ttuple = TTuple
 tlocus = TLocus
 tinterval = TInterval
 

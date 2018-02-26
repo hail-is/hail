@@ -61,7 +61,7 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
-    (vsm.rowType.fieldNames, vsm.rowType.fieldType)
+    (vsm.rowType.fieldNames, vsm.rowType.types)
   }
 
   def exportImportableVds(vsm: MatrixTable, header: Boolean=true): String = {

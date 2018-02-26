@@ -22,6 +22,7 @@ Genetics functions
     is_indel
     is_star
     is_complex
+    is_strand_ambiguous
     allele_type
     pl_dosage
     gp_dosage
@@ -43,6 +44,7 @@ Genetics functions
 .. autofunction:: is_indel
 .. autofunction:: is_star
 .. autofunction:: is_complex
+.. autofunction:: is_strand_ambiguous
 .. autofunction:: allele_type
 .. autofunction:: pl_dosage
 .. autofunction:: gp_dosage

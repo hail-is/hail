@@ -58,6 +58,9 @@ final case class InsertFields(old: IR, fields: Seq[(String, IR)], var typ: TStru
 final case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 final case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 
+final case class MakeTuple(types: Seq[IR], var typ: TTuple = null) extends IR
+final case class GetTupleElement(o: IR, idx: Int, var typ: Type = null) extends IR
+
 final case class In(i: Int, var typ: Type) extends IR
 final case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any

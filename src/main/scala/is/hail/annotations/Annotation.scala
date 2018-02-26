@@ -40,6 +40,8 @@ object Annotation {
       TArray(expandType(elementType), req)
     case TStruct(fields, req) =>
       TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) }, req)
+    case TTuple(types, req) =>
+      TTuple(types.map { t => expandType(t) }, req)
     case TSet(elementType, req) =>
       TArray(expandType(elementType), req)
     case TDict(keyType, valueType, req) =>
@@ -59,9 +61,10 @@ object Annotation {
 
         case TArray(elementType, _) =>
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
-        case TStruct(fields, _) =>
-          Row.fromSeq((a.asInstanceOf[Row].toSeq, fields).zipped.map { case (ai, f) =>
-            expandAnnotation(ai, f.typ)
+
+        case t: TBaseStruct =>
+          Row.fromSeq((a.asInstanceOf[Row].toSeq, t.types).zipped.map { case (ai, typ) =>
+            expandAnnotation(ai, typ)
           })
 
         case TSet(elementType, _) =>
@@ -160,7 +163,7 @@ object Annotation {
       return null
 
     t match {
-      case t: TStruct =>
+      case t: TBaseStruct =>
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         rvb.start(t)

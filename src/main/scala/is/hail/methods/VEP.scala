@@ -415,9 +415,9 @@ object VEP {
         it.map { case (v, vep) =>
           rvb.start(vepRowType)
           rvb.startStruct()
-          rvb.addAnnotation(vepRowType.fieldType(0), v.locus)
-          rvb.addAnnotation(vepRowType.fieldType(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
-          rvb.addAnnotation(vepRowType.fieldType(2), vep)
+          rvb.addAnnotation(vepRowType.types(0), v.locus)
+          rvb.addAnnotation(vepRowType.types(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
+          rvb.addAnnotation(vepRowType.types(2), vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 
