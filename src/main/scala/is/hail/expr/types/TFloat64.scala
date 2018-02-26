@@ -14,6 +14,10 @@ case object TFloat64Required extends TFloat64(true)
 class TFloat64(override val required: Boolean) extends TNumeric {
   override def _toString = "Float64"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("float64")
+  }
+
   val conv = DoubleNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]

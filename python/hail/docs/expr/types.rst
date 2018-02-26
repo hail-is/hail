@@ -9,6 +9,7 @@ Types
 .. autosummary::
     :nosignatures:
 
+    dtype
     tint
     tint32
     tint64

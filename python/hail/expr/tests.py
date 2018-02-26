@@ -4,6 +4,7 @@ import hail as hl
 from hail import Struct, Table, Locus
 import hail.expr.aggregators as agg
 from hail.expr.types import *
+from hail.expr import dtype
 
 
 def setUpModule():
@@ -14,87 +15,66 @@ def tearDownModule():
     hl.stop()
 
 
-class Tests(unittest.TestCase):
-    def test_types(self):
-        self.assertEqual(tint32, tint32)
-        self.assertEqual(tfloat64, tfloat64)
-        self.assertEqual(tarray(tfloat64), tarray(tfloat64))
-        self.assertNotEqual(tarray(tfloat64), tarray(tfloat32))
-        self.assertNotEqual(tset(tfloat64), tarray(tfloat64))
-        self.assertEqual(tset(tfloat64), tset(tfloat64))
-        self.assertEqual(tdict(tstr, tarray(tint32)), tdict(tstr, tarray(tint32)))
-        self.assertEqual(ttuple(tstr, tint), ttuple(tstr, tint))
-
-        some_random_types = [
+class TypeTests(unittest.TestCase):
+    def types_to_test(self):
+        return [
             tint32,
-            tstr,
+            tint64,
             tfloat32,
             tfloat64,
+            tstr,
             tbool,
-            tarray(tstr),
-            tset(tarray(tset(tbool))),
-            tdict(tstr, tint32),
-            tlocus(),
             tcall,
+            tinterval(tint32),
+            tdict(tstr, tint32),
+            tarray(tstr),
+            tset(tint64),
+            tlocus('GRCh37'),
+            tlocus('GRCh38'),
+            tstruct([], []),
+            tstruct(['x', 'y', 'z'], [tint32, tint64, tarray(tset(tstr))]),
+            tstruct(['weird field name 1',
+                     r"""this one ' has "" quotes and `` backticks```""",
+                     '!@#$%^&({['],
+                    [tint32, tint64, tarray(tset(tstr))]),
             tinterval(tlocus()),
             tset(tinterval(tlocus())),
             tstruct(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
             tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
             tstruct(['a', 'b'], [tint32, tint32]),
-            ttuple(tstr, tint32)]
+            tstruct(['___', '_ . _'], [tint32, tint32]),
+            ttuple(tstr, tint32),
+            ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
+            ttuple()]
 
-        #  copy and reinitialize to check that two initializations produce equality (not reference equality)
-        some_random_types_cp = [
-            tint32,
-            tstr,
-            tfloat32,
-            tfloat64,
-            tbool,
-            tarray(tstr),
-            tset(tarray(tset(tbool))),
-            tdict(tstr, tint32),
-            tlocus(),
-            tcall,
-            tinterval(tlocus()),
-            tset(tinterval(tlocus())),
-            tstruct(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
-            tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
-            tstruct(['a', 'b'], [tint32, tint32]),
-            ttuple(tstr, tint32)]
+    def test_parser_roundtrip(self):
+        for t in self.types_to_test():
+            self.assertEqual(t, dtype(str(t)))
 
-        for i in range(len(some_random_types)):
-            for j in range(len(some_random_types)):
+    def test_eval_roundtrip(self):
+        for t in self.types_to_test():
+            self.assertEqual(t, eval(repr(t)))
+
+    def test_equality(self):
+        ts = self.types_to_test()
+        ts2 = self.types_to_test()  # reallocates the non-primitive types
+
+        for i in range(len(ts)):
+            for j in range(len(ts2)):
                 if (i == j):
-                    self.assertEqual(some_random_types[i], some_random_types_cp[j])
+                    self.assertEqual(ts[i], ts2[j])
                 else:
-                    self.assertNotEqual(some_random_types[i], some_random_types_cp[j])
+                    self.assertNotEqual(ts[i], ts2[j])
 
+    def test_jvm_roundtrip(self):
+        ts = self.types_to_test()
+        for t in ts:
+            rev_str = t._jtype.toPyString()
+            self.assertEqual(t, dtype(rev_str))
+
+class Tests(unittest.TestCase):
     def test_floating_point(self):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
-
-    def test_repr(self):
-        tl = tlocus()
-        ti = tinterval(tlocus())
-        tc = tcall
-
-        ti32 = tint32
-        ti64 = tint64
-        tf32 = tfloat32
-        tf64 = tfloat64
-        ts = tstr
-        tb = tbool
-
-        tdict_ = tdict(tinterval(tlocus()), tfloat32)
-        tset_ = tarray(tlocus())
-        tarray_ = tarray(tstr)
-        tstruct_ = tstruct(['a', 'b'], [tbool, tarray(tstr)])
-        ttuple_ = ttuple(tstr, tint)
-
-        for typ in [tl, ti, tc,
-                    ti32, ti64, tf32, tf64, ts, tb,
-                    tdict_, tarray_, tset_, tstruct_,
-                    ttuple_]:
-            self.assertEqual(eval(repr(typ)), typ)
 
     def test_matches(self):
         self.assertEqual(hl.eval_expr('\d+'), '\d+')
@@ -127,13 +107,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.gt6, 0.30)
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
-
-    def test_dtype(self):
-        i32 = hl.capture(5)
-        self.assertEqual(i32.dtype, tint32)
-
-        str_exp = hl.capture('5')
-        self.assertEqual(str_exp.dtype, tstr)
 
     def test_switch(self):
         x = hl.capture('1')
@@ -963,7 +936,7 @@ class Tests(unittest.TestCase):
     def test_array_methods(self):
         self.assertEqual(hl.eval_expr(hl.any(lambda x: x % 2 == 0, [1, 3, 5])), False)
         self.assertEqual(hl.eval_expr(hl.any(lambda x: x % 2 == 0, [1, 3, 5, 6])), True)
-        
+
         self.assertEqual(hl.eval_expr(hl.all(lambda x: x % 2 == 0, [1, 3, 5, 6])), False)
         self.assertEqual(hl.eval_expr(hl.all(lambda x: x % 2 == 0, [2, 6])), True)
 
@@ -987,7 +960,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
         self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
-
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval_expr(hl.capture(True) & True))

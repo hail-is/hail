@@ -20,6 +20,11 @@ object TLocus {
 case class TLocus(gr: GRBase, override val required: Boolean = false) extends ComplexType {
   def _toString = s"Locus($gr)"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("locus[")
+    sb.append(prettyIdentifier(gr.name))
+    sb.append(']')
+  }
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Locus.gen(gr.asInstanceOf[GenomeReference])

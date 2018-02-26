@@ -62,6 +62,15 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
     sb += ']'
   }
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("tuple(")
+    fields.foreachBetween({ field =>
+      field.typ._toPyString(sb)
+    }) { sb.append(", ")}
+    sb.append(')')
+  }
+
+
   override val fundamentalType: TTuple = {
     val fundamentalFieldTypes = types.map(t => t.fundamentalType)
     if ((types, fundamentalFieldTypes).zipped

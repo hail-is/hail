@@ -35,6 +35,14 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   def _toString = s"Dict[$keyType, $valueType]"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("dict<")
+    keyType._toPyString(sb)
+    sb.append(", ")
+    valueType._toPyString(sb)
+    sb.append('>')
+  }
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Dict[")
     keyType.pretty(sb, indent, compact)

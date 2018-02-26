@@ -367,7 +367,10 @@ numeric = oneof(int, float)
 char = CharChecker()
 
 def check_all(f, args, kwargs, checks, is_method):
-    spec = inspect.getfullargspec(f)
+    if not hasattr(f, '_cached_spec'):
+        setattr(f, '_cached_spec', inspect.getfullargspec(f))
+
+    spec = f._cached_spec
     name = f.__name__
 
     args_ = []

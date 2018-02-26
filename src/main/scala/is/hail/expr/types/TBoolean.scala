@@ -13,6 +13,10 @@ case object TBooleanRequired extends TBoolean(true)
 class TBoolean(override val required: Boolean) extends Type {
   def _toString = "Boolean"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("bool")
+  }
+
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
 
   def parse(s: String): Annotation = s.toBoolean

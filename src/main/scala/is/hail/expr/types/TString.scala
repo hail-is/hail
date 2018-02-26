@@ -13,6 +13,9 @@ case object TStringRequired extends TString(true)
 class TString(override val required: Boolean) extends Type {
   def _toString = "String"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("str")
+  }
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]

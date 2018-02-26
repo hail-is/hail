@@ -20,8 +20,8 @@ def tearDownModule():
 
 
 def schema_eq(x, y):
-    x_fds = dict([(fd.name, fd.typ) for fd in x.fields])
-    y_fds = dict([(fd.name, fd.typ) for fd in y.fields])
+    x_fds = dict([(fd.name, fd.dtype) for fd in x.fields])
+    y_fds = dict([(fd.name, fd.dtype) for fd in y.fields])
     return x_fds == y_fds
 
 
@@ -356,7 +356,7 @@ class MatrixTests(unittest.TestCase):
                                 x3=agg.count_where(True),
                                 x4=vds.info.AC + vds.foo)
 
-        expected_fields = [(fd.name, fd.typ) for fd in orig_variant_schema.fields] + \
+        expected_fields = [(fd.name, fd.dtype) for fd in orig_variant_schema.fields] + \
                           [('x1', hl.tint64),
                            ('x2', hl.tfloat64),
                            ('x3', hl.tint64),
@@ -890,7 +890,7 @@ class ColumnTests(unittest.TestCase):
                            'x5': hl.tarray(hl.tint32)}
 
         for fd in kt.schema.fields:
-            self.assertEqual(expected_schema[fd.name], fd.typ)
+            self.assertEqual(expected_schema[fd.name], fd.dtype)
 
     def test_constructors(self):
         rg = hl.GenomeReference("foo", ["1"], {"1": 100})
@@ -910,4 +910,4 @@ class ColumnTests(unittest.TestCase):
                            'l1': hl.tlocus(), 'l2': hl.tlocus(rg),
                            'i1': hl.tinterval(hl.tlocus(rg)), 'i2': hl.tinterval(hl.tlocus(rg))}
 
-        self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))
+        self.assertTrue(all([expected_schema[fd.name] == fd.dtype for fd in kt.schema.fields]))
