@@ -172,8 +172,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("-j").contains(7))
     assert(eval[Boolean]("+j").contains(-7))
 
-    assert(eval[Boolean]("AGG.het.isHomRef()").contains(false))
-    assert(eval[Boolean]("!AGG.het.isHomRef()").contains(true))
+    assert(eval[Boolean]("gs.het.isHomRef()").contains(false))
+    assert(eval[Boolean]("!gs.het.isHomRef()").contains(true))
 
     assert(eval[Boolean]("1 / 2 == 0.5").contains(true))
     assert(eval[Boolean]("1.0 / 2.0 == 0.5").contains(true))
@@ -238,12 +238,12 @@ class ExprSuite extends SparkSuite {
       assert(eval[Boolean](s"0.0/0.0 != $x").contains(true))
     }
 
-    assert(eval[Boolean]("isMissing(AGG.noCall)").contains(true))
-    assert(eval[Boolean]("AGG.noCall.ploidy").isEmpty)
-    assert(eval[Boolean]("AGG.noCall[0]").isEmpty)
+    assert(eval[Boolean]("isMissing(gs.noCall)").contains(true))
+    assert(eval[Boolean]("gs.noCall.ploidy").isEmpty)
+    assert(eval[Boolean]("gs.noCall[0]").isEmpty)
 
-    assert(eval[Boolean]("isMissing(AGG.noCall[1])").contains(true))
-    assert(eval[Boolean]("AGG.noCall[1]").isEmpty)
+    assert(eval[Boolean]("isMissing(gs.noCall[1])").contains(true))
+    assert(eval[Boolean]("gs.noCall[1]").isEmpty)
 
     assert(eval[Int]("let a = i and b = j in a + b").contains(-2))
     assert(eval[Int]("let a = i and b = a + j in b").contains(-2))
@@ -255,14 +255,14 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isMissing(false || mb)").contains(true))
     assert(eval[Boolean]("isMissing(mb || false)").contains(true))
 
-    assert(eval[Int]("AGG.homRef[0]").contains(0)
-      && eval[Int]("AGG.homRef[1]").contains(0))
-    assert(eval[Int]("AGG.het[0]").contains(0)
-      && eval[Int]("AGG.het[1]").contains(1))
-    assert(eval[Int]("AGG.homVar[0]").contains(1)
-      && eval[Int]("AGG.homVar[1]").contains(1))
-    assert(eval[Int]("AGG.hetNonRef35[0]").contains(3)
-      && eval[Int]("AGG.hetNonRef35[1]").contains(5))
+    assert(eval[Int]("gs.homRef[0]").contains(0)
+      && eval[Int]("gs.homRef[1]").contains(0))
+    assert(eval[Int]("gs.het[0]").contains(0)
+      && eval[Int]("gs.het[1]").contains(1))
+    assert(eval[Int]("gs.homVar[0]").contains(1)
+      && eval[Int]("gs.homVar[1]").contains(1))
+    assert(eval[Int]("gs.hetNonRef35[0]").contains(3)
+      && eval[Int]("gs.hetNonRef35[1]").contains(5))
 
     assert(eval[Int]("orElse(i, 3)").contains(5))
     assert(eval[Int]("orElse(m, 3)").contains(3))
