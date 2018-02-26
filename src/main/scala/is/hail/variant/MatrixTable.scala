@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
+import is.hail.expr.ir._
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
@@ -1584,9 +1585,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     */
   def filterSamplesExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
-    if (!keep)
-      filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    copyAST(ast = FilterSamples(ast, filterAST))
+    val pred = filterAST.toIR()
+    pred match {
+		case Some(irPred) =>
+			new MatrixTable(hc,
+				FilterRows(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
+			)
+		case None =>
+			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterSamples")
+    		if (!keep)
+      			filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+    		copyAST(ast = FilterSamples(ast, filterAST))
+    }
   }
 
   def filterSamplesList(samples: java.util.ArrayList[Annotation], keep: Boolean): MatrixTable =
@@ -1612,9 +1622,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
-    if (!keep)
-      filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    copyAST(ast = FilterVariants(ast, filterAST))
+    val pred = filterAST.toIR()
+    pred match {
+		case Some(irPred) =>
+			new MatrixTable(hc,
+				FilterCols(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
+			)
+		case None =>
+			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterCols")
+    		if (!keep)
+      			filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+    		copyAST(ast = FilterVariants(ast, filterAST))
+    }
   }
 
   def sparkContext: SparkContext = hc.sc

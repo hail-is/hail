@@ -301,6 +301,10 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
 }
 
+/*
+ * FilterSamples is only used for a predicate which fails toIR()
+ * This should go away when everything is IR-compatible
+ */
 case class FilterSamples(
   child: MatrixIR,
   pred: AST) extends MatrixIR {
@@ -334,6 +338,34 @@ case class FilterSamples(
   }
 }
 
+case class FilterRows(
+  child: MatrixIR,
+  pred: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, pred)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
+    assert(newChildren.length == 2)
+    FilterRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  def typ: MatrixType = child.typ
+
+  def execute(hc: HailContext): MatrixValue = {
+    val kmv = child.execute(hc)
+    val f = ir.Compile(
+		"row", ir.RegionValueRep[Long](child.typ.rowType),
+		"global", ir.RegionValueRep[Long](child.typ.globalType),
+		ir.RegionValueRep[Boolean](TBoolean()),
+		pred)
+	kmv.filterSamples((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
+  }
+}
+
+/*
+ * FilterVariants is only used for a predicate which fails toIR()
+ * This should go away when everything is IR-compatible
+ */
 case class FilterVariants(
   child: MatrixIR,
   pred: AST) extends MatrixIR {
@@ -343,6 +375,51 @@ case class FilterVariants(
   def copy(newChildren: IndexedSeq[BaseIR]): FilterVariants = {
     assert(newChildren.length == 1)
     FilterVariants(newChildren(0).asInstanceOf[MatrixIR], pred)
+  }
+
+  def typ: MatrixType = child.typ
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localGlobals = prev.globals
+    val ec = prev.typ.rowEC
+
+    val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
+
+    val aggregatorOption = Aggregators.buildVariantAggregations(
+      prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
+
+    val fullRowType = prev.typ.rvRowType
+    val localRowType = prev.typ.rowType
+    val localEntriesIndex = prev.typ.entriesIdx
+
+    ec.set(0, prev.globals)
+
+    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
+      it.filter { rv =>
+        fullRow.set(rv)
+        ec.set(1, row)
+        aggregatorOption.foreach(_ (rv))
+        f() == true
+      }
+    }
+
+    prev.copy(rvd = filteredRDD)
+  }
+}
+
+case class FilterCols(
+  child: MatrixIR,
+  pred: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterCols = {
+    assert(newChildren.length == 1)
+    FilterCols(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
