@@ -43,7 +43,9 @@ class TypeTests(unittest.TestCase):
             tstruct(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
             tstruct(['a', 'b'], [tint32, tint32]),
             tstruct(['___', '_ . _'], [tint32, tint32]),
-            ttuple(tstr, tint32)]
+            ttuple(tstr, tint32),
+            ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
+            ttuple()]
 
     def test_parser_roundtrip(self):
         for t in self.types_to_test():

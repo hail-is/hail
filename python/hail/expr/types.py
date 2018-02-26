@@ -39,7 +39,7 @@ def dtype(type_str):
 
     .. code-block:: text
 
-        type = _ (array / set / dict / struct / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
+        type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
         int64 = "int64" / "tint64"
         int32 = "int32" / "tint32" / "int" / "tint"
         float32 = "float32" / "tfloat32"
@@ -52,6 +52,7 @@ def dtype(type_str):
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
         struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
+        tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
         fields = field ("," field)*
         field = identifier ":" type
         interval = ("tinterval" / "interval") _ "<" type ">"
@@ -710,15 +711,20 @@ class TTuple(Type):
         if annotation:
             if not isinstance(annotation, tuple):
                 raise TypeError("ttuple expected tuple, but found '%s'" %
-                                     type(annotation))
+                                type(annotation))
             if len(annotation) != len(self.types):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
-                                     (self, len(self.types), annotation))
+                                (self, len(self.types), annotation))
             for i, t in enumerate(self.types):
                 t._typecheck((annotation[i]))
 
     def __str__(self):
         return "tuple({})".format(", ".join([str(t) for t in self.types]))
+
+    def _eq(self, other):
+        from operator import eq
+        return isinstance(other, TTuple) and len(self.types) == len(other.types) and all(
+            map(eq, self.types, other.types))
 
 
 class TCall(Type):
