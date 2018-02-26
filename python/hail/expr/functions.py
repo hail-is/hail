@@ -909,8 +909,8 @@ def call(*alleles, phased=False):
 
     indices, aggregations, joins, refs = unify_all(phased, *alleles)
     if std_len(alleles) > 2:
-        raise NotImplementedError("`call' supports a maximum of 2 alleles.")
-    return construct_expr(ApplyMethod('Call', phased._ast, *[a._ast for a in alleles]), tcall, indices, aggregations,
+        raise NotImplementedError("'call' supports a maximum of 2 alleles.")
+    return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations,
                           joins, refs)
 
 
@@ -954,19 +954,19 @@ def parse_call(s):
     -----
     This method expects strings in the following format:
 
-    +--------+-------------------------+--------------+
-    | ploidy | Phased                  | Unphased     |
-    +========+=========================+==============+
-    |   0    | &#124;-                 |  -           |
-    +--------+-------------------------+--------------+
-    |   1    | &#124;i                 |  i           |
-    +--------+-------------------------+--------------+
-    |   2    | i&#124;j                |  i/j         |
-    +--------+-------------------------+--------------+
-    |   3    | i&#124;j&#124;k         |  i/j/k       |
-    +--------+-------------------------+--------------+
-    |   N    | i&#124;j&#124;...&#124;N| i/j/k/.../N  |
-    +------+------+-----------------------------------+
+    +--------+-------------+-------------+
+    | ploidy | Phased      | Unphased    |
+    +========+=============+=============+
+    |   0    | -           |  -          |
+    +--------+-------------+-------------+
+    |   1    | i           |  i          |
+    +--------+-------------+-------------+
+    |   2    | i|j         |  i/j        |
+    +--------+-------------+-------------+
+    |   3    | i|j|k       |  i/j/k      |
+    +--------+-------------+-------------+
+    |   N    | i|j|k|...|N | i/j/k/.../N |
+    +--------+-------------+-------------+
 
     Parameters
     ----------

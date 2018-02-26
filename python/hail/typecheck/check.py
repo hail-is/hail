@@ -384,7 +384,7 @@ def check_all(f, args, kwargs, checks, is_method):
         named_args = spec.args[:]
         pos_args = args[:]
 
-    signature_namespace = set(named_args).union(
+    signature_namespace = set(named_args).union(spec.kwonlyargs).union(
         set(filter(lambda x: x is not None, [spec.varargs, spec.varkw])))
     tc_namespace = set(checks.keys())
 
@@ -432,6 +432,21 @@ def check_all(f, args, kwargs, checks, is_method):
                 ))
 
     kwargs_ = {}
+
+    for kw in spec.kwonlyargs:
+        tc = checks[kw]
+        try:
+            arg_ = tc.check(kwargs[kw], name, kw)
+            kwargs_[kw] = arg_
+        except TypecheckFailure:
+            raise TypeError("{fname}: keyword argument '{argname}': "
+                            "expected {expected}, found {found}: '{arg}'".format(
+                fname=name,
+                argname=kw,
+                expected=tc.expects(),
+                found=tc.format(kwargs[kw]),
+                arg=str(kwargs[kw])
+            ))
     if spec.varkw:
         tc = checks[spec.varkw]
         for argname, arg in kwargs.items():
