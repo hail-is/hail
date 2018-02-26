@@ -2669,7 +2669,7 @@ def empty_set(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(empty_set())
+        >>> hl.eval_expr(empty_set(hl.tstr))
         set()
 
     Parameters
@@ -2716,7 +2716,7 @@ def empty_array(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(empty_array())
+        >>> hl.eval_expr(empty_array(t.tint32))
         []
 
     Parameters
