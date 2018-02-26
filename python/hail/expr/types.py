@@ -39,7 +39,7 @@ def dtype(type_str):
 
     .. code-block:: text
 
-        type = array / set / dict / struct / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus
+        type = _ (array / set / dict / struct / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
         int64 = "int64" / "tint64"
         int32 = "int32" / "tint32" / "int" / "tint"
         float32 = "float32" / "tfloat32"
@@ -47,17 +47,17 @@ def dtype(type_str):
         bool = "tbool" / "bool"
         call = "tcall" / "call"
         str = "tstr" / "str"
-        locus = ("tlocus" / "locus") _ "[" _ identifier _ "]"
-        array = ("tarray" / "array") _ "<" _ type _ ">"
-        set = ("tset" / "set") _ "<" _ type _ ">"
-        dict = ("tdict" / "dict") _ "<" type  _ "," _ type ">"
-        struct = ("tstruct" / "struct") _ "{" _ fields? _ "}"
-        fields = field _ ("," _ field)*
-        field = identifier _ ":" _ type
-        interval = ("tinterval" / "interval") _ "<" _ type _ ">"
-        identifier = simple_identifier / escaped_identifier
+        locus = ("tlocus" / "locus") _ "[" identifier "]"
+        array = ("tarray" / "array") _ "<" type ">"
+        set = ("tset" / "set") _ "<" type ">"
+        dict = ("tdict" / "dict") _ "<" type "," type ">"
+        struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
+        fields = field ("," field)*
+        field = identifier ":" type
+        interval = ("tinterval" / "interval") _ "<" type ">"
+        identifier = _ (simple_identifier / escaped_identifier) _
         simple_identifier = ~"\w+"
-        escaped_identifier = "`" ~"([^`\\\\]|\\\\.)*" "`"
+        escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
         _ = ~"\s*"
 
     Parameters

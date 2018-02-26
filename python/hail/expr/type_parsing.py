@@ -4,7 +4,7 @@ from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""
-    type = array / set / dict / struct / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus
+    type = _ (array / set / dict / struct / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
     int64 = "int64" / "tint64"
     int32 = "int32" / "tint32" / "int" / "tint"
     float32 = "float32" / "tfloat32"
@@ -12,32 +12,29 @@ type_grammar = Grammar(
     bool = "tbool" / "bool"
     call = "tcall" / "call"
     str = "tstr" / "str"
-    locus = ("tlocus" / "locus") _ "[" _ identifier _ "]"
-    array = ("tarray" / "array") _ "<" _ type _ ">"
-    set = ("tset" / "set") _ "<" _ type _ ">"
-    dict = ("tdict" / "dict") _ "<" type  _ "," _ type ">"
-    struct = ("tstruct" / "struct") _ "{" _ fields? _ "}"
+    locus = ("tlocus" / "locus") _ "[" identifier "]"
+    array = ("tarray" / "array") _ "<" type ">"
+    set = ("tset" / "set") _ "<" type ">"
+    dict = ("tdict" / "dict") _ "<" type "," type ">"
+    struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
     tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
-    fields = field _ ("," _ field)*
-    field = identifier _ ":" _ type
-    interval = ("tinterval" / "interval") _ "<" _ type _ ">"  
-    identifier = simple_identifier / escaped_identifier
+    fields = field ("," field)*
+    field = identifier ":" type
+    interval = ("tinterval" / "interval") _ "<" type ">"
+    identifier = _ (simple_identifier / escaped_identifier) _
     simple_identifier = ~"\w+"
-    escaped_identifier = "`" ~"([^`\\\\]|\\\\.)*" "`"
+    escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
     _ = ~"\s*"
     """)
 
 
 class TypeConstructor(NodeVisitor):
-    def visit(self, node):
-        return super(TypeConstructor, self).visit(node)
-
     def generic_visit(self, node, visited_children):
         return visited_children
 
     def visit_type(self, node, visited_children):
-        assert len(visited_children) == 1
-        return visited_children[0]
+        _, [t], _ = visited_children
+        return t
 
     def visit_int64(self, node, visited_children):
         return hl.tint64
@@ -61,28 +58,29 @@ class TypeConstructor(NodeVisitor):
         return hl.tstr
 
     def visit_locus(self, node, visited_children):
-        return hl.tlocus(visited_children[4])
-
-    def visit_genomeref(self, node, visited_children):
-        return node.text
+        tlocus, _, bracket, gr, bracket = visited_children
+        return hl.tlocus(gr)
 
     def visit_array(self, node, visited_children):
-        return hl.tarray(visited_children[4])
+        tarray, _, angle_bracket, t, angle_bracket = visited_children
+        return hl.tarray(t)
 
     def visit_set(self, node, visited_children):
-        return hl.tset(visited_children[4])
+        tset, _, angle_bracket, t, angle_bracket = visited_children
+        return hl.tset(t)
 
     def visit_dict(self, node, visited_children):
-        return hl.tdict(visited_children[3], visited_children[7])
+        tdict, _, angle_bracket, kt, comma, vt, angle_bracket = visited_children
+        return hl.tdict(kt, vt)
 
     def visit_struct(self, node, visited_children):
-        maybe_fds = visited_children[4]
-        if not maybe_fds:
+        tstruct, _, brace, maybe_fields, brace = visited_children
+        if not maybe_fields:
             return hl.tstruct([], [])
         else:
-            fds = maybe_fds[0]
-            names = [f[0] for f in fds]
-            types = [f[1] for f in fds]
+            fields = maybe_fields[0]
+            names = [f[0] for f in fields]
+            types = [f[1] for f in fields]
             return hl.tstruct(names, types)
 
     def visit_tuple(self, node, visited_children):
@@ -95,16 +93,20 @@ class TypeConstructor(NodeVisitor):
 
 
     def visit_fields(self, node, visited_children):
-        return [visited_children[0]] + [x[2] for x in visited_children[2]]
+        first, rest = visited_children
+        return [first] + [field for comma, field in rest]
 
     def visit_field(self, node, visited_children):
-        return (visited_children[0], visited_children[-1])
+        name, comma, type = visited_children
+        return (name, type)
 
     def visit_interval(self, node, visited_children):
-        return hl.tinterval(visited_children[4])
+        tinterval, _, angle_bracket, point_t, angle_bracket = visited_children
+        return hl.tinterval(point_t)
 
     def visit_identifier(self, node, visited_children):
-        return visited_children[0]
+        _, [id], _ = visited_children
+        return id
 
     def visit_simple_identifier(self, node, visited_children):
         return node.text
