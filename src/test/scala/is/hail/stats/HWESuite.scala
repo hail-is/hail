@@ -14,8 +14,8 @@ class HWESuite extends SparkSuite {
   @Test def test() {
     val a = VariantQC(hc.importVCF("src/test/resources/HWE_test.vcf"))
       .rowsTable()
-      .query(Array("rows.map(r => r.locus.position).collect()",
-        "rows.map(_ => {r: row.qc.rExpectedHetFrequency, p: row.qc.pHWE}).collect()"))
+      .query(Array("AGG.map(r => r.locus.position).collect()",
+        "AGG.map(_ => {r: row.qc.rExpectedHetFrequency, p: row.qc.pHWE}).collect()"))
       .map(_._1.asInstanceOf[IndexedSeq[Any]])
 
     val r = a(0).zip(a(1)).toMap
@@ -35,7 +35,7 @@ class HWESuite extends SparkSuite {
       vds2 = VariantQC(vds2)
       vds2 = vds2
         .annotateVariantsExpr("hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")
-        .annotateVariantsExpr("hweAgg = gs.map(g => g.GT).hardyWeinberg()")
+        .annotateVariantsExpr("hweAgg = AGG.map(g => g.GT).hardyWeinberg()")
 
       val (_, q1) = vds2.queryVA("va.qc.rExpectedHetFrequency")
       val (_, q2) = vds2.queryVA("va.qc.pHWE")

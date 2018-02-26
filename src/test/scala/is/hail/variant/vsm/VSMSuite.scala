@@ -125,7 +125,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryGenotypes("gs.map(g => g.GQ).hist(0, 100, 100)")
+    vds.queryGenotypes("AGG.map(g => g.GQ).hist(0, 100, 100)")
   }
 
   @Test def testReorderSamples() {
@@ -135,9 +135,9 @@ class VSMSuite extends SparkSuite {
 
     val filteredVds = vds.filterSamplesList(origOrder.map(Annotation(_)).toSet)
       .indexCols("colIdx")
-      .annotateVariantsExpr("origGenos = gs.take(5)")
+      .annotateVariantsExpr("origGenos = AGG.take(5)")
     val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
-      .annotateVariantsExpr("newGenos = gs.takeBy(g => sa.colIdx, 5)")
+      .annotateVariantsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
     assert(vds.reorderSamples(vds.colKeys).same(vds))

@@ -1923,7 +1923,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "sa" -> (3, colType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "gs" -> (1, TAggregable(entryType, aggregationST))))
+      "AGG" -> (1, TAggregable(entryType, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -1992,7 +1992,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "sa" -> (1, colType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "samples" -> (1, TAggregable(colType, aggregationST))))
+      "AGG" -> (1, TAggregable(colType, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -2037,7 +2037,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "va" -> (1, rowType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "variants" -> (1, TAggregable(rowType, aggregationST))))
+      "AGG" -> (1, TAggregable(rowType, aggregationST))))
     ec.setAll(globals)
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
@@ -2307,7 +2307,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     EvalContext(Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
@@ -2435,7 +2435,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     EvalContext(Map(
       "global" -> (0, globalType),
       "va" -> (1, rowType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def globalsTable(): Table = {

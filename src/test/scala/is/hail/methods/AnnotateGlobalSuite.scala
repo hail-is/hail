@@ -17,10 +17,10 @@ class AnnotateGlobalSuite extends SparkSuite {
     vds = VariantQC(vds)
     vds = SampleQC(vds)
 
-    val (afDist, _) = vds.queryVariants("variants.map(v => va.qc.AF).stats()")
-    val (singStats, _) = vds.querySamples("samples.filter(sa => sa.qc.nSingleton > 2).count()")
-    val (acDist, _) = vds.queryVariants("variants.map(v => va.qc.AC).stats()")
-    val (crStats, _) = vds.querySamples("samples.map(s => sa.qc.callRate).stats()")
+    val (afDist, _) = vds.queryVariants("AGG.map(v => va.qc.AF).stats()")
+    val (singStats, _) = vds.querySamples("AGG.filter(sa => sa.qc.nSingleton > 2).count()")
+    val (acDist, _) = vds.queryVariants("AGG.map(v => va.qc.AC).stats()")
+    val (crStats, _) = vds.querySamples("AGG.map(s => sa.qc.callRate).stats()")
 
     val qSingleton = vds.querySA("sa.qc.nSingleton")._2
 

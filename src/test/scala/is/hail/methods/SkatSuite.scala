@@ -165,7 +165,7 @@ class SkatSuite extends SparkSuite {
       .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateVariantsExpr("gene = va.locus.position % 3") // three genes
-      .annotateVariantsExpr("AF = gs.map(g => g.GT).callStats(GT => va.alleles).AF")
+      .annotateVariantsExpr("AF = AGG.map(g => g.GT).callStats(GT => va.alleles).AF")
       .annotateVariantsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
         "dbeta(af, 1.0, 25.0)**2")
   }

@@ -228,17 +228,10 @@ class RegexMatch(AST):
 
 class AggregableReference(AST):
     def __init__(self):
-        self.is_set = False
         super(AggregableReference, self).__init__()
 
-    @typecheck_method(identifier=str)
-    def set(self, identifier):
-        self.is_set = True
-        self.identifier = identifier
-
     def to_hql(self):
-        assert self.is_set
-        return self.identifier
+        return 'AGG'
 
 class GlobalJoinReference(AST):
     def __init__(self, uid):
@@ -247,8 +240,3 @@ class GlobalJoinReference(AST):
 
     def to_hql(self):
         return 'global.{}'.format(escape_id(self.uid))
-
-@typecheck(ast=AST, identifier=str)
-def replace_aggregables(ast, identifier):
-    for a in ast.search(lambda a: isinstance(a, AggregableReference)):
-        a.set(identifier)

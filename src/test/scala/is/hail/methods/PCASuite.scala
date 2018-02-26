@@ -13,7 +13,7 @@ object PCASuite {
   def samplePCA(vsm: MatrixTable, k: Int = 10, computeLoadings: Boolean = false,
     asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
 
-    val prePCA = vsm.annotateVariantsExpr("AC = gs.map(g => g.GT.nNonRefAlleles()).sum(), nCalled = gs.filter(g => isDefined(g.GT)).count()")
+    val prePCA = vsm.annotateVariantsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum(), nCalled = AGG.filter(g => isDefined(g.GT)).count()")
       .filterVariantsExpr("va.AC > 0 && va.AC < 2 * va.nCalled").persist()
     val nVariants = prePCA.countVariants()
     val expr = s"let mean = va.AC / va.nCalled in if (isDefined(g.GT)) (g.GT.nNonRefAlleles() - mean) / sqrt(mean * (2 - mean) * $nVariants / 2) else 0"

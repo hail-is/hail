@@ -223,11 +223,11 @@ class TableSuite extends SparkSuite {
     val kt1 = Table(hc, rdd, signature, keyNames)
     kt1.typeCheck()
     val kt2 = kt1.aggregate("Status = row.field1",
-      "A = rows.map(r => r.field2).sum(), " +
-        "B = rows.map(r => r.field2).sum(), " +
-        "C = rows.map(r => r.field2 + r.field3).sum(), " +
-        "D = rows.count(), " +
-        "E = rows.filter(r => r.field2 == 3).count()"
+      "A = AGG.map(r => r.field2).sum(), " +
+        "B = AGG.map(r => r.field2).sum(), " +
+        "C = AGG.map(r => r.field2 + r.field3).sum(), " +
+        "D = AGG.count(), " +
+        "E = AGG.filter(r => r.field2 == 3).count()"
     )
 
     kt2.export("test.tsv")
@@ -407,14 +407,14 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val Array(ktMean, ktStDev) = kt.query(Array("rows.map(r => r.qPhen).stats().mean", "rows.map(r => r.qPhen).stats().stdev")).map(_._1)
+    val Array(ktMean, ktStDev) = kt.query(Array("AGG.map(r => r.qPhen).stats().mean", "AGG.map(r => r.qPhen).stats().stdev")).map(_._1)
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))
 
     val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
 
-    val ktCounter = kt.query("rows.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
+    val ktCounter = kt.query("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
   }
@@ -574,7 +574,7 @@ class TableSuite extends SparkSuite {
     assert(kt.forall("global.foo == [1,2,3]"))
     assert(kt.exists("global.dict.get(row.index) == \"bar\""))
 
-    val gkt = kt.aggregate("index = row.index", "x = rows.map(r => global.dict.get(r.index)).collect()[0]")
+    val gkt = kt.aggregate("index = row.index", "x = AGG.map(r => global.dict.get(r.index)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
     assert(kt.select("baz = global.dict.get(row.index)").exists("row.baz == \"bar\""))
 

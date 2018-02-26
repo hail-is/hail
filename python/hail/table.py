@@ -204,15 +204,12 @@ class GroupedTable(TableTemplate):
         :class:`.Table`
             Aggregated table.
         """
-        agg_base = 'rows'
-
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
         base, cleanup = self._parent._process_joins(*itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
-            replace_aggregables(v._ast, agg_base)
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
         group_strs = ',\n'.join('{} = {}'.format(escape_id(k), v._ast.to_hql()) for k, v in self._groups)
@@ -1048,12 +1045,9 @@ class Table(TableTemplate):
         any
             Aggregated value dependent on `expr`.
         """
-        agg_base = 'rows'
-
         expr = to_expr(expr)
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
-        replace_aggregables(expr._ast, agg_base)
 
         result_list = base._jt.query(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]

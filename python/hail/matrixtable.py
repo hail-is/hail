@@ -151,7 +151,6 @@ class GroupedMatrixTable(object):
         for k, v in named_exprs.items():
             analyze('GroupedMatrixTable.aggregate', v, self._grouped_indices,
                     {self._parent._row_axis, self._parent._col_axis})
-            replace_aggregables(v._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
         key_strs = ['{} = {}'.format(escape_id(id), e._ast.to_hql()) for id, e in self._groups]
@@ -678,7 +677,6 @@ class MatrixTable(object):
 
         for k, v in named_exprs.items():
             analyze('MatrixTable.annotate_rows', v, self._row_indices, {self._col_axis})
-            replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._row_indices)
         m = MatrixTable(base._jvds.annotateVariantsExpr(",\n".join(exprs)))
@@ -733,7 +731,6 @@ class MatrixTable(object):
 
         for k, v in named_exprs.items():
             analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
-            replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._col_indices)
         m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
@@ -909,13 +906,11 @@ class MatrixTable(object):
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
-            replace_aggregables(e._ast, 'gs')
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
             check_collisions(self._fields, k, self._row_indices)
-            replace_aggregables(e._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
         m = MatrixTable(base._jvds.selectRows(strs))
         return cleanup(m)
@@ -974,13 +969,11 @@ class MatrixTable(object):
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
-            replace_aggregables(e._ast, 'gs')
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             check_collisions(self._fields, k, self._col_indices)
-            replace_aggregables(e._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
 
         m = MatrixTable(base._jvds.selectCols(strs))
@@ -1210,7 +1203,6 @@ class MatrixTable(object):
         expr = to_expr(expr)
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_rows', expr, self._row_indices, {self._col_axis})
-        replace_aggregables(expr._ast, 'gs')
         m = MatrixTable(base._jvds.filterVariantsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
@@ -1270,7 +1262,6 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_cols', expr, self._col_indices, {self._row_axis})
 
-        replace_aggregables(expr._ast, 'gs')
         m = MatrixTable(base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
@@ -1453,7 +1444,6 @@ class MatrixTable(object):
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
-        replace_aggregables(expr._ast, 'variants')
 
         result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -1505,7 +1495,6 @@ class MatrixTable(object):
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-        replace_aggregables(expr._ast, 'samples')
 
         result_list = base._jvds.querySamples(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -1555,7 +1544,6 @@ class MatrixTable(object):
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
-        replace_aggregables(expr._ast, 'gs')
 
         result_list = base._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
