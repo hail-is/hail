@@ -64,7 +64,7 @@ class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlock
         case x => x
       }
 
-      val variant = Variant(recodedChr, position, ref, alt)
+      val variantInfo = (recodedChr, position, Array(ref, alt))
 
       val bytesInput = if (bState.compressed) {
         val compressedBytes = bfis.readInt()
@@ -72,7 +72,7 @@ class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlock
       } else
         bfis.readBytes(nRow * 6)
 
-      value.setKey(variant)
+      value.setKey(variantInfo)
       value.setAnnotation(Annotation(rsid, lid))
       value.setSerializedValue(bytesInput)
 
@@ -97,15 +97,15 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
 
       val nAlleles = bfis.readShort()
       assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid'")
-      val nAltAlleles = nAlleles - 1
+      val alleles = new Array[String](nAlleles)
 
       val ref = bfis.readLengthAndString(4)
-      val altAlleles = new Array[String](nAltAlleles)
+      alleles(0) = ref
 
-      var altIndex = 0
-      while (altIndex < nAltAlleles) {
-        altAlleles(altIndex) = bfis.readLengthAndString(4)
-        altIndex += 1
+      var aIdx = 1
+      while (aIdx < nAlleles) {
+        alleles(aIdx) = bfis.readLengthAndString(4)
+        aIdx += 1
       }
 
       val recodedChr = chr match {
@@ -116,7 +116,7 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
         case x => x
       }
 
-      val variant = Variant(recodedChr, position, ref, altAlleles)
+      val variantInfo = (recodedChr, position, alleles)
 
       val dataSize = bfis.readInt()
 
@@ -126,7 +126,7 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
         else
           (dataSize, bfis.readBytes(dataSize))
 
-      value.setKey(variant)
+      value.setKey(variantInfo)
       value.setAnnotation(Annotation(rsid, lid))
       value.setSerializedValue(bytesInput)
       value.setExpectedDataSize(uncompressedSize)

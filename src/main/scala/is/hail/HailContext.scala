@@ -254,7 +254,7 @@ class HailContext private(val sc: SparkContext,
     includeGP: Boolean,
     includeDosage: Boolean,
     nPartitions: Option[Int] = None,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     tolerance: Double = 0.2): MatrixTable = {
     importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, gr, contigRecoding, tolerance)
@@ -266,7 +266,7 @@ class HailContext private(val sc: SparkContext,
     includeGP: Boolean = true,
     includeDosage: Boolean = false,
     nPartitions: Option[Int] = None,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     tolerance: Double = 0.2): MatrixTable = {
 
@@ -285,7 +285,7 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
-    contigRecoding.foreach(gr.validateContigRemap)
+    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     LoadBgen.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
       nPartitions, gr, contigRecoding.getOrElse(Map.empty[String, String]), tolerance)
@@ -296,7 +296,7 @@ class HailContext private(val sc: SparkContext,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
     importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, gr, contigRecoding)
   }
@@ -306,7 +306,7 @@ class HailContext private(val sc: SparkContext,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
     val inputs = hadoopConf.globAll(files)
 
@@ -318,7 +318,7 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: ${ files.mkString(",") }")
 
-    contigRecoding.foreach(gr.validateContigRemap)
+    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val samples = LoadBgen.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
@@ -346,7 +346,7 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of samples in GEN files: $nSamples")
 
     val signature = TStruct(
-      "locus" -> TLocus(gr),
+      "locus" -> TLocus.schemaFromGR(gr),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(), "varid" -> TString())
 
@@ -375,9 +375,8 @@ class HailContext private(val sc: SparkContext,
     missing: String,
     noHeader: Boolean,
     impute: Boolean,
-    quote: java.lang.Character,
-    gr: GenomeReference): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote, gr)
+    quote: java.lang.Character): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote)
 
   def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
@@ -388,9 +387,8 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null,
-    gr: GenomeReference = GenomeReference.defaultReference): Table = {
-    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote, gr)
+    quote: java.lang.Character = null): Table = {
+    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote)
   }
 
   def importTables(inputs: Seq[String],
@@ -402,8 +400,7 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null,
-    gr: GenomeReference = GenomeReference.defaultReference): Table = {
+    quote: java.lang.Character = null): Table = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
@@ -412,7 +409,7 @@ class HailContext private(val sc: SparkContext,
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, gr)
+        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote)
 
     Table(this, rdd.map(_.value), struct, keyNames)
   }
@@ -423,16 +420,15 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None,
-    dropChr0: Boolean = false): MatrixTable = {
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
 
-    contigRecoding.foreach(gr.validateContigRemap)
+    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     LoadPlink(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]), dropChr0)
+      ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]))
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -441,11 +437,10 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None,
-    dropChr0: Boolean = false): MatrixTable = {
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding, dropChr0)
+      nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding)
   }
 
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {
@@ -509,7 +504,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
     importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr, contigRecoding)
   }
@@ -520,10 +515,10 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference,
+    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
 
-    contigRecoding.foreach(gr.validateContigRemap)
+    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 

@@ -1,7 +1,8 @@
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics import Locus, Call, GenomeReference
+# from hail.genetics import Locus, Call, GenomeReference
+from hail.genetics.genomeref import reference_genome_type
 
 std_len = len
 std_str = str
@@ -640,8 +641,9 @@ def index(structs, identifier):
                           structs._indices, structs._aggregations, structs._joins, structs._refs)
 
 
-@typecheck(contig=expr_str, pos=expr_int32, reference_genome=nullable(GenomeReference))
-def locus(contig, pos, reference_genome=None):
+@typecheck(contig=expr_str, pos=expr_int32,
+           reference_genome=reference_genome_type)
+def locus(contig, pos, reference_genome='default'):
     """Construct a locus expression from a chromosome and position.
 
     Examples
@@ -657,8 +659,8 @@ def locus(contig, pos, reference_genome=None):
         Chromosome.
     pos : int or :class:`.Expression` of type :class:`.TInt32`
         Base position along the chromosome.
-    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`~hail.default_reference` if not passed).
+    reference_genome : :obj:`str` or :class:`.GenomeReference`
+        Reference genome to use.
 
     Returns
     -------
@@ -666,15 +668,15 @@ def locus(contig, pos, reference_genome=None):
     """
     contig = to_expr(contig)
     pos = to_expr(pos)
-    if reference_genome is None:
-        reference_genome = Env.hc().default_reference
+
     indices, aggregations, joins, refs = unify_all(contig, pos)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
                           tlocus(reference_genome), indices, aggregations, joins, refs)
 
 
-@typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
-def parse_locus(s, reference_genome=None):
+@typecheck(s=expr_str,
+           reference_genome=reference_genome_type)
+def parse_locus(s, reference_genome='default'):
     """Construct a locus expression by parsing a string or string expression.
 
     Examples
@@ -693,22 +695,21 @@ def parse_locus(s, reference_genome=None):
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`.default_reference` if not passed).
+    reference_genome : :obj:`str` or :class:`.GenomeReference`
+        Reference genome to use.
 
     Returns
     -------
     :class:`.LocusExpression`
     """
     s = to_expr(s)
-    if reference_genome is None:
-        reference_genome = Env.hc().default_reference
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
 
-@typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
-def parse_variant(s, reference_genome=None):
+@typecheck(s=expr_str,
+           reference_genome=reference_genome_type)
+def parse_variant(s, reference_genome='default'):
     """Construct a struct with a locus and alleles by parsing a string.
 
     Examples
@@ -730,8 +731,8 @@ def parse_variant(s, reference_genome=None):
     ----------
     s : :class:`.StringExpression`
         String to parse.
-    reference_genome: :class:`.GenomeReference`
-        Genome reference.
+    reference_genome: :obj:`str` or :class:`.GenomeReference`
+        Reference genome to use.
 
     Returns
     -------
@@ -739,8 +740,6 @@ def parse_variant(s, reference_genome=None):
         Struct with fields `locus` and `alleles`.
     """
     s = to_expr(s)
-    if reference_genome is None:
-        reference_genome = Env.hc().default_reference
     t = tstruct(['locus', 'alleles'], [tlocus(reference_genome), tarray(tstr)])
     return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
                           s._indices, s._aggregations, s._joins, s._refs)
@@ -825,8 +824,6 @@ def interval(start, end):
         Starting locus (inclusive).
     end : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
         End locus (exclusive).
-    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -843,8 +840,9 @@ def interval(start, end):
         indices, aggregations, joins, refs)
 
 
-@typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
-def parse_interval(s, reference_genome=None):
+@typecheck(s=expr_str,
+           reference_genome=reference_genome_type)
+def parse_interval(s, reference_genome='default'):
     """Construct an interval expression by parsing a string or string expression.
 
     Examples
@@ -868,16 +866,14 @@ def parse_interval(s, reference_genome=None):
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`.default_reference` if not passed).
+    reference_genome : :obj:`str` or :class:`.hail.genetics.GenomeReference`
+        Reference genome to use.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
     s = to_expr(s)
-    if reference_genome is None:
-        reference_genome = Env.hc().default_reference
     return construct_expr(
         ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), tinterval(tlocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)

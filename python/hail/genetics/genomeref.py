@@ -2,12 +2,15 @@ from hail.history import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import handle_py4j, jiterable_to_list, Env
+from hail.typecheck import oneof, transformed
+import hail as hl
 
 
 class GenomeReference(HistoryMixin):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
-    :param str name: Name of reference. Must be unique and not one of Hail's predefined references "GRCh37" and "GRCh38".
+    :param str name: Name of reference. Must be unique and not one of Hail's
+        predefined references "GRCh37", "GRCh38", and "default".
 
     :param contigs: Contig names.
     :type contigs: list of str
@@ -305,3 +308,5 @@ class GenomeReference(HistoryMixin):
     @handle_py4j
     def _check_interval(self, interval_jrep):
         self._jrep.checkInterval(interval_jrep)
+
+reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), GenomeReference)

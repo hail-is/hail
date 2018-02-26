@@ -1,7 +1,7 @@
 package is.hail.variant
 
+import is.hail.annotations.Annotation
 import is.hail.check.Gen
-import is.hail.expr.types.TInterval
 import is.hail.expr.Parser
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -17,6 +17,13 @@ object Locus {
   def apply(contig: String, position: Int, gr: GRBase): Locus = {
     gr.checkLocus(contig, position)
     Locus(contig, position)
+  }
+
+  def apply(contig: String, position: Int, gr: Option[GenomeReference]): Annotation = {
+    gr match {
+      case Some(ref) => Locus(contig, position, ref)
+      case None => Annotation(contig, position)
+    }
   }
 
   def sparkSchema: StructType =

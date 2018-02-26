@@ -132,12 +132,18 @@ def default_reference():
 def get_reference(name):
     """Return the reference genome corresponding to `name`.
 
+    If `name` is ``default``, return the reference from :func:`.default_reference`.
+
     Returns
     -------
     :class:`.GenomeReference`
     """
     from hail import GenomeReference
-    return GenomeReference._references.get(
-        name,
-        GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
-    )
+
+    if name == "default":
+        return default_reference()
+    else:
+        return GenomeReference._references.get(
+            name,
+            GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
+        )

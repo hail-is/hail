@@ -5,7 +5,7 @@ import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
 import is.hail.variant.{Call2, Genotype, Variant}
 
-abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
+abstract class BgenRecord extends KeySerializedValueRecord[(String, Int, Array[String])] {
   var ann: Annotation = _
 
   def setAnnotation(ann: Annotation) {

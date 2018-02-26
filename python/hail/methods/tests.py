@@ -9,7 +9,7 @@ import hail.utils as utils
 from hail.utils.misc import test_file, doctest_file
 from hail.linalg import BlockMatrix
 from math import sqrt
-from hail.expr.types import TStruct, TCall, TArray, TFloat64
+from hail.expr.types import TStruct, TCall, TArray, TFloat64, TString, TInt32, TLocus
 
 
 def setUpModule():
@@ -424,7 +424,9 @@ class Tests(unittest.TestCase):
 
     def test_import_interval_list(self):
         interval_file = test_file('annotinterall.interval_list')
-        nint = hl.import_interval_list(interval_file).count()
+        intervals = hl.import_interval_list(interval_file, reference_genome='GRCh37')
+        nint = intervals.count()
+
         i = 0
         with open(interval_file) as f:
             for line in f:
@@ -432,9 +434,19 @@ class Tests(unittest.TestCase):
                     i += 1
         self.assertEqual(nint, i)
 
+        self.assertEqual(intervals.interval.dtype.point_type, TLocus('GRCh37'))
+
+    def test_import_interval_list_no_reference_specified(self):
+        interval_file = test_file('annotinterall.interval_list')
+        t = hl.import_interval_list(interval_file, reference_genome=None)
+        self.assertEqual(t.interval.dtype.point_type, TStruct(['contig', 'position'],
+                                                              [TString(), TInt32()]))
+
     def test_import_bed(self):
         bed_file = test_file('example1.bed')
-        nbed = hl.import_bed(bed_file).count()
+        bed = hl.import_bed(bed_file, reference_genome='GRCh37')
+
+        nbed = bed.count()
         i = 0
         with open(bed_file) as f:
             for line in f:
@@ -445,6 +457,14 @@ class Tests(unittest.TestCase):
                     except:
                         pass
         self.assertEqual(nbed, i)
+
+        self.assertEqual(bed.interval.dtype.point_type, TLocus('GRCh37'))
+
+    def test_import_bed_no_reference_specified(self):
+        bed_file = test_file('example1.bed')
+        t = hl.import_bed(bed_file, reference_genome=None)
+        self.assertEqual(t.interval.dtype.point_type, TStruct(['contig', 'position'],
+                                                              [TString(), TInt32()]))
 
     def test_import_fam(self):
         fam_file = test_file('sample.fam')
@@ -675,9 +695,20 @@ class Tests(unittest.TestCase):
     def test_import_gen(self):
         gen = hl.import_gen(test_file('example.gen'),
                             sample_file=test_file('example.sample'),
-                            contig_recoding={"01": "1"}).rows_table()
+                            contig_recoding={"01": "1"},
+                            reference_genome = 'GRCh37').rows_table()
         self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
+        self.assertEqual(gen.locus.dtype, TLocus('GRCh37'))
+
+    def test_import_gen_no_reference_specified(self):
+        gen = hl.import_gen(test_file('example.gen'),
+                      sample_file=test_file('example.sample'),
+                      reference_genome=None)
+
+        self.assertTrue(gen.locus.dtype == TStruct(['contig', 'position'],
+                                                   [TString(), TInt32()]))
+        self.assertEqual(gen.count_rows(), 199)
 
     def test_import_bgen(self):
         hl.index_bgen(test_file('example.v11.bgen'))
@@ -685,7 +716,8 @@ class Tests(unittest.TestCase):
         bgen_rows = hl.import_bgen(test_file('example.v11.bgen'),
                                    entry_fields=['GT', 'GP'],
                                    sample_file=test_file('example.sample'),
-                                   contig_recoding={'01': '1'}).rows_table()
+                                   contig_recoding={'01': '1'},
+                                   reference_genome='GRCh37').rows_table()
         self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == '1'))
         self.assertEqual(bgen_rows.count(), 199)
 
@@ -693,22 +725,35 @@ class Tests(unittest.TestCase):
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
                               entry_fields=['dosage'],
-                              contig_recoding={'01': '1'})
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
         self.assertTrue(bgen.entry_schema == TStruct(['dosage'], [TFloat64()]))
 
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=test_file('example.sample'),
-                              contig_recoding={'01': '1'})
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
         self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP'], [TCall(), TArray(TFloat64())]))
         self.assertTrue(bgen.count_rows() == 199)
 
         hl.index_bgen(test_file('example.10bits.bgen'))
         bgen = hl.import_bgen(test_file('example.10bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
-                              contig_recoding={'01': '1'})
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
         self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP', 'dosage'], [TCall(), TArray(TFloat64()), TFloat64()]))
+        self.assertEqual(bgen.locus.dtype, TLocus('GRCh37'))
+
+    def test_import_bgen_no_reference_specified(self):
+        bgen = hl.import_bgen(test_file('example.10bits.bgen'),
+                              entry_fields=['GT', 'GP', 'dosage'],
+                              contig_recoding={'01': '1'},
+                              reference_genome=None)
+        self.assertTrue(bgen.locus.dtype == TStruct(['contig', 'position'],
+                                                    [TString(), TInt32()]))
+        self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
@@ -718,6 +763,14 @@ class Tests(unittest.TestCase):
 
         vcf_table = vcf.rows_table()
         self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
+        self.assertTrue(vcf.locus.dtype, TLocus('GRCh37'))
+
+    def test_import_vcf_no_reference_specified(self):
+        vcf = hl.import_vcf(test_file('sample2.vcf'),
+                            reference_genome=None)
+        self.assertTrue(vcf.locus.dtype == TStruct(['contig', 'position'],
+                                                   [TString(), TInt32()]))
+        self.assertEqual(vcf.count_rows(), 735)
 
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
@@ -729,10 +782,20 @@ class Tests(unittest.TestCase):
 
         bfile = '/tmp/sample_plink'
         plink = hl.import_plink(
-            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True,
-            contig_recoding={'chr22': '22'}).rows_table()
+            bfile + '.bed', bfile + '.bim', bfile + '.fam',
+            a2_reference=True,
+            contig_recoding={'chr22': '22'},
+            reference_genome='GRCh37').rows_table()
         self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
+        self.assertTrue(plink.locus.dtype, TLocus('GRCh37'))
+
+    def test_import_plink_no_reference_specified(self):
+        bfile = test_file('fastlmmTest')
+        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
+                                reference_genome=None)
+        self.assertTrue(plink.locus.dtype == TStruct(['contig', 'position'],
+                                                     [TString(), TInt32()]))
 
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_file('matrix1.tsv'),

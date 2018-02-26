@@ -1,14 +1,16 @@
 package is.hail.io.annotators
 
 import is.hail.HailContext
+import is.hail.annotations.Annotation
 import is.hail.expr.types._
+import is.hail.io.vcf.LoadVCF
 import is.hail.table.Table
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object BedAnnotator {
-  def apply(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.defaultReference): Table = {
+  def apply(hc: HailContext, filename: String, gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     val hasTarget = hc.hadoopConf.readLines(filename) { lines =>
@@ -37,12 +39,14 @@ object BedAnnotator {
 
     val expectedLength = if (hasTarget) 4 else 3
 
-    val schema = if (hasTarget)
-      TStruct("interval" -> TInterval(TLocus(gr)), "target" -> TString())
-    else
-      TStruct("interval" -> TInterval(TLocus(gr)))
+    val locusSchema = TLocus.schemaFromGR(gr)
 
-    implicit val ord = TInterval(gr.locusType).ordering
+    val schema = if (hasTarget)
+      TStruct("interval" -> TInterval(locusSchema), "target" -> TString())
+    else
+      TStruct("interval" -> TInterval(locusSchema))
+
+    implicit val ord = TInterval(locusSchema).ordering
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(line =>
@@ -59,7 +63,8 @@ object BedAnnotator {
           // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
           val start = spl(1).toInt + 1
           val end = spl(2).toInt + 1
-          val interval = Interval(Locus(chrom, start), Locus(chrom, end), true, false)
+
+          val interval = Interval(Locus(chrom, start, gr), Locus(chrom, end, gr), true, false)
 
           if (hasTarget)
             Row(interval, spl(3))

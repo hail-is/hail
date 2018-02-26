@@ -330,6 +330,7 @@ object GenomeReference {
   val GRCh37: GenomeReference = fromResource("reference/grch37.json")
   val GRCh38: GenomeReference = fromResource("reference/grch38.json")
   var defaultReference = GRCh37
+  references += ("default" -> defaultReference)
   val hailReferences = references.keySet
 
   def addReference(gr: GenomeReference) {

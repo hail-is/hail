@@ -13,7 +13,7 @@ import scala.collection.mutable
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
 object LoadGen {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext, gr: GenomeReference,
+  def apply(genFile: String, sampleFile: String, sc: SparkContext, gr: Option[GenomeReference],
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
     chromosome: Option[String] = None, contigRecoding: Map[String, String] = Map.empty[String, String]): GenResult = {
 
@@ -34,7 +34,7 @@ object LoadGen {
 
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
-    gr: GenomeReference,
+    gr: Option[GenomeReference],
     chromosome: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String]): (Annotation, Iterable[Annotation]) = {
 
@@ -51,7 +51,6 @@ object LoadGen {
     val locus = Locus(recodedContig, start.toInt, gr)
     val alleles = Array(ref, alt).toFastIndexedSeq
 
-    val nGenotypes = 3
     val gp = arr.drop(6 - chrCol).map {
       _.toDouble
     }

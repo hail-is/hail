@@ -4,6 +4,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix, GenomeReference
+from hail.genetics.genomeref import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
@@ -2266,10 +2267,10 @@ def rrm(call_expr):
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
-           reference_genome=nullable(GenomeReference))
+           reference_genome=reference_genome_type)
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome=None):
+                          seed=0, reference_genome='default'):
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2403,8 +2404,8 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Default is ``UniformDist(0.1, 0.9)``.
     seed : :obj:`int`
         Random seed.
-    reference_genome : :class:`.GenomeReference`, optional
-        Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    reference_genome : :obj:`str` or :class:`.GenomeReference`
+        Reference genome to use.
 
     Returns
     -------
@@ -2422,16 +2423,13 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
-
     jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
                                             joption(num_partitions),
                                             jvm_pop_dist_opt,
                                             jvm_fst_opt,
                                             af_dist._jrep(),
                                             seed,
-                                            rg._jrep)
+                                            reference_genome._jrep)
     return MatrixTable(jmt)
 
 

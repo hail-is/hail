@@ -5,6 +5,7 @@ from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
 from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list, escape_parsable
+from hail.genetics.genomeref import reference_genome_type
 from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 
@@ -771,17 +772,13 @@ class TLocus(Type):
     Parameters
     ----------
     reference_genome: :class:`.GenomeReference` or :obj:`str`
-        Reference genome to use. Default is
-        :meth:`hail.default_reference`.
+        Reference genome to use.
     """
 
-    @typecheck_method(reference_genome=nullable(oneof(genetics.GenomeReference, str)))
-    def __init__(self, reference_genome=None):
-        if reference_genome is not None:
-            if not isinstance(reference_genome, genetics.GenomeReference):
-                reference_genome = hl.get_reference(reference_genome)
+    @typecheck_method(reference_genome=reference_genome_type)
+    def __init__(self, reference_genome='default'):
         self._rg = reference_genome
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self.reference_genome._jrep,
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self._rg._jrep,
                                                                                       False)
         super(TLocus, self).__init__()
 
