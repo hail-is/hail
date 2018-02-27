@@ -9,6 +9,7 @@ Types
 .. autosummary::
     :nosignatures:
 
+    Type
     dtype
     tint
     tint32
@@ -26,7 +27,6 @@ Types
     tlocus
     tinterval
     tcall
-    Type
     TString
     TInt32
     TInt64
@@ -44,6 +44,7 @@ Types
     Field
 
 .. autoclass:: Type
+.. autofunction:: dtype
 .. autoattribute:: hail.expr.types.tint
 .. autoattribute:: hail.expr.types.tint32
 .. autoattribute:: hail.expr.types.tint64
