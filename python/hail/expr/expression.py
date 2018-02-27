@@ -1666,7 +1666,7 @@ class DictExpression(Expression):
 
     @typecheck_method(item=expr_any, default=nullable(expr_any))
     def get(self, item, default=None):
-        """Returns the value associated with key `k`, or missing if that key is not present.
+        """Returns the value associated with key `k` or a default value if that key is not present.
 
         Examples
         --------
@@ -1686,24 +1686,25 @@ class DictExpression(Expression):
         item : :class:`.Expression`
             Key.
         default : :class:`.Expression`
-            Default value, must be same type as dictionary value.
+            Default value. Must be same type as dictionary values.
 
         Returns
         -------
         :class:`.Expression`
-            The value associated with `item`, or missing.
+            The value associated with `item`, or `default`.
         """
         if not item.dtype == self.dtype.key_type:
             raise TypeError("'DictExpression.get' encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
                             "    type of 'item': '{}'".format(self.dtype.key_type, item._type))
-        res = self._method("get", self._value_typ, item)
         if default is not None:
-            result_type = unify_types_limited(self.dtype.value_type, default.dtype)
-            if not result_type:
-                raise TypeError("'get' expects parameter 'default' to have the same type as the dictionary value type, found '{}' and '{}'".format(self.dtype, default.dtype))
-            res = hl.or_else(res, default)
-        return res
+            if not self.dtype.value_type == default.dtype:
+                raise TypeError("'get' expects parameter 'default' to have the "
+                                "same type as the dictionary value type, found '{}' and '{}'"
+                                .format(self.dtype, default.dtype))
+            return self._method("get", self._value_typ, item, default)
+        else:
+            return self._method("get", self._value_typ, item)
 
     def key_set(self):
         """Returns the set of keys in the dictionary.
