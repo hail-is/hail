@@ -38,7 +38,7 @@ class ExportSuite extends SparkSuite {
     "row.qc.n_non_ref",
     "row.qc.r_ti_tv",
     "row.qc.r_het_hom_var",
-    "row.qc.rInsertion_deletion").export(out)
+    "row.qc.r_insertion_deletion").export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -53,7 +53,7 @@ class ExportSuite extends SparkSuite {
       "n_called" -> TInt64(),
       "n_not_called" -> TInt64(),
       "n_hom_ref" -> TInt64(),
-      "nHet" -> TInt64(),
+      "n_het" -> TInt64(),
       "n_hom_var" -> TInt64(),
       "n_snp" -> TInt64(),
       "n_insertion" -> TInt64(),
@@ -126,7 +126,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
     vds
       .colsTable()
-      .select("computation = 5 * (if (row.qc.callRate < .95) 0 else 1)")
+      .select("computation = 5 * (if (row.qc.call_rate < .95) 0 else 1)")
       .export(f)
   }
 }
