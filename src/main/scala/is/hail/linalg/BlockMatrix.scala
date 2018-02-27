@@ -252,10 +252,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap2(that, _ - _)
 
   def pointwiseMultiply(that: M): M =
-    blockMap2(that, _ :* _)
+    blockMap2(that, _ *:* _)
 
   def pointwiseDivide(that: M): M =
-    blockMap2(that, _ :/ _)
+    blockMap2(that, _ /:/ _)
 
   def multiply(that: M): M =
     new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
@@ -273,10 +273,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap(_ - i)
 
   def scalarMultiply(i: Double): M =
-    blockMap(_ :* i)
+    blockMap(_ *:* i)
 
   def scalarDivide(i: Double): M =
-    blockMap(_ / i)
+    blockMap(_ /:/ i)
 
   def vectorAddToEveryColumn(v: Array[Double]): M = {
     require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
