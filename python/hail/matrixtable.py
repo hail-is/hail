@@ -107,12 +107,12 @@ class GroupedMatrixTable(object):
         if self._row_keys is None:
             rowstr = "NA"
         else:
-            rowstr = "\n".join(["{}: {}".format(k, v) for k, v in self._row_keys])
+            rowstr = "\n".join(["{}: {}".format(k, v) for k, v in self._row_keys.items()])
 
         if self._col_keys is None:
             colstr = "NA"
         else:
-            colstr = "\n".join(["{}: {}".format(k, v) for k, v in self._col_keys])
+            colstr = "\n".join(["{}: {}".format(k, v) for k, v in self._col_keys.items()])
 
         s = '--------------------------------------------\n' \
         'Rows grouped on: {}\n' \
@@ -162,6 +162,9 @@ class GroupedMatrixTable(object):
         if self._col_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols; cannot also group by rows.")
         new_keys = {}
+        kept_fields = [f.name for f in self._parent.global_schema.fields]
+        if self._col_keys is None:
+            kept_fields.extend([f.name for f in self._parent.col_schema.fields])
 
         for e in exprs:
             if isinstance(e, str):
@@ -174,12 +177,12 @@ class GroupedMatrixTable(object):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
             key = ast[0].name
 
-            if key in new_keys:
+            if key in new_keys or key in kept_fields:
                 raise ExpressionException("method 'group_rows_by' found duplicate field: {}".format(key))
             new_keys[key] = e
 
         for key, e in named_exprs.items():
-            if key in new_keys:
+            if key in new_keys or key in kept_fields:
                 raise ExpressionException("method 'group_rows_by' found duplicate field: {}".format(key))
             new_keys[key] = e
 
@@ -224,6 +227,10 @@ class GroupedMatrixTable(object):
         if self._col_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols.")
         new_keys = {}
+        kept_fields = [f.name for f in self._parent.global_schema.fields]
+        if self._row_keys is None:
+            kept_fields.extend([f.name for f in self._parent.row_schema.fields])
+
         for e in exprs:
             if isinstance(e, str):
                 e = self[e]
@@ -234,12 +241,12 @@ class GroupedMatrixTable(object):
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
             key = ast[0].name
-            if key in new_keys:
+            if key in new_keys or key in kept_fields:
                 raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
             new_keys[key] = e
 
         for key, e in named_exprs.items():
-            if key in new_keys:
+            if key in new_keys or key in kept_fields:
                 raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
             new_keys[key] = e
 
@@ -333,8 +340,20 @@ class GroupedMatrixTable(object):
 
         strs = []
 
+        fixed_fields = [f.name for f in self._parent.global_schema.fields]
+        if self._row_keys is not None:
+            fixed_fields.extend(self._row_keys.keys())
+        else:
+            fixed_fields.extend([f.name for f in self._parent.row_schema.fields])
+        if self._col_keys is not None:
+            fixed_fields.extend(self._col_keys.keys())
+        else:
+            fixed_fields.extend([f.name for f in self._parent.col_schema.fields])
+
         base, _ = self._parent._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
+            if k in fixed_fields:
+                raise ExpressionException("GroupedMatrixTable.group_cols_by cannot assign duplicate field '{}'".format(k))
             analyze('GroupedMatrixTable.aggregate', v, self._fixed_indices(),
                     {self._parent._row_axis, self._parent._col_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
