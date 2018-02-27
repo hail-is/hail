@@ -202,6 +202,7 @@ def info(msg):
 
 def handle_java_exception(f):
     def deco(*args, **kwargs):
+        import pyspark
         _exception = None
         try:
             return f(*args, **kwargs)
@@ -217,14 +218,6 @@ def handle_java_exception(f):
             _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
                                     'Hail version: %s\n'
                                     'Error summary: %s' % (deepest, full, Env.hc().version, deepest))
-        except py4j.protocol.Py4JError as e:
-            if e.args[0].startswith('An error occurred while calling'):
-                msg = 'An error occurred while calling into JVM, probably due to invalid parameter types.'
-                _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
-                                        'Hail version: %s\n'
-                                        'Error summary: %s' % (msg, e.message, Env.hc().version, msg))
-            else:
-                raise
         except pyspark.sql.utils.CapturedException as e:
             _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
                                     'Hail version: %s\n'
