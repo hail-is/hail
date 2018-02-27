@@ -12,14 +12,14 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     val bit = it.buffered
     StagingIterator(
       new StateMachine[T] {
-        def curValue: T = bit.head
-        def isActive = bit.hasNext
+        def value: T = bit.head
+        def isValid = bit.hasNext
         def advance() { bit.next() }
       }
     )
   }
 
-  def toEphemeralIterator: FlipbookIterator[T] = toStagingIterator
+  def toFlipbookIterator: FlipbookIterator[T] = toStagingIterator
 
   def foreachBetween(f: (T) => Unit)(g: => Unit) {
     if (it.hasNext) {

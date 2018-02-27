@@ -6,20 +6,20 @@ import is.hail.utils._
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
-    iterator.toEphemeralIterator.staircased(t.kRowOrdView)
+    iterator.toFlipbookIterator.staircased(t.kRowOrdView)
 
   def cogroup(other: OrderedRVIterator):
       FlipbookIterator[Muple[FlipbookIterator[RegionValue], FlipbookIterator[RegionValue]]] =
-    this.iterator.toEphemeralIterator.cogroup(
-      other.iterator.toEphemeralIterator,
+    this.iterator.toFlipbookIterator.cogroup(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       this.t.kComp(other.t).compare
     )
 
   def zipJoin(other: OrderedRVIterator): FlipbookIterator[JoinedRegionValue] =
-    iterator.toEphemeralIterator.orderedZipJoin(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.orderedZipJoin(
+      other.iterator.toFlipbookIterator,
       leftDefault = null,
       rightDefault = null,
       OrderedRVDType.selectUnsafeOrdering(
@@ -28,8 +28,8 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
     )
 
   def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
-    iterator.toEphemeralIterator.innerJoinDistinct(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.innerJoinDistinct(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
@@ -38,8 +38,8 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
     )
 
   def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
-    iterator.toEphemeralIterator.leftJoinDistinct(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.leftJoinDistinct(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
@@ -48,8 +48,8 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
     )
 
   def innerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    iterator.toEphemeralIterator.innerJoin(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.innerJoin(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
@@ -60,8 +60,8 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
   }
 
   def leftJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    iterator.toEphemeralIterator.leftJoin(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.leftJoin(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
@@ -72,8 +72,8 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
   }
 
   def rightJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    iterator.toEphemeralIterator.rightJoin(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.rightJoin(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
@@ -84,8 +84,8 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
   }
 
   def outerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
-    iterator.toEphemeralIterator.outerJoin(
-      other.iterator.toEphemeralIterator,
+    iterator.toFlipbookIterator.outerJoin(
+      other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,

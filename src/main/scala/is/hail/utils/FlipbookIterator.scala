@@ -1,18 +1,35 @@
 package is.hail.utils
 
+import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
 
-
-trait StateMachine[A] {
-  def isActive: Boolean
-  def curValue: A
+/**
+  * A StateMachine has the same primary interface as FlipbookIterator, but the
+  * implementations are not expected to be checked (for instance, value does not
+  * need to assert isValid). The only intended use of a StateMachine is to
+  * instantiate a FlipbookIterator or StagingIterator through the corresponding
+  * factory methods.
+  *
+  * A StateMachine implementation must satisfy the following properties:
+  * - isValid and value do not change the state of the StateMachine in any
+  *   observable way. In other words, if advance() is not called, then any
+  *   number of calls to value and isValid will always have the same return
+  *   values.
+  * - If isValid is true, than value returns a valid value. If isValid is false,
+  *   then the behavior of value is undefined.
+  * - advance() puts the StateMachine into a new state, after which the return values
+  *   of isValid and value may have changed.
+  */
+abstract class StateMachine[A] {
+  def isValid: Boolean
+  def value: A
   def advance(): Unit
 }
 
 object StateMachine {
   def terminal[A]: StateMachine[A] = new StateMachine[A] {
-    val isActive = false
-    var curValue: A = _
+    val isValid = false
+    var value: A = _
     def advance() {}
   }
 }
@@ -25,28 +42,28 @@ object StagingIterator {
 class StagingIterator[A] private (sm: StateMachine[A]) extends FlipbookIterator[A] {
   private var isConsumed: Boolean = false
 
-  // EphemeralIterator interface
-  def isValid: Boolean = sm.isActive
-  def value: A = { assert(isValid && !isConsumed); sm.curValue }
+  // FlipbookIterator interface
+  def isValid: Boolean = sm.isValid
+  def value: A = { assert(isValid && !isConsumed); sm.value }
   def advance(): Unit = {
     assert(isValid)
-    sm.advance()
     isConsumed = false
+    sm.advance()
   }
 
   // Additional StagingIterator methods
-  def consume(): A = { assert(isValid && !isConsumed); isConsumed = true; sm.curValue }
+  def consume(): A = { assert(isValid && !isConsumed); isConsumed = true; sm.value }
   def stage(): Unit = {
     if (isConsumed) {
-      sm.advance()
       isConsumed = false
+      sm.advance()
     }
   }
-  def consumedValue: A = { assert(isValid && isConsumed); sm.curValue }
+  def consumedValue: A = { assert(isValid && isConsumed); sm.value }
 
   // (Buffered)Iterator interface, not intended to be used directly, only for
   // passing a StagingIterator where an Iterator is expected
-  def head: A = sm.curValue
+  def head: A = { stage(); sm.value }
   def hasNext: Boolean = {
     if (isValid) {
       stage()
@@ -70,13 +87,13 @@ object FlipbookIterator {
 }
 
 /**
-  * The primary public interface of EphemeralIterator[A] consists of the methods
+  * The primary public interface of FlipbookIterator[A] consists of the methods
   * - isValid: Bolean
   * - value: A
   * - advance(): Unit
   *
   * It also extends BufferedIterator[A] for interoperability with Scala and
-  * Spark
+  * Spark.
   *
   * To define a new FlipbookIterator, define a StateMachine (which has the same
   * abstract methods as FlipbookIterator, but is unchecked), then use the
@@ -94,18 +111,66 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   def toStagingIterator: StagingIterator[A]
 
+  override def filter(pred: A => Boolean): FlipbookIterator[A] = FlipbookIterator(
+    new StateMachine[A] {
+      def value = self.value
+      def isValid = self.isValid
+      def advance() {
+        do {
+          self.advance()
+        } while (self.isValid && !pred(self.value))
+      }
+      while (self.isValid && !pred(self.value)) self.advance()
+    }
+  )
+
+  override def withFilter(pred: A => Boolean): FlipbookIterator[A] = filter(pred)
+
+  override def map[B](f: A => B): FlipbookIterator[B] = FlipbookIterator(
+    new StateMachine[B] {
+      var value: B = _
+      if (self.isValid) value = f(self.value)
+      def isValid = self.isValid
+      def advance() {
+        self.advance()
+        if (self.isValid) value = f(self.value)
+      }
+    }
+  )
+
+  override def flatMap[B](f: A => GenTraversableOnce[B]): FlipbookIterator[B] =
+    FlipbookIterator(
+      new StateMachine[B] {
+        var it: FlipbookIterator[B] = _
+        if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
+        findNextValid
+        def value: B = it.value
+        def isValid = self.isValid
+        def advance() {
+          it.advance()
+          findNextValid
+        }
+        def findNextValid {
+          while (self.isValid && !it.isValid) {
+            self.advance()
+            if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
+          }
+        }
+      }
+    )
+
   def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
     ord.setBottom()
     val stepIterator: FlipbookIterator[A] = FlipbookIterator(
       new StateMachine[A] {
-        def curValue: A = self.value
-        def isActive: Boolean = self.isValid && ord.isEquivalent(curValue)
+        def value: A = self.value
+        def isValid: Boolean = self.isValid && ord.isEquivalent(value)
         def advance() = { self.advance() }
       }
     )
     val sm = new StateMachine[FlipbookIterator[A]] {
-      var isActive: Boolean = true
-      val curValue: FlipbookIterator[A] = stepIterator
+      var isValid: Boolean = true
+      val value: FlipbookIterator[A] = stepIterator
       def advance() = {
         stepIterator.exhaust()
         if (self.isValid) {
@@ -113,7 +178,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         }
         else {
           ord.setBottom()
-          isActive = false
+          isValid = false
         }
       }
     }
@@ -143,8 +208,8 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val left = self.toStagingIterator
     val right = that.toStagingIterator
     val sm = new StateMachine[Muple[A, B]] {
-      val curValue = Muple(leftDefault, rightDefault)
-      var isActive = true
+      val value = Muple(leftDefault, rightDefault)
+      var isValid = true
       def advance() {
         left.stage()
         right.stage()
@@ -157,17 +222,17 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           } else if (right.isValid)
               1
             else {
-              isActive = false
+              isValid = false
               return
             }
         }
         if (c == 0)
-          curValue.set(left.consume(), right.consume())
+          value.set(left.consume(), right.consume())
         else if (c < 0)
-          curValue.set(left.consume(), rightDefault)
+          value.set(left.consume(), rightDefault)
         else
           // c > 0
-          curValue.set(leftDefault, right.consume())
+          value.set(leftDefault, right.consume())
       }
     }
 
@@ -182,7 +247,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     leftDefault: A,
     rightDefault: B,
     mixedOrd: (A, B) => Int
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
     for { Muple(l, r) <- this.cogroup(that, leftOrd, rightOrd, mixedOrd) if r.isValid
           lrv <- l
@@ -196,7 +261,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     leftDefault: A,
     rightDefault: B,
     mixedOrd: (A, B) => Int
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
     for { Muple(l, r) <- this.cogroup(that, leftOrd, rightOrd, mixedOrd)
           lrv <- l
@@ -211,10 +276,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
     mixedOrd: (A, B) => Int
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
     this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
-      lIt.product(rIt, rightBuffer, result)
+      lIt.cartesianProduct(rIt, rightBuffer, result)
     }
   }
 
@@ -226,10 +291,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
     mixedOrd: (A, B) => Int
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
     this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
-      if (rIt.isValid) lIt.product(rIt, rightBuffer, result)
+      if (rIt.isValid) lIt.cartesianProduct(rIt, rightBuffer, result)
       else lIt.map( lElem => result.set(lElem, rightDefault) )
     }
   }
@@ -242,10 +307,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
     mixedOrd: (A, B) => Int
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
     this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
-      if (lIt.isValid) lIt.product(rIt, rightBuffer, result)
+      if (lIt.isValid) lIt.cartesianProduct(rIt, rightBuffer, result)
       else rIt.map( rElem => result.set(leftDefault, rElem) )
     }
   }
@@ -258,25 +323,25 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     rightDefault: B,
     rightBuffer: Growable[B] with Iterable[B],
     mixedOrd: (A, B) => Int
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     val result = Muple[A, B](leftDefault, rightDefault)
     this.cogroup(that, leftOrd, rightOrd, mixedOrd).flatMap { case Muple(lIt, rIt) =>
       if (!lIt.isValid) rIt.map( rElem => result.set(leftDefault, rElem) )
       else if (!rIt.isValid) lIt.map( lElem => result.set(lElem, rightDefault) )
-      else lIt.product(rIt, rightBuffer, result)
+      else lIt.cartesianProduct(rIt, rightBuffer, result)
     }
   }
 
-  private def product[B](
+  def cartesianProduct[B](
     that: FlipbookIterator[B],
     buffer: Growable[B] with Iterable[B],
     result: Muple[A, B]
-  ): Iterator[Muple[A, B]] = {
+  ): FlipbookIterator[Muple[A, B]] = {
     buffer.clear()
     if (this.isValid) buffer ++= that //avoid copying right iterator when not needed
-    for { lElem <- this
-          rElem <- buffer
-    } yield result.set(lElem, rElem)
+    this.flatMap(lElem =>
+      buffer.iterator.toFlipbookIterator.map(rElem =>
+        result.set(lElem, rElem)))
   }
 
   def compareUsing[B](that: Iterator[B], eq: (A, B) => Boolean): Boolean = {
