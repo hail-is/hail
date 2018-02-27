@@ -68,6 +68,7 @@ Functions
 
 .. autosummary::
 
+    abs
     exp
     is_nan
     log

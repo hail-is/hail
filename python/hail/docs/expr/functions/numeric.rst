@@ -6,6 +6,7 @@ Numeric functions
 
 .. autosummary::
 
+    abs
     exp
     is_nan
     log
@@ -32,6 +33,7 @@ Numeric functions
     unique_min_index
 
 
+.. autofunction:: abs
 .. autofunction:: exp
 .. autofunction:: is_nan
 .. autofunction:: log
