@@ -1,6 +1,8 @@
 Aggregators
 ===========
 
+The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
+
 .. toctree::
     :maxdepth: 2
 
