@@ -2,7 +2,7 @@ from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from .misc import require_biallelic
+from .misc import require_biallelic, require_variant
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, name=str)
@@ -539,6 +539,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         Dataset with new row-indexed field `name` containing VEP annotations.
     """
 
+    require_variant(dataset, 'vep')
     return MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
 
 
@@ -798,4 +799,5 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
         Dataset with new row-indexed field `name` containing Nirvana annotations.
     """
 
+    require_variant(dataset, 'nirvana')
     return MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))

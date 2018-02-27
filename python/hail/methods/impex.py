@@ -7,7 +7,7 @@ from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics.reference_genome import reference_genome_type
-from hail.methods.misc import require_biallelic
+from hail.methods.misc import require_biallelic, require_variant
 
 
 @handle_py4j
@@ -309,6 +309,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     """
 
+    require_variant(dataset, 'export_vcf')
     typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
     Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
                                       Env.hail().utils.ExportType.getExportType(parallel),
