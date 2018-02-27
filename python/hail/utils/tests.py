@@ -94,4 +94,4 @@ class Tests(unittest.TestCase):
         df = range_table(10)
         df = df.annotate(x=[1,2])
         with self.assertRaises(FatalError):
-            df.annotate(y = [5]).count()
+            df.annotate(y = df.x[5]).count()
