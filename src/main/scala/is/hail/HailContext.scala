@@ -14,7 +14,7 @@ import is.hail.io.vcf._
 import is.hail.table.Table
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{Call2, GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, VSMSubgen, Variant}
+import is.hail.variant.{ReferenceGenome, MatrixTable, VSMSubgen}
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.rdd.RDD
@@ -254,10 +254,10 @@ class HailContext private(val sc: SparkContext,
     includeGP: Boolean,
     includeDosage: Boolean,
     nPartitions: Option[Int] = None,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     tolerance: Double = 0.2): MatrixTable = {
-    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, gr, contigRecoding, tolerance)
+    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, rg, contigRecoding, tolerance)
   }
 
   def importBgens(files: Seq[String],
@@ -266,7 +266,7 @@ class HailContext private(val sc: SparkContext,
     includeGP: Boolean = true,
     includeDosage: Boolean = false,
     nPartitions: Option[Int] = None,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     tolerance: Double = 0.2): MatrixTable = {
 
@@ -285,10 +285,10 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
-    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
+    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     LoadBgen.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
-      nPartitions, gr, contigRecoding.getOrElse(Map.empty[String, String]), tolerance)
+      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), tolerance)
   }
 
   def importGen(file: String,
@@ -296,9 +296,9 @@ class HailContext private(val sc: SparkContext,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
-    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, gr, contigRecoding)
+    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, rg, contigRecoding)
   }
 
   def importGens(files: Seq[String],
@@ -306,7 +306,7 @@ class HailContext private(val sc: SparkContext,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
     val inputs = hadoopConf.globAll(files)
 
@@ -318,13 +318,13 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: ${ files.mkString(",") }")
 
-    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
+    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val samples = LoadBgen.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
 
     //FIXME: can't specify multiple chromosomes
-    val results = inputs.map(f => LoadGen(f, sampleFile, sc, gr, nPartitions,
+    val results = inputs.map(f => LoadGen(f, sampleFile, sc, rg, nPartitions,
       tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String])))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
@@ -346,7 +346,7 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of samples in GEN files: $nSamples")
 
     val signature = TStruct(
-      "locus" -> TLocus.schemaFromGR(gr),
+      "locus" -> TLocus.schemaFromGR(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(), "varid" -> TString())
 
@@ -420,15 +420,15 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
 
-    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
+    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     LoadPlink(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]))
+      ffConfig, nPartitions, a2Reference, rg, contigRecoding.getOrElse(Map.empty[String, String]))
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -437,10 +437,10 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding)
+      nPartitions, delimiter, missing, quantPheno, a2Reference, rg, contigRecoding)
   }
 
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {
@@ -504,9 +504,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr, contigRecoding)
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, rg, contigRecoding)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
@@ -515,16 +515,16 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
 
-    gr.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
+    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
     forceBGZip(forceBGZ)  {
       val reader = new HtsjdkRecordReader(callFields)
-      LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr,
+      LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, rg,
         contigRecoding.getOrElse(Map.empty[String, String]))
     }
   }
@@ -593,8 +593,8 @@ class HailContext private(val sc: SparkContext,
     fst: Option[Array[Double]] = None,
     afDist: Distribution = UniformDist(0.1, 0.9),
     seed: Int = 0,
-    gr: GenomeReference = GenomeReference.defaultReference): MatrixTable =
-    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, gr)
+    rg: ReferenceGenome = ReferenceGenome.defaultReference): MatrixTable =
+    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, rg)
 
   def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
 

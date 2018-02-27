@@ -133,7 +133,7 @@ object TestRDDBuilder {
         colType = TStruct("s" -> TString()),
         rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
         rowType = TStruct(
-          "locus" -> TLocus(GenomeReference.defaultReference),
+          "locus" -> TLocus(ReferenceGenome.defaultReference),
           "alleles" -> TArray(TString())),
         entryType = Genotype.htsGenotypeType),
       Annotation.empty, sampleList.map(Annotation(_)), variantRDD)

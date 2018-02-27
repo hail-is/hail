@@ -8,7 +8,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, GRBase, Locus, Variant}
+import is.hail.variant.{AltAllele, RGBase, Locus, Variant}
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
@@ -137,8 +137,8 @@ object UnsafeRow {
   def readString(region: Region, boff: Long): String =
     new String(readBinary(region, boff))
 
-  def readLocus(region: Region, offset: Long, gr: GRBase): Locus = {
-    val ft = gr.locusType.fundamentalType.asInstanceOf[TStruct]
+  def readLocus(region: Region, offset: Long, rg: RGBase): Locus = {
+    val ft = rg.locusType.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))
@@ -206,7 +206,7 @@ object UnsafeRow {
           region.loadInt(ft.loadField(region, offset, 1)),
           readString(region, ft.loadField(region, offset, 2)),
           readArrayAltAllele(region, ft.loadField(region, offset, 3)))
-      case x: TLocus => readLocus(region, offset, x.gr)
+      case x: TLocus => readLocus(region, offset, x.rg)
       case _: TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]

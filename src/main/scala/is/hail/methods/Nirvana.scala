@@ -268,7 +268,7 @@ object Nirvana {
     val oldSignature = vds.rowType
     val localBlockSize = blockSize
 
-    implicit val variantOrd = vds.genomeReference.variantOrdering
+    implicit val variantOrd = vds.referenceGenome.variantOrdering
 
     info("Running Nirvana")
 

@@ -6,7 +6,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.ReferenceGenome$
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row

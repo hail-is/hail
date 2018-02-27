@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.{Row, RowFactory}
 
 import scala.collection.mutable
@@ -426,13 +426,13 @@ case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseSt
   } yield ir.MakeTuple(irElements)
 }
 
-case class GenomeReferenceDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
-  val gr = GenomeReference.getReference(grName)
+case class ReferenceGenomeDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
+  val rg = ReferenceGenome.getReference(grName)
   val rTyp = fName match {
-    case "Variant" => gr.variantType
-    case "Locus" => gr.locusType
-    case "LocusInterval" => gr.intervalType
-    case "LocusAlleles" => TStruct("locus" -> gr.locusType, "alleles" -> TArray(TString()))
+    case "Variant" => rg.variantType
+    case "Locus" => rg.locusType
+    case "LocusInterval" => rg.intervalType
+    case "LocusAlleles" => TStruct("locus" -> rg.locusType, "alleles" -> TArray(TString()))
     case _ => throw new UnsupportedOperationException
   }
 

@@ -1,4 +1,4 @@
-from hail.genetics.genomeref import GenomeReference, reference_genome_type
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.genetics.locus import Locus
 from hail.history import *
 from hail.typecheck import *
@@ -105,7 +105,7 @@ class Interval(HistoryMixin):
         ----------
         string : :obj:`str`
             String to parse.
-        reference_genome : :obj:`str` or :class:`.GenomeReference`
+        reference_genome : :obj:`str` or :class:`.ReferenceGenome`
             Reference genome to use.
 
         Returns
@@ -139,7 +139,7 @@ class Interval(HistoryMixin):
     def reference_genome(self):
         """Reference genome.
 
-        :return: :class:`.GenomeReference`
+        :return: :class:`.ReferenceGenome`
         """
         return self._rg
 

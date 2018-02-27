@@ -15,9 +15,9 @@ genetics
     :template: class.rst
 
     Call
-    GenomeReference
     Interval
+    KinshipMatrix
     Locus
     Pedigree
+    ReferenceGenome
     Trio
-    KinshipMatrix

@@ -3266,7 +3266,7 @@ class LocusExpression(Expression):
         Notes
         -----
         All contigs are considered autosomal except those
-        designated as X, Y, or MT by :class:`.GenomeReference`.
+        designated as X, Y, or MT by :class:`.ReferenceGenome`.
 
         Examples
         --------

@@ -652,7 +652,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
     assert(eval[Boolean]("""let l = Locus("1", 1) in Locus(str(l)) == l""").contains(true))
 
-    implicit val locusOrd = GenomeReference.defaultReference.locusOrdering
+    implicit val locusOrd = ReferenceGenome.defaultReference.locusOrdering
     assert(eval[Interval]("""Interval(Locus("1", 1), Locus("2", 2))""").contains(Interval(Locus("1", 1), Locus("2", 2), true, false)))
     assert(eval[Locus]("""Interval(Locus("1", 1), Locus("2", 2)).start""").contains(Locus("1", 1)))
     assert(eval[Locus]("""Interval(Locus("1", 1), Locus("2", 2)).end""").contains(Locus("2", 2)))

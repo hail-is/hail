@@ -5,7 +5,7 @@ from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
 from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list, escape_parsable
-from hail.genetics.genomeref import reference_genome_type
+from hail.genetics.reference_genome import reference_genome_type
 from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 
@@ -829,7 +829,7 @@ class TLocus(Type):
 
     Parameters
     ----------
-    reference_genome: :class:`.GenomeReference` or :obj:`str`
+    reference_genome: :class:`.ReferenceGenome` or :obj:`str`
         Reference genome to use.
     """
 
@@ -869,7 +869,7 @@ class TLocus(Type):
 
         Returns
         -------
-        :class:`.GenomeReference`
+        :class:`.ReferenceGenome`
             Reference genome.
         """
         if self._rg is None:

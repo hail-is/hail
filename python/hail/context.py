@@ -1,7 +1,7 @@
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
-from hail.genetics.genomeref import GenomeReference
+from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger
@@ -63,7 +63,7 @@ class HailContext(object):
         Env._hc = self
 
         self._default_ref = None
-        Env.hail().variant.GenomeReference.setDefaultReference(self._jhc, default_reference)
+        Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
         sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
         if self._jsc.uiWebUrl().isDefined():
@@ -89,7 +89,7 @@ class HailContext(object):
     @property
     def default_reference(self):
         if not self._default_ref:
-            self._default_ref = GenomeReference._from_java(Env.hail().variant.GenomeReference.defaultReference())
+            self._default_ref = ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.defaultReference())
         return self._default_ref
 
     def stop(self):
@@ -125,7 +125,7 @@ def default_reference():
 
     Returns
     -------
-    :class:`.GenomeReference`
+    :class:`.ReferenceGenome`
     """
     return Env.hc().default_reference
 
@@ -136,14 +136,14 @@ def get_reference(name):
 
     Returns
     -------
-    :class:`.GenomeReference`
+    :class:`.ReferenceGenome`
     """
-    from hail import GenomeReference
+    from hail import ReferenceGenome
 
     if name == "default":
         return default_reference()
     else:
-        return GenomeReference._references.get(
+        return ReferenceGenome._references.get(
             name,
-            GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
+            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
         )

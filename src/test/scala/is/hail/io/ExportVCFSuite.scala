@@ -37,7 +37,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
-    implicit val variantOrd = vdsNew.genomeReference.variantOrdering
+    implicit val variantOrd = vdsNew.referenceGenome.variantOrdering
 
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
@@ -55,9 +55,9 @@ class ExportVCFSuite extends SparkSuite {
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)
       ExportVCF(vds, out)
-      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1), gr = Some(vds.genomeReference))
+      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
       ExportVCF(vds, out2)
-      hc.importVCF(out2, nPartitions = Some(nPar2), gr = Some(vds.genomeReference)).same(vds2)
+      hc.importVCF(out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2)
     }
 
     p.check()

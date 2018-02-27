@@ -41,7 +41,7 @@ case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevR
 
 object LDPruneSuite {
   val rvRowType = TStruct(
-    "locus" -> GenomeReference.GRCh37.locusType,
+    "locus" -> ReferenceGenome.GRCh37.locusType,
     "alleles" -> TArray(TString()),
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )

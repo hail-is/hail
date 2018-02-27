@@ -168,10 +168,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TAltAllele(_) =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
-        case TVariant(gr, _) =>
+        case TVariant(rg, _) =>
           val v = a.asInstanceOf[Variant]
           Row(v.contig, v.start, v.ref, v.altAlleles.map(aa => Row(aa.ref, aa.alt)))
-        case TLocus(gr, _) =>
+        case TLocus(rg, _) =>
           val l = a.asInstanceOf[Locus]
           Row(l.contig, l.position)
         case TInterval(pointType, _) =>
@@ -208,10 +208,10 @@ case class JSONExtractIntervalLocus(start: Locus, end: Locus) {
 
 case class JSONExtractContig(name: String, length: Int)
 
-case class JSONExtractGenomeReference(name: String, contigs: Array[JSONExtractContig], xContigs: Set[String],
+case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractContig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[JSONExtractIntervalLocus]) {
 
-  def toGenomeReference: GenomeReference = GenomeReference(name, contigs.map(_.name),
+  def toReferenceGenome: ReferenceGenome = ReferenceGenome(name, contigs.map(_.name),
     contigs.map(c => (c.name, c.length)).toMap, xContigs, yContigs, mtContigs, par.map(_.toLocusTuple))
 }
 
@@ -442,7 +442,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
-        case TInterval(TLocus(gr, _), _) =>
+        case TInterval(TLocus(rg, _), _) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
@@ -465,11 +465,11 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case _: TFloat32 => a.toFloat
       case _: TFloat64 => if (a == "nan") Double.NaN else a.toDouble
       case _: TBoolean => a.toBoolean
-      case tl: TLocus => Locus.parse(a, tl.gr)
+      case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
-      case TInterval(TLocus(gr, _), _) => Locus.parseInterval(a, gr)
+      case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case tv: TVariant => Variant.parse(a, tv.gr)
+      case tv: TVariant => Variant.parse(a, tv.rg)
       case _: TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }

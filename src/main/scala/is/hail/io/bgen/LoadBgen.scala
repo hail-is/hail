@@ -28,13 +28,13 @@ object LoadBgen {
     includeGP: Boolean,
     includeDosage: Boolean,
     nPartitions: Option[Int] = None,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
     tolerance: Double): MatrixTable = {
-    
+
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
-    
+
     val sampleIds = sampleFile.map(file => LoadBgen.readSampleFile(hadoop, file))
       .getOrElse(LoadBgen.readSamples(hadoop, files.head))
 
@@ -80,7 +80,7 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("locus" -> TLocus.schemaFromGR(gr),
+    val signature = TStruct("locus" -> TLocus.schemaFromGR(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "varid" -> TString())
@@ -90,7 +90,7 @@ object LoadBgen {
       (includeGP, "GP" -> TArray(TFloat64())),
       (includeDosage, "dosage" -> TFloat64()))
       .withFilter(_._1).map(_._2)
-        
+
     val matrixType: MatrixType = MatrixType.fromParts(
       globalType = TStruct.empty(),
       colKey = Array("s"),
@@ -115,16 +115,8 @@ object LoadBgen {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
+        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, rg))
 
-        gr match {
-          case Some(gr) =>
-            rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, gr))
-          case None =>
-            rvb.startStruct()
-            rvb.addString(contigRecoded)
-            rvb.addInt(pos)
-            rvb.endStruct()
-        }
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)
         var i = 0
@@ -154,7 +146,7 @@ object LoadBgen {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, gr))
+        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, rg))
 
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)

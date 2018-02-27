@@ -57,7 +57,7 @@ object RelationalSpec {
       case JString(p) => p
     }
 
-    GenomeReference.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
+    ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
@@ -217,7 +217,7 @@ object MatrixTable {
     VSMSubgen(
       sSigGen = Type.genArb,
       saSigGen = Type.genInsertableStruct,
-      vSigGen = GenomeReference.gen.map(TVariant(_)),
+      vSigGen = ReferenceGenome.gen.map(TVariant(_)),
       vaSigGen = Type.genInsertableStruct,
       globalSigGen = Type.genInsertableStruct,
       tSigGen = Type.genInsertableStruct,
@@ -388,7 +388,7 @@ case class VSMSubgen(
         val (finalVASig, vaIns, rowPartitionKey, rowKey) =
           vSig match {
             case _: TVariant =>
-              val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].gr.locusType, List("locus"))
+              val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
               val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
               val vaIns = (va: Annotation, v: Annotation) => {
                 val vv = v.asInstanceOf[Variant]
@@ -415,7 +415,7 @@ object VSMSubgen {
   val random = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = GenomeReference.gen.map(TVariant(_)),
+    vSigGen = ReferenceGenome.gen.map(TVariant(_)),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(Genotype.htsGenotypeType),
@@ -427,15 +427,15 @@ object VSMSubgen {
     tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant]))
 
   val plinkSafeBiallelic = random.copy(
-    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
+    vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37)),
     sGen = (t: Type) => Gen.plinkSafeIdentifier,
     vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2),
-      contigGen = Contig.gen(t.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference])).gen)
+      contigGen = Contig.gen(t.asInstanceOf[TVariant].rg.asInstanceOf[ReferenceGenome])).gen)
 
   val callAndProbabilities = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = Gen.const(TVariant(GenomeReference.defaultReference)),
+    vSigGen = Gen.const(TVariant(ReferenceGenome.defaultReference)),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(TStruct(
@@ -490,10 +490,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def genomeReference: GenomeReference = {
+  def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyTypes(0)
     firstKeyField match {
-      case TLocus(gr: GenomeReference, _) => gr
+      case TLocus(rg: ReferenceGenome, _) => rg
     }
   }
 
@@ -2736,7 +2736,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val refPath = path + "/references"
     hc.hadoopConf.mkDir(refPath)
     Array(colType, rowType, entryType, globalType).foreach { t =>
-      GenomeReference.exportReferences(hc, refPath, t)
+      ReferenceGenome.exportReferences(hc, refPath, t)
     }
 
     val spec = MatrixTableSpec(

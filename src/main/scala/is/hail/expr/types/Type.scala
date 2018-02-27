@@ -5,7 +5,7 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
 import is.hail.utils
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Variant}
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.types.DataType
 import org.json4s.JValue
 
@@ -22,11 +22,11 @@ object Type {
   val genRequiredScalar: Gen[Type] = genScalar(true)
 
   def genComplexType(required: Boolean) = {
-    val grDependents = GenomeReference.references.values.toArray.flatMap(gr =>
-      Array(TVariant(gr, required), TLocus(gr, required)))
+    val rgDependents = ReferenceGenome.references.values.toArray.flatMap(rg =>
+      Array(TVariant(rg, required), TLocus(rg, required)))
     val others = Array(
       TAltAllele(required), TCall(required))
-    Gen.oneOfSeq(grDependents ++ others)
+    Gen.oneOfSeq(rgDependents ++ others)
   }
 
   val optionalComplex: Gen[Type] = genComplexType(false)

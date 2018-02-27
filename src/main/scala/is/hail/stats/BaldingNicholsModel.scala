@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{Call, Call2, GenomeReference, MatrixTable}
+import is.hail.variant.{Call, Call2, ReferenceGenome, MatrixTable}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -15,7 +15,7 @@ object BaldingNicholsModel {
   def apply(hc: HailContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
     seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution,
-    gr: GenomeReference = GenomeReference.defaultReference): MatrixTable = {
+    rg: ReferenceGenome = ReferenceGenome.defaultReference): MatrixTable = {
 
     val sc = hc.sc
 
@@ -109,7 +109,7 @@ object BaldingNicholsModel {
       globalType = globalSignature,
       colType = saSignature,
       colKey = Array("s"),
-      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowType = TStruct("locus" -> TLocus(rg), "alleles" -> TArray(TString())) ++ vaSignature,
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct("GT" -> TCall()))

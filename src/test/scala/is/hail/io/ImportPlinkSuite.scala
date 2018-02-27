@@ -33,7 +33,7 @@ class ImportPlinkSuite extends SparkSuite {
 
         if (vds.numCols == 0) {
           TestUtils.interceptFatal("Empty .fam file") {
-            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = Some(vds.genomeReference))
+            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), rg = Some(vds.referenceGenome))
           }
           true
         } else if (vds.countVariants() == 0) {
@@ -42,7 +42,7 @@ class ImportPlinkSuite extends SparkSuite {
           }
           true
         } else {
-          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = Some(vds.genomeReference)),
+          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), rg = Some(vds.referenceGenome)),
             testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")

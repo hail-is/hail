@@ -1,15 +1,13 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
-import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
 import is.hail.table.Table
-import is.hail.variant.{GenomeReference, MatrixTable, VSMSubgen}
+import is.hail.variant.{ReferenceGenome, MatrixTable, VSMSubgen}
 import is.hail.testUtils._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -29,7 +27,7 @@ class PartitioningSuite extends SparkSuite {
 
   @Test def testWriteRead() {
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
-      GenomeReference.addReference(vds.genomeReference)
+      ReferenceGenome.addReference(vds.referenceGenome)
 
       val out = tmpDir.createTempFile("out", ".vds")
       val out2 = tmpDir.createTempFile("out", ".vds")
@@ -49,7 +47,7 @@ class PartitioningSuite extends SparkSuite {
 
       val result = compare(orig, readback)
 
-      GenomeReference.removeReference(vds.genomeReference.name)
+      ReferenceGenome.removeReference(vds.referenceGenome.name)
       result
     }.check()
   }
