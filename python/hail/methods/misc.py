@@ -12,8 +12,8 @@ from hail.expr.ast import Reference
            j=Expression,
            keep=bool,
            tie_breaker=nullable(func_spec(2, expr_numeric)))
-def maximal_independent_set(i, j, keep, tie_breaker=None):
-    """Return a Table containing the vertices in a near
+def maximal_independent_set(i, j, keep=True, tie_breaker=None):
+    """Return a table containing the vertices in a near
     `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
     of an undirected graph whose edges are given by a two-column table.
 
@@ -88,27 +88,26 @@ def maximal_independent_set(i, j, keep, tie_breaker=None):
         Expression to compute one endpoint of an edge.
     j : :class:`.Expression`
         Expression to compute another endpoint of an edge.
-    keep : boolean
-        Boolean specifying whether to return vertices in set, or outside of set.
+    keep : :obj:`bool`
+        If ``True``, return vertices in set. If ``False``, return vertices removed.
     tie_breaker : function
         Function used to order nodes with equal degree.
 
     Returns
     -------
-    :class:`Table` filtered to the rows that belong in the approximate maximal independent set,
-    or the rows that belong in the complement of this set, if keep is False.
+    :class:`.Table`
     """
     if i.dtype != j.dtype:
-        raise ValueError("Expects arguments `i` and `j` to have same type. "
+        raise ValueError("'maximal_independent_set' expects arguments `i` and `j` to have same type. "
                          "Found {} and {}.".format(i.dtype, j.dtype))
     source = i._indices.source
     if not isinstance(source, Table):
-        raise ValueError("Expects an expression of 'Table', found {}".format(
+        raise ValueError("'maximal_independent_set' expects an expression of 'Table'. Found {}".format(
             "expression of '{}'".format(
                 source.__class__) if source is not None else 'scalar expression'))
     if i._indices.source != j._indices.source:
         raise ValueError(
-            "Expects arguments `i` and `j` to be expressions of the same Table. "
+            "'maximal_independent_set' expects arguments `i` and `j` to be expressions of the same Table. "
             "Found\n{}\n{}".format(i, j))
 
     node_t = i.dtype
