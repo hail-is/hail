@@ -2945,8 +2945,8 @@ def sorted(collection, key=None, reverse=False):
         return collection._bin_lambda_method("sortBy", key, collection.dtype.element_type, check_f, ascending)
 
 
-@typecheck(collection=expr_array)
-def unique_min_index(collection):
+@typecheck(array=expr_array, unique=bool)
+def argmin(array, unique=False):
     """Return the index of the minimum value in the array.
 
     Examples
@@ -2954,33 +2954,45 @@ def unique_min_index(collection):
 
     .. doctest::
 
-        >>> hl.eval_expr(hl.unique_min_index([10, 0, 100]))
+        >>> hl.eval_expr(hl.argmin([0.2, 0.3, 0.6]))
+        0
+
+        >>> hl.eval_expr(hl.argmin([0.4, 0.2, 0.2]))
         1
 
-        >>> hl.eval_expr(hl.unique_min_index([0, 0, 100]))
+        >>> hl.eval_expr(hl.argmin([0.4, 0.2, 0.2], unique=True))
         None
 
     Notes
     -----
-    If the minimum value is not unique, returns missing.
+    Returns the index of the minimum value in the array.
+
+    If two or more elements are tied for minimum, then the `unique` parameter
+    will determine the result. If `unique` is ``False``, then the first index
+    will be returned. If `unique` is ``True``, then the result is missing.
+
+    If the array is empty, then the result is missing.
 
     Parameters
     ----------
-    collection : :class:`.ArrayNumericExpression`
+    array : :class:`.ArrayNumericExpression`
         Numeric array.
 
     Returns
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'unique_min_index' expects an array with numeric element type, found '{}'"
-                        .format(collection.dtype))
-    return collection._method("uniqueMinIndex", tint32)
+    if not is_numeric(array.dtype.element_type):
+        raise TypeError("'argmin' expects an array with numeric element type, found '{}'"
+                        .format(array.dtype))
+    if unique:
+        return array._method("uniqueMinIndex", tint32)
+    else:
+        return array._method("argmin", tint32)
 
 
-@typecheck(collection=expr_array)
-def unique_max_index(collection):
+@typecheck(array=expr_array, unique=bool)
+def argmax(array, unique=False):
     """Return the index of the maximum value in the array.
 
     Examples
@@ -2988,29 +3000,41 @@ def unique_max_index(collection):
 
     .. doctest::
 
-        >>> hl.eval_expr(hl.unique_max_index([0.2, 0.2, 0.6]))
+        >>> hl.eval_expr(hl.argmax([0.2, 0.2, 0.6]))
         2
 
-        >>> hl.eval_expr(hl.unique_max_index([0.4, 0.4, 0.2]))
+        >>> hl.eval_expr(hl.argmax([0.4, 0.4, 0.2]))
+        0
+
+        >>> hl.eval_expr(hl.argmax([0.4, 0.4, 0.2], unique=True))
         None
 
     Notes
     -----
-    If the maximum value is not unique, returns missing.
+    Returns the index of the maximum value in the array.
+
+    If two or more elements are tied for maximum, then the `unique` parameter
+    will determine the result. If `unique` is ``False``, then the first index
+    will be returned. If `unique` is ``True``, then the result is missing.
+
+    If the array is empty, then the result is missing.
 
     Parameters
     ----------
-    collection : :class:`.ArrayNumericExpression`
+    array : :class:`.ArrayNumericExpression`
         Numeric array.
 
     Returns
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'unique_max_index' expects an array with numeric element type, found '{}'"
-                        .format(collection.dtype))
-    return collection._method("uniqueMaxIndex", tint32)
+    if not is_numeric(array.dtype.element_type):
+        raise TypeError("'argmax' expects an array with numeric element type, found '{}'"
+                        .format(array.dtype))
+    if unique:
+        return array._method("uniqueMaxIndex", tint32)
+    else:
+        return array._method("argmax", tint32)
 
 
 @typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))

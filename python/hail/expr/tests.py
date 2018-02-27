@@ -1022,6 +1022,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.signum(10.0)), 1)
         self.assertEqual(hl.eval_expr(hl.signum([-5, 0, 10])), [-1, 0, 1])
 
+    def test_argmin_and_argmax(self):
+        a = hl.array([2, 1, 1, 4, 4, 3])
+        self.assertEqual(hl.eval_expr(hl.argmax(a)), 3)
+        self.assertEqual(hl.eval_expr(hl.argmax(a, unique=True)), None)
+        self.assertEqual(hl.eval_expr(hl.argmin(a)), 1)
+        self.assertEqual(hl.eval_expr(hl.argmin(a, unique=True)), None)
+        self.assertEqual(hl.eval_expr(hl.argmin(hl.empty_array(tint32))), None)
+
     def test_show_row_key_regression(self):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)

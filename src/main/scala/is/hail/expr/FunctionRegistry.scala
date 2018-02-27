@@ -1714,6 +1714,43 @@ object FunctionRegistry {
     registerMethod("min", (x: Any, y: Any) => ord.min(x, y))
     registerMethod("max", (x: Any, y: Any) => ord.max(x, y))
 
+
+    registerMethod("argmin", (a: IndexedSeq[Any]) => {
+      if (a.isEmpty)
+        null: java.lang.Integer
+      else {
+        var min = a(0)
+        var minIndex = 0
+        var i = 1
+        while (i < a.length) {
+          if (ord.lt(a(i), min)) {
+            min = a(i)
+            minIndex = i
+          }
+          i += 1
+        }
+        minIndex: java.lang.Integer
+      }
+    })
+
+    registerMethod("argmax", (a: IndexedSeq[Any]) => {
+      if (a.isEmpty)
+        null: java.lang.Integer
+      else {
+        var max = a(0)
+        var maxIndex = 0
+        var i = 1
+        while (i < a.length) {
+          if (ord.gt(a(i), max)) {
+            max = a(i)
+            maxIndex = i
+          }
+          i += 1
+        }
+        maxIndex: java.lang.Integer
+      }
+    })
+
     registerMethod("uniqueMinIndex", (a: IndexedSeq[Any]) => {
       def f(i: Int, m: Any, mi: Int, count: Int): java.lang.Integer = {
         if (i == a.length) {
