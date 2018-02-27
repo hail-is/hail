@@ -72,6 +72,14 @@ class TypeTests(unittest.TestCase):
             rev_str = t._jtype.toPyString()
             self.assertEqual(t, dtype(rev_str))
 
+    def test_pretty_roundtrip(self):
+        ts = self.types_to_test()
+        for t in ts:
+            p1 = t.pretty()
+            p2 = t.pretty(5, 5)
+            self.assertEqual(t, dtype(p1))
+            self.assertEqual(t, dtype(p2))
+
 
 class Tests(unittest.TestCase):
     def test_floating_point(self):
