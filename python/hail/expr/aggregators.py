@@ -569,8 +569,12 @@ def stats(expr):
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'stats' expects a numeric argument, found '{}'".format(agg._type))
-    return _agg_func('stats', agg, tstruct(['mean', 'stdev', 'min', 'max', 'nNotMissing', 'sum'],
-                                           [tfloat64, tfloat64, tfloat64, tfloat64, tint64, tfloat64]))
+    return _agg_func('stats', agg, tstruct(mean=tfloat64,
+                                           stdev=tfloat64,
+                                           min=tfloat64,
+                                           max=tfloat64,
+                                           nNotMissing=tint64,
+                                           sum=tfloat64))
 
 @typecheck(expr=oneof(Aggregable, expr_numeric))
 def product(expr):
@@ -698,9 +702,10 @@ def hardy_weinberg(expr):
     :class:`.StructExpression`
         Struct expression with fields `rExpectedHetFrequency` and `pHWE`.
     """
-    t = tstruct(['rExpectedHetFrequency', 'pHWE'], [tfloat64, tfloat64])
+    t = tstruct(rExpectedHetFrequency=tfloat64,
+                pHWE=tfloat64)
     agg = _to_agg(expr)
-    if not isinstance(agg._type, TCall):
+    if not agg.dtype == tcall:
         raise TypeError("aggregator 'hardy_weinberg' requires an expression of type 'Call', found '{}'".format(
             agg._type.__class__))
     return _agg_func('hardyWeinberg', agg, t)
@@ -892,8 +897,10 @@ def inbreeding(expr, prior):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = tstruct(['f_stat', 'n_called', 'expected_homs', 'observed_homs'],
-                [tfloat64, tint64, tfloat64, tint64])
+    t = tstruct(f_stat=tfloat64,
+                n_called=tint64,
+                expected_homs=tfloat64,
+                observed_homs=tint64)
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
@@ -970,7 +977,9 @@ def call_stats(expr, alleles):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = tstruct(['AC', 'AF', 'AN'], [tarray(tint32), tarray(tfloat64), tint32])
+    t = tstruct(AC=tarray(tint32),
+                AF=tarray(tfloat64),
+                AN=tint32)
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 @typecheck(expr=oneof(Aggregable, expr_numeric), start=numeric, end=numeric, bins=numeric)
@@ -1022,6 +1031,8 @@ def hist(expr, start, end, bins):
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'hist' expects argument 'expr' to be a numeric type, found '{}'".format(agg._type))
-    t = tstruct(['binEdges', 'binFrequencies', 'nLess', 'nGreater'],
-                [tarray(tfloat64), tarray(tint64), tint64, tint64])
+    t = tstruct(binEdges=tarray(tfloat64),
+                binFrequencies=tarray(tint64),
+                nLess=tint64,
+                nGreater=tint64)
     return _agg_func('hist', agg, t, start, end, bins)

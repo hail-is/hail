@@ -474,9 +474,9 @@ def check_all(f, args, kwargs, checks, is_method):
 def typecheck_method(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
 
-    def _typecheck(f, *args, **kwargs):
-        args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=True)
-        return f(*args_, **kwargs_)
+    def _typecheck(__orig_func__, *args, **kwargs):
+        args_, kwargs_ = check_all(__orig_func__, args, kwargs, checkers, is_method=True)
+        return __orig_func__(*args_, **kwargs_)
 
     return decorator(_typecheck)
 

@@ -102,12 +102,12 @@ def to_expr(e):
         return hl.call(*e.alleles, phased=e.phased)
     elif isinstance(e, Struct):
         if len(e) == 0:
-            return construct_expr(StructDeclaration([], []), tstruct([], []))
+            return construct_expr(StructDeclaration([], []), tstruct())
         attrs = e._fields.items()
         cols = [to_expr(x) for _, x in attrs]
         names = [k for k, _ in attrs]
         indices, aggregations, joins, refs = unify_all(*cols)
-        t = tstruct(names, [col._type for col in cols])
+        t = tstruct(**dict(zip(names, [col._type for col in cols])))
         return construct_expr(StructDeclaration(names, [c._ast for c in cols]),
                               t, indices, aggregations, joins, refs)
     elif isinstance(e, list):
@@ -1811,6 +1811,9 @@ class Aggregable(object):
     def __ne__(self, other):
         raise NotImplementedError('Comparison of aggregable collections is undefined')
 
+    @property
+    def dtype(self):
+        return self._type
 
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
@@ -1945,7 +1948,7 @@ class StructExpression(Mapping, Expression):
                 names.append(fd.name)
                 types.append(fd.dtype)
 
-        result_type = tstruct(names, types)
+        result_type = tstruct(**dict(zip(names, types)))
         indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
@@ -2004,7 +2007,7 @@ class StructExpression(Mapping, Expression):
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
             names.append(fd.name)
             types.append(fd.dtype)
-        result_type = tstruct(names, types)
+        result_type = tstruct(**dict(zip(names, types)))
 
         indices, joins, aggregations, refs = unify_all(self, kwargs_struct)
 
@@ -2047,7 +2050,7 @@ class StructExpression(Mapping, Expression):
             if not fd.name in to_drop:
                 names.append(fd.name)
                 types.append(fd.dtype)
-        result_type = tstruct(names, types)
+        result_type = tstruct(**dict(zip(names, types)))
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._joins, self._aggregations, self._refs)
 

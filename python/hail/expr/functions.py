@@ -342,7 +342,7 @@ def chisq(c1, c2, c3, c4):
     :class:`.StructExpression`
         A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
     """
-    ret_type = tstruct(['pValue', 'oddsRatio'], [tfloat64, tfloat64])
+    ret_type = tstruct(pValue=tfloat64, oddsRatio=tfloat64)
     return _func("chisq", ret_type, c1, c2, c3, c4)
 
 
@@ -385,7 +385,7 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     :class:`.StructExpression`
         A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
     """
-    ret_type = tstruct(['pValue', 'oddsRatio'], [tfloat64, tfloat64])
+    ret_type = tstruct(pValue=tfloat64, oddsRatio=tfloat64)
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
@@ -541,8 +541,10 @@ def fisher_exact_test(c1, c2, c3, c4):
         A struct expression with four fields, `pValue` (``Float64``), `oddsRatio` (``Float64``),
         ci95Lower (``Float64``), and ci95Upper(``Float64``).
     """
-    ret_type = tstruct(['pValue', 'oddsRatio', 'ci95Lower', 'ci95Upper'],
-                       [tfloat64, tfloat64, tfloat64, tfloat64])
+    ret_type = tstruct(pValue=tfloat64,
+                       oddsRatio=tfloat64,
+                       ci95Lower=tfloat64,
+                       ci95Upper=tfloat64)
     return _func("fet", ret_type, c1, c2, c3, c4)
 
 
@@ -615,7 +617,8 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     :class:`.StructExpression`
         A struct expression with two fields, `rExpectedHetFrequency` (``Float64``) and`pValue` (``Float64``).
     """
-    ret_type = tstruct(['rExpectedHetFrequency', 'pHWE'], [tfloat64, tfloat64])
+    ret_type = tstruct(rExpectedHetFrequency=tfloat64,
+                       pHWE=tfloat64)
     return _func("hwe", ret_type, num_hom_ref, num_het, num_hom_var)
 
 
@@ -740,7 +743,8 @@ def parse_variant(s, reference_genome='default'):
         Struct with fields `locus` and `alleles`.
     """
     s = to_expr(s)
-    t = tstruct(['locus', 'alleles'], [tlocus(reference_genome), tarray(tstr)])
+    t = tstruct(locus=tlocus(reference_genome),
+                alleles=tarray(tstr))
     return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
                           s._indices, s._aggregations, s._joins, s._refs)
 

@@ -76,12 +76,10 @@ class TypeConstructor(NodeVisitor):
     def visit_struct(self, node, visited_children):
         tstruct, _, brace, maybe_fields, brace = visited_children
         if not maybe_fields:
-            return hl.tstruct([], [])
+            return hl.tstruct()
         else:
             fields = maybe_fields[0]
-            names = [f[0] for f in fields]
-            types = [f[1] for f in fields]
-            return hl.tstruct(names, types)
+            return hl.tstruct(**dict(fields))
 
     def visit_tuple(self, node, visited_children):
         ttuple, _, paren, [maybe_types], paren = visited_children

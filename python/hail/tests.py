@@ -40,8 +40,8 @@ def convert_struct_to_dict(x):
 
 class TableTests(unittest.TestCase):
     def test_annotate(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -131,8 +131,8 @@ class TableTests(unittest.TestCase):
         )
 
     def test_query(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -150,8 +150,8 @@ class TableTests(unittest.TestCase):
         self.assertEqual(set(results.q4), {"hello", "cat"})
 
     def test_filter(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -165,9 +165,9 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.filter(True).count(), 3)
 
     def test_transmute(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
-                             hl.tstruct(['x', 'y'], [hl.tbool, hl.tint32])])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
+                                        hl.tstruct.from_lists(['x', 'y'], [hl.tbool, hl.tint32])])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
@@ -181,9 +181,9 @@ class TableTests(unittest.TestCase):
         self.assertEqual(r, [hl.Struct(h=x) for x in [10, 20, None]])
 
     def test_select(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
-                             hl.tstruct(['x', 'y'], [hl.tbool, hl.tint32])])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
+                                        hl.tstruct.from_lists(['x', 'y'], [hl.tbool, hl.tint32])])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
@@ -197,8 +197,8 @@ class TableTests(unittest.TestCase):
         self.assertEqual(set(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).columns), {'a', 'foo', 'x', 'y'})
 
     def test_aggregate(self):
-        schema = hl.tstruct(['status', 'GT', 'qPheno'],
-                            [hl.tint32, hl.tcall, hl.tint32])
+        schema = hl.tstruct.from_lists(['status', 'GT', 'qPheno'],
+                                       [hl.tint32, hl.tcall, hl.tint32])
 
         rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3},
                 {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
@@ -237,8 +237,8 @@ class TableTests(unittest.TestCase):
         self.assertDictEqual(result, expected)
 
     def test_errors(self):
-        schema = hl.tstruct(['status', 'gt', 'qPheno'],
-                            [hl.tint32, hl.tcall, hl.tint32])
+        schema = hl.tstruct.from_lists(['status', 'gt', 'qPheno'],
+                                       [hl.tint32, hl.tcall, hl.tint32])
 
         rows = [{'status': 0, 'gt': hl.Call([0, 0]), 'qPheno': 3},
                 {'status': 0, 'gt': hl.Call([0, 1]), 'qPheno': 13},
@@ -268,7 +268,7 @@ class TableTests(unittest.TestCase):
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
-        self.assertTrue(ktr.aggregate(agg.collect(ktr.e))== ['quam'])
+        self.assertTrue(ktr.aggregate(agg.collect(ktr.e)) == ['quam'])
 
         ktr = kt.select(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
         self.assertTrue(ktr.aggregate(agg.collect(ktr.e)) == ['quam'])
@@ -334,6 +334,7 @@ class TableTests(unittest.TestCase):
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
+
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
         return hl.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
@@ -341,14 +342,14 @@ class MatrixTests(unittest.TestCase):
     def test_update(self):
         vds = self.get_vds()
         vds = vds.select_entries(dp=vds.DP, gq=vds.GQ)
-        self.assertTrue(schema_eq(vds.entry_schema, hl.tstruct(['dp', 'gq'], [hl.tint32, hl.tint32])))
+        self.assertTrue(schema_eq(vds.entry_schema, hl.tstruct.from_lists(['dp', 'gq'], [hl.tint32, hl.tint32])))
 
     def test_annotate(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
 
         new_global_schema = vds.global_schema
-        self.assertEqual(new_global_schema, hl.tstruct(['foo'], [hl.tint32]))
+        self.assertEqual(new_global_schema, hl.tstruct(foo=hl.tint32))
 
         orig_variant_schema = vds.row_schema
         vds = vds.annotate_rows(x1=agg.count(),
@@ -356,30 +357,21 @@ class MatrixTests(unittest.TestCase):
                                 x3=agg.count_where(True),
                                 x4=vds.info.AC + vds.foo)
 
-        expected_fields = [(fd.name, fd.dtype) for fd in orig_variant_schema.fields] + \
-                          [('x1', hl.tint64),
-                           ('x2', hl.tfloat64),
-                           ('x3', hl.tint64),
-                           ('x4', hl.tarray(hl.tint32))]
-
-        self.assertTrue(orig_variant_schema, hl.tstruct(*[list(x) for x in zip(*expected_fields)]))
-
         vds = vds.annotate_cols(apple=6)
         vds = vds.annotate_cols(y1=agg.count(),
                                 y2=agg.fraction(False),
                                 y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
 
-        expected_schema = hl.tstruct(['s', 'apple', 'y1', 'y2', 'y3', 'y4'],
-                                     [hl.tstr,
-                                      hl.tint32, hl.tint64, hl.tfloat64, hl.tint64, hl.tint32])
+        expected_schema = hl.tstruct.from_lists(['s', 'apple', 'y1', 'y2', 'y3', 'y4'],
+                                                [hl.tstr, hl.tint32, hl.tint64, hl.tfloat64, hl.tint64, hl.tint32])
 
         self.assertTrue(schema_eq(vds.col_schema, expected_schema),
                         "expected: " + str(vds.col_schema) + "\nactual: " + str(expected_schema))
 
         vds = vds.select_entries(z1=vds.x1 + vds.foo,
                                  z2=vds.x1 + vds.y1 + vds.foo)
-        self.assertTrue(schema_eq(vds.entry_schema, hl.tstruct(['z1', 'z2'], [hl.tint64, hl.tint64])))
+        self.assertTrue(schema_eq(vds.entry_schema, hl.tstruct.from_lists(['z1', 'z2'], [hl.tint64, hl.tint64])))
 
     def test_filter(self):
         vds = self.get_vds()
@@ -542,8 +534,8 @@ class MatrixTests(unittest.TestCase):
         kt = hl.Table.parallelize(
             [{'key': 0, 'value': True},
              {'key': 1, 'value': False}],
-            hl.tstruct(['key', 'value'],
-                       [hl.tint32, hl.tbool]),
+            hl.tstruct.from_lists(['key', 'value'],
+                                  [hl.tint32, hl.tbool]),
             key=['key'])
         ds = ds.annotate_rows(key=ds.locus.position % 2)
         ds = ds.annotate_rows(value=kt[ds['key']].value)
@@ -559,8 +551,8 @@ class MatrixTests(unittest.TestCase):
              {'key1': 1, 'key2': 0, 'value': 1},
              {'key1': 0, 'key2': 1, 'value': -2},
              {'key1': 1, 'key2': 1, 'value': -1}],
-            hl.tstruct(['key1', 'key2', 'value'],
-                       [hl.tint32, hl.tint32, hl.tint32]),
+            hl.tstruct.from_lists(['key1', 'key2', 'value'],
+                                  [hl.tint32, hl.tint32, hl.tint32]),
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
         ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
@@ -573,8 +565,8 @@ class MatrixTests(unittest.TestCase):
         ds = self.get_vds()
         kt = hl.Table.parallelize(
             [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
-            hl.tstruct(['culprit', 'foo', 'value'],
-                       [hl.tstr, hl.tstr, hl.tstr]),
+            hl.tstruct.from_lists(['culprit', 'foo', 'value'],
+                                  [hl.tstr, hl.tstr, hl.tstr]),
             key=['culprit', 'foo'])
         ds = ds.annotate_rows(
             dsfoo='bar',
@@ -635,7 +627,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_read_stored_cols(self):
         ds = self.get_vds()
-        ds = ds.annotate_globals(x = 'foo')
+        ds = ds.annotate_globals(x='foo')
         f = new_temp_file(suffix='vds')
         ds.write(f)
         t = hl.read_table(f + '/cols')
@@ -643,7 +635,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_read_stored_rows(self):
         ds = self.get_vds()
-        ds = ds.annotate_globals(x = 'foo')
+        ds = ds.annotate_globals(x='foo')
         f = new_temp_file(suffix='vds')
         ds.write(f)
         t = hl.read_table(f + '/rows')
@@ -651,7 +643,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_read_stored_globals(self):
         ds = self.get_vds()
-        ds = ds.annotate_globals(x = 5, baz = 'foo')
+        ds = ds.annotate_globals(x=5, baz='foo')
         f = new_temp_file(suffix='vds')
         ds.write(f)
         t = hl.read_table(f + '/globals')
@@ -679,7 +671,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_rename(self):
         dataset = self.get_vds()
-        renamed1 = dataset.rename({'locus':'locus2', 'info':'info2', 's': 'info'})
+        renamed1 = dataset.rename({'locus': 'locus2', 'info': 'info2', 's': 'info'})
 
         self.assertEqual(renamed1['locus2']._type, dataset['locus']._type)
         self.assertEqual(renamed1['info2']._type, dataset['info']._type)
@@ -701,14 +693,17 @@ class MatrixTests(unittest.TestCase):
         et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries().index()
         self.assertTrue(et.all(et.idx == et.entry_idx))
 
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr,
-                             hl.tarray(hl.tint32),
-                             hl.tarray(hl.tstruct(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])),
-                             hl.tstruct(['a', 'b', 'c'], [hl.tint32, hl.tint32, hl.tstr]),
-                             hl.tbool, hl.tstruct(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr,
+                                        hl.tarray(hl.tint32),
+                                        hl.tarray(
+                                            hl.tstruct.from_lists(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])),
+                                        hl.tstruct.from_lists(['a', 'b', 'c'], [hl.tint32, hl.tint32, hl.tstr]),
+                                        hl.tbool,
+                                        hl.tstruct.from_lists(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5,
                  'e': "hello", 'f': [1, 2, 3],
@@ -758,8 +753,8 @@ class FunctionsTests(unittest.TestCase):
 
 class ColumnTests(unittest.TestCase):
     def test_operators(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                            [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
@@ -824,7 +819,7 @@ class ColumnTests(unittest.TestCase):
         self.assertDictEqual(result, expected)
 
     def test_array_column(self):
-        schema = hl.tstruct(['a'], [hl.tarray(hl.tint32)])
+        schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3]}]
         kt = hl.Table.parallelize(rows, schema)
 
@@ -843,7 +838,7 @@ class ColumnTests(unittest.TestCase):
         self.assertDictEqual(result, expected)
 
     def test_dict_column(self):
-        schema = hl.tstruct(['x'], [hl.tfloat64])
+        schema = hl.tstruct(x=hl.tfloat64)
         rows = [{'x': 2.0}]
         kt = hl.Table.parallelize(rows, schema)
 
@@ -868,10 +863,10 @@ class ColumnTests(unittest.TestCase):
         self.assertDictEqual(result, expected)
 
     def test_numeric_conversion(self):
-        schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
-        kt = kt.annotate(d = hl.int64(kt.d))
+        kt = kt.annotate(d=hl.int64(kt.d))
 
         kt = kt.annotate(x1=[1.0, kt.a, 1],
                          x2=[1, 1.0],
@@ -895,10 +890,10 @@ class ColumnTests(unittest.TestCase):
     def test_constructors(self):
         rg = hl.GenomeReference("foo", ["1"], {"1": 100})
 
-        schema = hl.tstruct(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
+        schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
-        kt = kt.annotate(d = hl.int64(kt.d))
+        kt = kt.annotate(d=hl.int64(kt.d))
 
         kt = kt.annotate(l1=hl.parse_locus("1:51"),
                          l2=hl.locus("1", 51, reference_genome=rg),
