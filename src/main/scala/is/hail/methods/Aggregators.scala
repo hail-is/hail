@@ -218,9 +218,12 @@ object Aggregators {
     val aggregations = ec.aggregations
     val nAggregations = aggregations.size
 
-    val zVal = MultiArray2.fill[Aggregator](localNSamples, nAggregations)(null)
-    for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
-      zVal.update(i, j, aggregations(j)._3.copy())
+    val ma = MultiArray2.fill[Aggregator](localNSamples, nAggregations)(null)
+    val zVal = { () =>
+      for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
+        ma.update(i, j, aggregations(j)._3.copy())
+      }
+      ma
     }
 
     val fullRowType = vsm.rvRowType
@@ -250,14 +253,6 @@ object Aggregators {
       ma
     }
 
-    val combOp = (ma1: MultiArray2[Aggregator], ma2: MultiArray2[Aggregator]) => {
-      for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
-        val a1 = ma1(i, j)
-        a1.combOp(ma2(i, j).asInstanceOf[a1.type])
-      }
-      ma1
-    }
-
     val resultOp = (ma: MultiArray2[Aggregator], rvb: RegionValueBuilder) => {
       ec.set(0, localGlobals)
       rvb.startArray(localNSamples)
@@ -283,13 +278,12 @@ object Aggregators {
       rvb.endArray()
     }
 
-    SampleFunctions(zVal, seqOp, combOp, resultOp, newType)
+    SampleFunctions(zVal, seqOp, resultOp, newType)
   }
 
   case class SampleFunctions(
-    zero: MultiArray2[Aggregator],
+    zero: () => MultiArray2[Aggregator],
     seqOp: (MultiArray2[Aggregator], RegionValue) => MultiArray2[Aggregator],
-    combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
     resultOp: (MultiArray2[Aggregator], RegionValueBuilder) => Unit,
     resultType: TStruct)
 

@@ -26,16 +26,15 @@ class GroupBySuite extends SparkSuite {
 
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    vds.groupRowsBy("AC = va.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC")).groupVariantsBy("max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupVariantsStruct() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC = {str1: \"foo\", str2: 1}")
-    vds.groupRowsBy("AC = va.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC")).groupVariantsBy("max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
-  // FIXME this test is broken, @tpoterba has fixed in a separate branch
-  @Test(enabled = false) def testRandomVSMEquivalence() {
+  @Test def testRandomVSMEquivalence() {
     var vSkipped = 0
     var sSkipped = 0
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)
@@ -45,19 +44,15 @@ class GroupBySuite extends SparkSuite {
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {
         vSkipped += 1
-        val grouped = vsm.groupRowsBy("locus = va.locus, alleles = va.alleles",
-          "first = AGG.collect()[0]",
-          Some(Array("locus")))
+        val grouped = vsm.groupVariantsBy("first = AGG.collect()[0]")
         grouped.countRows() == uniqueVariants.size
       } else {
         val grouped = vsm
-          .groupRowsBy("locus = va.locus, alleles = va.alleles",
-            "GT = AGG.collect()[0].GT, " +
+          .groupVariantsBy("GT = AGG.collect()[0].GT, " +
               "AD = AGG.collect()[0].AD, " +
               "DP = AGG.collect()[0].DP, " +
               "GQ = AGG.collect()[0].GQ, " +
-              "PL = AGG.collect()[0].PL",
-            Some(Array("locus")))
+              "PL = AGG.collect()[0].PL")
         assert(vsm.selectRows("va.locus", "va.alleles").same(grouped))
       }
 
@@ -96,7 +91,9 @@ class GroupBySuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
 
-    val vdsGrouped = vds.explodeRows("va.genes").groupRowsBy("genes = va.genes", "sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles()).sum()")
+    val vdsGrouped = vds.explodeRows("va.genes")
+      .keyRowsBy(Array("genes"), Array("genes"))
+      .groupVariantsBy("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles()).sum()")
       .annotateSamplesExpr("pheno = sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
