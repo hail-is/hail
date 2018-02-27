@@ -112,23 +112,23 @@ final class VariantQCCombiner {
 
 object VariantQC {
   val signature = TStruct(
-    "callRate" -> TFloat64(),
+    "call_rate" -> TFloat64(),
     "AC" -> TInt32(),
     "AF" -> TFloat64(),
-    "nCalled" -> TInt32(),
-    "nNotCalled" -> TInt32(),
-    "nHomRef" -> TInt32(),
-    "nHet" -> TInt32(),
-    "nHomVar" -> TInt32(),
-    "dpMean" -> TFloat64(),
-    "dpStDev" -> TFloat64(),
-    "gqMean" -> TFloat64(),
-    "gqStDev" -> TFloat64(),
-    "nNonRef" -> TInt32(),
-    "rHeterozygosity" -> TFloat64(),
-    "rHetHomVar" -> TFloat64(),
-    "rExpectedHetFrequency" -> TFloat64(),
-    "pHWE" -> TFloat64())
+    "n_called" -> TInt32(),
+    "n_not_called" -> TInt32(),
+    "n_hom_ref" -> TInt32(),
+    "n_het" -> TInt32(),
+    "n_hom_var" -> TInt32(),
+    "dp_mean" -> TFloat64(),
+    "dp_stdev" -> TFloat64(),
+    "gq_mean" -> TFloat64(),
+    "gq_stdev" -> TFloat64(),
+    "n_non_ref" -> TInt32(),
+    "r_heterozygosity" -> TFloat64(),
+    "r_het_hom_var" -> TFloat64(),
+    "r_expected_het_freq" -> TFloat64(),
+    "p_hwe" -> TFloat64())
 
   def apply(vsm: MatrixTable, root: String = "qc"): MatrixTable = {
     vsm.requireRowKeyVariant("variant_qc")

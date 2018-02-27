@@ -42,7 +42,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
       forAll(plinkSafeBiallelicVDS) { case (vds: MatrixTable) =>
 
         val vds2 = VariantQC(vds)
-          .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
+          .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.n_called * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 
         if (vds2.numCols < 5 || vds2.countVariants() < 5) {
           true

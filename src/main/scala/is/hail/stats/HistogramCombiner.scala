@@ -7,10 +7,10 @@ import is.hail.expr.types._
 
 object HistogramCombiner {
   def schema: TStruct = TStruct(
-    "binEdges" -> TArray(TFloat64()),
-    "binFrequencies" -> TArray(TInt64()),
-    "nLess" -> TInt64(),
-    "nGreater" -> TInt64())
+    "bin_edges" -> TArray(TFloat64()),
+    "bin_freq" -> TArray(TInt64()),
+    "n_smaller" -> TInt64(),
+    "n_larger" -> TInt64())
 }
 
 class HistogramCombiner(val indices: Array[Double]) extends Serializable {

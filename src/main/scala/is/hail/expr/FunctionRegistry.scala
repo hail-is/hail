@@ -924,7 +924,7 @@ object FunctionRegistry {
     (x: Annotation, y: Annotation) => Interval(x, y, true, false)
   })(TTHr, TTHr, intervalHr(TTHr))
 
-  val hweStruct = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
+  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
 
   registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -956,7 +956,7 @@ object FunctionRegistry {
   }
 
 
-  val chisqStruct = TStruct("pValue" -> TFloat64(), "oddsRatio" -> TFloat64())
+  val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
@@ -979,8 +979,8 @@ object FunctionRegistry {
 
   })
 
-  val fetStruct = TStruct("pValue" -> TFloat64(), "oddsRatio" -> TFloat64(),
-    "ci95Lower" -> TFloat64(), "ci95Upper" -> TFloat64())
+  val fetStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64(),
+    "ci_95_lower" -> TFloat64(), "ci_95_upper" -> TFloat64())
 
   registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
@@ -1426,7 +1426,7 @@ object FunctionRegistry {
   registerAggregator[Double, Any]("stats", () => new StatAggregator())(aggregableHr(float64Hr),
     new HailRep[Any] {
       def typ = TStruct("mean" -> TFloat64(), "stdev" -> TFloat64(), "min" -> TFloat64(),
-        "max" -> TFloat64(), "nNotMissing" -> TInt64(), "sum" -> TFloat64())
+        "max" -> TFloat64(), "n" -> TInt64(), "sum" -> TFloat64())
     })
 
   registerAggregator[Double, Double, Double, Int, Any]("hist", (start: Double, end: Double, bins: Int) => {

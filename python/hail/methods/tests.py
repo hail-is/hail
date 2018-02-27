@@ -398,17 +398,17 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(sum([sum(glob_conc[i]) for i in range(5)]), dataset.count_rows() * dataset.count_cols())
 
-        counts = dataset.aggregate_entries(hl.Struct(nHet=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
-                                                     nHomRef=agg.count(agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
-                                                     nHomVar=agg.count(agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
+        counts = dataset.aggregate_entries(hl.Struct(n_het=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
+                                                     n_hom_ref=agg.count(agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
+                                                     n_hom_var=agg.count(agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
                                                      nNoCall=agg.count(
                                                          agg.filter(hl.is_missing(dataset.GT), dataset.GT))))
 
         self.assertEqual(glob_conc[0][0], 0)
         self.assertEqual(glob_conc[1][1], counts.nNoCall)
-        self.assertEqual(glob_conc[2][2], counts.nHomRef)
-        self.assertEqual(glob_conc[3][3], counts.nHet)
-        self.assertEqual(glob_conc[4][4], counts.nHomVar)
+        self.assertEqual(glob_conc[2][2], counts.n_hom_ref)
+        self.assertEqual(glob_conc[3][3], counts.n_het)
+        self.assertEqual(glob_conc[4][4], counts.n_hom_var)
         [self.assertEqual(glob_conc[i][j], 0) for i in range(5) for j in range(5) if i != j]
 
         self.assertTrue(cols_conc.all(hl.sum(hl.flatten(cols_conc.concordance)) == dataset.count_rows()))

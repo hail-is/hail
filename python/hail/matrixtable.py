@@ -634,7 +634,7 @@ class MatrixTable(object):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.sample_qc.gqMean > 20, dataset.GT)
+        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_mean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.alleles))
 
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
@@ -863,7 +863,7 @@ class MatrixTable(object):
         --------
         Select existing fields and compute a new one:
 
-        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, dataset.variant_qc.gqMean,
+        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, dataset.variant_qc.gq_mean,
         ...                                      highQualityCases = agg.count_where((dataset.GQ > 20) & (dataset.isCase)))
 
         Notes
@@ -1219,9 +1219,9 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_cols(dataset.pheno.isCase & (dataset.pheno.age > 50), keep=True)
 
-        Remove rows where `sample_qc.gqMean` is less than 20:
+        Remove rows where `sample_qc.gq_mean` is less than 20:
 
-        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gqMean < 20, keep=False)
+        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_mean < 20, keep=False)
 
         Notes
         -----

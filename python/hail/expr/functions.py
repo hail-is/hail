@@ -316,11 +316,11 @@ def chisq(c1, c2, c3, c4):
 
         >>> hl.eval_expr(hl.chisq(10, 10,
         ...                   10, 10))
-        Struct(oddsRatio=1.0, pValue=1.0)
+        Struct(odds_ratio=1.0, p_value=1.0)
 
         >>> hl.eval_expr(hl.chisq(30, 30,
         ...                   50, 10))
-        Struct(oddsRatio=0.2, pValue=0.000107511176729)
+        Struct(odds_ratio=0.2, p_value=0.000107511176729)
 
     Parameters
     ----------
@@ -336,9 +336,9 @@ def chisq(c1, c2, c3, c4):
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
+        A struct expression with two fields, `p_value` (``Float64``) and `odds_ratio` (``Float64``).
     """
-    ret_type = tstruct(pValue=tfloat64, oddsRatio=tfloat64)
+    ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
     return _func("chisq", ret_type, c1, c2, c3, c4)
 
 
@@ -352,11 +352,11 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 
         >>> hl.eval_expr(hl.ctt(10, 10,
         ...              10, 10, min_cell_count=15))
-        Struct(oddsRatio=1.0, pValue=1.0)
+        Struct(odds_ratio=1.0, p_value=1.0)
 
         >>> hl.eval_expr(hl.ctt(30, 30,
         ...              50, 10, min_cell_count=15))
-        Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
+        Struct(odds_ratio=0.202874620964, p_value=0.000190499944324)
 
     Notes
     -----
@@ -379,9 +379,9 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
+        A struct expression with two fields, `p_value` (``Float64``) and `odds_ratio` (``Float64``).
     """
-    ret_type = tstruct(pValue=tfloat64, oddsRatio=tfloat64)
+    ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
@@ -511,11 +511,13 @@ def fisher_exact_test(c1, c2, c3, c4):
 
         >>> hl.eval_expr(hl.fisher_exact_test(10, 10,
         ...                                   10, 10))
-        Struct(oddsRatio=1.0, pValue=1.0)
+        Struct(p_value=1.0000000000000002, odds_ratio=1.0,
+               ci_95_lower=0.24385796914260355, ci_95_upper=4.100747675033819)
 
         >>> hl.eval_expr(hl.fisher_exact_test(30, 30,
         ...                                   50, 10))
-        Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
+        Struct(p_value=0.00019049994432397886, odds_ratio=0.20287462096407916,
+               ci_95_lower=0.07687933053900567, ci_95_upper=0.4987032678214519)
 
     Notes
     -----
@@ -537,13 +539,13 @@ def fisher_exact_test(c1, c2, c3, c4):
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with four fields, `pValue` (``Float64``), `oddsRatio` (``Float64``),
-        ci95Lower (``Float64``), and ci95Upper(``Float64``).
+        A struct expression with four fields, `p_value` (``Float64``), `odds_ratio` (``Float64``),
+        ci_95_lower (``Float64``), and ci_95_upper(``Float64``).
     """
-    ret_type = tstruct(pValue=tfloat64,
-                       oddsRatio=tfloat64,
-                       ci95Lower=tfloat64,
-                       ci95Upper=tfloat64)
+    ret_type = tstruct(p_value=tfloat64,
+                       odds_ratio=tfloat64,
+                       ci_95_lower=tfloat64,
+                       ci_95_upper=tfloat64)
     return _func("fet", ret_type, c1, c2, c3, c4)
 
 
@@ -592,10 +594,10 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     .. doctest::
 
         >>> hl.eval_expr(hl.hardy_weinberg_p(20, 50, 26))
-        Struct(rExpectedHetFrequency=0.500654450262, pHWE=0.762089599352)
+        Struct(r_expected_het_freq=0.500654450262, p_hwe=0.762089599352)
 
         >>> hl.eval_expr(hl.hardy_weinberg_p(37, 200, 85))
-        Struct(rExpectedHetFrequency=0.489649643074, pHWE=1.13372103832e-06)
+        Struct(r_expected_het_freq=0.489649643074, p_hwe=1.13372103832e-06)
 
     Notes
     -----
@@ -614,10 +616,10 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `rExpectedHetFrequency` (``Float64``) and`pValue` (``Float64``).
+        A struct expression with two fields, `r_expected_het_freq` (``Float64``) and`p_value` (``Float64``).
     """
-    ret_type = tstruct(rExpectedHetFrequency=tfloat64,
-                       pHWE=tfloat64)
+    ret_type = tstruct(r_expected_het_freq=tfloat64,
+                       p_hwe=tfloat64)
     return _func("hwe", ret_type, num_hom_ref, num_het, num_hom_var)
 
 
