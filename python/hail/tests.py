@@ -229,9 +229,9 @@ class TableTests(unittest.TestCase):
                              u'observed_homs': 1},
                     u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
                     u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
-                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'nNotMissing': 2, u'mean': 8.0},
+                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
                     u'x8': 1, u'x9': 0.0, u'x16': u'apple',
-                    u'x11': {u'rExpectedHetFrequency': 0.5, u'pHWE': 0.5},
+                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
                     u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16}
 
         self.assertDictEqual(result, expected)

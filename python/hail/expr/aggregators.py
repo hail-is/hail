@@ -542,7 +542,7 @@ def stats(expr):
     .. doctest::
 
         >>> table1.aggregate(agg.stats(table1.HT))
-        Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, nNotMissing=4, mean=66.75)
+        Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, n=4, mean=66.75)
 
     Notes
     -----
@@ -552,7 +552,7 @@ def stats(expr):
     - `max` (:class:`.TFloat64`) - Maximum value.
     - `mean` (:class:`.TFloat64`) - Mean value,
     - `stdev` (:class:`.TFloat64`) - Standard deviation.
-    - `nNotMissing` (:class:`.TFloat64`) - Number of non-missing records.
+    - `n` (:class:`.TFloat64`) - Number of non-missing records.
     - `sum` (:class:`.TFloat64`) - Sum.
 
     Parameters
@@ -564,7 +564,7 @@ def stats(expr):
     -------
     :class:`.StructExpression`
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
-        `nNotMissing`, and `sum`.
+        `n`, and `sum`.
     """
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
@@ -573,7 +573,7 @@ def stats(expr):
                                            stdev=tfloat64,
                                            min=tfloat64,
                                            max=tfloat64,
-                                           nNotMissing=tint64,
+                                           n=tint64,
                                            sum=tfloat64))
 
 @typecheck(expr=oneof(Aggregable, expr_numeric))
@@ -677,9 +677,9 @@ def hardy_weinberg(expr):
     -----
     This method returns a struct expression with the following fields:
 
-    - `rExpectedHetFrequency` (:class:`.TFloat64`) - Ratio of observed to
+    - `r_expected_het_freq` (:class:`.TFloat64`) - Ratio of observed to
       expected heterozygote frequency.
-    - `pHWE` (:class:`.TFloat64`) - Hardy-Weinberg p-value.
+    - `p_hwe` (:class:`.TFloat64`) - Hardy-Weinberg p-value.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
@@ -700,10 +700,10 @@ def hardy_weinberg(expr):
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `rExpectedHetFrequency` and `pHWE`.
+        Struct expression with fields `r_expected_het_freq` and `p_hwe`.
     """
-    t = tstruct(rExpectedHetFrequency=tfloat64,
-                pHWE=tfloat64)
+    t = tstruct(r_expected_het_freq=tfloat64,
+                p_hwe=tfloat64)
     agg = _to_agg(expr)
     if not agg.dtype == tcall:
         raise TypeError("aggregator 'hardy_weinberg' requires an expression of type 'Call', found '{}'".format(
@@ -993,8 +993,8 @@ def hist(expr, start, end, bins):
     .. doctest::
 
         >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
-        Struct(binEdges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
-               binFrequencies=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
+        Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+               bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
                nLess=0,
                nGreater=0)
 
@@ -1002,14 +1002,14 @@ def hist(expr, start, end, bins):
     -----
     This method returns a struct expression with four fields:
 
-     - `binEdges` (:class:`.TArray` of :class:`.TFloat64`): Bin edges. Bin `i`
+     - `bin_edges` (:class:`.TArray` of :class:`.TFloat64`): Bin edges. Bin `i`
        contains values in the left-inclusive, right-exclusive range
-       ``[ binEdges[i], binEdges[i+1] )``.
-     - `binFrequencies` (:class:`.TArray` of :class:`.TInt64`): Bin
+       ``[ bin_edges[i], bin_edges[i+1] )``.
+     - `bin_freq` (:class:`.TArray` of :class:`.TInt64`): Bin
        frequencies. The number of records found in each bin.
-     - `nLess` (:class:`.TInt64`): The number of records smaller than the start
+     - `n_smaller` (:class:`.TInt64`): The number of records smaller than the start
        of the first bin.
-     - `nGreater` (:class:`.TInt64`): The number of records larger than the end
+     - `n_larger` (:class:`.TInt64`): The number of records larger than the end
        of the last bin.
 
     Parameters
@@ -1026,13 +1026,13 @@ def hist(expr, start, end, bins):
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `binEdges`, `binFrequencies`, `nLess`, and `nGreater`.
+        Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'hist' expects argument 'expr' to be a numeric type, found '{}'".format(agg._type))
-    t = tstruct(binEdges=tarray(tfloat64),
-                binFrequencies=tarray(tint64),
+    t = tstruct(bin_edges=tarray(tfloat64),
+                bin_freq=tarray(tint64),
                 nLess=tint64,
-                nGreater=tint64)
+                n_larger=tint64)
     return _agg_func('hist', agg, t, start, end, bins)

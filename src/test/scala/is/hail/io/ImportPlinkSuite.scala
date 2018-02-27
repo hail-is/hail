@@ -84,12 +84,12 @@ class ImportPlinkSuite extends SparkSuite {
       .select(
         "row.rsid",
         "row.alleles",
-        "row.variant_qc.nNotCalled",
-        "row.variant_qc.nHomRef",
-        "row.variant_qc.nHet",
-        "row.variant_qc.nHomVar")
-      .rename(Map("alleles" -> "vA1", "nNotCalled" -> "nNotCalledA1",
-        "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
+        "row.variant_qc.n_not_called",
+        "row.variant_qc.n_hom_ref",
+        "row.variant_qc.n_het",
+        "row.variant_qc.n_hom_var")
+      .rename(Map("alleles" -> "vA1", "n_not_called" -> "nNotCalledA1",
+        "n_hom_ref" -> "nHomRefA1", "n_het" -> "nHetA1", "n_hom_var" -> "nHomVarA1"))
       .keyBy("rsid")
 
     val a2kt = VariantQC(a2ref, "variant_qc")
@@ -97,12 +97,12 @@ class ImportPlinkSuite extends SparkSuite {
       .select(
         "row.rsid",
         "row.alleles",
-        "row.variant_qc.nNotCalled",
-        "row.variant_qc.nHomRef",
-        "row.variant_qc.nHet",
-        "row.variant_qc.nHomVar")
-      .rename(Map("alleles" -> "vA2", "nNotCalled" -> "nNotCalledA2",
-        "nHomRef" -> "nHomRefA2", "nHet" -> "nHetA2", "nHomVar" -> "nHomVarA2"))
+        "row.variant_qc.n_not_called",
+        "row.variant_qc.n_hom_ref",
+        "row.variant_qc.n_het",
+        "row.variant_qc.n_hom_var")
+      .rename(Map("alleles" -> "vA2", "n_not_called" -> "nNotCalledA2",
+        "n_hom_ref" -> "nHomRefA2", "n_het" -> "nHetA2", "n_hom_var" -> "nHomVarA2"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")

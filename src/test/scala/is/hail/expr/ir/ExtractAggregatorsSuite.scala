@@ -518,10 +518,10 @@ class ExtractAggregatorsSuite {
       _ => 10.0)
 
     val t = RegionValueHistogramAggregator.typ
-    val binEdges = t.fieldIdx("binEdges")
-    val binFrequencies = t.fieldIdx("binFrequencies")
-    val nLess = t.fieldIdx("nLess")
-    val nGreater = t.fieldIdx("nGreater")
+    val binEdges = t.fieldIdx("bin_edges")
+    val binFrequencies = t.fieldIdx("bin_freq")
+    val nLess = t.fieldIdx("n_smaller")
+    val nGreater = t.fieldIdx("n_larger")
     assert(t.isFieldDefined(region, hOff, binEdges))
     assert(t.isFieldDefined(region, hOff, binFrequencies))
     assert(t.isFieldDefined(region, hOff, nLess))

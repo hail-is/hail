@@ -119,10 +119,10 @@ class FisherExactTestSuite extends SparkSuite {
         val (_, q2) = vds2.queryVA("va.majCase")
         val (_, q3) = vds2.queryVA("va.macControl")
         val (_, q4) = vds2.queryVA("va.majControl")
-        val (_, q5) = vds2.queryVA("va.fet.pValue")
-        val (_, q6) = vds2.queryVA("va.fet.oddsRatio")
-        val (_, q7) = vds2.queryVA("va.fet.ci95Lower")
-        val (_, q8) = vds2.queryVA("va.fet.ci95Upper")
+        val (_, q5) = vds2.queryVA("va.fet.p_value")
+        val (_, q6) = vds2.queryVA("va.fet.odds_ratio")
+        val (_, q7) = vds2.queryVA("va.fet.ci_95_lower")
+        val (_, q8) = vds2.queryVA("va.fet.ci_95_upper")
 
         vds2.variantsAndAnnotations.forall { case (v, va) =>
           val result = FisherExactTest(q1(va).asInstanceOf[Long].toInt, q2(va).asInstanceOf[Long].toInt,
