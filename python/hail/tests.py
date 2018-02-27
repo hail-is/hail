@@ -722,7 +722,7 @@ class FunctionsTests(unittest.TestCase):
         result = convert_struct_to_dict(kt.annotate(
             chisq=hl.chisq(kt.a, kt.b, kt.c, kt.d),
             ctt=hl.ctt(kt.a, kt.b, kt.c, kt.d, 5),
-            Dict=hl.dict([kt.a, kt.b], [kt.c, kt.d]),
+            dict=hl.dict(hl.zip([kt.a, kt.b], [kt.c, kt.d])),
             dpois=hl.dpois(4, kt.a),
             drop=kt.h.drop('b', 'c'),
             exp=hl.exp(kt.c),
@@ -847,7 +847,7 @@ class ColumnTests(unittest.TestCase):
         rows = [{'x': 2.0}]
         kt = hl.Table.parallelize(rows, schema)
 
-        kt = kt.annotate(a=hl.dict(['cat', 'dog'], [3, 7]))
+        kt = kt.annotate(a={'cat': 3, 'dog': 7})
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a['cat'],

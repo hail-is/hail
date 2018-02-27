@@ -3,10 +3,7 @@ from hail.expr.expression import *
 from hail.expr.ast import *
 # from hail.genetics import Locus, Call, GenomeReference
 from hail.genetics.genomeref import reference_genome_type
-
-std_len = len
-std_str = str
-std_all = all
+import builtins
 
 
 def _func(name, ret_type, *args):
@@ -389,38 +386,41 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
-@typecheck(keys=expr_array, values=expr_array)
-def dict(keys, values):
-    """Creates a dictionary from a list of keys and a list of values.
+@typecheck(collection=oneof(expr_dict, expr_set, expr_array))
+def dict(collection):
+    """Creates a dictionary.
 
     Examples
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.dict(['foo', 'bar', 'baz'], [1, 2, 3]))
+        >>> hl.eval_expr(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))
         {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
     -----
-    `keys` and `values` must be have the same length.
+    This method expects arrays or sets with elements of type :class:`.TTuple`
+    with 2 fields. The first field of the tuple becomes the key, and the second
+    field becomes the value.
 
     Parameters
     ----------
-    keys : list or :class:`.ArrayExpression`
-        The keys of the resulting dictionary.
-    values : list or :class:`.ArrayExpression`
-        The values of the resulting dictionary.
+    collection : :class:`.DictExpression` or :class:`.ArrayExpression` or :class:`.SetExpression`
 
     Returns
     -------
     :class:`.DictExpression`
-        A dictionary expression constructed from `keys` and `values`.
-
     """
-    keys = to_expr(keys)
-    values = to_expr(values)
-    ret_type = tdict(keys.dtype.element_type, values.dtype.element_type)
-    return _func("Dict", ret_type, keys, values)
+    if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
+        if not isinstance(collection.dtype.element_type, ttuple) or builtins.len(
+                collection.dtype.element_type.types) != 2:
+            raise TypeError("'dict': arguments of type array or set must have element type 'tuple(_, _)', found '{}'"
+                            .format(collection.dtype.element_type))
+        key_type, value_type = collection.dtype.element_type.types
+        return _func('dict', tdict(key_type, value_type), collection)
+    else:
+        assert isinstance(collection.dtype, tdict)
+        return collection
 
 
 @typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
@@ -903,7 +903,7 @@ def call(*alleles, phased=False):
     :class:`.CallExpression`
     """
     indices, aggregations, joins, refs = unify_all(phased, *alleles)
-    if std_len(alleles) > 2:
+    if builtins.len(alleles) > 2:
         raise NotImplementedError("'call' supports a maximum of 2 alleles.")
     return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations,
                           joins, refs)
@@ -2300,6 +2300,52 @@ def group_by(f, collection):
                                          lambda t: tdict(t, collection.dtype))
 
 
+@typecheck(arrays=expr_array, fill_missing=bool)
+def zip(*arrays, fill_missing=False):
+    """Zip together arrays into a single array.
+
+    Examples
+    --------
+
+
+    Notes
+    -----
+    The element type of the resulting array is a :class:`.TTuple` with a field
+    for each array.
+
+    Parameters
+    ----------
+    arrays: : variable-length args of :class:`.ArrayExpression`
+        Array expressions.
+    fill_missing : :obj:`bool`
+        If ``False``, return an array with length equal to the shortest length
+        of the `arrays`. If ``True``, return an array equal to the longest
+        length of the `arrays`, by extending the shorter arrays with missing
+        values.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+
+    n_arrays = builtins.len(arrays)
+    if fill_missing:
+        def _(array_lens):
+            result_len = hl.max(array_lens)
+            indices = hl.range(0, result_len)
+            return hl.map(lambda i: builtins.tuple(
+                hl.cond(i < array_lens[j], arrays[j][i], hl.null(arrays[j].dtype.element_type))
+                for j in builtins.range(n_arrays)), indices)
+
+        return bind([hl.len(a) for a in arrays], _)
+    else:
+        def _(array_lens):
+            result_len = hl.min(array_lens)
+            indices = hl.range(0, result_len)
+            return hl.map(lambda i: builtins.tuple(arrays[j][i] for j in builtins.range(n_arrays)), indices)
+
+        return bind([hl.len(a) for a in arrays], _)
+
 @typecheck(f=func_spec(1, expr_any),
            collection=oneof(expr_set, expr_array))
 def map(f, collection):
@@ -2396,9 +2442,9 @@ def max(*exprs):
     -------
     :class:`.NumericExpression`
     """
-    if std_len(exprs) < 1:
+    if builtins.len(exprs) < 1:
         raise ValueError("'max' requires at least one argument")
-    if std_len(exprs) == 1:
+    if builtins.len(exprs) == 1:
         expr = exprs[0]
         if not ((isinstance(expr.dtype, TSet) or isinstance(expr.dtype, TArray))
                 and is_numeric(expr.dtype.element_type)):
@@ -2406,12 +2452,12 @@ def max(*exprs):
                             "  Found 1 argument of type '{}'".format(expr.dtype))
         return expr._method('max', expr.dtype.element_type)
     else:
-        if not std_all(is_numeric(e.dtype) for e in exprs):
+        if not builtins.all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join(
+                            "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
-        if std_len(exprs) == 2:
+        if builtins.len(exprs) == 2:
             return exprs[0]._method('max', ret_t, exprs[1])
         else:
             return max([e for e in exprs])
@@ -2450,9 +2496,9 @@ def min(*exprs):
     -------
     :class:`.NumericExpression`
     """
-    if std_len(exprs) < 1:
+    if builtins.len(exprs) < 1:
         raise ValueError("'min' requires at least one argument")
-    if std_len(exprs) == 1:
+    if builtins.len(exprs) == 1:
         expr = exprs[0]
         if not ((isinstance(expr.dtype, TSet) or isinstance(expr.dtype, TArray))
                 and is_numeric(expr.dtype.element_type)):
@@ -2460,12 +2506,12 @@ def min(*exprs):
                             "  Found 1 argument of type '{}'".format(expr.dtype))
         return expr._method('min', expr.dtype.element_type)
     else:
-        if not std_all(is_numeric(e.dtype) for e in exprs):
+        if not builtins.all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(std_len(exprs), ', '.join(
+                            "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
-        if std_len(exprs) == 2:
+        if builtins.len(exprs) == 2:
             return exprs[0]._method('min', ret_t, exprs[1])
         else:
             return min([e for e in exprs])
@@ -2710,7 +2756,7 @@ def empty_set(t):
     return filter(lambda x: False, set([null(t)]))
 
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set, expr_array, expr_dict))
 def array(collection):
     """Construct an array expression.
 
@@ -2723,14 +2769,22 @@ def array(collection):
         >>> hl.eval_expr(hl.array(s))
         ['Charlie', 'Alice', 'Bob']
 
+    Parameters
+    ----------
+    collection : :class:`.ArrayExpression` or :class:`.SetExpression` or :class:`.DictExpression`
+
     Returns
     -------
     :class:`.ArrayExpression`
         Elements as an array.
     """
-    if isinstance(collection.dtype, TArray):
+    if isinstance(collection.dtype, tarray):
         return collection
-    return collection._method("toArray", tarray(collection.dtype.element_type))
+    elif isinstance(collection.dtype, tset):
+        return collection._method("toArray", tarray(collection.dtype.element_type))
+    else:
+        assert isinstance(collection.dtype, tdict)
+        return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)
 
 
 @typecheck(t=Type)
@@ -3060,6 +3114,7 @@ def int32(expr):
     """
     return expr._method("toInt32", tint32)
 
+
 @typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
 def int(expr):
     """Convert to a 32-bit integer expression.
@@ -3090,6 +3145,7 @@ def int(expr):
     :class:`.NumericExpression` of type :class:`.TInt32`
     """
     return int32(expr)
+
 
 @typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
 def float(expr):
