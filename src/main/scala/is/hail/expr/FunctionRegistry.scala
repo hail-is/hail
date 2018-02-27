@@ -1723,9 +1723,10 @@ object FunctionRegistry {
         var minIndex = 0
         var i = 1
         while (i < a.length) {
-          if (ord.lt(a(i), min))
+          if (ord.lt(a(i), min)) {
             min = a(i)
-          minIndex = i
+            minIndex = i
+          }
           i += 1
         }
         minIndex: java.lang.Integer
@@ -1740,9 +1741,10 @@ object FunctionRegistry {
         var maxIndex = 0
         var i = 1
         while (i < a.length) {
-          if (ord.gt(a(i), max))
+          if (ord.gt(a(i), max)) {
             max = a(i)
-          maxIndex = i
+            maxIndex = i
+          }
           i += 1
         }
         maxIndex: java.lang.Integer

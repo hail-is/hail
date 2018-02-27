@@ -2957,7 +2957,7 @@ def argmin(array, unique=False):
         >>> hl.eval_expr(hl.argmin([0.2, 0.3, 0.6]))
         0
 
-        >>> hl.eval_expr(hl.argmin([0.4, 0.2, 0.2], unique=True))
+        >>> hl.eval_expr(hl.argmin([0.4, 0.2, 0.2]))
         1
 
         >>> hl.eval_expr(hl.argmin([0.4, 0.2, 0.2], unique=True))
@@ -2967,8 +2967,8 @@ def argmin(array, unique=False):
     -----
     Returns the index of the minimum value in the array.
 
-    If two elements are tied for minimum, then the value of `unique` will
-    determine the result. If `unique` is ``False``, then the smaller index
+    If two or more elements are tied for minimum, then the `unique` parameter
+    will determine the result. If `unique` is ``False``, then the first index
     will be returned. If `unique` is ``True``, then the result is missing.
 
     If the array is empty, then the result is missing.
@@ -3013,8 +3013,8 @@ def argmax(array, unique=False):
     -----
     Returns the index of the maximum value in the array.
 
-    If two elements are tied for maximum, then the value of `unique` will
-    determine the result. If `unique` is ``False``, then the smaller index
+    If two or more elements are tied for maximum, then the `unique` parameter
+    will determine the result. If `unique` is ``False``, then the first index
     will be returned. If `unique` is ``True``, then the result is missing.
 
     If the array is empty, then the result is missing.
