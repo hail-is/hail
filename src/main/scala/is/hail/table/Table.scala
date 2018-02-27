@@ -197,7 +197,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       "row" -> (1, signature)
     )
     val ec = EvalContext("global" -> globalSignature,
-      "rows" -> TAggregable(signature, aggSymbolTable))
+      "AGG" -> TAggregable(signature, aggSymbolTable))
     ec.set(0, globals)
     ec
   }

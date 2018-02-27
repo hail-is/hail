@@ -319,7 +319,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def testNoPrune() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
     val nSamples = vds.numCols
-    val filteredVDS = vds.filterVariantsExpr("gs.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
+    val filteredVDS = vds.filterVariantsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countVariants() == filteredVDS.countVariants())
   }

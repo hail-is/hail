@@ -124,7 +124,7 @@ class ExportVCFSuite extends SparkSuite {
     // cast Long to Int
     val out = tmpDir.createTempFile("out", "vcf")
     ExportVCF(vds
-      .annotateVariantsExpr("info.AC_pass = gs.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
+      .annotateVariantsExpr("info.AC_pass = AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
         "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()) >= 0.2 ) )).count()"),
       out)
 

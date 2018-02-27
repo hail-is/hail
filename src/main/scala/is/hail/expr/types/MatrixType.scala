@@ -72,7 +72,7 @@ case class MatrixType(
     EvalContext(Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def rowEC: EvalContext = {
@@ -84,7 +84,7 @@ case class MatrixType(
     EvalContext(Map(
       "global" -> (0, globalType),
       "va" -> (1, rowType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def genotypeEC: EvalContext = {

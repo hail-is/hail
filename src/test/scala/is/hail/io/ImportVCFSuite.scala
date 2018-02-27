@@ -163,9 +163,9 @@ class ImportVCFSuite extends SparkSuite {
   @Test def testMissingInfo() {
     val vds = hc.importVCF("src/test/resources/missingInfoArray.vcf")
 
-    val variants = vds.queryVariants("variants.map(_ => va.locus).collect()")._1.asInstanceOf[IndexedSeq[Locus]]
-    val foo = vds.queryVariants("variants.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
-    val bar = vds.queryVariants("variants.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
+    val variants = vds.queryVariants("AGG.map(_ => va.locus).collect()")._1.asInstanceOf[IndexedSeq[Locus]]
+    val foo = vds.queryVariants("AGG.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
+    val bar = vds.queryVariants("AGG.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
 
     val vMap = (variants, foo, bar).zipped.map { case (v, f, b) => (v, (f, b)) }.toMap
 

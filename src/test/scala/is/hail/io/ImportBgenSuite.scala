@@ -270,8 +270,8 @@ class ImportBgenSuite extends SparkSuite {
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
       includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
-    assert(vds.annotateVariantsExpr("cr1 = gs.fraction(g => isDefined(g.GT))")
-      .annotateVariantsExpr("cr2 = gs.fraction(g => isDefined(g.GT))")
+    assert(vds.annotateVariantsExpr("cr1 = AGG.fraction(g => isDefined(g.GT))")
+      .annotateVariantsExpr("cr2 = AGG.fraction(g => isDefined(g.GT))")
       .rowsTable()
       .forall("row.cr1 == row.cr2"))
   }
@@ -286,10 +286,10 @@ class ImportBgenSuite extends SparkSuite {
       val vds = hc.importBgen(bgen, includeGT = false, includeGP = true, includeDosage = true, contigRecoding = contigRecoding)
         .filterVariantsExpr("va.locus.position == 2000")
 
-      val dosages = vds.queryGenotypes("gs.map(g => g.dosage).collect()")._1
+      val dosages = vds.queryGenotypes("AGG.map(g => g.dosage).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
 
-      val dosagesFromGP = vds.queryGenotypes("gs.map(g => dosage(g.GP)).collect()")._1
+      val dosagesFromGP = vds.queryGenotypes("AGG.map(g => dosage(g.GP)).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
       
       assert(dosages.length == 500 && dosagesFromGP.length == 500)

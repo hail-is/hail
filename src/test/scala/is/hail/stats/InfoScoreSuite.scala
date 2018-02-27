@@ -12,7 +12,7 @@ class InfoScoreSuite extends SparkSuite {
     val truthResultFile = "src/test/resources/infoScoreTest.result"
 
     val vds = hc.importGen(genFile, sampleFile)
-      .annotateVariantsExpr("""infoScore = gs.map(g => g.GP).infoScore()""")
+      .annotateVariantsExpr("""infoScore = AGG.map(g => g.GP).infoScore()""")
 
     val truthResult = hadoopConf.readLines(truthResultFile)(_.map(_.map { line =>
       val Array(v, snpid, rsid, infoScore, nIncluded) = line.trim.split("\\s+")

@@ -76,7 +76,7 @@ class IntervalSuite extends SparkSuite {
 
     assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
       .annotateVariantsExpr("foo = va.foo.map(x => x.target)")
-      .rowsTable().query("rows.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+      .rowsTable().query("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testNew() {
