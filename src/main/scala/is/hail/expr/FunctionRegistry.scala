@@ -1211,6 +1211,9 @@ object FunctionRegistry {
   registerMethod("get", (m: Map[Any, Any], key: Any) =>
     m.get(key).orNull)(dictHr(TTHr, TUHr), TTHr, TUHr)
 
+  registerMethod("get", (m: Map[Any, Any], key: Any, default: Any) =>
+    m.getOrElse(key, default))(dictHr(TTHr, TUHr), TTHr, TUHr, TUHr)
+
   registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d)
   )(arrayHr(stringHr), stringHr, stringHr)
   registerMethod("mkString", (s: Set[String], d: String) => s.mkString(d)

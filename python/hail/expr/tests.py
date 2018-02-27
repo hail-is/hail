@@ -222,6 +222,20 @@ class Tests(unittest.TestCase):
         a = hl.capture([1, 2, 3])
         self.assertRaises(TypeError, lambda: hl.eval_expr(list(a)))
 
+    def test_dict_get(self):
+        d = hl.capture({'a': 1, 'b': 2, 'missing_value': hl.null(hl.tint32)})
+        self.assertEqual(hl.eval_expr(d.get('a')), 1)
+        self.assertEqual(hl.eval_expr(d['a']), 1)
+        self.assertEqual(hl.eval_expr(d.get('b')), 2)
+        self.assertEqual(hl.eval_expr(d['b']), 2)
+        self.assertEqual(hl.eval_expr(d.get('c')), None)
+        self.assertEqual(hl.eval_expr(d.get('c', 5)), 5)
+        self.assertEqual(hl.eval_expr(d.get('a', 5)), 1)
+
+        self.assertEqual(hl.eval_expr(d.get('missing_values')), None)
+        self.assertEqual(hl.eval_expr(d.get('missing_values', hl.null(hl.tint32))), None)
+        self.assertEqual(hl.eval_expr(d.get('missing_values', 5)), 5)
+
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
