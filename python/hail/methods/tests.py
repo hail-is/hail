@@ -10,7 +10,6 @@ from hail.utils.misc import test_file, doctest_file
 from hail.linalg import BlockMatrix
 from math import sqrt
 
-
 def setUpModule():
     hl.init(master='local[2]', min_block_size=0)
 
@@ -526,9 +525,16 @@ class Tests(unittest.TestCase):
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
         t = hl.utils.range_table(10)
-        graph = t.select(i=t.idx, j=t.idx + 10)
-        mis = hl.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
+        graph = t.select(i=hl.int64(t.idx), j=hl.int64(t.idx + 10), bad_type=hl.float32(t.idx))
+
+        mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
+        mis = [row['node'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
+        self.assertEqual(mis_table.schema, hl.tstruct(node=hl.tint64))
+
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.capture(1), hl.capture(2), True))
 
     def test_filter_alleles(self):
         # poor man's Gen

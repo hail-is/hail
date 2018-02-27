@@ -3,7 +3,7 @@ package is.hail.utils
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Int = null) {
+class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Long = null) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
   private var ranks: Array[Long] = new Array[Long](minimumCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
@@ -15,6 +15,7 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBr
   def size: Int = next
 
   def isEmpty: Boolean = next == 0
+
   def nonEmpty: Boolean = next != 0
 
   override def toString(): String =

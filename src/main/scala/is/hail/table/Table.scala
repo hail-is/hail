@@ -373,11 +373,15 @@ class Table(val hc: HailContext, val ir: TableIR) {
       globalSignature = finalType)
   }
 
-  def selectGlobal(exprs: java.util.ArrayList[String]): Table = {
+  def selectGlobal(fields: java.util.ArrayList[String]): Table = {
+    selectGlobal(fields.asScala.toArray: _*)
+  }
+
+  def selectGlobal(fields: String*): Table = {
     val ec = EvalContext("global" -> globalSignature)
     ec.set(0, globals)
 
-    val (paths, types, f) = Parser.parseSelectExprs(exprs.asScala.toArray, ec)
+    val (paths, types, f) = Parser.parseSelectExprs(fields.toArray, ec)
 
     val names = paths.map {
       case Left(n) => n
@@ -1184,7 +1188,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
   }
 
-  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String] = None): Array[Any] = {
+  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String]): Array[Any] = {
     val ec = rowEvalContext()
 
     val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
@@ -1196,7 +1200,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val tieBreakerEc = EvalContext("l" -> iType, "r" -> iType)
 
     val maybeTieBreaker = tieBreakerExpr.map { e =>
-      val tieBreakerThunk = Parser.parseTypedExpr[Int](e, tieBreakerEc)
+      val tieBreakerThunk = Parser.parseTypedExpr[Long](e, tieBreakerEc)
 
       (l: Any, r: Any) => {
         tieBreakerEc.setAll(l, r)
@@ -1213,6 +1217,20 @@ class Table(val hc: HailContext, val ir: TableIR) {
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
     Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
+  }
+
+  def maximalIndependentSet(iExpr: String, jExpr: String, keep: Boolean,
+    maybeTieBreaker: Option[String] = None): Table = {
+
+    val (iType, _) = Parser.parseExpr(iExpr, rowEvalContext())
+
+    val relatedNodesToKeep = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
+
+    val nodes = this.annotate(s"node = [$iExpr, $jExpr]").select("row.node").explode("node").keyBy("node")
+
+    nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
+      .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
+      .selectGlobal()
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
