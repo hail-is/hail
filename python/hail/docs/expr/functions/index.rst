@@ -100,6 +100,7 @@ Functions
 
     map
     flatmap
+    zip
     flatten
     any
     all

@@ -6,7 +6,7 @@ from hail.utils.misc import plural, get_nice_field_error, get_nice_attr_error
 from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
-from collections import Mapping
+from collections import Mapping, Sequence
 
 
 class Indices(object):
@@ -2068,7 +2068,7 @@ class StructExpression(Mapping, Expression):
         print(s)
 
 
-class TupleExpression(Expression):
+class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.TTuple`.
 
     >>> t = hl.capture(("a", 1, [1, 2, 3]))
@@ -2113,6 +2113,10 @@ class TupleExpression(Expression):
         :obj:`int`
         """
         return len(self.dtype.types)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
 
 class BooleanExpression(Expression):

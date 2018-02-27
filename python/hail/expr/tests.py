@@ -933,6 +933,27 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),
                                                                            alleles=['A', 'T']))
 
+    def test_dict_conversions(self):
+        self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
+        self.assertEqual(hl.eval_expr(hl.dict(hl.array({1: 1, 2: 2}))), {1: 1, 2: 2})
+
+        self.assertEqual(hl.eval_expr(hl.dict([('1', 2), ('2', 3)])), {'1': 2, '2': 3})
+        self.assertEqual(hl.eval_expr(hl.dict({('1', 2), ('2', 3)})), {'1': 2, '2': 3})
+        self.assertEqual(hl.eval_expr(hl.dict([('1', 2), (hl.null(tstr), 3)])), {'1': 2, None: 3})
+        self.assertEqual(hl.eval_expr(hl.dict({('1', 2), (hl.null(tstr), 3)})), {'1': 2, None: 3})
+
+    def test_zip(self):
+        a1 = [1,2,3]
+        a2 = ['a', 'b']
+        a3 = [[1]]
+        self.assertEqual(hl.eval_expr(hl.zip(a1, a2)), [(1, 'a'), (2, 'b')])
+        self.assertEqual(hl.eval_expr(hl.zip(a1, a2, fill_missing=True)), [(1, 'a'), (2, 'b'), (3, None)])
+
+        self.assertEqual(hl.eval_expr(hl.zip(a3, a2, a1, fill_missing=True)),
+                         [([1], 'a', 1), (None, 'b', 2), (None, None, 3)])
+        self.assertEqual(hl.eval_expr(hl.zip(a3, a2, a1)),
+                         [([1], 'a', 1)])
+
     def test_array_methods(self):
         self.assertEqual(hl.eval_expr(hl.any(lambda x: x % 2 == 0, [1, 3, 5])), False)
         self.assertEqual(hl.eval_expr(hl.any(lambda x: x % 2 == 0, [1, 3, 5, 6])), True)
@@ -1011,7 +1032,7 @@ class Tests(unittest.TestCase):
         t2 = hl.capture((1, "hello"))
         tn1 = hl.capture((1, (2, (3, 4))))
 
-        t = hl.capture((1, t1, hl.dict(["a", "b"], [t2, t2]), [1, 5], tn1))
+        t = hl.capture((1, t1, hl.dict(hl.zip(["a", "b"], [t2, t2])), [1, 5], tn1))
 
         self.assertTrue(hl.eval_expr(t[0]) == 1)
         self.assertTrue(hl.eval_expr(t[1][0]) == 1)

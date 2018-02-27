@@ -19,6 +19,7 @@ import scala.language.higherKinds
 import scala.reflect.ClassTag
 import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.commons.math3.special.Gamma
+import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.switch
@@ -875,6 +876,28 @@ object FunctionRegistry {
       fatal(s"mismatch between length of keys (${ keys.length }) and values (${ values.length })")
     keys.zip(values).toMap
   })(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
+
+
+  val tuple2Hr = new HailRep[Annotation] {
+    override def typ: Type = TTuple(TTHr.typ, TUHr.typ)
+  }
+  register("dict", { (elements: IndexedSeq[Annotation]) =>
+    elements.filter(_ != null).map { e =>
+      val r = e.asInstanceOf[Row]
+      (r.get(0), r.get(1))
+  }.toMap
+  })(arrayHr(tuple2Hr), dictHr(TTHr, TUHr))
+
+  register("dict", { (elements: Set[Annotation]) =>
+    elements.filter(_ != null).map { e =>
+      val r = e.asInstanceOf[Row]
+      (r.get(0), r.get(1))
+    }.toMap
+  })(setHr(tuple2Hr), dictHr(TTHr, TUHr))
+
+  register("dictToArray", (m: Map[Annotation, Annotation]) => {
+    m.map { case (k, v) => Annotation(k, v) }.toArray.toFastIndexedSeq
+  })(dictHr(TTHr, TUHr), arrayHr(tuple2Hr))
 
   registerDependent("Locus", { () =>
     val gr = GR.gr
