@@ -2306,7 +2306,13 @@ def zip(*arrays, fill_missing=False):
 
     Examples
     --------
+    .. doctest::
 
+        >>> hl.eval_expr(hl.zip([1], [10, 20], [100, 200, 300]))
+        [(1, 10, 100)]
+
+        >>> hl.eval_expr(hl.zip([1], [10, 20], [100, 200, 300], fill_missing=True))
+        [(1, 10, 100), (None, 20, 200), (None, None, 300)]
 
     Notes
     -----
