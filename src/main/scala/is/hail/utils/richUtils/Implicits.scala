@@ -40,8 +40,6 @@ trait Implicits {
   implicit def toRichHadoopConfiguration(hConf: hadoop.conf.Configuration): RichHadoopConfiguration =
     new RichHadoopConfiguration(hConf)
 
-  implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow = new RichIndexedRow(r)
-
   implicit def toRichInt(i: Int): RichInt = new RichInt(i)
 
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
