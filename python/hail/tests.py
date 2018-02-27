@@ -364,8 +364,7 @@ class MatrixTests(unittest.TestCase):
                                 y4=vds.foo + vds.apple)
 
         expected_schema = hl.tstruct.from_lists(['s', 'apple', 'y1', 'y2', 'y3', 'y4'],
-                                                [hl.tstr,
-                                                 hl.tint32, hl.tint64, hl.tfloat64, hl.tint64, hl.tint32])
+                                                [hl.tstr, hl.tint32, hl.tint64, hl.tfloat64, hl.tint64, hl.tint32])
 
         self.assertTrue(schema_eq(vds.col_schema, expected_schema),
                         "expected: " + str(vds.col_schema) + "\nactual: " + str(expected_schema))
