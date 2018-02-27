@@ -614,9 +614,13 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
         lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
 
 
-    >>> ds = hl.read_matrix_table("data/example_lmmreg.vds")
-    >>> kinship_matrix = hl.rrm(ds.filter_rows(ds.useInKinship)['GT'])
-    >>> lmm_ds = hl.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
+    >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
+    >>> kinship_matrix = hl.rrm(lmm_ds.filter_rows(lmm_ds.useInKinship)['GT'])
+    >>> lmm_ds = hl.lmmreg(lmm_ds,
+    ...                    kinship_matrix,
+    ...                    lmm_ds.pheno,
+    ...                    lmm_ds.GT.num_alt_alleles(),
+    ...                    [lmm_ds.cov1, lmm_ds.cov2])
 
     Notes
     -----
@@ -1120,13 +1124,13 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
         burden_ds = burden_ds.annotate_rows(gene = genekt[burden_ds.locus])
         burden_ds.write('data/example_burden.vds', overwrite=True)
 
-    >>> ds = hl.read_matrix_table('data/example_burden.vds')
-    >>> skat_table = hl.skat(ds,
-    ...                      key_expr=ds.gene,
-    ...                      weight_expr=ds.weight,
-    ...                      y=ds.burden.pheno,
-    ...                      x=ds.GT.num_alt_alleles(),
-    ...                      covariates=[ds.burden.cov1, ds.burden.cov2])
+    >>> burden_ds = hl.read_matrix_table('data/example_burden.vds')
+    >>> skat_table = hl.skat(burden_ds,
+    ...                      key_expr=burden_ds.gene,
+    ...                      weight_expr=burden_ds.weight,
+    ...                      y=burden_ds.burden.pheno,
+    ...                      x=burden_ds.GT.num_alt_alleles(),
+    ...                      covariates=[burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
 
@@ -1986,8 +1990,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     field `aIndex` can be used to select the value corresponding to the split
     allele's position:
 
-    >>> ds = hl.split_multi_hts(dataset)
-    >>> ds = ds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
+    >>> split_ds = hl.split_multi_hts(dataset)
+    >>> split_ds = split_ds.filter_rows(split_ds.info.AC[split_ds.aIndex - 1] < 10, keep = False)
 
     VCFs split by Hail and exported to new VCFs may be
     incompatible with other tools, if action is not taken
@@ -2000,9 +2004,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     possible to use annotate_variants_expr to remap these
     values. Here is an example:
 
-    >>> ds = hl.split_multi_hts(dataset)
-    >>> ds = ds.annotate_rows(info = Struct(AC=ds.info.AC[ds.aIndex - 1], **ds.info)) # doctest: +SKIP
-    >>> hl.export_vcf(ds, 'output/export.vcf') # doctest: +SKIP
+    >>> split_ds = hl.split_multi_hts(dataset)
+    >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.aIndex - 1], **split_ds.info)) # doctest: +SKIP
+    >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 
@@ -2277,7 +2281,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> ds = hl.balding_nichols_model(3, 100, 1000)
+    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000)
 
     Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
@@ -2287,7 +2291,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     >>> from hail.stats import TruncatedBetaDist
     >>>
-    >>> ds = hl.balding_nichols_model(4, 40, 150, 3,
+    >>> bn_ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
     ...          af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),

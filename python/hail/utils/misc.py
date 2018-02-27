@@ -13,12 +13,12 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None):
     --------
     .. doctest::
 
-        >>> ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
+        >>> range_ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
 
-        >>> ds.count_rows()
+        >>> range_ds.count_rows()
         100
 
-        >>> ds.count_cols()
+        >>> range_ds.count_cols()
         10
 
     Notes
