@@ -937,6 +937,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
         self.assertEqual(hl.eval_expr(hl.dict(hl.array({1: 1, 2: 2}))), {1: 1, 2: 2})
 
+        self.assertEqual(hl.eval_expr(hl.dict([('1', 2), ('2', 3)])), {'1': 2, '2': 3})
+        self.assertEqual(hl.eval_expr(hl.dict({('1', 2), ('2', 3)})), {'1': 2, '2': 3})
+        self.assertEqual(hl.eval_expr(hl.dict([('1', 2), (hl.null(tstr), 3)])), {'1': 2, None: 3})
+        self.assertEqual(hl.eval_expr(hl.dict({('1', 2), (hl.null(tstr), 3)})), {'1': 2, None: 3})
+
     def test_zip(self):
         a1 = [1,2,3]
         a2 = ['a', 'b']
