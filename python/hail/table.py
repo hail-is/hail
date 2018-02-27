@@ -1225,7 +1225,7 @@ class Table(TableTemplate):
 
                         # extract v, key exprs
                         left2 = left.select_rows(*left.row_key, **{uid: e for uid, e in zip(uids, exprs)})
-                        lrt = (left2.rows_table()
+                        lrt = (left2.rows()
                             .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
                             .key_by(*uids))
 

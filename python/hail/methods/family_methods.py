@@ -382,7 +382,7 @@ def tdt(dataset, pedigree):
 
     tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
 
-    tab = tri.rows_table().select('locus', 'alleles', 'counts')
+    tab = tri.rows().select('locus', 'alleles', 'counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
     tab = tab.annotate(pval = hl.pchisqtail(tab.chi2, 1.0))

@@ -276,7 +276,7 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
         m = hl.import_vcf(test_file('sample.vcf'))
-        vkt = m.rows_table()
+        vkt = m.rows()
         vkt = vkt.select(vkt.locus, vkt.alleles, vkt.qual)
         vkt = vkt.annotate(qual2=m[(vkt.locus, vkt.alleles), :].qual)
         self.assertTrue(vkt.filter(vkt.qual != vkt.qual2).count() == 0)
@@ -482,8 +482,8 @@ class MatrixTests(unittest.TestCase):
 
         vds = vds.annotate_cols(c2=vds2[:, hl.str(vds.s)].c2)
 
-        rt = vds.rows_table()
-        ct = vds.cols_table()
+        rt = vds.rows()
+        ct = vds.cols()
 
         vds.annotate_rows(**rt[vds.locus, vds.alleles])
 
@@ -525,16 +525,16 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(ds.num_partitions(), 8)
         ds = ds.index_rows('rowidx').index_cols('colidx')
 
-        for i, struct in enumerate(ds.cols_table().select('colidx').collect()):
+        for i, struct in enumerate(ds.cols().select('colidx').collect()):
             self.assertEqual(i, struct.colidx)
-        for i, struct in enumerate(ds.rows_table().select('rowidx').collect()):
+        for i, struct in enumerate(ds.rows().select('rowidx').collect()):
             self.assertEqual(i, struct.rowidx)
 
     def test_reorder_columns(self):
         ds = self.get_vds()
-        new_sample_order = [x.s for x in ds.cols_table().select("s").collect()]
+        new_sample_order = [x.s for x in ds.cols().select("s").collect()]
         random.shuffle(new_sample_order)
-        self.assertEqual([x.s for x in ds.reorder_columns(new_sample_order).cols_table().select("s").collect()],
+        self.assertEqual([x.s for x in ds.reorder_columns(new_sample_order).cols().select("s").collect()],
                          new_sample_order)
 
     def test_computed_key_join_1(self):
@@ -547,7 +547,7 @@ class MatrixTests(unittest.TestCase):
             key=['key'])
         ds = ds.annotate_rows(key=ds.locus.position % 2)
         ds = ds.annotate_rows(value=kt[ds['key']].value)
-        rt = ds.rows_table()
+        rt = ds.rows()
         self.assertTrue(
             rt.all(((rt.locus.position % 2) == 0) == rt.value))
 
@@ -564,7 +564,7 @@ class MatrixTests(unittest.TestCase):
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
         ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
-        rt = ds.rows_table()
+        rt = ds.rows()
         self.assertTrue(
             rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
 
@@ -581,7 +581,7 @@ class MatrixTests(unittest.TestCase):
             info=ds.info.annotate(culprit=[ds.info.culprit, "foo"]))
         ds = ds.explode_rows(ds.info.culprit)
         ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo].value)
-        rt = ds.rows_table()
+        rt = ds.rows()
         self.assertTrue(
             rt.all(hl.cond(
                 rt.info.culprit == "InbreedingCoeff",
@@ -596,14 +596,14 @@ class MatrixTests(unittest.TestCase):
     def test_field_groups(self):
         ds = self.get_vds()
 
-        df = ds.annotate_rows(row_struct=ds.row).rows_table()
+        df = ds.annotate_rows(row_struct=ds.row).rows()
         self.assertTrue(df.all((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
 
         ds2 = ds.index_cols()
-        df = ds2.annotate_cols(col_struct=ds2.col).cols_table()
+        df = ds2.annotate_cols(col_struct=ds2.col).cols()
         self.assertTrue(df.all((df.col_idx == df.col_struct.col_idx)))
 
-        df = ds.annotate_entries(entry_struct=ds.entry).entries_table()
+        df = ds.annotate_entries(entry_struct=ds.entry).entries()
         self.assertTrue(df.all(
             ((hl.is_missing(df.GT) |
               (df.GT == df.entry_struct.GT)) &
@@ -621,12 +621,12 @@ class MatrixTests(unittest.TestCase):
 
     def test_from_rows_table(self):
         ds = hl.import_vcf(test_file('sample.vcf'))
-        rt = ds.rows_table()
+        rt = ds.rows()
         rm = hl.MatrixTable.from_rows_table(rt)
         # would be nice to compare rm to ds.drop_cols(), but the latter
         # preserves the col, entry types
         self.assertEqual(rm.count_cols(), 0)
-        self.assertTrue(rm.rows_table()._same(rt))
+        self.assertTrue(rm.rows()._same(rt))
 
     def test_sample_rows(self):
         ds = self.get_vds()
@@ -639,7 +639,7 @@ class MatrixTests(unittest.TestCase):
         f = new_temp_file(suffix='vds')
         ds.write(f)
         t = hl.read_table(f + '/cols')
-        self.assertTrue(ds.cols_table()._same(t))
+        self.assertTrue(ds.cols()._same(t))
 
     def test_read_stored_rows(self):
         ds = self.get_vds()
@@ -647,7 +647,7 @@ class MatrixTests(unittest.TestCase):
         f = new_temp_file(suffix='vds')
         ds.write(f)
         t = hl.read_table(f + '/rows')
-        self.assertTrue(ds.rows_table()._same(t))
+        self.assertTrue(ds.rows()._same(t))
 
     def test_read_stored_globals(self):
         ds = self.get_vds()
@@ -670,7 +670,7 @@ class MatrixTests(unittest.TestCase):
     def test_codecs_table(self):
         from hail.utils.java import Env, scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
-        rt = self.get_vds().rows_table()
+        rt = self.get_vds().rows()
         temp = new_temp_file(suffix='ht')
         for codec in codecs:
             rt.write(temp, overwrite=True, _codec_spec=codec.toString())
@@ -698,7 +698,7 @@ class MatrixTests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(100, 10)
         self.assertEqual(ds.count_rows(), 100)
         self.assertEqual(ds.count_cols(), 10)
-        et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries_table().index()
+        et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries().index()
         self.assertTrue(et.all(et.idx == et.entry_idx))
 
 class FunctionsTests(unittest.TestCase):

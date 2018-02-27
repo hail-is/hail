@@ -16,11 +16,11 @@ class GroupedMatrixTable(object):
     .. testsetup::
 
         dataset2 = dataset.annotate_globals(global_field=5)
-        table1 = dataset.rows_table()
+        table1 = dataset.rows()
         table1 = table1.annotate_globals(global_field=5)
         table1 = table1.annotate(consequence='SYN')
 
-        table2 = dataset.cols_table()
+        table2 = dataset.cols()
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     """
@@ -180,11 +180,11 @@ class MatrixTable(object):
     .. testsetup::
 
         dataset2 = dataset.annotate_globals(global_field=5)
-        table1 = dataset.rows_table()
+        table1 = dataset.rows()
         table1 = table1.annotate_globals(global_field=5)
         table1 = table1.annotate(consequence='SYN')
 
-        table2 = dataset.cols_table()
+        table2 = dataset.cols()
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     Add annotations:
@@ -1423,7 +1423,7 @@ class MatrixTable(object):
         This method should be thought of as a more convenient alternative to
         the following:
 
-        >>> rows_table = dataset.rows_table()
+        >>> rows_table = dataset.rows()
         >>> rows_table.aggregate(Struct(n_high_quality=agg.count_where(rows_table.qual > 40),
         ...                             mean_qual=agg.mean(rows_table.qual)))
 
@@ -1474,7 +1474,7 @@ class MatrixTable(object):
         This method should be thought of as a more convenient alternative to
         the following:
 
-        >>> cols_table = dataset.cols_table()
+        >>> cols_table = dataset.cols()
         >>> cols_table.aggregate(Struct(fraction_female=agg.fraction(cols_table.pheno.isFemale),
         ...                             case_ratio=agg.count_where(cols_table.isCase) / agg.count()))
 
@@ -1522,7 +1522,7 @@ class MatrixTable(object):
         This method should be thought of as a more convenient alternative to
         the following:
 
-        >>> entries_table = dataset.entries_table()
+        >>> entries_table = dataset.entries()
         >>> entries_table.aggregate(Struct(global_gq_mean=agg.mean(entries_table.GQ),
         ...                                call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
 
@@ -1851,14 +1851,14 @@ class MatrixTable(object):
         return Table(self._jvds.globalsTable())
 
     @handle_py4j
-    def rows_table(self):
+    def rows(self):
         """Returns a table with all row fields in the matrix.
 
         Examples
         --------
         Extract the row table:
 
-        >>> rows_table = dataset.rows_table()
+        >>> rows_table = dataset.rows()
 
         Returns
         -------
@@ -1868,14 +1868,14 @@ class MatrixTable(object):
         return Table(self._jvds.rowsTable())
 
     @handle_py4j
-    def cols_table(self):
+    def cols(self):
         """Returns a table with all column fields in the matrix.
 
         Examples
         --------
         Extract the column table:
 
-        >>> cols_table = dataset.cols_table()
+        >>> cols_table = dataset.cols()
 
         Returns
         -------
@@ -1885,14 +1885,14 @@ class MatrixTable(object):
         return Table(self._jvds.colsTable())
 
     @handle_py4j
-    def entries_table(self):
+    def entries(self):
         """Returns a matrix in coordinate table form.
 
         Examples
         --------
         Extract the entry table:
 
-        >>> entries_table = dataset.entries_table()
+        >>> entries_table = dataset.entries()
 
         Warning
         -------
@@ -1939,7 +1939,7 @@ class MatrixTable(object):
 
         if isinstance(src, Table):
             # join table with matrix.rows_table()
-            right = self.rows_table()
+            right = self.rows()
             return right.view_join_rows(*exprs)
         else:
             assert isinstance(src, MatrixTable)
@@ -1956,7 +1956,7 @@ class MatrixTable(object):
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateVariantsVDS(right._jvds, uid)))
             else:
-                return self.rows_table().view_join_rows(*exprs)
+                return self.rows().view_join_rows(*exprs)
 
             schema = TStruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
             return construct_expr(Select(Reference(prefix), uid),
@@ -1977,7 +1977,7 @@ class MatrixTable(object):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
-        return self.cols_table().view_join_rows(*exprs)
+        return self.cols().view_join_rows(*exprs)
 
     @handle_py4j
     def view_join_entries(self, row_exprs, col_exprs):
@@ -1993,7 +1993,7 @@ class MatrixTable(object):
 
         if isinstance(src, Table):
             # join table with matrix.entries_table()
-            return self.entries_table().view_join_rows(*(row_exprs + col_exprs))
+            return self.entries().view_join_rows(*(row_exprs + col_exprs))
         else:
             raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
 
@@ -2082,7 +2082,7 @@ class MatrixTable(object):
         Randomly shuffle order of columns:
 
         >>> import random
-        >>> new_sample_order = [x.s for x in dataset.cols_table().select("s").collect()]
+        >>> new_sample_order = [x.s for x in dataset.cols().select("s").collect()]
         >>> random.shuffle(new_sample_order)
         >>> dataset_reordered = dataset.reorder_columns(new_sample_order)
 

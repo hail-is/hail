@@ -224,7 +224,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
                           hl.cond(ds.ib.f_stat > male_threshold,
                                   False,
                                   hl.null(tbool))),
-        **ds.ib).cols_table()
+        **ds.ib).cols()
 
     return kt
 
@@ -2154,7 +2154,7 @@ def grm(dataset):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             grm,
-                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            [row.s for row in dataset.cols().select('s').collect()],
                                             n_variants)
 
 
@@ -2254,7 +2254,7 @@ def rrm(call_expr):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
-                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            [row.s for row in dataset.cols().select('s').collect()],
                                             n_variants)
 
 
