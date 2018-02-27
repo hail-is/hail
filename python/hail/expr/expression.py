@@ -99,15 +99,7 @@ def to_expr(e):
         return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))),
                               tinterval(tlocus(e.reference_genome)))
     elif isinstance(e, Call):
-        if e.ploidy == 0:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), tcall)
-        elif e.ploidy == 1:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast), tcall)
-        elif e.ploidy == 2:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast, to_expr(e[1])._ast),
-                                  tcall)
-        else:
-            raise NotImplementedError("Do not support calls with ploidy == {}.".format(e.ploidy))
+        return hl.call(*e.alleles, phased=e.phased)
     elif isinstance(e, Struct):
         if len(e) == 0:
             return construct_expr(StructDeclaration([], []), tstruct([], []))
@@ -2869,7 +2861,7 @@ class StringExpression(Expression):
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
 
-    >>> call = hl.call(False, 0, 1)
+    >>> call = hl.call(0, 1, phased=False)
     """
 
     def __getitem__(self, item):

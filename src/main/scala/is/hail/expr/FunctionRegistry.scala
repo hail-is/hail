@@ -864,8 +864,8 @@ object FunctionRegistry {
   register("range", { (x: Int, y: Int, step: Int) => (x until y by step).toArray: IndexedSeq[Int] })
 
   register("Call", { (phased: Boolean) => Call0(phased) })(boolHr, callHr)
-  register("Call", { (phased: Boolean, i: Int) => Call1(i, phased) })(boolHr, int32Hr, callHr)
-  register("Call", { (phased: Boolean, i: Int, j: Int) => Call2(i, j, phased) })(boolHr, int32Hr, int32Hr, callHr)
+  register("Call", { (i: Int, phased: Boolean) => Call1(i, phased) })(int32Hr, boolHr, callHr)
+  register("Call", { (i: Int, j: Int, phased: Boolean) => Call2(i, j, phased) })(int32Hr, int32Hr, boolHr, callHr)
   register("Call", { (alleles: IndexedSeq[Int], phased: Boolean) => CallN(alleles.toArray, phased) })(arrayHr(int32Hr), boolHr, callHr)
   register("Call", { (s: String) => Call.parse(s) })(stringHr, callHr)
   register("UnphasedDiploidGtIndexCall", { (gt: Int) => Call2.fromUnphasedDiploidGtIndex(gt) })(int32Hr, callHr)

@@ -879,34 +879,33 @@ def parse_interval(s, reference_genome='default'):
         s._indices, s._aggregations, s._joins, s._refs)
 
 
-@typecheck(phased=expr_bool,
-           alleles=expr_int32)
-def call(phased, *alleles):  # FIXME: Python 3 allows optional kwarg after varargs
+@typecheck(alleles=expr_int32,
+           phased=expr_bool)
+def call(*alleles, phased=False):
     """Construct a call expression.
 
     Examples
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.call(True, 1, 0))
-        Call(alleles=[1, 0], phased=True)
+        >>> hl.eval_expr(hl.call(1, 0))
+        Call(alleles=[1, 0], phased=False)
 
     Parameters
     ----------
-    phased : :obj:`bool`
-        If ``True``, preserve the order of `alleles`.
     alleles : variable-length args of :obj:`int` or :class:`.Expression` of type :class:`.TInt32`
         List of allele indices.
+    phased : :obj:`bool`
+        If ``True``, preserve the order of `alleles`.
 
     Returns
     -------
     :class:`.CallExpression`
     """
-
     indices, aggregations, joins, refs = unify_all(phased, *alleles)
     if std_len(alleles) > 2:
-        raise NotImplementedError("`call' supports a maximum of 2 alleles.")
-    return construct_expr(ApplyMethod('Call', phased._ast, *[a._ast for a in alleles]), tcall, indices, aggregations,
+        raise NotImplementedError("'call' supports a maximum of 2 alleles.")
+    return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations,
                           joins, refs)
 
 
@@ -950,19 +949,19 @@ def parse_call(s):
     -----
     This method expects strings in the following format:
 
-    +--------+-------------------------+--------------+
-    | ploidy | Phased                  | Unphased     |
-    +========+=========================+==============+
-    |   0    | &#124;-                 |  -           |
-    +--------+-------------------------+--------------+
-    |   1    | &#124;i                 |  i           |
-    +--------+-------------------------+--------------+
-    |   2    | i&#124;j                |  i/j         |
-    +--------+-------------------------+--------------+
-    |   3    | i&#124;j&#124;k         |  i/j/k       |
-    +--------+-------------------------+--------------+
-    |   N    | i&#124;j&#124;...&#124;N| i/j/k/.../N  |
-    +------+------+-----------------------------------+
+    +--------+-----------------+-----------------+
+    | ploidy | Phased          | Unphased        |
+    +========+=================+=================+
+    |   0    | ``|-``          | ``-``           |
+    +--------+-----------------+-----------------+
+    |   1    | ``|i``          | ``i``           |
+    +--------+-----------------+-----------------+
+    |   2    | ``i|j``         | ``i/j``         |
+    +--------+-----------------+-----------------+
+    |   3    | ``i|j|k``       | ``i/j/k``       |
+    +--------+-----------------+-----------------+
+    |   N    | ``i|j|k|...|N`` | ``i/j/k/.../N`` |
+    +--------+-----------------+-----------------+
 
     Parameters
     ----------

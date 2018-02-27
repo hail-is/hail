@@ -2462,7 +2462,7 @@ class FilterAlleles(object):
     ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
-    ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
+    ...             lambda newc: dataset.PL[hl.call(fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     hl.null(hl.tarray(hl.tint32)))
     >>> fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
@@ -2671,7 +2671,7 @@ class FilterAlleles(object):
             hl.bind(hl.range(0, hl.triangle(self.new_alleles.length())).map(
                 lambda newi: hl.bind(
                     hl.unphased_diploid_gt_index_call(newi),
-                    lambda newc: ds.PL[hl.call(False, self.new_to_old[newc[0]],
+                    lambda newc: ds.PL[hl.call(self.new_to_old[newc[0]],
                                                self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
                 lambda unnorm: unnorm - hl.min(unnorm)),
             hl.null(tarray(tint32)))
@@ -2766,14 +2766,12 @@ class FilterAlleles(object):
                 .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(ds.alleles)))
                 .filter(lambda oldi: hl.bind(
                 hl.unphased_diploid_gt_index_call(oldi),
-                lambda oldc: hl.call(False,
-                                     self.old_to_new[oldc[0]],
+                lambda oldc: hl.call(self.old_to_new[oldc[0]],
                                      self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
                 .map(lambda oldi: ds.PL[oldi])))),
             hl.null(tarray(tint32)))
         self.annotate_entries(
-            GT=hl.call(False,
-                       self.old_to_new[ds.GT[0]],
+            GT=hl.call(self.old_to_new[ds.GT[0]],
                        self.old_to_new[ds.GT[1]]), AD=hl.cond(
                 hl.is_defined(ds.AD),
                 (hl.range(0, hl.len(self.new_alleles))

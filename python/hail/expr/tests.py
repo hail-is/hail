@@ -906,7 +906,7 @@ class Tests(unittest.TestCase):
         self.check_expr(cNull.phased, None, tbool)
         self.check_expr(cNull.is_hom_var(), None, tbool)
 
-        call_expr = hl.call(True, 1, 2)
+        call_expr = hl.call(1, 2, phased=True)
         self.check_expr(call_expr[0], 1, tint32)
         self.check_expr(call_expr[1], 2, tint32)
         self.check_expr(call_expr.ploidy, 2, tint32)
@@ -914,7 +914,7 @@ class Tests(unittest.TestCase):
         a0 = hl.capture(1)
         a1 = 2
         phased = hl.capture(True)
-        call_expr = hl.call(phased, a0, a1)
+        call_expr = hl.call(a0, a1, phased=phased)
         self.check_expr(call_expr[0], 1, tint32)
         self.check_expr(call_expr[1], 2, tint32)
         self.check_expr(call_expr.ploidy, 2, tint32)
