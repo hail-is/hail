@@ -16,7 +16,7 @@ object OrderedDependency {
   def getDependencies(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner)(partitionId: Int): Seq[Int] = {
     val partBounds = p1.rangeBounds(partitionId).asInstanceOf[Interval]
 
-    if (!p2.rangeTree.overlaps(p2.pkType.ordering, partBounds))
+    if (!p2.rangeTree.probablyOverlaps(p2.pkType.ordering, partBounds))
       Seq.empty[Int]
     else {
       val start = p2.getPartitionPK(partBounds.start)

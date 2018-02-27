@@ -11,31 +11,14 @@ import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class IntervalSuite extends SparkSuite {
+class LocusIntervalSuite extends SparkSuite {
   val gr = GenomeReference.GRCh37
   val pord = gr.locusType.ordering
 
   def genomicInterval(contig: String, start: Int, end: Int): Interval =
     Interval(Locus(contig, start), Locus(contig, end), true, false)
 
-  @Test def test() {
-    val ilist = IntervalTree(pord, Array(
-      genomicInterval("1", 10, 20),
-      genomicInterval("1", 30, 40),
-      genomicInterval("2", 40, 50)))
-
-    assert(!ilist.contains(pord, Locus("1", 5)))
-    assert(ilist.contains(pord, Locus("1", 10)))
-    assert(ilist.contains(pord, Locus("1", 15)))
-    assert(!ilist.contains(pord, Locus("1", 20)))
-    assert(!ilist.contains(pord, Locus("1", 25)))
-    assert(ilist.contains(pord, Locus("1", 35)))
-
-    assert(!ilist.contains(pord, Locus("2", 30)))
-    assert(ilist.contains(pord, Locus("2", 45)))
-
-    assert(!ilist.contains(pord, Locus("3", 1)))
-
+  @Test def testIntervalList() {
     val ex1 = IntervalList.read(hc, "src/test/resources/example1.interval_list")
 
     val f = tmpDir.createTempFile("example", extension = "interval_list")
@@ -51,7 +34,7 @@ class IntervalSuite extends SparkSuite {
     assert(ex1.select(Array("row.interval")).same(ex2))
   }
 
-  @Test def testAll() {
+  @Test def testAnnotateVariantsTable() {
     val vds = MatrixTable.fromLegacy[Annotation](hc,
       MatrixType.fromParts(
         globalType = TStruct.empty(),
@@ -77,68 +60,6 @@ class IntervalSuite extends SparkSuite {
     assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
       .annotateVariantsExpr("foo = va.foo.map(x => x.target)")
       .rowsTable().query("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
-  }
-
-  @Test def testNew() {
-    val a: Array[Interval] = Array(
-      genomicInterval("1", 10, 20),
-      genomicInterval("1", 30, 40),
-      genomicInterval("2", 40, 50))
-
-    val t = IntervalTree.apply(pord, a)
-
-    assert(t.contains(pord, Locus("1", 15)))
-    assert(t.contains(pord, Locus("1", 30)))
-    assert(!t.contains(pord, Locus("1", 40)))
-    assert(!t.contains(pord, Locus("1", 20)))
-    assert(!t.contains(pord, Locus("1", 25)))
-    assert(!t.contains(pord, Locus("1", 9)))
-    assert(!t.contains(pord, Locus("5", 20)))
-
-    // Test queries
-    val a2: Array[Interval] = Array(
-      genomicInterval("1", 10, 20),
-      genomicInterval("1", 30, 40),
-      genomicInterval("1", 30, 50),
-      genomicInterval("1", 29, 31),
-      genomicInterval("1", 29, 30),
-      genomicInterval("1", 30, 31),
-      genomicInterval("2", 41, 50),
-      genomicInterval("2", 43, 50),
-      genomicInterval("2", 45, 70),
-      genomicInterval("2", 42, 43),
-      genomicInterval("2", 1, 10))
-
-    val t2 = IntervalTree.annotationTree(pord, a2.map(i => (i, ())))
-
-    assert(t2.queryIntervals(pord, Locus("1", 30)).toSet == Set(
-      genomicInterval("1", 30, 40), genomicInterval("1", 30, 50),
-      genomicInterval("1", 29, 31), genomicInterval("1", 30, 31)))
-
-  }
-
-  @Test def properties() {
-
-    // greater chance of collision
-    val lgen = Gen.zip(Gen.oneOf("1", "2"), Gen.choose(1, 100))
-      .map { case (c, p) => Locus(c, p) }
-    val g = Gen.zip(IntervalTree.gen(pord, lgen),
-      lgen)
-
-    val p = Prop.forAll(g) { case (it, locus) =>
-      val intervals = it.map(_._1).toSet
-
-      val setResults = intervals.filter(_.contains(pord, locus))
-      val treeResults = it.queryIntervals(pord, locus).toSet
-
-      val inSet = intervals.exists(_.contains(pord, locus))
-      val inTree = it.contains(pord, locus)
-
-      setResults == treeResults &&
-        setResults.nonEmpty == inSet &&
-        inSet == inTree
-    }
-    p.check()
   }
 
   @Test def testAnnotateIntervalsAll() {
@@ -219,88 +140,6 @@ class IntervalSuite extends SparkSuite {
     val z = "[HLA-DRB1*13:02:01:5-100)"
     assert(Locus.parseInterval(z, gr38) ==
       Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100), true, false))
-  }
-
-  @Test def testEndpoints() {
-    val ord = TInt32().ordering
-    val intContains = (i: Interval, v: Int) => i.contains(ord, v)
-
-    for (s1 <- Array(true, false); e1 <- Array(true, false)) {
-
-      val i0 = Interval(1, 1, includeStart = s1, includeEnd = e1)
-
-      assert(i0.isEmpty(ord) == (!i0.includeStart || !i0.includeEnd))
-
-      val i1 = Interval(1, 5, includeStart = s1, includeEnd = e1)
-
-      assert(i1.contains(ord, 3))
-      assert(i1.includeStart == i1.contains(ord, 1))
-      assert(i1.includeEnd == i1.contains(ord, 5))
-
-      val iLocus = Interval(Locus("1", 100), Locus("1", 101), s1, e1)
-      assert(Locus.parseInterval(iLocus.toString, gr) == iLocus)
-
-      for (s2 <- Array(true, false); e2 <- Array(true, false)) {
-        val i2 = Interval(5, 10, includeStart = s2, includeEnd = e2)
-        assert(i1.overlaps(ord, i2) == i2.overlaps(ord, i1))
-        assert(i1.overlaps(ord, i2) == (i1.includeEnd && i2.includeStart))
-
-        val iTree = IntervalTree.apply(ord, Array[Interval](i1, i2))
-        assert(iTree.contains(ord, 5) == (i1.includeEnd || i2.includeStart))
-        assert(iTree.queryIntervals(ord, 5).length == (if (i1.includeEnd || i2.includeStart) 1 else 0))
-        assert(iTree.contains(ord, 1) == i1.includeStart)
-        assert(iTree.contains(ord, 10) == i2.includeEnd)
-
-        val i3 = Interval(2, 3, includeStart = s2, includeEnd = e2)
-        assert(i1.overlaps(ord, i3))
-        assert(i3.overlaps(ord, i1))
-
-        val i4 = Interval(1, 5, includeStart = s2, includeEnd = e2)
-        assert((Interval.ordering(ord).compare(i1, i4) < 0) == ((i1.includeStart && !i4.includeStart) || ((i1.includeStart == i4.includeStart) && i4.includeEnd && !i1.includeEnd)))
-        assert((Interval.ordering(ord).compare(i1, i4) == 0) == ((i1.includeStart == i4.includeStart) && (i4.includeEnd == i1.includeEnd)))
-        assert((Interval.ordering(ord).compare(i1, i4) > 0) == ((!i1.includeStart && i4.includeStart) || ((i1.includeStart == i4.includeStart) && !i4.includeEnd && i1.includeEnd)))
-      }
-    }
-
-    val itree = IntervalTree.apply(ord, Array[Interval](
-      Interval(1, 5, false, false),
-      Interval(1, 5, true, true),
-      Interval(10, 20, false, false),
-      Interval(10, 20, true, true)))
-    val itree2 = IntervalTree.apply(ord, Array[Interval](
-      Interval(1, 5, true, true),
-      Interval(10, 20, true, true)))
-    val pruned = new ArrayBuilder[Interval]()
-    val pruned2 = new ArrayBuilder[Interval]()
-    itree.foreach { case (interval: Interval, _) => pruned += interval }
-    itree2.foreach { case (interval: Interval, _) => pruned2 += interval }
-
-    assert(pruned.size == pruned2.size)
-    assert(pruned.result().zip(pruned2.result()).forall { case (i1, i2) => i1 == i2 })
-  }
-
-  @Test def testQueryInterval() {
-    val ord = TInt32().ordering
-
-    val iArray = Array(Interval(1, 5, true, true),
-      Interval(5, 10, true, true),
-      Interval(8, 17, true, true),
-      Interval(9, 20, true, true))
-
-    val i0 = IntervalTree.annotationTree(ord, iArray.zipWithIndex)
-    val testIntervals = Array(
-      (Interval(5, 5, false, false), Array()),
-      (Interval(5, 5, true, true), Array(0, 1)),
-      (Interval(8, 9, true, true), Array(1, 2, 3)),
-      (Interval(20, 21, false, false), Array())
-    )
-
-    assert(!testIntervals(0)._1.overlaps(ord, iArray(1)), s":(")
-
-    for ((interval, vals) <- testIntervals) {
-      val actual = i0.queryOverlappingValues(ord, interval)
-      assert(actual.sameElements(vals), s"\n for interval $interval, expected [${ vals.mkString(", ") }], got [${ actual.mkString(", ") }]")
-    }
   }
 
   @Test def testFilterIntervals() {

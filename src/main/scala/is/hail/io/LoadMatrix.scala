@@ -235,7 +235,7 @@ object LoadMatrix {
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
       val interval = Interval(Row(if (includeStart) s else s - 1), Row(e - 1), includeStart, true)
       includeStart = false
-      if (interval.isEmpty(pkType.ordering))
+      if (interval.definitelyEmpty(pkType.ordering))
         None
       else {
         keepPartitions += i

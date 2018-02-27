@@ -249,7 +249,7 @@ class OrderedRVD private(
       return filter(pred)
 
     val newPartitionIndices = intervals.toIterator.flatMap { case (i, _) =>
-      if (!partitioner.rangeTree.overlaps(pkOrdering, i))
+      if (!partitioner.rangeTree.probablyOverlaps(pkOrdering, i))
         IndexedSeq()
       else {
         val start = partitioner.getPartitionPK(i.start)
