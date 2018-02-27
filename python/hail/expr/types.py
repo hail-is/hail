@@ -112,14 +112,24 @@ class Type(object):
         # FIXME this is a bit weird
         return 43 + hash(str(self))
 
-    def pretty(self, indent=0):
+    def pretty(self, indent=0, increment=4):
         """Returns a prettily formatted string representation of the type.
 
-        :param int indent: Number of spaces to indent.
+        Parameters
+        ----------
+        indent : :obj:`int`
+            Spaces to indent.
 
-        :rtype: str
+        Returns
+        -------
+        :obj:`str`
         """
-        return self._jtype.toPrettyString(indent, False)
+        l = []
+        self._pretty(l, indent, increment)
+        return ''.join(l)
+
+    def _pretty(self, l, indent, increment):
+        l.append(str(self))
 
     @classmethod
     def _from_java(cls, jtype):
@@ -375,6 +385,11 @@ class TArray(Type):
     def _eq(self, other):
         return isinstance(other, TArray) and self.element_type == other.element_type
 
+    def _pretty(self, l, indent, increment):
+        l.append('array<')
+        self.element_type._pretty(l, indent, increment)
+        l.append('>')
+
 
 class TSet(Type):
     """Hail type for collections of distinct elements.
@@ -436,6 +451,11 @@ class TSet(Type):
 
     def _eq(self, other):
         return isinstance(other, TSet) and self.element_type == other.element_type
+
+    def _pretty(self, l, indent, increment):
+        l.append('set<')
+        self.element_type._pretty(l, indent, increment)
+        l.append('>')
 
 
 class TDict(Type):
@@ -517,6 +537,13 @@ class TDict(Type):
 
     def _eq(self, other):
         return isinstance(other, TDict) and self.key_type == other.key_type and self.value_type == other.value_type
+
+    def _pretty(self, l, indent, increment):
+        l.append('dict<')
+        self.key_type._pretty(l, indent, increment)
+        l.append(', ')
+        self.value_type._pretty(l, indent, increment)
+        l.append('>')
 
 
 class Field(object):
@@ -668,6 +695,21 @@ class TStruct(Type):
     def _eq(self, other):
         return isinstance(other, TStruct) and self.fields == other.fields
 
+    def _pretty(self, l, indent, increment):
+        pre_indent = indent
+        indent += increment
+        l.append('struct {')
+        for i, f in enumerate(self.fields):
+            if i > 0:
+                l.append(', ')
+            l.append('\n')
+            l.append(' ' * indent)
+            l.append('{}: '.format(escape_parsable(f.name)))
+            f.dtype._pretty(l, indent, increment)
+        l.append('\n')
+        l.append(' ' * pre_indent)
+        l.append('}')
+
 
 class TTuple(Type):
     """Hail type for tuples.
@@ -730,6 +772,19 @@ class TTuple(Type):
         return isinstance(other, TTuple) and len(self.types) == len(other.types) and all(
             map(eq, self.types, other.types))
 
+    def _pretty(self, l, indent, increment):
+        pre_indent = indent
+        indent += increment
+        l.append('tuple (')
+        for i, t in enumerate(self.types):
+            if i > 0:
+                l.append(', ')
+            l.append('\n')
+            l.append(' ' * indent)
+            t._pretty(l, indent, increment)
+        l.append('\n')
+        l.append(' ' * pre_indent)
+        l.append(')')
 
 class TCall(Type):
     """Hail type for a diploid genotype.
@@ -821,6 +876,9 @@ class TLocus(Type):
             self._rg = hl.default_reference()
         return self._rg
 
+    def _pretty(self, l, indent, increment):
+        l.append('locus[{}]'.format(escape_parsable(self.reference_genome.name)))
+
 
 class TInterval(Type):
     """Hail type for intervals of ordered values.
@@ -880,6 +938,11 @@ class TInterval(Type):
 
     def _eq(self, other):
         return isinstance(other, TInterval) and self.point_type == other.point_type
+
+    def _pretty(self, l, indent, increment):
+        l.append('interval<')
+        self.point_type._pretty(l, indent, increment)
+        l.append('>')
 
 
 tint32 = TInt32()
