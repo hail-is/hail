@@ -7,8 +7,8 @@ import is.hail.variant.{AltAlleleMethods, AltAlleleType, Call, HTSGenotypeView, 
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
-  val signature = TStruct("callRate" -> TFloat64(),
-    "nCalled" -> TInt64(),
+  val signature = TStruct("call_rate" -> TFloat64(),
+    "n_called" -> TInt64(),
     "n_not_called" -> TInt64(),
     "n_hom_ref" -> TInt64(),
     "n_het" -> TInt64(),
@@ -19,7 +19,7 @@ object SampleQCCombiner {
     "n_singleton" -> TInt64(),
     "n_transition" -> TInt64(),
     "n_transversion" -> TInt64(),
-    "nStar" -> TInt64(),
+    "n_star" -> TInt64(),
     "dp_mean" -> TFloat64(),
     "dp_stdev" -> TFloat64(),
     "gq_mean" -> TFloat64(),
