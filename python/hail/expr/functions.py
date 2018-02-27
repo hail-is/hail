@@ -1,7 +1,6 @@
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-# from hail.genetics import Locus, Call, GenomeReference
 from hail.genetics.genomeref import reference_genome_type
 import builtins
 
