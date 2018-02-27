@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils.java import Env, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
 from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
@@ -10,7 +10,6 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic
 
 
-@handle_py4j
 @typecheck(table=Table,
            address=str,
            keyspace=str,
@@ -28,7 +27,6 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
     table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            output=str,
            precision=int)
@@ -95,7 +93,6 @@ def export_gen(dataset, output, precision=4):
     Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            output=str,
            fam_args=expr_any)
@@ -184,7 +181,6 @@ def export_plink(dataset, output, **fam_args):
     Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
 
 
-@handle_py4j
 @typecheck(table=Table,
            zk_host=str,
            collection=str,
@@ -200,7 +196,6 @@ def export_solr(table, zk_host, collection, block_size=100):
     table._jkt.exportSolr(zk_host, collection, block_size)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            output=str,
            append_to_header=nullable(str),
@@ -315,7 +310,6 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
                                       joption(typ._convert_to_j(metadata)))
 
 
-@handle_py4j
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
 def import_interval_list(path, reference_genome='default'):
@@ -385,7 +379,6 @@ def import_interval_list(path, reference_genome='default'):
     return Table(t)
 
 
-@handle_py4j
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
 def import_bed(path, reference_genome='default'):
@@ -476,7 +469,6 @@ def import_bed(path, reference_genome='default'):
     return Table(jt)
 
 
-@handle_py4j
 @typecheck(path=str,
            quant_pheno=bool,
            delimiter=str,
@@ -542,7 +534,6 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     return Table(jkt)
 
 
-@handle_py4j
 @typecheck(regex=str,
            path=oneof(str, listof(str)),
            max_count=int)
@@ -582,7 +573,6 @@ def grep(regex, path, max_count=100):
     Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)),
            sample_file=nullable(str),
            entry_fields=listof(str),
@@ -722,7 +712,6 @@ def import_bgen(path, entry_fields, sample_file=None,
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)),
            sample_file=nullable(str),
            tolerance=numeric,
@@ -823,7 +812,6 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(paths=oneof(str, listof(str)),
            key=oneof(str, listof(str)),
            min_partitions=nullable(int),
@@ -992,7 +980,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
                                    no_header, impute, quote)
     return Table(jt)
 
-@handle_py4j
+
 @typecheck(paths=oneof(str, listof(str)),
            row_fields=dictof(str, Type),
            key=oneof(str, listof(str)),
@@ -1001,7 +989,8 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None, no_header=False, force_bgz=False):
+def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None,
+                        no_header=False, force_bgz=False):
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1122,11 +1111,11 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
         raise FatalError("""import_matrix_table expects entry types to be one of: 
         TInt32, TInt64, TFloat32, TFloat64, TString: found {}""".format(entry_type))
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions), no_header, force_bgz)
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions),
+                                     no_header, force_bgz)
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(bed=str,
            bim=str,
            fam=str,
@@ -1263,7 +1252,6 @@ def import_plink(bed, bim, fam,
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)))
 def read_matrix_table(path):
     """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
@@ -1280,7 +1268,6 @@ def read_matrix_table(path):
     return MatrixTable(Env.hc()._jhc.read(path, False, False))
 
 
-@handle_py4j
 @typecheck(path=str)
 def get_vcf_metadata(path):
     """Extract metadata from VCF header.
@@ -1339,7 +1326,6 @@ def get_vcf_metadata(path):
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)),
            force=bool,
            force_bgz=bool,
@@ -1475,7 +1461,6 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.
@@ -1503,7 +1488,6 @@ def index_bgen(path):
     Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
 
 
-@handle_py4j
 @typecheck(path=str)
 def read_table(path):
     """Read in a :class:`.Table` written with :meth:`.Table.write`.

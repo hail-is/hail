@@ -21,7 +21,6 @@ class Trio(HistoryMixin):
     :type is_female: bool or None
     """
 
-    @handle_py4j
     @record_init
     @typecheck_method(s=str,
                       fam_id=nullable(str),
@@ -62,12 +61,10 @@ class Trio(HistoryMixin):
     def __eq__(self, other):
         return isinstance(other, Trio) and self._jrep == other._jrep
 
-    @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
 
     @property
-    @handle_py4j
     def s(self):
         """ID of proband in trio, never missing.
 
@@ -78,7 +75,6 @@ class Trio(HistoryMixin):
         return self._s
 
     @property
-    @handle_py4j
     def pat_id(self):
         """ID of father in trio, may be missing.
 
@@ -90,7 +86,6 @@ class Trio(HistoryMixin):
         return self._pat_id
 
     @property
-    @handle_py4j
     def mat_id(self):
         """ID of mother in trio, may be missing.
 
@@ -102,7 +97,6 @@ class Trio(HistoryMixin):
         return self._mat_id
 
     @property
-    @handle_py4j
     def fam_id(self):
         """Family ID.
 
@@ -114,7 +108,6 @@ class Trio(HistoryMixin):
         return self._fam_id
 
     @property
-    @handle_py4j
     def is_male(self):
         """Returns ``True`` if the proband is a reported male,
         ``False`` if reported female, and ``None`` if no sex is defined.
@@ -131,7 +124,6 @@ class Trio(HistoryMixin):
         return self._is_female is False
 
     @property
-    @handle_py4j
     def is_female(self):
         """Returns ``True`` if the proband is a reported female,
         ``False`` if reported male, and ``None`` if no sex is defined.
@@ -148,7 +140,6 @@ class Trio(HistoryMixin):
                 self._is_female = j_female
         return self._is_female is True
 
-    @handle_py4j
     def is_complete(self):
         """Returns True if the trio has a defined mother, father, and sex.
 
@@ -171,7 +162,6 @@ class Pedigree(HistoryMixin):
     :type trios: list of :class:`.Trio`
     """
 
-    @handle_py4j
     @record_init
     def __init__(self, trios):
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
@@ -188,12 +178,10 @@ class Pedigree(HistoryMixin):
     def __eq__(self, other):
         return isinstance(other, Pedigree) and self._jrep == other._jrep
 
-    @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
 
     @classmethod
-    @handle_py4j
     @record_classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
@@ -221,7 +209,6 @@ class Pedigree(HistoryMixin):
         return Pedigree._from_java(jrep)
 
     @property
-    @handle_py4j
     def trios(self):
         """List of trio objects in this pedigree.
 
@@ -239,7 +226,6 @@ class Pedigree(HistoryMixin):
         """
         return list(filter(lambda t: t.is_complete(), self.trios))
 
-    @handle_py4j
     @record_method
     @typecheck_method(samples=listof(str))
     def filter_to(self, samples):
@@ -261,7 +247,6 @@ class Pedigree(HistoryMixin):
 
         return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
 
-    @handle_py4j
     @write_history('path')
     @typecheck_method(path=str)
     def write(self, path):

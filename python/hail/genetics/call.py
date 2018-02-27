@@ -24,7 +24,6 @@ class Call(HistoryMixin):
             Call._call_jobject = scala_object(Env.hail().variant, 'Call')
         return Call._call_jobject
 
-    @handle_py4j
     @record_init
     @typecheck_method(alleles=listof(int),
                       phased=bool)
@@ -179,7 +178,6 @@ class Call(HistoryMixin):
 
         return Call.call_jobject().nNonRefAlleles(self._call)
 
-    @handle_py4j
     @typecheck_method(num_alleles=int)
     def one_hot_alleles(self, num_alleles):
         """Returns a list containing the one-hot encoded representation of the
@@ -218,7 +216,6 @@ class Call(HistoryMixin):
         """
         return jiterable_to_list(Call.call_jobject().oneHotAlleles(self._call, num_alleles))
 
-    @handle_py4j
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.
 

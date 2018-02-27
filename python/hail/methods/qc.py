@@ -1,10 +1,10 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j
+from hail.utils.java import Env
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from .misc import require_biallelic
 
-@handle_py4j
+
 @typecheck(dataset=MatrixTable, name=str)
 def sample_qc(dataset, name='sample_qc'):
     """Compute per-sample metrics useful for quality control.
@@ -89,7 +89,7 @@ def sample_qc(dataset, name='sample_qc'):
 
     return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, name))
 
-@handle_py4j
+
 @typecheck(dataset=MatrixTable, name=str)
 def variant_qc(dataset, name='variant_qc'):
     """Compute common variant statistics (quality control metrics).
@@ -164,7 +164,6 @@ def variant_qc(dataset, name='variant_qc'):
     return MatrixTable(Env.hail().methods.VariantQC.apply(require_biallelic(dataset, 'variant_qc')._jvds, name))
 
 
-@handle_py4j
 @typecheck(left=MatrixTable,
            right=MatrixTable)
 def concordance(left, right):
@@ -289,7 +288,6 @@ def concordance(left, right):
     return global_conc, col_conc, row_conc
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            config=str,
            block_size=int,
@@ -542,7 +540,6 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     return MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
 
 
-@handle_py4j
 @typecheck_method(dataset=MatrixTable,
                   config=str,
                   block_size=int,

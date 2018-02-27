@@ -1,5 +1,5 @@
 import hail as hl
-from hail.utils.java import handle_py4j, Env, joption, error
+from hail.utils.java import Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
 from collections import defaultdict, Counter
@@ -105,7 +105,6 @@ def get_URI(path):
     return Env.jutils().getURI(path)
 
 
-@handle_py4j
 def new_temp_file(n_char=10, prefix=None, suffix=None):
     return Env.hc()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
 

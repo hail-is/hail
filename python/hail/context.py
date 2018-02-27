@@ -4,7 +4,7 @@ from pyspark.sql import SQLContext
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
-from hail.utils.java import Env, joption, FatalError, connect_logger
+from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler
 
 import sys
 
@@ -81,6 +81,9 @@ class HailContext(object):
 
         if self.version.startswith('devel'):
             sys.stderr.write('WARNING: This is an unstable development build.\n')
+
+        install_exception_handler()
+
 
     @property
     def version(self):

@@ -1,7 +1,7 @@
 from hail.history import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
-from hail.utils.java import handle_py4j, jiterable_to_list, Env
+from hail.utils.java import jiterable_to_list, Env
 from hail.typecheck import oneof, transformed
 import hail as hl
 
@@ -38,7 +38,6 @@ class ReferenceGenome(HistoryMixin):
 
     _references = {}
 
-    @handle_py4j
     @record_init
     @typecheck_method(name=str,
                       contigs=listof(str),
@@ -84,7 +83,6 @@ class ReferenceGenome(HistoryMixin):
         else:
             super(ReferenceGenome, self)._set_history(history)
 
-    @handle_py4j
     def __str__(self):
         return self._jrep.toString()
 
@@ -94,11 +92,9 @@ class ReferenceGenome(HistoryMixin):
         return 'ReferenceGenome(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
                (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self._par_tuple)
 
-    @handle_py4j
     def __eq__(self, other):
         return isinstance(other, ReferenceGenome) and self._jrep.equals(other._jrep)
 
-    @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
 
@@ -191,7 +187,6 @@ class ReferenceGenome(HistoryMixin):
 
     @classmethod
     @record_classmethod
-    @handle_py4j
     def GRCh37(cls):
         """Reference genome for GRCh37.
 
@@ -208,7 +203,6 @@ class ReferenceGenome(HistoryMixin):
 
     @classmethod
     @record_classmethod
-    @handle_py4j
     def GRCh38(cls):
         """Reference genome for GRCh38.
 
@@ -225,7 +219,6 @@ class ReferenceGenome(HistoryMixin):
 
     @classmethod
     @record_classmethod
-    @handle_py4j
     @typecheck_method(file=str)
     def read(cls, file):
         """Load reference genome from a JSON file.
@@ -261,7 +254,6 @@ class ReferenceGenome(HistoryMixin):
         """
         return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFile(Env.hc()._jhc, file))
 
-    @handle_py4j
     @typecheck_method(output=str)
     def write(self, output):
         """"Write this reference genome to a file in JSON format.
@@ -281,7 +273,6 @@ class ReferenceGenome(HistoryMixin):
 
         self._jrep.write(Env.hc()._jhc, output)
 
-    @handle_py4j
     def _init_from_java(self, jrep):
         self._jrep = jrep
 
@@ -301,11 +292,9 @@ class ReferenceGenome(HistoryMixin):
         ReferenceGenome._references[gr.name] = gr
         return gr
 
-    @handle_py4j
     def _check_locus(self, l_jrep):
         self._jrep.checkLocus(l_jrep)
 
-    @handle_py4j
     def _check_interval(self, interval_jrep):
         self._jrep.checkInterval(interval_jrep)
 

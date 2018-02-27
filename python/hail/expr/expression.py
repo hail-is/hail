@@ -569,7 +569,6 @@ class Expression(object):
             source = source.select_cols(*source.col_key)
             return source.entries().select_globals()
 
-    @handle_py4j
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
     def show(self, n=10, width=90, truncate=None, types=True):
         """Print the first few rows of the table to the console.
@@ -624,7 +623,6 @@ class Expression(object):
             t = t.select(name)
         t.show(n, width, truncate, types)
 
-    @handle_py4j
     @typecheck_method(n=int)
     def take(self, n):
         """Collect the first `n` records of an expression.
@@ -654,7 +652,6 @@ class Expression(object):
         uid = Env._get_uid()
         return [r[uid] for r in self._to_table(uid).take(n)]
 
-    @handle_py4j
     def collect(self):
         """Collect all records of an expression into a local list.
 
@@ -682,6 +679,7 @@ class Expression(object):
         uid = Env._get_uid()
         t = self._to_table(uid)
         return t.aggregate(hl.agg.collect(t[uid]))
+
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
@@ -1826,6 +1824,7 @@ class Aggregable(object):
     @property
     def dtype(self):
         return self._type
+
 
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
@@ -3532,7 +3531,6 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
         raise errors[0]
 
 
-@handle_py4j
 @typecheck(expression=expr_any)
 def eval_expr(expression):
     """Evaluate a Hail expression, returning the result.
@@ -3566,7 +3564,6 @@ def eval_expr(expression):
     return eval_expr_typed(expression)[0]
 
 
-@handle_py4j
 @typecheck(expression=expr_any)
 def eval_expr_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.

@@ -1,8 +1,8 @@
-from hail.utils.java import handle_py4j, Env
+from hail.utils.java import Env
 from hail.typecheck import *
 import io
 
-@handle_py4j
+
 @typecheck(path=str,
            buffer_size=int)
 def hadoop_read(path, buffer_size=8192):
@@ -36,9 +36,10 @@ def hadoop_read(path, buffer_size=8192):
     :return: Iterable file reader.
     :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
     """
-    return io.TextIOWrapper(io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size), encoding='iso-8859-1')
+    return io.TextIOWrapper(io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size),
+                            encoding='iso-8859-1')
 
-@handle_py4j
+
 @typecheck(path=str,
            buffer_size=int)
 def hadoop_read_binary(path, buffer_size=8192):
@@ -85,7 +86,6 @@ def hadoop_read_binary(path, buffer_size=8192):
     return io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
 
 
-@handle_py4j
 @typecheck(path=str,
            buffer_size=int)
 def hadoop_write(path, buffer_size=8192):
@@ -120,7 +120,6 @@ def hadoop_write(path, buffer_size=8192):
     return io.TextIOWrapper(io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size), encoding='iso-8859-1')
 
 
-@handle_py4j
 @typecheck(src=str,
            dest=str)
 def hadoop_copy(src, dest):
@@ -140,6 +139,7 @@ def hadoop_copy(src, dest):
     :param str dest: Destination file URI.
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
+
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, path, buffer_size):
@@ -176,4 +176,3 @@ class HadoopWriter(io.RawIOBase):
     def write(self, b):
         self._jfile.write(bytearray(b))
         return len(b)
-
