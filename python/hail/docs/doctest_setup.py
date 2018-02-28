@@ -15,18 +15,25 @@ for f in files:
 
 ds = hl.import_vcf('data/sample.vcf.bgz')
 ds = ds.sample_rows(0.03)
-ds = ds.annotate_rows(useInKinship=hl.rand_bool(0.9), panel_maf=0.1, anno1=5, anno2=0, consequence="LOF", gene="A",
+ds = ds.annotate_rows(use_in_kinship=hl.rand_bool(0.9),
+                      panel_maf=0.1,
+                      anno1=5,
+                      anno2=0,
+                      consequence="LOF",
+                      gene="A",
                       score=5.0)
-ds = ds.annotate_rows(aIndex=1)
+ds = ds.annotate_rows(a_index=1)
 ds = hl.sample_qc(hl.variant_qc(ds))
-ds = ds.annotate_cols(isCase=True,
-                      pheno=hl.Struct(isCase=hl.rand_bool(0.5),
-                                      isFemale=hl.rand_bool(0.5),
+ds = ds.annotate_cols(is_case=True,
+                      pheno=hl.Struct(is_case=hl.rand_bool(0.5),
+                                      is_female=hl.rand_bool(0.5),
                                       age=hl.rand_norm(65, 10),
                                       height=hl.rand_norm(70, 10),
-                                      bloodPressure=hl.rand_norm(120, 20),
-                                      cohortName="cohort1"),
-                      cov=hl.Struct(PC1=hl.rand_norm(0, 1)), cov1=hl.rand_norm(0, 1), cov2=hl.rand_norm(0, 1))
+                                      blood_pressure=hl.rand_norm(120, 20),
+                                      cohort_name="cohort1"),
+                      cov=hl.Struct(PC1=hl.rand_norm(0, 1)),
+                      cov1=hl.rand_norm(0, 1),
+                      cov2=hl.rand_norm(0, 1))
 
 ds = ds.annotate_rows(gene=['TTN'])
 ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')

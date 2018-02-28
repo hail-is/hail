@@ -867,8 +867,12 @@ class MatrixTable(object):
         --------
         Select existing fields and compute a new one:
 
-        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, dataset.variant_qc.gq_mean,
-        ...                                      highQualityCases = agg.count_where((dataset.GQ > 20) & (dataset.isCase)))
+        >>> dataset_result = dataset.select_rows(
+        ...    dataset.locus,
+        ...    dataset.alleles,
+        ...    dataset.variant_qc.gq_mean,
+        ...    high_quality_cases = agg.count_where((dataset.GQ > 20) &
+        ...                                         dataset.is_case))
 
         Notes
         -----
@@ -932,9 +936,10 @@ class MatrixTable(object):
         --------
         Select existing fields and compute a new one:
 
-        >>> dataset_result = dataset.select_cols(dataset.sample_qc,
-        ...                                      dataset.pheno.age,
-        ...                                      isCohort1 = dataset.pheno.cohortName == 'Cohort1')
+        >>> dataset_result = dataset.select_cols(
+        ...     dataset.sample_qc,
+        ...     dataset.pheno.age,
+        ...     isCohort1 = dataset.pheno.cohort_name == 'Cohort1')
 
         Notes
         -----
@@ -1230,13 +1235,17 @@ class MatrixTable(object):
         Examples
         --------
 
-        Keep columns where `pheno.isCase` is ``True`` and `pheno.age` is larger than 50:
+        Keep columns where `pheno.is_case` is ``True`` and `pheno.age` is larger
+        than 50:
 
-        >>> dataset_result = dataset.filter_cols(dataset.pheno.isCase & (dataset.pheno.age > 50), keep=True)
+        >>> dataset_result = dataset.filter_cols(dataset.pheno.is_case &
+        ...                                      (dataset.pheno.age > 50),
+        ...                                      keep=True)
 
         Remove rows where `sample_qc.gq_mean` is less than 20:
 
-        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_mean < 20, keep=False)
+        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_mean < 20,
+        ...                                      keep=False)
 
         Notes
         -----
@@ -1477,8 +1486,9 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_cols(Struct(fraction_female=agg.fraction(dataset.pheno.isFemale),
-            ...                               case_ratio=agg.count_where(dataset.isCase) / agg.count()))
+            >>> dataset.aggregate_cols(
+            ...    Struct(fraction_female=agg.fraction(dataset.pheno.is_female),
+            ...           case_ratio=agg.count_where(dataset.is_case) / agg.count()))
             Struct(fraction_female=0.5102222, case_ratio=0.35156)
 
         Notes
@@ -1490,8 +1500,9 @@ class MatrixTable(object):
         the following:
 
         >>> cols_table = dataset.cols()
-        >>> cols_table.aggregate(Struct(fraction_female=agg.fraction(cols_table.pheno.isFemale),
-        ...                             case_ratio=agg.count_where(cols_table.isCase) / agg.count()))
+        >>> cols_table.aggregate(
+        ...     Struct(fraction_female=agg.fraction(cols_table.pheno.is_female),
+        ...            case_ratio=agg.count_where(cols_table.is_case) / agg.count()))
 
         Note
         ----

@@ -243,7 +243,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     --------
 
     >>> dataset_result = hl.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
-    ...                                 covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...                            covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -362,7 +362,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     >>> ds_result = hl.logreg(
     ...     dataset,
     ...     test='wald',
-    ...     y=dataset.pheno.isCase,
+    ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.num_alt_alleles(),
     ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
@@ -385,7 +385,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
 
     .. math::
 
-        \mathrm{Prob}(\mathrm{isCase}) =
+        \mathrm{Prob}(\mathrm{is_case}) =
             \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
                             + \beta_2 \, \mathrm{age}
                             + \beta_3 \, \mathrm{is_female} + \varepsilon),
@@ -524,7 +524,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
         if (ds.is_female) ds.cov.age else (2 * ds.cov.age + 10)
 
     For Boolean covariate types, true is coded as 1 and false as 0. In
-    particular, for the sample annotation `fam.isCase` added by importing a FAM
+    particular, for the sample annotation `fam.is_case` added by importing a FAM
     file with case-control phenotype, case is 1 and control is 0.
 
     Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
@@ -610,12 +610,12 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
         lmmreg_ds = hl.variant_qc(hl.split_multi_hts(hl.import_vcf('data/sample.vcf.bgz')))
         lmmreg_tsv = hl.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
         lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
-        lmmreg_ds = lmmreg_ds.annotate_rows(useInKinship = lmmreg_ds.variant_qc.AF > 0.05)
+        lmmreg_ds = lmmreg_ds.annotate_rows(use_in_kinship = lmmreg_ds.variant_qc.AF > 0.05)
         lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
 
 
     >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
-    >>> kinship_matrix = hl.rrm(lmm_ds.filter_rows(lmm_ds.useInKinship)['GT'])
+    >>> kinship_matrix = hl.rrm(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
     >>> lmm_ds = hl.lmmreg(lmm_ds,
     ...                    kinship_matrix,
     ...                    lmm_ds.pheno,
@@ -625,7 +625,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     Notes
     -----
     Suppose the variant dataset saved at :file:`data/example_lmmreg.vds` has a
-    Boolean variant-indexed field `useInKinship` and numeric or Boolean
+    Boolean variant-indexed field `use_in_kinship` and numeric or Boolean
     sample-indexed fields `pheno`, `cov1`, and `cov2`. Then the
     :func:`.lmmreg` function in the above example will execute the following
     four steps in order:
@@ -1987,11 +1987,12 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     Hail does not split fields in the info field. This means that if a
     multiallelic site with `info.AC` value ``[10, 2]`` is split, each split
     site will contain the same array ``[10, 2]``. The provided allele index
-    field `aIndex` can be used to select the value corresponding to the split
+    field `a_index` can be used to select the value corresponding to the split
     allele's position:
 
     >>> split_ds = hl.split_multi_hts(dataset)
-    >>> split_ds = split_ds.filter_rows(split_ds.info.AC[split_ds.aIndex - 1] < 10, keep = False)
+    >>> split_ds = split_ds.filter_rows(split_ds.info.AC[split_ds.a_index - 1] < 10,
+    ...                                 keep = False)
 
     VCFs split by Hail and exported to new VCFs may be
     incompatible with other tools, if action is not taken
@@ -2005,7 +2006,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     values. Here is an example:
 
     >>> split_ds = hl.split_multi_hts(dataset)
-    >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.aIndex - 1], **split_ds.info)) # doctest: +SKIP
+    >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.a_index - 1],
+    ...                                   **split_ds.info)) # doctest: +SKIP
     >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
@@ -2014,14 +2016,14 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     :func:`.split_multi_hts` adds the following fields:
 
-     - `wasSplit` (*Boolean*) -- ``True`` if this variant was originally
+     - `was_split` (*Boolean*) -- ``True`` if this variant was originally
        multiallelic, otherwise ``False``.
 
-     - `aIndex` (*Int*) -- The original index of this alternate allele in the
+     - `a_index` (*Int*) -- The original index of this alternate allele in the
        multiallelic representation (NB: 1 is the first alternate allele or the
        only alternate allele in a biallelic variant). For example, 1:100:A:T,C
-       splits into two variants: 1:100:A:T with ``aIndex = 1`` and 1:100:A:C
-       with ``aIndex = 2``.
+       splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
+       with ``a_index = 2``.
 
     Parameters
     ----------
