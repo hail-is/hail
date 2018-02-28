@@ -804,3 +804,9 @@ class Tests(unittest.TestCase):
                                row_fields=row_fields,
                                no_header=True,
                                key=[]).count()
+        self.assertRaises(hl.utils.FatalError,
+                     hl.import_matrix_table,
+                     doctest_file('matrix3.tsv'),
+                     row_fields=row_fields,
+                     no_header=True,
+                     key=['foo'])
