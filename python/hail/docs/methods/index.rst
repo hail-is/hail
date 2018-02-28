@@ -50,11 +50,13 @@ Methods
 
     balding_nichols_model
     concordance
-    FilterAlleles
     filter_intervals
+    FilterAlleles
     grm
     hwe_normalized_pca
     ibd
+    impute_sex
+    ld_prune
     mendel_errors
     min_rep
     nirvana
@@ -62,8 +64,8 @@ Methods
     rrm
     sample_qc
     skat
-    SplitMulti
     split_multi_hts
+    SplitMulti
     tdt
     trio_matrix
     variant_qc
