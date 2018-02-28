@@ -314,13 +314,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
-def import_interval_list(path, reference_genome='default'):
+def import_locus_intervals(path, reference_genome='default'):
     """Import an interval list as a :class:`.Table`.
 
     Examples
     --------
 
-    >>> intervals = hl.import_interval_list('data/capture_intervals.txt')
+    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
 
     Notes
     -----

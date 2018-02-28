@@ -3,6 +3,7 @@ import unittest
 from hail.utils import *
 from hail.utils.linkedlist import LinkedList
 from .utils import resource, startTestHailContext, stopTestHailContext
+from hail.genetics import Locus
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -91,3 +92,36 @@ class Tests(unittest.TestCase):
         df = df.annotate(x=[1,2])
         with self.assertRaises(FatalError):
             df.filter(df.x[5] == 0).count()
+
+    def test_interval_ops(self):
+        interval1 = hl.Interval(3, 22)
+        interval2 = hl.Interval(10, 20)
+
+        self.assertTrue(interval1.start == 3)
+        self.assertTrue(interval1.end == 22)
+        self.assertTrue(interval1.include_start)
+        self.assertFalse(interval1.include_end)
+        self.assertTrue(interval1.point_type == hl.tint)
+
+        self.assertTrue(interval1.contains(3))
+        self.assertTrue(interval1.contains(13))
+        self.assertFalse(interval1.contains(22))
+        self.assertTrue(interval1.overlaps(interval2))
+
+        interval = hl.Interval.parse_locus_interval('1:100-110')
+
+        self.assertEqual(interval, hl.Interval(Locus("1", 100), Locus("1", 110)))
+        self.assertTrue(interval.point_type == hl.tlocus())
+        self.assertTrue(interval.contains(Locus("1", 100)))
+        self.assertTrue(interval.contains(Locus("1", 109)))
+        self.assertFalse(interval.contains(Locus("1", 110)))
+
+        interval2 = hl.Interval.parse_locus_interval("1:109-200")
+        interval3 = hl.Interval.parse_locus_interval("1:110-200")
+        interval4 = hl.Interval.parse_locus_interval("1:90-101")
+        interval5 = hl.Interval.parse_locus_interval("1:90-100")
+
+        self.assertTrue(interval.overlaps(interval2))
+        self.assertTrue(interval.overlaps(interval4))
+        self.assertFalse(interval.overlaps(interval3))
+        self.assertFalse(interval.overlaps(interval5))

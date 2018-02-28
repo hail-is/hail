@@ -728,6 +728,8 @@ object FunctionRegistry {
   registerField("position", { (x: Locus) => x.position })(locusHr(RG), int32Hr)
   registerField("start", { (x: Interval) => x.start })(intervalHr(TTHr), TTHr)
   registerField("end", { (x: Interval) => x.end })(intervalHr(TTHr), TTHr)
+  registerField("includeStart", { (x: Interval) => x.includeStart })(intervalHr(TTHr), boolHr)
+  registerField("includeEnd", { (x: Interval) => x.includeEnd })(intervalHr(TTHr), boolHr)
 
   register("is_snp", { (ref: String, alt: String) => AltAlleleMethods.isSNP(ref, alt) })
   register("is_mnp", { (ref: String, alt: String) => AltAlleleMethods.isMNP(ref, alt) })
@@ -919,10 +921,11 @@ object FunctionRegistry {
     val rg = RG.rg
     (contig: String, pos: Int) => Locus(contig, pos, rg)
     })(stringHr, int32Hr, locusHr(RG))
+
   registerDependent("Interval", () => {
     val t = TT.t
-    (x: Annotation, y: Annotation) => Interval(x, y, true, false)
-  })(TTHr, TTHr, intervalHr(TTHr))
+    (x: Annotation, y: Annotation, includeStart: Boolean, includeEnd: Boolean) => Interval(x, y, includeStart, includeEnd)
+  })(TTHr, TTHr, boolHr, boolHr, intervalHr(TTHr))
 
   val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
 
@@ -1009,8 +1012,8 @@ object FunctionRegistry {
 
   registerDependent("LocusInterval", () => {
     val rg = RG.rg
-    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, rg)
-  })(stringHr, int32Hr, int32Hr, intervalHr(locusHr(RG)))
+    (chr: String, start: Int, end: Int, includeStart: Boolean, includeEnd: Boolean) => Locus.makeInterval(chr, start, end, includeStart, includeEnd, rg)
+  })(stringHr, int32Hr, int32Hr, boolHr, boolHr, intervalHr(locusHr(RG)))
 
   register("pcoin", { (p: Double) => math.random < p })
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })

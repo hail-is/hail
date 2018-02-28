@@ -9,11 +9,12 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     :maxdepth: 2
 
     core
-    numeric
+    constructors
     collections
+    numeric
+    string
     stats
     random
-    string
     genetics
 
 .. rubric:: Core language functions
@@ -26,45 +27,54 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     case
     bind
     null
-    str
     is_missing
     is_defined
     or_else
     or_missing
     range
 
-.. rubric:: String functions
+.. rubric:: Constructors
 
 .. autosummary::
 
-    json
-    hamming
-    delimit
-
-.. rubric:: Statistical functions
-
-.. autosummary::
-
-    chisq
-    fisher_exact_test
-    ctt
-    dbeta
-    dpois
-    hardy_weinberg_p
-    pchisqtail
-    pnorm
-    ppois
-    qchisqtail
-    qnorm
-    qpois
+    bool
+    float
+    float32
+    float64
+    int
+    int32
+    int64
+    interval
+    str
+    struct
+    tuple
 
 .. rubric:: Collection constructors
 
 .. autosummary::
 
-    dict
     array
+    empty_array
     set
+    empty_set
+    dict
+
+.. rubric:: Collection functions
+
+.. autosummary::
+
+    map
+    flatmap
+    zip
+    flatten
+    any
+    all
+    filter
+    sorted
+    find
+    group_by
+    len
+    index
 
 .. rubric:: Numeric functions
 
@@ -96,22 +106,30 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     argmin
     argmax
 
-.. rubric:: Collection functions
+.. rubric:: String functions
 
 .. autosummary::
 
-    map
-    flatmap
-    zip
-    flatten
-    any
-    all
-    filter
-    sorted
-    find
-    group_by
-    len
-    index
+    json
+    hamming
+    delimit
+
+.. rubric:: Statistical functions
+
+.. autosummary::
+
+    chisq
+    fisher_exact_test
+    ctt
+    dbeta
+    dpois
+    hardy_weinberg_p
+    pchisqtail
+    pnorm
+    ppois
+    qchisqtail
+    qnorm
+    qpois
 
 .. rubric:: Randomness
 
@@ -127,10 +145,10 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 .. autosummary::
 
     locus
+    locus_interval
     parse_locus
     parse_variant
-    interval
-    parse_interval
+    parse_locus_interval
     call
     unphased_diploid_gt_index_call
     parse_call

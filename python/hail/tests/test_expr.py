@@ -1070,3 +1070,11 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.len(t0) == 0))
         self.assertTrue(hl.eval_expr(hl.len(t2) == 2))
         self.assertTrue(hl.eval_expr(hl.len(t)) == 5)
+
+    def test_interval_ops(self):
+        interval = hl.interval(3, 6)
+        self.assertTrue(hl.eval_expr_typed(interval.start) == (3, hl.tint))
+        self.assertTrue(hl.eval_expr_typed(interval.end) == (6, hl.tint))
+        self.assertTrue(hl.eval_expr_typed(interval.include_start) == (True, hl.tbool))
+        self.assertTrue(hl.eval_expr_typed(interval.include_end) == (False, hl.tbool))
+        self.assertTrue(hl.eval_expr_typed(interval.contains(5)) == (True, hl.tbool))

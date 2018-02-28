@@ -4,10 +4,11 @@ import hail
 from hail.expr import expressions
 from hail.expr.expr_ast import *
 from hail.expr.types import *
-from hail.genetics import Locus, Interval, Call
+from hail.genetics import Locus, Call
 from hail.typecheck import *
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
+from hail.utils.interval import Interval
 from hail.utils.misc import plural
 from typing import *
 
@@ -94,7 +95,7 @@ def impute_type(x):
     elif isinstance(x, Locus):
         return tlocus(x.reference_genome)
     elif isinstance(x, Interval):
-        return tinterval(tlocus(x.reference_genome))
+        return tinterval(x.point_type)
     elif isinstance(x, Call):
         return tcall
     elif isinstance(x, Struct):

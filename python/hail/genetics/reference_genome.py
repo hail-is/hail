@@ -170,9 +170,9 @@ class ReferenceGenome(object):
         :obj:`list` of :class:`.Interval`
         """
 
-        from hail.genetics.interval import Interval
+        from hail.utils.interval import Interval
         if self._par is None:
-            self._par = [Interval._from_java(jrep, self) for jrep in self._jrep.par()]
+            self._par = [Interval._from_java(jrep, hl.tlocus(self)) for jrep in self._jrep.par()]
         return self._par
 
     @typecheck_method(contig=str)

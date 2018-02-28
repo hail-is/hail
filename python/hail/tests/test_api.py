@@ -1158,7 +1158,7 @@ class ColumnTests(unittest.TestCase):
 
         kt = kt.annotate(l1=hl.parse_locus("1:51"),
                          l2=hl.locus("1", 51, reference_genome=rg),
-                         i1=hl.parse_interval("1:51-56", reference_genome=rg),
+                         i1=hl.parse_locus_interval("1:51-56", reference_genome=rg),
                          i2=hl.interval(hl.locus("1", 51, reference_genome=rg),
                                         hl.locus("1", 56, reference_genome=rg)))
 

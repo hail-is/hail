@@ -2656,73 +2656,105 @@ class LocusExpression(Expression):
 class IntervalExpression(Expression):
     """Expression of type :class:`.tinterval`.
 
-    >>> interval = hl.literal(hl.Interval.parse('X:1M-2M'))
+    >>> interval = hl.interval(3, 11)
+    >>> locus_interval = hl.parse_locus_interval("1:53242-90543")
     """
 
-    @typecheck_method(locus=expr_locus)
-    def contains(self, locus):
-        """Tests whether a locus is contained in the interval.
+    @typecheck_method(value=expr_any)
+    def contains(self, value):
+        """Tests whether a value is contained in the interval.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(interval.contains(hl.locus('X', 3000000)))
-            False
-
-            >>> hl.eval_expr(interval.contains(hl.locus('X', 1500000)))
+            >>> hl.eval_expr(interval.contains(3))
             True
+
+            >>> hl.eval_expr(interval.contains(11))
+            False
 
         Parameters
         ----------
-        locus : :class:`.Locus` or :class:`.LocusExpression`
-            Locus to test for interval membership.
+        value :
+            Object with type matching the interval point type.
+
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if `locus` is contained in the interval, ``False`` otherwise.
+            ``True`` if `value` is contained in the interval, ``False`` otherwise.
         """
-        locus = to_expr(locus)
-        if self.dtype.point_type != locus.dtype:
-            raise TypeError('expected {}, found: {}'.format(self.dtype.point_type, locus.dtype))
-        return self._method("contains", tbool, locus)
+        if self.dtype.point_type != value.dtype:
+            raise TypeError("expected '{}', found: '{}'".format(self.dtype.point_type, value.dtype))
+        return self._method("contains", tbool, value)
 
     @property
     def end(self):
-        """Returns the end locus.
+        """Returns the end point.
 
         Examples
         --------
         .. doctest::
 
             >>> hl.eval_expr(interval.end)
-            Locus(contig=X, position=2000000, reference_genome=GRCh37)
+            11
 
         Returns
         -------
-        :class:`.LocusExpression`
-            End locus.
+        :class:`.Expression`
         """
-        return self._field("end", tlocus())
+        return self._field("end", self.dtype.point_type)
 
     @property
     def start(self):
-        """Returns the start locus.
+        """Returns the start point.
 
         Examples
         --------
         .. doctest::
 
             >>> hl.eval_expr(interval.start)
-            Locus(contig=X, position=1000000, reference_genome=GRCh37)
+            3
 
         Returns
         -------
-        :class:`.LocusExpression`
-            Start locus.
+        :class:`.Expression`
         """
-        return self._field("start", tlocus())
+        return self._field("start", self.dtype.point_type)
 
+    @property
+    def include_start(self):
+        """True if the interval includes the start point.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(interval.include_start)
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._field("includeStart", tbool)
+
+    @property
+    def include_end(self):
+        """True if the interval includes the end point.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(interval.include_end)
+            False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._field("includeEnd", tbool)
 
 scalars = {tbool: BooleanExpression,
            tint32: Int32Expression,
