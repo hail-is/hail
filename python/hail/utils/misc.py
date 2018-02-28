@@ -2,7 +2,7 @@ import hail as hl
 from hail.utils.java import Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, Mapping
 import os
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
@@ -89,11 +89,13 @@ def wrap_to_list(s):
     else:
         return [s]
 
+
 def wrap_to_tuple(x):
     if isinstance(x, tuple):
         return x
     else:
         return x,
+
 
 def get_env_or_default(maybe, envvar, default):
     import os
@@ -172,12 +174,14 @@ def get_obj_metadata(obj):
             else:
                 assert inds == index_obj._entry_indices
                 return "'{}' [entry]".format(field)
+
         return fmt_field
 
     def struct_error(s):
         def fmt_field(field):
             assert field in s._fields
             return "'{}'".format(field)
+
         return fmt_field
 
     if isinstance(obj, MatrixTable):
@@ -267,6 +271,7 @@ def get_nice_field_error(obj, item):
     s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
 
+
 def check_collisions(fields, name, indices):
     from hail.expr.expression import ExpressionException
     if name in fields and not fields[name]._indices == indices:
@@ -279,3 +284,22 @@ def check_field_uniqueness(fields):
         if v > 1:
             from hail.expr.expression import ExpressionException
             raise ExpressionException("selection would produce duplicate field {}".format(repr(k)))
+
+print_defaults = {'bool_true': 'true', 'bool_false': 'false', 'float_format': '%.4e', 'missing': 'NA'}
+
+
+def get_print_config(d):
+    assert isinstance(d, Mapping)
+
+    invalid_keys = [k for k in d if k not in print_defaults]
+    if invalid_keys:
+        raise ValueError("found {n} unexpected print config {plural}: {invalid}\n"
+                         "    Supported parameters: 'missing', 'float_format', 'bool_true', 'bool_false'".format(
+            n=len(invalid_keys),
+            plural=plural('parameter', len(invalid_keys)),
+            invalid=str(invalid_keys)
+        ))
+
+    config = {k: d.get(k, v) for k, v in print_defaults.items()}
+
+    return Env.jutils().makePrintConfig(config)

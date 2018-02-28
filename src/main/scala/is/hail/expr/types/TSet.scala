@@ -46,7 +46,7 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   val ordering: ExtendedOrdering =
     ExtendedOrdering.setOrdering(elementType.ordering)
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def strNonNull(a: Annotation, config: PrintConfig): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
 

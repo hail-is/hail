@@ -1237,7 +1237,13 @@ class Table(val hc: HailContext, val ir: TableIR) {
     println(showString(n, truncate, printTypes, maxWidth))
   }
 
-  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): String = {
+  def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100,
+    config: PrintConfig = PrintConfig.default): Unit = {
+    println(showString(n, truncate, printTypes, maxWidth, config))
+  }
+
+  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true,
+    maxWidth: Int = 100, config: PrintConfig = PrintConfig.default): String = {
     /**
       * Parts of this method are lifted from:
       *   org.apache.spark.sql.Dataset.showString
@@ -1275,7 +1281,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
           val r = v.asInstanceOf[Row]
           s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
         case _ =>
-          ab += t.str(v)
+          ab += t.str(v, config)
       }
     }
 
