@@ -141,8 +141,8 @@ def impute_type(x):
 
 def to_expr(e, dtype=None):
     if isinstance(e, Expression):
-        if dtype:
-            assert e.dtype == dtype, 'expected {}, got {}'.format(dtype, e.dtype)
+        if dtype and not dtype == e.dtype:
+            raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
         return e
     if not dtype:
         dtype = impute_type(e)
