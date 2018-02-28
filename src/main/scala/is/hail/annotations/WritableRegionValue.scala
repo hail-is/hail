@@ -64,6 +64,8 @@ class RegionValueArrayBuffer(val t: Type)
   private val rvb = new RegionValueBuilder(region)
   val idx = ArrayBuffer.empty[Long]
 
+  def length = idx.length
+
   def +=(rv: RegionValue): this.type = {
     this.append(rv.region, rv.offset)
   }
