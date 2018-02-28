@@ -7,7 +7,6 @@ from .statgen import linreg, logreg, lmmreg, skat, ibd, impute_sex, \
     grm, rrm, pca, hwe_normalized_pca, pc_relate, SplitMulti, \
     split_multi_hts, balding_nichols_model, FilterAlleles, ld_prune, min_rep
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana
-from .summarize import summarize
 from .misc import rename_duplicates, maximal_independent_set, filter_intervals
 
 __all__ = ['trio_matrix',
@@ -54,7 +53,6 @@ __all__ = ['trio_matrix',
            'index_bgen',
            'balding_nichols_model',
            'FilterAlleles',
-           'summarize',
            'ld_prune',
            'min_rep',
            'filter_intervals']
