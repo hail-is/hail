@@ -3,7 +3,7 @@ import hail as hl
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.java import jiterable_to_list
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions
+from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 
 table_type = lazy()
 
@@ -514,18 +514,21 @@ class Table(TableTemplate):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.expand()[0].name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
-
+            ids.append(k)
+        check_field_uniqueness(ids)
         return cleanup(Table(base._jt.selectGlobal(strs)))
 
     def transmute_globals(self, **named_exprs):
@@ -791,18 +794,22 @@ class Table(TableTemplate):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.expand()[0].name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
+            ids.append(k)
 
+        check_field_uniqueness(ids)
         return cleanup(Table(base._jt.select(strs)))
 
     @handle_py4j
@@ -1008,7 +1015,7 @@ class Table(TableTemplate):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)

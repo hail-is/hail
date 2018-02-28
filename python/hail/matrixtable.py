@@ -2,10 +2,9 @@ import hail
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
-from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
 from hail.table import Table
 import itertools
-
 
 class GroupedMatrixTable(object):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
@@ -840,18 +839,23 @@ class MatrixTable(object):
         strs = []
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
+
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append(
-                '{}: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
+            strs.append('{}: {}'.format(escape_id(e._ast.name), e._ast.to_hql()))
+            ids.append(e._ast.name)
+
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
             strs.append('{}: {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
@@ -902,17 +906,21 @@ class MatrixTable(object):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
             check_collisions(self._fields, k, self._row_indices)
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.selectRows(strs))
         return cleanup(m)
 
@@ -965,18 +973,21 @@ class MatrixTable(object):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             check_collisions(self._fields, k, self._col_indices)
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
-
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.selectCols(strs))
         return cleanup(m)
 
@@ -1022,6 +1033,7 @@ class MatrixTable(object):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
@@ -1032,11 +1044,14 @@ class MatrixTable(object):
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
             check_collisions(self._fields, k, self._entry_indices)
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.selectEntries(strs))
         return cleanup(m)
 
@@ -1686,7 +1701,7 @@ class MatrixTable(object):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
@@ -1736,7 +1751,7 @@ class MatrixTable(object):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)

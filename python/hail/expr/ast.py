@@ -65,16 +65,16 @@ class BinaryOperation(AST):
 
 
 class Select(AST):
-    @typecheck_method(parent=AST, selection=str)
-    def __init__(self, parent, selection):
+    @typecheck_method(parent=AST, name=str)
+    def __init__(self, parent, name):
         self.parent = parent
-        self.selection = selection
+        self.name = name
         super(Select, self).__init__(parent)
 
         # TODO: create nested selection option
 
     def to_hql(self):
-        return '{}.{}'.format(self.parent.to_hql(), escape_id(self.selection))
+        return '{}.{}'.format(self.parent.to_hql(), escape_id(self.name))
 
 
 class ApplyMethod(AST):

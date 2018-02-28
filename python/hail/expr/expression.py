@@ -555,7 +555,7 @@ class Expression(object):
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
-                    source = source.select_rows(*source.row_key, **{name: self})
+                    source = source.select_rows(*filter(lambda x: x != name, source.row_key), **{name: self})
                     return source.rows().select_globals()
                 else:
                     assert self._indices == source._col_indices
