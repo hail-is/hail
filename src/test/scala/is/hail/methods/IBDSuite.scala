@@ -98,7 +98,7 @@ class IBDSuite extends SparkSuite {
   }
 
   object Spec extends Properties("IBD") {
-    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(GenomeReference.GRCh37))))
+    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37))))
       .resize(1000)
       .map { vds => vds.filterVariantsExpr("va.locus.isAutosomal()") }
       .filter(vds => vds.countVariants > 2 && vds.numCols >= 2)

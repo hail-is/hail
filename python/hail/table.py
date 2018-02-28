@@ -3,7 +3,7 @@ import hail as hl
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.java import jiterable_to_list
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions
+from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 
 table_type = lazy()
 
@@ -204,15 +204,12 @@ class GroupedTable(TableTemplate):
         :class:`.Table`
             Aggregated table.
         """
-        agg_base = 'rows'
-
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
         base, cleanup = self._parent._process_joins(*itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
-            replace_aggregables(v._ast, agg_base)
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
         group_strs = ',\n'.join('{} = {}'.format(escape_id(k), v._ast.to_hql()) for k, v in self._groups)
@@ -310,10 +307,10 @@ class Table(TableTemplate):
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
         for fd in self.global_schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._global_indices, prefix='global'))
+            self._set_field(fd.name, construct_reference(fd.name, fd.dtype, self._global_indices, prefix='global'))
 
         for fd in self.schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._row_indices, prefix='row'))
+            self._set_field(fd.name, construct_reference(fd.name, fd.dtype, self._row_indices, prefix='row'))
 
     @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
@@ -517,18 +514,21 @@ class Table(TableTemplate):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.expand()[0].name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
-
+            ids.append(k)
+        check_field_uniqueness(ids)
         return cleanup(Table(base._jt.selectGlobal(strs)))
 
     def transmute_globals(self, **named_exprs):
@@ -545,9 +545,9 @@ class Table(TableTemplate):
         .. testsetup::
 
             table4 = hl.import_table('data/kt_example4.tsv', impute=True,
-                                  types={'B': hl.tstruct(['B0', 'B1'], [hl.tbool, hl.tstr]),
-                                 'D': hl.tstruct(['cat', 'dog'], [hl.tint32, hl.tint32]),
-                                 'E': hl.tstruct(['A', 'B'], [hl.tint32, hl.tint32])})
+                                  types={'B': hl.tstruct(B0=hl.tbool, B1=hl.tstr),
+                                 'D': hl.tstruct(cat=hl.tint32, dog=hl.tint32),
+                                 'E': hl.tstruct(A=hl.tint32, B=hl.tint32)})
 
         .. doctest::
 
@@ -794,18 +794,22 @@ class Table(TableTemplate):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.expand()[0].name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
             strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
+            ids.append(k)
 
+        check_field_uniqueness(ids)
         return cleanup(Table(base._jt.select(strs)))
 
     @handle_py4j
@@ -1011,7 +1015,7 @@ class Table(TableTemplate):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
@@ -1048,12 +1052,9 @@ class Table(TableTemplate):
         any
             Aggregated value dependent on `expr`.
         """
-        agg_base = 'rows'
-
         expr = to_expr(expr)
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
-        replace_aggregables(expr._ast, agg_base)
 
         result_list = base._jt.query(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -1231,7 +1232,7 @@ class Table(TableTemplate):
 
                         # extract v, key exprs
                         left2 = left.select_rows(*left.row_key, **{uid: e for uid, e in zip(uids, exprs)})
-                        lrt = (left2.rows_table()
+                        lrt = (left2.rows()
                             .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
                             .key_by(*uids))
 
@@ -1427,10 +1428,10 @@ class Table(TableTemplate):
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
+                name=fd.name, type=format_type(fd.dtype)) for fd in self.global_schema.fields)
 
         row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.typ)) for fd in self.schema.fields)
+            name=fd.name, type=format_type(fd.dtype)) for fd in self.schema.fields)
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.key) if self.key else '\n    None'

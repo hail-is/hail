@@ -8,7 +8,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
 import is.hail.table.Table
-import is.hail.variant.{GenomeReference, MatrixTable, VSMSubgen}
+import is.hail.variant.{ReferenceGenome$, MatrixTable, VSMSubgen}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -61,7 +61,7 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
-    (vsm.rowType.fieldNames, vsm.rowType.fieldType)
+    (vsm.rowType.fieldNames, vsm.rowType.types)
   }
 
   def exportImportableVds(vsm: MatrixTable, header: Boolean=true): String = {

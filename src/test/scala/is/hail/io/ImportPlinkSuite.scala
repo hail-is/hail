@@ -33,7 +33,7 @@ class ImportPlinkSuite extends SparkSuite {
 
         if (vds.numCols == 0) {
           TestUtils.interceptFatal("Empty .fam file") {
-            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference)
+            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), rg = Some(vds.referenceGenome))
           }
           true
         } else if (vds.countVariants() == 0) {
@@ -42,7 +42,7 @@ class ImportPlinkSuite extends SparkSuite {
           }
           true
         } else {
-          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference),
+          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), rg = Some(vds.referenceGenome)),
             testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
@@ -84,12 +84,12 @@ class ImportPlinkSuite extends SparkSuite {
       .select(
         "row.rsid",
         "row.alleles",
-        "row.variant_qc.nNotCalled",
-        "row.variant_qc.nHomRef",
-        "row.variant_qc.nHet",
-        "row.variant_qc.nHomVar")
-      .rename(Map("alleles" -> "vA1", "nNotCalled" -> "nNotCalledA1",
-        "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
+        "row.variant_qc.n_not_called",
+        "row.variant_qc.n_hom_ref",
+        "row.variant_qc.n_het",
+        "row.variant_qc.n_hom_var")
+      .rename(Map("alleles" -> "vA1", "n_not_called" -> "nNotCalledA1",
+        "n_hom_ref" -> "nHomRefA1", "n_het" -> "nHetA1", "n_hom_var" -> "nHomVarA1"))
       .keyBy("rsid")
 
     val a2kt = VariantQC(a2ref, "variant_qc")
@@ -97,12 +97,12 @@ class ImportPlinkSuite extends SparkSuite {
       .select(
         "row.rsid",
         "row.alleles",
-        "row.variant_qc.nNotCalled",
-        "row.variant_qc.nHomRef",
-        "row.variant_qc.nHet",
-        "row.variant_qc.nHomVar")
-      .rename(Map("alleles" -> "vA2", "nNotCalled" -> "nNotCalledA2",
-        "nHomRef" -> "nHomRefA2", "nHet" -> "nHetA2", "nHomVar" -> "nHomVarA2"))
+        "row.variant_qc.n_not_called",
+        "row.variant_qc.n_hom_ref",
+        "row.variant_qc.n_het",
+        "row.variant_qc.n_hom_var")
+      .rename(Map("alleles" -> "vA2", "n_not_called" -> "nNotCalledA2",
+        "n_hom_ref" -> "nHomRefA2", "n_het" -> "nHetA2", "n_hom_var" -> "nHomVarA2"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")
@@ -113,13 +113,5 @@ class ImportPlinkSuite extends SparkSuite {
       "row.nHetA1 == row.nHetA2 && " +
       "row.nHomRefA1 == row.nHomVarA2 && " +
       "row.nHomVarA1 == row.nHomRefA2"))
-  }
-
-  @Test def testDropChr0() {
-    val vds = VSMSubgen.plinkSafeBiallelic.copy(vGen = (t: Type) =>
-      VariantSubgen.biallelic.copy(contigGen = Contig.gen(Gen.const("0"))).gen).gen(hc).sample()
-    val outFile = tmpDir.createTempFile("plink_drop_chr0")
-    ExportPlink(vds, outFile)
-    assert(hc.importPlinkBFile(outFile, dropChr0 = true).countVariants() == 0)
   }
 }

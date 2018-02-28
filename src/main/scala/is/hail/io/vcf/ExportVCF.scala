@@ -229,8 +229,8 @@ object ExportVCF {
         TStruct.empty()
       }
 
-    val gr = vsm.genomeReference
-    val assembly = gr.name
+    val rg = vsm.referenceGenome
+    val assembly = rg.name
     
     val localNSamples = vsm.numCols
     val hasSamples = localNSamples > 0
@@ -291,11 +291,11 @@ object ExportVCF {
         }
       }
 
-      gr.contigs.foreachBetween { c =>
+      rg.contigs.foreachBetween { c =>
         sb.append("##contig=<ID=")
         sb.append(c)
         sb.append(",length=")
-        sb.append(gr.contigLength(c))
+        sb.append(rg.contigLength(c))
         sb.append(",assembly=")
         sb.append(assembly)
         sb += '>'
@@ -318,7 +318,7 @@ object ExportVCF {
     def lookupVAField(fieldName: String, vcfColName: String, expectedTypeOpt: Option[Type]): (Boolean, Int) = {
       fieldIdx.get(fieldName) match {
         case Some(idx) =>
-          val t = vsm.rowType.fieldType(idx)
+          val t = vsm.rowType.types(idx)
           if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
             (true, idx)
           else {

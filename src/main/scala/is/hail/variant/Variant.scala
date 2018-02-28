@@ -13,11 +13,11 @@ import org.json4s._
 import scala.collection.JavaConverters._
 
 object Contig {
-  def gen(gr: GenomeReference): Gen[(String, Int)] = Gen.oneOfSeq(gr.lengths.toSeq)
+  def gen(rg: ReferenceGenome): Gen[(String, Int)] = Gen.oneOfSeq(rg.lengths.toSeq)
 
-  def gen(gr: GenomeReference, contig: String): Gen[(String, Int)] = {
-    assert(gr.isValidContig(contig), s"Contig $contig not found in genome reference.")
-    Gen.const((contig, gr.contigLength(contig)))
+  def gen(rg: ReferenceGenome, contig: String): Gen[(String, Int)] = {
+    assert(rg.isValidContig(contig), s"Contig $contig not found in reference genome.")
+    Gen.const((contig, rg.contigLength(contig)))
   }
 
   def gen(nameGen: Gen[String] = Gen.identifier, lengthGen: Gen[Int] = Gen.choose(1000000, 500000000)): Gen[(String, Int)] = for {
@@ -38,8 +38,8 @@ object Variant {
     start: Int,
     ref: String,
     alt: String,
-    gr: GRBase): Variant = {
-    gr.checkVariant(contig, start, ref, alt)
+    rg: RGBase): Variant = {
+    rg.checkVariant(contig, start, ref, alt)
     Variant(contig, start, ref, alt)
   }
 
@@ -52,8 +52,8 @@ object Variant {
     start: Int,
     ref: String,
     alts: Array[String],
-    gr: GRBase): Variant = {
-    gr.checkVariant(contig, start, ref, alts)
+    rg: RGBase): Variant = {
+    rg.checkVariant(contig, start, ref, alts)
     Variant(contig, start, ref, alts)
   }
 
@@ -61,21 +61,21 @@ object Variant {
     start: Int,
     ref: String,
     alts: java.util.ArrayList[String],
-    gr: GRBase): Variant = Variant(contig, start, ref, alts.asScala.toArray, gr)
+    rg: RGBase): Variant = Variant(contig, start, ref, alts.asScala.toArray, rg)
 
-  def parse(str: String, gr: GRBase): Variant = {
+  def parse(str: String, rg: RGBase): Variant = {
     val elts = str.split(":")
     val size = elts.length
     if (size < 4)
       fatal(s"Invalid string for Variant. Expecting contig:pos:ref:alt1,alt2 -- found `$str'.")
 
     val contig = elts.take(size - 3).mkString(":")
-    Variant(contig, elts(size - 3).toInt, elts(size - 2), elts(size - 1).split(","), gr)
+    Variant(contig, elts(size - 3).toInt, elts(size - 2), elts(size - 1).split(","), rg)
   }
 
   def fromRegionValue(r: Region, offset: Long): Variant = {
     val t = TVariant.representation()
-    val altsType = t.fieldType(3).asInstanceOf[TArray]
+    val altsType = t.types(3).asInstanceOf[TArray]
 
     val contig = TString.loadString(r, t.loadField(r, offset, 0))
     val pos = r.loadInt(t.loadField(r, offset, 1))
@@ -166,8 +166,8 @@ object VariantSubgen {
 
   val biallelic = random.copy(nAllelesGen = Gen.const(2))
 
-  def fromGenomeRef(gr: GenomeReference): VariantSubgen =
-    random.copy(contigGen = Contig.gen(gr))
+  def fromGenomeRef(rg: ReferenceGenome): VariantSubgen =
+    random.copy(contigGen = Contig.gen(rg))
 }
 
 case class VariantSubgen(
@@ -223,38 +223,38 @@ trait IVariant { self =>
 
   def locus: Locus = Locus(contig, start)
 
-  def isAutosomalOrPseudoAutosomal(gr: GRBase): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
+  def isAutosomalOrPseudoAutosomal(rg: RGBase): Boolean = isAutosomal(rg) || inXPar(rg) || inYPar(rg)
 
-  def isAutosomal(gr: GRBase): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
+  def isAutosomal(rg: RGBase): Boolean = !(inX(rg) || inY(rg) || isMitochondrial(rg))
 
-  def isMitochondrial(gr: GRBase): Boolean = gr.isMitochondrial(contig)
+  def isMitochondrial(rg: RGBase): Boolean = rg.isMitochondrial(contig)
 
-  def inXPar(gr: GRBase): Boolean = gr.inXPar(locus)
+  def inXPar(rg: RGBase): Boolean = rg.inXPar(locus)
 
-  def inYPar(gr: GRBase): Boolean = gr.inYPar(locus)
+  def inYPar(rg: RGBase): Boolean = rg.inYPar(locus)
 
-  def inXNonPar(gr: GRBase): Boolean = inX(gr) && !inXPar(gr)
+  def inXNonPar(rg: RGBase): Boolean = inX(rg) && !inXPar(rg)
 
-  def inYNonPar(gr: GRBase): Boolean = inY(gr) && !inYPar(gr)
+  def inYNonPar(rg: RGBase): Boolean = inY(rg) && !inYPar(rg)
 
-  private def inX(gr: GRBase): Boolean = gr.inX(contig)
+  private def inX(rg: RGBase): Boolean = rg.inX(contig)
 
-  private def inY(gr: GRBase): Boolean = gr.inY(contig)
+  private def inY(rg: RGBase): Boolean = rg.inY(contig)
 
   import CopyState._
 
-  def copyState(sex: Sex.Sex, gr: GenomeReference): CopyState =
+  def copyState(sex: Sex.Sex, rg: ReferenceGenome): CopyState =
     if (sex == Sex.Male)
-      if (inXNonPar(gr))
+      if (inXNonPar(rg))
         HemiX
-      else if (inYNonPar(gr))
+      else if (inYNonPar(rg))
         HemiY
       else
         Auto
     else
       Auto
 
-  def compare(that: Variant, gr: GenomeReference): Int = gr.compare(this, that)
+  def compare(that: Variant, rg: ReferenceGenome): Int = rg.compare(this, that)
 
   def minRep: IVariant = {
     if (ref.length == 1)

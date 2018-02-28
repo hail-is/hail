@@ -1,10 +1,10 @@
+import hail
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
-from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
 from hail.table import Table
 import itertools
-
 
 class GroupedMatrixTable(object):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
@@ -15,11 +15,11 @@ class GroupedMatrixTable(object):
     .. testsetup::
 
         dataset2 = dataset.annotate_globals(global_field=5)
-        table1 = dataset.rows_table()
+        table1 = dataset.rows()
         table1 = table1.annotate_globals(global_field=5)
         table1 = table1.annotate(consequence='SYN')
 
-        table2 = dataset.cols_table()
+        table2 = dataset.cols()
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     """
@@ -151,7 +151,6 @@ class GroupedMatrixTable(object):
         for k, v in named_exprs.items():
             analyze('GroupedMatrixTable.aggregate', v, self._grouped_indices,
                     {self._parent._row_axis, self._parent._col_axis})
-            replace_aggregables(v._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
         key_strs = ['{} = {}'.format(escape_id(id), e._ast.to_hql()) for id, e in self._groups]
@@ -180,11 +179,11 @@ class MatrixTable(object):
     .. testsetup::
 
         dataset2 = dataset.annotate_globals(global_field=5)
-        table1 = dataset.rows_table()
+        table1 = dataset.rows()
         table1 = table1.annotate_globals(global_field=5)
         table1 = table1.annotate(consequence='SYN')
 
-        table2 = dataset.cols_table()
+        table2 = dataset.cols()
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     Add annotations:
@@ -254,16 +253,16 @@ class MatrixTable(object):
         assert isinstance(self.entry_schema, TStruct), self.entry_schema
 
         for f in self.global_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._global_indices, prefix='global'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._global_indices, prefix='global'))
 
         for f in self.col_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._col_indices, prefix='sa'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._col_indices, prefix='sa'))
 
         for f in self.row_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._row_indices, prefix='va'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._row_indices, prefix='va'))
 
         for f in self.entry_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.typ, self._entry_indices, prefix='g'))
+            self._set_field(f.name, construct_reference(f.name, f.dtype, self._entry_indices, prefix='g'))
 
     def _set_field(self, key, value):
         assert key not in self._fields, key
@@ -634,7 +633,7 @@ class MatrixTable(object):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.sample_qc.gqMean > 20, dataset.GT)
+        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_mean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.alleles))
 
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
@@ -678,7 +677,6 @@ class MatrixTable(object):
 
         for k, v in named_exprs.items():
             analyze('MatrixTable.annotate_rows', v, self._row_indices, {self._col_axis})
-            replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._row_indices)
         m = MatrixTable(base._jvds.annotateVariantsExpr(",\n".join(exprs)))
@@ -733,7 +731,6 @@ class MatrixTable(object):
 
         for k, v in named_exprs.items():
             analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
-            replace_aggregables(v._ast, 'gs')
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._col_indices)
         m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
@@ -842,18 +839,23 @@ class MatrixTable(object):
         strs = []
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
+
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append(
-                '{}: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
+            strs.append('{}: {}'.format(escape_id(e._ast.name), e._ast.to_hql()))
+            ids.append(e._ast.name)
+
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
             strs.append('{}: {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
@@ -865,7 +867,7 @@ class MatrixTable(object):
         --------
         Select existing fields and compute a new one:
 
-        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, dataset.variant_qc.gqMean,
+        >>> dataset_result = dataset.select_rows(dataset.locus, dataset.alleles, dataset.variant_qc.gq_mean,
         ...                                      highQualityCases = agg.count_where((dataset.GQ > 20) & (dataset.isCase)))
 
         Notes
@@ -904,19 +906,21 @@ class MatrixTable(object):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
-            replace_aggregables(e._ast, 'gs')
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
             check_collisions(self._fields, k, self._row_indices)
-            replace_aggregables(e._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.selectRows(strs))
         return cleanup(m)
 
@@ -969,20 +973,21 @@ class MatrixTable(object):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
-            replace_aggregables(e._ast, 'gs')
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             check_collisions(self._fields, k, self._col_indices)
-            replace_aggregables(e._ast, 'gs')
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
-
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.selectCols(strs))
         return cleanup(m)
 
@@ -1028,6 +1033,7 @@ class MatrixTable(object):
         all_exprs = []
         base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
+        ids = []
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
@@ -1038,11 +1044,14 @@ class MatrixTable(object):
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
+            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('MatrixTable.select_entries', e, self._entry_indices)
             check_collisions(self._fields, k, self._entry_indices)
             strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
+            ids.append(k)
+        check_field_uniqueness(ids)
         m = MatrixTable(base._jvds.selectEntries(strs))
         return cleanup(m)
 
@@ -1210,7 +1219,6 @@ class MatrixTable(object):
         expr = to_expr(expr)
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_rows', expr, self._row_indices, {self._col_axis})
-        replace_aggregables(expr._ast, 'gs')
         m = MatrixTable(base._jvds.filterVariantsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
@@ -1226,9 +1234,9 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_cols(dataset.pheno.isCase & (dataset.pheno.age > 50), keep=True)
 
-        Remove rows where `sample_qc.gqMean` is less than 20:
+        Remove rows where `sample_qc.gq_mean` is less than 20:
 
-        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gqMean < 20, keep=False)
+        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_mean < 20, keep=False)
 
         Notes
         -----
@@ -1270,7 +1278,6 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_cols', expr, self._col_indices, {self._row_axis})
 
-        replace_aggregables(expr._ast, 'gs')
         m = MatrixTable(base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
@@ -1431,7 +1438,7 @@ class MatrixTable(object):
         This method should be thought of as a more convenient alternative to
         the following:
 
-        >>> rows_table = dataset.rows_table()
+        >>> rows_table = dataset.rows()
         >>> rows_table.aggregate(Struct(n_high_quality=agg.count_where(rows_table.qual > 40),
         ...                             mean_qual=agg.mean(rows_table.qual)))
 
@@ -1453,7 +1460,6 @@ class MatrixTable(object):
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
-        replace_aggregables(expr._ast, 'variants')
 
         result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -1483,7 +1489,7 @@ class MatrixTable(object):
         This method should be thought of as a more convenient alternative to
         the following:
 
-        >>> cols_table = dataset.cols_table()
+        >>> cols_table = dataset.cols()
         >>> cols_table.aggregate(Struct(fraction_female=agg.fraction(cols_table.pheno.isFemale),
         ...                             case_ratio=agg.count_where(cols_table.isCase) / agg.count()))
 
@@ -1505,7 +1511,6 @@ class MatrixTable(object):
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-        replace_aggregables(expr._ast, 'samples')
 
         result_list = base._jvds.querySamples(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -1532,7 +1537,7 @@ class MatrixTable(object):
         This method should be thought of as a more convenient alternative to
         the following:
 
-        >>> entries_table = dataset.entries_table()
+        >>> entries_table = dataset.entries()
         >>> entries_table.aggregate(Struct(global_gq_mean=agg.mean(entries_table.GQ),
         ...                                call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
 
@@ -1555,7 +1560,6 @@ class MatrixTable(object):
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
-        replace_aggregables(expr._ast, 'gs')
 
         result_list = base._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -1697,7 +1701,7 @@ class MatrixTable(object):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
@@ -1747,7 +1751,7 @@ class MatrixTable(object):
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name if isinstance(ast[0], Reference) else ast[0].selection
+            key = ast[0].name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
@@ -1862,14 +1866,14 @@ class MatrixTable(object):
         return Table(self._jvds.globalsTable())
 
     @handle_py4j
-    def rows_table(self):
+    def rows(self):
         """Returns a table with all row fields in the matrix.
 
         Examples
         --------
         Extract the row table:
 
-        >>> rows_table = dataset.rows_table()
+        >>> rows_table = dataset.rows()
 
         Returns
         -------
@@ -1879,14 +1883,14 @@ class MatrixTable(object):
         return Table(self._jvds.rowsTable())
 
     @handle_py4j
-    def cols_table(self):
+    def cols(self):
         """Returns a table with all column fields in the matrix.
 
         Examples
         --------
         Extract the column table:
 
-        >>> cols_table = dataset.cols_table()
+        >>> cols_table = dataset.cols()
 
         Returns
         -------
@@ -1896,14 +1900,14 @@ class MatrixTable(object):
         return Table(self._jvds.colsTable())
 
     @handle_py4j
-    def entries_table(self):
+    def entries(self):
         """Returns a matrix in coordinate table form.
 
         Examples
         --------
         Extract the entry table:
 
-        >>> entries_table = dataset.entries_table()
+        >>> entries_table = dataset.entries()
 
         Warning
         -------
@@ -1950,7 +1954,7 @@ class MatrixTable(object):
 
         if isinstance(src, Table):
             # join table with matrix.rows_table()
-            right = self.rows_table()
+            right = self.rows()
             return right.view_join_rows(*exprs)
         else:
             assert isinstance(src, MatrixTable)
@@ -1967,7 +1971,7 @@ class MatrixTable(object):
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateVariantsVDS(right._jvds, uid)))
             else:
-                return self.rows_table().view_join_rows(*exprs)
+                return self.rows().view_join_rows(*exprs)
 
             schema = TStruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
             return construct_expr(Select(Reference(prefix), uid),
@@ -1988,7 +1992,7 @@ class MatrixTable(object):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
-        return self.cols_table().view_join_rows(*exprs)
+        return self.cols().view_join_rows(*exprs)
 
     @handle_py4j
     def view_join_entries(self, row_exprs, col_exprs):
@@ -2004,11 +2008,10 @@ class MatrixTable(object):
 
         if isinstance(src, Table):
             # join table with matrix.entries_table()
-            return self.entries_table().view_join_rows(*(row_exprs + col_exprs))
+            return self.entries().view_join_rows(*(row_exprs + col_exprs))
         else:
             raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
 
-    @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
 
         all_uids = []
@@ -2038,10 +2041,10 @@ class MatrixTable(object):
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
+                name=fd.name, type=format_type(fd.dtype)) for fd in self.global_schema.fields)
 
         row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.typ)) for fd in self.row_schema.fields)
+            name=fd.name, type=format_type(fd.dtype)) for fd in self.row_schema.fields)
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.row_key) if self.row_key else '\n    None'
@@ -2049,7 +2052,7 @@ class MatrixTable(object):
                                 for f in self.partition_key) if self.partition_key else '\n    None'
 
         col_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.typ)) for fd in self.col_schema.fields)
+            name=fd.name, type=format_type(fd.dtype)) for fd in self.col_schema.fields)
 
         col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.col_key) if self.col_key else '\n    None'
@@ -2058,7 +2061,7 @@ class MatrixTable(object):
             entry_fields = '\n    None'
         else:
             entry_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.typ)) for fd in self.entry_schema.fields)
+                name=fd.name, type=format_type(fd.dtype)) for fd in self.entry_schema.fields)
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \
@@ -2094,7 +2097,7 @@ class MatrixTable(object):
         Randomly shuffle order of columns:
 
         >>> import random
-        >>> new_sample_order = [x.s for x in dataset.cols_table().select("s").collect()]
+        >>> new_sample_order = [x.s for x in dataset.cols().select("s").collect()]
         >>> random.shuffle(new_sample_order)
         >>> dataset_reordered = dataset.reorder_columns(new_sample_order)
 

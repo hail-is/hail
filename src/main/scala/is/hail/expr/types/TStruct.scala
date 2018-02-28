@@ -2,17 +2,14 @@ package is.hail.expr.types
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.check.Gen
 import is.hail.expr.{EvalContext, HailRep, Parser}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.reflect.{ClassTag, classTag}
 
 class TStructSerializer extends CustomSerializer[TStruct](format => (
   { case JString(s) => Parser.parseStructType(s) },
@@ -46,21 +43,30 @@ object TStruct {
   }
 }
 
-final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends Type {
+final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends TBaseStruct {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
+
+  val types: Array[Type] = fields.map(_.typ).toArray
+
+  val fieldRequired: Array[Boolean] = types.map(_.required)
 
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
-  val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
-
-  val fieldType: Array[Type] = fields.map(_.typ).toArray
-
   assert(fieldNames.areDistinct(), fieldNames.duplicates())
 
-  override def children: Seq[Type] = fields.map(_.typ)
+  val size: Int = fields.length
+
+  val missingIdx = new Array[Int](size)
+  val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
+  val nMissingBytes = (nMissing + 7) >>> 3
+  val byteOffsets = new Array[Long](size)
+  override val byteSize: Long = TBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = TBaseStruct.alignment(types)
+
+  val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
   def fieldByName(name: String): Field = fields(fieldIdx(name))
 
@@ -82,7 +88,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
-
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
@@ -90,8 +95,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def field(name: String): Field = fields(fieldIdx(name))
-
-  val size: Int = fields.length
 
   override def getOption(path: List[String]): Option[Type] =
     if (path.isEmpty)
@@ -547,10 +550,14 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
-  def _toString: String = {
-    val sb = new StringBuilder
-    _pretty(sb, 0, compact = true)
-    sb.result()
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("struct{")
+    fields.foreachBetween({ field =>
+      sb.append(prettyIdentifier(field.name))
+      sb.append(": ")
+      field.typ._toPyString(sb)
+    }) { sb.append(", ")}
+    sb.append('}')
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
@@ -572,36 +579,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  override def _typeCheck(a: Any): Boolean =
-    a.isInstanceOf[Row] && {
-      val r = a.asInstanceOf[Row]
-      r.length == fields.length &&
-        r.toSeq.zip(fields).forall {
-          case (v, f) => f.typ.typeCheck(v)
-        }
-    }
-
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
-
-  override def genNonmissingValue: Gen[Annotation] = {
-    if (size == 0) {
-      Gen.const(Annotation.empty)
-    } else
-      Gen.size.flatMap(fuel =>
-        if (size > fuel)
-          Gen.uniformSequence(fields.map(f => if (fieldRequired(f.index)) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
-        else
-          Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
-  }
-
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
-    a1 == a2 || (a1 != null && a2 != null
-      && fields.zip(a1.asInstanceOf[Row].toSeq).zip(a2.asInstanceOf[Row].toSeq)
-      .forall {
-        case ((f, x1), x2) =>
-          f.typ.valuesSimilar(x1, x2, tolerance)
-      })
-
   override def desc: String =
     """
     A ``Struct`` is like a Python tuple where the fields are named and the set of fields is fixed.
@@ -617,39 +594,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     A field of the ``Struct`` can also be another ``Struct``. For example, ``va.info.AC`` selects the struct ``info`` from the struct ``va``, and then selects the array ``AC`` from the struct ``info``.
     """
 
-  override def scalaClassTag: ClassTag[Row] = classTag[Row]
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(fields.map(_.typ.ordering).toArray)
-
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val fieldOrderings = fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray
-
-    new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        var i = 0
-        while (i < size) {
-          val leftDefined = isFieldDefined(r1, o1, i)
-          val rightDefined = isFieldDefined(r2, o2, i)
-
-          if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, loadField(r1, o1, i), r2, loadField(r2, o2, i))
-            if (c != 0)
-              return c
-          } else if (leftDefined != rightDefined) {
-            val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
-          }
-          i += 1
-        }
-        0
-      }
-    }
-  }
-
   def select(keep: Array[String]): (TStruct, (Row) => Row) = {
     val t = TStruct(keep.map { n =>
       n -> field(n).typ
@@ -660,55 +604,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       Row.fromSeq(keepIdx.map(r.get))
     }
     (t, selectF)
-  }
-
-  val (missingIdx, nMissing) = {
-    var i = 0
-    val a = new Array[Int](size)
-    fields.foreach { f =>
-      a(f.index) = i
-      if (!fieldRequired(f.index))
-        i += 1
-    }
-    (a, i)
-  }
-
-  def nMissingBytes: Int = (nMissing + 7) >>> 3
-
-  var byteOffsets: Array[Long] = _
-  override val byteSize: Long = {
-    val a = new Array[Long](size)
-
-    val bp = new BytePacker()
-
-    var offset: Long = nMissingBytes
-    fields.foreach { f =>
-      val fSize = f.typ.byteSize
-      val fAlignment = f.typ.alignment
-
-      bp.getSpace(fSize, fAlignment) match {
-        case Some(start) =>
-          a(f.index) = start
-        case None =>
-          val mod = offset % fAlignment
-          if (mod != 0) {
-            val shift = fAlignment - mod
-            bp.insertSpace(shift, offset)
-            offset += (fAlignment - mod)
-          }
-          a(f.index) = offset
-          offset += fSize
-      }
-    }
-    byteOffsets = a
-    offset
-  }
-
-  override val alignment: Long = {
-    if (fields.isEmpty)
-      1
-    else
-      fields.map(_.typ.alignment).max
   }
 
   override val fundamentalType: TStruct = {
@@ -722,83 +617,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def allocate(region: Region): Long = {
-    region.allocate(alignment, byteSize)
-  }
-
-  def clearMissingBits(region: Region, off: Long) {
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(off + i, 0)
-      i += 1
-    }
-  }
-
-  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, region.storeByte(off + i.toLong, const(0)))
-      i += 1
-    }
-    c
-  }
-
-
-  def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
-    isFieldDefined(rv.region, rv.offset, fieldIdx)
-
-  def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
-    fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
-
-  def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    if (fieldRequired(fieldIdx))
-      false
-    else
-      region.loadBit(offset, missingIdx(fieldIdx))
-
-  def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    !isFieldMissing(region, offset, fieldIdx)
-
-  def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
-    assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
-  }
-
-  def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
-  }
-
-  def fieldOffset(offset: Long, fieldIdx: Int): Long =
-    offset + byteOffsets(fieldIdx)
-
-  def fieldOffset(offset: Code[Long], fieldIdx: Int): Code[Long] =
-    offset + byteOffsets(fieldIdx)
-
-  def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
-
-  def loadField(region: Region, offset: Long, fieldIdx: Int): Long = {
-    val off = fieldOffset(offset, fieldIdx)
-    fields(fieldIdx).typ.fundamentalType match {
-      case _: TArray | _: TBinary => region.loadAddress(off)
-      case _ => off
-    }
-  }
-
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
     val f = field(fieldName)
-    loadField(region, fieldOffset(offset, f.index), f.typ)
-  }
-
-  def loadField(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Long] =
-    loadField(region, fieldOffset(offset, fieldIdx), fields(fieldIdx).typ)
-
-  private def loadField(region: Code[Region], fieldOffset: Code[Long], fieldType: Type): Code[Long] = {
-    fieldType.fundamentalType match {
-      case _: TArray | _: TBinary => region.loadAddress(fieldOffset)
-      case _ => fieldOffset
-    }
+    loadField(region, fieldOffset(offset, f.index), f.index)
   }
 
   def uniqueFieldName(base: String): String = {

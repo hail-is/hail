@@ -12,6 +12,11 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   def _toString = s"""Interval[$pointType]"""
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("interval<")
+    pointType._toPyString(sb)
+    sb.append('>')
+  }
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Interval[")
     pointType.pretty(sb, indent, compact)

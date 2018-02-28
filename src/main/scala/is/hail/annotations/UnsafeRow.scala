@@ -8,7 +8,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, GRBase, Locus, Variant}
+import is.hail.variant.{AltAllele, RGBase, Locus, Variant}
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
@@ -131,14 +131,14 @@ object UnsafeRow {
   def readArray(t: TContainer, region: Region, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)
 
-  def readStruct(t: TStruct, region: Region, offset: Long): UnsafeRow =
+  def readBaseStruct(t: TBaseStruct, region: Region, offset: Long): UnsafeRow =
     new UnsafeRow(t, region, offset)
 
   def readString(region: Region, boff: Long): String =
     new String(readBinary(region, boff))
 
-  def readLocus(region: Region, offset: Long, gr: GRBase): Locus = {
-    val ft = gr.locusType.fundamentalType.asInstanceOf[TStruct]
+  def readLocus(region: Region, offset: Long, rg: RGBase): Locus = {
+    val ft = rg.locusType.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))
@@ -198,8 +198,7 @@ object UnsafeRow {
       case td: TDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
-      case t: TStruct =>
-        readStruct(t, region, offset)
+      case t: TBaseStruct => readBaseStruct(t, region, offset)
       case x: TVariant =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Variant(
@@ -207,7 +206,7 @@ object UnsafeRow {
           region.loadInt(ft.loadField(region, offset, 1)),
           readString(region, ft.loadField(region, offset, 2)),
           readArrayAltAllele(region, ft.loadField(region, offset, 3)))
-      case x: TLocus => readLocus(region, offset, x.gr)
+      case x: TLocus => readLocus(region, offset, x.rg)
       case _: TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
@@ -228,12 +227,12 @@ object UnsafeRow {
   }
 }
 
-class UnsafeRow(var t: TStruct,
+class UnsafeRow(var t: TBaseStruct,
   var region: Region, var offset: Long) extends Row with KryoSerializable {
 
-  def this(t: TStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
+  def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
-  def this(t: TStruct) = this(t, null, 0)
+  def this(t: TBaseStruct) = this(t, null, 0)
 
   def this() = this(null, null, 0)
 
@@ -255,7 +254,7 @@ class UnsafeRow(var t: TStruct,
     if (isNullAt(i))
       null
     else
-      UnsafeRow.read(t.fieldType(i), region, t.loadField(region, offset, i))
+      UnsafeRow.read(t.types(i), region, t.loadField(region, offset, i))
   }
 
   def copy(): Row = new UnsafeRow(t, region, offset)

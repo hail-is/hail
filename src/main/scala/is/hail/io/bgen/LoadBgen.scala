@@ -28,13 +28,13 @@ object LoadBgen {
     includeGP: Boolean,
     includeDosage: Boolean,
     nPartitions: Option[Int] = None,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
     tolerance: Double): MatrixTable = {
-    
+
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
-    
+
     val sampleIds = sampleFile.map(file => LoadBgen.readSampleFile(hadoop, file))
       .getOrElse(LoadBgen.readSamples(hadoop, files.head))
 
@@ -80,7 +80,7 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("locus" -> TLocus(gr),
+    val signature = TStruct("locus" -> TLocus.schemaFromGR(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "varid" -> TString())
@@ -90,7 +90,7 @@ object LoadBgen {
       (includeGP, "GP" -> TArray(TFloat64())),
       (includeDosage, "dosage" -> TFloat64()))
       .withFilter(_._1).map(_._2)
-        
+
     val matrixType: MatrixType = MatrixType.fromParts(
       globalType = TStruct.empty(),
       colKey = Array("s"),
@@ -109,15 +109,22 @@ object LoadBgen {
       val rv = RegionValue(region)
 
       it.map { case (_, record) =>
-        val v = record.getKey
-        val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
-        gr.checkVariant(vRecoded)
+        val (contig, pos, alleles) = record.getKey
+        val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.fieldType(0), vRecoded.locus) // locus/pk
-        rvb.addAnnotation(kType.fieldType(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
+        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, rg))
+
+        val nAlleles = alleles.length
+        rvb.startArray(nAlleles)
+        var i = 0
+        while (i < nAlleles) {
+          rvb.addString(alleles(i))
+          i += 1
+        }
+        rvb.endArray()
         rvb.endStruct()
 
         rv.setOffset(rvb.end())
@@ -131,19 +138,26 @@ object LoadBgen {
       val rv = RegionValue(region)
 
       it.map { case (_, record) =>
-        val v = record.getKey
+        val (contig, pos, alleles) = record.getKey
         val va = record.getAnnotation.asInstanceOf[Row]
 
-        val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
-        gr.checkVariant(vRecoded)
+        val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), vRecoded.locus)
-        rvb.addAnnotation(kType.fieldType(1), IndexedSeq(vRecoded.ref, vRecoded.alt))
-        rvb.addAnnotation(rowType.fieldType(2), va.get(0))
-        rvb.addAnnotation(rowType.fieldType(3), va.get(1))
+        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, rg))
+
+        val nAlleles = alleles.length
+        rvb.startArray(nAlleles)
+        var i = 0
+        while (i < nAlleles) {
+          rvb.addString(alleles(i))
+          i += 1
+        }
+        rvb.endArray()
+        rvb.addAnnotation(rowType.types(2), va.get(0))
+        rvb.addAnnotation(rowType.types(3), va.get(1))
         record.getValue(rvb) // gs
         rvb.endStruct()
 

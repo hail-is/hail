@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr.types._
-import is.hail.variant.{GenomeReference, MatrixTable, VSMSubgen}
+import is.hail.variant.{ReferenceGenome$, MatrixTable, VSMSubgen}
 import org.testng.annotations.Test
 
 import scala.io.Source

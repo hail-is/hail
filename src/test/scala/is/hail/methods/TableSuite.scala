@@ -11,6 +11,7 @@ import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
+import org.scalatest.Matchers.assert
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -223,11 +224,11 @@ class TableSuite extends SparkSuite {
     val kt1 = Table(hc, rdd, signature, keyNames)
     kt1.typeCheck()
     val kt2 = kt1.aggregate("Status = row.field1",
-      "A = rows.map(r => r.field2).sum(), " +
-        "B = rows.map(r => r.field2).sum(), " +
-        "C = rows.map(r => r.field2 + r.field3).sum(), " +
-        "D = rows.count(), " +
-        "E = rows.filter(r => r.field2 == 3).count()"
+      "A = AGG.map(r => r.field2).sum(), " +
+        "B = AGG.map(r => r.field2).sum(), " +
+        "C = AGG.map(r => r.field2 + r.field3).sum(), " +
+        "D = AGG.count(), " +
+        "E = AGG.filter(r => r.field2 == 3).count()"
     )
 
     kt2.export("test.tsv")
@@ -407,14 +408,14 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val Array(ktMean, ktStDev) = kt.query(Array("rows.map(r => r.qPhen).stats().mean", "rows.map(r => r.qPhen).stats().stdev")).map(_._1)
+    val Array(ktMean, ktStDev) = kt.query(Array("AGG.map(r => r.qPhen).stats().mean", "AGG.map(r => r.qPhen).stats().stdev")).map(_._1)
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))
 
     val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
 
-    val ktCounter = kt.query("rows.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
+    val ktCounter = kt.query("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
   }
@@ -486,9 +487,15 @@ class TableSuite extends SparkSuite {
 
     assert(kt1.ungroup("field3").ungroup("field2", mangle = true).same(ungroupedKt1))
 
-    TestUtils.interceptFatal("Can only ungroup fields of type Struct, but found type"){ kt1.ungroup("field0") }
-    TestUtils.interceptFatal("Struct does not have field with name"){ kt1.ungroup("nonExistentField") }
-    TestUtils.interceptFatal("Either rename manually or use the 'mangle' option to handle duplicates"){ kt1.ungroup("field2").ungroup("field3") }
+    TestUtils.interceptFatal("Can only ungroup fields of type Struct, but found type") {
+      kt1.ungroup("field0")
+    }
+    TestUtils.interceptFatal("Struct does not have field with name") {
+      kt1.ungroup("nonExistentField")
+    }
+    TestUtils.interceptFatal("Either rename manually or use the 'mangle' option to handle duplicates") {
+      kt1.ungroup("field2").ungroup("field3")
+    }
 
     // test ungroup/group gives same result
     val data2 = Array(Array(Row(23, 1)))
@@ -511,9 +518,15 @@ class TableSuite extends SparkSuite {
     assert(kt3.annotate("foo = ungroup(row.foo, b, false)").same(ungroupedKt3))
     assert(!kt3.annotate("foo = ungroup(row.foo, b, false)").same(kt3.annotate("foo = ungroup(row.foo, b, true)")))
 
-    TestUtils.interceptFatal("invalid arguments for method"){ kt3.annotate("foo = ungroup(foo)") }
-    TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt3.annotate("foo = ungroup(false, b, true)") }
-    TestUtils.interceptFatal("Expected boolean argument in the third position, but found a"){ kt3.annotate("foo = ungroup(row.foo, b, b)") }
+    TestUtils.interceptFatal("invalid arguments for method") {
+      kt3.annotate("foo = ungroup(foo)")
+    }
+    TestUtils.interceptFatal("expects a Struct argument in the first position") {
+      kt3.annotate("foo = ungroup(false, b, true)")
+    }
+    TestUtils.interceptFatal("Expected boolean argument in the third position, but found a") {
+      kt3.annotate("foo = ungroup(row.foo, b, b)")
+    }
   }
 
   @Test def testGroup() {
@@ -534,7 +547,9 @@ class TableSuite extends SparkSuite {
     assert(kt.group("Sample", Array("Sample", "field0")).signature == TStruct(("field1", TInt32()), ("field2", TInt32()),
       ("Sample", TStruct(("Sample", TString()), ("field0", TStruct(("1", TFloat32()), ("2", TString())))))))
 
-    TestUtils.interceptFatal("Struct does not have field with name") { kt.group("foo", Array("nonExistentField")) }
+    TestUtils.interceptFatal("Struct does not have field with name") {
+      kt.group("foo", Array("nonExistentField"))
+    }
 
     val data2 = Array(Row(Row("Sample1", 5)))
     val rdd2 = sc.parallelize(data2)
@@ -548,10 +563,18 @@ class TableSuite extends SparkSuite {
 
     assert(kt2.annotate("X = group(row.foo, a, b, a)").same(kt2Expected))
 
-    TestUtils.interceptFatal("Duplicate"){ kt2.annotate("X = group(row.foo, a, b, b)") }
-    TestUtils.interceptFatal("Expected struct field identifiers after the first position, but found a"){ kt2.annotate("X = group(row.foo, x, true)") }
-    TestUtils.interceptFatal("too few arguments for method"){ kt2.annotate("X = group(row.foo, a)") }
-    TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(row.foo, x, y)") }
+    TestUtils.interceptFatal("Duplicate") {
+      kt2.annotate("X = group(row.foo, a, b, b)")
+    }
+    TestUtils.interceptFatal("Expected struct field identifiers after the first position, but found a") {
+      kt2.annotate("X = group(row.foo, x, true)")
+    }
+    TestUtils.interceptFatal("too few arguments for method") {
+      kt2.annotate("X = group(row.foo, a)")
+    }
+    TestUtils.interceptFatal("Struct does not have field with name") {
+      kt2.annotate("X = group(row.foo, x, y)")
+    }
   }
 
   @Test def issue2231() {
@@ -574,11 +597,11 @@ class TableSuite extends SparkSuite {
     assert(kt.forall("global.foo == [1,2,3]"))
     assert(kt.exists("global.dict.get(row.index) == \"bar\""))
 
-    val gkt = kt.aggregate("index = row.index", "x = rows.map(r => global.dict.get(r.index)).collect()[0]")
+    val gkt = kt.aggregate("index = row.index", "x = AGG.map(r => global.dict.get(r.index)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
     assert(kt.select("baz = global.dict.get(row.index)").exists("row.baz == \"bar\""))
 
-    val tmpPath = tmpDir.createTempFile(extension="kt")
+    val tmpPath = tmpDir.createTempFile(extension = "kt")
     kt.write(tmpPath)
     assert(hc.readTable(tmpPath).same(kt))
   }
@@ -587,4 +610,49 @@ class TableSuite extends SparkSuite {
     val table = Table.range(hc, 1).annotate("x = 5").keyBy("x")
     table.flatten()
   }
+
+  @Test def testMaximalIndependentSet() {
+    val edges = List((0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
+    val edgeTable = Table
+      .parallelize(SparkSuite.hc, edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) }.toIndexedSeq,
+        TStruct("i" -> TInt64(), "j" -> TInt64()), Array.empty[String], None)
+    val misTable = edgeTable.maximalIndependentSet("row.i", "row.j", true, None)
+
+    val mis = misTable.collect().map(row => row.getLong(0))
+
+    val maximalIndependentSets = List(Set(0, 6, 5, 3), Set(1, 4, 7, 2))
+    // imperfect greedy algorithm may also give non-maximal independent sets
+    val nonMaximalIndependentSets = List(Set(0, 7), Set(6, 1))
+
+    assert(nonMaximalIndependentSets.contains(mis.toSet) || maximalIndependentSets.contains(mis.toSet))
+    assert(misTable.signature == TStruct("node" -> TInt64())
+      && misTable.key == IndexedSeq("node")
+      && misTable.globalSignature == TStruct())
+  }
+
+  @Test def testMaximalIndependentSetWithTieBreakerAndStrings() {
+    val isCase = Map("A" -> true, "C" -> true, "E" -> true, "G" -> true, "H" -> true)
+    val edges = List(("A", "B"), ("C", "D"), ("E", "F"), ("G", "H"))
+      .map { case (strA, strB) =>
+        ((strA, isCase.getOrElse(strA, false)), (strB, isCase.getOrElse(strB, false)))
+      }
+
+    val iStruct = TStruct("id" -> TString(), "isCase" -> TBoolean())
+
+    val edgeTable = Table
+      .parallelize(SparkSuite.hc, edges.map { case (i, j) => Row(Row(i._1, i._2), Row(j._1, j._2)) }.toIndexedSeq,
+        TStruct("i" -> iStruct, "j" -> iStruct), Array.empty[String], None)
+
+    edgeTable.typeCheck()
+
+    val misTable = edgeTable.maximalIndependentSet("row.i", "row.j", true,
+      Some("(if ((l.isCase && (!(r.isCase)))) (-1) " +
+        "else (if (((!(l.isCase)) && r.isCase)) (1) " +
+        "else (0))).toInt64()"))
+
+    val mis = misTable.collect().map(row => (row.getStruct(0).get(0), row.getStruct(0).get(1))).toSet
+    val expectedSets = List(Set("A", "C", "E", "G"), Set("A", "C", "E", "H")).map(set => set.map(str => (str, true)))
+    assert(expectedSets.contains(mis))
+  }
+
 }

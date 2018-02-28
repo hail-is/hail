@@ -37,7 +37,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
-    implicit val variantOrd = vdsNew.genomeReference.variantOrdering
+    implicit val variantOrd = vdsNew.referenceGenome.variantOrdering
 
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
@@ -55,9 +55,9 @@ class ExportVCFSuite extends SparkSuite {
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)
       ExportVCF(vds, out)
-      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1), gr = vds.genomeReference)
+      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
       ExportVCF(vds, out2)
-      hc.importVCF(out2, nPartitions = Some(nPar2), gr = vds.genomeReference).same(vds2)
+      hc.importVCF(out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2)
     }
 
     p.check()
@@ -124,7 +124,7 @@ class ExportVCFSuite extends SparkSuite {
     // cast Long to Int
     val out = tmpDir.createTempFile("out", "vcf")
     ExportVCF(vds
-      .annotateVariantsExpr("info.AC_pass = gs.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
+      .annotateVariantsExpr("info.AC_pass = AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
         "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()) >= 0.2 ) )).count()"),
       out)
 
@@ -283,10 +283,10 @@ class ExportVCFSuite extends SparkSuite {
       val callSetFields = schema.fields.filter(fd => fd.typ == TSet(TCall())).map(_.name)
 
       val callAnnots = callFields.map(name => s"g.$name = let c = g.$name in " +
-        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(false, 0, 0) else c")
+        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c")
 
       val callContainerAnnots = (callArrayFields ++ callSetFields).map(name => s"g.$name = " +
-        s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(false, 0, 0) else c)")
+        s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c)")
 
       val annots = callAnnots ++ callContainerAnnots
 

@@ -1,7 +1,7 @@
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics import Locus, Call, GenomeReference
+from hail.genetics import Locus, Call, ReferenceGenome
 
 
 def _to_agg(x):
@@ -542,7 +542,7 @@ def stats(expr):
     .. doctest::
 
         >>> table1.aggregate(agg.stats(table1.HT))
-        Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, nNotMissing=4, mean=66.75)
+        Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, n=4, mean=66.75)
 
     Notes
     -----
@@ -552,7 +552,7 @@ def stats(expr):
     - `max` (:class:`.TFloat64`) - Maximum value.
     - `mean` (:class:`.TFloat64`) - Mean value,
     - `stdev` (:class:`.TFloat64`) - Standard deviation.
-    - `nNotMissing` (:class:`.TFloat64`) - Number of non-missing records.
+    - `n` (:class:`.TFloat64`) - Number of non-missing records.
     - `sum` (:class:`.TFloat64`) - Sum.
 
     Parameters
@@ -564,13 +564,17 @@ def stats(expr):
     -------
     :class:`.StructExpression`
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
-        `nNotMissing`, and `sum`.
+        `n`, and `sum`.
     """
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'stats' expects a numeric argument, found '{}'".format(agg._type))
-    return _agg_func('stats', agg, tstruct(['mean', 'stdev', 'min', 'max', 'nNotMissing', 'sum'],
-                                           [tfloat64, tfloat64, tfloat64, tfloat64, tint64, tfloat64]))
+    return _agg_func('stats', agg, tstruct(mean=tfloat64,
+                                           stdev=tfloat64,
+                                           min=tfloat64,
+                                           max=tfloat64,
+                                           n=tint64,
+                                           sum=tfloat64))
 
 @typecheck(expr=oneof(Aggregable, expr_numeric))
 def product(expr):
@@ -673,9 +677,9 @@ def hardy_weinberg(expr):
     -----
     This method returns a struct expression with the following fields:
 
-    - `rExpectedHetFrequency` (:class:`.TFloat64`) - Ratio of observed to
+    - `r_expected_het_freq` (:class:`.TFloat64`) - Ratio of observed to
       expected heterozygote frequency.
-    - `pHWE` (:class:`.TFloat64`) - Hardy-Weinberg p-value.
+    - `p_hwe` (:class:`.TFloat64`) - Hardy-Weinberg p-value.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
@@ -696,11 +700,12 @@ def hardy_weinberg(expr):
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `rExpectedHetFrequency` and `pHWE`.
+        Struct expression with fields `r_expected_het_freq` and `p_hwe`.
     """
-    t = tstruct(['rExpectedHetFrequency', 'pHWE'], [tfloat64, tfloat64])
+    t = tstruct(r_expected_het_freq=tfloat64,
+                p_hwe=tfloat64)
     agg = _to_agg(expr)
-    if not isinstance(agg._type, TCall):
+    if not agg.dtype == tcall:
         raise TypeError("aggregator 'hardy_weinberg' requires an expression of type 'Call', found '{}'".format(
             agg._type.__class__))
     return _agg_func('hardyWeinberg', agg, t)
@@ -825,7 +830,7 @@ def inbreeding(expr, prior):
     .. doctest::
 
         >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
-        >>> dataset_result.cols_table().show()
+        >>> dataset_result.cols().show()
         +----------------+--------------+-------------+------------------+------------------+
         | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
         +----------------+--------------+-------------+------------------+------------------+
@@ -892,8 +897,10 @@ def inbreeding(expr, prior):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = tstruct(['f_stat', 'n_called', 'expected_homs', 'observed_homs'],
-                [tfloat64, tint64, tfloat64, tint64])
+    t = tstruct(f_stat=tfloat64,
+                n_called=tint64,
+                expected_homs=tfloat64,
+                observed_homs=tint64)
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
@@ -908,7 +915,7 @@ def call_stats(expr, alleles):
     .. doctest::
 
         >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
-        >>> dataset_result.rows_table().select('locus', 'alleles', 'gt_stats').show()
+        >>> dataset_result.rows().select('locus', 'alleles', 'gt_stats').show()
         +-----------------+--------------+----------------+-------------+
         | v               | gt_stats.AC  | gt_stats.AF    | gt_stats.AN |
         +-----------------+--------------+----------------+-------------+
@@ -970,7 +977,9 @@ def call_stats(expr, alleles):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = tstruct(['AC', 'AF', 'AN'], [tarray(tint32), tarray(tfloat64), tint32])
+    t = tstruct(AC=tarray(tint32),
+                AF=tarray(tfloat64),
+                AN=tint32)
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 @typecheck(expr=oneof(Aggregable, expr_numeric), start=numeric, end=numeric, bins=numeric)
@@ -984,8 +993,8 @@ def hist(expr, start, end, bins):
     .. doctest::
 
         >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
-        Struct(binEdges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
-               binFrequencies=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
+        Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+               bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
                nLess=0,
                nGreater=0)
 
@@ -993,14 +1002,14 @@ def hist(expr, start, end, bins):
     -----
     This method returns a struct expression with four fields:
 
-     - `binEdges` (:class:`.TArray` of :class:`.TFloat64`): Bin edges. Bin `i`
+     - `bin_edges` (:class:`.TArray` of :class:`.TFloat64`): Bin edges. Bin `i`
        contains values in the left-inclusive, right-exclusive range
-       ``[ binEdges[i], binEdges[i+1] )``.
-     - `binFrequencies` (:class:`.TArray` of :class:`.TInt64`): Bin
+       ``[ bin_edges[i], bin_edges[i+1] )``.
+     - `bin_freq` (:class:`.TArray` of :class:`.TInt64`): Bin
        frequencies. The number of records found in each bin.
-     - `nLess` (:class:`.TInt64`): The number of records smaller than the start
+     - `n_smaller` (:class:`.TInt64`): The number of records smaller than the start
        of the first bin.
-     - `nGreater` (:class:`.TInt64`): The number of records larger than the end
+     - `n_larger` (:class:`.TInt64`): The number of records larger than the end
        of the last bin.
 
     Parameters
@@ -1017,11 +1026,13 @@ def hist(expr, start, end, bins):
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `binEdges`, `binFrequencies`, `nLess`, and `nGreater`.
+        Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'hist' expects argument 'expr' to be a numeric type, found '{}'".format(agg._type))
-    t = tstruct(['binEdges', 'binFrequencies', 'nLess', 'nGreater'],
-                [tarray(tfloat64), tarray(tint64), tint64, tint64])
+    t = tstruct(bin_edges=tarray(tfloat64),
+                bin_freq=tarray(tint64),
+                nLess=tint64,
+                n_larger=tint64)
     return _agg_func('hist', agg, t, start, end, bins)

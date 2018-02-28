@@ -8,7 +8,7 @@ import is.hail.check.Arbitrary._
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Variant}
+import is.hail.variant.{ReferenceGenome, Variant}
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
@@ -236,7 +236,7 @@ class UnsafeSuite extends SparkSuite {
     val v1 = Variant("1", 1, "T", Array("A", "G"))
     val v2 = Variant("1", 1, "T", "C")
 
-    val t = TVariant(GenomeReference.GRCh37)
+    val t = TVariant(ReferenceGenome.GRCh37)
 
     rvb.start(t)
     rvb.addAnnotation(t, v1)

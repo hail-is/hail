@@ -346,8 +346,10 @@ def setof(t):
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
+
 def func_spec(n, tc):
     return FunctionChecker(n, only(tc))
+
 
 def transformed(*tcs):
     fs = []
@@ -367,7 +369,10 @@ numeric = oneof(int, float)
 char = CharChecker()
 
 def check_all(f, args, kwargs, checks, is_method):
-    spec = inspect.getfullargspec(f)
+    if not hasattr(f, '_cached_spec'):
+        setattr(f, '_cached_spec', inspect.getfullargspec(f))
+
+    spec = f._cached_spec
     name = f.__name__
 
     args_ = []
@@ -384,7 +389,7 @@ def check_all(f, args, kwargs, checks, is_method):
         named_args = spec.args[:]
         pos_args = args[:]
 
-    signature_namespace = set(named_args).union(
+    signature_namespace = set(named_args).union(spec.kwonlyargs).union(
         set(filter(lambda x: x is not None, [spec.varargs, spec.varkw])))
     tc_namespace = set(checks.keys())
 
@@ -432,6 +437,21 @@ def check_all(f, args, kwargs, checks, is_method):
                 ))
 
     kwargs_ = {}
+
+    for kw in spec.kwonlyargs:
+        tc = checks[kw]
+        try:
+            arg_ = tc.check(kwargs[kw], name, kw)
+            kwargs_[kw] = arg_
+        except TypecheckFailure:
+            raise TypeError("{fname}: keyword argument '{argname}': "
+                            "expected {expected}, found {found}: '{arg}'".format(
+                fname=name,
+                argname=kw,
+                expected=tc.expects(),
+                found=tc.format(kwargs[kw]),
+                arg=str(kwargs[kw])
+            ))
     if spec.varkw:
         tc = checks[spec.varkw]
         for argname, arg in kwargs.items():
@@ -454,9 +474,9 @@ def check_all(f, args, kwargs, checks, is_method):
 def typecheck_method(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
 
-    def _typecheck(f, *args, **kwargs):
-        args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=True)
-        return f(*args_, **kwargs_)
+    def _typecheck(__orig_func__, *args, **kwargs):
+        args_, kwargs_ = check_all(__orig_func__, args, kwargs, checkers, is_method=True)
+        return __orig_func__(*args_, **kwargs_)
 
     return decorator(_typecheck)
 

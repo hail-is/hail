@@ -5,7 +5,7 @@ import java.io.InputStream
 import is.hail.HailContext
 import is.hail.check.Gen
 import is.hail.expr.types._
-import is.hail.expr.{JSONAnnotationImpex, JSONExtractContig, JSONExtractGenomeReference, JSONExtractIntervalLocus, Parser}
+import is.hail.expr.{JSONExtractContig, JSONExtractReferenceGenome, JSONExtractIntervalLocus, Parser}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -18,7 +18,7 @@ import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
 
-abstract class GRBase extends Serializable {
+abstract class RGBase extends Serializable {
   val variantType: TVariant
   val locusType: TLocus
   val intervalType: TInterval
@@ -77,18 +77,18 @@ abstract class GRBase extends Serializable {
 
   def compare(l1: Locus, l2: Locus): Int
 
-  def unify(concrete: GRBase): Boolean
+  def unify(concrete: RGBase): Boolean
 
   def isBound: Boolean
 
   def clear(): Unit
 
-  def subst(): GRBase
+  def subst(): RGBase
 }
 
-case class GenomeReference(name: String, contigs: Array[String], lengths: Map[String, Int],
+case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[String, Int],
   xContigs: Set[String] = Set.empty[String], yContigs: Set[String] = Set.empty[String],
-  mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends GRBase {
+  mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends RGBase {
 
   val nContigs = contigs.length
 
@@ -143,11 +143,11 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   val mtContigIndices = mtContigs.map(contigsIndex)
 
   val variantOrdering = new Ordering[Variant] {
-    def compare(x: Variant, y: Variant): Int = GenomeReference.compare(contigsIndex, x, y)
+    def compare(x: Variant, y: Variant): Int = ReferenceGenome.compare(contigsIndex, x, y)
   }
 
   val locusOrdering = new Ordering[Locus] {
-    def compare(x: Locus, y: Locus): Int = GenomeReference.compare(contigsIndex, x, y)
+    def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(contigsIndex, x, y)
   }
 
   // must be constructed after orderings
@@ -270,11 +270,11 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
-  def compare(contig1: String, contig2: String): Int = GenomeReference.compare(contigsIndex, contig1, contig2)
+  def compare(contig1: String, contig2: String): Int = ReferenceGenome.compare(contigsIndex, contig1, contig2)
 
-  def compare(v1: IVariant, v2: IVariant): Int = GenomeReference.compare(contigsIndex, v1, v2)
+  def compare(v1: IVariant, v2: IVariant): Int = ReferenceGenome.compare(contigsIndex, v1, v2)
 
-  def compare(l1: Locus, l2: Locus): Int = GenomeReference.compare(contigsIndex, l1, l2)
+  def compare(l1: Locus, l2: Locus): Int = ReferenceGenome.compare(contigsIndex, l1, l2)
 
   def validateContigRemap(contigMapping: Map[String, String]) {
     val badContigs = mutable.Set[(String, String)]()
@@ -292,57 +292,58 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   override def equals(other: Any): Boolean = {
     other match {
-      case gr: GenomeReference =>
-        name == gr.name &&
-          contigs.sameElements(gr.contigs) &&
-          lengths == gr.lengths &&
-          xContigs == gr.xContigs &&
-          yContigs == gr.yContigs &&
-          mtContigs == gr.mtContigs &&
-          par.sameElements(gr.par)
+      case rg: ReferenceGenome =>
+        name == rg.name &&
+          contigs.sameElements(rg.contigs) &&
+          lengths == rg.lengths &&
+          xContigs == rg.xContigs &&
+          yContigs == rg.yContigs &&
+          mtContigs == rg.mtContigs &&
+          par.sameElements(rg.par)
       case _ => false
     }
   }
 
-  def unify(concrete: GRBase): Boolean = this eq concrete
+  def unify(concrete: RGBase): Boolean = this eq concrete
 
   def isBound: Boolean = true
 
   def clear() {}
 
-  def subst(): GenomeReference = this
+  def subst(): ReferenceGenome = this
 
   override def toString: String = name
 
   def write(hc: HailContext, file: String): Unit =
     hc.hadoopConf.writeTextFile(file) { out =>
-      val jgr = JSONExtractGenomeReference(name,
+      val jrg = JSONExtractReferenceGenome(name,
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs, yContigs, mtContigs,
         par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
       implicit val formats = defaultJSONFormats
-      Serialization.write(jgr, out)
+      Serialization.write(jrg, out)
     }
 }
 
-object GenomeReference {
-  var references: Map[String, GenomeReference] = Map()
-  val GRCh37: GenomeReference = fromResource("reference/grch37.json")
-  val GRCh38: GenomeReference = fromResource("reference/grch38.json")
+object ReferenceGenome {
+  var references: Map[String, ReferenceGenome] = Map()
+  val GRCh37: ReferenceGenome = fromResource("reference/grch37.json")
+  val GRCh38: ReferenceGenome = fromResource("reference/grch38.json")
   var defaultReference = GRCh37
+  references += ("default" -> defaultReference)
   val hailReferences = references.keySet
 
-  def addReference(gr: GenomeReference) {
-    if (hasReference(gr.name))
-      fatal(s"Cannot add reference genome. `${ gr.name }' already exists. Choose a reference name NOT in the following list:\n  " +
+  def addReference(rg: ReferenceGenome) {
+    if (hasReference(rg.name))
+      fatal(s"Cannot add reference genome. `${ rg.name }' already exists. Choose a reference name NOT in the following list:\n  " +
         s"@1", references.keys.truncatable("\n  "))
 
-    references += (gr.name -> gr)
+    references += (rg.name -> rg)
   }
 
-  def getReference(name: String): GenomeReference = {
+  def getReference(name: String): ReferenceGenome = {
     references.get(name) match {
-      case Some(gr) => gr
+      case Some(rg) => rg
       case None => fatal(s"Cannot get reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
         s"@1", references.keys.truncatable("\n  "))
     }
@@ -363,57 +364,57 @@ object GenomeReference {
     references -= name
   }
 
-  def setDefaultReference(gr: GenomeReference) {
-    assert(references.contains(gr.name))
-    defaultReference = gr
+  def setDefaultReference(rg: ReferenceGenome) {
+    assert(references.contains(rg.name))
+    defaultReference = rg
   }
 
-  def setDefaultReference(hc: HailContext, grSource: String) {
+  def setDefaultReference(hc: HailContext, rgSource: String) {
     defaultReference =
-      if (hasReference(grSource))
-        getReference(grSource)
+      if (hasReference(rgSource))
+        getReference(rgSource)
       else
-        fromFile(hc, grSource)
+        fromFile(hc, rgSource)
   }
 
-  def read(is: InputStream): GenomeReference = {
+  def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
-    JsonMethods.parse(is).extract[JSONExtractGenomeReference].toGenomeReference
+    JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
-  def fromResource(file: String): GenomeReference = {
-    val gr = loadFromResource[GenomeReference](file)(read)
-    addReference(gr)
-    gr
+  def fromResource(file: String): ReferenceGenome = {
+    val rg = loadFromResource[ReferenceGenome](file)(read)
+    addReference(rg)
+    rg
   }
 
-  def fromFile(hc: HailContext, file: String): GenomeReference = {
-    val gr = hc.hadoopConf.readFile(file)(read)
-    addReference(gr)
-    gr
+  def fromFile(hc: HailContext, file: String): ReferenceGenome = {
+    val rg = hc.hadoopConf.readFile(file)(read)
+    addReference(rg)
+    rg
   }
 
   def importReferences(hConf: Configuration, path: String) {
     if (hConf.exists(path)) {
       val refs = hConf.listStatus(path)
       refs.foreach { fs =>
-        val grPath = fs.getPath.toString
-        val gr = hConf.readFile(grPath)(read)
-        val name = gr.name
-        if (!GenomeReference.hasReference(name))
-          addReference(gr)
+        val rgPath = fs.getPath.toString
+        val rg = hConf.readFile(rgPath)(read)
+        val name = rg.name
+        if (!ReferenceGenome.hasReference(name))
+          addReference(rg)
         else {
-          if (GenomeReference.getReference(name) != gr)
-            fatal(s"`$name' already exists and is not identical to the imported reference from `$grPath'.")
+          if (ReferenceGenome.getReference(name) != rg)
+            fatal(s"`$name' already exists and is not identical to the imported reference from `$rgPath'.")
         }
       }
     }
   }
 
-  private def writeReference(hc: HailContext, path: String, gr: GRBase) {
-    val grPath = path + "/" + gr.name + ".json.gz"
-    if (!hailReferences.contains(gr.name) && !hc.hadoopConf.exists(grPath))
-      gr.asInstanceOf[GenomeReference].write(hc, grPath)
+  private def writeReference(hc: HailContext, path: String, rg: RGBase) {
+    val grPath = path + "/" + rg.name + ".json.gz"
+    if (!hailReferences.contains(rg.name) && !hc.hadoopConf.exists(grPath))
+      rg.asInstanceOf[ReferenceGenome].write(hc, grPath)
   }
 
   def exportReferences(hc: HailContext, path: String, t: Type) {
@@ -424,9 +425,9 @@ object GenomeReference {
         exportReferences(hc, path, keyType)
         exportReferences(hc, path, valueType)
       case TStruct(fields, _) => fields.foreach(fd => exportReferences(hc, path, fd.typ))
-      case TVariant(gr, _) => writeReference(hc, path, gr)
-      case TLocus(gr, _) => writeReference(hc, path, gr)
-      case TInterval(TLocus(gr, _), _) => writeReference(hc, path, gr)
+      case TVariant(rg, _) => writeReference(hc, path, rg)
+      case TLocus(rg, _) => writeReference(hc, path, rg)
+      case TInterval(TLocus(rg, _), _) => writeReference(hc, path, rg)
       case _ =>
     }
   }
@@ -464,8 +465,8 @@ object GenomeReference {
     Integer.compare(l1.position, l2.position)
   }
 
-  def gen: Gen[GenomeReference] = for {
-    name <- Gen.identifier.filter(!GenomeReference.hasReference(_))
+  def gen: Gen[ReferenceGenome] = for {
+    name <- Gen.identifier.filter(!ReferenceGenome.hasReference(_))
     nContigs <- Gen.choose(3, 10)
     contigs <- Gen.distinctBuildableOfN[Array](nContigs, Gen.identifier)
     lengths <- Gen.buildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
@@ -477,7 +478,7 @@ object GenomeReference {
     parYA <- Gen.choose(0, contigsIndex(yContig))
     parYB <- Gen.choose(0, contigsIndex(yContig))
     mtContig <- Gen.oneOfSeq(contigs) if mtContig != xContig && mtContig != yContig
-  } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig),
+  } yield ReferenceGenome(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig),
     Array(
       (Locus(xContig, math.min(parXA, parXB)),
         Locus(xContig, math.max(parXA, parXB))),
@@ -486,7 +487,7 @@ object GenomeReference {
 
   def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): GenomeReference = {
+    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome = {
     val parRegex = """(\w+):(\d+)-(\d+)""".r
 
     val par = parInput.asScala.toArray.map {
@@ -494,49 +495,49 @@ object GenomeReference {
       case _ => fatal("expected PAR input of form contig:start-end")
     }
 
-    val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet,
+    val rg = ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet,
       yContigs.asScala.toSet, mtContigs.asScala.toSet, par)
-    addReference(gr)
-    gr
+    addReference(rg)
+    rg
   }
 }
 
-case class GRVariable(var gr: GRBase = null) extends GRBase {
+case class RGVariable(var rg: RGBase = null) extends RGBase {
   val variantType: TVariant = TVariant(this)
   val locusType: TLocus = TLocus(this)
   val intervalType: TInterval = TInterval(locusType)
 
-  override def toString = "?GR"
+  override def toString = "?RG"
 
-  def unify(concrete: GRBase): Boolean = {
-    if (gr == null) {
-      gr = concrete
+  def unify(concrete: RGBase): Boolean = {
+    if (rg == null) {
+      rg = concrete
       true
     } else
-      gr eq concrete
+      rg eq concrete
   }
 
-  def isBound: Boolean = gr != null
+  def isBound: Boolean = rg != null
 
   def clear() {
-    gr = null
+    rg = null
   }
 
-  def subst(): GRBase = {
-    assert(gr != null)
-    gr
+  def subst(): RGBase = {
+    assert(rg != null)
+    rg
   }
 
   def name: String = ???
 
   def variantOrdering: Ordering[Variant] =
     new Ordering[Variant] {
-      def compare(x: Variant, y: Variant): Int = throw new UnsupportedOperationException("GRVariable.variantOrdering unimplemented")
+      def compare(x: Variant, y: Variant): Int = throw new UnsupportedOperationException("RGVariable.variantOrdering unimplemented")
     }
 
   def locusOrdering: Ordering[Locus] =
     new Ordering[Locus] {
-      def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("GRVariable.locusOrdering unimplemented")
+      def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("RGVariable.locusOrdering unimplemented")
     }
 
   def contigParser: Parser[String] = ???

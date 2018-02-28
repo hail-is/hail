@@ -7,7 +7,7 @@ import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.OrderedRVD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant._
+import is.hail.variant.{Locus, _}
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
@@ -23,16 +23,15 @@ object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
   private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(Variant, String)] = {
+    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, String, String, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
           val recodedContig = contigRecoding.getOrElse(contig, contig)
-
           if (a2Reference)
-            (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
+            (recodedContig, bpPos.toInt, allele2, allele1, rsId)
           else
-            (Variant(recodedContig, bpPos.toInt, allele1, allele2), rsId)
+            (recodedContig, bpPos.toInt, allele1, allele2, rsId)
 
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
@@ -113,11 +112,10 @@ object LoadPlink {
     bedPath: String,
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: TStruct,
-    variants: Array[(Variant, String)],
+    variants: Array[(String, Int, String, String, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference,
-    dropChr0: Boolean = false): MatrixTable = {
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): MatrixTable = {
 
     val sc = hc.sc
     val nSamples = sampleAnnotations.length
@@ -132,7 +130,7 @@ object LoadPlink {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = sampleAnnotationSignature,
-      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString()), "rsid" -> TString()),
+      rowType = TStruct("locus" -> TLocus.schemaFromGR(rg), "alleles" -> TArray(TString()), "rsid" -> TString()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))
@@ -145,25 +143,21 @@ object LoadPlink {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.flatMap { case (_, record) =>
-        val (v, _) = variantsBc.value(record.getKey)
+      it.map { case (_, record) =>
+        val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        if (dropChr0 && v.contig == "0")
-          None
-        else {
-          region.clear()
-          rvb.start(kType)
-          rvb.startStruct()
-          rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
-          rvb.startArray(2)
-          rvb.addString(v.ref)
-          rvb.addString(v.alt)
-          rvb.endArray()
-          rvb.endStruct()
+        region.clear()
+        rvb.start(kType)
+        rvb.startStruct()
+        rvb.addAnnotation(kType.types(0), Locus(contig, pos, rg))
+        rvb.startArray(2)
+        rvb.addString(ref)
+        rvb.addString(alt)
+        rvb.endArray()
+        rvb.endStruct()
 
-          rv.setOffset(rvb.end())
-          Some(rv)
-        }
+        rv.setOffset(rvb.end())
+        rv
       }
     }
 
@@ -172,24 +166,23 @@ object LoadPlink {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.flatMap { case (_, record) =>
-        val (v, rsid) = variantsBc.value(record.getKey)
+      it.map { case (_, record) =>
+        val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        if (dropChr0 && v.contig == "0")
-          None
-        else {
-          region.clear()
-          rvb.start(rvRowType)
-          rvb.startStruct()
-          rvb.addAnnotation(rvRowType.fieldType(0), v.locus) // locus/pk
-          rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq(v.ref, v.alt))
-          rvb.addAnnotation(rvRowType.fieldType(2), rsid)
-          record.getValue(rvb)
-          rvb.endStruct()
+        region.clear()
+        rvb.start(rvRowType)
+        rvb.startStruct()
+        rvb.addAnnotation(kType.types(0), Locus(contig, pos, rg))
+        rvb.startArray(2)
+        rvb.addString(ref)
+        rvb.addString(alt)
+        rvb.endArray()
+        rvb.addAnnotation(rvRowType.types(2), rsid)
+        record.getValue(rvb)
+        rvb.endStruct()
 
-          rv.setOffset(rvb.end())
-          Some(rv)
-        }
+        rv.setOffset(rvb.end())
+        rv
       }
     }
 
@@ -200,8 +193,8 @@ object LoadPlink {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Map[String, String] = Map.empty[String, String], dropChr0: Boolean = false): MatrixTable = {
+    nPartitions: Option[Int] = None, a2Reference: Boolean = true, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
 
     val nameMap = Map("id" -> "s")
@@ -238,7 +231,7 @@ object LoadPlink {
     if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
       fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
-    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, gr, dropChr0)
+    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, rg)
     vds
   }
 

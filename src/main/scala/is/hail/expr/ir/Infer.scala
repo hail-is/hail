@@ -146,6 +146,14 @@ object Infer {
         infer(o)
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty)
+      case x@MakeTuple(types, _) =>
+        types.foreach { a => infer(a) }
+        x.typ = TTuple(types.map(_.typ): _*)
+      case x@GetTupleElement(o, idx, _) =>
+        infer(o)
+        val t = coerce[TTuple](o.typ)
+        assert(idx >= 0 && idx < t.size)
+        x.typ = t.types(idx)
       case In(i, typ) =>
         assert(typ != null)
       case InMissingness(i) =>

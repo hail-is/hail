@@ -68,6 +68,7 @@ Functions
 
 .. autosummary::
 
+    abs
     exp
     is_nan
     log
@@ -90,8 +91,8 @@ Functions
     median
     product
     sum
-    unique_max_index
-    unique_min_index
+    argmin
+    argmax
 
 .. rubric:: Collection functions
 
@@ -99,6 +100,7 @@ Functions
 
     map
     flatmap
+    zip
     flatten
     any
     all

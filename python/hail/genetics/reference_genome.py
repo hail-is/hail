@@ -2,12 +2,15 @@ from hail.history import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import handle_py4j, jiterable_to_list, Env
+from hail.typecheck import oneof, transformed
+import hail as hl
 
 
-class GenomeReference(HistoryMixin):
+class ReferenceGenome(HistoryMixin):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
-    :param str name: Name of reference. Must be unique and not one of Hail's predefined references "GRCh37" and "GRCh38".
+    :param str name: Name of reference. Must be unique and NOT one of Hail's
+        predefined references: "GRCh37", "GRCh38", and "default".
 
     :param contigs: Contig names.
     :type contigs: list of str
@@ -30,7 +33,7 @@ class GenomeReference(HistoryMixin):
     >>> contigs = ["1", "X", "Y", "MT"]
     >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
     >>> par = [("X", 60001, 2699521)]
-    >>> my_ref = hl.GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
+    >>> my_ref = hl.ReferenceGenome("my_ref", contigs, lengths, "X", "Y", "MT", par)
     """
 
     _references = {}
@@ -52,7 +55,7 @@ class GenomeReference(HistoryMixin):
 
         par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
 
-        jrep = (Env.hail().variant.GenomeReference
+        jrep = (Env.hail().variant.ReferenceGenome
                 .apply(name,
                        contigs,
                        lengths,
@@ -71,15 +74,15 @@ class GenomeReference(HistoryMixin):
         self._par = None
         self._par_tuple = par
 
-        super(GenomeReference, self).__init__()
-        GenomeReference._references[name] = self
+        super(ReferenceGenome, self).__init__()
+        ReferenceGenome._references[name] = self
 
     def _set_history(self, history):
-        if not self._history_was_set: # only set varid if GenomeReference was constructed by user
+        if not self._history_was_set: # only set varid if ReferenceGenome was constructed by user
             self._history = history.set_varid(self.name)
             self._history_was_set = True
         else:
-            super(GenomeReference, self)._set_history(history)
+            super(ReferenceGenome, self)._set_history(history)
 
     @handle_py4j
     def __str__(self):
@@ -88,12 +91,12 @@ class GenomeReference(HistoryMixin):
     def __repr__(self):
         if not self._par_tuple:
             self._par_tuple = [(x.start.contig, x.start.position, x.end.position) for x in self.par]
-        return 'GenomeReference(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
+        return 'ReferenceGenome(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
                (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self._par_tuple)
 
     @handle_py4j
     def __eq__(self, other):
-        return isinstance(other, GenomeReference) and self._jrep.equals(other._jrep)
+        return isinstance(other, ReferenceGenome) and self._jrep.equals(other._jrep)
 
     @handle_py4j
     def __hash__(self):
@@ -101,7 +104,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def name(self):
-        """Name of genome reference.
+        """Name of reference genome.
 
         :rtype: str
         """
@@ -194,13 +197,13 @@ class GenomeReference(HistoryMixin):
 
         Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__.
 
-        >>> grch37 = hl.GenomeReference.GRCh37()
+        >>> grch37 = hl.ReferenceGenome.GRCh37()
 
-        :rtype: :class:`.GenomeReference`
+        :rtype: :class:`.ReferenceGenome`
         """
-        return GenomeReference._references.get(
+        return ReferenceGenome._references.get(
             'GRCh37',
-            GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
+            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.GRCh37())
         )
 
     @classmethod
@@ -211,13 +214,13 @@ class GenomeReference(HistoryMixin):
 
         Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
 
-        >>> grch38 = hl.GenomeReference.GRCh38()
+        >>> grch38 = hl.ReferenceGenome.GRCh38()
 
-        :rtype: :class:`.GenomeReference`
+        :rtype: :class:`.ReferenceGenome`
         """
-        return GenomeReference._references.get(
+        return ReferenceGenome._references.get(
             'GRCh38',
-            GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh38())
+            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.GRCh38())
         )
 
     @classmethod
@@ -254,9 +257,9 @@ class GenomeReference(HistoryMixin):
         :param file: Path to JSON file.
         :type file: str
 
-        :rtype: :class:`.GenomeReference`
+        :rtype: :class:`.ReferenceGenome`
         """
-        return GenomeReference._from_java(Env.hail().variant.GenomeReference.fromFile(Env.hc()._jhc, file))
+        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFile(Env.hc()._jhc, file))
 
     @handle_py4j
     @typecheck_method(output=str)
@@ -265,13 +268,13 @@ class GenomeReference(HistoryMixin):
 
         **Examples**
 
-        >>> my_gr = hl.GenomeReference("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
-        >>> my_gr.write("output/new_reference.json")
+        >>> my_rg = hl.ReferenceGenome("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
+        >>> my_rg.write("output/new_reference.json")
 
         **Notes**
 
-        Use :class:`~hail.GenomeReference.read` to reimport the exported reference genome
-        in a new HailContext session.
+        Use :class:`~hail.ReferenceGenome.read` to reimport the exported
+        reference genome in a new HailContext session.
 
         :param str output: Path of JSON file to write.
         """
@@ -284,7 +287,7 @@ class GenomeReference(HistoryMixin):
 
     @classmethod
     def _from_java(cls, jrep):
-        gr = GenomeReference.__new__(cls)
+        gr = ReferenceGenome.__new__(cls)
         gr._init_from_java(jrep)
         gr._name = None
         gr._contigs = None
@@ -294,8 +297,8 @@ class GenomeReference(HistoryMixin):
         gr._mt_contigs = None
         gr._par = None
         gr._par_tuple = None
-        super(GenomeReference, gr).__init__()
-        GenomeReference._references[gr.name] = gr
+        super(ReferenceGenome, gr).__init__()
+        ReferenceGenome._references[gr.name] = gr
         return gr
 
     @handle_py4j
@@ -305,3 +308,5 @@ class GenomeReference(HistoryMixin):
     @handle_py4j
     def _check_interval(self, interval_jrep):
         self._jrep.checkInterval(interval_jrep)
+
+reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), ReferenceGenome)

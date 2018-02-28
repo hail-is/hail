@@ -51,70 +51,29 @@ class ImportBgenSuite extends SparkSuite {
   @Test def testGavinExample() {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
+
+    val genMT = hc.importGen(gen, sampleFile, contigRecoding = contigRecoding)
+
     val inputs = Array(
       ("src/test/resources/example.v11.bgen", 1d / 32768),
       ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1)),
       ("src/test/resources/example.8bits.bgen", 1d / 255))
 
-    def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
-      hadoopConf.delete(bgen + ".idx", recursive = true)
-
-      val nSamples = getNumberOfLinesInFile(sampleFile) - 2
-      val nVariants = getNumberOfLinesInFile(gen)
-
-      hc.indexBgen(bgen)
-      val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), includeGT = true, includeGP = true,
+    assert(inputs.forall { case (bgenFile, tolerance) =>
+      hadoopConf.delete(bgenFile + ".idx", recursive = true)
+      hc.indexBgen(bgenFile)
+      val bgenMT = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), includeGT = true, includeGP = true,
         includeDosage = false, nPartitions = Some(10), contigRecoding = contigRecoding)
-        .selectRows("va.locus", "va.alleles", "va.varid", "va.rsid")
-      assert(bgenVDS.numCols == nSamples && bgenVDS.countVariants() == nVariants)
-
-      val genVDS = hc.importGen(gen, sampleFile, contigRecoding = contigRecoding)
-        .selectRows("va.locus", "va.alleles", "va.varid", "va.rsid")
-
-      assert(bgenVDS.stringSampleIds == genVDS.stringSampleIds)
-
-      val varidBgenQuery = bgenVDS.rowType.query("varid")
-      val varidGenQuery = genVDS.rowType.query("varid")
-
-      val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va), va) }
-      val genAnnotations = genVDS.variantsAndAnnotations.map { case (v, va) => (varidGenQuery(va), va) }
-
-      assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) =>
-        va1 == va2 })
-
-      val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, g) => ((varidBgenQuery(va), s), g) }
-      val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, g) => ((varidGenQuery(va), s), g) }
-
-      val isSame = genFull.fullOuterJoin(bgenFull)
-        .collect()
-        .forall { case ((v, i), (g1, g2)) =>
-          g1 == g2 || {
-            val gp1 = g1.get.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
-            val gp2 = g2.get.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
-            gp1 == gp2 || gp1.zip(gp2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance }
-          }
-        }
-
-      val vdsFile = tmpDir.createTempFile("bgenImportWriteRead", "vds")
-      bgenVDS.write(vdsFile)
-      val bgenWriteVDS = hc.readGDS(vdsFile)
-      assert(bgenVDS
-        .filterVariantsExpr("va.rsid != \"RSID_100\"")
-        .same(bgenWriteVDS.filterVariantsExpr("va.rsid != \"RSID_100\"")
-        ), "Not same after write/read.")
-
-      hadoopConf.delete(bgen + ".idx", recursive = true)
-
-      assert(isSame)
-    }
-
-    inputs.foreach { case (file, tolerance) => testBgen(file, tolerance) }
+      val isSame = genMT.same(bgenMT, tolerance)
+      hadoopConf.delete(bgenFile + ".idx", recursive = true)
+      isSame
+    })
   }
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- MatrixTable.gen(hc,
       VSMSubgen.callAndProbabilities.copy(
-        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(GenomeReference.defaultReference, "1")).gen,
+        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(ReferenceGenome.defaultReference, "1")).gen,
         sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countVariants > 0);
       nPartitions <- choose(1, 10))
@@ -270,8 +229,8 @@ class ImportBgenSuite extends SparkSuite {
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
       includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
-    assert(vds.annotateVariantsExpr("cr1 = gs.fraction(g => isDefined(g.GT))")
-      .annotateVariantsExpr("cr2 = gs.fraction(g => isDefined(g.GT))")
+    assert(vds.annotateVariantsExpr("cr1 = AGG.fraction(g => isDefined(g.GT))")
+      .annotateVariantsExpr("cr2 = AGG.fraction(g => isDefined(g.GT))")
       .rowsTable()
       .forall("row.cr1 == row.cr2"))
   }
@@ -286,10 +245,10 @@ class ImportBgenSuite extends SparkSuite {
       val vds = hc.importBgen(bgen, includeGT = false, includeGP = true, includeDosage = true, contigRecoding = contigRecoding)
         .filterVariantsExpr("va.locus.position == 2000")
 
-      val dosages = vds.queryGenotypes("gs.map(g => g.dosage).collect()")._1
+      val dosages = vds.queryGenotypes("AGG.map(g => g.dosage).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
 
-      val dosagesFromGP = vds.queryGenotypes("gs.map(g => dosage(g.GP)).collect()")._1
+      val dosagesFromGP = vds.queryGenotypes("AGG.map(g => dosage(g.GP)).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
       
       assert(dosages.length == 500 && dosagesFromGP.length == 500)

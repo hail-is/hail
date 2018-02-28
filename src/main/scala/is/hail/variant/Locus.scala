@@ -1,7 +1,7 @@
 package is.hail.variant
 
+import is.hail.annotations.Annotation
 import is.hail.check.Gen
-import is.hail.expr.types.TInterval
 import is.hail.expr.Parser
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -14,9 +14,16 @@ import scala.language.implicitConversions
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
 
-  def apply(contig: String, position: Int, gr: GRBase): Locus = {
-    gr.checkLocus(contig, position)
+  def apply(contig: String, position: Int, rg: RGBase): Locus = {
+    rg.checkLocus(contig, position)
     Locus(contig, position)
+  }
+
+  def apply(contig: String, position: Int, rg: Option[ReferenceGenome]): Annotation = {
+    rg match {
+      case Some(ref) => Locus(contig, position, ref)
+      case None => Annotation(contig, position)
+    }
   }
 
   def sparkSchema: StructType =
@@ -34,8 +41,8 @@ object Locus {
 
   def gen: Gen[Locus] = gen(simpleContigs)
 
-  def gen(gr: GenomeReference): Gen[Locus] = for {
-    (contig, length) <- Contig.gen(gr)
+  def gen(rg: ReferenceGenome): Gen[Locus] = for {
+    (contig, length) <- Contig.gen(rg)
     pos <- Gen.choose(1, length)
   } yield Locus(contig, pos)
 
@@ -43,35 +50,35 @@ object Locus {
     pos <- Gen.choose(1, length)
   } yield Locus(contig, pos)
 
-  def parse(str: String, gr: GRBase): Locus = {
+  def parse(str: String, rg: RGBase): Locus = {
     val elts = str.split(":")
     val size = elts.length
     if (size < 2)
       fatal(s"Invalid string for Locus. Expecting contig:pos -- found `$str'.")
 
     val contig = elts.take(size - 1).mkString(":")
-    Locus(contig, elts(size - 1).toInt, gr)
+    Locus(contig, elts(size - 1).toInt, rg)
   }
 
-  def parseInterval(str: String, gr: GRBase): Interval = Parser.parseLocusInterval(str, gr)
+  def parseInterval(str: String, rg: RGBase): Interval = Parser.parseLocusInterval(str, rg)
 
-  def parseIntervals(arr: Array[String], gr: GRBase): Array[Interval] = arr.map(parseInterval(_, gr))
+  def parseIntervals(arr: Array[String], rg: RGBase): Array[Interval] = arr.map(parseInterval(_, rg))
 
-  def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval] = parseIntervals(arr.asScala.toArray, gr)
+  def parseIntervals(arr: java.util.ArrayList[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
 
-  def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval = {
-    gr.checkInterval(start, end)
+  def makeInterval(start: Locus, end: Locus, rg: RGBase): Interval = {
+    rg.checkInterval(start, end)
     Interval(start, end, true, false)
   }
 
-  def makeInterval(contig: String, start: Int, end: Int, gr: GRBase): Interval = {
-    gr.checkInterval(contig, start, end)
+  def makeInterval(contig: String, start: Int, end: Int, rg: RGBase): Interval = {
+    rg.checkInterval(contig, start, end)
     Interval(Locus(contig, start), Locus(contig, end), true, false)
   }
 }
 
 case class Locus(contig: String, position: Int) {
-  def compare(that: Locus, gr: GenomeReference): Int = gr.compare(this, that)
+  def compare(that: Locus, rg: ReferenceGenome): Int = rg.compare(this, that)
 
   def toRow: Row = Row(contig, position)
 
@@ -79,28 +86,28 @@ case class Locus(contig: String, position: Int) {
     ("contig", JString(contig)),
     ("position", JInt(position)))
 
-  def copyChecked(gr: GRBase, contig: String = contig, position: Int = position): Locus = {
-    gr.checkLocus(contig, position)
+  def copyChecked(rg: RGBase, contig: String = contig, position: Int = position): Locus = {
+    rg.checkLocus(contig, position)
     Locus(contig, position)
   }
 
-  def isAutosomalOrPseudoAutosomal(gr: GRBase): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
+  def isAutosomalOrPseudoAutosomal(rg: RGBase): Boolean = isAutosomal(rg) || inXPar(rg) || inYPar(rg)
 
-  def isAutosomal(gr: GRBase): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
+  def isAutosomal(rg: RGBase): Boolean = !(inX(rg) || inY(rg) || isMitochondrial(rg))
 
-  def isMitochondrial(gr: GRBase): Boolean = gr.isMitochondrial(contig)
+  def isMitochondrial(rg: RGBase): Boolean = rg.isMitochondrial(contig)
 
-  def inXPar(gr: GRBase): Boolean = gr.inXPar(this)
+  def inXPar(rg: RGBase): Boolean = rg.inXPar(this)
 
-  def inYPar(gr: GRBase): Boolean = gr.inYPar(this)
+  def inYPar(rg: RGBase): Boolean = rg.inYPar(this)
 
-  def inXNonPar(gr: GRBase): Boolean = inX(gr) && !inXPar(gr)
+  def inXNonPar(rg: RGBase): Boolean = inX(rg) && !inXPar(rg)
 
-  def inYNonPar(gr: GRBase): Boolean = inY(gr) && !inYPar(gr)
+  def inYNonPar(rg: RGBase): Boolean = inY(rg) && !inYPar(rg)
 
-  private def inX(gr: GRBase): Boolean = gr.inX(contig)
+  private def inX(rg: RGBase): Boolean = rg.inX(contig)
 
-  private def inY(gr: GRBase): Boolean = gr.inY(contig)
+  private def inY(rg: RGBase): Boolean = rg.inY(contig)
 
   override def toString: String = s"$contig:$position"
 }

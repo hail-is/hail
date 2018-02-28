@@ -39,7 +39,7 @@ case class MatrixType(
 
   val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
   val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
-  val entryArrayType: TArray = rvRowType.fieldType(entriesIdx).asInstanceOf[TArray]
+  val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
   val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
   assert({
@@ -72,7 +72,7 @@ case class MatrixType(
     EvalContext(Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def rowEC: EvalContext = {
@@ -84,7 +84,7 @@ case class MatrixType(
     EvalContext(Map(
       "global" -> (0, globalType),
       "va" -> (1, rowType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def genotypeEC: EvalContext = {

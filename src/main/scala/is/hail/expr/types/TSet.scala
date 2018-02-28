@@ -16,6 +16,12 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   def _toString = s"Set[$elementType]"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("set<")
+    elementType._toPyString(sb)
+    sb.append('>')
+  }
+
   override def canCompare(other: Type): Boolean = other match {
     case TSet(otherType, _) => elementType.canCompare(otherType)
     case _ => false

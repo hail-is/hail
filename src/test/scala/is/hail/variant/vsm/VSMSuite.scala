@@ -21,11 +21,11 @@ class VSMSuite extends SparkSuite {
 
   @Test def testWriteRead() {
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateVariantsExpr("foo = 5"))) { vds =>
-      GenomeReference.addReference(vds.genomeReference)
+      ReferenceGenome.addReference(vds.referenceGenome)
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
       val result = hc.readVDS(f).same(vds)
-      GenomeReference.removeReference(vds.genomeReference.name)
+      ReferenceGenome.removeReference(vds.referenceGenome.name)
       result
     }
 
@@ -125,7 +125,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryGenotypes("gs.map(g => g.GQ).hist(0, 100, 100)")
+    vds.queryGenotypes("AGG.map(g => g.GQ).hist(0, 100, 100)")
   }
 
   @Test def testReorderSamples() {
@@ -135,9 +135,9 @@ class VSMSuite extends SparkSuite {
 
     val filteredVds = vds.filterSamplesList(origOrder.map(Annotation(_)).toSet)
       .indexCols("colIdx")
-      .annotateVariantsExpr("origGenos = gs.take(5)")
+      .annotateVariantsExpr("origGenos = AGG.take(5)")
     val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
-      .annotateVariantsExpr("newGenos = gs.takeBy(g => sa.colIdx, 5)")
+      .annotateVariantsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
     assert(vds.reorderSamples(vds.colKeys).same(vds))
@@ -180,7 +180,7 @@ class VSMSuite extends SparkSuite {
       .collect()
       .map(_.getAs[Double](0))
     val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
-    val rowKeys = new Keys(TStruct("locus" -> TLocus(GenomeReference.defaultReference), "alleles" -> TArray(TString())),
+    val rowKeys = new Keys(TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString())),
       Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
     val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
     

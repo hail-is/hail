@@ -9,6 +9,7 @@ Types
 .. autosummary::
     :nosignatures:
 
+    dtype
     tint
     tint32
     tint64
@@ -21,6 +22,7 @@ Types
     tset
     tdict
     tstruct
+    ttuple
     tlocus
     tinterval
     tcall
@@ -38,6 +40,7 @@ Types
     TLocus
     TInterval
     TStruct
+    TTuple
     Field
 
 .. autoclass:: Type
@@ -53,6 +56,7 @@ Types
 .. autoattribute:: hail.expr.types.tset
 .. autoattribute:: hail.expr.types.tdict
 .. autoattribute:: hail.expr.types.tstruct
+.. autoattribute:: hail.expr.types.ttuple
 .. autoattribute:: hail.expr.types.tlocus
 .. autoattribute:: hail.expr.types.tinterval
 .. autoattribute:: hail.expr.types.tcall
@@ -69,4 +73,5 @@ Types
 .. autoclass:: TLocus
 .. autoclass:: TInterval
 .. autoclass:: TStruct
+.. autoclass:: TTuple
 .. autoclass:: Field

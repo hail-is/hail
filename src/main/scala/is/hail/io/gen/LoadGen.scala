@@ -13,7 +13,7 @@ import scala.collection.mutable
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
 object LoadGen {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext, gr: GenomeReference,
+  def apply(genFile: String, sampleFile: String, sc: SparkContext, rg: Option[ReferenceGenome],
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
     chromosome: Option[String] = None, contigRecoding: Map[String, String] = Map.empty[String, String]): GenResult = {
 
@@ -26,7 +26,7 @@ object LoadGen {
 
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
-        readGenLine(l, nSamples, tolerance, gr, chromosome, contigRecoding)
+        readGenLine(l, nSamples, tolerance, rg, chromosome, contigRecoding)
       }.value)
 
     GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
@@ -34,7 +34,7 @@ object LoadGen {
 
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
-    gr: GenomeReference,
+    rg: Option[ReferenceGenome],
     chromosome: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String]): (Annotation, Iterable[Annotation]) = {
 
@@ -48,10 +48,9 @@ object LoadGen {
     val alt = arr(5 - chrCol)
 
     val recodedContig = contigRecoding.getOrElse(chr, chr)
-    val locus = Locus(recodedContig, start.toInt, gr)
+    val locus = Locus(recodedContig, start.toInt, rg)
     val alleles = Array(ref, alt).toFastIndexedSeq
 
-    val nGenotypes = 3
     val gp = arr.drop(6 - chrCol).map {
       _.toDouble
     }

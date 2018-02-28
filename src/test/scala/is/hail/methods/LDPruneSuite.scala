@@ -41,7 +41,7 @@ case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevR
 
 object LDPruneSuite {
   val rvRowType = TStruct(
-    "locus" -> GenomeReference.GRCh37.locusType,
+    "locus" -> ReferenceGenome.GRCh37.locusType,
     "alleles" -> TArray(TString()),
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
@@ -54,8 +54,8 @@ object LDPruneSuite {
     val rvb = new RegionValueBuilder(Region())
     rvb.start(rvRowType)
     rvb.startStruct()
-    rvb.addAnnotation(rvRowType.fieldType(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
+    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
     rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
     rvb.endStruct()
     rvb.end()
@@ -87,8 +87,8 @@ object LDPruneSuite {
 
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
-    rvb.addAnnotation(rvRowType.fieldType(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
+    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
     val keep = LDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {
@@ -319,7 +319,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def testNoPrune() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
     val nSamples = vds.numCols
-    val filteredVDS = vds.filterVariantsExpr("gs.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
+    val filteredVDS = vds.filterVariantsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countVariants() == filteredVDS.countVariants())
   }

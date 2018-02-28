@@ -6,7 +6,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
-from hail.genetics import GenomeReference
+from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic
 
 
@@ -248,7 +248,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     VCF type Flag.
 
     Hail also exports the name, length, and assembly of each contig as a VCF
-    header line, where the assembly is set to the :class:`.GenomeReference`
+    header line, where the assembly is set to the :class:`.ReferenceGenome`
     name.
 
     Consider the workflow of importing a VCF and immediately exporting the
@@ -317,8 +317,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 @handle_py4j
 @typecheck(path=str,
-           reference_genome=nullable(GenomeReference))
-def import_interval_list(path, reference_genome=None):
+           reference_genome=nullable(reference_genome_type))
+def import_interval_list(path, reference_genome='default'):
     """Import an interval list as a :class:`.Table`.
 
     Examples
@@ -339,13 +339,17 @@ def import_interval_list(path, reference_genome=None):
     A file in either of the first two formats produces a table with one
     field:
 
-     - **interval** (*Interval*), key field
+    - **interval** (:class:`.TInterval`) - Row key. Genomic interval. If
+      `reference_genome` is defined, the point type of the interval will be
+      :class:`.TLocus` parameterized by the `reference_genome`. Otherwise,
+      the point type is a :class:`.TStruct` with two fields: `contig` with
+      type :class:`.TString` and `position` with type :class:`.TInt32`.
 
     A file in the third format (with a "target" column) produces a table with two
     fields:
 
-     - **interval** (*Interval*), key field
-     - **target** (*String*)
+     - **interval** (:class:`.TInterval`) - Row key. Same schema as above.
+     - **target** (:class:`.TString`)
 
     Note
     ----
@@ -353,7 +357,7 @@ def import_interval_list(path, reference_genome=None):
     ``start <= position <= end``. :meth:`.Interval.parse`
     is exclusive of the end position.
 
-    Refer to :class:`.GenomeReference` for contig ordering and behavior.
+    Refer to :class:`.ReferenceGenome` for contig ordering and behavior.
 
     Warning
     -------
@@ -367,25 +371,24 @@ def import_interval_list(path, reference_genome=None):
     path : :obj:`str`
         Path to file.
 
-    reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is :func:`~hail.default_reference`.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
 
     Returns
     -------
     :class:`.Table`
         Interval-keyed table.
     """
+    rg = reference_genome._jrep if reference_genome else None
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
-    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
+    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg))
     return Table(t)
 
 
 @handle_py4j
 @typecheck(path=str,
-           reference_genome=nullable(GenomeReference))
-def import_bed(path, reference_genome=None):
+           reference_genome=nullable(reference_genome_type))
+def import_bed(path, reference_genome='default'):
     """Import a UCSC .bed file as a :class:`.Table`.
 
     Examples
@@ -419,12 +422,16 @@ def import_bed(path, reference_genome=None):
     the .bed file has only three fields (`chrom`, `chromStart`, and
     `chromEnd`), then the produced table has only one column:
 
-        - **interval** (*Interval*) - Genomic interval.
+        - **interval** (:class:`.TInterval`) - Row key. Genomic interval. If
+          `reference_genome` is defined, the point type of the interval will be
+          :class:`.TLocus` parameterized by the `reference_genome`. Otherwise,
+          the point type is a :class:`.TStruct` with two fields: `contig` with
+          type :class:`.TString` and `position` with type :class:`.TInt32`.
 
     If the .bed file has four or more columns, then Hail will store the fourth
     column as a field in the table:
 
-        - **interval** (*Interval*) - Genomic interval.
+        - **interval** (*Interval*) - Row key. Genomic interval. Same schema as above.
         - **target** (*String*) - Fourth column of .bed file.
 
     `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`__ can
@@ -442,8 +449,8 @@ def import_bed(path, reference_genome=None):
     path : :obj:`str`
         Path to .bed file.
 
-    reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is :func:`~hail.default_reference`.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
 
     Returns
     -------
@@ -463,10 +470,9 @@ def import_bed(path, reference_genome=None):
     # >>> bed = hl.import_bed('data/file2.bed')
     # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
+    rg = reference_genome._jrep if reference_genome else None
 
-    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
+    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg))
     return Table(jt)
 
 
@@ -581,11 +587,11 @@ def grep(regex, path, max_count=100):
            sample_file=nullable(str),
            entry_fields=listof(str),
            min_partitions=nullable(int),
-           reference_genome=nullable(GenomeReference),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric)
 def import_bgen(path, entry_fields, sample_file=None,
-                min_partitions=None, reference_genome=None,
+                min_partitions=None, reference_genome='default',
                 contig_recoding=None, tolerance=0.2):
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
@@ -630,10 +636,15 @@ def import_bgen(path, entry_fields, sample_file=None,
 
     **Row Fields**
 
-    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the
-      chromosome, position, reference allele (A allele in the v1.1 spec and
-      first allele in the v1.2 spec), and alternate alleles in each variant
-      identifying block.
+    - `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The chromosome
+      and position. If `reference_genome` is defined, the type will be
+      :class:`.TLocus` parameterized by `reference_genome`. Otherwise, the type
+      will be a :class:`.TStruct` with two fields: `contig` with type
+      :class:`.TString` and `position` with type :class:`.TInt32`.
+    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An array
+      containing the alleles of the variant. The reference allele (A allele in
+      the v1.1 spec and first allele in the v1.2 spec) is the first element in
+      the array.
     - `varid` (:class:`.TString`) -- The variant identifier. The third field in
       each variant identifying block.
     - `rsid` (:class:`.TString`) -- The rsID for the variant. The fifth field in
@@ -674,9 +685,8 @@ def import_bgen(path, entry_fields, sample_file=None,
         samples in the file must match the number in the BGEN file(s).
     min_partitions : :obj:`int`, optional
         Number of partitions.
-    reference_genome : :class:`.GenomeReference`, optional
-        Reference genome to use. Default is :func:`~hail.default_reference`
-        The row key will have type ``TVariant(reference_genome)``.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
@@ -689,8 +699,7 @@ def import_bgen(path, entry_fields, sample_file=None,
     :class:`.MatrixTable`
     """
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
+    rg = reference_genome._jrep if reference_genome else None
 
     if not entry_fields:
         raise FatalError("import_bgen: entry_fields must be non-empty."
@@ -709,7 +718,7 @@ def import_bgen(path, entry_fields, sample_file=None,
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    joption(min_partitions), rg._jrep, joption(contig_recoding), tolerance)
+                                    joption(min_partitions), joption(rg), joption(contig_recoding), tolerance)
     return MatrixTable(jmt)
 
 
@@ -719,10 +728,10 @@ def import_bgen(path, entry_fields, sample_file=None,
            tolerance=numeric,
            min_partitions=nullable(int),
            chromosome=nullable(str),
-           reference_genome=nullable(GenomeReference),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
-def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
-               contig_recoding=None):
+def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None,
+               reference_genome='default', contig_recoding=None):
     """
     Import GEN file(s) as a :class:`.MatrixTable`.
 
@@ -752,11 +761,18 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
 
     **Row Fields**
 
-    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the
-      contig (1st column if present, otherwise given by `chromosome`), position
-      (3rd column if chromosome is not present), reference allele (4th column if
-      chromosome is not present), and alternate allele (5th column if chromosome
-      is not present).
+    - `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The genomic
+      location consisting of the chromosome (1st column if present, otherwise
+      given by `chromosome`) and position (3rd column if `chromosome` is not
+      defined). If `reference_genome` is defined, the type will be
+      :class:`.TLocus` parameterized by `reference_genome`. Otherwise, the type
+      will be a :class:`.TStruct` with two fields: `contig` with type
+      :class:`.TString` and `position` with type :class:`.TInt32`.
+    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An array
+      containing the alleles of the variant. The reference allele (4th column if
+      `chromosome` is not defined) is the first element of the array and the
+      alternate allele (5th column if `chromosome` is not defined) is the second
+      element.
     - `varid` (:class:`.TString`) -- The variant identifier. 2nd column of GEN
       file if chromosome present, otherwise 1st column.
     - `rsid` (:class:`.TString`) -- The rsID. 3rd column of GEN file if
@@ -786,9 +802,8 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
         Number of partitions.
     chromosome : :obj:`str`, optional
         Chromosome if not included in the GEN file
-    reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is :func:`~hail.default_reference`
-        The row key will have type ``TVariant(reference_genome)``.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
@@ -798,14 +813,13 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     :class:`.MatrixTable`
     """
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
+    rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                   tolerance, rg._jrep, joption(contig_recoding))
+                                   tolerance, joption(rg), joption(contig_recoding))
     return MatrixTable(jmt)
 
 
@@ -819,10 +833,9 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
            delimiter=str,
            missing=str,
            types=dictof(str, Type),
-           quote=nullable(char),
-           reference_genome=nullable(GenomeReference))
+           quote=nullable(char))
 def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
-                 comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
+                 comment=None, delimiter="\t", missing="NA", types={}, quote=None):
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -966,9 +979,6 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         Dictionary defining field types.
     quote: :obj:`str` or :obj:`None`
         Quote character.
-    reference_genome: :class:`.GenomeReference`
-        Reference genome to use when imputing Variant or Locus fields. Default
-        is :func:`~hail.default_reference`
 
     Returns
     -------
@@ -978,11 +988,8 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
-
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
-                                   no_header, impute, quote, rg._jrep)
+                                   no_header, impute, quote)
     return Table(jt)
 
 @handle_py4j
@@ -1128,21 +1135,19 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
            missing=str,
            quant_pheno=bool,
            a2_reference=bool,
-           reference_genome=nullable(GenomeReference),
-           contig_recoding=nullable(dictof(str, str)),
-           drop_chr0=bool)
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)))
 def import_plink(bed, bim, fam,
                  min_partitions=None,
                  delimiter='\\\\s+',
                  missing='NA',
                  quant_pheno=False,
                  a2_reference=True,
-                 reference_genome=None,
+                 reference_genome='default',
                  contig_recoding={'23': 'X',
                                   '24': 'Y',
                                   '25': 'X',
-                                  '26': 'MT'},
-                 drop_chr0=False):
+                                  '26': 'MT'}):
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
@@ -1168,7 +1173,15 @@ def import_plink(bed, bim, fam,
 
     * Row fields:
 
-        * `v` (:class:`.TVariant`) -- Variant (key field).
+        * `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The
+          chromosome and position. If `reference_genome` is defined, the type
+          will be :class:`.TLocus` parameterized by `reference_genome`.
+          Otherwise, the type will be a :class:`.TStruct` with two fields:
+          `contig` with type :class:`.TString` and `position` with type
+          :class:`.TInt32`.
+        * `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An
+          array containing the alleles of the variant. The reference allele (A2
+          if `a2_reference` is ``True``) is the first element in the array.
         * `rsid` (:class:`.TString`) -- Column 2 in the BIM file.
 
     * Column fields:
@@ -1224,23 +1237,19 @@ def import_plink(bed, bim, fam,
         If True, A2 is treated as the reference allele. If False, A1 is treated
         as the reference allele.
 
-    reference_genome : :class:`.GenomeReference`
-        Reference genome to use. Default is
-        :class:`~.HailContext.default_reference`.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
 
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by ``reference_genome``.
-
-    drop_chr0 : :obj:`bool`
-        If true, do not include variants with contig == "0".
 
     Returns
     -------
     :class:`.MatrixTable`
     """
 
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+    rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding:
         contig_recoding = tdict(tstr,
@@ -1248,8 +1257,8 @@ def import_plink(bed, bim, fam,
 
     jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
                                     delimiter, missing, quant_pheno,
-                                    a2_reference, rg._jrep,
-                                    joption(contig_recoding), drop_chr0)
+                                    a2_reference, joption(rg),
+                                    joption(contig_recoding))
 
     return MatrixTable(jmt)
 
@@ -1338,10 +1347,10 @@ def get_vcf_metadata(path):
            min_partitions=nullable(int),
            drop_samples=bool,
            call_fields=oneof(str, listof(str)),
-           reference_genome=nullable(GenomeReference),
+           reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
 def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-               drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
+               drop_samples=False, call_fields=[], reference_genome='default', contig_recoding=None):
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1395,8 +1404,16 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 
     **Row Fields**
 
-    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the CHROM,
-      POS, REF, and ALT fields.
+    - `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The
+      chromosome (CHROM field) and position (POS field). If `reference_genome`
+      is defined, the type will be :class:`.TLocus` parameterized by
+      `reference_genome`. Otherwise, the type will be a :class:`.TStruct` with
+      two fields: `contig` with type :class:`.TString` and `position` with type
+      :class:`.TInt32`.
+    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An array
+      containing the alleles of the variant. The reference allele (REF field) is
+      the first element in the array and the alternate alleles (ALT field) are
+      the subsequent elements.
     - `filters` (:class:`.TSet` of :class:`.TString`) -- Set containing all filters applied to a
       variant.
     - `rsid` (:class:`.TString`) -- rsID of the variant.
@@ -1434,9 +1451,8 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     call_fields : :obj:`list` of :obj:`str`
         List of FORMAT fields to load as :class:`.TCall`. "GT" is loaded as
         a call automatically.
-    reference_genome: :class:`.GenomeReference`, optional
-        Reference genome to use. If ``None``, then the
-        :func:`~hail.default_reference` is used.
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
@@ -1446,15 +1462,15 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     -------
     :class:`.MatrixTable`
     """
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
+
+    rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                   joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,
-                                   joption(contig_recoding))
+                                   joption(min_partitions), drop_samples, jset_args(call_fields),
+                                   joption(rg), joption(contig_recoding))
 
     return MatrixTable(jmt)
 

@@ -1,7 +1,7 @@
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
-from hail.genetics.genomeref import GenomeReference
+from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger
@@ -63,7 +63,7 @@ class HailContext(object):
         Env._hc = self
 
         self._default_ref = None
-        Env.hail().variant.GenomeReference.setDefaultReference(self._jhc, default_reference)
+        Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
         sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
         if self._jsc.uiWebUrl().isDefined():
@@ -89,7 +89,7 @@ class HailContext(object):
     @property
     def default_reference(self):
         if not self._default_ref:
-            self._default_ref = GenomeReference._from_java(Env.hail().variant.GenomeReference.defaultReference())
+            self._default_ref = ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.defaultReference())
         return self._default_ref
 
     def stop(self):
@@ -114,30 +114,68 @@ def init(sc=None, app_name="Hail", master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
              default_reference="GRCh37"):
-    HailContext(sc, app_name, master, local, log, quiet, append, min_block_size, branching_factor, tmp_dir, default_reference)
+    """Initialize Hail and Spark.
+
+    Parameters
+    ----------
+    sc : pyspark.SparkContext, optional
+        Spark context. By default, a Spark context will be created.
+    app_name : :obj:`str`
+        Spark application name.
+    master : :obj:`str`
+        Spark master.
+    local : :obj:`str`
+       Local-mode master, used if `master` is not defined here or in the
+       Spark configuration.
+    log : :obj:`str`
+        Local path for Hail log file. Does not currently support distributed
+        file systems like Google Storage, S3, or HDFS.
+    quiet : :obj:`bool`
+        Print fewer log messages.
+    append : :obj:`bool`
+        Append to the end of the log file.
+    min_block_size : :obj:`int`
+        Minimum file block size in MB.
+    branching_factor : :obj:`int`
+        Branching factor for tree aggregation.
+    tmp_dir : :obj:`str`
+        Temporary directory for Hail files. Must be a network-visible
+        file path.
+    default_reference : :obj:`str`
+        Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
+    """
+    HailContext(sc, app_name, master, local, log, quiet, append,
+                min_block_size, branching_factor, tmp_dir, default_reference)
 
 def stop():
-    """Stop the currently running HailContext."""
-    Env.hc().stop()
+    """Stop the currently running Hail session."""
+    if Env._hc:
+        Env.hc().stop()
 
 def default_reference():
     """Return the default reference genome.
 
     Returns
     -------
-    :class:`.GenomeReference`
+    :class:`.ReferenceGenome`
     """
     return Env.hc().default_reference
 
 def get_reference(name):
     """Return the reference genome corresponding to `name`.
 
+    If `name` is ``'default'``, return the reference from :func:`.default_reference`.
+
     Returns
     -------
-    :class:`.GenomeReference`
+    :class:`.ReferenceGenome`
     """
-    from hail import GenomeReference
-    return GenomeReference._references.get(
-        name,
-        GenomeReference._from_java(Env.hail().variant.GenomeReference.getReference(name))
-    )
+    from hail import ReferenceGenome
+
+    if name == "default":
+        return default_reference()
+    else:
+        return ReferenceGenome._references.get(
+            name,
+            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
+        )

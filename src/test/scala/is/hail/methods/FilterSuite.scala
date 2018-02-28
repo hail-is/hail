@@ -30,26 +30,26 @@ class FilterSuite extends SparkSuite {
 
     val sQcVds = SampleQC(vds)
 
-    assert(sQcVds.filterSamplesExpr("sa.qc.nCalled == 337").numCols == 17)
+    assert(sQcVds.filterSamplesExpr("sa.qc.n_called == 337").numCols == 17)
 
-    assert(sQcVds.filterSamplesExpr("sa.qc.dpMean > 60").numCols == 6)
+    assert(sQcVds.filterSamplesExpr("sa.qc.dp_mean > 60").numCols == 6)
 
-    assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ sa.s) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3")
+    assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ sa.s) {sa.qc.r_ti_tv > 3.5 && sa.qc.n_singleton < 10000000} else sa.qc.r_ti_tv > 3")
       .numCols == 16)
 
     val vQcVds = VariantQC(vds)
 
-    assert(vQcVds.filterVariantsExpr("va.qc.nCalled < 100").countVariants() == 36)
+    assert(vQcVds.filterVariantsExpr("va.qc.n_called < 100").countVariants() == 36)
 
-    assert(vQcVds.filterVariantsExpr("va.qc.nHomVar > 0 && va.qc.nHet > 0").countVariants() == 104)
+    assert(vQcVds.filterVariantsExpr("va.qc.n_hom_var > 0 && va.qc.n_het > 0").countVariants() == 104)
 
-    assert(vQcVds.filterVariantsExpr("va.qc.rHetHomVar > 0").countVariants() == 104)
+    assert(vQcVds.filterVariantsExpr("va.qc.r_het_hom_var > 0").countVariants() == 104)
 
-    assert(vQcVds.filterVariantsExpr("va.qc.rHetHomVar >= 0").countVariants() == 117)
+    assert(vQcVds.filterVariantsExpr("va.qc.r_het_hom_var >= 0").countVariants() == 117)
 
-    assert(vQcVds.filterVariantsExpr("isMissing(va.qc.rHetHomVar)", keep = false).countVariants() == 117)
+    assert(vQcVds.filterVariantsExpr("isMissing(va.qc.r_het_hom_var)", keep = false).countVariants() == 117)
 
-    assert(vQcVds.filterVariantsExpr("isDefined(va.qc.rHetHomVar)").countVariants() == 117)
+    assert(vQcVds.filterVariantsExpr("isDefined(va.qc.r_het_hom_var)").countVariants() == 117)
 
     val highGQ = vds.filterGenotypes("g.GQ < 20", keep = false)
     assert(!highGQ.entriesTable().exists("row.GQ < 20"))
@@ -96,7 +96,7 @@ class FilterSuite extends SparkSuite {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
     val keepOneSample = VariantQC(vds.filterSamplesExpr("sa.s == \"C1046::HG02024\""))
 
-    val q = keepOneSample.queryVA("va.qc.rHetHomVar")._2
+    val q = keepOneSample.queryVA("va.qc.r_het_hom_var")._2
     val missingVariants = keepOneSample.variantsAndAnnotations
       .collect()
       .filter { case (v, va) =>
@@ -107,7 +107,7 @@ class FilterSuite extends SparkSuite {
     // ensure that we're not checking empty vs empty
     assert(missingVariants.size > 0)
 
-    val missingVariantsFilter = keepOneSample.filterVariantsExpr("isMissing(va.qc.rHetHomVar)")
+    val missingVariantsFilter = keepOneSample.filterVariantsExpr("isMissing(va.qc.r_het_hom_var)")
       .variantsAndAnnotations
       .collect()
       .map(_._1)

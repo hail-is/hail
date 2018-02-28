@@ -77,7 +77,7 @@ object MendelErrors {
     vds.requireUniqueSamples("mendel_errors")
     vds.requireRowKeyVariant("mendel_errors")
 
-    val grLocal = vds.genomeReference
+    val grLocal = vds.referenceGenome
 
     val trios = preTrios.filter(_.sex.isDefined)
     val nSamplesDiscarded = preTrios.size - trios.size
@@ -156,8 +156,8 @@ case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[Comple
     val signature = TStruct(
       "fam_id" -> TString(),
       "s" -> TString(),
-      "locus" -> vSig.fieldType(0),
-      "alleles" -> vSig.fieldType(1),
+      "locus" -> vSig.types(0),
+      "alleles" -> vSig.types(1),
       "code" -> TInt32(),
       "error" -> TString())
 
@@ -211,8 +211,8 @@ case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[Comple
 
   def lMendelKT(): Table = {
     val signature = TStruct(
-      "locus" -> vSig.fieldType(0),
-      "alleles" -> vSig.fieldType(1),
+      "locus" -> vSig.types(0),
+      "alleles" -> vSig.types(1),
       "errors" -> TInt32()
     )
 

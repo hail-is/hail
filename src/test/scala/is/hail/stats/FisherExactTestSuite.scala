@@ -100,17 +100,17 @@ class FisherExactTestSuite extends SparkSuite {
         val vds2 = vds.annotateSamplesTable(hc.importTable(phenotypeFile).keyBy("Sample"), root = "pheno")
           .annotateSamplesExpr("pheno = sa.pheno.Pheno1")
           .annotateVariantsExpr(
-            """macCase = gs.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
-              |2 * gs.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
+            """macCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
+              |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """majCase = gs.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
-              |2 * gs.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
+            """majCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
+              |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """macControl = gs.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
-              |2 * gs.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
+            """macControl = AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
+              |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """majControl = gs.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
-              |2 * gs.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
+            """majControl = AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
+              |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
           .annotateVariantsExpr(
             """fet = fet(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
 
@@ -119,10 +119,10 @@ class FisherExactTestSuite extends SparkSuite {
         val (_, q2) = vds2.queryVA("va.majCase")
         val (_, q3) = vds2.queryVA("va.macControl")
         val (_, q4) = vds2.queryVA("va.majControl")
-        val (_, q5) = vds2.queryVA("va.fet.pValue")
-        val (_, q6) = vds2.queryVA("va.fet.oddsRatio")
-        val (_, q7) = vds2.queryVA("va.fet.ci95Lower")
-        val (_, q8) = vds2.queryVA("va.fet.ci95Upper")
+        val (_, q5) = vds2.queryVA("va.fet.p_value")
+        val (_, q6) = vds2.queryVA("va.fet.odds_ratio")
+        val (_, q7) = vds2.queryVA("va.fet.ci_95_lower")
+        val (_, q8) = vds2.queryVA("va.fet.ci_95_upper")
 
         vds2.variantsAndAnnotations.forall { case (v, va) =>
           val result = FisherExactTest(q1(va).asInstanceOf[Long].toInt, q2(va).asInstanceOf[Long].toInt,

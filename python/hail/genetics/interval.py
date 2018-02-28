@@ -1,8 +1,9 @@
-from hail.genetics.genomeref import GenomeReference
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.genetics.locus import Locus
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
+import hail as hl
 
 interval_type = lazy()
 
@@ -17,8 +18,6 @@ class Interval(HistoryMixin):
     :type start: :class:`.Locus`
     :param end: exclusive end locus
     :type end: :class:`.Locus`
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
-    :type reference_genome: :class:`.GenomeReference`
     """
 
     @handle_py4j
@@ -66,8 +65,8 @@ class Interval(HistoryMixin):
     @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
-                      reference_genome=nullable(GenomeReference))
-    def parse(cls, string, reference_genome=None):
+                      reference_genome=reference_genome_type)
+    def parse(cls, string, reference_genome='default'):
         """Parses a genomic interval from string representation.
 
         **Examples**:
@@ -102,16 +101,20 @@ class Interval(HistoryMixin):
 
         Note that the start locus must precede the start locus.
 
-        :param str string: String to parse.
-        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
-        :type reference_genome: :class:`.GenomeReference`
+        Parameters
+        ----------
+        string : :obj:`str`
+            String to parse.
+        reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+            Reference genome to use.
 
-        :rtype: :class:`.Interval`
+        Returns
+        -------
+        :class:`.Interval`
         """
 
-        rg = reference_genome if reference_genome else Env.hc().default_reference
-        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, rg._jrep)
-        return Interval._from_java(jrep, rg)
+        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, reference_genome._jrep)
+        return Interval._from_java(jrep, reference_genome)
 
     @property
     def start(self):
@@ -136,7 +139,7 @@ class Interval(HistoryMixin):
     def reference_genome(self):
         """Reference genome.
 
-        :return: :class:`.GenomeReference`
+        :return: :class:`.ReferenceGenome`
         """
         return self._rg
 
@@ -174,6 +177,6 @@ class Interval(HistoryMixin):
 
         if self._rg != interval._rg:
             raise TypeError("expect `interval' has reference genome `{}' but found `{}'".format(self._rg.name, interval._rg.name))
-        return self._jrep.overlaps(self._typ._jtype.ordering(), interval._jrep)
+        return self._jrep.probablyOverlaps(self._typ._jtype.ordering(), interval._jrep)
 
 interval_type.set(Interval)

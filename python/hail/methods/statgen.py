@@ -3,7 +3,8 @@ import hail.expr.aggregators as agg
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
-from hail.genetics import KinshipMatrix, GenomeReference
+from hail.genetics import KinshipMatrix, ReferenceGenome
+from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
@@ -130,7 +131,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     We have used the same implementation as `PLINK v1.7
     <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
 
-    Let `gr` be the the genome reference of the type of the `locus` key (as
+    Let `gr` be the the reference genome of the type of the `locus` key (as
     given by :meth:`.TLocus.reference_genome`)
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
@@ -223,7 +224,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
                           hl.cond(ds.ib.f_stat > male_threshold,
                                   False,
                                   hl.null(tbool))),
-        **ds.ib).cols_table()
+        **ds.ib).cols()
 
     return kt
 
@@ -2034,15 +2035,13 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     """
 
-    hts_genotype_schema = TStruct._from_java(Env.hail().variant.Genotype.htsGenotypeType().deepOptional())
-    if ds.entry_schema != hts_genotype_schema:
-        raise FatalError("""
-split_multi_hts: entry schema must be the HTS genotype schema
-  found: {}
-  expected: {}
-
-hint: Use `split_multi` to split entries with a non-HTS genotype schema.
-""".format(ds.entry_schema, hts_genotype_schema))
+    if ds.entry_schema != hl.hts_entry_schema:
+        raise FatalError("'split_multi_hts': entry schema must be the HTS entry schema:\n"
+                         "  found: {}\n"
+                         "  expected: {}\n"
+                         "  Use 'split_multi' to split entries with non-HTS entry fields.".format(
+            ds.entry_schema, hl.hts_entry_schema
+        ))
 
     sm = SplitMulti(ds)
     pl = hl.or_missing(
@@ -2153,7 +2152,7 @@ def grm(dataset):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             grm,
-                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            [row.s for row in dataset.cols().select('s').collect()],
                                             n_variants)
 
 
@@ -2253,7 +2252,7 @@ def rrm(call_expr):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
-                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            [row.s for row in dataset.cols().select('s').collect()],
                                             n_variants)
 
 
@@ -2266,10 +2265,10 @@ def rrm(call_expr):
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
-           reference_genome=nullable(GenomeReference))
+           reference_genome=reference_genome_type)
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome=None):
+                          seed=0, reference_genome='default'):
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2403,8 +2402,8 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Default is ``UniformDist(0.1, 0.9)``.
     seed : :obj:`int`
         Random seed.
-    reference_genome : :class:`.GenomeReference`, optional
-        Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use.
 
     Returns
     -------
@@ -2422,16 +2421,13 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
-    from hail import default_reference
-    rg = reference_genome if reference_genome else default_reference()
-
     jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
                                             joption(num_partitions),
                                             jvm_pop_dist_opt,
                                             jvm_fst_opt,
                                             af_dist._jrep(),
                                             seed,
-                                            rg._jrep)
+                                            reference_genome._jrep)
     return MatrixTable(jmt)
 
 
@@ -2464,10 +2460,10 @@ class FilterAlleles(object):
     ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
     ...         lambda newi: hl.bind(
     ...             hl.unphased_diploid_gt_index_call(newi),
-    ...             lambda newc: dataset.PL[hl.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
+    ...             lambda newc: dataset.PL[hl.call(fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     hl.null(hl.tarray(hl.tint32)))
     >>> fa.annotate_entries(
-    ...     GT = hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
+    ...     GT = hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
     ...     AD = hl.cond(
     ...         hl.is_defined(dataset.AD),
     ...         hl.range(0, fa.new_alleles.length()).map(
@@ -2673,12 +2669,12 @@ class FilterAlleles(object):
             hl.bind(hl.range(0, hl.triangle(self.new_alleles.length())).map(
                 lambda newi: hl.bind(
                     hl.unphased_diploid_gt_index_call(newi),
-                    lambda newc: ds.PL[hl.call(False, self.new_to_old[newc[0]],
+                    lambda newc: ds.PL[hl.call(self.new_to_old[newc[0]],
                                                self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
                 lambda unnorm: unnorm - hl.min(unnorm)),
             hl.null(tarray(tint32)))
         self.annotate_entries(
-            GT=hl.unphased_diploid_gt_index_call(hl.unique_min_index(newPL)),
+            GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
             AD=hl.cond(
                 hl.is_defined(ds.AD),
                 hl.range(0, self.new_alleles.length()).map(
@@ -2768,14 +2764,12 @@ class FilterAlleles(object):
                 .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(ds.alleles)))
                 .filter(lambda oldi: hl.bind(
                 hl.unphased_diploid_gt_index_call(oldi),
-                lambda oldc: hl.call(False,
-                                     self.old_to_new[oldc[0]],
+                lambda oldc: hl.call(self.old_to_new[oldc[0]],
                                      self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
                 .map(lambda oldi: ds.PL[oldi])))),
             hl.null(tarray(tint32)))
         self.annotate_entries(
-            GT=hl.call(False,
-                       self.old_to_new[ds.GT[0]],
+            GT=hl.call(self.old_to_new[ds.GT[0]],
                        self.old_to_new[ds.GT[1]]), AD=hl.cond(
                 hl.is_defined(ds.AD),
                 (hl.range(0, hl.len(self.new_alleles))

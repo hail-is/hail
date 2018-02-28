@@ -6,7 +6,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.ReferenceGenome$
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -84,8 +84,7 @@ object TextTableReader {
   val intRegex = """^-?\d+$"""
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, missing: String, quote: java.lang.Character,
-    gr: GenomeReference = GenomeReference.defaultReference): Array[Option[Type]] = {
+    delimiter: String, missing: String, quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
     val regexes = Array(booleanRegex, intRegex, doubleRegex).map(Pattern.compile)
 
@@ -143,8 +142,7 @@ object TextTableReader {
     noHeader: Boolean = false,
     impute: Boolean = false,
     nPartitions: Int = sc.defaultMinPartitions,
-    quote: java.lang.Character = null,
-    gr: GenomeReference = GenomeReference.defaultReference): (TStruct, RDD[WithContext[Row]]) = {
+    quote: java.lang.Character = null): (TStruct, RDD[WithContext[Row]]) = {
     require(files.nonEmpty)
 
     val firstFile = files.head
@@ -187,7 +185,7 @@ object TextTableReader {
         info("Reading table to impute column types")
 
         sb.append("Finished type imputation")
-        val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote, gr)
+        val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
         columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>

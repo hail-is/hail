@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.types.{TStruct, TVariant}
 import is.hail.table.Table
-import is.hail.variant.{GenomeReference, Variant, MatrixTable}
+import is.hail.variant.{ReferenceGenome, Variant, MatrixTable}
 import is.hail.utils._
 import is.hail.testUtils._
 
@@ -55,7 +55,7 @@ class JoinSuite extends SparkSuite {
       Variant("1", 13, "A", "T"),
       Variant("1", 15, "A", "T"))
 
-    val vType = TVariant(GenomeReference.GRCh37)
+    val vType = TVariant(ReferenceGenome.GRCh37)
     val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
     leftKt.typeCheck()
     val left = MatrixTable.fromRowsTable(leftKt)

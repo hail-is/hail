@@ -10,6 +10,7 @@ Statistical functions
     dbeta
     dpois
     hardy_weinberg_p
+    binom_test
     pchisqtail
     pnorm
     ppois
@@ -23,6 +24,7 @@ Statistical functions
 .. autofunction:: dbeta
 .. autofunction:: dpois
 .. autofunction:: hardy_weinberg_p
+.. autofunction:: binom_test
 .. autofunction:: pchisqtail
 .. autofunction:: pnorm
 .. autofunction:: ppois

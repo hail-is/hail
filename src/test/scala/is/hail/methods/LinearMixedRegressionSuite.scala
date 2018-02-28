@@ -300,7 +300,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
   lazy val vdsFastLMM = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
     bim = "src/test/resources/fastlmmTest.bim",
-    fam = "src/test/resources/fastlmmTest.fam")
+    fam = "src/test/resources/fastlmmTest.fam",
+    rg = None)
     .annotateSamplesTable(covariates, root = "cov").annotateSamplesExpr("cov = sa.cov.f2")
     .annotateSamplesTable(phenotypes, root = "pheno").annotateSamplesExpr("pheno = sa.pheno.f2")
 
@@ -425,7 +426,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .filterVariantsExpr("va.alleles.length() == 2")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
-      .annotateSamplesExpr("""culprit = gs.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
+      .annotateSamplesExpr("""culprit = AGG.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
       .annotateSamplesExpr("pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
 
     val vdsKinship = vdsAssoc.filterVariantsExpr("va.locus.position < 4")
@@ -487,7 +488,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   val randomNorms = (1 to 10).map(x => rand.nextGaussian())
 
   lazy val vdsSmall = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(smallMat))
-    .annotateSamplesExpr("culprit = gs.filter(g => va.locus.position == 2).map(g => g.GT.nNonRefAlleles()).collect()[0]")
+    .annotateSamplesExpr("culprit = AGG.filter(g => va.locus.position == 2).map(g => g.GT.nNonRefAlleles()).collect()[0]")
     .annotateGlobal(randomNorms, TArray(TFloat64()), "global.randNorms")
     .annotateSamplesExpr("pheno = sa.culprit + global.randNorms[sa.s.toInt32()]")
 

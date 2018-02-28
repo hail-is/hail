@@ -14,6 +14,9 @@ case object TFloat32Required extends TFloat32(true)
 class TFloat32(override val required: Boolean) extends TNumeric {
   def _toString = "Float32"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("float32")
+  }
   val conv = FloatNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]
@@ -24,7 +27,8 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&
-      (D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance) ||
+      (math.abs(a1.asInstanceOf[Float] - a2.asInstanceOf[Float]) <= tolerance ||
+        D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance) ||
         (a1.asInstanceOf[Double].isNaN && a2.asInstanceOf[Double].isNaN)))
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]

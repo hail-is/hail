@@ -58,7 +58,7 @@ object RelationalSpec {
       case JString(p) => p
     }
 
-    GenomeReference.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
+    ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
@@ -153,7 +153,7 @@ object MatrixTable {
             rvb.startStruct()
             var i = 0
             while (i < vaRow.length) {
-              rvb.addAnnotation(localRVRowType.fieldType(i), vaRow.get(i))
+              rvb.addAnnotation(localRVRowType.types(i), vaRow.get(i))
               i += 1
             }
             rvb.startArray(localNSamples) // gs
@@ -218,7 +218,7 @@ object MatrixTable {
     VSMSubgen(
       sSigGen = Type.genArb,
       saSigGen = Type.genInsertableStruct,
-      vSigGen = GenomeReference.gen.map(TVariant(_)),
+      vSigGen = ReferenceGenome.gen.map(TVariant(_)),
       vaSigGen = Type.genInsertableStruct,
       globalSigGen = Type.genInsertableStruct,
       tSigGen = Type.genInsertableStruct,
@@ -389,7 +389,7 @@ case class VSMSubgen(
         val (finalVASig, vaIns, rowPartitionKey, rowKey) =
           vSig match {
             case _: TVariant =>
-              val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].gr.locusType, List("locus"))
+              val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
               val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
               val vaIns = (va: Annotation, v: Annotation) => {
                 val vv = v.asInstanceOf[Variant]
@@ -416,7 +416,7 @@ object VSMSubgen {
   val random = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = GenomeReference.gen.map(TVariant(_)),
+    vSigGen = ReferenceGenome.gen.map(TVariant(_)),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(Genotype.htsGenotypeType),
@@ -428,15 +428,15 @@ object VSMSubgen {
     tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant]))
 
   val plinkSafeBiallelic = random.copy(
-    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
+    vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37)),
     sGen = (t: Type) => Gen.plinkSafeIdentifier,
     vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2),
-      contigGen = Contig.gen(t.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference])).gen)
+      contigGen = Contig.gen(t.asInstanceOf[TVariant].rg.asInstanceOf[ReferenceGenome])).gen)
 
   val callAndProbabilities = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = Gen.const(TVariant(GenomeReference.defaultReference)),
+    vSigGen = Gen.const(TVariant(ReferenceGenome.defaultReference)),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(TStruct(
@@ -491,10 +491,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def genomeReference: GenomeReference = {
+  def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyTypes(0)
     firstKeyField match {
-      case TLocus(gr: GenomeReference, _) => gr
+      case TLocus(rg: ReferenceGenome, _) => rg
     }
   }
 
@@ -513,17 +513,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   val colKey: IndexedSeq[String] = matrixType.colKey
 
   def colKeyTypes: Array[Type] = colKey
-    .map(s => matrixType.colType.fieldType(matrixType.colType.fieldIdx(s)))
+    .map(s => matrixType.colType.types(matrixType.colType.fieldIdx(s)))
     .toArray
 
   val rowKeyTypes: Array[Type] = rowKey
-    .map(s => matrixType.rowType.fieldType(matrixType.rowType.fieldIdx(s)))
+    .map(s => matrixType.rowType.types(matrixType.rowType.fieldIdx(s)))
     .toArray
 
   val rowKeyStruct: TStruct = TStruct(rowKey.zip(rowKeyTypes): _*)
 
   val rowPartitionKeyTypes: Array[Type] = rowPartitionKey
-    .map(s => matrixType.rowType.fieldType(matrixType.rowType.fieldIdx(s)))
+    .map(s => matrixType.rowType.types(matrixType.rowType.fieldIdx(s)))
     .toArray
 
   lazy val value: MatrixValue = {
@@ -652,7 +652,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val fields = entryF()
         var j = 0
         while (j < fields.length) {
-          rvb.addAnnotation(newEntryType.fieldType(j), fields(j))
+          rvb.addAnnotation(newEntryType.types(j), fields(j))
           j += 1
         }
         rvb.endStruct()
@@ -709,7 +709,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           rvb.startStruct()
           var i = 0
           while (i < keyStruct.size) {
-            rvb.addAnnotation(keyStruct.fieldType(i), k.get(i))
+            rvb.addAnnotation(keyStruct.types(i), k.get(i))
             i += 1
           }
           resultOp(agg, rvb)
@@ -953,7 +953,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val newRow = newAnn.asInstanceOf[Row]
         i = 0
         while (i < newRow.size) {
-          rvb.addAnnotation(newRowType.fieldType(i), newRow.get(i))
+          rvb.addAnnotation(newRowType.types(i), newRow.get(i))
           i += 1
         }
 
@@ -976,11 +976,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
-    assert(right.typ.pkType.fieldType.map(_.deepOptional())
+    assert(right.typ.pkType.types.map(_.deepOptional())
       .sameElements(rowPartitionKeyTypes.map(_.deepOptional())))
 
 
-    val (leftRVD, upcastKeys) = if (right.typ.kType.fieldType.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
+    val (leftRVD, upcastKeys) = if (right.typ.kType.types.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
       (rvd.downcastToPK(), rowKey.drop(rowPartitionKey.length).toArray)
     } else (rvd, Array.empty[String])
 
@@ -1050,7 +1050,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   private def annotateVariantsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
     assert(rowPartitionKeyTypes.length == 1)
     assert(kt.keySignature.size == 1)
-    assert(kt.keySignature.fieldType(0) == TInterval(rowPartitionKeyTypes(0)))
+    assert(kt.keySignature.types(0) == TInterval(rowPartitionKeyTypes(0)))
 
     val typOrdering = rowPartitionKeyTypes(0).ordering
 
@@ -1165,7 +1165,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val keepIndices = fieldsToKeep.map(globalType.fieldIdx)
 
-    val newGlobalType = TStruct(keepIndices.zip(fieldsToKeep).map { case (i, f) => f -> globalType.fieldType(i) }: _*)
+    val newGlobalType = TStruct(keepIndices.zip(fieldsToKeep).map { case (i, f) => f -> globalType.types(i) }: _*)
 
     val newMatrixType = matrixType.copy(globalType = newGlobalType)
 
@@ -1942,7 +1942,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "sa" -> (3, colType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "gs" -> (1, TAggregable(entryType, aggregationST))))
+      "AGG" -> (1, TAggregable(entryType, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -2011,7 +2011,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "sa" -> (1, colType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "samples" -> (1, TAggregable(colType, aggregationST))))
+      "AGG" -> (1, TAggregable(colType, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -2056,7 +2056,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "va" -> (1, rowType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "variants" -> (1, TAggregable(rowType, aggregationST))))
+      "AGG" -> (1, TAggregable(rowType, aggregationST))))
     ec.setAll(globals)
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
@@ -2147,12 +2147,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val (newColKey, newColType) = if (fieldMapCols.isEmpty) (colKey, colType) else {
       val newFieldNames = colType.fieldNames.map { n => fieldMapCols.getOrElse(n, n) }
       val newKey = colKey.map { f => fieldMapCols.getOrElse(f, f) }
-      (newKey, TStruct(colType.required, newFieldNames.zip(colType.fieldType): _*))
+      (newKey, TStruct(colType.required, newFieldNames.zip(colType.types): _*))
     }
 
     val newEntryType = if (fieldMapEntries.isEmpty) entryType else {
       val newFieldNames = entryType.fieldNames.map { n => fieldMapEntries.getOrElse(n, n) }
-      TStruct(entryType.required, newFieldNames.zip(entryType.fieldType): _*)
+      TStruct(entryType.required, newFieldNames.zip(entryType.types): _*)
     }
 
     val (pk, newRowKey, newRVRowType) = {
@@ -2169,7 +2169,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newGlobalType = if (fieldMapEntries.isEmpty) globalType else {
       val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
-      TStruct(globalType.required, newFieldNames.zip(globalType.fieldType): _*)
+      TStruct(globalType.required, newFieldNames.zip(globalType.types): _*)
     }
 
     val newMatrixType = MatrixType(newGlobalType,
@@ -2326,7 +2326,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     EvalContext(Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
@@ -2454,7 +2454,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     EvalContext(Map(
       "global" -> (0, globalType),
       "va" -> (1, rowType),
-      "gs" -> (2, TAggregable(entryType, aggregationST))))
+      "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def globalsTable(): Table = {
@@ -2755,7 +2755,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val refPath = path + "/references"
     hc.hadoopConf.mkDir(refPath)
     Array(colType, rowType, entryType, globalType).foreach { t =>
-      GenomeReference.exportReferences(hc, refPath, t)
+      ReferenceGenome.exportReferences(hc, refPath, t)
     }
 
     val spec = MatrixTableSpec(
@@ -2840,8 +2840,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.set(rv.region)
             rvb.start(localRVRowType)
             rvb.startStruct()
-            rvb.addAnnotation(localRVRowType.fieldType(0), minv.locus)
-            rvb.addAnnotation(localRVRowType.fieldType(1), minv.alleles)
+            rvb.addAnnotation(localRVRowType.types(0), minv.locus)
+            rvb.addAnnotation(localRVRowType.types(1), minv.alleles)
             var i = 2
             while (i < localRVRowType.size) {
               rvb.addField(localRVRowType, rv, i)

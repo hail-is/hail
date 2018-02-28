@@ -45,6 +45,13 @@ class ExprSuite extends SparkSuite {
     assert(run[IndexedSeq[Int]]("[1,2]").contains(Array(1, 2): IndexedSeq[Int]))
     assert(run[IndexedSeq[Int]]("[1,2,3]").contains(Array(1, 2, 3): IndexedSeq[Int]))
 
+    assert(run[Annotation]("Tuple()").contains(Annotation()))
+    assert(run[Annotation]("Tuple(5)").contains(Annotation(5)))
+    assert(run[Annotation]("Tuple(5, Tuple(3, 4))").contains(Annotation(5, Annotation(3, 4))))
+    assert(run[Int]("let t = Tuple(5, Tuple(3, 4)) in t[1][1]").contains(4))
+    assert(run[IndexedSeq[Annotation]]("[ Tuple((1), (\"hello\")), Tuple((1), (\"hello\")) ]").contains(Array(Annotation(1, "hello"), Annotation(1, "hello")): IndexedSeq[Annotation]))
+
+
     assert(run[Annotation]("{}").contains(Annotation()))
     assert(run[Annotation]("{a: 1}").contains(Annotation(1)))
     assert(run[Annotation]("{a: 1, b: 2}").contains(Annotation(1, 2)))
@@ -645,7 +652,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
     assert(eval[Boolean]("""let l = Locus("1", 1) in Locus(str(l)) == l""").contains(true))
 
-    implicit val locusOrd = GenomeReference.defaultReference.locusOrdering
+    implicit val locusOrd = ReferenceGenome.defaultReference.locusOrdering
     assert(eval[Interval]("""Interval(Locus("1", 1), Locus("2", 2))""").contains(Interval(Locus("1", 1), Locus("2", 2), true, false)))
     assert(eval[Locus]("""Interval(Locus("1", 1), Locus("2", 2)).start""").contains(Locus("1", 1)))
     assert(eval[Locus]("""Interval(Locus("1", 1), Locus("2", 2)).end""").contains(Locus("2", 2)))
@@ -808,10 +815,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("calls.homVar.nNonRefAlleles() == 2").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and alleles = ["A", "T"] in c.oneHotAlleles(alleles)""").contains(IndexedSeq(0, 2)))
 
-    assert(eval[Int]("let x = Call(true, 1, 2) in x.ploidy").contains(2))
-    assert(eval[Int]("let x = Call(true, 1, 2) in x[1]").contains(2))
-    assert(eval[Int]("let x = Call(false, 3) in x.ploidy").contains(1))
-    assert(eval[Int]("let x = Call(false, 3) in x[0]").contains(3))
+    assert(eval[Int]("let x = Call(1, 2, true) in x.ploidy").contains(2))
+    assert(eval[Int]("let x = Call(1, 2, true) in x[1]").contains(2))
+    assert(eval[Int]("let x = Call(3, false) in x.ploidy").contains(1))
+    assert(eval[Int]("let x = Call(3, false) in x[0]").contains(3))
     assert(eval[Int]("let x = Call(false) in x.ploidy").contains(0))
 
     {

@@ -8,7 +8,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Memory, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.table.Table
-import is.hail.variant.{GenomeReference, Locus, MatrixTable}
+import is.hail.variant.{ReferenceGenome$, Locus, MatrixTable}
 import org.apache.commons.io.IOUtils
 
 import scala.collection.JavaConverters._

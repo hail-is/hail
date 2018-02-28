@@ -186,7 +186,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(2),
         Code.whileLoop(srvb.arrayIdx < 2,
           Code(
-            srvb.addStruct(rt.elementType.asInstanceOf[TStruct], struct),
+            srvb.addBaseStruct(rt.elementType.asInstanceOf[TStruct], struct),
             srvb.advance()
           )
         ),

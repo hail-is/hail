@@ -6,7 +6,7 @@ from hail.utils.misc import plural, get_nice_field_error, get_nice_attr_error
 from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
-from collections import Mapping
+from collections import Mapping, Sequence
 
 
 class Indices(object):
@@ -31,8 +31,6 @@ class Indices(object):
             else:
                 if ind.source is not None and ind.source is not src:
                     raise ExpressionException()
-
-            both = axes.intersection(ind.axes)
 
             axes = axes.union(ind.axes)
 
@@ -101,23 +99,15 @@ def to_expr(e):
         return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))),
                               tinterval(tlocus(e.reference_genome)))
     elif isinstance(e, Call):
-        if e.ploidy == 0:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast), tcall)
-        elif e.ploidy == 1:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast), tcall)
-        elif e.ploidy == 2:
-            return construct_expr(ApplyMethod('Call', to_expr(e.phased)._ast, to_expr(e[0])._ast, to_expr(e[1])._ast),
-                                  tcall)
-        else:
-            raise NotImplementedError("Do not support calls with ploidy == {}.".format(e.ploidy))
+        return hl.call(*e.alleles, phased=e.phased)
     elif isinstance(e, Struct):
         if len(e) == 0:
-            return construct_expr(StructDeclaration([], []), tstruct([], []))
+            return construct_expr(StructDeclaration([], []), tstruct())
         attrs = e._fields.items()
         cols = [to_expr(x) for _, x in attrs]
         names = [k for k, _ in attrs]
         indices, aggregations, joins, refs = unify_all(*cols)
-        t = tstruct(names, [col._type for col in cols])
+        t = tstruct(**dict(zip(names, [col._type for col in cols])))
         return construct_expr(StructDeclaration(names, [c._ast for c in cols]),
                               t, indices, aggregations, joins, refs)
     elif isinstance(e, list):
@@ -132,6 +122,14 @@ def to_expr(e):
         indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ArrayDeclaration([col._ast for col in cols]),
                               tarray(t), indices, aggregations, joins, refs)
+    elif isinstance(e, tuple):
+        if len(e) == 0:
+            return construct_expr(TupleDeclaration(), ttuple())
+        cols = [to_expr(x) for x in e]
+        indices, aggregations, joins, refs = unify_all(*cols)
+        t = ttuple(*[col.dtype for col in cols])
+        return construct_expr(TupleDeclaration(*[c._ast for c in cols]),
+                              t, indices, aggregations, joins, refs)
     elif isinstance(e, set):
         if len(e) == 0:
             raise ExpressionException('Cannot convert empty set to expression.')
@@ -190,6 +188,7 @@ _lazy_set = lazy()
 _lazy_dict = lazy()
 _lazy_bool = lazy()
 _lazy_struct = lazy()
+_lazy_tuple = lazy()
 _lazy_string = lazy()
 _lazy_locus = lazy()
 _lazy_interval = lazy()
@@ -211,6 +210,8 @@ expr_bool = transformed((bool, to_expr),
                         (_lazy_bool, identity))
 expr_struct = transformed((Struct, to_expr),
                           (_lazy_struct, identity))
+expr_tuple = transformed((tuple, to_expr),
+                         (_lazy_tuple, identity))
 expr_str = transformed((str, to_expr),
                        (_lazy_string, identity))
 expr_locus = transformed((Locus, to_expr),
@@ -554,19 +555,19 @@ class Expression(object):
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
-                    source = source.select_rows(*source.row_key, **{name: self})
-                    return source.rows_table().select_globals()
+                    source = source.select_rows(*filter(lambda x: x != name, source.row_key), **{name: self})
+                    return source.rows().select_globals()
                 else:
                     assert self._indices == source._col_indices
                     source = source.select_cols(*filter(lambda f: f != name, source.col_key), **{name: self})
-                    return source.cols_table().select_globals()
+                    return source.cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{name: self})
             source = source.select_rows(*source.row_key)
             source = source.select_cols(*source.col_key)
-            return source.entries_table().select_globals()
+            return source.entries().select_globals()
 
     @handle_py4j
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
@@ -1463,7 +1464,7 @@ class SetExpression(CollectionExpression):
         Parameters
         ----------
         item : :class:`.Expression`
-            Value for inclusion test..
+            Value for inclusion test.
 
         Returns
         -------
@@ -1663,9 +1664,9 @@ class DictExpression(Expression):
                             "    type of 'item': '{}'".format(self._type.key_type, item._type))
         return self._method("contains", tbool, item)
 
-    @typecheck_method(item=expr_any)
-    def get(self, item):
-        """Returns the value associated with key `k`, or missing if that key is not present.
+    @typecheck_method(item=expr_any, default=nullable(expr_any))
+    def get(self, item, default=None):
+        """Returns the value associated with key `k` or a default value if that key is not present.
 
         Examples
         --------
@@ -1677,21 +1678,33 @@ class DictExpression(Expression):
             >>> hl.eval_expr(d.get('Anne'))
             None
 
+            >>> hl.eval_expr(d.get('Anne', 0))
+            0
+
         Parameters
         ----------
         item : :class:`.Expression`
             Key.
+        default : :class:`.Expression`
+            Default value. Must be same type as dictionary values.
 
         Returns
         -------
         :class:`.Expression`
-            The value associated with `item`, or missing.
+            The value associated with `item`, or `default`.
         """
-        if not item._type == self._type.key_type:
+        if not item.dtype == self.dtype.key_type:
             raise TypeError("'DictExpression.get' encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
-                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
-        return self._method("get", self._value_typ, item)
+                            "    type of 'item': '{}'".format(self.dtype.key_type, item._type))
+        if default is not None:
+            if not self.dtype.value_type == default.dtype:
+                raise TypeError("'get' expects parameter 'default' to have the "
+                                "same type as the dictionary value type, found '{}' and '{}'"
+                                .format(self.dtype, default.dtype))
+            return self._method("get", self._value_typ, item, default)
+        else:
+            return self._method("get", self._value_typ, item)
 
     def key_set(self):
         """Returns the set of keys in the dictionary.
@@ -1810,6 +1823,9 @@ class Aggregable(object):
     def __ne__(self, other):
         raise NotImplementedError('Comparison of aggregable collections is undefined')
 
+    @property
+    def dtype(self):
+        return self._type
 
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
@@ -1842,8 +1858,8 @@ class StructExpression(Mapping, Expression):
     def _init(self):
         self._fields = OrderedDict()
 
-        for fd in self._type.fields:
-            expr = construct_expr(Select(self._ast, fd.name), fd.typ, self._indices,
+        for fd in self.dtype.fields:
+            expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
                                   self._aggregations, self._joins, self._refs)
             self._set_field(fd.name, expr)
 
@@ -1936,15 +1952,15 @@ class StructExpression(Mapping, Expression):
         types = []
         for fd in self.dtype.fields:
             names.append(fd.name)
-            types.append(fd.typ)
+            types.append(fd.dtype)
         kwargs_struct = to_expr(Struct(**named_exprs))
 
         for fd in kwargs_struct.dtype.fields:
             if not fd.name in self._fields:
                 names.append(fd.name)
-                types.append(fd.typ)
+                types.append(fd.dtype)
 
-        result_type = tstruct(names, types)
+        result_type = tstruct(**dict(zip(names, types)))
         indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
@@ -2002,8 +2018,8 @@ class StructExpression(Mapping, Expression):
             if fd.name in select_name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
             names.append(fd.name)
-            types.append(fd.typ)
-        result_type = tstruct(names, types)
+            types.append(fd.dtype)
+        result_type = tstruct(**dict(zip(names, types)))
 
         indices, joins, aggregations, refs = unify_all(self, kwargs_struct)
 
@@ -2045,8 +2061,8 @@ class StructExpression(Mapping, Expression):
         for fd in self.dtype.fields:
             if not fd.name in to_drop:
                 names.append(fd.name)
-                types.append(fd.typ)
-        result_type = tstruct(names, types)
+                types.append(fd.dtype)
+        result_type = tstruct(**dict(zip(names, types)))
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._joins, self._aggregations, self._refs)
 
@@ -2062,6 +2078,57 @@ class StructExpression(Mapping, Expression):
             'Fields:{f}\n' \
             '----------------------------------------'.format(f=fields)
         print(s)
+
+
+class TupleExpression(Expression, Sequence):
+    """Expression of type :class:`.TTuple`.
+
+    >>> t = hl.capture(("a", 1, [1, 2, 3]))
+    """
+
+    @typecheck_method(item=int)
+    def __getitem__(self, item):
+        """Index into the tuple.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(t[1])
+            1
+
+        Parameters
+        ----------
+        item : :obj:`int`
+            Element index.
+
+        Returns
+        -------
+        :class:`.Expression`
+        """
+        if not 0 <= item < len(self):
+            raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
+        return self._index(self.dtype.types[item], item)
+
+    def __len__(self):
+        """Returns the length of the tuple.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(len(t))
+            3
+
+        Returns
+        -------
+        :obj:`int`
+        """
+        return len(self.dtype.types)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
 
 class BooleanExpression(Expression):
@@ -2209,13 +2276,13 @@ class NumericExpression(Expression):
     """
 
     def _bin_op_ret_typ(self, other):
-        if isinstance(other._type, TArray):
-            t = other._type.element_type
+        if isinstance(other.dtype, TArray):
+            t = other.dtype.element_type
             wrapper = lambda t: tarray(t)
         else:
-            t = other._type
+            t = other.dtype
             wrapper = lambda t: t
-        t = unify_types(self._type, t)
+        t = unify_types(self.dtype, t)
         if not t:
             return None
         else:
@@ -2226,7 +2293,7 @@ class NumericExpression(Expression):
         ret_type, wrapper = self._bin_op_ret_typ(other)
         if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
-                self._type, name, other._type))
+                self.dtype, name, other.dtype))
         if ret_type_f:
             ret_type = ret_type_f(ret_type)
         return self._bin_op(name, other, wrapper(ret_type))
@@ -2236,7 +2303,7 @@ class NumericExpression(Expression):
         ret_type, wrapper = self._bin_op_ret_typ(other)
         if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
-                self._type, name, other._type))
+                self.dtype, name, other.dtype))
         if ret_type_f:
             ret_type = ret_type_f(ret_type)
         return self._bin_op_reverse(name, other, wrapper(ret_type))
@@ -2624,9 +2691,9 @@ class StringExpression(Expression):
             return self._slice(tstr, item.start, item.stop, item.step)
         else:
             item = to_expr(item)
-            if not isinstance(item._type, TInt32):
+            if not isinstance(item.dtype, TInt32):
                 raise TypeError("String expects index to be type 'slice' or expression of type 'Int32', "
-                                "found expression of type '{}'".format(item._type))
+                                "found expression of type '{}'".format(item.dtype))
             return self._index(tstr, item)
 
     def __add__(self, other):
@@ -2650,15 +2717,15 @@ class StringExpression(Expression):
             Concatenated string.
         """
         other = to_expr(other)
-        if not isinstance(other._type, TString):
-            raise NotImplementedError("'{}' + '{}'".format(self._type, other._type))
-        return self._bin_op("+", other, self._type)
+        if not isinstance(other.dtype, TString):
+            raise NotImplementedError("'{}' + '{}'".format(self.dtype, other.dtype))
+        return self._bin_op("+", other, self.dtype)
 
     def __radd__(self, other):
         other = to_expr(other)
-        if not isinstance(other._type, TString):
-            raise NotImplementedError("'{}' + '{}'".format(other._type, self._type))
-        return self._bin_op_reverse("+", other, self._type)
+        if not isinstance(other.dtype, TString):
+            raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
+        return self._bin_op_reverse("+", other, self.dtype)
 
     def length(self):
         """Returns the length of the string.
@@ -2813,7 +2880,7 @@ class StringExpression(Expression):
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
 
-    >>> call = hl.call(False, 0, 1)
+    >>> call = hl.call(0, 1, phased=False)
     """
 
     def __getitem__(self, item):
@@ -2845,9 +2912,9 @@ class CallExpression(Expression):
             raise NotImplementedError("CallExpression does not support indexing with a slice.")
         else:
             item = to_expr(item)
-            if not isinstance(item._type, TInt32):
+            if not isinstance(item.dtype, TInt32):
                 raise TypeError("Call expects allele index to be an expression of type 'Int32', "
-                                "found expression of type '{}'".format(item._type))
+                                "found expression of type '{}'".format(item.dtype))
             return self._index(tint32, item)
 
     @property
@@ -3211,7 +3278,7 @@ class LocusExpression(Expression):
         Notes
         -----
         All contigs are considered autosomal except those
-        designated as X, Y, or MT by :class:`.GenomeReference`.
+        designated as X, Y, or MT by :class:`.ReferenceGenome`.
 
         Examples
         --------
@@ -3290,8 +3357,8 @@ class IntervalExpression(Expression):
             ``True`` if `locus` is contained in the interval, ``False`` otherwise.
         """
         locus = to_expr(locus)
-        if self._type.point_type != locus._type:
-            raise TypeError('expected {}, found: {}'.format(self._type.point_type, locus._type))
+        if self.dtype.point_type != locus.dtype:
+            raise TypeError('expected {}, found: {}'.format(self.dtype.point_type, locus.dtype))
         return self._method("contains", tbool, locus)
 
     @property
@@ -3344,7 +3411,8 @@ typ_to_expr = {
     TDict: DictExpression,
     TArray: ArrayExpression,
     TSet: SetExpression,
-    TStruct: StructExpression
+    TStruct: StructExpression,
+    TTuple: TupleExpression
 }
 
 elt_typ_to_array_expr = {

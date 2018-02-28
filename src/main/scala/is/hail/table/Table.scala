@@ -11,7 +11,7 @@ import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{ComponentSpec, FileFormat, GenomeReference, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
+import is.hail.variant.{ComponentSpec, FileFormat, ReferenceGenome, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -93,13 +93,13 @@ object Table {
   }
 
   def importIntervalList(hc: HailContext, filename: String,
-    gr: GenomeReference = GenomeReference.defaultReference): Table = {
-    IntervalList.read(hc, filename, gr)
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
+    IntervalList.read(hc, filename, rg)
   }
 
   def importBED(hc: HailContext, filename: String,
-    gr: GenomeReference = GenomeReference.defaultReference): Table = {
-    BedAnnotator.apply(hc, filename, gr)
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
+    BedAnnotator.apply(hc, filename, rg)
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
@@ -197,7 +197,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       "row" -> (1, signature)
     )
     val ec = EvalContext("global" -> globalSignature,
-      "rows" -> TAggregable(signature, aggSymbolTable))
+      "AGG" -> TAggregable(signature, aggSymbolTable))
     ec.set(0, globals)
     ec
   }
@@ -373,11 +373,15 @@ class Table(val hc: HailContext, val ir: TableIR) {
       globalSignature = finalType)
   }
 
-  def selectGlobal(exprs: java.util.ArrayList[String]): Table = {
+  def selectGlobal(fields: java.util.ArrayList[String]): Table = {
+    selectGlobal(fields.asScala.toArray: _*)
+  }
+
+  def selectGlobal(fields: String*): Table = {
     val ec = EvalContext("global" -> globalSignature)
     ec.set(0, globals)
 
-    val (paths, types, f) = Parser.parseSelectExprs(exprs.asScala.toArray, ec)
+    val (paths, types, f) = Parser.parseSelectExprs(fields.toArray, ec)
 
     val names = paths.map {
       case Left(n) => n
@@ -1077,8 +1081,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)
-    GenomeReference.exportReferences(hc, referencesPath, signature)
-    GenomeReference.exportReferences(hc, referencesPath, globalSignature)
+    ReferenceGenome.exportReferences(hc, referencesPath, signature)
+    ReferenceGenome.exportReferences(hc, referencesPath, globalSignature)
 
     val spec = TableSpec(
       FileFormat.version.rep,
@@ -1184,7 +1188,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
   }
 
-  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String] = None): Array[Any] = {
+  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String]): Array[Any] = {
     val ec = rowEvalContext()
 
     val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
@@ -1196,7 +1200,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val tieBreakerEc = EvalContext("l" -> iType, "r" -> iType)
 
     val maybeTieBreaker = tieBreakerExpr.map { e =>
-      val tieBreakerThunk = Parser.parseTypedExpr[Int](e, tieBreakerEc)
+      val tieBreakerThunk = Parser.parseTypedExpr[Long](e, tieBreakerEc)
 
       (l: Any, r: Any) => {
         tieBreakerEc.setAll(l, r)
@@ -1213,6 +1217,20 @@ class Table(val hc: HailContext, val ir: TableIR) {
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
     Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
+  }
+
+  def maximalIndependentSet(iExpr: String, jExpr: String, keep: Boolean,
+    maybeTieBreaker: Option[String] = None): Table = {
+
+    val (iType, _) = Parser.parseExpr(iExpr, rowEvalContext())
+
+    val relatedNodesToKeep = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
+
+    val nodes = this.annotate(s"node = [$iExpr, $jExpr]").select("row.node").explode("node").keyBy("node")
+
+    nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
+      .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
+      .selectGlobal()
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
@@ -1243,7 +1261,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
           convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
         }
         case _ =>
-          ab += (name, t.toString, t.isInstanceOf[TNumeric])
+          ab += (name, t.toPyString, t.isInstanceOf[TNumeric])
       }
     }
 
@@ -1382,7 +1400,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val localSignature = signature
 
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
-    assert(hintPartitioner.forall(p => p.pkType.fieldType.sameElements(orderedKTType.pkType.fieldType)))
+    assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)
   }
 }

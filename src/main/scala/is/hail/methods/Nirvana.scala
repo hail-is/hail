@@ -268,7 +268,7 @@ object Nirvana {
     val oldSignature = vds.rowType
     val localBlockSize = blockSize
 
-    implicit val variantOrd = vds.genomeReference.variantOrdering
+    implicit val variantOrd = vds.referenceGenome.variantOrdering
 
     info("Running Nirvana")
 
@@ -340,9 +340,9 @@ object Nirvana {
           rvb.start(nirvanaRowType)
           rvb.startStruct()
           rvb.startStruct()
-          rvb.addAnnotation(nirvanaRowType.fieldType(0), v.locus)
-          rvb.addAnnotation(nirvanaRowType.fieldType(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
-          rvb.addAnnotation(nirvanaRowType.fieldType(2), nirvana)
+          rvb.addAnnotation(nirvanaRowType.types(0), v.locus)
+          rvb.addAnnotation(nirvanaRowType.types(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
+          rvb.addAnnotation(nirvanaRowType.types(2), nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 

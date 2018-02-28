@@ -8,7 +8,9 @@ Collection functions
 
     dict
     array
+    empty_array
     set
+    empty_set
 
 .. rubric:: Collection functions
 
@@ -17,6 +19,7 @@ Collection functions
     len
     map
     flatmap
+    zip
     flatten
     any
     all
@@ -33,6 +36,7 @@ Collection functions
 .. autofunction:: len
 .. autofunction:: map
 .. autofunction:: flatmap
+.. autofunction:: zip
 .. autofunction:: flatten
 .. autofunction:: any
 .. autofunction:: all

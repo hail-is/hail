@@ -143,7 +143,7 @@ object FilterAlleles {
 
                 var i = 0
                 while (i < newRVType.size - 1) {
-                  rvb.addAnnotation(newRVType.fieldType(i), newRow.get(i))
+                  rvb.addAnnotation(newRVType.types(i), newRow.get(i))
                   i += 1
                 }
 

@@ -14,6 +14,10 @@ case object TFloat64Required extends TFloat64(true)
 class TFloat64(override val required: Boolean) extends TNumeric {
   override def _toString = "Float64"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("float64")
+  }
+
   val conv = DoubleNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
@@ -24,7 +28,8 @@ class TFloat64(override val required: Boolean) extends TNumeric {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&
-      (D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance) ||
+      (math.abs(a1.asInstanceOf[Double] - a2.asInstanceOf[Double]) <= tolerance ||
+        D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance) ||
         (a1.asInstanceOf[Double].isNaN && a2.asInstanceOf[Double].isNaN)))
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]

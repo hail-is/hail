@@ -12,6 +12,11 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("array<")
+    elementType._toPyString(sb)
+    sb.append('>')
+  }
   override val fundamentalType: TArray = {
     if (elementType == elementType.fundamentalType)
       this

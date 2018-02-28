@@ -14,6 +14,9 @@ case object TInt32Required extends TInt32(true)
 class TInt32(override val required: Boolean) extends TIntegral {
   def _toString = "Int32"
 
+  override def _toPyString(sb: StringBuilder): Unit = {
+    sb.append("int32")
+  }
   val conv = IntNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]

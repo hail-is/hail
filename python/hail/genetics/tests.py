@@ -119,14 +119,14 @@ class Tests(unittest.TestCase):
                                Call,
                                [1, 1, 1, 1])
 
-        gr = GenomeReference.GRCh37()
-        self.assertEqual(gr.name, "GRCh37")
-        self.assertEqual(gr.contigs[0], "1")
-        self.assertListEqual(gr.x_contigs, ["X"])
-        self.assertListEqual(gr.y_contigs, ["Y"])
-        self.assertListEqual(gr.mt_contigs, ["MT"])
-        self.assertEqual(gr.par[0], Interval.parse("X:60001-2699521"))
-        self.assertEqual(gr.contig_length("1"), 249250621)
+        rg = ReferenceGenome.GRCh37()
+        self.assertEqual(rg.name, "GRCh37")
+        self.assertEqual(rg.contigs[0], "1")
+        self.assertListEqual(rg.x_contigs, ["X"])
+        self.assertListEqual(rg.y_contigs, ["Y"])
+        self.assertListEqual(rg.mt_contigs, ["MT"])
+        self.assertEqual(rg.par[0], Interval.parse("X:60001-2699521"))
+        self.assertEqual(rg.contig_length("1"), 249250621)
 
         name = "test"
         contigs = ["1", "X", "Y", "MT"]
@@ -136,7 +136,7 @@ class Tests(unittest.TestCase):
         mt_contigs = ["MT"]
         par = [("X", 5, 1000)]
 
-        gr2 = GenomeReference(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
+        gr2 = ReferenceGenome(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
         self.assertEqual(gr2.name, name)
         self.assertListEqual(gr2.contigs, contigs)
         self.assertListEqual(gr2.x_contigs, x_contigs)
@@ -147,7 +147,7 @@ class Tests(unittest.TestCase):
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
 
-        gr3 = GenomeReference.read("src/test/resources/fake_ref_genome.json")
+        gr3 = ReferenceGenome.read("src/test/resources/fake_ref_genome.json")
         self.assertEqual(gr3.name, "my_reference_genome")
 
 

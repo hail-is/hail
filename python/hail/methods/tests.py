@@ -9,8 +9,6 @@ import hail.utils as utils
 from hail.utils.misc import test_file, doctest_file
 from hail.linalg import BlockMatrix
 from math import sqrt
-from hail.expr.types import TStruct, TCall, TArray, TFloat64
-
 
 def setUpModule():
     hl.init(master='local[2]', min_block_size=0)
@@ -221,7 +219,7 @@ class Tests(unittest.TestCase):
 
         hl.export_plink(dataset, b_file, id=dataset.s)
 
-        sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]
+        sample_ids = [row.s for row in dataset.cols().select('s').collect()]
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
@@ -358,25 +356,22 @@ class Tests(unittest.TestCase):
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset()  # FIXME - want to rename samples with same id
-        renamed_ids = hl.rename_duplicates(dataset).cols_table().select('s').collect()
+        renamed_ids = hl.rename_duplicates(dataset).cols().select('s').collect()
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(test_file('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
         ds2 = hl.import_vcf(test_file('split_test_b.vcf'))
-        df = ds1.rows_table()
+        df = ds1.rows()
         self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
-        # required python3
-        # self.assertTrue(ds1._same(ds2))
+        self.assertTrue(ds1._same(ds2))
 
         ds = self.get_dataset()
         ds = ds.annotate_entries(X=ds.GT)
-        self.assertRaisesRegex(utils.FatalError,
-                               "split_multi_hts: entry schema must be the HTS genotype schema",
-                               hl.split_multi_hts,
-                               ds)
+        with self.assertRaises(utils.FatalError):
+            hl.split_multi_hts(ds)
 
     def test_mendel_errors(self):
         dataset = self.get_dataset()
@@ -403,17 +398,17 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(sum([sum(glob_conc[i]) for i in range(5)]), dataset.count_rows() * dataset.count_cols())
 
-        counts = dataset.aggregate_entries(hl.Struct(nHet=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
-                                                     nHomRef=agg.count(agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
-                                                     nHomVar=agg.count(agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
+        counts = dataset.aggregate_entries(hl.Struct(n_het=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
+                                                     n_hom_ref=agg.count(agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
+                                                     n_hom_var=agg.count(agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
                                                      nNoCall=agg.count(
                                                          agg.filter(hl.is_missing(dataset.GT), dataset.GT))))
 
         self.assertEqual(glob_conc[0][0], 0)
         self.assertEqual(glob_conc[1][1], counts.nNoCall)
-        self.assertEqual(glob_conc[2][2], counts.nHomRef)
-        self.assertEqual(glob_conc[3][3], counts.nHet)
-        self.assertEqual(glob_conc[4][4], counts.nHomVar)
+        self.assertEqual(glob_conc[2][2], counts.n_hom_ref)
+        self.assertEqual(glob_conc[3][3], counts.n_het)
+        self.assertEqual(glob_conc[4][4], counts.n_hom_var)
         [self.assertEqual(glob_conc[i][j], 0) for i in range(5) for j in range(5) if i != j]
 
         self.assertTrue(cols_conc.all(hl.sum(hl.flatten(cols_conc.concordance)) == dataset.count_rows()))
@@ -424,7 +419,9 @@ class Tests(unittest.TestCase):
 
     def test_import_interval_list(self):
         interval_file = test_file('annotinterall.interval_list')
-        nint = hl.import_interval_list(interval_file).count()
+        intervals = hl.import_interval_list(interval_file, reference_genome='GRCh37')
+        nint = intervals.count()
+
         i = 0
         with open(interval_file) as f:
             for line in f:
@@ -432,9 +429,18 @@ class Tests(unittest.TestCase):
                     i += 1
         self.assertEqual(nint, i)
 
+        self.assertEqual(intervals.interval.dtype.point_type, hl.tlocus('GRCh37'))
+
+    def test_import_interval_list_no_reference_specified(self):
+        interval_file = test_file('annotinterall.interval_list')
+        t = hl.import_interval_list(interval_file, reference_genome=None)
+        self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
     def test_import_bed(self):
         bed_file = test_file('example1.bed')
-        nbed = hl.import_bed(bed_file).count()
+        bed = hl.import_bed(bed_file, reference_genome='GRCh37')
+
+        nbed = bed.count()
         i = 0
         with open(bed_file) as f:
             for line in f:
@@ -445,6 +451,13 @@ class Tests(unittest.TestCase):
                     except:
                         pass
         self.assertEqual(nbed, i)
+
+        self.assertEqual(bed.interval.dtype.point_type, hl.tlocus('GRCh37'))
+
+    def test_import_bed_no_reference_specified(self):
+        bed_file = test_file('example1.bed')
+        t = hl.import_bed(bed_file, reference_genome=None)
+        self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_fam(self):
         fam_file = test_file('sample.fam')
@@ -512,9 +525,16 @@ class Tests(unittest.TestCase):
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
         t = hl.utils.range_table(10)
-        graph = t.select(i=t.idx, j=t.idx + 10)
-        mis = hl.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
+        graph = t.select(i=hl.int64(t.idx), j=hl.int64(t.idx + 10), bad_type=hl.float32(t.idx))
+
+        mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
+        mis = [row['node'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
+        self.assertEqual(mis_table.schema, hl.tstruct(node=hl.tint64))
+
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.capture(1), hl.capture(2), True))
 
     def test_filter_alleles(self):
         # poor man's Gen
@@ -569,8 +589,8 @@ class Tests(unittest.TestCase):
     def test_entries_table(self):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
-        schema = hl.tstruct(['i', 'j', 'entry'],
-                            [hl.tint32, hl.tint32, hl.tfloat64])
+        schema = hl.tstruct.from_lists(['i', 'j', 'entry'],
+                                       [hl.tint32, hl.tint32, hl.tfloat64])
         table = hl.Table.parallelize(rows, schema)
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))
@@ -579,7 +599,7 @@ class Tests(unittest.TestCase):
 
         for block_size in [1, 2, 1024]:
             block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
-            entries_table = block_matrix.entries_table()
+            entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), num_cols * num_rows)
             self.assertEqual(entries_table.num_columns, 3)
             self.assertTrue(table._same(entries_table))
@@ -588,7 +608,6 @@ class Tests(unittest.TestCase):
         # FIXME actually test
         ds = self.get_dataset()
         hl.min_rep(ds).count()
-
 
     def test_filter_intervals(self):
         ds = hl.import_vcf(test_file('sample.vcf'), min_partitions=20)
@@ -675,9 +694,19 @@ class Tests(unittest.TestCase):
     def test_import_gen(self):
         gen = hl.import_gen(test_file('example.gen'),
                             sample_file=test_file('example.sample'),
-                            contig_recoding={"01": "1"}).rows_table()
+                            contig_recoding={"01": "1"},
+                            reference_genome = 'GRCh37').rows()
         self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
+        self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
+
+    def test_import_gen_no_reference_specified(self):
+        gen = hl.import_gen(test_file('example.gen'),
+                      sample_file=test_file('example.sample'),
+                      reference_genome=None)
+
+        self.assertTrue(gen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(gen.count_rows(), 199)
 
     def test_import_bgen(self):
         hl.index_bgen(test_file('example.v11.bgen'))
@@ -685,7 +714,8 @@ class Tests(unittest.TestCase):
         bgen_rows = hl.import_bgen(test_file('example.v11.bgen'),
                                    entry_fields=['GT', 'GP'],
                                    sample_file=test_file('example.sample'),
-                                   contig_recoding={'01': '1'}).rows_table()
+                                   contig_recoding={'01': '1'},
+                                   reference_genome='GRCh37').rows()
         self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == '1'))
         self.assertEqual(bgen_rows.count(), 199)
 
@@ -693,50 +723,77 @@ class Tests(unittest.TestCase):
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
                               entry_fields=['dosage'],
-                              contig_recoding={'01': '1'})
-        self.assertTrue(bgen.entry_schema == TStruct(['dosage'], [TFloat64()]))
-
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+        self.assertEqual(bgen.entry_schema, hl.tstruct(dosage=hl.tfloat64))
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=test_file('example.sample'),
-                              contig_recoding={'01': '1'})
-        self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP'], [TCall(), TArray(TFloat64())]))
-        self.assertTrue(bgen.count_rows() == 199)
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+        self.assertEqual(bgen.entry_schema, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
+        self.assertEqual(bgen.count_rows(), 199)
 
         hl.index_bgen(test_file('example.10bits.bgen'))
         bgen = hl.import_bgen(test_file('example.10bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
-                              contig_recoding={'01': '1'})
-        self.assertTrue(bgen.entry_schema == TStruct(['GT', 'GP', 'dosage'], [TCall(), TArray(TFloat64()), TFloat64()]))
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+        self.assertEqual(bgen.entry_schema, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64), dosage=hl.tfloat64))
+        self.assertEqual(bgen.locus.dtype, hl.tlocus('GRCh37'))
+
+    def test_import_bgen_no_reference_specified(self):
+        bgen = hl.import_bgen(test_file('example.10bits.bgen'),
+                              entry_fields=['GT', 'GP', 'dosage'],
+                              contig_recoding={'01': '1'},
+                              reference_genome=None)
+        self.assertTrue(bgen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(test_file('sample2.vcf'),
-                          reference_genome=hl.GenomeReference.GRCh38(),
+                          reference_genome=hl.ReferenceGenome.GRCh38(),
                           contig_recoding={"22": "chr22"}))
 
-        vcf_table = vcf.rows_table()
+        vcf_table = vcf.rows()
         self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
+        self.assertTrue(vcf.locus.dtype, hl.tlocus('GRCh37'))
+
+    def test_import_vcf_no_reference_specified(self):
+        vcf = hl.import_vcf(test_file('sample2.vcf'),
+                            reference_genome=None)
+        self.assertTrue(vcf.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(vcf.count_rows(), 735)
 
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(test_file('sample2.vcf'),
-                          reference_genome=hl.GenomeReference.GRCh38(),
+                          reference_genome=hl.ReferenceGenome.GRCh38(),
                           contig_recoding={"22": "chr22"}))
 
         hl.export_plink(vcf, '/tmp/sample_plink')
 
         bfile = '/tmp/sample_plink'
         plink = hl.import_plink(
-            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True,
-            contig_recoding={'chr22': '22'}).rows_table()
+            bfile + '.bed', bfile + '.bim', bfile + '.fam',
+            a2_reference=True,
+            contig_recoding={'chr22': '22'},
+            reference_genome='GRCh37').rows()
         self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
+        self.assertTrue(plink.locus.dtype, hl.tlocus('GRCh37'))
+
+    def test_import_plink_no_reference_specified(self):
+        bfile = test_file('fastlmmTest')
+        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
+                                reference_genome=None)
+        self.assertTrue(plink.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_file('matrix1.tsv'),
-                                    row_fields={'Barcode': hl.TString(), 'Tissue': hl.TString(), 'Days':hl.TFloat32()})
+                                    row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
         self.assertEqual(mt['Barcode']._indices, mt._row_indices)
         self.assertEqual(mt['Tissue']._indices, mt._row_indices)
         self.assertEqual(mt['Days']._indices, mt._row_indices)

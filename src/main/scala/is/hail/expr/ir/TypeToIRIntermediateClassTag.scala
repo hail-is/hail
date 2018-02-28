@@ -11,6 +11,6 @@ object TypeToIRIntermediateClassTag {
     case _: TInt64 => classTag[Long]
     case _: TFloat32 => classTag[Float]
     case _: TFloat64 => classTag[Double]
-    case _: TStruct | _: TArray => classTag[Long]
+    case _: TBaseStruct | _: TArray => classTag[Long]
   }
 }

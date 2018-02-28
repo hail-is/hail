@@ -18,7 +18,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
 
   val sep = '\t'
   val nFields: Int = fieldTypes.length
-  val cellf: (String, Long, Int, Int) => Int = addType(entryType.fieldType(0))
+  val cellf: (String, Long, Int, Int) => Int = addType(entryType.types(0))
 
   def parseLine(line: String, rowNum: Long): Unit = {
     var ii = 0
@@ -235,7 +235,7 @@ object LoadMatrix {
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
       val interval = Interval(Row(if (includeStart) s else s - 1), Row(e - 1), includeStart, true)
       includeStart = false
-      if (interval.isEmpty(pkType.ordering))
+      if (interval.definitelyEmpty(pkType.ordering))
         None
       else {
         keepPartitions += i
@@ -358,7 +358,7 @@ object LoadMatrix {
         if (firstPartitions(i) == i && !noHeader) { it.next() }
 
         val partitionStartInFile = partitionCounts(i) - partitionCounts(firstPartitions(i))
-        val parser = new LoadMatrixParser(rvb, rowFieldType.fieldType, cellType, nCols, missingValue, fileByPartition(i))
+        val parser = new LoadMatrixParser(rvb, rowFieldType.types, cellType, nCols, missingValue, fileByPartition(i))
 
         it.zipWithIndex.map { case (v, row) =>
           val fileRowNum = partitionStartInFile + row

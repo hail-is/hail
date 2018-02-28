@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, AltAlleleMethods, Call, Call0, Call1, Call2, CallN, GRVariable, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, AltAlleleMethods, Call, Call0, Call1, Call2, CallN, RGVariable, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -19,6 +19,7 @@ import scala.language.higherKinds
 import scala.reflect.ClassTag
 import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.commons.math3.special.Gamma
+import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.switch
@@ -702,7 +703,7 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
-  val GR = GRVariable()
+  val RG = RGVariable()
 
   private def nonceToNullable[T: TypeInfo, U >: Null](check: Code[T] => Code[Boolean], v: Code[T], ifPresent: Code[T] => Code[U]): CM[Code[U]] = for (
     (stx, x) <- CM.memoize(v)
@@ -723,8 +724,8 @@ object FunctionRegistry {
   registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
   registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
 
-  registerField("contig", { (x: Locus) => x.contig })(locusHr(GR), stringHr)
-  registerField("position", { (x: Locus) => x.position })(locusHr(GR), int32Hr)
+  registerField("contig", { (x: Locus) => x.contig })(locusHr(RG), stringHr)
+  registerField("position", { (x: Locus) => x.position })(locusHr(RG), int32Hr)
   registerField("start", { (x: Interval) => x.start })(intervalHr(TTHr), TTHr)
   registerField("end", { (x: Interval) => x.end })(intervalHr(TTHr), TTHr)
 
@@ -740,33 +741,33 @@ object FunctionRegistry {
   register("allele_type", { (ref: String, alt: String) => AltAlleleMethods.altAlleleType(ref, alt).toString })
   register("hamming", { (ref: String, alt: String) => AltAlleleMethods.hamming(ref, alt) })
   registerMethodDependent("inXPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inXPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inXPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("inYPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inYPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inYPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("inXNonPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inXNonPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inXNonPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("inYNonPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inYNonPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inYNonPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("isAutosomal", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.isAutosomal(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.isAutosomal(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("isAutosomalOrPseudoAutosomal", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.isAutosomalOrPseudoAutosomal(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.isAutosomalOrPseudoAutosomal(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("isMitochondrial", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.isMitochondrial(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.isMitochondrial(rg)
+  })(locusHr(RG), boolHr)
 
   register("triangle", { (i: Int) => triangle(i) })
 
@@ -864,8 +865,8 @@ object FunctionRegistry {
   register("range", { (x: Int, y: Int, step: Int) => (x until y by step).toArray: IndexedSeq[Int] })
 
   register("Call", { (phased: Boolean) => Call0(phased) })(boolHr, callHr)
-  register("Call", { (phased: Boolean, i: Int) => Call1(i, phased) })(boolHr, int32Hr, callHr)
-  register("Call", { (phased: Boolean, i: Int, j: Int) => Call2(i, j, phased) })(boolHr, int32Hr, int32Hr, callHr)
+  register("Call", { (i: Int, phased: Boolean) => Call1(i, phased) })(int32Hr, boolHr, callHr)
+  register("Call", { (i: Int, j: Int, phased: Boolean) => Call2(i, j, phased) })(int32Hr, int32Hr, boolHr, callHr)
   register("Call", { (alleles: IndexedSeq[Int], phased: Boolean) => CallN(alleles.toArray, phased) })(arrayHr(int32Hr), boolHr, callHr)
   register("Call", { (s: String) => Call.parse(s) })(stringHr, callHr)
   register("UnphasedDiploidGtIndexCall", { (gt: Int) => Call2.fromUnphasedDiploidGtIndex(gt) })(int32Hr, callHr)
@@ -876,32 +877,54 @@ object FunctionRegistry {
     keys.zip(values).toMap
   })(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
 
+
+  val tuple2Hr = new HailRep[Annotation] {
+    override def typ: Type = TTuple(TTHr.typ, TUHr.typ)
+  }
+  register("dict", { (elements: IndexedSeq[Annotation]) =>
+    elements.filter(_ != null).map { e =>
+      val r = e.asInstanceOf[Row]
+      (r.get(0), r.get(1))
+  }.toMap
+  })(arrayHr(tuple2Hr), dictHr(TTHr, TUHr))
+
+  register("dict", { (elements: Set[Annotation]) =>
+    elements.filter(_ != null).map { e =>
+      val r = e.asInstanceOf[Row]
+      (r.get(0), r.get(1))
+    }.toMap
+  })(setHr(tuple2Hr), dictHr(TTHr, TUHr))
+
+  register("dictToArray", (m: Map[Annotation, Annotation]) => {
+    m.map { case (k, v) => Annotation(k, v) }.toArray.toFastIndexedSeq
+  })(dictHr(TTHr, TUHr), arrayHr(tuple2Hr))
+
   registerDependent("Locus", { () =>
-    val gr = GR.gr
-    (x: String) => Locus.parse(x, gr)
-  })(stringHr, locusHr(GR))
+    val rg = RG.rg
+    (x: String) => Locus.parse(x, rg)
+  })(stringHr, locusHr(RG))
 
   val locusAllelesHr = new HailRep[Annotation] {
-    def typ = TStruct("locus" -> TLocus(GR), "alleles" -> TArray(TString()))
+    def typ = TStruct("locus" -> TLocus(RG), "alleles" -> TArray(TString()))
   }
   registerDependent("LocusAlleles", { () =>
-    val gr = GR.gr
+    val rg = RG.rg
     (s: String) => {
-      val v = Variant.parse(s, gr)
+      val v = Variant.parse(s, rg)
       Annotation(v.locus, IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
     }
   })(stringHr, locusAllelesHr)
 
   registerDependent("Locus", { () =>
-    val gr = GR.gr
-    (contig: String, pos: Int) => Locus(contig, pos, gr)
-    })(stringHr, int32Hr, locusHr(GR))
+    val rg = RG.rg
+    (contig: String, pos: Int) => Locus(contig, pos, rg)
+    })(stringHr, int32Hr, locusHr(RG))
   registerDependent("Interval", () => {
     val t = TT.t
     (x: Annotation, y: Annotation) => Interval(x, y, true, false)
   })(TTHr, TTHr, intervalHr(TTHr))
 
-  val hweStruct = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
+  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
 
   registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -933,7 +956,7 @@ object FunctionRegistry {
   }
 
 
-  val chisqStruct = TStruct("pValue" -> TFloat64(), "oddsRatio" -> TFloat64())
+  val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
@@ -956,8 +979,8 @@ object FunctionRegistry {
 
   })
 
-  val fetStruct = TStruct("pValue" -> TFloat64(), "oddsRatio" -> TFloat64(),
-    "ci95Lower" -> TFloat64(), "ci95Upper" -> TFloat64())
+  val fetStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64(),
+    "ci_95_lower" -> TFloat64(), "ci_95_upper" -> TFloat64())
 
   registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
@@ -980,14 +1003,14 @@ object FunctionRegistry {
   register("gamma", (x: Double) => Gamma.gamma(x))
 
   registerDependent("LocusInterval", () => {
-    val gr = GR.gr
-   (s: String) => Locus.parseInterval(s, gr)
-  })(stringHr, intervalHr(locusHr(GR)))
+    val rg = RG.rg
+   (s: String) => Locus.parseInterval(s, rg)
+  })(stringHr, intervalHr(locusHr(RG)))
 
   registerDependent("LocusInterval", () => {
-    val gr = GR.gr
-    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, gr)
-  })(stringHr, int32Hr, int32Hr, intervalHr(locusHr(GR)))
+    val rg = RG.rg
+    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, rg)
+  })(stringHr, int32Hr, int32Hr, intervalHr(locusHr(RG)))
 
   register("pcoin", { (p: Double) => math.random < p })
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
@@ -1187,6 +1210,9 @@ object FunctionRegistry {
 
   registerMethod("get", (m: Map[Any, Any], key: Any) =>
     m.get(key).orNull)(dictHr(TTHr, TUHr), TTHr, TUHr)
+
+  registerMethod("get", (m: Map[Any, Any], key: Any, default: Any) =>
+    m.getOrElse(key, default))(dictHr(TTHr, TUHr), TTHr, TUHr, TUHr)
 
   registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d)
   )(arrayHr(stringHr), stringHr, stringHr)
@@ -1400,7 +1426,7 @@ object FunctionRegistry {
   registerAggregator[Double, Any]("stats", () => new StatAggregator())(aggregableHr(float64Hr),
     new HailRep[Any] {
       def typ = TStruct("mean" -> TFloat64(), "stdev" -> TFloat64(), "min" -> TFloat64(),
-        "max" -> TFloat64(), "nNotMissing" -> TInt64(), "sum" -> TFloat64())
+        "max" -> TFloat64(), "n" -> TInt64(), "sum" -> TFloat64())
     })
 
   registerAggregator[Double, Double, Double, Int, Any]("hist", (start: Double, end: Double, bins: Int) => {
@@ -1690,6 +1716,43 @@ object FunctionRegistry {
 
     registerMethod("min", (x: Any, y: Any) => ord.min(x, y))
     registerMethod("max", (x: Any, y: Any) => ord.max(x, y))
+
+
+    registerMethod("argmin", (a: IndexedSeq[Any]) => {
+      if (a.isEmpty)
+        null: java.lang.Integer
+      else {
+        var min = a(0)
+        var minIndex = 0
+        var i = 1
+        while (i < a.length) {
+          if (ord.lt(a(i), min)) {
+            min = a(i)
+            minIndex = i
+          }
+          i += 1
+        }
+        minIndex: java.lang.Integer
+      }
+    })
+
+    registerMethod("argmax", (a: IndexedSeq[Any]) => {
+      if (a.isEmpty)
+        null: java.lang.Integer
+      else {
+        var max = a(0)
+        var maxIndex = 0
+        var i = 1
+        while (i < a.length) {
+          if (ord.gt(a(i), max)) {
+            max = a(i)
+            maxIndex = i
+          }
+          i += 1
+        }
+        maxIndex: java.lang.Integer
+      }
+    })
 
     registerMethod("uniqueMinIndex", (a: IndexedSeq[Any]) => {
       def f(i: Int, m: Any, mi: Int, count: Int): java.lang.Integer = {

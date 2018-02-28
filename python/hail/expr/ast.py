@@ -65,16 +65,16 @@ class BinaryOperation(AST):
 
 
 class Select(AST):
-    @typecheck_method(parent=AST, selection=str)
-    def __init__(self, parent, selection):
+    @typecheck_method(parent=AST, name=str)
+    def __init__(self, parent, name):
         self.parent = parent
-        self.selection = selection
+        self.name = name
         super(Select, self).__init__(parent)
 
         # TODO: create nested selection option
 
     def to_hql(self):
-        return '{}.{}'.format(self.parent.to_hql(), escape_id(self.selection))
+        return '{}.{}'.format(self.parent.to_hql(), escape_id(self.name))
 
 
 class ApplyMethod(AST):
@@ -160,6 +160,16 @@ class StructDeclaration(AST):
         return '{' + ', '.join('{}: {}'.format(escape_id(k), v.to_hql()) for k, v in zip(self.keys, self.values)) + '}'
 
 
+class TupleDeclaration(AST):
+    @typecheck_method(values=AST)
+    def __init__(self, *values):
+        self.values = values
+        super(TupleDeclaration, self).__init__(*values)
+
+    def to_hql(self):
+        return 'Tuple(' + ', '.join(v.to_hql() for v in self.values) + ')'
+
+
 class StructOp(AST):
     @typecheck_method(operation=str, parent=AST, keys=str)
     def __init__(self, operation, parent, *keys):
@@ -228,17 +238,10 @@ class RegexMatch(AST):
 
 class AggregableReference(AST):
     def __init__(self):
-        self.is_set = False
         super(AggregableReference, self).__init__()
 
-    @typecheck_method(identifier=str)
-    def set(self, identifier):
-        self.is_set = True
-        self.identifier = identifier
-
     def to_hql(self):
-        assert self.is_set
-        return self.identifier
+        return 'AGG'
 
 class GlobalJoinReference(AST):
     def __init__(self, uid):
@@ -247,8 +250,3 @@ class GlobalJoinReference(AST):
 
     def to_hql(self):
         return 'global.{}'.format(escape_id(self.uid))
-
-@typecheck(ast=AST, identifier=str)
-def replace_aggregables(ast, identifier):
-    for a in ast.search(lambda a: isinstance(a, AggregableReference)):
-        a.set(identifier)

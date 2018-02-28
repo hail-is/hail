@@ -187,7 +187,7 @@ final class VCFLine(val line: String) {
   }
 
   // return false if it should be filtered
-  def parseAddVariant(rvb: RegionValueBuilder, gr: GenomeReference, contigRecoding: Map[String, String]): Boolean = {
+  def parseAddVariant(rvb: RegionValueBuilder, rg: Option[ReferenceGenome], contigRecoding: Map[String, String]): Boolean = {
     assert(pos == 0)
 
     if (line.isEmpty || line(0) == '#')
@@ -202,7 +202,7 @@ final class VCFLine(val line: String) {
     val start = parseInt()
     nextField()
 
-    gr.checkLocus(recodedContig, start)
+    rg.foreach(_.checkLocus(recodedContig, start))
 
     skipField() // ID
     nextField()
@@ -466,7 +466,7 @@ class FormatParser(
   def parseAddField(l: VCFLine, rvb: RegionValueBuilder, i: Int) {
     val j = formatFieldGIndex(i)
     rvb.setFieldIndex(j)
-    gType.fieldType(j) match {
+    gType.types(j) match {
       case TCall(_) =>
         l.parseAddCall(rvb)
       case TInt32(_) =>
@@ -693,7 +693,7 @@ object LoadVCF {
 
   // parses the Variant (key), leaves the rest to f
   def parseLines[C](makeContext: () => C)(f: (C, VCFLine, RegionValueBuilder) => Unit)(
-    lines: RDD[WithContext[String]], t: Type, gr: GenomeReference, contigRecoding: Map[String, String]): RDD[RegionValue] = {
+    lines: RDD[WithContext[String]], t: Type, rg: Option[ReferenceGenome], contigRecoding: Map[String, String]): RDD[RegionValue] = {
     lines.mapPartitions { it =>
       new Iterator[RegionValue] {
         val region = Region()
@@ -713,7 +713,7 @@ object LoadVCF {
               region.clear()
               rvb.start(t)
               rvb.startStruct()
-              present = vcfLine.parseAddVariant(rvb, gr, contigRecoding)
+              present = vcfLine.parseAddVariant(rvb, rg, contigRecoding)
               if (present) {
                 f(context, vcfLine, rvb)
 
@@ -762,7 +762,7 @@ object LoadVCF {
     files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.defaultReference,
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
     arrayElementsRequired: Boolean = true): MatrixTable = {
     val sc = hc.sc
@@ -831,7 +831,7 @@ object LoadVCF {
       TStruct.empty(true),
       colType = TStruct("s" -> TString()),
       colKey = Array("s"),
-      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowType = TStruct("locus" -> TLocus.schemaFromGR(rg), "alleles" -> TArray(TString())) ++ vaSignature,
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)
@@ -840,7 +840,7 @@ object LoadVCF {
     val rowType = matrixType.rvRowType
 
     // nothing after the key
-    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, gr, contigRecoding)
+    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, rg, contigRecoding)
 
     val rdd = OrderedRVD(
       matrixType.orvdType,
@@ -874,7 +874,7 @@ object LoadVCF {
           }
         }
         rvb.endArray()
-      }(lines, rowType, gr, contigRecoding),
+      }(lines, rowType, rg, contigRecoding),
       Some(justVariants), None)
 
     new MatrixTable(hc,
