@@ -359,7 +359,7 @@ def tdt(dataset, pedigree):
                      (hom_var, hom_ref,     het, hemi_x, 1, 0),
                      (hom_var, hom_var,     het, hemi_x, 1, 0)]
 
-    count_map = hl.broadcast({(c[0], c[1], c[2], c[3]): [c[4], c[5]] for c in config_counts})
+    count_map = hl.lit({(c[0], c[1], c[2], c[3]): [c[4], c[5]] for c in config_counts})
 
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
 

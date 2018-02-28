@@ -39,22 +39,48 @@ def null(t):
     return construct_expr(Literal('NA: {}'.format(t._jtype.toString())), t)
 
 def lit(x, dtype=None):
-    """Captures a Python variable or object as an expression.
+    """Captures and broadcasts a Python variable or object as an expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> table = hl.utils.range_table(8)
+        >>> greetings = hl.lit({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
+        >>> table.annotate(greeting = greetings.get(table.idx)).show()
+        +-------+----------------+
+        | index | greeting       |
+        +-------+----------------+
+        | Int32 | String         |
+        +-------+----------------+
+        |     0 | NA             |
+        |     1 | Good morning   |
+        |     2 | NA             |
+        |     3 | NA             |
+        |     4 | Good afternoon |
+        |     5 | NA             |
+        |     6 | Good evening   |
+        |     7 | NA             |
+        +-------+----------------+
+
+    Notes
+    -----
+    Use this function to capture large Python objects for use in expressions. This
+    function provides an alternative to adding an object as a global annotation on a
+    :class:`.Table` or :class:`.MatrixTable`.
 
     Parameters
     ----------
     x
-        Object to capture as an expression.
+        Object to capture and broadcast as an expression.
 
     Returns
     -------
     :class:`.Expression`
     """
     if dtype is None:
-        try:
-            dtype = impute_type(x)
-        except ExpressionException:
-            raise
+        dtype = impute_type(x)
+    dtype._typecheck(x)
 
     if x is None:
         return hl.null(dtype)
@@ -68,11 +94,11 @@ def lit(x, dtype=None):
             assert tint64.min_value <= x <= tint64.max_value
             return construct_expr(Literal('i64#{}'.format(x)), tint64)
         elif dtype == tfloat32:
-            assert isinstance(x, builtins.float)
-            return construct_expr(Literal('f32#{}'.format(x)), tfloat32)
+            assert isinstance(x, (builtins.float, builtins.int))
+            return construct_expr(Literal('f32#{}'.format(builtins.float(x))), tfloat32)
         elif dtype == tfloat64:
-            assert isinstance(x, builtins.float)
-            return construct_expr(Literal('f64#{}'.format(x)), tfloat64)
+            assert isinstance(x, (builtins.float, builtins.int))
+            return construct_expr(Literal('f64#{}'.format(builtins.float(x))), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
             return construct_expr(Literal('true' if x else 'false'), tbool)
@@ -81,7 +107,16 @@ def lit(x, dtype=None):
             assert isinstance(x, builtins.str)
             return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
     else:
-        return broadcast(x, dtype)
+        uid = Env._get_uid()
+
+        def joiner(obj):
+            json = dtype._to_json(x)
+            if isinstance(obj, hl.Table):
+                return hl.Table(obj._jt.annotateGlobalJSON(json, dtype._jtype, uid))
+            else:
+                return hl.MatrixTable(obj._jvds.annotateGlobalJSON(json, dtype._jtype, uid))
+
+        return construct_expr(GlobalJoinReference(uid), dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
 def capture(x):
     """Captures a Python variable or object as an expression.
@@ -113,63 +148,6 @@ def capture(x):
     """
     return to_expr(x)
 
-
-def broadcast(x, dtype=None):
-    """Broadcasts a Python variable or object as an expression.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> table = hl.utils.range_table(8)
-        >>> greetings = hl.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
-        >>> table.annotate(greeting = greetings.get(table.idx)).show()
-        +-------+----------------+
-        | index | greeting       |
-        +-------+----------------+
-        | Int32 | String         |
-        +-------+----------------+
-        |     0 | NA             |
-        |     1 | Good morning   |
-        |     2 | NA             |
-        |     3 | NA             |
-        |     4 | Good afternoon |
-        |     5 | NA             |
-        |     6 | Good evening   |
-        |     7 | NA             |
-        +-------+----------------+
-
-    Notes
-    -----
-    Use this function to capture large Python objects for use in expressions. This
-    function provides an alternative to adding an object as a global annotation on a
-    :class:`.Table` or :class:`.MatrixTable`.
-
-    Parameters
-    ----------
-    x
-        Python variable to broadcast as an expression.
-
-    Returns
-    -------
-    :class:`.Expression`
-        An expression representing `x`.
-    """
-    if dtype is None:
-        try:
-            dtype = impute_type(x)
-        except ExpressionException as e:
-            raise
-    uid = Env._get_uid()
-
-    def joiner(obj):
-        json = dtype._to_json(x)
-        if isinstance(obj, hl.Table):
-            return hl.Table(obj._jt.annotateGlobalJSON(json, dtype._jtype, uid))
-        else:
-            return hl.MatrixTable(obj._jvds.annotateGlobalJSON(json, dtype._jtype, uid))
-
-    return construct_expr(GlobalJoinReference(uid), dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
 def cond(condition, consequent, alternate):
@@ -2870,7 +2848,7 @@ def empty_array(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(empty_array(t.tint32))
+        >>> hl.eval_expr(empty_array(hl.tint32))
         []
 
     Parameters
@@ -2885,6 +2863,29 @@ def empty_array(t):
     """
     return filter(lambda x: False, array([null(t)]))
 
+@typecheck(key_type=Type, value_type=Type)
+def empty_dict(key_type, value_type):
+    """Returns an empty dictionary with key type `key_type` and value type
+    `value_type`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(empty_dict(hl.tstr, hl.tint32))
+        {}
+
+    Parameters
+    ----------
+    key_type : :class:`.Type`
+        Type of the keys.
+    value_type : :class:`.Type`
+        Type of the values.
+    Returns
+    -------
+    :class:`.DictExpression`
+    """
+    return hl.dict(hl.empty_array(hl.ttuple(key_type, value_type)))
 
 @typecheck(collection=oneof(expr_set, expr_array))
 def flatten(collection):

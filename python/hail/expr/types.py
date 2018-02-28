@@ -180,9 +180,6 @@ class TInt32(Type):
     In Python, these are represented as :obj:`int`.
     """
 
-    _min_value = -(1 << 31)
-    _max_value = (1 << 31) - 1
-
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt32Optional')
         super(TInt32, self).__init__()
@@ -208,11 +205,11 @@ class TInt32(Type):
 
     @property
     def min_value(self):
-        return TInt32._min_value
+        return -(1 << 31)
 
     @property
     def max_value(self):
-        return TInt32._max_value
+        return (1 << 31) - 1
 
 
 class TInt64(Type):
@@ -222,9 +219,6 @@ class TInt64(Type):
 
     In Python, these are represented as :obj:`int`.
     """
-
-    _min_value = -(1 << 63)
-    _max_value = (1 << 63) - 1
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt64Optional')
@@ -248,11 +242,11 @@ class TInt64(Type):
 
     @property
     def min_value(self):
-        return TInt64._min_value
+        return -(1 << 63)
 
     @property
     def max_value(self):
-        return TInt64._max_value
+        return (1 << 63) - 1
 
 
 class TFloat32(Type):
@@ -278,8 +272,8 @@ class TFloat32(Type):
         raise NotImplementedError('TFloat32 is currently unsupported in certain operations, use TFloat64 instead')
 
     def _typecheck(self, annotation):
-        if annotation is not None and not isinstance(annotation, float):
-            raise TypeError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
+        if annotation is not None and not isinstance(annotation, (float, int)):
+            raise TypeError("type 'float32' expected type 'float', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "float32"
@@ -287,7 +281,7 @@ class TFloat32(Type):
     def _eq(self, other):
         return isinstance(other, TFloat32)
 
-    def _convert_to_json(self, x):
+    def _convert_from_json(self, x):
         return float(x)
 
 
@@ -311,16 +305,15 @@ class TFloat64(Type):
             return None
 
     def _typecheck(self, annotation):
-        if annotation is not None and not isinstance(annotation, float):
-            raise TypeError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
-
+        if annotation is not None and not isinstance(annotation, (float, int)):
+            raise TypeError("type 'float64' expected type 'float', but found type '%s'" % type(annotation))
     def __str__(self):
         return "float64"
 
     def _eq(self, other):
         return isinstance(other, TFloat64)
 
-    def _convert_to_json(self, x):
+    def _convert_from_json(self, x):
         return float(x)
 
 class TString(Type):
@@ -1084,6 +1077,13 @@ def is_numeric(t):
 def is_primitive(t):
     return t in _primitive_types
 
+@typecheck(t=Type)
+def is_container(t):
+    return (isinstance(t, tarray)
+            or isinstance(t, tset)
+            or isinstance(t, tdict)
+            or isinstance(t, ttuple)
+            or isinstance(t, tstruct))
 
 import pprint
 
