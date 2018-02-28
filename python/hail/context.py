@@ -114,11 +114,43 @@ def init(sc=None, app_name="Hail", master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
              default_reference="GRCh37"):
-    HailContext(sc, app_name, master, local, log, quiet, append, min_block_size, branching_factor, tmp_dir, default_reference)
+    """Initialize Hail and Spark.
+
+    Parameters
+    ----------
+    sc : pyspark.SparkContext, optional
+        Spark context. By default, a Spark context will be created.
+    app_name : :obj:`str`
+        Spark application name.
+    master : :obj:`str`
+        Spark master.
+    local : :obj:`str`
+       Local-mode master, used if `master` is not defined here or in the
+       Spark configuration.
+    log : :obj:`str`
+        Local path for Hail log file. Does not currently support distributed
+        file systems like Google Storage, S3, or HDFS.
+    quiet : :obj:`bool`
+        Print fewer log messages.
+    append : :obj:`bool`
+        Append to the end of the log file.
+    min_block_size : :obj:`int`
+        Minimum file block size in MB.
+    branching_factor : :obj:`int`
+        Branching factor for tree aggregation.
+    tmp_dir : :obj:`str`
+        Temporary directory for Hail files. Must be a network-visible
+        file path.
+    default_reference : :obj:`str`
+        Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
+    """
+    HailContext(sc, app_name, master, local, log, quiet, append,
+                min_block_size, branching_factor, tmp_dir, default_reference)
 
 def stop():
-    """Stop the currently running HailContext."""
-    Env.hc().stop()
+    """Stop the currently running Hail session."""
+    if Env._hc:
+        Env.hc().stop()
 
 def default_reference():
     """Return the default reference genome.
@@ -132,7 +164,7 @@ def default_reference():
 def get_reference(name):
     """Return the reference genome corresponding to `name`.
 
-    If `name` is ``default``, return the reference from :func:`.default_reference`.
+    If `name` is ``'default'``, return the reference from :func:`.default_reference`.
 
     Returns
     -------
