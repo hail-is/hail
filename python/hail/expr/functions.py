@@ -1263,7 +1263,7 @@ def binom_test(x, n, p, alternative):
     :class:`.Expression` of type :class:`.TFloat64`
         p-value.
     """
-    return _func("binomTest", tfloat64, x, n, p, alternative)
+    return _func("binomTest", tfloat64, x, n, p, to_expr(alternative))
 
 
 @typecheck(x=expr_numeric, df=expr_numeric)
