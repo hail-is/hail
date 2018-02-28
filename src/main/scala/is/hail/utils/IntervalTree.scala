@@ -29,7 +29,18 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     definitelyEmpty(pord) || other.definitelyEmpty(pord) ||
       disjointAndLessThan(pord, other) || disjointAndGreaterThan(pord, other)
 
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = if (includeStart && includeEnd) pord.gt(start, end) else pord.gteq(start, end)
+  private var _emptyDefined: Boolean = false
+  private var _empty: Boolean = false
+
+  def definitelyEmpty(pord: ExtendedOrdering): Boolean = {
+    if (!_emptyDefined) {
+      _empty = if (includeStart && includeEnd) pord.gt(start, end) else pord.gteq(start, end)
+      _emptyDefined = true
+    }
+    _empty
+  }
+
+
 
   def copy(start: Any = start, end: Any = end, includeStart: Boolean = includeStart, includeEnd: Boolean = includeEnd): Interval =
     Interval(start, end, includeStart, includeEnd)
