@@ -287,6 +287,9 @@ class TFloat32(Type):
     def _eq(self, other):
         return isinstance(other, TFloat32)
 
+    def _convert_to_json(self, x):
+        return float(x)
+
 
 class TFloat64(Type):
     """Hail type for 64-bit floating point numbers.
@@ -317,6 +320,8 @@ class TFloat64(Type):
     def _eq(self, other):
         return isinstance(other, TFloat64)
 
+    def _convert_to_json(self, x):
+        return float(x)
 
 class TString(Type):
     """Hail type for text strings.
