@@ -62,8 +62,6 @@ class KinshipMatrix(object):
         """
         Export kinship matrix to tab-delimited text file with sample list as header.
 
-        **Notes**
-
         :param str output: File path for output. 
         """
         self._jkm.exportTSV(output)
@@ -72,8 +70,6 @@ class KinshipMatrix(object):
     def export_rel(self, output):
         """
         Export kinship matrix as .rel file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-
-        **Notes**
 
         :param str output: File path for output. 
         """
@@ -84,8 +80,6 @@ class KinshipMatrix(object):
         """
         Export kinship matrix as .grm file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
 
-        **Notes**
-
         :param str output: File path for output.
         """
         self._jkm.exportGctaGrm(output)
@@ -95,8 +89,6 @@ class KinshipMatrix(object):
     def export_gcta_grm_bin(self, output, opt_n_file=None):
         """
         Export kinship matrix as .grm.bin file or as .grm.N.bin file, depending on whether an N file is specified. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-
-        **Notes**
 
         :param str output: File path for output. 
         
@@ -109,8 +101,6 @@ class KinshipMatrix(object):
     def export_id_file(self, output):
         """
         Export samples as .id file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-
-        **Notes**
 
         :param str output: File path for output.
         """
