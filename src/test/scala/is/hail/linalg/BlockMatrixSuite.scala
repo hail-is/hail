@@ -785,4 +785,20 @@ class BlockMatrixSuite extends SparkSuite {
       assert(entriesTable.signature === expectedSignature)
     }
   }
+  
+  @Test
+  def testExportRectangular() {
+    val file = tmpDir.createTempFile("test")
+    
+    val outputPath = "/tmp/rectangles"
+    val rectangles = Array(Array[Long](0, 7, 0, 7), Array[Long](3, 5, 3, 5), Array[Long](4, 8, 4, 8), Array[Long](0, 8, 0, 9))
+
+    val blockSize = 10
+    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val bm = BlockMatrix.from(sc, lm, blockSize)
+
+    bm.write(file, forceRowMajor = true)
+    
+    BlockMatrix.exportRectangles(hc, file, outputPath, rectangles) // FIXME: upgrade from spot check to test
+  }
 }
