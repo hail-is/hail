@@ -276,7 +276,7 @@ def tdt(dataset, pedigree):
 
     Here PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__
-    of X and Y defined by :class`.GenomeReference`, which many variant callers
+    of X and Y defined by :class`.ReferenceGenome`, which many variant callers
     map to chromosome X.
 
     +--------+--------+--------+------------+---+---+

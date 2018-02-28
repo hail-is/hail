@@ -1,5 +1,5 @@
 from .call import Call
-from .genomeref import GenomeReference
+from .reference_genome import ReferenceGenome
 from .interval import Interval
 from .kinshipMatrix import KinshipMatrix
 from .pedigree import Pedigree, Trio
@@ -11,4 +11,4 @@ __all__ = ['KinshipMatrix',
            'Pedigree',
            'Trio',
            'Interval',
-           'GenomeReference']
+           'ReferenceGenome']

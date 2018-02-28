@@ -181,13 +181,13 @@ class ImportVCFSuite extends SparkSuite {
       val truth = {
         val f = tmpDir.createTempFile(extension="vcf")
         ExportVCF(vds, f)
-        hc.importVCF(f, gr = Some(vds.genomeReference))
+        hc.importVCF(f, rg = Some(vds.referenceGenome))
       }
 
       val actual = {
         val f = tmpDir.createTempFile(extension="vcf")
         ExportVCF(truth, f)
-        hc.importVCF(f, gr = Some(vds.genomeReference))
+        hc.importVCF(f, rg = Some(vds.referenceGenome))
       }
 
       truth.same(actual)

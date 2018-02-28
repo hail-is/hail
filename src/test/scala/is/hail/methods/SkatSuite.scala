@@ -127,7 +127,7 @@ class SkatSuite extends SparkSuite {
 
     val intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
 
-    val rg = GenomeReference.GRCh37
+    val rg = ReferenceGenome.GRCh37
 
     val weightsSkat = hc.importTable("src/test/resources/skat.weights",
       types = Map("locus" -> TLocus(rg), "weight" -> TFloat64())).keyBy("locus")

@@ -5,7 +5,7 @@ import is.hail.expr.{EvalContext, Parser}
 import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.variant.{Call, GenomeReference, Genotype, HardCallView, MatrixTable, Variant}
+import is.hail.variant.{Call, ReferenceGenome$, Genotype, HardCallView, MatrixTable, Variant}
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.rvd.RVD
 import is.hail.stats.RegressionUtils

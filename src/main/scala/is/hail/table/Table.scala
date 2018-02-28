@@ -11,7 +11,7 @@ import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{ComponentSpec, FileFormat, GenomeReference, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
+import is.hail.variant.{ComponentSpec, FileFormat, ReferenceGenome, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -93,13 +93,13 @@ object Table {
   }
 
   def importIntervalList(hc: HailContext, filename: String,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
-    IntervalList.read(hc, filename, gr)
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
+    IntervalList.read(hc, filename, rg)
   }
 
   def importBED(hc: HailContext, filename: String,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
-    BedAnnotator.apply(hc, filename, gr)
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
+    BedAnnotator.apply(hc, filename, rg)
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
@@ -1081,8 +1081,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)
-    GenomeReference.exportReferences(hc, referencesPath, signature)
-    GenomeReference.exportReferences(hc, referencesPath, globalSignature)
+    ReferenceGenome.exportReferences(hc, referencesPath, signature)
+    ReferenceGenome.exportReferences(hc, referencesPath, globalSignature)
 
     val spec = TableSpec(
       FileFormat.version.rep,

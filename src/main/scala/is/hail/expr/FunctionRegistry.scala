@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, AltAlleleMethods, Call, Call0, Call1, Call2, CallN, GRVariable, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, AltAlleleMethods, Call, Call0, Call1, Call2, CallN, RGVariable, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -703,7 +703,7 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
-  val GR = GRVariable()
+  val RG = RGVariable()
 
   private def nonceToNullable[T: TypeInfo, U >: Null](check: Code[T] => Code[Boolean], v: Code[T], ifPresent: Code[T] => Code[U]): CM[Code[U]] = for (
     (stx, x) <- CM.memoize(v)
@@ -724,8 +724,8 @@ object FunctionRegistry {
   registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
   registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
 
-  registerField("contig", { (x: Locus) => x.contig })(locusHr(GR), stringHr)
-  registerField("position", { (x: Locus) => x.position })(locusHr(GR), int32Hr)
+  registerField("contig", { (x: Locus) => x.contig })(locusHr(RG), stringHr)
+  registerField("position", { (x: Locus) => x.position })(locusHr(RG), int32Hr)
   registerField("start", { (x: Interval) => x.start })(intervalHr(TTHr), TTHr)
   registerField("end", { (x: Interval) => x.end })(intervalHr(TTHr), TTHr)
 
@@ -741,33 +741,33 @@ object FunctionRegistry {
   register("allele_type", { (ref: String, alt: String) => AltAlleleMethods.altAlleleType(ref, alt).toString })
   register("hamming", { (ref: String, alt: String) => AltAlleleMethods.hamming(ref, alt) })
   registerMethodDependent("inXPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inXPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inXPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("inYPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inYPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inYPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("inXNonPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inXNonPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inXNonPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("inYNonPar", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.inYNonPar(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.inYNonPar(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("isAutosomal", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.isAutosomal(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.isAutosomal(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("isAutosomalOrPseudoAutosomal", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.isAutosomalOrPseudoAutosomal(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.isAutosomalOrPseudoAutosomal(rg)
+  })(locusHr(RG), boolHr)
   registerMethodDependent("isMitochondrial", { () =>
-    val gr = GR.gr
-    (x: Locus) => x.isMitochondrial(gr)
-  })(locusHr(GR), boolHr)
+    val rg = RG.rg
+    (x: Locus) => x.isMitochondrial(rg)
+  })(locusHr(RG), boolHr)
 
   register("triangle", { (i: Int) => triangle(i) })
 
@@ -900,25 +900,25 @@ object FunctionRegistry {
   })(dictHr(TTHr, TUHr), arrayHr(tuple2Hr))
 
   registerDependent("Locus", { () =>
-    val gr = GR.gr
-    (x: String) => Locus.parse(x, gr)
-  })(stringHr, locusHr(GR))
+    val rg = RG.rg
+    (x: String) => Locus.parse(x, rg)
+  })(stringHr, locusHr(RG))
 
   val locusAllelesHr = new HailRep[Annotation] {
-    def typ = TStruct("locus" -> TLocus(GR), "alleles" -> TArray(TString()))
+    def typ = TStruct("locus" -> TLocus(RG), "alleles" -> TArray(TString()))
   }
   registerDependent("LocusAlleles", { () =>
-    val gr = GR.gr
+    val rg = RG.rg
     (s: String) => {
-      val v = Variant.parse(s, gr)
+      val v = Variant.parse(s, rg)
       Annotation(v.locus, IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
     }
   })(stringHr, locusAllelesHr)
 
   registerDependent("Locus", { () =>
-    val gr = GR.gr
-    (contig: String, pos: Int) => Locus(contig, pos, gr)
-    })(stringHr, int32Hr, locusHr(GR))
+    val rg = RG.rg
+    (contig: String, pos: Int) => Locus(contig, pos, rg)
+    })(stringHr, int32Hr, locusHr(RG))
   registerDependent("Interval", () => {
     val t = TT.t
     (x: Annotation, y: Annotation) => Interval(x, y, true, false)
@@ -1003,14 +1003,14 @@ object FunctionRegistry {
   register("gamma", (x: Double) => Gamma.gamma(x))
 
   registerDependent("LocusInterval", () => {
-    val gr = GR.gr
-   (s: String) => Locus.parseInterval(s, gr)
-  })(stringHr, intervalHr(locusHr(GR)))
+    val rg = RG.rg
+   (s: String) => Locus.parseInterval(s, rg)
+  })(stringHr, intervalHr(locusHr(RG)))
 
   registerDependent("LocusInterval", () => {
-    val gr = GR.gr
-    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, gr)
-  })(stringHr, int32Hr, int32Hr, intervalHr(locusHr(GR)))
+    val rg = RG.rg
+    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, rg)
+  })(stringHr, int32Hr, int32Hr, intervalHr(locusHr(RG)))
 
   register("pcoin", { (p: Double) => math.random < p })
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })

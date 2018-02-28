@@ -19,16 +19,16 @@ object TVariant {
   }
 }
 
-case class TVariant(gr: GRBase, override val required: Boolean = false) extends ComplexType {
-  def _toString = s"""Variant($gr)"""
+case class TVariant(rg: RGBase, override val required: Boolean = false) extends ComplexType {
+  def _toString = s"""Variant($rg)"""
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Variant]
 
-  override def genNonmissingValue: Gen[Annotation] = VariantSubgen.fromGenomeRef(gr.asInstanceOf[GenomeReference]).gen
+  override def genNonmissingValue: Gen[Annotation] = VariantSubgen.fromGenomeRef(rg.asInstanceOf[ReferenceGenome]).gen
 
   override def desc: String =
     """
-    A ``Variant(GR)`` is a Hail data type representing a variant in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38. It is referred to as ``v`` in the expression language.
+    A ``Variant(GR)`` is a Hail data type representing a variant in the dataset. It is parameterized by a reference genome (RG) such as GRCh37 or GRCh38. It is referred to as ``v`` in the expression language.
 
     The `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`_ (PAR) is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
 
@@ -41,7 +41,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
   override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
 
   val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(gr.variantOrdering)
+    ExtendedOrdering.extendToNull(rg.variantOrdering)
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
@@ -55,7 +55,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
         val contig1 = TString.loadString(r1, cOff1)
         val contig2 = TString.loadString(r2, cOff2)
 
-        val c = gr.compare(contig1, contig2)
+        val c = rg.compare(contig1, contig2)
         if (c != 0)
           return c
 
@@ -75,16 +75,16 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
     }
   }
 
-  def variantOrdering: Ordering[Variant] = gr.variantOrdering
+  def variantOrdering: Ordering[Variant] = rg.variantOrdering
 
   val representation: TStruct = TVariant.representation(required)
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TVariant(cgr, _) => gr.unify(cgr)
+    case TVariant(crg, _) => rg.unify(crg)
     case _ => false
   }
 
-  override def clear(): Unit = gr.clear()
+  override def clear(): Unit = rg.clear()
 
-  override def subst() = gr.subst().variantType
+  override def subst() = rg.subst().variantType
 }

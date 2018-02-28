@@ -12,8 +12,8 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class LocusIntervalSuite extends SparkSuite {
-  val gr = GenomeReference.GRCh37
-  val pord = gr.locusType.ordering
+  val rg = ReferenceGenome.GRCh37
+  val pord = rg.locusType.ordering
 
   def genomicInterval(contig: String, start: Int, end: Int): Interval =
     Interval(Locus(contig, start), Locus(contig, end), true, false)
@@ -42,7 +42,7 @@ class LocusIntervalSuite extends SparkSuite {
         colType = TStruct("s" -> TString()),
         rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
         rowType = TStruct(
-          "locus" -> TLocus(GenomeReference.defaultReference),
+          "locus" -> TLocus(ReferenceGenome.defaultReference),
           "alleles" -> TArray(TString())),
         entryType = Genotype.htsGenotypeType),
       Annotation.empty, IndexedSeq.empty[Annotation],
@@ -85,49 +85,49 @@ class LocusIntervalSuite extends SparkSuite {
   }
 
   @Test def testParser() {
-    val xMax = gr.contigLength("X")
-    val yMax = gr.contigLength("Y")
-    val chr22Max = gr.contigLength("22")
+    val xMax = rg.contigLength("X")
+    val yMax = rg.contigLength("Y")
+    val chr22Max = rg.contigLength("22")
 
-    assert(Locus.parseInterval("[1:100-1:101)", gr) == Interval(Locus("1", 100), Locus("1", 101), true, false))
-    assert(Locus.parseInterval("[1:100-101)", gr) == Interval(Locus("1", 100), Locus("1", 101), true, false))
-    assert(Locus.parseInterval("[X:100-101)", gr) == Interval(Locus("X", 100), Locus("X", 101), true, false))
-    assert(Locus.parseInterval("[X:100-end)", gr) == Interval(Locus("X", 100), Locus("X", xMax), true, false))
-    assert(Locus.parseInterval("[X:100-End)", gr) == Interval(Locus("X", 100), Locus("X", xMax), true, false))
-    assert(Locus.parseInterval("[X:100-END)", gr) == Interval(Locus("X", 100), Locus("X", xMax), true, false))
-    assert(Locus.parseInterval("[X:start-101)", gr) == Interval(Locus("X", 1), Locus("X", 101), true, false))
-    assert(Locus.parseInterval("[X:Start-101)", gr) == Interval(Locus("X", 1), Locus("X", 101), true, false))
-    assert(Locus.parseInterval("[X:START-101)", gr) == Interval(Locus("X", 1), Locus("X", 101), true, false))
-    assert(Locus.parseInterval("[X:START-Y:END)", gr) == Interval(Locus("X", 1), Locus("Y", yMax), true, false))
-    assert(Locus.parseInterval("[X-Y)", gr) == Interval(Locus("X", 1), Locus("Y", yMax), true, false))
-    assert(Locus.parseInterval("[1-22)", gr) == Interval(Locus("1", 1), Locus("22", chr22Max), true, false))
+    assert(Locus.parseInterval("[1:100-1:101)", rg) == Interval(Locus("1", 100), Locus("1", 101), true, false))
+    assert(Locus.parseInterval("[1:100-101)", rg) == Interval(Locus("1", 100), Locus("1", 101), true, false))
+    assert(Locus.parseInterval("[X:100-101)", rg) == Interval(Locus("X", 100), Locus("X", 101), true, false))
+    assert(Locus.parseInterval("[X:100-end)", rg) == Interval(Locus("X", 100), Locus("X", xMax), true, false))
+    assert(Locus.parseInterval("[X:100-End)", rg) == Interval(Locus("X", 100), Locus("X", xMax), true, false))
+    assert(Locus.parseInterval("[X:100-END)", rg) == Interval(Locus("X", 100), Locus("X", xMax), true, false))
+    assert(Locus.parseInterval("[X:start-101)", rg) == Interval(Locus("X", 1), Locus("X", 101), true, false))
+    assert(Locus.parseInterval("[X:Start-101)", rg) == Interval(Locus("X", 1), Locus("X", 101), true, false))
+    assert(Locus.parseInterval("[X:START-101)", rg) == Interval(Locus("X", 1), Locus("X", 101), true, false))
+    assert(Locus.parseInterval("[X:START-Y:END)", rg) == Interval(Locus("X", 1), Locus("Y", yMax), true, false))
+    assert(Locus.parseInterval("[X-Y)", rg) == Interval(Locus("X", 1), Locus("Y", yMax), true, false))
+    assert(Locus.parseInterval("[1-22)", rg) == Interval(Locus("1", 1), Locus("22", chr22Max), true, false))
 
-    assert(Locus.parseInterval("[16:29500000-30200000)", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
-    assert(Locus.parseInterval("[16:29.5M-30.2M)", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
-    assert(Locus.parseInterval("[16:29500K-30200K)", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
-    assert(Locus.parseInterval("[1:100K-2:200K)", gr) == Interval(Locus("1", 100000), Locus("2", 200000), true, false))
+    assert(Locus.parseInterval("[16:29500000-30200000)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
+    assert(Locus.parseInterval("[16:29.5M-30.2M)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
+    assert(Locus.parseInterval("[16:29500K-30200K)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
+    assert(Locus.parseInterval("[1:100K-2:200K)", rg) == Interval(Locus("1", 100000), Locus("2", 200000), true, false))
 
-    assert(Locus.parseInterval("[1:1.111K-2000)", gr) == Interval(Locus("1", 1111), Locus("1", 2000), true, false))
-    assert(Locus.parseInterval("[1:1.111111M-2000000)", gr) == Interval(Locus("1", 1111111), Locus("1", 2000000), true, false))
+    assert(Locus.parseInterval("[1:1.111K-2000)", rg) == Interval(Locus("1", 1111), Locus("1", 2000), true, false))
+    assert(Locus.parseInterval("[1:1.111111M-2000000)", rg) == Interval(Locus("1", 1111111), Locus("1", 2000000), true, false))
 
     TestUtils.interceptFatal("invalid interval expression") {
-      Locus.parseInterval("4::start-5:end", gr)
+      Locus.parseInterval("4::start-5:end", rg)
     }
 
     TestUtils.interceptFatal("invalid interval expression") {
-      Locus.parseInterval("4:start-", gr)
+      Locus.parseInterval("4:start-", rg)
     }
 
     TestUtils.interceptFatal("invalid interval expression") {
-      Locus.parseInterval("1:1.1111K-2k", gr)
+      Locus.parseInterval("1:1.1111K-2k", rg)
     }
 
     TestUtils.interceptFatal("invalid interval expression") {
-      Locus.parseInterval("1:1.1111111M-2M", gr)
+      Locus.parseInterval("1:1.1111111M-2M", rg)
     }
 
-    val gr37 = GenomeReference.GRCh37
-    val gr38 = GenomeReference.GRCh38
+    val gr37 = ReferenceGenome.GRCh37
+    val gr38 = ReferenceGenome.GRCh38
 
     val x = "[GL000197.1:3739-GL000202.1:7538)"
     assert(Locus.parseInterval(x, gr37) ==

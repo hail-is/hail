@@ -21,11 +21,11 @@ class VSMSuite extends SparkSuite {
 
   @Test def testWriteRead() {
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateVariantsExpr("foo = 5"))) { vds =>
-      GenomeReference.addReference(vds.genomeReference)
+      ReferenceGenome.addReference(vds.referenceGenome)
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
       val result = hc.readVDS(f).same(vds)
-      GenomeReference.removeReference(vds.genomeReference.name)
+      ReferenceGenome.removeReference(vds.referenceGenome.name)
       result
     }
 
@@ -180,7 +180,7 @@ class VSMSuite extends SparkSuite {
       .collect()
       .map(_.getAs[Double](0))
     val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
-    val rowKeys = new Keys(TStruct("locus" -> TLocus(GenomeReference.defaultReference), "alleles" -> TArray(TString())),
+    val rowKeys = new Keys(TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString())),
       Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
     val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
     

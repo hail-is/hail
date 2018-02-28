@@ -115,7 +115,7 @@ object LoadPlink {
     variants: Array[(String, Int, String, String, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,
-    gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): MatrixTable = {
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): MatrixTable = {
 
     val sc = hc.sc
     val nSamples = sampleAnnotations.length
@@ -130,7 +130,7 @@ object LoadPlink {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = sampleAnnotationSignature,
-      rowType = TStruct("locus" -> TLocus.schemaFromGR(gr), "alleles" -> TArray(TString()), "rsid" -> TString()),
+      rowType = TStruct("locus" -> TLocus.schemaFromGR(rg), "alleles" -> TArray(TString()), "rsid" -> TString()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))
@@ -149,7 +149,7 @@ object LoadPlink {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contig, pos, gr))
+        rvb.addAnnotation(kType.types(0), Locus(contig, pos, rg))
         rvb.startArray(2)
         rvb.addString(ref)
         rvb.addString(alt)
@@ -172,7 +172,7 @@ object LoadPlink {
         region.clear()
         rvb.start(rvRowType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contig, pos, gr))
+        rvb.addAnnotation(kType.types(0), Locus(contig, pos, rg))
         rvb.startArray(2)
         rvb.addString(ref)
         rvb.addString(alt)
@@ -193,7 +193,7 @@ object LoadPlink {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: Option[GenomeReference] = Some(GenomeReference.defaultReference),
+    nPartitions: Option[Int] = None, a2Reference: Boolean = true, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
 
@@ -231,7 +231,7 @@ object LoadPlink {
     if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
       fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
-    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, gr)
+    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, rg)
     vds
   }
 

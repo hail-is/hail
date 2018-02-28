@@ -888,7 +888,7 @@ class ColumnTests(unittest.TestCase):
             self.assertEqual(expected_schema[fd.name], fd.dtype)
 
     def test_constructors(self):
-        rg = hl.GenomeReference("foo", ["1"], {"1": 100})
+        rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
 
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]

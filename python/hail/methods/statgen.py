@@ -3,8 +3,8 @@ import hail.expr.aggregators as agg
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expression import *
-from hail.genetics import KinshipMatrix, GenomeReference
-from hail.genetics.genomeref import reference_genome_type
+from hail.genetics import KinshipMatrix, ReferenceGenome
+from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
@@ -131,7 +131,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     We have used the same implementation as `PLINK v1.7
     <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
 
-    Let `gr` be the the genome reference of the type of the `locus` key (as
+    Let `gr` be the the reference genome of the type of the `locus` key (as
     given by :meth:`.TLocus.reference_genome`)
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
@@ -2402,7 +2402,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Default is ``UniformDist(0.1, 0.9)``.
     seed : :obj:`int`
         Random seed.
-    reference_genome : :obj:`str` or :class:`.GenomeReference`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns

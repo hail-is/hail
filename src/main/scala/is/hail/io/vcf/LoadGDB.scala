@@ -4,9 +4,8 @@ import com.intel.genomicsdb.GenomicsDBFeatureReader
 import htsjdk.variant.vcf.{VCFCompoundHeaderLine, VCFHeader}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, MatrixTable, Variant}
+import is.hail.variant.{ReferenceGenome, MatrixTable}
 import org.json4s._
 
 import scala.collection.JavaConversions._
@@ -103,7 +102,7 @@ object LoadGDB {
                vcfHeaderPath: Option[String],
                nPartitions: Option[Int] = None,
                dropSamples: Boolean = false,
-               gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): MatrixTable = {
+               rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): MatrixTable = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -143,7 +142,7 @@ object LoadGDB {
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(
-      "locus" -> TLocus.schemaFromGR(gr),
+      "locus" -> TLocus.schemaFromGR(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "qual" -> TFloat64(),

@@ -1,4 +1,4 @@
-from hail.genetics.genomeref import GenomeReference, reference_genome_type
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import scala_object, handle_py4j, Env
@@ -12,7 +12,7 @@ class Locus(HistoryMixin):
     :type contig: str or int
     :param int position: chromosomal position (1-indexed)
     :param reference_genome: Reference genome to use.
-    :type reference_genome: :obj:`str` or :class:`.GenomeReference`
+    :type reference_genome: :obj:`str` or :class:`.ReferenceGenome`
     """
 
     @handle_py4j
@@ -72,7 +72,7 @@ class Locus(HistoryMixin):
 
         :param str string: String to parse.
         :param reference_genome: Reference genome to use. Default is :func:`~hail.default_reference`.
-        :type reference_genome: :obj:`str` or :class:`.GenomeReference`
+        :type reference_genome: :obj:`str` or :class:`.ReferenceGenome`
 
         :rtype: :class:`.Locus`
         """
@@ -100,6 +100,6 @@ class Locus(HistoryMixin):
     def reference_genome(self):
         """Reference genome.
 
-        :return: :class:`.GenomeReference`
+        :return: :class:`.ReferenceGenome`
         """
         return self._rg

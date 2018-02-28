@@ -10,7 +10,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object BedAnnotator {
-  def apply(hc: HailContext, filename: String, gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
+  def apply(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     val hasTarget = hc.hadoopConf.readLines(filename) { lines =>
@@ -39,7 +39,7 @@ object BedAnnotator {
 
     val expectedLength = if (hasTarget) 4 else 3
 
-    val locusSchema = TLocus.schemaFromGR(gr)
+    val locusSchema = TLocus.schemaFromGR(rg)
 
     val schema = if (hasTarget)
       TStruct("interval" -> TInterval(locusSchema), "target" -> TString())
@@ -64,7 +64,7 @@ object BedAnnotator {
           val start = spl(1).toInt + 1
           val end = spl(2).toInt + 1
 
-          val interval = Interval(Locus(chrom, start, gr), Locus(chrom, end, gr), true, false)
+          val interval = Interval(Locus(chrom, start, rg), Locus(chrom, end, rg), true, false)
 
           if (hasTarget)
             Row(interval, spl(3))

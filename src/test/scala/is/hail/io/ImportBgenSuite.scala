@@ -73,7 +73,7 @@ class ImportBgenSuite extends SparkSuite {
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- MatrixTable.gen(hc,
       VSMSubgen.callAndProbabilities.copy(
-        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(GenomeReference.defaultReference, "1")).gen,
+        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(ReferenceGenome.defaultReference, "1")).gen,
         sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countVariants > 0);
       nPartitions <- choose(1, 10))

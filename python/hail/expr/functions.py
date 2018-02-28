@@ -1,7 +1,7 @@
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics.genomeref import reference_genome_type
+from hail.genetics.reference_genome import reference_genome_type
 import builtins
 
 
@@ -663,7 +663,7 @@ def locus(contig, pos, reference_genome='default'):
         Chromosome.
     pos : int or :class:`.Expression` of type :class:`.TInt32`
         Base position along the chromosome.
-    reference_genome : :obj:`str` or :class:`.GenomeReference`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -699,7 +699,7 @@ def parse_locus(s, reference_genome='default'):
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :obj:`str` or :class:`.GenomeReference`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -735,7 +735,7 @@ def parse_variant(s, reference_genome='default'):
     ----------
     s : :class:`.StringExpression`
         String to parse.
-    reference_genome: :obj:`str` or :class:`.GenomeReference`
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -871,7 +871,7 @@ def parse_interval(s, reference_genome='default'):
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :obj:`str` or :class:`.hail.genetics.GenomeReference`
+    reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
 
     Returns

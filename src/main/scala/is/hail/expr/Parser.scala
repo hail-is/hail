@@ -234,8 +234,8 @@ object Parser extends JavaTokenParsers {
     parseAnnotationRoot(a, root)
   }
 
-  def parseLocusInterval(input: String, gr: GRBase): Interval = {
-    parseAll[Interval](locusInterval(gr), input) match {
+  def parseLocusInterval(input: String, rg: RGBase): Interval = {
+    parseAll[Interval](locusInterval(rg), input) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
     }
@@ -421,10 +421,10 @@ object Parser extends JavaTokenParsers {
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
       genomeReferenceDependentTypes ~ ("(" ~> identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
-        case fn ~ gr ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, gr, args)
+        case fn ~ rg ~ lparen ~ args => ReferenceGenomeDependentConstructor(lparen.pos, fn, rg, args)
       } |
       genomeReferenceDependentTypes ~ withPos("(") ~ (args <~ ")") ^^ {
-        case fn ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, GenomeReference.defaultReference.name, args)
+        case fn ~ lparen ~ args => ReferenceGenomeDependentConstructor(lparen.pos, fn, ReferenceGenome.defaultReference.name, args)
       } |
       (guard(not("if" | "else")) ~> identifier) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
@@ -527,9 +527,9 @@ object Parser extends JavaTokenParsers {
       "Float" ^^ { _ => TFloat64() } |
       "String" ^^ { _ => TString() } |
       "AltAllele" ^^ { _ => TAltAllele() } |
-      ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).variantType } |
-      ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locusType } |
-      ("LocusAlleles" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locusType } |
+      ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).variantType } |
+      ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
+      ("LocusAlleles" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       "Call" ^^ { _ => TCall() } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
@@ -631,17 +631,17 @@ object Parser extends JavaTokenParsers {
       bounds ^^ {int => Interval(int._1, int._2, true, false)}
   }
 
-  def locusInterval(gr: GRBase): Parser[Interval] = {
-    val contig = gr.contigParser
-    val valueParser = locus(gr) ~ "-" ~ locus(gr) ^^ { case l1 ~ _ ~ l2 => (l1, l2) } |
-      locus(gr) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => (l1, l1.copyChecked(gr, position = p2.getOrElse(gr.contigLength(l1.contig)))) } |
-      contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1, gr), Locus(c2, gr.contigLength(c2), gr)) } |
-      contig ^^ { c => (Locus(c, 1), Locus(c, gr.contigLength(c))) }
+  def locusInterval(rg: RGBase): Parser[Interval] = {
+    val contig = rg.contigParser
+    val valueParser = locus(rg) ~ "-" ~ locus(rg) ^^ { case l1 ~ _ ~ l2 => (l1, l2) } |
+      locus(rg) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => (l1, l1.copyChecked(rg, position = p2.getOrElse(rg.contigLength(l1.contig)))) } |
+      contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1, rg), Locus(c2, rg.contigLength(c2), rg)) } |
+      contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c))) }
       intervalWithEndpoints(valueParser)
   }
 
-  def locus(gr: GRBase): Parser[Locus] =
-    (gr.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(gr.contigLength(c)), gr) }
+  def locus(rg: RGBase): Parser[Locus] =
+    (rg.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(rg.contigLength(c)), rg) }
 
   def coerceInt(s: String): Int = try {
     s.toInt

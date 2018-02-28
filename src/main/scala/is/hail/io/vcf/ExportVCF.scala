@@ -229,8 +229,8 @@ object ExportVCF {
         TStruct.empty()
       }
 
-    val gr = vsm.genomeReference
-    val assembly = gr.name
+    val rg = vsm.referenceGenome
+    val assembly = rg.name
     
     val localNSamples = vsm.numCols
     val hasSamples = localNSamples > 0
@@ -291,11 +291,11 @@ object ExportVCF {
         }
       }
 
-      gr.contigs.foreachBetween { c =>
+      rg.contigs.foreachBetween { c =>
         sb.append("##contig=<ID=")
         sb.append(c)
         sb.append(",length=")
-        sb.append(gr.contigLength(c))
+        sb.append(rg.contigLength(c))
         sb.append(",assembly=")
         sb.append(assembly)
         sb += '>'

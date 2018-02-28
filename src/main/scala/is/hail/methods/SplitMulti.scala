@@ -51,7 +51,7 @@ class SplitMultiPartitionContext(
     .fieldByName("locus")
     .typ
     .asInstanceOf[TLocus]
-    .gr
+    .rg
     .variantOrdering
 
   val (t1, locusInserter) = vAnnotator.newT.insert(matrixType.rowType.fieldByName("locus").typ, "locus")

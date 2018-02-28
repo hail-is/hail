@@ -5,7 +5,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.table.Table
-import is.hail.variant.{GenomeReference, Locus, MatrixTable, Variant}
+import is.hail.variant.{ReferenceGenome, Locus, MatrixTable}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -50,7 +50,7 @@ class PCASuite extends SparkSuite {
 
     val structT = TStruct("_PC1" -> TFloat64(), "_PC2" -> TFloat64(), "_PC3" -> TFloat64())
     val truth = Table.parallelize(hc, pyLoadings,
-      TStruct("locus" -> TLocus(GenomeReference.defaultReference), "alleles" -> TArray(TString())) ++ structT,
+      TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString())) ++ structT,
       Array("locus", "alleles"), None)
     truth.typeCheck()
 

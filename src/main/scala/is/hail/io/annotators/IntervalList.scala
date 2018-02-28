@@ -13,7 +13,7 @@ object IntervalList {
 
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
-  def read(hc: HailContext, filename: String, gr: Option[GenomeReference] = Some(GenomeReference.defaultReference)): Table = {
+  def read(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
     val hasValue = hc.hadoopConf.readLines(filename) {
       lines =>
         val skipHeader = lines.filter(l => !l.value.isEmpty && l.value(0) != '@')
@@ -33,8 +33,8 @@ object IntervalList {
         }.value
     }
 
-    val locusSchema = TLocus.schemaFromGR(gr)
-    
+    val locusSchema = TLocus.schemaFromGR(rg)
+
     val schema = if (hasValue)
       TStruct("interval" -> TInterval(locusSchema), "target" -> TString())
     else
@@ -50,7 +50,7 @@ object IntervalList {
             val split = line.split("\\s+")
             split match {
               case Array(contig, start, end, dir, target) =>
-                val interval = Interval(Locus(contig, start.toInt, gr), Locus(contig, end.toInt, gr),
+                val interval = Interval(Locus(contig, start.toInt, rg), Locus(contig, end.toInt, rg),
                   includeStart = true, includeEnd = true)
                 Row(interval, target)
               case arr => fatal(s"expected 5 fields, but found ${ arr.length }")
@@ -58,7 +58,7 @@ object IntervalList {
           } else {
             line match {
               case intervalRegex(contig, start, end) =>
-                val interval = Interval(Locus(contig, start.toInt, gr), Locus(contig, end.toInt, gr),
+                val interval = Interval(Locus(contig, start.toInt, rg), Locus(contig, end.toInt, rg),
                   includeStart = true, includeEnd = true)
                 Row(interval)
               case _ => fatal("invalid interval")

@@ -1,7 +1,7 @@
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics import Locus, Call, GenomeReference
+from hail.genetics import Locus, Call, ReferenceGenome
 
 
 def _to_agg(x):

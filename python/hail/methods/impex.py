@@ -6,7 +6,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
-from hail.genetics.genomeref import reference_genome_type
+from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic
 
 
@@ -248,7 +248,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     VCF type Flag.
 
     Hail also exports the name, length, and assembly of each contig as a VCF
-    header line, where the assembly is set to the :class:`.GenomeReference`
+    header line, where the assembly is set to the :class:`.ReferenceGenome`
     name.
 
     Consider the workflow of importing a VCF and immediately exporting the
@@ -357,7 +357,7 @@ def import_interval_list(path, reference_genome='default'):
     ``start <= position <= end``. :meth:`.Interval.parse`
     is exclusive of the end position.
 
-    Refer to :class:`.GenomeReference` for contig ordering and behavior.
+    Refer to :class:`.ReferenceGenome` for contig ordering and behavior.
 
     Warning
     -------
@@ -371,7 +371,7 @@ def import_interval_list(path, reference_genome='default'):
     path : :obj:`str`
         Path to file.
 
-    reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
 
     Returns
@@ -449,7 +449,7 @@ def import_bed(path, reference_genome='default'):
     path : :obj:`str`
         Path to .bed file.
 
-    reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
 
     Returns
@@ -685,7 +685,7 @@ def import_bgen(path, entry_fields, sample_file=None,
         samples in the file must match the number in the BGEN file(s).
     min_partitions : :obj:`int`, optional
         Number of partitions.
-    reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
@@ -802,7 +802,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
         Number of partitions.
     chromosome : :obj:`str`, optional
         Chromosome if not included in the GEN file
-    reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
@@ -1237,7 +1237,7 @@ def import_plink(bed, bim, fam,
         If True, A2 is treated as the reference allele. If False, A1 is treated
         as the reference allele.
 
-    reference_genome : :obj:`str` or :class:`.GenomeReference`, optional
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
 
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
@@ -1451,7 +1451,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     call_fields : :obj:`list` of :obj:`str`
         List of FORMAT fields to load as :class:`.TCall`. "GT" is loaded as
         a call automatically.
-    reference_genome: :obj:`str` or :class:`.GenomeReference`, optional
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
         Mapping from contig name in VCF to contig name in loaded dataset.
