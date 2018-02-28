@@ -66,6 +66,16 @@ class Env:
     def sql_context():
         return Env.hc()._sql_context
 
+    _dummy_table = None
+
+    @staticmethod
+    def dummy_table():
+        if Env._dummy_table is None:
+            import hail
+            Env._dummy_table = hail.utils.range_table(1, 1).cache()
+        return Env._dummy_table
+
+
 
 def jarray(jtype, lst):
     jarr = Env.gateway().new_array(jtype, len(lst))

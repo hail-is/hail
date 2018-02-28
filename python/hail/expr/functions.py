@@ -38,6 +38,50 @@ def null(t):
     """
     return construct_expr(Literal('NA: {}'.format(t._jtype.toString())), t)
 
+def lit(x, dtype=None):
+    """Captures a Python variable or object as an expression.
+
+    Parameters
+    ----------
+    x
+        Object to capture as an expression.
+
+    Returns
+    -------
+    :class:`.Expression`
+    """
+    if dtype is None:
+        try:
+            dtype = impute_type(x)
+        except ExpressionException:
+            raise
+
+    if x is None:
+        return hl.null(dtype)
+    elif is_primitive(dtype):
+        if dtype == tint32:
+            assert isinstance(x, builtins.int)
+            assert tint32.min_value <= x <= tint32.max_value
+            return construct_expr(Literal('i32#{}'.format(x)), tint32)
+        elif dtype == tint64:
+            assert isinstance(x, builtins.int)
+            assert tint64.min_value <= x <= tint64.max_value
+            return construct_expr(Literal('i64#{}'.format(x)), tint64)
+        elif dtype == tfloat32:
+            assert isinstance(x, builtins.float)
+            return construct_expr(Literal('f32#{}'.format(x)), tfloat32)
+        elif dtype == tfloat64:
+            assert isinstance(x, builtins.float)
+            return construct_expr(Literal('f64#{}'.format(x)), tfloat64)
+        elif dtype == tbool:
+            assert isinstance(x, builtins.bool)
+            return construct_expr(Literal('true' if x else 'false'), tbool)
+        else:
+            assert dtype == tstr
+            assert isinstance(x, builtins.str)
+            return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
+    else:
+        return broadcast(x, dtype)
 
 def capture(x):
     """Captures a Python variable or object as an expression.
@@ -70,7 +114,7 @@ def capture(x):
     return to_expr(x)
 
 
-def broadcast(x):
+def broadcast(x, dtype=None):
     """Broadcasts a Python variable or object as an expression.
 
     Examples
@@ -99,7 +143,7 @@ def broadcast(x):
     -----
     Use this function to capture large Python objects for use in expressions. This
     function provides an alternative to adding an object as a global annotation on a
-    :class:hail.Table or :class:hail.MatrixTable.
+    :class:`.Table` or :class:`.MatrixTable`.
 
     Parameters
     ----------
@@ -111,20 +155,21 @@ def broadcast(x):
     :class:`.Expression`
         An expression representing `x`.
     """
-    expr = to_expr(x)
+    if dtype is None:
+        try:
+            dtype = impute_type(x)
+        except ExpressionException as e:
+            raise
     uid = Env._get_uid()
 
     def joiner(obj):
-        from hail.table import Table
-        from hail.matrixtable import MatrixTable
-        if isinstance(obj, Table):
-            return Table(obj._jt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
+        json = dtype._to_json(x)
+        if isinstance(obj, hl.Table):
+            return hl.Table(obj._jt.annotateGlobalJSON(json, dtype._jtype, uid))
         else:
-            assert isinstance(obj, MatrixTable)
-            return MatrixTable(obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
+            return hl.MatrixTable(obj._jvds.annotateGlobalJSON(json, dtype._jtype, uid))
 
-    return construct_expr(GlobalJoinReference(uid), expr._type, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
-
+    return construct_expr(GlobalJoinReference(uid), dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
 def cond(condition, consequent, alternate):

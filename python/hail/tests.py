@@ -820,7 +820,11 @@ class ColumnTests(unittest.TestCase):
 
         self.maxDiff = 2000
 
-        self.assertDictEqual(result, expected)
+        for k, v in expected.items():
+            if isinstance(v, float):
+                self.assertAlmostEqual(v, result[k], msg=k)
+            else:
+                self.assertEqual(v, result[k], msg=k)
 
     def test_array_column(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))

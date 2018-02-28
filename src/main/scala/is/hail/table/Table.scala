@@ -17,7 +17,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
+import org.json4s._
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -322,6 +323,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
     }
   }
 
+  def queryJSON(expr: String): String = {
+    val (a, t) = query(Array(expr)).head
+    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
+    JsonMethods.compact(jv)
+  }
+
   def query(expr: String): (Annotation, Type) = query(Array(expr)).head
 
   def query(exprs: java.util.ArrayList[String]): Array[(Annotation, Type)] = query(exprs.asScala.toArray)
@@ -345,6 +352,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     val (newT, i) = globalSignature.insert(t, name)
     copy2(globalSignature = newT.asInstanceOf[TStruct], globals = i(globals, a).asInstanceOf[Row])
+  }
+
+  def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
+    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), t)
+
+    annotateGlobal(ann, t, name)
   }
 
   def annotateGlobalExpr(expr: String): Table = {
@@ -1057,6 +1070,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def collect(): Array[Row] = rdd.collect()
 
+  def collectJSON(): String = {
+    val r = JSONAnnotationImpex.exportAnnotation(collect().toFastIndexedSeq, TArray(signature))
+    JsonMethods.compact(r)
+  }
+
+
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -1171,6 +1190,11 @@ class Table(val hc: HailContext, val ir: TableIR) {
   }
 
   def take(n: Int): Array[Row] = rdd.take(n)
+
+  def takeJSON(n: Int): String = {
+    val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
+    JsonMethods.compact(r)
+  }
 
   def sample(p: Double, seed: Int = 1): Table = {
     require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")

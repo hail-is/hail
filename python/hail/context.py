@@ -101,7 +101,11 @@ class HailContext(object):
         Env._jvm = None
         Env._gateway = None
         Env._hc = None
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c
         uninstall_exception_handler()
+=======
+        Env._dummy_table = None
+>>>>>>> A few changes required to remove 'capture'.
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,

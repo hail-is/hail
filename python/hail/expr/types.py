@@ -1,13 +1,13 @@
 import abc
 
 import hail as hl
-from hail.history import *
 from hail.typecheck import *
 from hail.utils import Struct
 from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list, escape_parsable
 from hail.genetics.reference_genome import reference_genome_type
 from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
+import json
 
 
 def dtype(type_str):
@@ -144,6 +144,32 @@ class Type(object):
         """
         return
 
+    def _to_json(self, x):
+        converted = self._convert_to_json_na(x)
+        return json.dumps(converted)
+
+    def _convert_to_json_na(self, x):
+        if x is None:
+            return x
+        else:
+            return self._convert_to_json(x)
+
+    def _convert_to_json(self, x):
+        return x
+
+    def _from_json(self, s):
+        x = json.loads(s)
+        return self._convert_from_json_na(x)
+
+    def _convert_from_json_na(self, x):
+        if x is None:
+            return x
+        else:
+            return self._convert_from_json(x)
+
+    def _convert_from_json(self, x):
+        return x
+
 
 class TInt32(Type):
     """Hail type for signed 32-bit integers.
@@ -153,6 +179,9 @@ class TInt32(Type):
 
     In Python, these are represented as :obj:`int`.
     """
+
+    _min_value = -(1 << 31)
+    _max_value = (1 << 31) - 1
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt32Optional')
@@ -177,6 +206,14 @@ class TInt32(Type):
     def _eq(self, other):
         return isinstance(other, TInt32)
 
+    @property
+    def min_value(self):
+        return TInt32._min_value
+
+    @property
+    def max_value(self):
+        return TInt32._max_value
+
 
 class TInt64(Type):
     """Hail type for signed 64-bit integers.
@@ -185,6 +222,9 @@ class TInt64(Type):
 
     In Python, these are represented as :obj:`int`.
     """
+
+    _min_value = -(1 << 63)
+    _max_value = (1 << 63) - 1
 
     def __init__(self):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt64Optional')
@@ -205,6 +245,14 @@ class TInt64(Type):
 
     def _eq(self, other):
         return isinstance(other, TInt64)
+
+    @property
+    def min_value(self):
+        return TInt64._min_value
+
+    @property
+    def max_value(self):
+        return TInt64._max_value
 
 
 class TFloat32(Type):
@@ -390,6 +438,12 @@ class TArray(Type):
         self.element_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _convert_from_json(self, x):
+        return [self.element_type._convert_from_json_na(elt) for elt in x]
+
+    def _convert_to_json(self, x):
+        return [self.element_type._convert_to_json_na(elt) for elt in x]
+
 
 class TSet(Type):
     """Hail type for collections of distinct elements.
@@ -457,6 +511,11 @@ class TSet(Type):
         self.element_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _convert_from_json(self, x):
+        return {self.element_type._convert_from_json_na(elt) for elt in x}
+
+    def _convert_to_json(self, x):
+        return [self.element_type._convert_to_json_na(elt) for elt in x]
 
 class TDict(Type):
     """Hail type for key-value maps.
@@ -544,6 +603,14 @@ class TDict(Type):
         l.append(', ')
         self.value_type._pretty(l, indent, increment)
         l.append('>')
+
+    def _convert_from_json(self, x):
+        return {self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
+                elt in x}
+
+    def _convert_to_json(self, x):
+        return [{'key': self.key_type._convert_to_json(k),
+                 'value':self.value_type._convert_to_json(v)} for k, v in x.items()]
 
 
 class Field(object):
@@ -710,6 +777,11 @@ class TStruct(Type):
         l.append(' ' * pre_indent)
         l.append('}')
 
+    def _convert_from_json(self, x):
+        return Struct(**{field.name: field.dtype._convert_from_json_na(x.get(field.name)) for field in self.fields})
+
+    def _convert_to_json(self, x):
+        return {field.name: field.dtype._convert_to_json_na(x[field.name]) for field in self.fields}
 
 class TTuple(Type):
     """Hail type for tuples.
@@ -741,7 +813,7 @@ class TTuple(Type):
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
-            return tuple(t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types))
+            return tuple(*(t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types)))
         else:
             return None
 
@@ -786,6 +858,12 @@ class TTuple(Type):
         l.append(' ' * pre_indent)
         l.append(')')
 
+    def _convert_from_json(self, x):
+        return tuple(self.types[i]._convert_from_json_na(x[i]) for i in range(len(self.types)))
+
+    def _convert_to_json(self, x):
+        return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
+
 class TCall(Type):
     """Hail type for a diploid genotype.
 
@@ -820,6 +898,12 @@ class TCall(Type):
 
     def _eq(self, other):
         return isinstance(other, TCall)
+
+    def _convert_from_json(self, x):
+        return hl.Call._from_java(hl.Call._call_jobject().parse(x))
+
+    def _convert_to_json(self, x):
+        return str(x)
 
 
 class TLocus(Type):
@@ -878,6 +962,12 @@ class TLocus(Type):
 
     def _pretty(self, l, indent, increment):
         l.append('locus[{}]'.format(escape_parsable(self.reference_genome.name)))
+
+    def _convert_from_json(self, x):
+        return genetics.Locus(x['contig'], x['position'], reference_genome=self.reference_genome)
+
+    def _convert_to_json(self, x):
+        return {'contig': x.contig, 'position': x.position}
 
 
 class TInterval(Type):
@@ -944,6 +1034,18 @@ class TInterval(Type):
         self.point_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _convert_from_json(self, x):
+        if not isinstance(self.point_type, TLocus):
+            raise NotImplementedError(self.point_type)
+        return genetics.Interval(self.point_type._convert_from_json_na(x['start']),
+                                 self.point_type._convert_from_json_na(x['end']))
+
+    def _convert_to_json(self, x):
+        if not isinstance(self.point_type, TLocus):
+            raise NotImplementedError(self.point_type)
+        return {'start': self.point_type._convert_to_json_na(x.start),
+                'end': self.point_type._convert_to_json_na(x.end)}
+
 
 tint32 = TInt32()
 tint64 = TInt64()
@@ -965,11 +1067,17 @@ tinterval = TInterval
 hts_entry_schema = tstruct(GT=tcall, AD=tarray(tint32), DP=tint32, GQ=tint32, PL=tarray(tint32))
 
 _numeric_types = {tint32, tint64, tfloat32, tfloat64}
+_primitive_types = _numeric_types.union({tbool, tstr})
 
 
 @typecheck(t=Type)
 def is_numeric(t):
     return t in _numeric_types
+
+
+@typecheck(t=Type)
+def is_primitive(t):
+    return t in _primitive_types
 
 
 import pprint

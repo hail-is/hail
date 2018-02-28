@@ -76,23 +76,78 @@ def construct_reference(name, type, indices, prefix=None):
     return construct_expr(ast, type, indices, refs=LinkedList(tuple).push((name, indices)))
 
 
+def impute_type(x):
+    if isinstance(x, bool):
+        return tbool
+    elif isinstance(x, int):
+        if hl.tint32.min_value <= x <= hl.tint32.max_value:
+            return tint32
+        elif hl.tint64.min_value <= x <= hl.tint64.max_value:
+            return tint64
+        else:
+            raise ValueError("Hail has no integer data type large enough to store {}".format(x))
+    elif isinstance(x, float):
+        return tfloat64
+    elif isinstance(x, str):
+        return tstr
+    elif isinstance(x, Locus):
+        return tlocus(x.reference_genome)
+    elif isinstance(x, Interval):
+        return tlocus(x.reference_genome)
+    elif isinstance(x, Call):
+        return tcall
+    elif isinstance(x, Struct):
+        return tstruct(**{k: impute_type(x[k]) for k in x})
+    elif isinstance(x, tuple):
+        return ttuple(*(impute_type(element) for element in x))
+    elif isinstance(x, list):
+        ts = {impute_type(element) for element in x}
+        unified_type = unify_types_limited(*ts)
+        if not unified_type:
+            raise ExpressionException("Hail does not support heterogeneous arrays: "
+                                      "found list with elements of types {} ".format(list(ts)))
+        return tarray(unified_type)
+    elif isinstance(x, set):
+        ts = {impute_type(element) for element in x}
+        unified_type = unify_types_limited(*ts)
+        if not unified_type:
+            raise ExpressionException("Hail does not support heterogeneous sets: "
+                                      "found set with elements of types {} ".format(list(ts)))
+        return tset(unified_type)
+    elif isinstance(x, dict):
+        kts = {impute_type(element) for element in x.keys()}
+        vts = {impute_type(element) for element in x.values()}
+        unified_key_type = unify_types_limited(*kts)
+        unified_value_type = unify_types_limited(*vts)
+        if not unified_key_type:
+            raise ExpressionException("Hail does not support heterogeneous dicts: "
+                                      "found dict with keys of types {} ".format(list(kts)))
+        if not unified_value_type:
+            raise ExpressionException("Hail does not support heterogeneous dicts: "
+                                      "found dict with values of types {} ".format(list(vts)))
+        return tdict(unified_key_type, unified_value_type)
+    elif x is None:
+        raise ExpressionException("Hail cannot impute the type of 'None'")
+    else:
+        raise ExpressionException("Hail cannot automatically impute value of type {}: {}".format(type(x), x))
+
+
 def to_expr(e):
     if isinstance(e, Expression):
         return e
-    elif isinstance(e, Aggregable):
+    try:
+        return hl.lit(e)
+    except ExpressionException:
+        pass
+
+    return _to_expr(e)
+
+def _to_expr(e):
+    if isinstance(e, Aggregable):
         raise ExpressionException("Cannot use the result of 'agg.explode' or 'agg.filter' in expressions\n"
                                   "    These methods produce 'Aggregable' objects that can only be aggregated\n"
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
-    elif isinstance(e, str):
-        return construct_expr(Literal('"{}"'.format(escape_str(e))), tstr)
-    elif isinstance(e, bool):
-        return construct_expr(Literal("true" if e else "false"), tbool)
-    elif isinstance(e, int):
-        # FIXME: check int size and use int32 / int64 / error as needed
-        return construct_expr(Literal(str(e)), tint32)
-    elif isinstance(e, float):
-        return construct_expr(Literal(str(e)), tfloat64)
     elif isinstance(e, Locus):
         return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), tlocus(e.reference_genome))
     elif isinstance(e, Interval):
@@ -538,13 +593,13 @@ class Expression(object):
             raise NotImplementedError('cannot convert aggregated expression to table')
         if source is None:
             # scalar expression
-            df = hail.utils.range_table(1)
+            df = Env.dummy_table()
             df = df.select(**{name: self})
             return df
         elif len(axes) == 0:
             uid = Env._get_uid()
             source = source.select_globals(**{uid: self})
-            df = hail.utils.range_table(1)
+            df = Env.dummy_table()
             df = df.select(**{name: source.view_join_globals()[uid]})
             return df
         elif len(axes) == 1:
@@ -678,7 +733,7 @@ class Expression(object):
         """
         uid = Env._get_uid()
         t = self._to_table(uid)
-        return t.aggregate(hl.agg.collect(t[uid]))
+        return [r[uid] for r in t.collect()]
 
 
 class CollectionExpression(Expression):
@@ -1855,7 +1910,7 @@ class StructExpression(Mapping, Expression):
     """
 
     def _init(self):
-        self._fields = OrderedDict()
+        self._fields = {}
 
         for fd in self.dtype.fields:
             expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
@@ -2020,10 +2075,10 @@ class StructExpression(Mapping, Expression):
             types.append(fd.dtype)
         result_type = tstruct(**dict(zip(names, types)))
 
-        indices, joins, aggregations, refs = unify_all(self, kwargs_struct)
+        indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('merge', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
-                              result_type, indices, joins, aggregations, refs)
+                              result_type, indices, aggregations, joins, refs)
 
     @typecheck_method(fields=str)
     def drop(self, *fields):
@@ -2063,7 +2118,7 @@ class StructExpression(Mapping, Expression):
                 types.append(fd.dtype)
         result_type = tstruct(**dict(zip(names, types)))
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
-                              self._indices, self._joins, self._aggregations, self._refs)
+                              self._indices, self._aggregations, self._joins, self._refs)
 
     def describe(self):
         """Print information about the schema of the struct."""
@@ -3595,14 +3650,8 @@ def eval_expr_typed(expression):
         Result of evaluating `expression`, and its type.
     """
     analyze('eval_expr_typed', expression, Indices())
-    if not expression._joins.empty():
-        raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
 
-    x = Env.hc()._jhc.eval(expression._ast.to_hql())
-    t = Type._from_java(x._2())
-    assert t == expression.dtype, "type mismatch: eval={}, expr={}".format(t, expression.dtype)
-    r = t._convert_to_py(x._1())
-    return r, t
+    return expression.collect()[0], expression.dtype
 
 
 _lazy_int32.set(Int32Expression)

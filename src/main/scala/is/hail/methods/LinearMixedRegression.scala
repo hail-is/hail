@@ -37,8 +37,6 @@ object LinearMixedRegression {
     optNEigs: Option[Int],
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
-    Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
-
     val ec = assocVSM.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
