@@ -722,8 +722,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       matrixType = newMatrixType)
   }
 
-  def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
-    val (newT, i) = insertGlobal(t, List(name))
+  def annotateGlobal(a: Annotation, t: Type, path: String*): MatrixTable = {
+    val (newT, i) = insertGlobal(t, path.toList)
     copyMT(matrixType = matrixType.copy(globalType = newT), globals = i(globals, a))
   }
 
@@ -2793,7 +2793,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     x: String,
     covariates: Array[String] = Array.empty[String],
     useML: Boolean = false,
-    rootGA: String = "global.lmmreg",
+    rootGA: String = "lmmreg",
     rootVA: String = "lmmreg",
     runAssoc: Boolean = true,
     delta: Option[Double] = None,
