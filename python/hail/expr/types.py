@@ -858,7 +858,7 @@ class TLocus(Type):
                             type(annotation))
 
     def __str__(self):
-        return "locus[{}]".format(escape_parsable(str(self.reference_genome)))
+        return "locus<{}>".format(escape_parsable(str(self.reference_genome)))
 
     def _eq(self, other):
         return isinstance(other, TLocus) and self.reference_genome == other.reference_genome
@@ -877,7 +877,7 @@ class TLocus(Type):
         return self._rg
 
     def _pretty(self, l, indent, increment):
-        l.append('locus[{}]'.format(escape_parsable(self.reference_genome.name)))
+        l.append('locus<{}>'.format(escape_parsable(self.reference_genome.name)))
 
 
 class TInterval(Type):

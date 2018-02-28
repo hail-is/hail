@@ -12,7 +12,7 @@ type_grammar = Grammar(
     bool = "tbool" / "bool"
     call = "tcall" / "call"
     str = "tstr" / "str"
-    locus = ("tlocus" / "locus") _ "[" identifier "]"
+    locus = ("tlocus" / "locus") _ "<" identifier ">"
     array = ("tarray" / "array") _ "<" type ">"
     set = ("tset" / "set") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
@@ -58,7 +58,7 @@ class TypeConstructor(NodeVisitor):
         return hl.tstr
 
     def visit_locus(self, node, visited_children):
-        tlocus, _, bracket, gr, bracket = visited_children
+        tlocus, _, angle_bracket, gr, angle_bracket = visited_children
         return hl.tlocus(gr)
 
     def visit_array(self, node, visited_children):
