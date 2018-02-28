@@ -24,14 +24,17 @@ Use ``import hail as hl`` to access this functionality.
 .. toctree::
     :maxdepth: 1
 
-    genetics <genetics/index>
-    expr <expr/index>
+    expression <expression>
+    types <types>
+    functions <functions/index>
+    aggregators <aggregators>
     methods <methods/index>
     utils <utils/index>
     linalg <linalg/index>
     stats <stats/index>
+    genetics <genetics/index>
 
-.. rubric:: Functions
+.. rubric:: Module functions
 
 .. autofunction:: hail.init
 .. autofunction:: hail.stop
