@@ -353,12 +353,21 @@ case class FilterRows(
 
   def execute(hc: HailContext): MatrixValue = {
     val kmv = child.execute(hc)
+    //
+    // Generate a predicate function which may access globals,
+    // row annotations, and the row itself.
+    //
+    // The predicate for FilterRows might access globals and column annotations
+    println(s"FilterRows.execute pred ${pred.toString()}")
+    kmv
+    /*
     val f = ir.Compile(
-		"row", ir.RegionValueRep[Long](child.typ.rowType),
-		"global", ir.RegionValueRep[Long](child.typ.globalType),
+        "global", ir.RegionValueRep[Long](child.typ.globalType),
+		"rvRow",  ir.RegionValueRep[Long](child.typ.rvRowType),
 		ir.RegionValueRep[Boolean](TBoolean()),
 		pred)
 	kmv.filterSamples((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
+	 */
   }
 }
 
@@ -429,7 +438,7 @@ case class FilterCols(
 
     val localGlobals = prev.globals
     val ec = prev.typ.rowEC
-
+/*
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
     val aggregatorOption = Aggregators.buildVariantAggregations(
@@ -453,6 +462,8 @@ case class FilterCols(
     }
 
     prev.copy(rvd = filteredRDD)
+ */
+    prev
   }
 }
 
