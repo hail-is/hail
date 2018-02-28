@@ -100,7 +100,7 @@ def impute_type(x):
     elif isinstance(x, Locus):
         return tlocus(x.reference_genome)
     elif isinstance(x, Interval):
-        return tinterval(x.reference_genome)
+        return tinterval(tlocus(x.reference_genome))
     elif isinstance(x, Call):
         return tcall
     elif isinstance(x, Struct):
