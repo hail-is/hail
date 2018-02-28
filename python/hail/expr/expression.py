@@ -6,7 +6,7 @@ from hail.utils.misc import plural, get_nice_field_error, get_nice_attr_error
 from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
-from collections import Mapping, Sequence
+from collections import Mapping, Sequence, OrderedDict
 
 
 class Indices(object):

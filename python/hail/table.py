@@ -6,6 +6,7 @@ from hail.utils.java import jiterable_to_list
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 import itertools
 
+
 table_type = lazy()
 
 

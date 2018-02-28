@@ -1,9 +1,8 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
 
 
-class Trio(HistoryMixin):
+class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str s: Sample ID of proband.
@@ -21,7 +20,6 @@ class Trio(HistoryMixin):
     :type is_female: bool or None
     """
 
-    @record_init
     @typecheck_method(s=str,
                       fam_id=nullable(str),
                       pat_id=nullable(str),
@@ -155,14 +153,13 @@ class Trio(HistoryMixin):
         return self._complete
 
 
-class Pedigree(HistoryMixin):
+class Pedigree(object):
     """Class containing a list of trios, with extra functionality.
 
     :param trios: list of trio objects to include in pedigree
     :type trios: list of :class:`.Trio`
     """
 
-    @record_init
     def __init__(self, trios):
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
@@ -182,7 +179,6 @@ class Pedigree(HistoryMixin):
         return self._jrep.hashCode()
 
     @classmethod
-    @record_classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
     def read(cls, fam_path, delimiter='\\s+'):
@@ -226,7 +222,6 @@ class Pedigree(HistoryMixin):
         """
         return list(filter(lambda t: t.is_complete(), self.trios))
 
-    @record_method
     @typecheck_method(samples=listof(str))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
@@ -247,7 +242,6 @@ class Pedigree(HistoryMixin):
 
         return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
 
-    @write_history('path')
     @typecheck_method(path=str)
     def write(self, path):
         """Write a .fam file to the given path.
@@ -267,9 +261,6 @@ class Pedigree(HistoryMixin):
             Reading and writing a PLINK .fam file will result in loss of this information.
             Use the key table method :meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
-
-        A text file containing the Python code to generate this output file is
-        available at ``<output>.history.txt``.
 
         :param path: output path
         :type path: str

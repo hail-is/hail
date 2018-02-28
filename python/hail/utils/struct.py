@@ -1,5 +1,4 @@
 from hail.typecheck import *
-from hail.history import HistoryMixin, record_init, record_method
 from collections import Mapping, OrderedDict
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error
 

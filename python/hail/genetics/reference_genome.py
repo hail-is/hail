@@ -1,4 +1,3 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import jiterable_to_list, Env
@@ -6,7 +5,11 @@ from hail.typecheck import oneof, transformed
 import hail as hl
 
 
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c:python/hail/genetics/reference_genome.py
 class ReferenceGenome(HistoryMixin):
+=======
+class GenomeReference(object):
+>>>>>>> removed last vestige of history support:python/hail/genetics/genomeref.py
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     :param str name: Name of reference. Must be unique and NOT one of Hail's
@@ -38,7 +41,11 @@ class ReferenceGenome(HistoryMixin):
 
     _references = {}
 
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c:python/hail/genetics/reference_genome.py
     @record_init
+=======
+    @handle_py4j
+>>>>>>> removed last vestige of history support:python/hail/genetics/genomeref.py
     @typecheck_method(name=str,
                       contigs=listof(str),
                       lengths=dictof(str, int),
@@ -76,6 +83,7 @@ class ReferenceGenome(HistoryMixin):
         super(ReferenceGenome, self).__init__()
         ReferenceGenome._references[name] = self
 
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c:python/hail/genetics/reference_genome.py
     def _set_history(self, history):
         if not self._history_was_set: # only set varid if ReferenceGenome was constructed by user
             self._history = history.set_varid(self.name)
@@ -83,6 +91,9 @@ class ReferenceGenome(HistoryMixin):
         else:
             super(ReferenceGenome, self)._set_history(history)
 
+=======
+    @handle_py4j
+>>>>>>> removed last vestige of history support:python/hail/genetics/genomeref.py
     def __str__(self):
         return self._jrep.toString()
 
@@ -186,7 +197,11 @@ class ReferenceGenome(HistoryMixin):
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
     @classmethod
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c:python/hail/genetics/reference_genome.py
     @record_classmethod
+=======
+    @handle_py4j
+>>>>>>> removed last vestige of history support:python/hail/genetics/genomeref.py
     def GRCh37(cls):
         """Reference genome for GRCh37.
 
@@ -202,7 +217,11 @@ class ReferenceGenome(HistoryMixin):
         )
 
     @classmethod
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c:python/hail/genetics/reference_genome.py
     @record_classmethod
+=======
+    @handle_py4j
+>>>>>>> removed last vestige of history support:python/hail/genetics/genomeref.py
     def GRCh38(cls):
         """Reference genome for GRCh38.
 
@@ -218,7 +237,11 @@ class ReferenceGenome(HistoryMixin):
         )
 
     @classmethod
+<<<<<<< 53d795c163fd39d06a23d7b1735dd916dc4a1e6c:python/hail/genetics/reference_genome.py
     @record_classmethod
+=======
+    @handle_py4j
+>>>>>>> removed last vestige of history support:python/hail/genetics/genomeref.py
     @typecheck_method(file=str)
     def read(cls, file):
         """Load reference genome from a JSON file.
