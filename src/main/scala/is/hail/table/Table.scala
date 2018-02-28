@@ -1235,6 +1235,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
     println(showString(n, truncate, printTypes, maxWidth))
+  }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100,
     config: PrintConfig = PrintConfig.default): Unit = {
