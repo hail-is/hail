@@ -2719,6 +2719,25 @@ def sum(collection):
         raise TypeError("'sum' expects a numeric collection, found '{}'".format(collection.dtype))
     return collection._method("sum", collection.dtype.element_type)
 
+@typecheck(kwargs=expr_any)
+def struct(**kwargs):
+    """Construct a struct expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> s = hl.struct(a=5, b='Foo')
+
+        >>> hl.eval_expr(s.a)
+        5
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        Keyword arguments as a struct.
+    """
+    return to_expr(Struct(**kwargs))
 
 @typecheck(collection=oneof(expr_set, expr_array))
 def set(collection):
