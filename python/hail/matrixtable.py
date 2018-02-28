@@ -1,7 +1,7 @@
 import hail
 from hail.expr.expression import *
 from hail.utils import storage_level
-from hail.utils.java import handle_py4j, escape_id
+from hail.utils.java import escape_id
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
 from hail.table import Table
 import itertools
@@ -120,7 +120,6 @@ class GroupedMatrixTable(object):
         else:
             self.__dict__[key] = value
 
-    @handle_py4j
     def aggregate(self, **named_exprs):
         """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
 
@@ -441,7 +440,6 @@ class MatrixTable(object):
             self._entry_schema = Type._from_java(self._jvds.entryType())
         return self._entry_schema
 
-    @handle_py4j
     def get_globals(self):
         """Returns the global values of the dataset as Python values.
 
@@ -455,7 +453,6 @@ class MatrixTable(object):
         return self._globals
 
     @property
-    @handle_py4j
     def globals(self):
         """Returns a struct expression including all global fields.
 
@@ -470,7 +467,6 @@ class MatrixTable(object):
                                   *[(f.name, self._global_indices) for f in self.global_schema.fields]))
 
     @property
-    @handle_py4j
     def row(self):
         """Returns a struct expression including all row-indexed fields.
 
@@ -485,7 +481,6 @@ class MatrixTable(object):
                                   *[(f.name, self._row_indices) for f in self.row_schema.fields]))
 
     @property
-    @handle_py4j
     def col(self):
         """Returns a struct expression including all column-indexed fields.
 
@@ -500,7 +495,6 @@ class MatrixTable(object):
                                   *[(f.name, self._col_indices) for f in self.col_schema.fields]))
 
     @property
-    @handle_py4j
     def entry(self):
         """Returns a struct expression including all row-and-column-indexed fields.
 
@@ -572,7 +566,6 @@ class MatrixTable(object):
                 str_keys.append(k)
         return MatrixTable(self._jvds.keyRowsBy(str_keys, str_keys))
 
-    @handle_py4j
     def annotate_globals(self, **named_exprs):
         """Create new global fields by name.
 
@@ -625,7 +618,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    @handle_py4j
     def annotate_rows(self, **named_exprs):
         """Create new row-indexed fields by name.
 
@@ -682,7 +674,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateVariantsExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    @handle_py4j
     def annotate_cols(self, **named_exprs):
         """Create new column-indexed fields by name.
 
@@ -736,7 +727,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    @handle_py4j
     def annotate_entries(self, **named_exprs):
         """Create new row-and-column-indexed fields by name.
 
@@ -793,7 +783,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    @handle_py4j
     def select_globals(self, *exprs, **named_exprs):
         """Select existing global fields or create new fields by name, dropping the rest.
 
@@ -859,7 +848,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
-    @handle_py4j
     def select_rows(self, *exprs, **named_exprs):
         """Select existing row fields or create new fields by name, dropping the rest.
 
@@ -928,7 +916,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.selectRows(strs))
         return cleanup(m)
 
-    @handle_py4j
     def select_cols(self, *exprs, **named_exprs):
         """Select existing column fields or create new fields by name, dropping the rest.
 
@@ -996,7 +983,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.selectCols(strs))
         return cleanup(m)
 
-    @handle_py4j
     def select_entries(self, *exprs, **named_exprs):
         """Select existing entry fields or create new fields by name, dropping the rest.
 
@@ -1060,7 +1046,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.selectEntries(strs))
         return cleanup(m)
 
-    @handle_py4j
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
         """Drop fields.
@@ -1144,7 +1129,6 @@ class MatrixTable(object):
 
         return m
 
-    @handle_py4j
     def drop_rows(self):
         """Drop all rows of the matrix.  Is equivalent to:
 
@@ -1171,7 +1155,6 @@ class MatrixTable(object):
         warn("deprecation: 'drop_cols' will be removed before 0.2 release")
         return MatrixTable(self._jvds.dropSamples())
 
-    @handle_py4j
     @typecheck_method(expr=anytype, keep=bool)
     def filter_rows(self, expr, keep=True):
         """Filter rows of the matrix.
@@ -1227,7 +1210,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.filterVariantsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
-    @handle_py4j
     @typecheck_method(expr=anytype, keep=bool)
     def filter_cols(self, expr, keep=True):
         """Filter columns of the matrix.
@@ -1290,7 +1272,6 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
-    @handle_py4j
     def filter_entries(self, expr, keep=True):
         """Filter entries of the matrix.
 
@@ -1385,7 +1366,6 @@ class MatrixTable(object):
 
         raise NotImplementedError()
 
-    @handle_py4j
     def transmute_cols(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
@@ -1405,7 +1385,6 @@ class MatrixTable(object):
         """
         raise NotImplementedError()
 
-    @handle_py4j
     def transmute_entries(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
 
@@ -1425,7 +1404,6 @@ class MatrixTable(object):
         """
         raise NotImplementedError()
 
-    @handle_py4j
     def aggregate_rows(self, expr):
         """Aggregate over rows to a local value.
 
@@ -1476,7 +1454,6 @@ class MatrixTable(object):
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
         return annotations[0]
 
-    @handle_py4j
     def aggregate_cols(self, expr):
         """Aggregate over columns to a local value.
 
@@ -1529,7 +1506,6 @@ class MatrixTable(object):
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
         return annotations[0]
 
-    @handle_py4j
     def aggregate_entries(self, expr):
         """Aggregate over entries to a local value.
 
@@ -1578,7 +1554,6 @@ class MatrixTable(object):
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
         return annotations[0]
 
-    @handle_py4j
     def explode_rows(self, field_expr):
         """Explodes a row field of type array or set, copying the entire row for each element.
 
@@ -1627,7 +1602,6 @@ class MatrixTable(object):
             s = e._ast.to_hql()
         return MatrixTable(self._jvds.explodeVariants(s))
 
-    @handle_py4j
     def explode_cols(self, field_expr):
         """Explodes a column field of type array or set, copying the entire column for each element.
 
@@ -1675,7 +1649,6 @@ class MatrixTable(object):
             s = e._ast.to_hql()
         return MatrixTable(self._jvds.explodeSamples(s))
 
-    @handle_py4j
     def group_rows_by(self, *exprs, **named_exprs):
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
 
@@ -1721,7 +1694,6 @@ class MatrixTable(object):
 
         return GroupedMatrixTable(self, groups, self._row_indices)
 
-    @handle_py4j
     def group_cols_by(self, *exprs, **named_exprs):
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
 
@@ -1771,7 +1743,6 @@ class MatrixTable(object):
 
         return GroupedMatrixTable(self, groups, self._col_indices)
 
-    @handle_py4j
     def count_rows(self):
         """Count the number of rows in the matrix.
 
@@ -1789,11 +1760,9 @@ class MatrixTable(object):
         """
         return self._jvds.countVariants()
 
-    @handle_py4j
     def _force_count_rows(self):
         return self._jvds.forceCountRows()
 
-    @handle_py4j
     def count_cols(self):
         """Count the number of columns in the matrix.
 
@@ -1811,7 +1780,6 @@ class MatrixTable(object):
         """
         return self._jvds.numCols()
 
-    @handle_py4j
     def count(self):
         """Count the number of columns and rows in the matrix.
 
@@ -1829,7 +1797,6 @@ class MatrixTable(object):
         r = self._jvds.count()
         return r._1(), r._2()
 
-    @handle_py4j
     @typecheck_method(output=str,
                       overwrite=bool,
                       _codec_spec=nullable(str))
@@ -1859,7 +1826,6 @@ class MatrixTable(object):
 
         self._jvds.write(output, overwrite, _codec_spec)
 
-    @handle_py4j
     def globals_table(self):
         """Returns a table with a single row with the globals of the matrix table.
 
@@ -1876,7 +1842,6 @@ class MatrixTable(object):
         """
         return Table(self._jvds.globalsTable())
 
-    @handle_py4j
     def rows(self):
         """Returns a table with all row fields in the matrix.
 
@@ -1893,7 +1858,6 @@ class MatrixTable(object):
         """
         return Table(self._jvds.rowsTable())
 
-    @handle_py4j
     def cols(self):
         """Returns a table with all column fields in the matrix.
 
@@ -1910,7 +1874,6 @@ class MatrixTable(object):
         """
         return Table(self._jvds.colsTable())
 
-    @handle_py4j
     def entries(self):
         """Returns a matrix in coordinate table form.
 
@@ -1935,7 +1898,6 @@ class MatrixTable(object):
         """
         return Table(self._jvds.entriesTable())
 
-    @handle_py4j
     def view_join_globals(self):
         uid = Env._get_uid()
 
@@ -1949,7 +1911,6 @@ class MatrixTable(object):
         return construct_expr(Select(Reference('global'), uid), self.global_schema,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
-    @handle_py4j
     def view_join_rows(self, *exprs):
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins, refs = unify_all(*exprs)
@@ -1989,7 +1950,6 @@ class MatrixTable(object):
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
 
-    @handle_py4j
     def view_join_cols(self, *exprs):
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins, refs = unify_all(*exprs)
@@ -2005,7 +1965,6 @@ class MatrixTable(object):
 
         return self.cols().view_join_rows(*exprs)
 
-    @handle_py4j
     def view_join_entries(self, row_exprs, col_exprs):
         row_exprs = [to_expr(e) for e in row_exprs]
         col_exprs = [to_expr(e) for e in col_exprs]
@@ -2095,7 +2054,6 @@ class MatrixTable(object):
                                                               e=entry_fields)
         print(s)
 
-    @handle_py4j
     @typecheck_method(order=listof(str))
     def reorder_columns(self, order):
         """Reorder columns.
@@ -2134,7 +2092,6 @@ class MatrixTable(object):
         jvds = self._jvds.reorderSamples(order)
         return MatrixTable(jvds)
 
-    @handle_py4j
     def num_partitions(self):
         """Number of partitions.
 
@@ -2155,7 +2112,6 @@ class MatrixTable(object):
         """
         return self._jvds.nPartitions()
 
-    @handle_py4j
     @typecheck_method(num_partitions=int,
                       shuffle=bool)
     def repartition(self, num_partitions, shuffle=True):
@@ -2211,7 +2167,6 @@ class MatrixTable(object):
         jvds = self._jvds.coalesce(num_partitions, shuffle)
         return MatrixTable(jvds)
 
-    @handle_py4j
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions):
         """Naively decrease the number of partitions.
@@ -2243,7 +2198,6 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.naiveCoalesce(max_partitions))
 
-    @handle_py4j
     def cache(self):
         """Persist the dataset in memory.
 
@@ -2304,7 +2258,6 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.persist(storage_level))
 
-    @handle_py4j
     def unpersist(self):
         """
         Unpersists this dataset from memory/disk.
@@ -2321,7 +2274,6 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.unpersist())
 
-    @handle_py4j
     @typecheck_method(name=str)
     def index_rows(self, name='row_idx'):
         """Add the integer index of each row as a new row field.
@@ -2350,7 +2302,6 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.indexRows(name))
 
-    @handle_py4j
     @typecheck_method(name=str)
     def index_cols(self, name='col_idx'):
         """Add the integer index of each column as a new column field.
@@ -2379,13 +2330,11 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.indexCols(name))
 
-    @handle_py4j
     @typecheck_method(other=matrix_table_type,
                       tolerance=numeric)
     def _same(self, other, tolerance=1e-6):
         return self._jvds.same(other._jvds, tolerance)
 
-    @handle_py4j
     @typecheck(datasets=matrix_table_type)
     def union_rows(*datasets):
         """Take the union of dataset rows.
@@ -2449,7 +2398,6 @@ class MatrixTable(object):
         else:
             return MatrixTable(Env.hail().variant.MatrixTable.unionRows([d._jvds for d in datasets]))
 
-    @handle_py4j
     @typecheck_method(other=matrix_table_type)
     def union_cols(self, other):
         """Take the union of dataset columns.
@@ -2496,7 +2444,6 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.unionCols(other._jvds))
 
-    @handle_py4j
     @typecheck_method(n=int)
     def head(self, n):
         """Subset matrix to first `n` rows.
@@ -2530,13 +2477,11 @@ class MatrixTable(object):
 
         return MatrixTable(self._jvds.head(n))
 
-    @handle_py4j
     @typecheck_method(parts=listof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
     @classmethod
-    @handle_py4j
     @typecheck_method(table=Table)
     def from_rows_table(cls, table):
         """Construct matrix table with no columns from a table.
@@ -2567,7 +2512,6 @@ class MatrixTable(object):
         jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
         return MatrixTable(jmt)
 
-    @handle_py4j
     @typecheck_method(p=numeric,
                       seed=int)
     def sample_rows(self, p, seed=0):
@@ -2598,7 +2542,6 @@ class MatrixTable(object):
 
         return MatrixTable(self._jvds.sampleVariants(p, seed))
 
-    @handle_py4j
     @typecheck_method(fields=dictof(str, str))
     def rename(self, fields):
         """Rename fields of a matrix table.
@@ -2636,7 +2579,9 @@ class MatrixTable(object):
 
         for k, v in fields.items():
             if v in seen:
-                raise ValueError("Cannot rename two fields to the same name: attempted to rename '{}' and '{}' both to '{}'".format(seen[v], k, v))
+                raise ValueError(
+                    "Cannot rename two fields to the same name: attempted to rename '{}' and '{}' both to '{}'".format(
+                        seen[v], k, v))
             if v in self._fields and v not in fields.keys():
                 raise ValueError("Cannot rename '{}; to '{}': field already exists.".format(k, v))
             seen[v] = k

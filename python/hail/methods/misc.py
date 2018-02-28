@@ -1,13 +1,12 @@
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
+from hail.utils.java import Env, jarray_to_list, joption
 from hail.utils import wrap_to_list
 from hail.typecheck.check import typecheck
 from hail.expr.expression import *
 from hail.expr.ast import Reference
 
 
-@handle_py4j
 @typecheck(i=Expression,
            j=Expression,
            keep=bool,
@@ -141,7 +140,6 @@ def require_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method):
     require_variant(dataset, method)
@@ -149,7 +147,6 @@ def require_biallelic(dataset, method):
     return dataset
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable, name=str)
 def rename_duplicates(dataset, name='unique_id'):
     """Rename duplicate column keys.
@@ -188,7 +185,6 @@ def rename_duplicates(dataset, name='unique_id'):
     return MatrixTable(dataset._jvds.renameDuplicates(name))
 
 
-@handle_py4j
 @typecheck(ds=MatrixTable,
            intervals=oneof(Interval, listof(Interval)),
            keep=bool)

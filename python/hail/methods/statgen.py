@@ -8,14 +8,13 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
-from hail.utils.java import handle_py4j, joption, jarray
+from hail.utils.java import joption, jarray
 from hail.utils.misc import check_collisions
 from hail.methods.misc import require_biallelic, require_variant
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 import itertools
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            maf=nullable(expr_numeric),
            bounded=bool,
@@ -102,7 +101,6 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               joption(max)))
 
 
-@handle_py4j
 @typecheck(call=expr_call,
            aaf_threshold=numeric,
            include_par=bool,
@@ -342,7 +340,6 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     return cleanup(MatrixTable(jm))
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            test=str,
            y=oneof(expr_bool, expr_numeric),
@@ -579,7 +576,6 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     return cleanup(MatrixTable(jds))
 
 
-@handle_py4j
 @typecheck(ds=MatrixTable,
            kinshipMatrix=KinshipMatrix,
            y=expr_numeric,
@@ -1091,7 +1087,6 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     return cleanup(MatrixTable(jds))
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            key_expr=expr_any,
            weight_expr=expr_numeric,
@@ -1285,7 +1280,6 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     return Table(jt)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            k=int,
            compute_loadings=bool,
@@ -1376,7 +1370,6 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     return result
 
 
-@handle_py4j
 @typecheck(entry_expr=expr_numeric,
            k=int,
            compute_loadings=bool,
@@ -1485,7 +1478,6 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            k=int,
            maf=numeric,
@@ -1753,6 +1745,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
                    min_kinship,
                    intstatistics))
 
+
 class SplitMulti(object):
     """Split multiallelic variants.
 
@@ -1781,7 +1774,6 @@ class SplitMulti(object):
     >>> split_ds = sm.result()
     """
 
-    @handle_py4j
     @typecheck_method(ds=MatrixTable,
                       keep_star=bool,
                       left_aligned=bool)
@@ -1887,7 +1879,7 @@ class SplitMulti(object):
             self._entry_fields = {}
 
         base, _ = self._ds._process_joins(*itertools.chain(
-                self._row_fields.values(), self._entry_fields.values()))
+            self._row_fields.values(), self._entry_fields.values()))
 
         annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
                                   for k, v in self._row_fields.items()])
@@ -1903,7 +1895,6 @@ class SplitMulti(object):
         return MatrixTable(jvds)
 
 
-@handle_py4j
 @typecheck(ds=MatrixTable,
            keep_star=bool,
            left_aligned=bool)
@@ -2162,7 +2153,6 @@ def grm(dataset):
                                             n_variants)
 
 
-@handle_py4j
 @typecheck(call_expr=CallExpression)
 def rrm(call_expr):
     """Computes the Realized Relationship Matrix (RRM).
@@ -2262,7 +2252,6 @@ def rrm(call_expr):
                                             n_variants)
 
 
-@handle_py4j
 @typecheck(num_populations=int,
            num_samples=int,
            num_variants=int,
@@ -2768,11 +2757,11 @@ class FilterAlleles(object):
             hl.is_defined(ds.PL),
             (hl.range(0, hl.triangle(hl.len(self.new_alleles)))
                 .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(ds.alleles)))
-                .filter(lambda oldi: hl.bind(
+                                         .filter(lambda oldi: hl.bind(
                 hl.unphased_diploid_gt_index_call(oldi),
                 lambda oldc: hl.call(self.old_to_new[oldc[0]],
                                      self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
-                .map(lambda oldi: ds.PL[oldi])))),
+                                         .map(lambda oldi: ds.PL[oldi])))),
             hl.null(tarray(tint32)))
         self.annotate_entries(
             GT=hl.call(self.old_to_new[ds.GT[0]],
@@ -2780,8 +2769,8 @@ class FilterAlleles(object):
                 hl.is_defined(ds.AD),
                 (hl.range(0, hl.len(self.new_alleles))
                     .map(lambda newi: hl.sum(hl.range(0, hl.len(ds.alleles))
-                    .filter(lambda oldi: self.old_to_new[oldi] == newi)
-                    .map(lambda oldi: ds.AD[oldi])))),
+                                             .filter(lambda oldi: self.old_to_new[oldi] == newi)
+                                             .map(lambda oldi: ds.AD[oldi])))),
                 hl.null(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
@@ -2801,7 +2790,7 @@ class FilterAlleles(object):
             self._entry_exprs = {}
 
         base, cleanup = self._ds._process_joins(*itertools.chain(
-                [self._filter_expr], self._row_exprs.values(), self._entry_exprs.values()))
+            [self._filter_expr], self._row_exprs.values(), self._entry_exprs.values()))
 
         filter_hql = self._filter_expr._ast.to_hql()
 
@@ -2824,7 +2813,6 @@ class FilterAlleles(object):
         return cleanup(m)
 
 
-@handle_py4j
 @typecheck(ds=MatrixTable,
            num_cores=int,
            r2=numeric,
@@ -2835,7 +2823,6 @@ def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(ds=MatrixTable,
            left_aligned=bool)
 def min_rep(ds, left_aligned=False):

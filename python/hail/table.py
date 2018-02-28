@@ -88,14 +88,12 @@ class TableTemplate(HistoryMixin):
     def __repr__(self):
         return self._jt.toString()
 
-    @handle_py4j
     def get_globals(self):
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jt.globals())
         return self._globals
 
     @property
-    @handle_py4j
     def schema(self):
         if self._schema is None:
             self._schema = Type._from_java(self._jt.signature())
@@ -103,7 +101,6 @@ class TableTemplate(HistoryMixin):
         return self._schema
 
     @property
-    @handle_py4j
     def global_schema(self):
         if self._global_schema is None:
             self._global_schema = Type._from_java(self._jt.globalSignature())
@@ -111,7 +108,6 @@ class TableTemplate(HistoryMixin):
         return self._global_schema
 
     @property
-    @handle_py4j
     def key(self):
         if self._key is None:
             self._key = jiterable_to_list(self._jt.key())
@@ -139,7 +135,6 @@ class GroupedTable(TableTemplate):
         for fd in parent._fields:
             self._set_field(fd, parent._fields[fd])
 
-    @handle_py4j
     @typecheck_method(n=int)
     def partition_hint(self, n):
         """Set the target number of partitions for aggregation.
@@ -178,7 +173,6 @@ class GroupedTable(TableTemplate):
         self._npartitions = n
         return self
 
-    @handle_py4j
     def aggregate(self, **named_exprs):
         """Aggregate by group, used after :meth:`.Table.group_by`.
 
@@ -207,7 +201,8 @@ class GroupedTable(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        base, cleanup = self._parent._process_joins(*itertools.chain((v for _, v in self._groups), named_exprs.values()))
+        base, cleanup = self._parent._process_joins(
+            *itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
@@ -333,7 +328,6 @@ class Table(TableTemplate):
             return self.view_join_rows(*exprs)
 
     @property
-    @handle_py4j
     def schema(self):
         if self._schema is None:
             self._schema = Type._from_java(self._jt.signature())
@@ -341,20 +335,17 @@ class Table(TableTemplate):
         return self._schema
 
     @property
-    @handle_py4j
     def columns(self):
         if self._column_names is None:
             self._column_names = list(self._jt.fieldNames())
         return self._column_names
 
     @property
-    @handle_py4j
     def num_columns(self):
         if self._num_columns is None:
             self._num_columns = self._jt.nColumns()
         return self._num_columns
 
-    @handle_py4j
     def num_partitions(self):
         """Returns the number of partitions in the table.
 
@@ -364,16 +355,13 @@ class Table(TableTemplate):
         """
         return self._jt.nPartitions()
 
-    @handle_py4j
     def count(self):
         return self._jt.count()
 
-    @handle_py4j
     def _force_count(self):
         return self._jt.forceCount()
 
     @classmethod
-    @handle_py4j
     @record_classmethod
     @typecheck_method(rows=oneof(listof(Struct), listof(dictof(str, anytype))),
                       schema=TStruct,
@@ -385,7 +373,6 @@ class Table(TableTemplate):
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
                 schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
-    @handle_py4j
     @typecheck_method(keys=oneof(str, Expression))
     def key_by(self, *keys):
         """Change which columns are keys.
@@ -433,7 +420,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.keyBy(str_keys))
 
-    @handle_py4j
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
 
@@ -470,7 +456,6 @@ class Table(TableTemplate):
         m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    @handle_py4j
     def select_globals(self, *exprs, **named_exprs):
         """Select existing global fields or create new fields by name, dropping the rest.
 
@@ -615,7 +600,6 @@ class Table(TableTemplate):
                              .annotate(",\n".join(exprs))
                              .drop(list(fields_referenced))))
 
-    @handle_py4j
     def annotate(self, **named_exprs):
         """Add new fields.
 
@@ -650,7 +634,6 @@ class Table(TableTemplate):
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
 
-    @handle_py4j
     @typecheck_method(expr=anytype,
                       keep=bool)
     def filter(self, expr, keep=True):
@@ -705,7 +688,6 @@ class Table(TableTemplate):
 
         return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
 
-    @handle_py4j
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
     def select(self, *exprs, **named_exprs):
@@ -812,7 +794,6 @@ class Table(TableTemplate):
         check_field_uniqueness(ids)
         return cleanup(Table(base._jt.select(strs)))
 
-    @handle_py4j
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
         """Drop fields from the table.
@@ -880,7 +861,6 @@ class Table(TableTemplate):
 
         return table
 
-    @handle_py4j
     def export(self, output, types_file=None, header=True, parallel=None):
         """Export to a TSV file.
 
@@ -1024,7 +1004,6 @@ class Table(TableTemplate):
 
         return GroupedTable(self, groups)
 
-    @handle_py4j
     def aggregate(self, expr):
         """Aggregate over rows into a local value.
 
@@ -1062,7 +1041,6 @@ class Table(TableTemplate):
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
         return annotations[0]
 
-    @handle_py4j
     @typecheck_method(output=str,
                       overwrite=bool,
                       _codec_spec=nullable(str))
@@ -1092,7 +1070,6 @@ class Table(TableTemplate):
 
         self._jt.write(output, overwrite, _codec_spec)
 
-    @handle_py4j
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
     def show(self, n=10, width=90, truncate=None, types=True):
         """Print the first few rows of the table to the console.
@@ -1130,7 +1107,6 @@ class Table(TableTemplate):
         to_print = self._jt.showString(n, joption(truncate), types, width)
         print(to_print)
 
-    @handle_py4j
     def view_join_rows(self, *exprs):
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index a table')
@@ -1275,7 +1251,6 @@ class Table(TableTemplate):
         else:
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
-    @handle_py4j
     def view_join_globals(self):
         uid = Env._get_uid()
 
@@ -1314,7 +1289,6 @@ class Table(TableTemplate):
 
         return left, cleanup
 
-    @handle_py4j
     def cache(self):
         """Persist this table in memory.
 
@@ -1374,7 +1348,6 @@ class Table(TableTemplate):
         """
         return Table(self._jt.persist(storage_level))
 
-    @handle_py4j
     def unpersist(self):
         """
         Unpersists this table from memory/disk.
@@ -1391,7 +1364,6 @@ class Table(TableTemplate):
         """
         self._jt.unpersist()
 
-    @handle_py4j
     def collect(self):
         """Collect the rows of the table into a local list.
 
@@ -1447,7 +1419,6 @@ class Table(TableTemplate):
                                                               r=row_fields)
         print(s)
 
-    @handle_py4j
     @typecheck_method(name=str)
     def index(self, name='idx'):
         """Add the integer index of each row as a new row field.
@@ -1496,7 +1467,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.index(name))
 
-    @handle_py4j
     @typecheck_method(tables=table_type)
     def union(self, *tables):
         """Union the rows of multiple tables.
@@ -1532,7 +1502,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.union([table._jt for table in tables]))
 
-    @handle_py4j
     @typecheck_method(n=int)
     def take(self, n):
         """Collect the first `n` rows of the table into a local list.
@@ -1571,7 +1540,6 @@ class Table(TableTemplate):
 
         return [self.schema._convert_to_py(r) for r in self._jt.take(n)]
 
-    @handle_py4j
     @typecheck_method(n=int)
     def head(self, n):
         """Subset table to first `n` rows.
@@ -1605,7 +1573,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.head(n))
 
-    @handle_py4j
     @typecheck_method(p=numeric,
                       seed=int)
     def sample(self, p, seed=0):
@@ -1636,7 +1603,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.sample(p, seed))
 
-    @handle_py4j
     @typecheck_method(n=int,
                       shuffle=bool)
     def repartition(self, n, shuffle=True):
@@ -1671,7 +1637,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.repartition(n, shuffle))
 
-    @handle_py4j
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'))
     def join(self, right, how='inner'):
@@ -1723,7 +1688,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.join(right._jt, how))
 
-    @handle_py4j
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
         """Evaluate whether a boolean expression is true for all rows.
@@ -1753,7 +1717,6 @@ class Table(TableTemplate):
 
         return base._jt.forall(expr._ast.to_hql())
 
-    @handle_py4j
     @typecheck_method(expr=BooleanExpression)
     def any(self, expr):
         """Evaluate whether a Boolean expression is true for at least one row.
@@ -1785,7 +1748,6 @@ class Table(TableTemplate):
 
         return base._jt.exists(expr._ast.to_hql())
 
-    @handle_py4j
     @typecheck_method(mapping=dictof(str, str))
     def rename(self, mapping):
         """Rename fields of the table.
@@ -1814,7 +1776,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.rename(mapping))
 
-    @handle_py4j
     def expand_types(self):
         """Expand complex types into structs and arrays.
 
@@ -1841,7 +1802,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.expandTypes())
 
-    @handle_py4j
     def flatten(self):
         """Flatten nested structs.
 
@@ -1902,7 +1862,6 @@ class Table(TableTemplate):
 
         return Table(self._jt.flatten())
 
-    @handle_py4j
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
         """Sort by the specified columns.
@@ -1964,7 +1923,6 @@ class Table(TableTemplate):
                     sort_cols.append(e._j_obj())
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
-    @handle_py4j
     @typecheck_method(field=oneof(str, Expression))
     def explode(self, field):
         """Explode rows along a top-level field of the table.
@@ -2052,7 +2010,6 @@ class Table(TableTemplate):
     @typecheck_method(row_key=expr_any,
                       col_key=expr_any,
                       entry_exprs=expr_any)
-    @handle_py4j
     def to_matrix_table(self, row_key, col_key, **entry_exprs):
 
         from hail.matrixtable import MatrixTable
@@ -2078,7 +2035,6 @@ class Table(TableTemplate):
                                                   joption(None)))
 
     @property
-    @handle_py4j
     def globals(self):
         """Returns a struct expression including all global fields.
 
@@ -2093,7 +2049,6 @@ class Table(TableTemplate):
         # return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
 
     @property
-    @handle_py4j
     def row(self):
         """Returns a struct expression including all row-indexed fields.
 
@@ -2107,7 +2062,6 @@ class Table(TableTemplate):
         raise NotImplementedError()
 
     @staticmethod
-    @handle_py4j
     @typecheck(df=DataFrame,
                key=oneof(str, listof(str)))
     def from_spark(df, key=[]):
@@ -2152,7 +2106,6 @@ class Table(TableTemplate):
         """
         return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
-    @handle_py4j
     @typecheck_method(expand=bool,
                       flatten=bool)
     def to_spark(self, expand=True, flatten=True):
@@ -2180,7 +2133,6 @@ class Table(TableTemplate):
             jt = jt.flatten()
         return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.hc()._sql_context)
 
-    @handle_py4j
     @typecheck_method(expand=bool,
                       flatten=bool)
     def to_pandas(self, expand=True, flatten=True):
@@ -2203,7 +2155,6 @@ class Table(TableTemplate):
         """
         return self.to_spark(expand, flatten).toPandas()
 
-    @handle_py4j
     @typecheck_method(other=table_type, tolerance=nullable(numeric))
     def _same(self, other, tolerance=1e-6):
         return self._jt.same(other._jt, tolerance)

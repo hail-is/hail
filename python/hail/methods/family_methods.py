@@ -2,13 +2,11 @@ import hail as hl
 from hail.genetics.pedigree import Pedigree
 from hail.typecheck import *
 import hail.expr.aggregators as agg
-from hail.utils.java import handle_py4j
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from .misc import require_biallelic
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree,
            complete_trios=bool)
@@ -63,7 +61,6 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     """
     return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
 def mendel_errors(dataset, pedigree):
@@ -72,7 +69,7 @@ def mendel_errors(dataset, pedigree):
     .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
-    
+
     .. include:: ../_templates/req_biallelic.rst
 
     Examples
@@ -209,7 +206,6 @@ def mendel_errors(dataset, pedigree):
     return Table(kts._1()), Table(kts._2()), \
            Table(kts._3()), Table(kts._4())
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
 def tdt(dataset, pedigree):
@@ -370,7 +366,7 @@ def tdt(dataset, pedigree):
     # this filter removes mendel error of het father in x_nonpar. It also avoids
     #   building and looking up config in common case that neither parent is het
     parent_is_valid_het = hl.bind(tri.father_entry.GT.is_het(),
-        lambda father_is_het: (father_is_het & tri.auto_or_x_par) | 
+        lambda father_is_het: (father_is_het & tri.auto_or_x_par) |
                               (tri.mother_entry.GT.is_het() & ~father_is_het))
 
     copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)

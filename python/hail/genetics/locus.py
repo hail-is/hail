@@ -1,7 +1,7 @@
 from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.history import *
 from hail.typecheck import *
-from hail.utils.java import scala_object, handle_py4j, Env
+from hail.utils.java import scala_object, Env
 import hail as hl
 
 class Locus(HistoryMixin):
@@ -15,7 +15,6 @@ class Locus(HistoryMixin):
     :type reference_genome: :obj:`str` or :class:`.ReferenceGenome`
     """
 
-    @handle_py4j
     @record_init
     @typecheck_method(contig=oneof(str, int),
                       position=int,
@@ -58,7 +57,6 @@ class Locus(HistoryMixin):
         return l
 
     @classmethod
-    @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
                       reference_genome=reference_genome_type)

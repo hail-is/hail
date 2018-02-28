@@ -1,4 +1,3 @@
-
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
@@ -13,6 +12,7 @@ class KinshipMatrix(HistoryMixin):
     The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
     """
+
     def __init__(self, jkm):
         self._key_schema = None
         self._jkm = jkm
@@ -28,7 +28,6 @@ class KinshipMatrix(HistoryMixin):
             n_rows))
 
     @property
-    @handle_py4j
     def key_schema(self):
         """
         Returns the signature of the key indexing this matrix.
@@ -40,7 +39,6 @@ class KinshipMatrix(HistoryMixin):
             self._key_schema = Type._from_java(self._jkm.sampleSignature())
         return self._key_schema
 
-    @handle_py4j
     def sample_list(self):
         """
         Gets the list of samples. The (i, j) entry of the matrix encodes the relatedness of the ith and jth samples.
@@ -50,7 +48,6 @@ class KinshipMatrix(HistoryMixin):
         """
         return [self.key_schema._convert_to_py(s) for s in self._jkm.sampleIds()]
 
-    @handle_py4j
     def matrix(self):
         """
         Gets the matrix backing this kinship matrix.
@@ -62,7 +59,6 @@ class KinshipMatrix(HistoryMixin):
 
         return IndexedRowMatrix(self._jkm.matrix())
 
-    @handle_py4j
     @typecheck_method(output=str)
     @write_history('output')
     def export_tsv(self, output):
@@ -77,7 +73,6 @@ class KinshipMatrix(HistoryMixin):
         """
         self._jkm.exportTSV(output)
 
-    @handle_py4j
     @typecheck_method(output=str)
     @write_history('output')
     def export_rel(self, output):
@@ -92,7 +87,6 @@ class KinshipMatrix(HistoryMixin):
         """
         self._jkm.exportRel(output)
 
-    @handle_py4j
     @typecheck_method(output=str)
     @write_history('output')
     def export_gcta_grm(self, output):
@@ -107,7 +101,6 @@ class KinshipMatrix(HistoryMixin):
         """
         self._jkm.exportGctaGrm(output)
 
-    @handle_py4j
     @typecheck_method(output=str,
                       opt_n_file=nullable(str))
     @write_history('output')
@@ -126,7 +119,6 @@ class KinshipMatrix(HistoryMixin):
         """
         self._jkm.exportGctaGrmBin(output, joption(opt_n_file))
 
-    @handle_py4j
     @typecheck_method(output=str)
     @write_history('output')
     def export_id_file(self, output):

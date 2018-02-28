@@ -7,6 +7,7 @@ import hail as hl
 
 interval_type = lazy()
 
+
 class Interval(HistoryMixin):
     """
     A genomic interval marked by start and end loci.
@@ -20,16 +21,17 @@ class Interval(HistoryMixin):
     :type end: :class:`.Locus`
     """
 
-    @handle_py4j
     @record_init
     @typecheck_method(start=Locus,
                       end=Locus)
     def __init__(self, start, end):
         if start._rg != end._rg:
-            raise TypeError("expect `start' and `end' to have the same reference genome but found ({}, {})".format(start._rg.name, end._rg.name))
+            raise TypeError(
+                "expect `start' and `end' to have the same reference genome but found ({}, {})".format(start._rg.name,
+                                                                                                       end._rg.name))
         self._rg = start._rg
         self._jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep, self._rg._jrep)
-        
+
         # FIXME
         from hail.expr.types import tlocus
         self._typ = tlocus(self._rg)
@@ -62,7 +64,6 @@ class Interval(HistoryMixin):
         return interval
 
     @classmethod
-    @handle_py4j
     @record_classmethod
     @typecheck_method(string=str,
                       reference_genome=reference_genome_type)
@@ -143,7 +144,6 @@ class Interval(HistoryMixin):
         """
         return self._rg
 
-    @handle_py4j
     @typecheck_method(locus=Locus)
     def contains(self, locus):
         """True if the supplied locus is contained within the interval.
@@ -156,10 +156,10 @@ class Interval(HistoryMixin):
         """
 
         if self._rg != locus._rg:
-            raise TypeError("expect `locus' has reference genome `{}' but found `{}'".format(self._rg.name, locus._rg.name))
+            raise TypeError(
+                "expect `locus' has reference genome `{}' but found `{}'".format(self._rg.name, locus._rg.name))
         return self._jrep.contains(self._typ._jtype.ordering(), locus._jrep)
 
-    @handle_py4j
     @typecheck_method(interval=interval_type)
     def overlaps(self, interval):
         """True if the the supplied interval contains any locus in common with this one.
@@ -176,7 +176,9 @@ class Interval(HistoryMixin):
         :rtype: bool"""
 
         if self._rg != interval._rg:
-            raise TypeError("expect `interval' has reference genome `{}' but found `{}'".format(self._rg.name, interval._rg.name))
+            raise TypeError(
+                "expect `interval' has reference genome `{}' but found `{}'".format(self._rg.name, interval._rg.name))
         return self._jrep.probablyOverlaps(self._typ._jtype.ordering(), interval._jrep)
+
 
 interval_type.set(Interval)

@@ -89,3 +89,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(s.annotate(), s)
         self.assertEqual(s.annotate(x=5), Struct(a=1, b=2, c=3, x=5))
         self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}), Struct(a=5, b=2, c=3, x=10, y=15))
+
+    def test_expr_exception_results_in_fatal_error(self):
+        df = range_table(10)
+        df = df.annotate(x=[1,2])
+        with self.assertRaises(FatalError):
+            df.filter(df.x[5] == 0).count()
