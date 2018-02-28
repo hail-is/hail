@@ -10,4 +10,7 @@ dependencies:
 - pandas
 - matplotlib
 - seaborn
-- parsimonious
+- pip
+- pip:
+    - parsimonious
+    - ipykernel
