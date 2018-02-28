@@ -1067,8 +1067,8 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     If row field names are missing (or the no_header flag is ``True``), row fields
     are imported in column-order as `f0`, `f1`, ... (0-indexed).
 
-    If the no_header flag is ``True``, column IDs will be imported as `col0`,
-    `col1`, ... (also 0-indexed).
+    If the no_header flag is ``True``, column IDs will be imported as integers
+    `0`, `1`, ... (also 0-indexed).
 
     Entries are imported into an entry-indexed field `x`.
 
@@ -1091,8 +1091,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
         Minimum number of partitions.
     no_header: :obj:`bool`
         If ``True``, assume the file has no header and name the row fields `f0`,
-        `f1`, ... `fK` (0-indexed) and the column keys `col0`, `col1`, ...
-        `colN`.
+        `f1`, ... `fK` (0-indexed) and the column keys 0, 1, ... N.
     force_bgz : :obj:`bool`
         If ``True``, load **.gz** files as blocked gzip files, assuming
         that they were actually compressed using the BGZ codec.

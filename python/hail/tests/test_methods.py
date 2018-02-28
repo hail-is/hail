@@ -791,3 +791,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt['Days']._indices, mt._row_indices)
         self.assertEqual(mt['col_id']._indices, mt._col_indices)
         self.assertEqual(mt['row_id']._indices, mt._row_indices)
+
+        mt.count()
+
+        row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
+        hl.import_matrix_table(doctest_file('matrix2.tsv'),
+                               row_fields=row_fields, key=[]).count()
+        hl.import_matrix_table(doctest_file('matrix3.tsv'),
+                               row_fields=row_fields,
+                               no_header=True).count()
+        hl.import_matrix_table(doctest_file('matrix3.tsv'),
+                               row_fields=row_fields,
+                               no_header=True,
+                               key=[]).count()

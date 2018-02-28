@@ -215,13 +215,13 @@ object LoadMatrix {
     }
   }
 
-  def splitHeader(cols: Array[String], nRowFields: Int, nColIDs: Int): (Array[String], Array[String]) = {
+  def splitHeader(cols: Array[String], nRowFields: Int, nColIDs: Int): (Array[String], Array[_]) = {
     if (cols.length == nColIDs) {
       (Array.tabulate(nRowFields)(i => s"f$i"), cols)
     } else if (cols.length == nColIDs + nRowFields) {
       (cols.take(nRowFields), cols.drop(nRowFields))
     } else if (cols.isEmpty) {
-      (Array.tabulate(nRowFields)(i => s"f$i"), Array.tabulate(nColIDs)(i => s"col$i"))
+      (Array.tabulate(nRowFields)(i => s"f$i"), Array.range(0, nColIDs))
     } else
       fatal(
         s"""Expected file header to contain all $nColIDs column IDs and
@@ -297,7 +297,8 @@ object LoadMatrix {
 
     val header1Bc = sc.broadcast(header1)
 
-    LoadMatrix.warnDuplicates(colIDs)
+    if (!noHeader)
+      LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
@@ -340,9 +341,16 @@ object LoadMatrix {
         (Array("row_id"),TStruct("row_id" -> TInt64()) ++ rowFieldType)
       else (keyFields, rowFieldType)
 
+    if (!keyFields.forall(rowType.fieldNames.contains))
+      fatal(
+        s"""Some row keys not found in row schema:
+           |    '${ keyFields.filter(!rowType.fieldNames.contains(_)).mkString("'\n    '") }'
+         """.stripMargin
+      )
+
     val matrixType = MatrixType.fromParts(
       TStruct.empty(),
-      colType = TStruct("col_id" -> TString()),
+      colType = TStruct("col_id" -> (if (noHeader) TInt32() else TString())),
       colKey = Array("col_id"),
       rowType = rowType,
       rowKey = rowKey.toFastIndexedSeq,
