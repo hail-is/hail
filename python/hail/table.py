@@ -89,11 +89,6 @@ class TableTemplate(object):
     def __repr__(self):
         return self._jt.toString()
 
-    def get_globals(self):
-        if self._globals is None:
-            self._globals = self.global_schema._convert_to_py(self._jt.globals())
-        return self._globals
-
     @property
     def schema(self):
         if self._schema is None:
@@ -2042,10 +2037,10 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all global fields.
         """
-        # FIXME: Impossible to correct a struct with the correct schema
-        # FIXME: need 'row' and 'globals' symbol in the Table parser, like VSM
-        raise NotImplementedError()
-        # return hl.struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields})
+        return construct_expr(Reference('global', False), self.global_schema,
+                              indices=self._global_indices,
+                              refs=LinkedList(tuple).push(
+                                  *[(f.name, self._global_indices) for f in self.global_schema.fields]))
 
     @property
     def row(self):

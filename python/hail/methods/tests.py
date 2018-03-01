@@ -636,8 +636,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ds.count_rows(), 25)
         self.assertEqual(ds.num_partitions(), 3)
 
-        glob = ds.get_globals()
-
+        glob = ds.globals
         self.assertEqual(glob.num_populations.value, 2)
         self.assertEqual(glob.num_samples.value, 20)
         self.assertEqual(glob.num_variants.value, 25)
