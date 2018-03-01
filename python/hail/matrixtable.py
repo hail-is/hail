@@ -34,16 +34,6 @@ class GroupedMatrixTable(object):
     def _get_field(self, item):
         return self._parent._get_field(item)
 
-    def _grouped_indices(self):
-        if self._row_keys is None and self._col_keys is None:
-            return self._parent._global_indices
-        elif self._row_keys is not None and self._col_keys is None:
-            return self._parent._row_indices
-        elif self._row_keys is None and self._col_keys is not None:
-            return self._parent._col_indices
-        else:
-            return self._parent._entry_indices
-
     def _fixed_indices(self):
         if self._row_keys is None and self._col_keys is None:
             return self._parent._entry_indices
@@ -105,20 +95,20 @@ class GroupedMatrixTable(object):
         """Print information about grouped matrix table."""
 
         if self._row_keys is None:
-            rowstr = "NA"
+            rowstr = ""
         else:
-            rowstr = "\n".join(["{}: {}".format(k, v) for k, v in self._row_keys.items()])
+            rowstr = "\nRows: \n" + "\n    ".join(["{}: {}".format(k, v._type) for k, v in self._row_keys.items()])
+            if self._partition_key:
+                rowstr += "\n  Partition by: {}".format(self._partition_key)
 
         if self._col_keys is None:
-            colstr = "NA"
+            colstr = ""
         else:
-            colstr = "\n".join(["{}: {}".format(k, v) for k, v in self._col_keys.items()])
+            colstr = "\nColumns: \n" + "\n    ".join(["{}: {}".format(k, v) for k, v in self._col_keys.items()])
 
-        s = '--------------------------------------------\n' \
-        'Rows grouped on: {}\n' \
-        'Cols grouped on: {}\n' \
-        'Partition key: {}\n' \
-        '--------------------------------------------\n' \
+        s = '----------------------------------------\n' \
+        'GroupedMatrixTable grouped by {}\n' \
+        '----------------------------------------\n' \
         'Parent MatrixTable:\n'.format(
             rowstr,
             colstr,
@@ -149,7 +139,7 @@ class GroupedMatrixTable(object):
         ----------
         exprs : args of :obj:`str` or :class:`.Expression`
             Row fields to group by.
-        named_exprs : varargs of :class:`.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Row-indexed expressions to group by.
 
         Returns
@@ -214,7 +204,7 @@ class GroupedMatrixTable(object):
         ----------
         exprs : args of :obj:`str` or :class:`.Expression`
             Column fields to group by.
-        named_exprs : varargs of :class:`.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Column-indexed expressions to group by.
 
         Returns
@@ -258,7 +248,8 @@ class GroupedMatrixTable(object):
         Parameters
         ----------
         fields : varargs of :obj:`str`
-            Fields to partition by. Must be a prefix of the key.
+            Row partition key. Must be a a prefix of the key. By default, the
+            entire key is the partition key.
 
         Returns
         -------
@@ -353,7 +344,7 @@ class GroupedMatrixTable(object):
         base, _ = self._parent._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             if k in fixed_fields:
-                raise ExpressionException("GroupedMatrixTable.group_cols_by cannot assign duplicate field '{}'".format(k))
+                raise ExpressionException("GroupedMatrixTable.aggregate cannot assign duplicate field '{}'".format(k))
             analyze('GroupedMatrixTable.aggregate', v, self._fixed_indices(),
                     {self._parent._row_axis, self._parent._col_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
@@ -365,9 +356,10 @@ class GroupedMatrixTable(object):
             assert self._new_col_keys is not None
             base = MatrixTable(base.key_cols_by(*self._new_col_keys)._jvds
                                .groupSamplesBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]), ',\n'.join(strs)))
-
-        if self._row_keys is not None:
-            base = MatrixTable(base.key_rows_by(*self._new_row_keys, partition_key=self._partition_key)._jvds.groupVariantsBy(',\n'.join(strs)))
+        elif self._row_keys is not None:
+            base = MatrixTable(base.key_rows_by(*self._new_row_keys, partition_key=self._partition_key)._jvds.aggregateRowsByKey(',\n'.join(strs)))
+        else:
+            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
 
         return rename(base)
 
@@ -744,7 +736,7 @@ class MatrixTable(object):
         ----------
         keys : varargs of :obj:`str`
             Row fields to key by.
-        partition_key : (optional) of :obj:`str`
+        partition_key : :obj:`str` or :obj:`list` of :obj:`str`, optional
             Row fields to partition by. Must be a prefix of the key.
             Default: all keys.
         Returns
@@ -1871,7 +1863,7 @@ class MatrixTable(object):
         ----------
         exprs : args of :obj:`str` or :class:`.Expression`
             Row fields to group by.
-        named_exprs : varargs of :class:`.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Row-indexed expressions to group by.
 
         Returns
@@ -1905,7 +1897,7 @@ class MatrixTable(object):
         ----------
         exprs : args of :obj:`str` or :class:`.Expression`
             Column fields to group by.
-        named_exprs : varargs of :class:`.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Column-indexed expressions to group by.
 
         Returns
