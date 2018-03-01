@@ -48,7 +48,8 @@ def create_all_values_datasets():
         i=hl.interval(
             hl.locus('1', 999),
             hl.locus('1', 1001)),
-        c=hl.call(0, 1))
+        c=hl.call(0, 1),
+        t=hl.tuple([hl.call(1, 2, phased=True), 'foo']))
 
     def prefix(s, p):
         return hl.struct(**{p + k: s[k] for k in s})
