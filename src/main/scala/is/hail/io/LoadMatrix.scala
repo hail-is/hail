@@ -290,6 +290,9 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
+    if (files.isEmpty)
+      fatal("no files specified for import_matrix_table.")
+
     val (header1, nCols) = parseHeader(hConf, files.head, sep, nAnnotations, noHeader)
     val (rowFieldNames, colIDs) = splitHeader(header1, nAnnotations, nCols)
 

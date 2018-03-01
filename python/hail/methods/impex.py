@@ -1019,6 +1019,30 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
     ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
     ...                                  key='Barcode')
+    >>> matrix1.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Column fields:
+        'col_id': str
+    ----------------------------------------
+    Row fields:
+        'Barcode': str
+        'Tissue': str
+        'Days': float32
+    ----------------------------------------
+    Entry fields:
+        'x': int32
+    ----------------------------------------
+    Column key:
+        'col_id': str
+    Row key:
+        'Barcode': str
+    Partition key:
+        'Barcode': str
+    ----------------------------------------
+>>>>>>> address comments
 
     If the header information is missing for the row fields, like in the following:
 
@@ -1055,6 +1079,21 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
 
     Notes
     -----
+
+    The structure of the imported matrix table is:
+
+        - **row fields** are named as specified in the column header. If they
+        are missing from the header or ``no_header=True``, row field names are
+        set to the strings `f0`, `f1`, ... (0-indexed) in column order.
+
+        - **col_id** is the column key. It contains the IDs from the header of
+        the imported file as a :obj:`str`. If ``no_header=True``, column IDs are
+        set to integers 0, 1, ... (also 0-indexed) in column order.
+
+        - **x** is the entry field that contains the data from the imported
+        matrix.
+
+
     All columns to be imported as row fields must be at the start of the row.
 
     Unlike import_table, no type imputation is done so types must be specified
@@ -1063,14 +1102,6 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     The header information for row fields is allowed to be missing, if the
     column IDs are present, but the header must then consist only of tab-delimited
     column IDs (no row field names).
-
-    If row field names are missing (or the no_header flag is ``True``), row fields
-    are imported in column-order as `f0`, `f1`, ... (0-indexed).
-
-    If the no_header flag is ``True``, column IDs will be imported as integers
-    `0`, `1`, ... (also 0-indexed).
-
-    Entries are imported into an entry-indexed field `x`.
 
     Parameters
     ----------
