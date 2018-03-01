@@ -1017,8 +1017,8 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     To import this matrix:
 
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
-    ...                              row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
-    ...                              key='Barcode')
+    ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
+    ...                                  key='Barcode')
 
     If the header information is missing for the row fields, like in the following:
 
@@ -1034,8 +1034,8 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     The row fields get imported as `f0`, `f1`, and `f2`, so we need to do:
 
     >>> matrix2 = hl.import_matrix_table('data/matrix2.tsv',
-    ...                              row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2':hl.tfloat32},
-    ...                              key='f0')
+    ...                                  row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2':hl.tfloat32},
+    ...                                  key='f0')
     >>> matrix2.rename({'f0': 'Barcode', 'f1': 'Tissue', 'f2': 'Days'})
 
     Sometimes, the header and row information is missing completely:
@@ -1084,7 +1084,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     entry_type: :class:`.Type`
         Type of entries in matrix table. Must be one of: :py:data:`.tint32`,
         :py:data:`.tint64`, :py:data:`.tfloat32`, :py:data:`.tfloat64`, or
-         :py:data:`.tstr`. Default: :py:data:`.tint32`.
+        :py:data:`.tstr`. Default: :py:data:`.tint32`.
     missing: :obj:`str`
         Identifier to be treated as missing. Default: NA
     min_partitions: :obj:`int` or :obj:`None`
