@@ -985,13 +985,13 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
 @typecheck(paths=oneof(str, listof(str)),
            row_fields=dictof(str, Type),
-           key=oneof(str, listof(str)),
+           row_key=oneof(str, listof(str)),
            entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
            missing=str,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None,
+def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, missing="NA", min_partitions=None,
                         no_header=False, force_bgz=False):
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
@@ -1042,7 +1042,6 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     Partition key:
         'Barcode': str
     ----------------------------------------
->>>>>>> address comments
 
     If the header information is missing for the row fields, like in the following:
 
@@ -1080,17 +1079,22 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     Notes
     -----
 
-    The structure of the imported matrix table is:
+    The resulting matrix table has the following structure:
 
-        - **row fields** are named as specified in the column header. If they
+        - The **row fields** are named as specified in the column header. If they
         are missing from the header or ``no_header=True``, row field names are
-        set to the strings `f0`, `f1`, ... (0-indexed) in column order.
-
-        - **col_id** is the column key. It contains the IDs from the header of
-        the imported file as a :obj:`str`. If ``no_header=True``, column IDs are
-        set to integers 0, 1, ... (also 0-indexed) in column order.
-
-        - **x** is the entry field that contains the data from the imported
+        set to the strings `f0`, `f1`, ... (0-indexed) in column order. The types
+        of all row fields must be specified in the `row_fields` argument.
+        - The **row key** is taken from the `row_key` argument, and must be a
+        subset of row fields. If left empty, the row key will be a new row field
+        `row_idx` of type :obj:`int`, whose values 0, 1, ... are an index on the
+        original rows of the matrix.
+        - There is one column field, **col_id**, which is a key field of type
+        :obj:str or :obj:int. By default, its values are the strings given by
+        the corresponding column names in the header line. If ``no_header=True``,
+        column IDs are set to integers 0, 1, ... (also 0-indexed) in column
+        order.
+        - There is one entry field, **x**, that contains the data from the imported
         matrix.
 
 
@@ -1110,7 +1114,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     row_fields: :obj:`dict` of :obj:`str` to :class:`.Type`
         Columns to take as row fields in the MatrixTable. They must be located
         before all entry columns.
-    key: :obj:`str` or :obj:`list` of :obj:`str`
+    row_key: :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s). If empty, creates an index `row_id` to use as key.
     entry_type: :class:`.Type`
         Type of entries in matrix table. Must be one of: :py:data:`.tint32`,
