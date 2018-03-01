@@ -132,6 +132,9 @@ class GroupedTable(TableTemplate):
         for fd in parent._fields:
             self._set_field(fd, parent._fields[fd])
 
+    def __iter__(self):
+        raise TypeError("'GroupedTable' object is not iterable")
+
     @typecheck_method(n=int)
     def partition_hint(self, n):
         """Set the target number of partitions for aggregation.
@@ -323,6 +326,9 @@ class Table(TableTemplate):
         else:
             exprs = item if isinstance(item, tuple) else (item,)
             return self.view_join_rows(*exprs)
+
+    def __iter__(self):
+        raise TypeError("'Table' object is not iterable")
 
     @property
     def schema(self):
