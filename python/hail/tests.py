@@ -289,11 +289,12 @@ class TableTests(unittest.TestCase):
 
         kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
+        self.assertEqual(kt.foo.value, 5)
 
         kt2 = hl.utils.range_table(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
-        self.assertEqual(kt2.get_globals().kt_foo, 5)
+        self.assertEqual(kt2.globals.kt_foo.value, 5)
 
     def test_drop(self):
         kt = hl.utils.range_table(10)
@@ -542,10 +543,10 @@ class MatrixTests(unittest.TestCase):
                                   [hl.tint32, hl.tbool]),
             key=['key'])
         ds = ds.annotate_rows(key=ds.locus.position % 2)
-        ds = ds.annotate_rows(value=kt[ds['key']].value)
+        ds = ds.annotate_rows(value=kt[ds['key']]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all(((rt.locus.position % 2) == 0) == rt.value))
+            rt.all(((rt.locus.position % 2) == 0) == rt['value']))
 
     def test_computed_key_join_2(self):
         # multiple keys
@@ -559,10 +560,10 @@ class MatrixTests(unittest.TestCase):
                                   [hl.tint32, hl.tint32, hl.tint32]),
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
-        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
+        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
+            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt['value']))
 
     def test_computed_key_join_3(self):
         # duplicate row keys
@@ -576,13 +577,13 @@ class MatrixTests(unittest.TestCase):
             dsfoo='bar',
             info=ds.info.annotate(culprit=[ds.info.culprit, "foo"]))
         ds = ds.explode_rows(ds.info.culprit)
-        ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo].value)
+        ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo]['value'])
         rt = ds.rows()
         self.assertTrue(
             rt.all(hl.cond(
                 rt.info.culprit == "InbreedingCoeff",
-                rt.value == "IB",
-                hl.is_missing(rt.value))))
+                rt['value'] == "IB",
+                hl.is_missing(rt['value']))))
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(test_file('33alleles.vcf'))

@@ -646,13 +646,12 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     return _func("hwe", ret_type, num_hom_ref, num_het, num_hom_var)
 
 
-@typecheck(structs=oneof(expr_array, listof(Struct)),
+@typecheck(structs=oneof(expr_array),
            identifier=str)
 def index(structs, identifier):
     if not isinstance(structs.dtype.element_type, TStruct):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
                         .format(structs.dtype))
-    structs = to_expr(structs)
     struct_type = structs._type.element_type
     struct_fields = {fd.name: fd.dtype for fd in struct_type.fields}
 
@@ -843,7 +842,7 @@ def interval(start, end):
     .. doctest::
 
         >>> hl.eval_expr(hl.interval(hl.locus("1", 100),
-        ...                              hl.locus("1", 1000)))
+        ...                          hl.locus("1", 1000)))
         Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
                  end=Locus(contig=1, position=1000, reference_genome=GRCh37))
     Parameters
@@ -1111,7 +1110,7 @@ def json(x):
         >>> hl.eval_expr(hl.json([1,2,3,4,5]))
         '[1,2,3,4,5]'
 
-        >>> hl.eval_expr(hl.json(hl.Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
+        >>> hl.eval_expr(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
         '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -2003,7 +2002,7 @@ def str(x):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.str(hl.Struct(a=5, b=7)))
+        >>> hl.eval_expr(hl.str(hl.struct(a=5, b=7)))
         '{"a":5,"b":7}'
 
     Parameters
@@ -2411,7 +2410,7 @@ def map(f, collection):
                                          lambda t: collection.dtype.__class__(t))
 
 
-@typecheck(x=oneof(expr_set, expr_array, expr_dict, expr_str))
+@typecheck(x=oneof(expr_set, expr_array, expr_dict, expr_str, expr_tuple))
 def len(x):
     """Returns the size of a collection or string.
 
@@ -2440,7 +2439,10 @@ def len(x):
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    return x._method("size", tint32)
+    if isinstance(x.dtype, ttuple):
+        return hl.int32(builtins.len(x))
+    else:
+        return x._method("size", tint32)
 
 
 @typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))

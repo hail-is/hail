@@ -108,6 +108,8 @@ def impute_type(x):
     elif isinstance(x, tuple):
         return ttuple(*(impute_type(element) for element in x))
     elif isinstance(x, list):
+        if len(x) == 0:
+            raise ExpressionException('Cannot impute type of empty list.')
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
         if not unified_type:
@@ -115,6 +117,8 @@ def impute_type(x):
                                       "found list with elements of types {} ".format(list(ts)))
         return tarray(unified_type)
     elif isinstance(x, set):
+        if len(x) == 0:
+            raise ExpressionException('Cannot impute type of empty set.')
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
         if not unified_type:
@@ -122,6 +126,8 @@ def impute_type(x):
                                       "found set with elements of types {} ".format(list(ts)))
         return tset(unified_type)
     elif isinstance(x, dict):
+        if len(x) == 0:
+            raise ExpressionException('Cannot impute type of empty dict.')
         kts = {impute_type(element) for element in x.keys()}
         vts = {impute_type(element) for element in x.values()}
         unified_key_type = unify_types_limited(*kts)
@@ -154,7 +160,9 @@ def to_expr(e, dtype=None):
 
 
 def _to_expr(e, dtype):
-    if isinstance(e, Expression):
+    if e is None:
+        return hl.null(dtype)
+    elif isinstance(e, Expression):
         if e.dtype != dtype:
             assert is_numeric(dtype), 'expected {}, got {}'.format(dtype, e.dtype)
             if dtype == tfloat64:
@@ -762,7 +770,22 @@ class Expression(object):
         t = self._to_table(uid)
         return [r[uid] for r in t.select(uid).collect()]
 
+    @property
+    def value(self):
+        """Evaluate this expression.
 
+        Notes
+        -----
+        This expression must have no indices, but can refer to the
+        globals of a a :class:`.hail.Table` or
+        :class:`.hail.MatrixTable`.
+
+        Returns
+        -------
+            The value of this expression.
+
+        """
+        return eval_expr(self)
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
@@ -1912,7 +1935,7 @@ class Aggregable(object):
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
 
-    >>> s = hl.capture(hl.Struct(a=5, b='Foo'))
+    >>> s = hl.capture(hl.struct(a=5, b='Foo'))
 
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
@@ -2035,7 +2058,7 @@ class StructExpression(Mapping, Expression):
         for fd in self.dtype.fields:
             names.append(fd.name)
             types.append(fd.dtype)
-        kwargs_struct = to_expr(Struct(**named_exprs))
+        kwargs_struct = hl.struct(**named_exprs)
 
         for fd in kwargs_struct.dtype.fields:
             if not fd.name in self._fields:
@@ -2095,7 +2118,7 @@ class StructExpression(Mapping, Expression):
         select_names = names[:]
         select_name_set = set(select_names)
 
-        kwargs_struct = to_expr(Struct(**named_exprs))
+        kwargs_struct = hl.struct(**named_exprs)
         for fd in kwargs_struct.dtype.fields:
             if fd.name in select_name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
@@ -3235,7 +3258,7 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.TLocus`.
 
-    >>> locus = hl.capture(hl.Locus('1', 100))
+    >>> locus = hl.locus('1', 100)
     """
 
     @property
@@ -3423,10 +3446,10 @@ class IntervalExpression(Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(interval.contains(hl.Locus('X', 3000000)))
+            >>> hl.eval_expr(interval.contains(hl.locus('X', 3000000)))
             False
 
-            >>> hl.eval_expr(interval.contains(hl.Locus('X', 1500000)))
+            >>> hl.eval_expr(interval.contains(hl.locus('X', 1500000)))
             True
 
         Parameters
@@ -3621,8 +3644,8 @@ def eval_expr(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
-    objects cannot be evaluated.
+    The expression must have no indices, but can refer to the globals
+    of a a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
 
     Examples
     --------
@@ -3654,8 +3677,8 @@ def eval_expr_typed(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
-    objects cannot be evaluated.
+    The expression must have no indices, but can refer to the globals
+    of a a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
 
     Examples
     --------
@@ -3676,8 +3699,9 @@ def eval_expr_typed(expression):
     -------
     (any, :class:`.Type`)
         Result of evaluating `expression`, and its type.
+
     """
-    analyze('eval_expr_typed', expression, Indices())
+    analyze('eval_expr_typed', expression, Indices(expression._indices.source))
 
     return expression.collect()[0], expression.dtype
 
@@ -3689,6 +3713,7 @@ _lazy_set.set(SetExpression)
 _lazy_dict.set(DictExpression)
 _lazy_bool.set(BooleanExpression)
 _lazy_struct.set(StructExpression)
+_lazy_tuple.set(TupleExpression)
 _lazy_string.set(StringExpression)
 _lazy_locus.set(LocusExpression)
 _lazy_interval.set(IntervalExpression)

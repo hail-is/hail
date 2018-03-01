@@ -1,7 +1,7 @@
 import unittest
 
 import hail as hl
-from hail import Struct, Table, Locus
+from hail import Table, Locus
 import hail.expr.aggregators as agg
 from hail.expr.types import *
 from hail.expr import dtype
@@ -96,21 +96,21 @@ class Tests(unittest.TestCase):
 
     def test_aggregators(self):
         table = hl.utils.range_table(10)
-        r = table.aggregate(Struct(x=agg.count(),
-                                   y=agg.count_where(table.idx % 2 == 0),
-                                   z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
-                                   arr_sum=agg.array_sum([1, 2, hl.null(tint32)])))
+        r = table.aggregate(hl.struct(x=agg.count(),
+                                      y=agg.count_where(table.idx % 2 == 0),
+                                      z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
+                                      arr_sum=agg.array_sum([1, 2, hl.null(tint32)])))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
         self.assertEqual(r.arr_sum, [10, 20, 0])
 
-        r = table.aggregate(Struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
-                                   lessthan6=agg.fraction(table.idx < 6),
-                                   gt6=agg.fraction(table.idx > 6),
-                                   assert1=agg.fraction(table.idx > 6) < 0.50,
-                                   assert2=agg.fraction(table.idx < 6) >= 0.50))
+        r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
+                                      lessthan6=agg.fraction(table.idx < 6),
+                                      gt6=agg.fraction(table.idx > 6),
+                                      assert1=agg.fraction(table.idx > 6) < 0.50,
+                                      assert2=agg.fraction(table.idx < 6) >= 0.50))
         self.assertEqual(r.fraction_odd, 0.50)
         self.assertEqual(r.lessthan6, 0.60)
         self.assertEqual(r.gt6, 0.30)
@@ -174,7 +174,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(make_case(2)), None)
 
     def test_struct_ops(self):
-        s = hl.capture(Struct(f1=1, f2=2, f3=3))
+        s = hl.struct(f1=1, f2=2, f3=3)
 
         def assert_typed(expr, result, dtype):
             self.assertEqual(expr.dtype, dtype)
@@ -183,39 +183,39 @@ class Tests(unittest.TestCase):
             self.assertEqual(result, r)
 
         assert_typed(s.drop('f3'),
-                     Struct(f1=1, f2=2),
+                     hl.Struct(f1=1, f2=2),
                      tstruct.from_lists(['f1', 'f2'], [tint32, tint32]))
 
         assert_typed(s.drop('f1'),
-                     Struct(f2=2, f3=3),
+                     hl.Struct(f2=2, f3=3),
                      tstruct.from_lists(['f2', 'f3'], [tint32, tint32]))
 
         assert_typed(s.drop(),
-                     Struct(f1=1, f2=2, f3=3),
+                     hl.Struct(f1=1, f2=2, f3=3),
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
         assert_typed(s.select('f1', 'f2'),
-                     Struct(f1=1, f2=2),
+                     hl.Struct(f1=1, f2=2),
                      tstruct.from_lists(['f1', 'f2'], [tint32, tint32]))
 
         assert_typed(s.select('f2', 'f1', f4=5, f5=6),
-                     Struct(f2=2, f1=1, f4=5, f5=6),
+                     hl.Struct(f2=2, f1=1, f4=5, f5=6),
                      tstruct.from_lists(['f2', 'f1', 'f4', 'f5'], [tint32, tint32, tint32, tint32]))
 
         assert_typed(s.select(),
-                     Struct(),
+                     hl.Struct(),
                      tstruct())
 
         assert_typed(s.annotate(f1=5, f2=10, f4=15),
-                     Struct(f1=5, f2=10, f3=3, f4=15),
+                     hl.Struct(f1=5, f2=10, f3=3, f4=15),
                      tstruct.from_lists(['f1', 'f2', 'f3', 'f4'], [tint32, tint32, tint32, tint32]))
 
         assert_typed(s.annotate(f1=5),
-                     Struct(f1=5, f2=2, f3=3),
+                     hl.Struct(f1=5, f2=2, f3=3),
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
         assert_typed(s.annotate(),
-                     Struct(f1=1, f2=2, f3=3),
+                     hl.Struct(f1=1, f2=2, f3=3),
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
     def test_iter(self):
@@ -879,14 +879,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([0.0, 0.5, 0.5])), 1.5)
 
     def test_call(self):
-        from hail import Call
-        c2_homref = hl.capture(Call([0, 0]))
-        c2_het = hl.capture(Call([1, 0], phased=True))
-        c2_homvar = hl.capture(Call([1, 1]))
-        c2_hetvar = hl.capture(Call([2, 1], phased=True))
-        c1 = hl.capture(Call([1]))
-        c0 = hl.capture(Call([]))
-        cNull = hl.capture(hl.null(tcall))
+        c2_homref = hl.call(0, 0)
+        c2_het = hl.call(1, 0, phased=True)
+        c2_homvar = hl.call(1, 1)
+        c2_hetvar = hl.call(2, 1, phased=True)
+        c1 = hl.call(1)
+        c0 = hl.call()
+        cNull = hl.null(tcall)
 
         self.check_expr(c2_homref.ploidy, 2, tint32)
         self.check_expr(c2_homref[0], 0, tint32)
@@ -952,8 +951,8 @@ class Tests(unittest.TestCase):
         self.check_expr(call_expr.ploidy, 2, tint32)
 
     def test_parse_variant(self):
-        self.assertEqual(hl.eval_expr(hl.parse_variant('1:1:A:T')), Struct(locus=Locus('1', 1),
-                                                                           alleles=['A', 'T']))
+        self.assertEqual(hl.parse_variant('1:1:A:T').value,
+                         hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))
 
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
@@ -1071,6 +1070,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(t[3][1]) == 5)
         self.assertTrue(hl.eval_expr(t[4][1][1][1]) == 4)
 
-        self.assertTrue(hl.eval_expr(len(t0) == 0))
-        self.assertTrue(hl.eval_expr(len(t2) == 2))
-        self.assertTrue(hl.eval_expr(len(t)) == 5)
+        self.assertTrue(hl.eval_expr(hl.len(t0) == 0))
+        self.assertTrue(hl.eval_expr(hl.len(t2) == 2))
+        self.assertTrue(hl.eval_expr(hl.len(t)) == 5)

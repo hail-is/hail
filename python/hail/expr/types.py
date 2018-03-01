@@ -8,6 +8,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 import json
+from collections import Mapping
 
 
 def dtype(type_str):
@@ -736,22 +737,23 @@ class TStruct(Type):
         if annotation is not None:
             return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
                 Env.jutils().arrayListToISeq(
-                    [f.dtype._convert_to_j(annotation.get(f.name)) for f in self.fields]
-                )
-            )
+                    [f.dtype._convert_to_j(annotation.get(f.name)) for f in self.fields]))
         else:
             return None
 
     def _typecheck(self, annotation):
         if annotation:
-            if not isinstance(annotation, Struct):
-                raise TypeError("TStruct expected type hail.genetics.Struct, but found '%s'" %
+            if isinstance(annotation, Mapping):
+                s = set([f.name for f in self.fields])
+                for f in annotation:
+                    if f not in s:
+                        raise TypeError("TStruct expected fields '%s', but found fields '%s'" %
+                                        ([f.name for f in self.fields], list(annotation)))
+                for f in self.fields:
+                    f.dtype._typecheck(annotation.get(f.name))
+            else:
+                raise TypeError("TStruct expected type Mapping (e.g. hail.genetics.Struct or dict), but found '%s'" %
                                 type(annotation))
-            for f in self.fields:
-                if not (f.name in annotation):
-                    raise TypeError("TStruct expected fields '%s', but found fields '%s'" %
-                                    ([f.name for f in self.fields], annotation._fields))
-                f.dtype._typecheck((annotation[f.name]))
 
     def __str__(self):
         return "struct{{{}}}".format(

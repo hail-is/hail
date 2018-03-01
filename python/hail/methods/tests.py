@@ -591,7 +591,7 @@ class Tests(unittest.TestCase):
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
         schema = hl.tstruct.from_lists(['i', 'j', 'entry'],
                                        [hl.tint32, hl.tint32, hl.tfloat64])
-        table = hl.Table.parallelize(rows, schema)
+        table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))
 
@@ -636,15 +636,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(ds.count_rows(), 25)
         self.assertEqual(ds.num_partitions(), 3)
 
-        glob = ds.get_globals()
-
-        self.assertEqual(glob.num_populations, 2)
-        self.assertEqual(glob.num_samples, 20)
-        self.assertEqual(glob.num_variants, 25)
-        self.assertEqual(glob.pop_dist, [1, 2])
-        self.assertEqual(glob.fst, [.02, .06])
-        self.assertEqual(glob.seed, 1)
-        self.assertEqual(glob.ancestral_af_dist, hl.Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
+        glob = ds.globals
+        self.assertEqual(glob.num_populations.value, 2)
+        self.assertEqual(glob.num_samples.value, 20)
+        self.assertEqual(glob.num_variants.value, 25)
+        self.assertEqual(glob.pop_dist.value, [1, 2])
+        self.assertEqual(glob.fst.value, [.02, .06])
+        self.assertEqual(glob.seed.value, 1)
+        self.assertEqual(glob.ancestral_af_dist.value,
+                         hl.Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
 
     def test_skat(self):
         ds2 = hl.import_vcf(test_file('sample2.vcf'))

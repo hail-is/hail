@@ -3,7 +3,6 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.stats import *
 from hail.utils.java import warn
-from hail import Struct
 
 if not os.path.isdir("output/"):
     os.mkdir("output/")
@@ -25,13 +24,13 @@ ds = ds.annotate_rows(use_in_kinship=hl.rand_bool(0.9),
 ds = ds.annotate_rows(a_index=1)
 ds = hl.sample_qc(hl.variant_qc(ds))
 ds = ds.annotate_cols(is_case=True,
-                      pheno=hl.Struct(is_case=hl.rand_bool(0.5),
+                      pheno=hl.struct(is_case=hl.rand_bool(0.5),
                                       is_female=hl.rand_bool(0.5),
                                       age=hl.rand_norm(65, 10),
                                       height=hl.rand_norm(70, 10),
                                       blood_pressure=hl.rand_norm(120, 20),
                                       cohort_name="cohort1"),
-                      cov=hl.Struct(PC1=hl.rand_norm(0, 1)),
+                      cov=hl.struct(PC1=hl.rand_norm(0, 1)),
                       cov1=hl.rand_norm(0, 1),
                       cov2=hl.rand_norm(0, 1))
 

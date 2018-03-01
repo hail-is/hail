@@ -33,8 +33,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None):
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> samples = dataset.cols()
     >>> pairs_with_case = pairs.select(
-    ...     i=hl.Struct(id=pairs.i, is_case=samples[pairs.i].is_case),
-    ...     j=hl.Struct(id=pairs.j, is_case=samples[pairs.j].is_case))
+    ...     i=hl.struct(id=pairs.i, is_case=samples[pairs.i].is_case),
+    ...     j=hl.struct(id=pairs.j, is_case=samples[pairs.j].is_case))
     >>> def tie_breaker(l, r):
     ...     return hl.cond(l.is_case & ~r.is_case, -1,
     ...                    hl.cond(~l.is_case & r.is_case, 1, 0))

@@ -89,11 +89,6 @@ class TableTemplate(object):
     def __repr__(self):
         return self._jt.toString()
 
-    def get_globals(self):
-        if self._globals is None:
-            self._globals = self.global_schema._convert_to_py(self._jt.globals())
-        return self._globals
-
     @property
     def schema(self):
         if self._schema is None:
@@ -278,9 +273,9 @@ class Table(TableTemplate):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(Struct(mean_c1 = agg.mean(table1.C1),
-    ...                                    mean_c2 = agg.mean(table1.C2),
-    ...                                    stats_c3 = agg.stats(table1.C3)))
+    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = agg.mean(table1.C1),
+    ...                                       mean_c2 = agg.mean(table1.C2),
+    ...                                       stats_c3 = agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group columns and aggregate to produce a new table:
@@ -363,11 +358,16 @@ class Table(TableTemplate):
         return self._jt.forceCount()
 
     @classmethod
-    @typecheck_method(rows=oneof(listof(Struct), listof(dictof(str, anytype))),
+    @typecheck_method(rows=anytype,
                       schema=TStruct,
                       key=oneof(str, listof(str)),
                       num_partitions=nullable(int))
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
+        rows = to_expr(rows, hl.tarray(schema))
+        if not isinstance(rows.dtype.element_type, tstruct):
+            raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
+                            .format(rows.dtype))
+        rows = rows.value
         return Table(
             Env.hail().table.Table.parallelize(
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
@@ -737,7 +737,7 @@ class Table(TableTemplate):
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = hl.Struct(x=table1.X, z=table1.Z))
+        >>> table3 = table1.annotate(s = hl.struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, producing a table with one field, `x`.:
 
@@ -948,7 +948,7 @@ class Table(TableTemplate):
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = hl.Struct(x=table1.X, z=table1.Z))
+        >>> table3 = table1.annotate(s = hl.struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, grouping by one field, `x`:
 
@@ -1013,8 +1013,8 @@ class Table(TableTemplate):
 
         .. doctest::
 
-            >>> table1.aggregate(Struct(fraction_male=agg.fraction(table1.SEX == 'M'),
-            ...                         mean_x=agg.mean(table1.X)))
+            >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
+            ...                            mean_x=agg.mean(table1.X)))
             Struct(fraction_male=0.5, mean_x=6.5)
 
         Note
@@ -2037,10 +2037,10 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all global fields.
         """
-        # FIXME: Impossible to correct a struct with the correct schema
-        # FIXME: need 'row' and 'globals' symbol in the Table parser, like VSM
-        raise NotImplementedError()
-        # return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
+        return construct_expr(Reference('global', False), self.global_schema,
+                              indices=self._global_indices,
+                              refs=LinkedList(tuple).push(
+                                  *[(f.name, self._global_indices) for f in self.global_schema.fields]))
 
     @property
     def row(self):
