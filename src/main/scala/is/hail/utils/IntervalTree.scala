@@ -14,8 +14,11 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
     val compareStart = pord.compare(position, start)
-    val compareEnd = pord.compare(position, end)
-    (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd < 0 || (includeEnd && compareEnd == 0))
+    if (compareStart > 0 || (compareStart == 0 && includeStart)) {
+      val compareEnd = pord.compare(position, end)
+      compareEnd < 0 || (compareEnd == 0 && includeEnd)
+    } else
+      false
   }
 
   def probablyOverlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
@@ -39,12 +42,12 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
   def disjointAndLessThan(pord: ExtendedOrdering, other: Interval): Boolean = {
     val c = pord.compare(this.end, other.start)
-    c < 0 || ((!this.includeEnd || !other.includeStart) && c == 0)
+    c < 0 || (c == 0 && (!this.includeEnd || !other.includeStart))
   }
 
   def disjointAndGreaterThan(pord: ExtendedOrdering, other: Interval): Boolean = {
     val c = pord.compare(this.start, other.end)
-    c > 0 || ((!this.includeStart || !other.includeEnd) && c == 0)
+    c > 0 || (c == 0 && (!this.includeStart || !other.includeEnd))
   }
 
   override def toString: String = (if (includeStart) "[" else "(") + start + "-" + end + (if (includeEnd) "]" else ")")
