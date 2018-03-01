@@ -589,8 +589,7 @@ class Tests(unittest.TestCase):
     def test_entries_table(self):
         num_rows, num_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
-        schema = hl.tstruct.from_lists(['i', 'j', 'entry'],
-                                       [hl.tint32, hl.tint32, hl.tfloat64])
+        schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
         table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))

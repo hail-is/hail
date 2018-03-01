@@ -33,16 +33,15 @@ class TypeTests(unittest.TestCase):
             tlocus('GRCh38'),
             tstruct(),
             tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
-            tstruct.from_lists(['weird field name 1',
-                                r"""this one ' has "" quotes and `` backticks```""",
-                                '!@#$%^&({['],
-                               [tint32, tint64, tarray(tset(tstr))]),
+            tstruct(**{'weird field name 1': tint32,
+                       r"""this one ' has "" quotes and `` backticks```""": tint64,
+                       '!@#$%^&({[': tarray(tset(tstr))}),
             tinterval(tlocus()),
             tset(tinterval(tlocus())),
-            tstruct.from_lists(['a', 'b', 'c'], [tint32, tint32, tarray(tstr)]),
-            tstruct.from_lists(['a', 'bb', 'c'], [tfloat64, tint32, tbool]),
-            tstruct.from_lists(['a', 'b'], [tint32, tint32]),
-            tstruct.from_lists(['___', '_ . _'], [tint32, tint32]),
+            tstruct(a=tint32, b=tint32, c=tarray(tstr)),
+            tstruct(a=tfloat64, bb=tint32, c=tbool),
+            tstruct(a=tint32, b=tint32),
+            tstruct(**{'___': tint32, '_ . _': tint32}),
             ttuple(tstr, tint32),
             ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
             ttuple()]
@@ -184,23 +183,23 @@ class Tests(unittest.TestCase):
 
         assert_typed(s.drop('f3'),
                      hl.Struct(f1=1, f2=2),
-                     tstruct.from_lists(['f1', 'f2'], [tint32, tint32]))
+                     tstruct(f1=tint32, f2=tint32))
 
         assert_typed(s.drop('f1'),
                      hl.Struct(f2=2, f3=3),
-                     tstruct.from_lists(['f2', 'f3'], [tint32, tint32]))
+                     tstruct(f2=tint32, f3=tint32))
 
         assert_typed(s.drop(),
                      hl.Struct(f1=1, f2=2, f3=3),
-                     tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
+                     tstruct(f1=tint32, f2=tint32, f3=tint32))
 
         assert_typed(s.select('f1', 'f2'),
                      hl.Struct(f1=1, f2=2),
-                     tstruct.from_lists(['f1', 'f2'], [tint32, tint32]))
+                     tstruct(f1=tint32, f2=tint32))
 
         assert_typed(s.select('f2', 'f1', f4=5, f5=6),
                      hl.Struct(f2=2, f1=1, f4=5, f5=6),
-                     tstruct.from_lists(['f2', 'f1', 'f4', 'f5'], [tint32, tint32, tint32, tint32]))
+                     tstruct(f2=tint32, f1=tint32, f4=tint32, f5=tint32))
 
         assert_typed(s.select(),
                      hl.Struct(),
@@ -208,15 +207,15 @@ class Tests(unittest.TestCase):
 
         assert_typed(s.annotate(f1=5, f2=10, f4=15),
                      hl.Struct(f1=5, f2=10, f3=3, f4=15),
-                     tstruct.from_lists(['f1', 'f2', 'f3', 'f4'], [tint32, tint32, tint32, tint32]))
+                     tstruct(f1=tint32, f2=tint32, f3=tint32, f4=tint32))
 
         assert_typed(s.annotate(f1=5),
                      hl.Struct(f1=5, f2=2, f3=3),
-                     tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
+                     tstruct(f1=tint32, f2=tint32, f3=tint32))
 
         assert_typed(s.annotate(),
                      hl.Struct(f1=1, f2=2, f3=3),
-                     tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
+                     tstruct(f1=tint32, f2=tint32, f3=tint32))
 
     def test_iter(self):
         a = hl.capture([1, 2, 3])
