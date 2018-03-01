@@ -121,7 +121,7 @@ class GroupedMatrixTable(object):
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=oneof(str, Expression))
     def group_rows_by(self, *exprs, **named_exprs):
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
@@ -180,9 +180,8 @@ class GroupedMatrixTable(object):
 
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=oneof(str, Expression))
-    @handle_py4j
     def group_cols_by(self, *exprs, **named_exprs):
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
@@ -249,7 +248,7 @@ class GroupedMatrixTable(object):
         ----------
         fields : varargs of :obj:`str`
             Row partition key. Must be a a prefix of the key. By default, the
-            entire key is the partition key.
+            partition key is the entire key.
 
         Returns
         -------
@@ -734,9 +733,9 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        keys : varargs of :obj:`str`
+        keys : varargs of :obj:`str` or :class:`.Expression`.
             Row fields to key by.
-        partition_key : :obj:`str` or :obj:`list` of :obj:`str`, optional
+        partition_key : :obj:`str` or :class:`.Expression`, or :obj:`list` of :obj:`str` or :class:`.Expression`, optional
             Row fields to partition by. Must be a prefix of the key.
             Default: all keys.
         Returns
@@ -1845,7 +1844,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.explodeSamples(s))
 
     def group_rows_by(self, *exprs, **named_exprs):
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
@@ -1875,7 +1874,7 @@ class MatrixTable(object):
         return GroupedMatrixTable(self).group_rows_by(*exprs, **named_exprs)
 
     def group_cols_by(self, *exprs, **named_exprs):
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
