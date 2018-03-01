@@ -34,7 +34,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
-  val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startFirst=true)
+  val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 
