@@ -26,7 +26,7 @@ class RichRDDSuite extends SparkSuite {
     }
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-    assert(vds.head(3).countVariants() == 3)
+    assert(vds.head(3).countRows() == 3)
   }
 
   @Test def binaryParallelWrite() {

@@ -100,8 +100,8 @@ class IBDSuite extends SparkSuite {
   object Spec extends Properties("IBD") {
     val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37))))
       .resize(1000)
-      .map { vds => vds.filterVariantsExpr("va.locus.isAutosomal()") }
-      .filter(vds => vds.countVariants > 2 && vds.numCols >= 2)
+      .map { vds => vds.filterRowsExpr("va.locus.isAutosomal()") }
+      .filter(vds => vds.countRows > 2 && vds.numCols >= 2)
 
     property("hail generates same result as plink 1.9") =
       forAll(plinkSafeBiallelicVDS) { vds =>

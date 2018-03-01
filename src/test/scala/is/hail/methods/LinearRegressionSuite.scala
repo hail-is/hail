@@ -399,11 +399,11 @@ class LinearRegressionSuite extends SparkSuite {
         .linreg(Array("sa.pheno.Pheno"),
           if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
           Array("sa.cov.Cov1", "sa.cov.Cov2"))
-        .annotateVariantsVDS(
+        .annotateRowsVDS(
           inputVDS.linreg(Array("sa.pheno.Pheno", "sa.pheno.Pheno"),
             if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
             Array("sa.cov.Cov1", "sa.cov.Cov2"))
-            .annotateVariantsExpr(
+            .annotateRowsExpr(
               s"""
                  |linreg.ytx = [va.linreg.ytx[$i]],
                  |linreg.beta = [va.linreg.beta[$i]],
@@ -411,7 +411,7 @@ class LinearRegressionSuite extends SparkSuite {
                  |linreg.tstat = [va.linreg.tstat[$i]],
                  |linreg.pval = [va.linreg.pval[$i]]
                  |""".stripMargin),
-          root = "mlinreg").annotateVariantsExpr("mlinreg = va.mlinreg.linreg")
+          root = "mlinreg").annotateRowsExpr("mlinreg = va.mlinreg.linreg")
 
       val (t, q) = result.queryVA("va.linreg")
       val (mt, mq) = result.queryVA("va.mlinreg")

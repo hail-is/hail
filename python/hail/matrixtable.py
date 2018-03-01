@@ -156,7 +156,7 @@ class GroupedMatrixTable(object):
         if self._grouped_indices == self._parent._row_indices:
             # group rows
             return cleanup(
-                MatrixTable(base._jvds.groupVariantsBy(','.join(key_strs), ',\n'.join(strs), self._partition_key)))
+                MatrixTable(base._jvds.groupRowsBy(','.join(key_strs), ',\n'.join(strs), self._partition_key)))
         else:
             assert self._grouped_indices == self._parent._col_indices
             # group cols
@@ -660,7 +660,7 @@ class MatrixTable(object):
             analyze('MatrixTable.annotate_rows', v, self._row_indices, {self._col_axis})
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._row_indices)
-        m = MatrixTable(base._jvds.annotateVariantsExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateRowsExpr(",\n".join(exprs)))
         return cleanup(m)
 
     def annotate_cols(self, **named_exprs):
@@ -1129,7 +1129,7 @@ class MatrixTable(object):
             Matrix table with no rows.
         """
         warn("deprecation: 'drop_rows' will be removed before 0.2 release")
-        return MatrixTable(self._jvds.dropVariants())
+        return MatrixTable(self._jvds.dropRows())
 
     def drop_cols(self):
         """Drop all columns of the matrix.  Is equivalent to:
@@ -1196,7 +1196,7 @@ class MatrixTable(object):
         expr = to_expr(expr)
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_rows', expr, self._row_indices, {self._col_axis})
-        m = MatrixTable(base._jvds.filterVariantsExpr(expr._ast.to_hql(), keep))
+        m = MatrixTable(base._jvds.filterRowsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
     @typecheck_method(expr=anytype, keep=bool)
@@ -1580,7 +1580,7 @@ class MatrixTable(object):
                 raise ExpressionException(
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
             s = e._ast.to_hql()
-        return MatrixTable(self._jvds.explodeVariants(s))
+        return MatrixTable(self._jvds.explodeRows(s))
 
     def explode_cols(self, field_expr):
         """Explodes a column field of type array or set, copying the entire column for each element.
@@ -1738,7 +1738,7 @@ class MatrixTable(object):
         :obj:`int`
             Number of rows in the matrix.
         """
-        return self._jvds.countVariants()
+        return self._jvds.countRows()
 
     def _force_count_rows(self):
         return self._jvds.forceCountRows()
@@ -1921,7 +1921,7 @@ class MatrixTable(object):
             if is_row_key or is_partition_key:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateVariantsVDS(right._jvds, uid)))
+                    MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid)))
             else:
                 return self.rows().view_join_rows(*exprs)
 
@@ -2520,7 +2520,7 @@ class MatrixTable(object):
         if not (0 <= p <= 1):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return MatrixTable(self._jvds.sampleVariants(p, seed))
+        return MatrixTable(self._jvds.sampleRows(p, seed))
 
     @typecheck_method(fields=dictof(str, str))
     def rename(self, fields):

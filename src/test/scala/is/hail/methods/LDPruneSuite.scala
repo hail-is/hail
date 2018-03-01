@@ -202,7 +202,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def testIdenticalVariants() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)))
     val prunedVds = LDPrune(vds, nCores, 0.2, 700, memoryPerCoreMB = bytesPerCoreMB)
-    assert(prunedVds.countVariants() == 1)
+    assert(prunedVds.countRows() == 1)
   }
 
   @Test def testMultipleChr() = {
@@ -319,8 +319,8 @@ class LDPruneSuite extends SparkSuite {
   @Test def testNoPrune() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
     val nSamples = vds.numCols
-    val filteredVDS = vds.filterVariantsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
+    val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
-    assert(prunedVDS.countVariants() == filteredVDS.countVariants())
+    assert(prunedVDS.countRows() == filteredVDS.countRows())
   }
 }

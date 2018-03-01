@@ -77,7 +77,7 @@ object TestUtils {
   def vdsToMatrixInt(vds: MatrixTable): DenseMatrix[Int] =
     new DenseMatrix[Int](
       vds.numCols,
-      vds.countVariants().toInt,
+      vds.countRows().toInt,
       vds.typedRDD[Locus].map(_._2._2.map{ g =>
         Genotype.call(g)
           .map(Call.nNonRefAlleles)
@@ -88,7 +88,7 @@ object TestUtils {
   def vdsToMatrixDouble(vds: MatrixTable): DenseMatrix[Double] =
     new DenseMatrix[Double](
       vds.numCols,
-      vds.countVariants().toInt,
+      vds.countRows().toInt,
       vds.rdd.map(_._2._2.map{ g =>
         Genotype.call(g)
           .map(Call.nNonRefAlleles)

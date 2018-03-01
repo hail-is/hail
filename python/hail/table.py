@@ -1188,7 +1188,7 @@ class Table(TableTemplate):
                 if is_row_key or is_partition_key:
                     # no vds_key (way faster)
                     def joiner(left):
-                        return MatrixTable(left._jvds.annotateVariantsTable(
+                        return MatrixTable(left._jvds.annotateRowsTable(
                             right._jt, uid, False))
 
                     return construct_expr(Select(Reference('va'), uid), new_schema,
@@ -1219,11 +1219,11 @@ class Table(TableTemplate):
                             Struct(**{c: vt[c] for c in vt.columns if c not in rk_uids}))))
                         vt = vt.annotate(values=hl.index(vt.values, k_uid))
 
-                        jl = left._jvds.annotateVariantsTable(vt._jt, uid, False)
+                        jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
                         key_expr = '{uid} = va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
                             '{}: {}'.format(u, e._ast.to_hql()) for u, e in
                             zip(uids, exprs)))
-                        jl = jl.annotateVariantsExpr(key_expr)
+                        jl = jl.annotateRowsExpr(key_expr)
                         return MatrixTable(jl)
 
                     return construct_expr(Select(Reference('va'), uid),
