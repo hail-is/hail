@@ -1965,9 +1965,9 @@ class StructExpression(Mapping, Expression):
     def __len__(self):
         return len(self._fields)
 
-    @typecheck_method(item=str)
+    @typecheck_method(item=oneof(str, int))
     def __getitem__(self, item):
-        """Access a field of the struct.
+        """Access a field of the struct by name or index.
 
         Examples
         --------
@@ -1975,6 +1975,9 @@ class StructExpression(Mapping, Expression):
 
             >>> hl.eval_expr(s['a'])
             5
+
+            >>> hl.eval_expr(s[1])
+            'Foo'
 
         Parameters
         ----------
@@ -1986,7 +1989,10 @@ class StructExpression(Mapping, Expression):
         :class:`.Expression`
             Struct field.
         """
-        return self._get_field(item)
+        if isinstance(item, str):
+            return self._get_field(item)
+        else:
+            return self._get_field(self.dtype.fields[item].name)
 
     def __iter__(self):
         return iter(self._fields)

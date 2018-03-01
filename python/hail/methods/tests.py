@@ -378,8 +378,8 @@ class Tests(unittest.TestCase):
         men, fam, ind, var = hl.mendel_errors(dataset, hl.Pedigree.read(test_file('sample.fam')))
         men.select('fam_id', 's', 'code')
         fam.select('pat_id', 'children')
-        self.assertEqual(ind.key, ['s'])
-        self.assertEqual(var.key, ['locus', 'alleles'])
+        self.assertEqual(list(ind.key), ['s'])
+        self.assertEqual(list(var.key), ['locus', 'alleles'])
         dataset.annotate_rows(mendel=var[dataset.locus, dataset.alleles]).count_rows()
 
     def test_export_vcf(self):

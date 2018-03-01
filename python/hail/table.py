@@ -112,7 +112,7 @@ class TableTemplate(object):
     def key(self):
         if self._key is None:
             self._key = jiterable_to_list(self._jt.key())
-        return self._key
+        return hl.struct(**{k: self[k] for k in self._key})
 
 
 class GroupedTable(TableTemplate):
@@ -1156,7 +1156,7 @@ class Table(TableTemplate):
                                   joins.push(Join(joiner, all_uids, uid)), refs)
         elif isinstance(src, MatrixTable):
             if len(exprs) == 1:
-                key_type = self._fields[self.key[0]].dtype
+                key_type = self.key[0].dtype
                 expr_type = exprs[0].dtype
                 if not (key_type == expr_type or
                         key_type == tinterval(expr_type)):
@@ -1181,9 +1181,9 @@ class Table(TableTemplate):
             elif indices == src._row_indices:
 
                 is_row_key = len(exprs) == len(src.row_key) and all(
-                    exprs[i] is src._fields[src.row_key[i]] for i in range(len(exprs)))
+                    exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
                 is_partition_key = len(exprs) == len(src.partition_key) and all(
-                    exprs[i] is src._fields[src.partition_key[i]] for i in range(len(exprs)))
+                    exprs[i] is src._fields[list(src.partition_key)[i]] for i in range(len(exprs)))
 
                 if is_row_key or is_partition_key:
                     # no vds_key (way faster)
@@ -1204,7 +1204,7 @@ class Table(TableTemplate):
                         k_uid = Env._get_uid()
 
                         # extract v, key exprs
-                        left2 = left.select_rows(*left.row_key, **{uid: e for uid, e in zip(uids, exprs)})
+                        left2 = left.select_rows(*list(left.row_key), **{uid: e for uid, e in zip(uids, exprs)})
                         lrt = (left2.rows()
                             .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
                             .key_by(*uids))
@@ -1230,7 +1230,8 @@ class Table(TableTemplate):
                                           new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid)))
 
             elif indices == src._col_indices:
-                if len(exprs) == len(src.col_key) and all([exprs[i] is src[src.col_key[i]] for i in range(len(exprs))]):
+                if len(exprs) == len(src.col_key) and all([
+                        exprs[i] is src[list(src.col_key)[i]] for i in range(len(exprs))]):
                     # no vds_key (faster)
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
                         right._jt, None, uid, False))
@@ -1261,7 +1262,7 @@ class Table(TableTemplate):
 
     def _process_joins(self, *exprs):
         # ordered to support nested joins
-        original_key = self.key
+        original_key = list(self.key)
 
         all_uids = []
         left = self
