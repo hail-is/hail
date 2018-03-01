@@ -78,14 +78,14 @@ def literal(x, dtype=None):
     -------
     :class:`.Expression`
     """
-    imputed = dtype is None
-    if dtype is None:
+    if dtype:
+        try:
+            dtype._typecheck(x)
+        except TypeError as e:
+            raise TypeError("'literal': object did not match the passed type '{}'"
+                            .format(dtype)) from e
+    else:
         dtype = impute_type(x)
-    try:
-        dtype._typecheck(x)
-    except TypeError as e:
-        raise TypeError("'lit': object did not match the {} type '{}'"
-                        .format('imputed' if imputed else 'passed', dtype)) from e
 
     if x is None:
         return hl.null(dtype)
