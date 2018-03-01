@@ -579,7 +579,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
 
 
 @typecheck(ds=MatrixTable,
-           kinshipMatrix=KinshipMatrix,
+           kinship_matrix=KinshipMatrix,
            y=expr_numeric,
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
