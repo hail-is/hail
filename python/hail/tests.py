@@ -134,9 +134,9 @@ class TableTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
                                        [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3]),
-                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=hl.empty_array(hl.tint32)),
-                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7])]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
         kt = hl.Table.parallelize(rows, schema)
         results = kt.aggregate(hl.Struct(q1=agg.sum(kt.b),
@@ -153,9 +153,9 @@ class TableTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
                                        [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3]),
-                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=hl.empty_array(hl.tint32)),
-                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7])]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -169,9 +169,9 @@ class TableTests(unittest.TestCase):
                                        [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
                                         hl.tstruct.from_lists(['x', 'y'], [hl.tbool, hl.tint32])])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3], g=hl.struct(x=True, y=2)),
-                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=hl.empty_array(hl.tint32), g=hl.struct(x=True, y=2)),
-                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7], g=hl.null(hl.tstruct(x=hl.tbool, y=hl.tint32)))]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7], 'g': None}]
         df = hl.Table.parallelize(rows, schema)
 
         df = df.transmute(h=df.a + df.b + df.c + df.g.y)
@@ -181,13 +181,13 @@ class TableTests(unittest.TestCase):
         self.assertEqual(r, [hl.Struct(h=x) for x in [10, 20, None]])
 
     def test_select(self):
-        gt = hl.tstruct(x=hl.tbool, y=hl.tint32)
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32), gt])
+                                       [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32),
+                                        hl.tstruct.from_lists(['x', 'y'], [hl.tbool, hl.tint32])])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3], g=hl.struct(x=True, y=2)),
-                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=hl.empty_array(hl.tint32), g=hl.struct(x=True, y=2)),
-                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7], g=hl.null(gt))]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7], 'g': None}]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -200,8 +200,8 @@ class TableTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['status', 'GT', 'qPheno'],
                                        [hl.tint32, hl.tcall, hl.tint32])
 
-        rows = [hl.struct(status=0, GT=hl.call(0, 0), qPheno=3),
-                hl.struct(status=0, GT=hl.call(0, 1), qPheno=13)]
+        rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3},
+                {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -240,9 +240,9 @@ class TableTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['status', 'gt', 'qPheno'],
                                        [hl.tint32, hl.tcall, hl.tint32])
 
-        rows = [hl.struct(status=0, gt=hl.call(0, 0), qPheno=3),
-                hl.struct(status=0, gt=hl.call(0, 1), qPheno=13),
-                hl.struct(status=1, gt=hl.call(0, 1), qPheno=20)]
+        rows = [{'status': 0, 'gt': hl.Call([0, 0]), 'qPheno': 3},
+                {'status': 0, 'gt': hl.Call([0, 1]), 'qPheno': 13},
+                {'status': 1, 'gt': hl.Call([0, 1]), 'qPheno': 20}]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -536,39 +536,39 @@ class MatrixTests(unittest.TestCase):
     def test_computed_key_join_1(self):
         ds = self.get_vds()
         kt = hl.Table.parallelize(
-            [hl.struct(key=0, value=True),
-             hl.struct(key=1, value=False)],
+            [{'key': 0, 'value': True},
+             {'key': 1, 'value': False}],
             hl.tstruct.from_lists(['key', 'value'],
                                   [hl.tint32, hl.tbool]),
             key=['key'])
         ds = ds.annotate_rows(key=ds.locus.position % 2)
-        ds = ds.annotate_rows(value=kt[ds['key']]['value'])
+        ds = ds.annotate_rows(value=kt[ds['key']].value)
         rt = ds.rows()
         self.assertTrue(
-            rt.all(((rt.locus.position % 2) == 0) == rt['value']))
+            rt.all(((rt.locus.position % 2) == 0) == rt.value))
 
     def test_computed_key_join_2(self):
         # multiple keys
         ds = self.get_vds()
         kt = hl.Table.parallelize(
-            [hl.struct(key1=0, key2=0, value=0),
-             hl.struct(key1=1, key2=0, value=1),
-             hl.struct(key1=0, key2=1, value=-2),
-             hl.struct(key1=1, key2=1, value=-1)],
+            [{'key1': 0, 'key2': 0, 'value': 0},
+             {'key1': 1, 'key2': 0, 'value': 1},
+             {'key1': 0, 'key2': 1, 'value': -2},
+             {'key1': 1, 'key2': 1, 'value': -1}],
             hl.tstruct.from_lists(['key1', 'key2', 'value'],
                                   [hl.tint32, hl.tint32, hl.tint32]),
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
-        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2]['value'])
+        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
         rt = ds.rows()
         self.assertTrue(
-            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt['value']))
+            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
 
     def test_computed_key_join_3(self):
         # duplicate row keys
         ds = self.get_vds()
         kt = hl.Table.parallelize(
-            [hl.struct(culprit='InbreedingCoeff', foo='bar', value='IB')],
+            [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
             hl.tstruct.from_lists(['culprit', 'foo', 'value'],
                                   [hl.tstr, hl.tstr, hl.tstr]),
             key=['culprit', 'foo'])
@@ -709,12 +709,12 @@ class FunctionsTests(unittest.TestCase):
                                         hl.tbool,
                                         hl.tstruct.from_lists(['x', 'y', 'z'], [hl.tint32, hl.tint32, hl.tstr])])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5,
-                          e="hello", f=[1, 2, 3],
-                          g=[hl.struct(x=1, y=5, z='banana')],
-                          h=hl.struct(a=5, b=3, c='winter'),
-                          i=True,
-                          j=hl.struct(x=3, y=2, z='summer'))]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5,
+                 'e': "hello", 'f': [1, 2, 3],
+                 'g': [hl.Struct(x=1, y=5, z='banana')],
+                 'h': hl.Struct(a=5, b=3, c='winter'),
+                 'i': True,
+                 'j': hl.Struct(x=3, y=2, z='summer')}]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -760,9 +760,9 @@ class ColumnTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
                                        [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3]),
-                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=hl.empty_array(hl.tint32)),
-                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7])]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -828,7 +828,7 @@ class ColumnTests(unittest.TestCase):
 
     def test_array_column(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
-        rows = [hl.struct(a=[1, 2, 3])]
+        rows = [{'a': [1, 2, 3]}]
         kt = hl.Table.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
@@ -847,7 +847,7 @@ class ColumnTests(unittest.TestCase):
 
     def test_dict_column(self):
         schema = hl.tstruct(x=hl.tfloat64)
-        rows = [hl.struct(x=2.0)]
+        rows = [{'x': 2.0}]
         kt = hl.Table.parallelize(rows, schema)
 
         kt = kt.annotate(a={'cat': 3, 'dog': 7})
@@ -872,7 +872,7 @@ class ColumnTests(unittest.TestCase):
 
     def test_numeric_conversion(self):
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
-        rows = [hl.struct(a=2.0, b=4.0, c=1, d=5)]
+        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
         kt = kt.annotate(d=hl.int64(kt.d))
 
@@ -899,7 +899,7 @@ class ColumnTests(unittest.TestCase):
         rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
 
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd'], [hl.tfloat64, hl.tfloat64, hl.tint32, hl.tint32])
-        rows = [hl.struct(a=2.0, b=4.0, c=1, d=5)]
+        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
         kt = kt.annotate(d=hl.int64(kt.d))
 

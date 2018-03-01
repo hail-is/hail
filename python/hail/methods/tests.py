@@ -645,7 +645,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.fst.value, [.02, .06])
         self.assertEqual(glob.seed.value, 1)
         self.assertEqual(glob.ancestral_af_dist.value,
-                         hl.struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95).value)
+                         hl.Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
 
     def test_skat(self):
         ds2 = hl.import_vcf(test_file('sample2.vcf'))
