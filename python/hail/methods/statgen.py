@@ -282,8 +282,8 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
-    Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for true
-    and 0 for false. The null model sets :math:`\\beta_1 = 0`.
+    Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for
+    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
