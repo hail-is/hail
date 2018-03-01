@@ -124,7 +124,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None):
 
 
 def require_variant(dataset, method):
-    if (dataset.row_key != ['locus', 'alleles'] or
+    if (list(dataset.row_key) != ['locus', 'alleles'] or
             not isinstance(dataset['locus'].dtype, TLocus) or
             not dataset['alleles'].dtype == tarray(tstr)):
         raise TypeError("Method '{}' requires row keys 'locus' (Locus) and 'alleles' (Array[String])\n"
@@ -134,7 +134,7 @@ def require_variant(dataset, method):
 
 def require_locus(dataset, method):
     if (len(dataset.partition_key) != 1 or
-            not isinstance(dataset[dataset.partition_key[0]].dtype, TLocus)):
+            not isinstance(dataset.partition_key[0].dtype, TLocus)):
         raise TypeError("Method '{}' requires partition key of type Locus.\n"
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))

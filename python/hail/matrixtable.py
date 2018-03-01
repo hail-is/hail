@@ -371,11 +371,11 @@ class MatrixTable(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :class:`.StructExpression`
         """
         if self._col_key is None:
             self._col_key = jiterable_to_list(self._jvds.colKey())
-        return self._col_key
+        return hail.struct(**{k: self[k] for k in self._col_key})
 
     @property
     def col_schema(self):
@@ -396,11 +396,11 @@ class MatrixTable(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :class:`.StructExpression`
         """
         if self._row_key is None:
             self._row_key = jiterable_to_list(self._jvds.rowKey())
-        return self._row_key
+        return hail.struct(**{k: self[k] for k in self._row_key})
 
     @property
     def partition_key(self):
@@ -408,11 +408,12 @@ class MatrixTable(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :class:`.StructExpression`
         """
         if self._row_partition_key is None:
             self._row_partition_key = jiterable_to_list(self._jvds.rowPartitionKey())
-        return self._row_partition_key
+        pk = hail.struct(**{k: self[k] for k in self._row_partition_key})
+        return pk
 
     @property
     def row_schema(self):
@@ -1913,7 +1914,7 @@ class MatrixTable(object):
 
             # fast path
             is_row_key = len(exprs) == len(src.row_key) and all(
-                exprs[i] is src._fields[src.row_key[i]] for i in range(len(exprs)))
+                exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
             is_partition_key = len(exprs) == len(src.partition_key) and all(
                 exprs[i] is src._fields[src.partition_key[i]] for i in range(len(exprs)))
 
