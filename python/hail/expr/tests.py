@@ -879,14 +879,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval_expr(hl.gp_dosage([0.0, 0.5, 0.5])), 1.5)
 
     def test_call(self):
-        from hail import Call
-        c2_homref = hl.capture(Call([0, 0]))
-        c2_het = hl.capture(Call([1, 0], phased=True))
-        c2_homvar = hl.capture(Call([1, 1]))
-        c2_hetvar = hl.capture(Call([2, 1], phased=True))
-        c1 = hl.capture(Call([1]))
-        c0 = hl.capture(Call([]))
-        cNull = hl.capture(hl.null(tcall))
+        c2_homref = hl.call(0, 0)
+        c2_het = hl.call(1, 0, phased=True)
+        c2_homvar = hl.call(1, 1)
+        c2_hetvar = hl.call(2, 1, phased=True)
+        c1 = hl.call(1)
+        c0 = hl.call()
+        cNull = hl.null(tcall)
 
         self.check_expr(c2_homref.ploidy, 2, tint32)
         self.check_expr(c2_homref[0], 0, tint32)
@@ -953,7 +952,7 @@ class Tests(unittest.TestCase):
 
     def test_parse_variant(self):
         self.assertEqual(hl.parse_variant('1:1:A:T').value,
-                         hl.struct(locus=Locus('1', 1), alleles=['A', 'T']).value)
+                         hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))
 
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])

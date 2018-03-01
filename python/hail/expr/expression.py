@@ -3245,7 +3245,7 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.TLocus`.
 
-    >>> locus = hl.capture(hl.Locus('1', 100))
+    >>> locus = hl.locus('1', 100)
     """
 
     @property
@@ -3433,10 +3433,10 @@ class IntervalExpression(Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(interval.contains(hl.Locus('X', 3000000)))
+            >>> hl.eval_expr(interval.contains(hl.locus('X', 3000000)))
             False
 
-            >>> hl.eval_expr(interval.contains(hl.Locus('X', 1500000)))
+            >>> hl.eval_expr(interval.contains(hl.locus('X', 1500000)))
             True
 
         Parameters

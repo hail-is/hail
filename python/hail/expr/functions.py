@@ -842,7 +842,7 @@ def interval(start, end):
     .. doctest::
 
         >>> hl.eval_expr(hl.interval(hl.locus("1", 100),
-        ...                              hl.locus("1", 1000)))
+        ...                          hl.locus("1", 1000)))
         Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
                  end=Locus(contig=1, position=1000, reference_genome=GRCh37))
     Parameters
