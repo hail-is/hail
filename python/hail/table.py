@@ -47,9 +47,9 @@ class TableTemplate(object):
         self._globals = None
         self._global_schema = None
         self._schema = None
-        self._num_columns = None
+        self._num_fields = None
         self._key = None
-        self._column_names = None
+        self._field_names = None
         self._fields = {}
         self._fields_inverse = {}
         super(TableTemplate, self).__init__()
@@ -279,7 +279,7 @@ class Table(TableTemplate):
     ...                                       stats_c3 = agg.stats(table1.C3)))
     >>> print(t1_stats)
 
-    Group columns and aggregate to produce a new table:
+    Group by a field and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
     ...                 .aggregate(mean_height_data = agg.mean(table1.HT)))
@@ -332,16 +332,16 @@ class Table(TableTemplate):
         return self._schema
 
     @property
-    def columns(self):
-        if self._column_names is None:
-            self._column_names = list(self._jt.fieldNames())
-        return self._column_names
+    def fields(self):
+        if self._field_names is None:
+            self._field_names = list(self._jt.fieldNames())
+        return self._field_names
 
     @property
-    def num_columns(self):
-        if self._num_columns is None:
-            self._num_columns = self._jt.nColumns()
-        return self._num_columns
+    def num_fields(self):
+        if self._num_fields is None:
+            self._num_fields = self._jt.nColumns()
+        return self._num_fields
 
     def num_partitions(self):
         """Returns the number of partitions in the table.
@@ -376,20 +376,20 @@ class Table(TableTemplate):
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_by(self, *keys):
-        """Change which columns are keys.
+        """Change the key.
 
         Examples
         --------
-        Assume `table1` is a :class:`.Table` with three columns: `C1`, `C2`
+        Assume `table1` is a :class:`.Table` with three fields: `C1`, `C2`
         and `C3`.
 
-        Change key columns:
+        Change key fields:
 
         >>> table_result = table1.key_by('C2', 'C3')
 
         >>> table_result = table1.key_by(table1.C1)
 
-        Set to no keys:
+        Set to empty key:
 
         >>> table_result = table1.key_by()
 
@@ -401,7 +401,7 @@ class Table(TableTemplate):
         Returns
         -------
         :class:`.Table`
-            Table with new set of keys.
+            Table with a new key.
         """
         str_keys = []
         for k in keys:
@@ -696,7 +696,7 @@ class Table(TableTemplate):
 
         Examples
         --------
-        Select a few old columns and compute a new one:
+        Select a few old fields and compute a new one:
 
         >>> table_result = table1.select(table1.ID, table1.C1, Y=table1.Z - table1.X)
 
@@ -721,7 +721,7 @@ class Table(TableTemplate):
         expressions.
 
         **The following three usages are all equivalent**, producing a new table with
-        columns `C1` and `C2` of `table1`.
+        fields `C1` and `C2` of `table1`.
 
         First, variable-length string arguments:
 
@@ -883,7 +883,7 @@ class Table(TableTemplate):
         output : str
             URI at which to write exported file.
         types_file : str or None
-            URI at which to write file containing column type information.
+            URI at which to write file containing field type information.
         header : bool
             Include a header in the file.
         parallel : str or None
@@ -897,7 +897,7 @@ class Table(TableTemplate):
         self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
     def group_by(self, *exprs, **named_exprs):
-        """Group by a new set of keys for use with :meth:`.GroupedTable.aggregate`.
+        """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
 
         Examples
         --------
@@ -929,7 +929,7 @@ class Table(TableTemplate):
         expressions.
 
         **The following three usages are all equivalent**, producing a
-        :class:`.GroupedTable` grouped by columns `C1` and `C2` of `table1`.
+        :class:`.GroupedTable` grouped by fields `C1` and `C2` of `table1`.
 
         First, variable-length string arguments:
 
@@ -1095,7 +1095,7 @@ class Table(TableTemplate):
         n : :obj:`int`
             Maximum number of rows to show.
         width : :obj:`int`
-            Horizontal width at which to break columns.
+            Horizontal width at which to break fields.
         truncate : :obj:`int`, optional
             Truncate each field to the given number of characters. If
             ``None``, truncate fields to the given `width`.
@@ -1141,7 +1141,7 @@ class Table(TableTemplate):
 
             right = self
             right_keys = [right[k] for k in right.key]
-            select_struct = Struct(**{k: right[k] for k in right.columns})
+            select_struct = Struct(**{k: right[k] for k in right.fields})
             right = right.select(*right_keys, **{uid: select_struct})
             uids = [Env._get_uid() for i in range(len(exprs))]
             full_key_strs = ',\n'.join('{}={}'.format(uids[i], exprs[i]._ast.to_hql()) for i in range(len(exprs)))
@@ -1217,7 +1217,7 @@ class Table(TableTemplate):
                         # group by v and index by the key exprs
                         vt = (vt.group_by(*rk_uids)
                             .aggregate(values=agg.collect(
-                            Struct(**{c: vt[c] for c in vt.columns if c not in rk_uids}))))
+                            Struct(**{c: vt[c] for c in vt.fields if c not in rk_uids}))))
                         vt = vt.annotate(values=hl.index(vt.values, k_uid))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
@@ -1312,7 +1312,7 @@ class Table(TableTemplate):
 
         Examples
         --------
-        Persist the key table to both memory and disk:
+        Persist the table to both memory and disk:
 
         >>> table = table.persist() # doctest: +SKIP
 
@@ -1440,8 +1440,8 @@ class Table(TableTemplate):
         Notes
         -----
 
-        This method returns a table with a new column whose name is given by
-        the `name` parameter, with type ``Int64``. The value of this column is
+        This method returns a table with a new field whose name is given by
+        the `name` parameter, with type ``Int64``. The value of this field is
         the integer index of each row, starting from 0. Methods that respect
         ordering (like :meth:`.Table.take` or :meth:`.Table.export`) will
         return rows in order.
@@ -1453,7 +1453,7 @@ class Table(TableTemplate):
         Parameters
         ----------
         name : str
-            Name of index column.
+            Name of index field.
 
         Returns
         -------
@@ -1666,8 +1666,9 @@ class Table(TableTemplate):
         rows will be joined where ``table1.a == table2.c`` and ``table1.b ==
         table2.d``).
 
-        The key field names and order from the left table are preserved, while
-        the key fields from the right table are not present in the result.
+        The key fields and order from the left table are preserved,
+        while the key fields from the right table are not present in
+        the result.
 
         Parameters
         ----------
@@ -1680,6 +1681,7 @@ class Table(TableTemplate):
         -------
         :class:`.Table`
             Joined table.
+
         """
 
         return Table(self._jt.join(right._jt, how))
@@ -1757,7 +1759,7 @@ class Table(TableTemplate):
         Parameters
         ----------
         mapping : :obj:`dict` of :obj:`str`, :obj:`str`
-            Mapping from old column names to new column names.
+            Mapping from old field names to new field names.
 
         Notes
         -----
@@ -1826,7 +1828,7 @@ class Table(TableTemplate):
                 }]
             }
 
-        and a single key column ``a``.  The result of flatten is
+        and key ``a``.  The result of flatten is
 
         .. code-block:: text
 
@@ -1839,7 +1841,7 @@ class Table(TableTemplate):
                 z: String
             }]
 
-        with key fields ``a.p`` and ``a.q``.
+        with key ``a.p, a.q``.
 
         Note, structures inside collections like arrays or sets will not be
         flattened.
@@ -1860,7 +1862,7 @@ class Table(TableTemplate):
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
-        """Sort by the specified columns.
+        """Sort by the specified fields.
 
         Examples
         --------
@@ -1924,14 +1926,14 @@ class Table(TableTemplate):
         """Explode rows along a top-level field of the table.
 
         Each row is copied for each element of `field`.
-        The explode operation unpacks the elements in a column of type
+        The explode operation unpacks the elements in a field of type
         ``Array`` or ``Set`` into its own row. If an empty ``Array`` or ``Set``
         is exploded, the entire row is removed from the table.
 
         Examples
         --------
 
-        `people_table` is a :class:`.Table` with three columns: `Name`, `Age` and `Children`.
+        `people_table` is a :class:`.Table` with three fields: `Name`, `Age` and `Children`.
 
         .. testsetup::
 
@@ -2105,7 +2107,7 @@ class Table(TableTemplate):
     @typecheck_method(expand=bool,
                       flatten=bool)
     def to_spark(self, expand=True, flatten=True):
-        """Converts this key table to a Spark DataFrame.
+        """Converts this table to a Spark DataFrame.
 
         Parameters
         ----------
