@@ -543,10 +543,10 @@ class MatrixTests(unittest.TestCase):
                                   [hl.tint32, hl.tbool]),
             key=['key'])
         ds = ds.annotate_rows(key=ds.locus.position % 2)
-        ds = ds.annotate_rows(value=kt[ds['key']].value)
+        ds = ds.annotate_rows(value=kt[ds['key']]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all(((rt.locus.position % 2) == 0) == rt.value))
+            rt.all(((rt.locus.position % 2) == 0) == rt['value']))
 
     def test_computed_key_join_2(self):
         # multiple keys
@@ -560,10 +560,10 @@ class MatrixTests(unittest.TestCase):
                                   [hl.tint32, hl.tint32, hl.tint32]),
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
-        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
+        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
+            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt['value']))
 
     def test_computed_key_join_3(self):
         # duplicate row keys
