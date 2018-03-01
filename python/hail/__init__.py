@@ -20,7 +20,7 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .context import init, stop, default_reference, get_reference
+from .context import init, stop, spark_context, default_reference, get_reference
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -32,6 +32,7 @@ from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
 
 __all__ = ['init',
            'stop',
+           'spark_context',
            'default_reference',
            'get_reference',
            'Table',
