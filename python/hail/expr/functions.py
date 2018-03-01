@@ -2755,7 +2755,7 @@ def tuple(args):
 
     Parameters
     ----------
-    args : args of :class:`.Expression`
+    args : :obj:`Iterable` of :class:`.Expression`
         Tuple elements.
 
     Returns
