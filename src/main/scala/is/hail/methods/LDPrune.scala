@@ -417,7 +417,7 @@ object LDPrune {
     if (windowSize < 0)
       fatal(s"Window size must be greater than or equal to 0. Found `$windowSize'.")
 
-    val nVariantsInitial = vsm.countVariants()
+    val nVariantsInitial = vsm.countRows()
     val nPartitionsInitial = vsm.nPartitions
     val nSamples = vsm.numCols
 

@@ -45,8 +45,8 @@ class ConcordanceSuite extends SparkSuite {
         "alleles2" -> TArray(TString())), Array.empty[String], None)
         .keyBy("locus", "alleles"))
     }
-  } yield (vds1, vds2.annotateVariantsTable(newVariantMapping, "newVariant")
-      .annotateVariantsExpr("locus = va.newVariant.locus2, " +
+  } yield (vds1, vds2.annotateRowsTable(newVariantMapping, "newVariant")
+      .annotateRowsExpr("locus = va.newVariant.locus2, " +
         "alleles = va.newVariant.alleles2")
       .copy2(colValues = newIds2.map(Annotation(_)), colType = TStruct("s" -> TString())))
 

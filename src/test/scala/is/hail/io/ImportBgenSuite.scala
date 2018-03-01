@@ -75,7 +75,7 @@ class ImportBgenSuite extends SparkSuite {
       VSMSubgen.callAndProbabilities.copy(
         vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(ReferenceGenome.defaultReference, "1")).gen,
         sGen = _ => Gen.identifier.filter(_ != "NA")))
-      .filter(_.countVariants > 0);
+      .filter(_.countRows > 0);
       nPartitions <- choose(1, 10))
       yield (vds, nPartitions)
 
@@ -125,7 +125,7 @@ class ImportBgenSuite extends SparkSuite {
           contigRecoding = contigRecoding)
 
         assert(importedVds.numCols == vds.numCols)
-        assert(importedVds.countVariants() == vds.countVariants())
+        assert(importedVds.countRows() == vds.countRows())
         assert(importedVds.stringSampleIds == vds.stringSampleIds)
 
         val varidQuery = importedVds.rowType.query("varid")
@@ -229,8 +229,8 @@ class ImportBgenSuite extends SparkSuite {
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
       includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
-    assert(vds.annotateVariantsExpr("cr1 = AGG.fraction(g => isDefined(g.GT))")
-      .annotateVariantsExpr("cr2 = AGG.fraction(g => isDefined(g.GT))")
+    assert(vds.annotateRowsExpr("cr1 = AGG.fraction(g => isDefined(g.GT))")
+      .annotateRowsExpr("cr2 = AGG.fraction(g => isDefined(g.GT))")
       .rowsTable()
       .forall("row.cr1 == row.cr2"))
   }
@@ -243,7 +243,7 @@ class ImportBgenSuite extends SparkSuite {
         hc.indexBgen(bgen)
       
       val vds = hc.importBgen(bgen, includeGT = false, includeGP = true, includeDosage = true, contigRecoding = contigRecoding)
-        .filterVariantsExpr("va.locus.position == 2000")
+        .filterRowsExpr("va.locus.position == 2000")
 
       val dosages = vds.queryGenotypes("AGG.map(g => g.dosage).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]

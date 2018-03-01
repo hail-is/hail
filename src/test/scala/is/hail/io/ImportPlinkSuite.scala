@@ -20,7 +20,7 @@ class ImportPlinkSuite extends SparkSuite {
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
       vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => SplitMulti(vds).cache())
-      nPartitions <- choose(1, LoadPlink.expectedBedSize(vds.numCols, vds.countVariants()).toInt.min(10))
+      nPartitions <- choose(1, LoadPlink.expectedBedSize(vds.numCols, vds.countRows()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
@@ -36,7 +36,7 @@ class ImportPlinkSuite extends SparkSuite {
             hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), rg = Some(vds.referenceGenome))
           }
           true
-        } else if (vds.countVariants() == 0) {
+        } else if (vds.countRows() == 0) {
           TestUtils.interceptFatal(".bim file does not contain any variants") {
             hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
           }

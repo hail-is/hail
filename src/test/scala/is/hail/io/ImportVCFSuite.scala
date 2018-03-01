@@ -14,7 +14,7 @@ import org.apache.spark.sql.Row
 class ImportVCFSuite extends SparkSuite {
 
   @Test def testInfo() {
-    assert(hc.importVCF("src/test/resources/infochar.vcf").countVariants() == 1)
+    assert(hc.importVCF("src/test/resources/infochar.vcf").countRows() == 1)
   }
 
   @Test def lineRef() {
@@ -36,8 +36,8 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def testGlob() {
-    val n1 = hc.importVCF("src/test/resources/sample.vcf").countVariants()
-    val n2 = hc.importVCF("src/test/resources/samplepart*.vcf").countVariants()
+    val n1 = hc.importVCF("src/test/resources/sample.vcf").countRows()
+    val n2 = hc.importVCF("src/test/resources/samplepart*.vcf").countRows()
     assert(n1 == n2)
   }
 
@@ -61,7 +61,7 @@ class ImportVCFSuite extends SparkSuite {
   @Test def testMalformed() {
     // FIXME abstract
     val e = intercept[SparkException] {
-      hc.importVCF("src/test/resources/malformed.vcf").countVariants()
+      hc.importVCF("src/test/resources/malformed.vcf").countRows()
     }
     assert(e.getMessage.contains("invalid character"))
   }
@@ -163,9 +163,9 @@ class ImportVCFSuite extends SparkSuite {
   @Test def testMissingInfo() {
     val vds = hc.importVCF("src/test/resources/missingInfoArray.vcf")
 
-    val variants = vds.queryVariants("AGG.map(_ => va.locus).collect()")._1.asInstanceOf[IndexedSeq[Locus]]
-    val foo = vds.queryVariants("AGG.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
-    val bar = vds.queryVariants("AGG.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
+    val variants = vds.queryRows("AGG.map(_ => va.locus).collect()")._1.asInstanceOf[IndexedSeq[Locus]]
+    val foo = vds.queryRows("AGG.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
+    val bar = vds.queryRows("AGG.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
 
     val vMap = (variants, foo, bar).zipped.map { case (v, f, b) => (v, (f, b)) }.toMap
 

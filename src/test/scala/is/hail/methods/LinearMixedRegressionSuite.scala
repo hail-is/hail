@@ -114,7 +114,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.stringSampleIds.map(Annotation(_)).zip(pheno).toMap, TFloat64(), "pheno")
       .annotateSamples(vds0.stringSampleIds.map(Annotation(_)).zip(cov1).toMap, TFloat64(), "cov1")
       .annotateSamples(vds0.stringSampleIds.map(Annotation(_)).zip(cov2).toMap, TFloat64(), "cov2")
-    val kinshipVDS = assocVDS.filterVariantsExpr("va.locus.position <= 2")
+    val kinshipVDS = assocVDS.filterRowsExpr("va.locus.position <= 2")
 
     val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles()", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
@@ -266,7 +266,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val assocVDS = bnm
       .annotateSamples(bnm.stringSampleIds.map(Annotation(_)).zip(pheno).toMap, TFloat64(), "pheno")
       .annotateSamples(covData, covSchema, "covs")
-    val kinshipVDS = assocVDS.filterVariantsExpr(s"va.locus.position <= $mW")
+    val kinshipVDS = assocVDS.filterRowsExpr(s"va.locus.position <= $mW")
 
     val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles()", covariates = covExpr, delta = Some(delta), optDroppedVarianceFraction = Some(0))
 
@@ -305,11 +305,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
     .annotateSamplesTable(covariates, root = "cov").annotateSamplesExpr("cov = sa.cov.f2")
     .annotateSamplesTable(phenotypes, root = "pheno").annotateSamplesExpr("pheno = sa.pheno.f2")
 
-  lazy val vdsChr1 = vdsFastLMM.filterVariantsExpr("""va.locus.contig == "1"""")
-    .lmmreg(ComputeRRM(vdsFastLMM.filterVariantsExpr("""va.locus.contig != "1"""")), "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
+  lazy val vdsChr1 = vdsFastLMM.filterRowsExpr("""va.locus.contig == "1"""")
+    .lmmreg(ComputeRRM(vdsFastLMM.filterRowsExpr("""va.locus.contig != "1"""")), "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
 
-  lazy val vdsChr3 = vdsFastLMM.filterVariantsExpr("""va.locus.contig == "3"""")
-    .lmmreg(ComputeRRM(vdsFastLMM.filterVariantsExpr("""va.locus.contig != "3"""")), "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
+  lazy val vdsChr3 = vdsFastLMM.filterRowsExpr("""va.locus.contig == "3"""")
+    .lmmreg(ComputeRRM(vdsFastLMM.filterRowsExpr("""va.locus.contig != "3"""")), "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
 
   @Test def fastLMMTest() {
     val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
@@ -423,13 +423,13 @@ class LinearMixedRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .filterVariantsExpr("va.alleles.length() == 2")
+      .filterRowsExpr("va.alleles.length() == 2")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
       .annotateSamplesExpr("""culprit = AGG.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
       .annotateSamplesExpr("pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
 
-    val vdsKinship = vdsAssoc.filterVariantsExpr("va.locus.position < 4")
+    val vdsKinship = vdsAssoc.filterRowsExpr("va.locus.position < 4")
 
     vdsAssoc = vdsAssoc.lmmreg(ComputeRRM(vdsKinship), "sa.pheno.PhenoLMM", "g.GT.nNonRefAlleles()",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), runAssoc = false)
@@ -439,9 +439,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
   //Tests that k eigenvectors give the same result as all n eigenvectors for a rank-k kinship matrix on n samples.
   @Test def testFullRankAndLowRank() {
-    val vdsChr1: MatrixTable = vdsFastLMM.filterVariantsExpr("""va.locus.contig == "1"""")
+    val vdsChr1: MatrixTable = vdsFastLMM.filterRowsExpr("""va.locus.contig == "1"""")
 
-    val notChr1VDSDownsampled = vdsFastLMM.filterVariantsExpr("""va.locus.contig == "3" && va.locus.position < 2242""")
+    val notChr1VDSDownsampled = vdsFastLMM.filterRowsExpr("""va.locus.contig == "3" && va.locus.position < 2242""")
 
     val rrm = ComputeRRM(notChr1VDSDownsampled)
 

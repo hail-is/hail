@@ -119,10 +119,10 @@ object FileFormat {
 
 object MatrixTable {
   def read(hc: HailContext, path: String,
-    dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {
+    dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
     val spec = RelationalSpec.read(hc, path).asInstanceOf[MatrixTableSpec]
     new MatrixTable(hc,
-      MatrixRead(path, spec, dropSamples, dropVariants))
+      MatrixRead(path, spec, dropCols, dropRows))
   }
 
   def fromLegacy[T](hc: HailContext,
@@ -634,7 +634,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newColKey = keyNames
     val newColType = TStruct(keyNames.zip(keyTypes): _*)
 
-    val aggregate = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
+    val aggregate = Aggregators.buildRowAggregationsByKey(this, nKeys, samplesMap, ec)
 
     insertEntries(noOp,
       newColType = newColType,
@@ -661,10 +661,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def groupVariantsBy(keyExpr: String, aggExpr: String, partitionKey: java.util.ArrayList[String]): MatrixTable =
-    groupVariantsBy(keyExpr, aggExpr, Option(partitionKey).map(_.asScala.toArray))
+  def groupRowsBy(keyExpr: String, aggExpr: String, partitionKey: java.util.ArrayList[String]): MatrixTable =
+    groupRowsBy(keyExpr, aggExpr, Option(partitionKey).map(_.asScala.toArray))
 
-  def groupVariantsBy(keyExpr: String, aggExpr: String, partitionKey: Option[Array[String]] = None): MatrixTable = {
+  def groupRowsBy(keyExpr: String, aggExpr: String, partitionKey: Option[Array[String]] = None): MatrixTable = {
     val fullRowType = rvRowType
     val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
       "va" -> (1, rowType)))
@@ -901,7 +901,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copy2(colValues = newAnnotations, colType = newSignature, colKey = colKey.filter(newFields.contains))
   }
 
-  def annotateVariantsExpr(expr: String): MatrixTable = {
+  def annotateRowsExpr(expr: String): MatrixTable = {
     val localGlobals = globals
 
     val ec = variantEC
@@ -922,7 +922,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       i += 1
     }
 
-    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+    val aggregateOption = Aggregators.buildRowAggregations(this, ec)
 
     val newMatrixType = matrixType.copyParts(rowType = newRowType)
 
@@ -1052,7 +1052,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     )
   }
 
-  private def annotateVariantsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
+  private def annotateRowsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
     assert(rowPartitionKeyTypes.length == 1)
     assert(kt.keySignature.size == 1)
     assert(kt.keySignature.types(0) == TInterval(rowPartitionKeyTypes(0)))
@@ -1137,7 +1137,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
 
-  def annotateVariantsTable(kt: Table, root: String, product: Boolean = false): MatrixTable = {
+  def annotateRowsTable(kt: Table, root: String, product: Boolean = false): MatrixTable = {
     assert(!rowKey.contains(root))
 
     val keyTypes = kt.keyFields.map(_.typ)
@@ -1148,7 +1148,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     } else if (keyTypes.length == 1 &&
       rowPartitionKeyTypes.length == 1 &&
       keyTypes(0) == TInterval(rowPartitionKeyTypes(0))) {
-      annotateVariantsIntervalTable(kt, root, product)
+      annotateRowsIntervalTable(kt, root, product)
     } else {
       fatal(
         s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
@@ -1249,7 +1249,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesIndex = entriesIndex
     val newRVType = newMatrixType.rvRowType
 
-    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+    val aggregateOption = Aggregators.buildRowAggregations(this, ec)
     ec.set(0, globals)
     val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
       val fullRow = new UnsafeRow(fullRowType)
@@ -1443,7 +1443,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def nPartitions: Int = rvd.partitions.length
 
-  def annotateVariantsVDS(right: MatrixTable, root: String): MatrixTable = {
+  def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable = {
     // need to strip entries!
     // FIXME: HACK
     val rTyp = new OrderedRVDType(right.rowPartitionKey.toArray, right.rowKey.toArray, right.rowType)
@@ -1451,9 +1451,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     orderedRVDLeftJoinDistinctAndInsert(rightRVD, root, product = false)
   }
 
-  def count(): (Long, Long) = (numCols, countVariants())
+  def count(): (Long, Long) = (numCols, countRows())
 
-  def countVariants(): Long = partitionCounts().sum
+  def countRows(): Long = partitionCounts().sum
 
   def forceCountRows(): Long = rvd.count()
 
@@ -1468,9 +1468,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def dropSamples(): MatrixTable =
     copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean())))
 
-  def dropVariants(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orvdType))
+  def dropRows(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orvdType))
 
-  def explodeVariants(root: String): MatrixTable = {
+  def explodeRows(root: String): MatrixTable = {
     val path = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (keysType, querier) = rvRowType.queryTyped(path)
     val keyType = keysType match {
@@ -1658,11 +1658,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     * @param keep       keep variants where filterExpr evaluates to true
     * @return
     */
-  def filterVariantsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
+  def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
     if (!keep)
       filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    copyAST(ast = FilterVariants(ast, filterAST))
+    copyAST(ast = FilterRows(ast, filterAST))
   }
 
   def sparkContext: SparkContext = hc.sc
@@ -1916,7 +1916,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def aggregateRowsJSON(expr: String): String = {
-    val (a, t) = queryVariants(expr)
+    val (a, t) = queryRows(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
@@ -2049,13 +2049,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (t, f2)
   }
 
-  def queryVariants(expr: String): (Annotation, Type) = {
-    val qv = queryVariants(Array(expr))
+  def queryRows(expr: String): (Annotation, Type) = {
+    val qv = queryRows(Array(expr))
     assert(qv.length == 1)
     qv.head
   }
 
-  def queryVariants(exprs: Array[String]): Array[(Annotation, Type)] = {
+  def queryRows(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "va" -> (1, rowType))
@@ -2341,7 +2341,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
   }
 
-  def sampleVariants(p: Double, seed: Int = 1): MatrixTable = {
+  def sampleRows(p: Double, seed: Int = 1): MatrixTable = {
     require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
     copyMT(rvd = rvd.sample(withReplacement = false, p, seed))
   }

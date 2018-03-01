@@ -8,11 +8,11 @@ import org.testng.annotations.Test
 class ExplodeSuite extends SparkSuite {
   @Test def testExplode() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("foo = [1, 2, 2], bar = [1, 2, 2].toSet()")
+      .annotateRowsExpr("foo = [1, 2, 2], bar = [1, 2, 2].toSet()")
       .annotateSamplesExpr("foo = [1, 2, 2], bar = [1, 2, 2].toSet()")
         
-    assert(vsm.explodeVariants("va.foo").countVariants() == vsm.countVariants() * 3)
-    assert(vsm.explodeVariants("va.bar").countVariants() == vsm.countVariants() * 2)
+    assert(vsm.explodeRows("va.foo").countRows() == vsm.countRows() * 3)
+    assert(vsm.explodeRows("va.bar").countRows() == vsm.countRows() * 2)
     assert(vsm.explodeSamples("sa.foo").numCols == vsm.numCols * 3)
     assert(vsm.explodeSamples("sa.bar").numCols == vsm.numCols * 2)
 
@@ -23,10 +23,10 @@ class ExplodeSuite extends SparkSuite {
 
   @Test def testExplodeUnwrap() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("foo = [1]")
+      .annotateRowsExpr("foo = [1]")
       .annotateSamplesExpr("foo = [3]")
     
-    val exploded = vsm.explodeVariants("va.foo")
+    val exploded = vsm.explodeRows("va.foo")
     assert(vsm.variants.collect().sameElements(exploded.variants.collect()))
 
     val exploded2 = vsm.explodeSamples("sa.foo")
@@ -35,11 +35,11 @@ class ExplodeSuite extends SparkSuite {
 
   @Test def testNoElements() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("foo = NA: Array[Int32]")
+      .annotateRowsExpr("foo = NA: Array[Int32]")
       .annotateSamplesExpr("foo = NA: Array[Int32]")
     
-    val exploded = vsm.explodeVariants("va.foo")
-    assert(exploded.countVariants() == 0)
+    val exploded = vsm.explodeRows("va.foo")
+    assert(exploded.countRows() == 0)
 
     val exploded2 = vsm.explodeSamples("sa.foo")
     assert(exploded2.numCols == 0)

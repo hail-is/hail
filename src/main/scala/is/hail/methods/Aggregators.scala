@@ -19,7 +19,7 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregationsByKey(vsm: MatrixTable, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
+  def buildRowAggregationsByKey(vsm: MatrixTable, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
     buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, nKeys, keyMap, ec)
 
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
@@ -85,7 +85,7 @@ object Aggregators {
     }
   }
 
-  def buildVariantAggregations(vsm: MatrixTable, ec: EvalContext): Option[(RegionValue) => Unit] =
+  def buildRowAggregations(vsm: MatrixTable, ec: EvalContext): Option[(RegionValue) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, ec)
 
   def buildVariantAggregations(sc: SparkContext,

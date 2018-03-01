@@ -7,6 +7,6 @@ class DistinctSuite extends SparkSuite {
 
   @Test def test() {
     assert(hc.importVCFs(List("src/test/resources/sample.vcf", "src/test/resources/sample.vcf"))
-      .deduplicate().countVariants() == 346)
+      .deduplicate().countRows() == 346)
   }
 }

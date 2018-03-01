@@ -20,7 +20,7 @@ import scala.language.postfixOps
 class VSMSuite extends SparkSuite {
 
   @Test def testWriteRead() {
-    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateVariantsExpr("foo = 5"))) { vds =>
+    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateRowsExpr("foo = 5"))) { vds =>
       ReferenceGenome.addReference(vds.referenceGenome)
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
@@ -37,9 +37,9 @@ class VSMSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample2.vcf")
       .write(f)
 
-    assert(hc.read(f, dropSamples = true)
-      .filterVariantsExpr("va.info.AF[0] < 0.01")
-      .countVariants() == 234)
+    assert(hc.read(f, dropCols = true)
+      .filterRowsExpr("va.info.AF[0] < 0.01")
+      .countRows() == 234)
   }
 
   @Test def testSkipDropSame() {
@@ -108,10 +108,10 @@ class VSMSuite extends SparkSuite {
 
   @Test def testAnnotateVariantsKeyTable() {
     forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("bar = va")
+      val vds2 = vds.annotateRowsExpr("bar = va")
       val kt = vds2.rowsTable()
-      val resultVds = vds2.annotateVariantsTable(kt, "foo")
-        .annotateVariantsExpr("foo = va.foo.bar")
+      val resultVds = vds2.annotateRowsTable(kt, "foo")
+        .annotateRowsExpr("foo = va.foo.bar")
       resultVds.typecheck()
       val result = resultVds.rdd.collect()
       val (_, getFoo) = resultVds.queryVA("va.foo")
@@ -135,9 +135,9 @@ class VSMSuite extends SparkSuite {
 
     val filteredVds = vds.filterSamplesList(origOrder.map(Annotation(_)).toSet)
       .indexCols("colIdx")
-      .annotateVariantsExpr("origGenos = AGG.take(5)")
+      .annotateRowsExpr("origGenos = AGG.take(5)")
     val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
-      .annotateVariantsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
+      .annotateRowsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
     assert(vds.reorderSamples(vds.colKeys).same(vds))
