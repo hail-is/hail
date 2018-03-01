@@ -257,16 +257,16 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     - **linreg.nCompleteSamples** (:py:data:`.tint32`) -- Number of columns used.
     - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values `x`.
-    - **linreg.ytx** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
+    - **linreg.ytx** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       dot products of each response vector `y` with the input vector `x`.
-    - **linreg.beta** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
+    - **linreg.beta** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       fit effect coefficients of `x`, :math:`\hat\\beta_1` below.
-    - **linreg.se** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
+    - **linreg.se** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       estimated standard errors, :math:`\widehat{\mathrm{se}}_1`.
-    - **linreg.tstat** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array
+    - **linreg.tstat** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array
       of :math:`t`-statistics, equal to
       :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
-    - **linreg.pval** (:py:data:`tarray` of :py:data:`.tfloat64`) -- array
+    - **linreg.pval** (:class:`.tarray` of :py:data:`.tfloat64`) -- array
       of :math:`p`-values.
 
     In the statistical genetics example above, the input variable `x` encodes
