@@ -661,7 +661,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def aggregateRowsAlongKey(aggExpr: String): MatrixTable = {
+  def aggregateRowsByKey(aggExpr: String): MatrixTable = {
 
     val SampleFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeSampleFunctions(this, aggExpr)
     val newRowType = matrixType.orvdType.kType
