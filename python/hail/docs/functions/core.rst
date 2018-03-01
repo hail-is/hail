@@ -4,7 +4,7 @@ Core language functions
 
 .. autosummary::
 
-    lit
+    literal
     cond
     switch
     case
@@ -18,7 +18,7 @@ Core language functions
     range
 
 
-.. autofunction:: lit
+.. autofunction:: literal
 .. autofunction:: cond
 .. autofunction:: switch
 .. autofunction:: case

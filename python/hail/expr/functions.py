@@ -38,7 +38,7 @@ def null(t):
     """
     return construct_expr(Literal('NA: {}'.format(t._jtype.toString())), t)
 
-def lit(x, dtype=None):
+def literal(x, dtype=None):
     """Captures and broadcasts a Python variable or object as an expression.
 
     Examples
@@ -46,7 +46,7 @@ def lit(x, dtype=None):
     .. doctest::
 
         >>> table = hl.utils.range_table(8)
-        >>> greetings = hl.lit({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
+        >>> greetings = hl.literal({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
         >>> table.annotate(greeting = greetings.get(table.idx)).show()
         +-------+----------------+
         | index | greeting       |
@@ -78,9 +78,14 @@ def lit(x, dtype=None):
     -------
     :class:`.Expression`
     """
-    if dtype is None:
+    if dtype:
+        try:
+            dtype._typecheck(x)
+        except TypeError as e:
+            raise TypeError("'literal': object did not match the passed type '{}'"
+                            .format(dtype)) from e
+    else:
         dtype = impute_type(x)
-    dtype._typecheck(x)
 
     if x is None:
         return hl.null(dtype)
@@ -118,36 +123,6 @@ def lit(x, dtype=None):
 
         return construct_expr(GlobalJoinReference(uid), dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
-def capture(x):
-    """Captures a Python variable or object as an expression.
-
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> hl.eval_expr(hl.capture(5))
-        5
-
-        >>> hl.eval_expr(hl.capture([1, 2, 3]))
-        [1, 2, 3]
-
-    Warning
-    -------
-    For large objects, use :meth:`.broadcast`.
-
-    Parameters
-    ----------
-    x
-        Python variable to capture as an expression.
-
-    Returns
-    -------
-    :class:`.Expression`
-        An expression representing `x`.
-    """
-    return to_expr(x)
-
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
 def cond(condition, consequent, alternate):
@@ -161,7 +136,7 @@ def cond(condition, consequent, alternate):
         >>> hl.eval_expr( hl.cond(x < 2, 'Hi', 'Bye') )
         'Bye'
 
-        >>> a = hl.capture([1, 2, 3, 4])
+        >>> a = hl.literal([1, 2, 3, 4])
         >>> hl.eval_expr( hl.cond(hl.len(a) > 0,
         ...                   2.0 * a,
         ...                   a / 2.0) )
@@ -209,7 +184,7 @@ def case():
     --------
     .. doctest::
 
-        >>> x = hl.capture('foo bar baz')
+        >>> x = hl.literal('foo bar baz')
         >>> expr = (hl.case()
         ...                  .when(x[:3] == 'FOO', 1)
         ...                  .when(hl.len(x) == 11, 2)
@@ -238,7 +213,7 @@ def switch(expr):
     --------
     .. doctest::
 
-        >>> csq = hl.capture('loss of function')
+        >>> csq = hl.literal('loss of function')
         >>> expr = (hl.switch(csq)
         ...                  .when('synonymous', 1)
         ...                  .when('SYN', 1)
@@ -1074,10 +1049,10 @@ def is_nan(x):
         >>> hl.eval_expr(hl.is_nan(0))
         False
 
-        >>> hl.eval_expr(hl.is_nan(hl.capture(0) / 0))
+        >>> hl.eval_expr(hl.is_nan(hl.literal(0) / 0))
         True
 
-        >>> hl.eval_expr(hl.is_nan(hl.capture(0) / hl.null(hl.tfloat64)))
+        >>> hl.eval_expr(hl.is_nan(hl.literal(0) / hl.null(hl.tfloat64)))
         None
 
     Notes
@@ -1920,7 +1895,7 @@ def is_strand_ambiguous(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    alleles = hl.capture({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
+    alleles = hl.literal({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
     return alleles.contains((ref, alt))
 
 
@@ -2764,6 +2739,32 @@ def struct(**kwargs):
     """
     return to_expr(Struct(**kwargs))
 
+def tuple(iterable):
+    """Construct a tuple expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> t = hl.tuple([1, 2, '3'])
+        >>> hl.eval_expr(t)
+        (1, 2, '3')
+
+        >>> hl.eval_expr(t[2])
+        '3'
+
+    Parameters
+    ----------
+    args : :obj:`Iterable` of :class:`.Expression`
+        Tuple elements.
+
+    Returns
+    -------
+    :class:`.TupleExpression`
+    """
+    t = builtins.tuple(iterable)
+    return to_expr(t)
+
 @typecheck(collection=oneof(expr_set, expr_array))
 def set(collection):
     """Convert a set expression.
@@ -2772,9 +2773,8 @@ def set(collection):
     --------
     .. doctest::
 
-        >>> a = ['Bob', 'Charlie', 'Alice', 'Bob', 'Bob']
-
-        >>> hl.eval_expr(hl.set(a))
+        >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
+        >>> s.show()
         {'Alice', 'Bob', 'Charlie'}
 
     Returns

@@ -20,7 +20,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
-    lit
+    literal
     cond
     switch
     case

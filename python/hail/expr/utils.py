@@ -25,7 +25,7 @@ class SwitchBuilder(ConditionalBuilder):
     --------
     .. doctest::
 
-        >>> csq = hl.capture('loss of function')
+        >>> csq = hl.literal('loss of function')
         >>> expr = (hl.switch(csq)
         ...           .when('synonymous', 1)
         ...           .when('SYN', 1)
@@ -178,7 +178,7 @@ class CaseBuilder(ConditionalBuilder):
     --------
     .. doctest::
 
-        >>> x = hl.capture('foo bar baz')
+        >>> x = hl.literal('foo bar baz')
         >>> expr = (hl.case()
         ...           .when(x[:3] == 'FOO', 1)
         ...           .when(x.length() == 11, 2)
