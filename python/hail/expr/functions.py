@@ -2739,7 +2739,7 @@ def struct(**kwargs):
     """
     return to_expr(Struct(**kwargs))
 
-def tuple(args):
+def tuple(iterable):
     """Construct a tuple expression.
 
     Examples
@@ -2762,7 +2762,7 @@ def tuple(args):
     -------
     :class:`.TupleExpression`
     """
-    t = builtins.tuple(args)
+    t = builtins.tuple(iterable)
     return to_expr(t)
 
 @typecheck(collection=oneof(expr_set, expr_array))
