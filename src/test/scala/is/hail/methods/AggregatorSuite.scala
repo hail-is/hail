@@ -263,19 +263,6 @@ class AggregatorSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testQueryGenotypes() {
-    Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      val countResult = vds.summarize().callRate.getOrElse(null)
-      val (queryResult, t) = vds.queryGenotypes("AGG.fraction(g => isDefined(g.GT))")
-      assert(t.valuesSimilar(countResult, queryResult))
-
-      val filterCountResult = vds.filterGenotypes("va.locus.position % 2 == 1").summarize().callRate.getOrElse(null)
-      val (queryResult2, t2) = vds.queryGenotypes("AGG.fraction(g => (va.locus.position % 2 == 1) && isDefined(g.GT))")
-      assert(t2.valuesSimilar(filterCountResult, queryResult2))
-      true
-    }.check()
-  }
-
   private def isLensedPrefix[T, K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
     prefix.zip(full).forall { case (x, y) => lens(x) == lens(y) }
   }
