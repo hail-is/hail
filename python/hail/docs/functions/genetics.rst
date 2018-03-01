@@ -13,6 +13,8 @@ Genetics functions
     call
     unphased_diploid_gt_index_call
     parse_call
+    downcode
+    triangle
     is_snp
     is_mnp
     is_transition
@@ -35,6 +37,8 @@ Genetics functions
 .. autofunction:: call
 .. autofunction:: unphased_diploid_gt_index_call
 .. autofunction:: parse_call
+.. autofunction:: downcode
+.. autofunction:: triangle
 .. autofunction:: is_snp
 .. autofunction:: is_mnp
 .. autofunction:: is_transition
