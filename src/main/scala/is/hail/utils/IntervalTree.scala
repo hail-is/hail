@@ -42,12 +42,12 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
   def disjointAndLessThan(pord: ExtendedOrdering, other: Interval): Boolean = {
     val c = pord.compare(this.end, other.start)
-    c < 0 || ((!this.includeEnd || !other.includeStart) && c == 0)
+    c < 0 || (c == 0 && (!this.includeEnd || !other.includeStart))
   }
 
   def disjointAndGreaterThan(pord: ExtendedOrdering, other: Interval): Boolean = {
     val c = pord.compare(this.start, other.end)
-    c > 0 || ((!this.includeStart || !other.includeEnd) && c == 0)
+    c > 0 || (c == 0 && (!this.includeStart || !other.includeEnd))
   }
 
   override def toString: String = (if (includeStart) "[" else "(") + start + "-" + end + (if (includeEnd) "]" else ")")
