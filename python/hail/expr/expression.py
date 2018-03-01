@@ -768,11 +768,22 @@ class Expression(object):
         t = self._to_table(uid)
         return [r[uid] for r in t.select(uid).collect()]
 
-
-
     @property
     def value(self):
-        return hail.eval_expr(self)
+        """Evaluate this expression.
+
+        Notes
+        -----
+        This expression must have no indices, but can refer to the
+        globals of a a :class:`.hail.Table` or
+        :class:`.hail.MatrixTable`.
+
+        Returns
+        -------
+            The value of this expression.
+
+        """
+        return eval_expr(self)
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
@@ -3631,8 +3642,8 @@ def eval_expr(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
-    objects cannot be evaluated.
+    The expression must have no indices, but can refer to the globals
+    of a a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
 
     Examples
     --------
@@ -3664,8 +3675,8 @@ def eval_expr_typed(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
-    objects cannot be evaluated.
+    The expression must have no indices, but can refer to the globals
+    of a a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
 
     Examples
     --------
@@ -3686,8 +3697,9 @@ def eval_expr_typed(expression):
     -------
     (any, :class:`.Type`)
         Result of evaluating `expression`, and its type.
+
     """
-    analyze('eval_expr_typed', expression, Indices())
+    analyze('eval_expr_typed', expression, Indices(expression._indices.source))
 
     return expression.collect()[0], expression.dtype
 
