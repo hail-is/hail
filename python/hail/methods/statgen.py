@@ -71,7 +71,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     ----------
     dataset : :class:`.MatrixTable`
         A variant-keyed :class:`.MatrixTable` containing genotype information.
-    maf : :class:`.Expression` of type :class:`.TFloat64`, optional
+    maf : :class:`.Expression` of type :py:data:`.tfloat64`, optional
         (optional) expression on `dataset` for the minor allele frequency.
     bounded : :obj:`bool`
         Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
@@ -167,16 +167,16 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     The returned column-key indexed :class:`.Table` has the following fields in
     addition to the matrix table's column keys:
 
-    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female,
+    - **is_female** (:py:data:`.tbool`) -- True if the imputed sex is female,
       false if male, missing if undetermined.
-    - **f_stat** (:class:`.TFloat64`) -- Inbreeding coefficient.
-    - **n_called**  (:class:`.TInt64`) -- Number of variants with a genotype call.
-    - **expected_homs** (:class:`.TFloat64`) -- Expected number of homozygotes.
-    - **observed_homs** (:class:`.TInt64`) -- Observed number of homozygotes.
+    - **f_stat** (:py:data:`.tfloat64`) -- Inbreeding coefficient.
+    - **n_called**  (:py:data:`.tint64`) -- Number of variants with a genotype call.
+    - **expected_homs** (:py:data:`.tfloat64`) -- Expected number of homozygotes.
+    - **observed_homs** (:py:data:`.tint64`) -- Observed number of homozygotes.
 
     call : :class:`.CallExpression`
         A genotype call for each row and column. The source dataset's row keys
-        must be [[locus], alleles] with types :class:`.TLocus` and
+        must be [[locus], alleles] with types :class:`.tlocus` and
         :class:`.ArrayStringExpression`. Moreover, the alleles array must have
         exactly two elements (i.e. the variant must be biallelic).
     aaf_threshold : :obj:`float`
@@ -253,21 +253,23 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     Notes
     -----
     With the default root, the following row-indexed fields are added. The
-    indexing of the array fields corresponds to that of ``ys``.
+    indexing of the array fields corresponds to that of `ys`.
 
-    - **linreg.nCompleteSamples** (*Int32*) -- number of columns used
-    - **linreg.AC** (*Float64*) -- sum of input values ``x``
-    - **linreg.ytx** (*Array[Float64]*) -- array of dot products of each
-      response vector ``y`` with the input vector ``x``
-    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients of
-      ``x``, :math:`\hat\\beta_1` below
-    - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors,
-      :math:`\widehat{\mathrm{se}}_1`
-    - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics,
-      equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`
-    - **linreg.pval** (*Array[Float64]*) -- array of :math:`p`-values
+    - **linreg.nCompleteSamples** (:py:data:`.tint32`) -- Number of columns used.
+    - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values `x`.
+    - **linreg.ytx** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
+      dot products of each response vector `y` with the input vector `x`.
+    - **linreg.beta** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
+      fit effect coefficients of `x`, :math:`\hat\\beta_1` below.
+    - **linreg.se** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
+      estimated standard errors, :math:`\widehat{\mathrm{se}}_1`.
+    - **linreg.tstat** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array
+      of :math:`t`-statistics, equal to
+      :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
+    - **linreg.pval** (:class:`.tarray` of :py:data:`.tfloat64`) -- array
+      of :math:`p`-values.
 
-    In the statistical genetics example above, the input variable ``x`` encodes
+    In the statistical genetics example above, the input variable `x` encodes
     genotype as the number of alternate alleles (0, 1, or 2). For each variant
     (row), genotype is tested for association with height controlling for age
     and sex, by fitting the linear regression model:
@@ -280,8 +282,8 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
-    Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for true
-    and 0 for false. The null model sets :math:`\\beta_1 = 0`.
+    Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for
+    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
@@ -577,7 +579,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
 
 
 @typecheck(ds=MatrixTable,
-           kinshipMatrix=KinshipMatrix,
+           kinship_matrix=KinshipMatrix,
            y=expr_numeric,
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
@@ -589,7 +591,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
            sparsity_threshold=numeric,
            n_eigs=nullable(int),
            dropped_variance_fraction=(nullable(float)))
-def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
+def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
            run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
            n_eigs=None, dropped_variance_fraction=None):
     r"""Use a kinship-based linear mixed model to estimate the genetic component
@@ -663,51 +665,51 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
          - Type
          - Value
        * - `useML`
-         - Boolean
+         - bool
          - true if fit by ML, false if fit by REML
        * - `beta`
-         - Dict[String, Double]
+         - dict<str, float64>
          - map from *intercept* and the given ``covariates`` expressions to the
            corresponding fit :math:`\beta` coefficients
        * - `sigmaG2`
-         - Double
+         - float64
          - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
        * - `sigmaE2`
-         - Double
+         - float64
          - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
        * - `delta`
-         - Double
+         - float64
          - fit ratio of variance component coefficients, :math:`\hat{\delta}`
        * - `h2`
-         - Double
+         - float64
          - fit narrow-sense heritability, :math:`\hat{h}^2`
        * - `nEigs`
-         - Int
+         - int32
          - number of eigenvectors of kinship matrix used to fit model
        * - `dropped_variance_fraction`
-         - Double
+         - float64
          - specified value of `dropped_variance_fraction`
        * - `evals`
-         - Array[Double]
+         - array<float64>
          - all eigenvalues of the kinship matrix in descending order
        * - `fit.seH2`
-         - Double
+         - float64
          - standard error of :math:`\hat{h}^2` under asymptotic normal
            approximation
        * - `fit.normLkhdH2`
-         - Array[Double]
+         - array<float64>
          - likelihood function of :math:`h^2` normalized on the discrete grid
            ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
            percentage ``i``.
        * - `fit.maxLogLkhd`
-         - Double
+         - float64
          - (restricted) maximum log likelihood corresponding to
            :math:`\hat{\delta}`
        * - `fit.logDeltaGrid`
-         - Array[Double]
+         - array<float64>
          - values of :math:`\mathrm{ln}(\delta)` used in the grid search
        * - `fit.logLkhdVals`
-         - Array[Double]
+         - array<float64>
          - (restricted) log likelihood of :math:`y` given :math:`X` and
            :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and
            :math:`\sigma_g^2`
@@ -721,19 +723,19 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     field prefix `va_root`, which defaults to ``lmmreg``. Once again, the prefix
     is not displayed in the table.
 
-    +-----------+--------+------------------------------------------------+
-    | Field     | Type   | Value                                          |
-    +===========+========+================================================+
-    | `beta`    | Double | fit genotype coefficient, :math:`\hat\beta_0`  |
-    +-----------+--------+------------------------------------------------+
-    | `sigmaG2` | Double | fit coefficient of genetic variance component, |
-    |           |        | :math:`\hat{\sigma}_g^2`                       |
-    +-----------+--------+------------------------------------------------+
-    | `chi2`    | Double | :math:`\chi^2` statistic of the likelihood     |
-    |           |        | ratio test                                     |
-    +-----------+--------+------------------------------------------------+
-    | `pval`    | Double | :math:`p`-value                                |
-    +-----------+--------+------------------------------------------------+
+    +-----------+---------+------------------------------------------------+
+    | Field     | Type    | Value                                          |
+    +===========+=========+================================================+
+    | `beta`    | float64 | fit genotype coefficient, :math:`\hat\beta_0`  |
+    +-----------+---------+------------------------------------------------+
+    | `sigmaG2` | float64 | fit coefficient of genetic variance component, |
+    |           |         | :math:`\hat{\sigma}_g^2`                       |
+    +-----------+---------+------------------------------------------------+
+    | `chi2`    | float64 | :math:`\chi^2` statistic of the likelihood     |
+    |           |         | ratio test                                     |
+    +-----------+---------+------------------------------------------------+
+    | `pval`    | float64 | :math:`p`-value                                |
+    +-----------+---------+------------------------------------------------+
 
     Those variants that don't vary across the included samples (e.g., all
     genotypes are HomRef) will have missing annotations.
@@ -1013,7 +1015,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     Parameters
     ----------
-    kinshipMatrix : :class:`.KinshipMatrix`
+    kinship_matrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
 
     y : :class:`.NumericExpression`
@@ -1070,7 +1072,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     base, cleanup = ds._process_joins(*all_exprs)
 
-    jds = base._jvds.lmmreg(kinshipMatrix._jkm,
+    jds = base._jvds.lmmreg(kinship_matrix._jkm,
                             y._ast.to_hql(),
                             x._ast.to_hql(),
                             jarray(Env.jvm().java.lang.String,
@@ -1431,16 +1433,16 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Scores are stored in a :class:`.Table` with the column keys of the matrix
     followed by the principal component scores. If `as_array` is ``True``, there
-    is one row field `scores` of type ``Array[Float64]`` containing the principal
+    is one row field `scores` of type ``array<float64>`` containing the principal
     component scores. If `as_array` is ``False`` (default), then each principal
-    component score is a new row field of type ``Float64`` with the names `PC1`,
+    component score is a new row field of type ``float64`` with the names `PC1`,
     `PC2`, etc.
 
     Loadings are stored in a :class:`.Table` with a structure similar to the
     scores table except the row keys of the matrix are followed by the loadings.
     If `as_array` is ``False``, the loadings are stored in one row field
-    `loadings` of type ``Array[Float64]``. Otherwise, each principal component
-    loading is a new row field of type ``Float64`` with the names `PC1`, `PC2`,
+    `loadings` of type ``array<float64>``. Otherwise, each principal component
+    loading is a new row field of type ``float64`` with the names `PC1`, `PC2`,
     etc.
 
     Parameters
@@ -1728,9 +1730,11 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         A :class:`.Table` mapping pairs of samples to estimations of their
         kinship and identity-by-descent zero, one, and two.
 
-        The fields of the resulting :class:`.Table` entries are of types:
-        `i`: `String`, `j`: `String`, `kin`: `Double`, `k2`: `Double`,
-        `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
+        The fields of the resulting :class:`.Table` entries are of types: `i`:
+        :py:data:`.tstr`, `j`: :py:data:`.tstr`, `kin`: :py:data:`.tfloat64`, `k2`:
+        :py:data:`.tfloat64`, `k1`: :py:data:`.tfloat64`, `k0`:
+        :py:data:`.tfloat64`. The table is keyed by `i` and `j`.
+
     """
     dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
@@ -1825,7 +1829,7 @@ class SplitMulti(object):
 
         Returns
         -------
-        :class:`.Expression` of type :class:`.TInt32`
+        :class:`.Expression` of type :py:data:`.tint32`
         """
         return construct_reference(
             "aIndex", type=tint32, indices=self._ds._row_indices)
@@ -1903,12 +1907,12 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     .. code-block:: text
 
-      Struct {
-        GT: Call,
-        AD: Array[!Int32],
-        DP: Int32,
-        GQ: Int32,
-        PL: Array[!Int32].
+      struct {
+        GT: call,
+        AD: array<int32>,
+        DP: int32,
+        GQ: int32,
+        PL: array<int32>
       }
 
     For generic genotype schema, use :func:`.split_multi_hts`.
@@ -2346,33 +2350,33 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Global fields:
 
-    - `num_populations` (:class:`.TInt32`) -- Number of populations.
-    - `num_samples` (:class:`.TInt32`) -- Number of samples.
-    - `num_variants` (:class:`.TInt32`) -- Number of variants.
-    - `pop_dist` (:class:`.TArray` of :class:`.TFloat64`) -- Population distribution indexed by
+    - `num_populations` (:py:data:`.tint32`) -- Number of populations.
+    - `num_samples` (:py:data:`.tint32`) -- Number of samples.
+    - `num_variants` (:py:data:`.tint32`) -- Number of variants.
+    - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
-    - `fst` (:class:`.TArray` of :class:`.TFloat64`) -- :math:`F_{ST}` values indexed by
+    - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
       population.
-    - `ancestral_af_dist` (:class:`.TStruct`) -- Description of the ancestral allele
+    - `ancestral_af_dist` (:class:`.tstruct`) -- Description of the ancestral allele
       frequency distribution.
-    - `seed` (:class:`.TInt32`) -- Random seed.
+    - `seed` (:py:data:`.tint32`) -- Random seed.
 
     Row fields:
 
-    - `locus` (:class:`.TLocus`) -- Variant locus (key field).
-    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles (key field).
-    - `ancestral_af` (:class:`.TFloat64`) -- Ancestral allele frequency.
-    - `af` (:class:`.TArray` of :class:`.TFloat64`) -- Modern allele frequencies indexed by
+    - `locus` (:class:`.tlocus`) -- Variant locus (key field).
+    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles (key field).
+    - `ancestral_af` (:py:data:`.tfloat64`) -- Ancestral allele frequency.
+    - `af` (:class:`.tarray` of :py:data:`.tfloat64`) -- Modern allele frequencies indexed by
       population.
 
     Column fields:
 
-    - `s` (:class:`.TString`) - Sample ID (key field).
-    - `pop` (:class:`.TInt32`) -- Population of sample.
+    - `s` (:py:data:`.tstr`) - Sample ID (key field).
+    - `pop` (:py:data:`.tint32`) -- Population of sample.
 
     Entry fields:
 
-    - `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
+    - `GT` (:py:data:`.tcall`) -- Genotype call (diploid, unphased).
 
     Parameters
     ----------
@@ -2494,7 +2498,7 @@ class FilterAlleles(object):
         ds = source
         require_biallelic(ds, 'FilterAlleles')
 
-        if not isinstance(filter_expr.dtype.element_type, TBoolean):
+        if filter_expr.dtype.element_type != tbool:
             raise TypeError("'FilterAlleles' expects 'filter_expr' to be type 'Array[Boolean]', found '{}'"
                             .format(filter_expr.dtype))
         analyze('FilterAlleles', filter_expr, ds._row_indices)
@@ -2599,11 +2603,11 @@ class FilterAlleles(object):
 
         .. code-block:: text
 
-            GT: Call
-            AD: Array[!Int32]
-            DP: Int32
-            GQ: Int32
-            PL: Array[!Int32]
+            GT: call
+            AD: array<int32>
+            DP: int32
+            GQ: int32
+            PL: array<int32>
 
         **Subset algorithm**
 
@@ -2691,11 +2695,11 @@ class FilterAlleles(object):
 
         .. code-block:: text
 
-            GT: Call
-            AD: Array[!Int32]
-            DP: Int32
-            GQ: Int32
-            PL: Array[!Int32]
+            GT: call
+            AD: array<int32>
+            DP: int32
+            GQ: int32
+            PL: array<int32>
 
         **Downcode algorithm**
 

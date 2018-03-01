@@ -106,14 +106,14 @@ def count(expr=None):
         >>> (table1.group_by(table1.SEX)
         ...        .aggregate(n=agg.count())
         ...        .show())
-        +--------+-------+
-        | SEX    |     n |
-        +--------+-------+
-        | String | Int64 |
-        +--------+-------+
-        | M      |     2 |
-        | F      |     2 |
-        +--------+-------+
+        +-----+-------+
+        | SEX |     n |
+        +-----+-------+
+        | str | int64 |
+        +-----+-------+
+        | M   |     2 |
+        | F   |     2 |
+        +-----+-------+
 
     Notes
     -----
@@ -129,7 +129,7 @@ def count(expr=None):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt64`
+    :class:`.Expression` of type :py:data:`.tint64`
         Total number of records.
     """
     if expr is not None:
@@ -158,7 +158,7 @@ def count_where(condition):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt64`
+    :class:`.Expression` of type :py:data:`.tint64`
         Total number of records where `condition` is ``True``.
     """
 
@@ -175,14 +175,14 @@ def any(condition):
         >>> (table1.group_by(table1.SEX)
         ... .aggregate(any_over_70 = agg.any(table1.HT > 70))
         ... .show())
-        +--------+-------------+
-        | SEX    | any_over_70 |
-        +--------+-------------+
-        | String | Boolean     |
-        +--------+-------------+
-        | M      | true        |
-        | F      | false       |
-        +--------+-------------+
+        +-----+-------------+
+        | SEX | any_over_70 |
+        +-----+-------------+
+        | str | bool        |
+        +-----+-------------+
+        | M   | true        |
+        | F   | false       |
+        +-----+-------------+
 
     Notes
     -----
@@ -213,14 +213,14 @@ def all(condition):
         >>> (table1.group_by(table1.SEX)
         ... .aggregate(all_under_70 = agg.all(table1.HT < 70))
         ... .show())
-        +--------+--------------+
-        | SEX    | all_under_70 |
-        +--------+--------------+
-        | String | Boolean      |
-        +--------+--------------+
-        | M      | false        |
-        | F      | false        |
-        +--------+--------------+
+        +-----+--------------+
+        | SEX | all_under_70 |
+        +-----+--------------+
+        | str | bool         |
+        +-----+--------------+
+        | M   | false        |
+        | F   | false        |
+        +-----+--------------+
 
     Notes
     -----
@@ -258,7 +258,7 @@ def counter(expr):
     Notes
     -----
     This aggregator method returns a dict expression whose key type is the
-    same type as `expr` and whose value type is :class:`.Expression` of type :class:`.TInt64`.
+    same type as `expr` and whose value type is :class:`.Expression` of type :py:data:`.tint64`.
     This dict contains a key for each unique value of `expr`, and the value
     is the number of times that key was observed.
 
@@ -328,7 +328,7 @@ def take(expr, n, ordering=None):
     ----------
     expr : :class:`.Expression`
         Expression to store.
-    n : :class:`.Expression` of type :class:`.TInt32`
+    n : :class:`.Expression` of type :py:data:`.tint32`
         Number of records to take.
     ordering : :class:`.Expression` or function ((arg) -> :class:`.Expression`) or None
         Optional ordering on records.
@@ -353,9 +353,9 @@ def take(expr, n, ordering=None):
             lambda_result = ordering
         indices, aggregations, joins, refs = unify_all(agg, lambda_result)
 
-        if not (is_numeric(ordering._type) or isinstance(ordering._type, TString)):
+        if not (is_numeric(ordering.dtype) or ordering.dtype == tstr):
             raise TypeError("'take' expects 'ordering' to be or return an ordered expression\n"
-                            "    Ordered expressions are 'Int32', 'Int64', 'Float32', 'Float64', 'String'\n"
+                            "    Ordered expressions are 'int32', 'int64', 'float32', 'float64', 'str'\n"
                             "    Found '{}'".format(ordering._type))
         ast = LambdaClassMethod('takeBy', uid, agg._ast, lambda_result._ast, n._ast)
 
@@ -448,10 +448,10 @@ def sum(expr):
     -----
     Missing values are ignored (treated as zero).
 
-    If `expr` is an expression of type :class:`.TInt32` or :class:`.TInt64`, then
-    the result is an expression of type :class:`.TInt64`. If `expr` is an
-    expression of type :class:`.TFloat32` or :class:`.TFloat64`, then the result
-    is an expression of type :class:`.TFloat64`.
+    If `expr` is an expression of type :py:data:`.tint32` or :py:data:`.tint64`, then
+    the result is an expression of type :py:data:`.tint64`. If `expr` is an
+    expression of type :py:data:`.tfloat32` or :py:data:`.tfloat64`, then the result
+    is an expression of type :py:data:`.tfloat64`.
 
     Parameters
     ----------
@@ -460,7 +460,7 @@ def sum(expr):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt64` or :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tint64` or :py:data:`.tfloat64`
         Sum of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -495,7 +495,7 @@ def array_sum(expr):
     :class:`.ArrayNumericExpression`
     """
     agg = _to_agg(expr)
-    if not (isinstance(agg._type, TArray) and is_numeric(agg._type.element_type)):
+    if not (isinstance(agg._type, tarray) and is_numeric(agg._type.element_type)):
         raise TypeError("'array_sum' expects a numeric array argument, found '{}'".format(agg._type))
     return _agg_func('sum', agg, agg._type)
 
@@ -523,7 +523,7 @@ def mean(expr):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -548,12 +548,12 @@ def stats(expr):
     -----
     Computes a struct with the following fields:
 
-    - `min` (:class:`.TFloat64`) - Minimum value.
-    - `max` (:class:`.TFloat64`) - Maximum value.
-    - `mean` (:class:`.TFloat64`) - Mean value,
-    - `stdev` (:class:`.TFloat64`) - Standard deviation.
-    - `n` (:class:`.TFloat64`) - Number of non-missing records.
-    - `sum` (:class:`.TFloat64`) - Sum.
+    - `min` (:py:data:`.tfloat64`) - Minimum value.
+    - `max` (:py:data:`.tfloat64`) - Maximum value.
+    - `mean` (:py:data:`.tfloat64`) - Mean value,
+    - `stdev` (:py:data:`.tfloat64`) - Standard deviation.
+    - `n` (:py:data:`.tfloat64`) - Number of non-missing records.
+    - `sum` (:py:data:`.tfloat64`) - Sum.
 
     Parameters
     ----------
@@ -593,10 +593,10 @@ def product(expr):
     -----
     Missing values are ignored (treated as one).
 
-    If `expr` is an expression of type :class:`.TInt32` or :class:`.TInt64`, then
-    the result is an expression of type :class:`.TInt64`. If `expr` is an
-    expression of type :class:`.TFloat32` or :class:`.TFloat64`, then the result
-    is an expression of type :class:`.TFloat64`.
+    If `expr` is an expression of type :py:data:`.tint32` or :py:data:`.tint64`, then
+    the result is an expression of type :py:data:`.tint64`. If `expr` is an
+    expression of type :py:data:`.tfloat32` or :py:data:`.tfloat64`, then the result
+    is an expression of type :py:data:`.tfloat64`.
 
     Parameters
     ----------
@@ -605,7 +605,7 @@ def product(expr):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt64` or :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tint64` or :py:data:`.tfloat64`
         Product of records of `expr`.
     """
 
@@ -638,13 +638,13 @@ def fraction(predicate):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
     agg = _to_agg(predicate)
-    if not isinstance(agg._type, TBoolean):
+    if not agg.dtype == tbool:
         raise TypeError(
-            "'fraction' aggregator expects an expression of type 'Boolean', found '{}'".format(agg._type.__class__))
+            "'fraction' aggregator expects an expression of type 'bool', found '{}'".format(agg.dtype))
 
     if agg._aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
@@ -677,9 +677,9 @@ def hardy_weinberg(expr):
     -----
     This method returns a struct expression with the following fields:
 
-    - `r_expected_het_freq` (:class:`.TFloat64`) - Ratio of observed to
+    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Ratio of observed to
       expected heterozygote frequency.
-    - `p_hwe` (:class:`.TFloat64`) - Hardy-Weinberg p-value.
+    - `p_hwe` (:py:data:`.tfloat64`) - Hardy-Weinberg p-value.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
@@ -742,7 +742,7 @@ def explode(expr):
     Notes
     -----
     This method can be used with aggregator functions to aggregate the elements
-    of collection types (:class:`.TArray` and :class:`.TSet`).
+    of collection types (:class:`.tarray` and :class:`.tset`).
 
     The result of the :meth:`explode` and :meth:`filter` methods is an
     :class:`.Aggregable` expression which can be used only in aggregator
@@ -751,7 +751,7 @@ def explode(expr):
     Parameters
     ----------
     expr : :class:`.CollectionExpression`
-        Expression of type :class:`.TArray` or :class:`.TSet`.
+        Expression of type :class:`.tarray` or :class:`.tset`.
 
     Returns
     -------
@@ -759,7 +759,7 @@ def explode(expr):
         Aggregable expression.
     """
     agg = _to_agg(expr)
-    if not (isinstance(agg._type, TSet) or isinstance(agg._type, TArray)):
+    if not (isinstance(agg._type, tset) or isinstance(agg._type, tarray)):
         raise  TypeError("'explode' expects a 'Set' or 'Array' argument, found '{}'".format(agg._type))
     uid = Env._get_uid()
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, Reference(uid)),
@@ -810,13 +810,13 @@ def filter(condition, expr):
     else:
         lambda_result = to_expr(condition)
 
-    if not isinstance(lambda_result._type, TBoolean):
+    if lambda_result.dtype != tbool:
         raise TypeError(
-            "'filter' expects the 'condition' argument to be or return an expression of type 'Boolean', found '{}'".format(
-                lambda_result._type.__class__))
+            "'filter' expects the 'condition' argument to be or return an expression of type 'bool', found '{}'".format(
+                lambda_result.dtype))
     indices, aggregations, joins, refs = unify_all(agg, lambda_result)
     ast = LambdaClassMethod('filter', uid, agg._ast, lambda_result._ast)
-    return Aggregable(ast, agg._type, indices, aggregations, joins, refs)
+    return Aggregable(ast, agg.dtype, indices, aggregations, joins, refs)
 
 
 @typecheck(expr=oneof(Aggregable, expr_call), prior=expr_numeric)
@@ -834,7 +834,7 @@ def inbreeding(expr, prior):
         +----------------+--------------+-------------+------------------+------------------+
         | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
         +----------------+--------------+-------------+------------------+------------------+
-        | String         |      Float64 |       Int64 |          Float64 |            Int64 |
+        | str            |      float64 |       int64 |          float64 |            int64 |
         +----------------+--------------+-------------+------------------+------------------+
         | C1046::HG02024 | -1.23867e-01 |         338 |      2.96180e+02 |              291 |
         | C1046::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
@@ -862,16 +862,16 @@ def inbreeding(expr, prior):
 
     This method returns a struct expression with four fields:
 
-     - `f_stat` (:class:`.TFloat64`): ``F``, the inbreeding coefficient.
-     - `n_called` (:class:`.TInt64`): ``N``, the number of non-missing calls.
-     - `expected_homs` (:class:`.TFloat64`): ``E``, the expected number of homozygotes.
-     - `observed_homs` (:class:`.TInt64`): ``O``, the number of observed homozygotes.
+     - `f_stat` (:py:data:`.tfloat64`): ``F``, the inbreeding coefficient.
+     - `n_called` (:py:data:`.tint64`): ``N``, the number of non-missing calls.
+     - `expected_homs` (:py:data:`.tfloat64`): ``E``, the expected number of homozygotes.
+     - `observed_homs` (:py:data:`.tint64`): ``O``, the number of observed homozygotes.
 
     Parameters
     ----------
     expr : :class:`.CallExpression`
         Call expression.
-    prior : :class:`.Expression` of type :class:`.TFloat64`
+    prior : :class:`.Expression` of type :py:data:`.tfloat64`
         Alternate allele frequency prior.
 
     Returns
@@ -881,14 +881,14 @@ def inbreeding(expr, prior):
     """
     agg = _to_agg(expr)
 
-    if not isinstance(agg._type, TCall):
-        raise TypeError("aggregator 'inbreeding' requires an expression of type 'TCall', found '{}'".format(
-            agg._type.__class__))
+    if not agg.dtype == tcall:
+        raise TypeError("aggregator 'inbreeding' requires an expression of type 'call', found '{}'".format(
+            agg.dtype))
 
-    if isinstance(prior._type, TFloat32):
+    if prior.dtype == tfloat32:
         prior = hl.float64(prior)
-    if not isinstance(prior._type, TFloat64):
-        raise TypeError("'inbreeding' expects 'prior' to be type 'Float32' or 'Float64', found '{}'".format(prior._type))
+    if not prior.dtype == tfloat64:
+        raise TypeError("'inbreeding' expects 'prior' to be type 'float32' or 'float64', found '{}'".format(prior._type))
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('inbreeding', uid, agg._ast, prior._ast)
@@ -915,23 +915,23 @@ def call_stats(expr, alleles):
     .. doctest::
 
         >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
-        >>> dataset_result.rows().select('locus', 'alleles', 'gt_stats').show()
-        +-----------------+--------------+----------------+-------------+
-        | v               | gt_stats.AC  | gt_stats.AF    | gt_stats.AN |
-        +-----------------+--------------+----------------+-------------+
-        | Variant(GRCh37) | Array[Int32] | Array[Float64] |       Int32 |
-        +-----------------+--------------+----------------+-------------+
-        | 20:10019093:A:G | [111,89]     | [0.555,0.445]  |         200 |
-        | 20:10026348:A:G | [198,2]      | [0.99,0.01]    |         200 |
-        | 20:10026357:T:C | [166,34]     | [0.83,0.17]    |         200 |
-        | 20:10030188:T:A | [166,34]     | [0.83,0.17]    |         200 |
-        | 20:10030452:G:A | [170,30]     | [0.85,0.15]    |         200 |
-        | 20:10030508:T:C | [199,1]      | [0.995,0.005]  |         200 |
-        | 20:10030573:G:A | [198,2]      | [0.99,0.01]    |         200 |
-        | 20:10032413:T:G | [166,34]     | [0.83,0.17]    |         200 |
-        | 20:10036107:T:G | [187,13]     | [0.935,0.065]  |         200 |
-        | 20:10036141:C:T | [192,8]      | [0.96,0.04]    |         200 |
-        +-----------------+--------------+----------------+-------------+
+        >>> dataset_result.rows().select('locus', 'gt_stats').show()
+        +---------------+--------------+----------------+-------------+--------------+
+        | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.GC  |
+        +---------------+--------------+----------------+-------------+--------------+
+        | locus<GRCh37> | array<int32> | array<float64> |       int32 | array<int32> |
+        +---------------+--------------+----------------+-------------+--------------+
+        | 20:10019093   | [111,89]     | [0.555,0.445]  |         200 | [36,39,25]   |
+        | 20:10026348   | [198,2]      | [0.99,0.01]    |         200 | [98,2,0]     |
+        | 20:10026357   | [166,34]     | [0.83,0.17]    |         200 | [68,30,2]    |
+        | 20:10030188   | [166,34]     | [0.83,0.17]    |         200 | [68,30,2]    |
+        | 20:10030452   | [170,30]     | [0.85,0.15]    |         200 | [71,28,1]    |
+        | 20:10030508   | [199,1]      | [0.995,0.005]  |         200 | [99,1,0]     |
+        | 20:10030573   | [198,2]      | [0.99,0.01]    |         200 | [98,2,0]     |
+        | 20:10032413   | [166,34]     | [0.83,0.17]    |         200 | [68,30,2]    |
+        | 20:10036107   | [187,13]     | [0.935,0.065]  |         200 | [87,13,0]    |
+        | 20:10036141   | [192,8]      | [0.96,0.04]    |         200 | [92,8,0]     |
+        +---------------+--------------+----------------+-------------+--------------+
 
     Notes
     -----
@@ -940,11 +940,11 @@ def call_stats(expr, alleles):
 
     This method returns a struct expression with three fields:
 
-     - `AC` (:class:`.TArray` of :class:`.TInt32`) - Allele counts. One element
+     - `AC` (:class:`.tarray` of :py:data:`.tint32`) - Allele counts. One element
        for each allele, including the reference.
-     - `AF` (:class:`.TArray` of :class:`.TFloat64`) - Allele frequencies. One
+     - `AF` (:class:`.tarray` of :py:data:`.tfloat64`) - Allele frequencies. One
        element for each allele, including the reference.
-     - `AN` (:class:`.TInt32`) - Allele number. The total number of called
+     - `AN` (:py:data:`.tint32`) - Allele number. The total number of called
        alleles, or the number of non-missing calls * 2.
 
     Parameters
@@ -967,9 +967,9 @@ def call_stats(expr, alleles):
 
     uid = Env._get_uid()
 
-    if not isinstance(agg._type, TCall):
+    if agg.dtype != tcall:
         raise TypeError("aggregator 'call_stats' requires an expression of type 'TCall', found '{}'".format(
-            agg._type.__class__))
+            agg.dtype))
 
     ast = LambdaClassMethod('callStats', uid, agg._ast, alleles._ast)
     indices, aggregations, joins, refs = unify_all(agg, alleles)
@@ -1002,14 +1002,14 @@ def hist(expr, start, end, bins):
     -----
     This method returns a struct expression with four fields:
 
-     - `bin_edges` (:class:`.TArray` of :class:`.TFloat64`): Bin edges. Bin `i`
+     - `bin_edges` (:class:`.tarray` of :py:data:`.tfloat64`): Bin edges. Bin `i`
        contains values in the left-inclusive, right-exclusive range
        ``[ bin_edges[i], bin_edges[i+1] )``.
-     - `bin_freq` (:class:`.TArray` of :class:`.TInt64`): Bin
+     - `bin_freq` (:class:`.tarray` of :py:data:`.tint64`): Bin
        frequencies. The number of records found in each bin.
-     - `n_smaller` (:class:`.TInt64`): The number of records smaller than the start
+     - `n_smaller` (:py:data:`.tint64`): The number of records smaller than the start
        of the first bin.
-     - `n_larger` (:class:`.TInt64`): The number of records larger than the end
+     - `n_larger` (:py:data:`.tint64`): The number of records larger than the end
        of the last bin.
 
     Parameters

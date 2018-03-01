@@ -68,7 +68,7 @@ class TypeTests(unittest.TestCase):
     def test_jvm_roundtrip(self):
         ts = self.types_to_test()
         for t in ts:
-            rev_str = t._jtype.toPyString()
+            rev_str = t._jtype.toString()
             self.assertEqual(t, dtype(rev_str))
 
     def test_pretty_roundtrip(self):

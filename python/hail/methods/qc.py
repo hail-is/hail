@@ -28,7 +28,7 @@ def sample_qc(dataset, name='sample_qc'):
     +--------------------------+-------+-+------------------------------------------------------+
     | Name                     | Type    | Description                                          |
     +==========================+=========+======================================================+
-    | ``callRate``             | float64 | Fraction of calls non-missing                        |
+    | ``call_rate``            | float64 | Fraction of calls non-missing                        |
     +--------------------------+---------+------------------------------------------------------+
     | ``n_hom_ref``            | int64   | Number of homozygous reference calls                 |
     +--------------------------+---------+------------------------------------------------------+
@@ -54,7 +54,7 @@ def sample_qc(dataset, name='sample_qc'):
     +--------------------------+---------+------------------------------------------------------+
     | ``n_star``               | int64   | Number of star (upstream deletion) alleles           |
     +--------------------------+---------+------------------------------------------------------+
-    | ``nNonRef``              | int64   | Sum of ``n_het`` and ``n_hom_var``                   |
+    | ``n_non_ref``            | int64   | Sum of ``n_het`` and ``n_hom_var``                   |
     +--------------------------+---------+------------------------------------------------------+
     | ``r_ti_tv``              | float64 | Transition/Transversion ratio                        |
     +--------------------------+---------+------------------------------------------------------+
@@ -383,138 +383,140 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     .. code-block:: text
 
-        Struct{
-          assembly_name: String,
-          allele_string: String,
-          colocated_variants: Array[Struct{
-            aa_allele: String,
-            aa_maf: Double,
-            afr_allele: String,
-            afr_maf: Double,
-            allele_string: String,
-            amr_allele: String,
-            amr_maf: Double,
-            clin_sig: Array[String],
-            end: Int,
-            eas_allele: String,
-            eas_maf: Double,
-            ea_allele: String,,
-            ea_maf: Double,
-            eur_allele: String,
-            eur_maf: Double,
-            exac_adj_allele: String,
-            exac_adj_maf: Double,
-            exac_allele: String,
-            exac_afr_allele: String,
-            exac_afr_maf: Double,
-            exac_amr_allele: String,
-            exac_amr_maf: Double,
-            exac_eas_allele: String,
-            exac_eas_maf: Double,
-            exac_fin_allele: String,
-            exac_fin_maf: Double,
-            exac_maf: Double,
-            exac_nfe_allele: String,
-            exac_nfe_maf: Double,
-            exac_oth_allele: String,
-            exac_oth_maf: Double,
-            exac_sas_allele: String,
-            exac_sas_maf: Double,
-            id: String,
-            minor_allele: String,
-            minor_allele_freq: Double,
-            phenotype_or_disease: Int,
-            pubmed: Array[Int],
-            sas_allele: String,
-            sas_maf: Double,
-            somatic: Int,
-            start: Int,
-            strand: Int
-          }],
-          end: Int,
-          id: String,
-          input: String,
-          intergenic_consequences: Array[Struct{
-            allele_num: Int,
-            consequence_terms: Array[String],
-            impact: String,
-            minimised: Int,
-            variant_allele: String
-          }],
-          most_severe_consequence: String,
-          motif_feature_consequences: Array[Struct{
-            allele_num: Int,
-            consequence_terms: Array[String],
-            high_inf_pos: String,
-            impact: String,
-            minimised: Int,
-            motif_feature_id: String,
-            motif_name: String,
-            motif_pos: Int,
-            motif_score_change: Double,
-            strand: Int,
-            variant_allele: String
-          }],
-          regulatory_feature_consequences: Array[Struct{
-            allele_num: Int,
-            biotype: String,
-            consequence_terms: Array[String],
-            impact: String,
-            minimised: Int,
-            regulatory_feature_id: String,
-            variant_allele: String
-          }],
-          seq_region_name: String,
-          start: Int,
-          strand: Int,
-          transcript_consequences: Array[Struct{
-            allele_num: Int,
-            amino_acids: String,
-            biotype: String,
-            canonical: Int,
-            ccds: String,
-            cdna_start: Int,
-            cdna_end: Int,
-            cds_end: Int,
-            cds_start: Int,
-            codons: String,
-            consequence_terms: Array[String],
-            distance: Int,
-            domains: Array[Struct{
-              db: String
-              name: String
-            }],
-            exon: String,
-            gene_id: String,
-            gene_pheno: Int,
-            gene_symbol: String,
-            gene_symbol_source: String,
-            hgnc_id: String,
-            hgvsc: String,
-            hgvsp: String,
-            hgvs_offset: Int,
-            impact: String,
-            intron: String,
-            lof: String,
-            lof_flags: String,
-            lof_filter: String,
-            lof_info: String,
-            minimised: Int,
-            polyphen_prediction: String,
-            polyphen_score: Double,
-            protein_end: Int,
-            protein_start: Int,
-            protein_id: String,
-            sift_prediction: String,
-            sift_score: Double,
-            strand: Int,
-            swissprot: String,
-            transcript_id: String,
-            trembl: String,
-            uniparc: String,
-            variant_allele: String
-          }],
-          variant_class: String
+        struct {
+            assembly_name: str,
+            allele_string: str,
+            ancestral: str,
+            colocated_variants: array<struct {
+                aa_allele: str,
+                aa_maf: float64,
+                afr_allele: str,
+                afr_maf: float64,
+                allele_string: str,
+                amr_allele: str,
+                amr_maf: float64,
+                clin_sig: array<str>,
+                end: int32,
+                eas_allele: str,
+                eas_maf: float64,
+                ea_allele: str,
+                ea_maf: float64,
+                eur_allele: str,
+                eur_maf: float64,
+                exac_adj_allele: str,
+                exac_adj_maf: float64,
+                exac_allele: str,
+                exac_afr_allele: str,
+                exac_afr_maf: float64,
+                exac_amr_allele: str,
+                exac_amr_maf: float64,
+                exac_eas_allele: str,
+                exac_eas_maf: float64,
+                exac_fin_allele: str,
+                exac_fin_maf: float64,
+                exac_maf: float64,
+                exac_nfe_allele: str,
+                exac_nfe_maf: float64,
+                exac_oth_allele: str,
+                exac_oth_maf: float64,
+                exac_sas_allele: str,
+                exac_sas_maf: float64,
+                id: str,
+                minor_allele: str,
+                minor_allele_freq: float64,
+                phenotype_or_disease: int32,
+                pubmed: array<int32>,
+                sas_allele: str,
+                sas_maf: float64,
+                somatic: int32,
+                start: int32,
+                strand: int32
+            }>,
+            context: str,
+            end: int32,
+            id: str,
+            input: str,
+            intergenic_consequences: array<struct {
+                allele_num: int32,
+                consequence_terms: array<str>,
+                impact: str,
+                minimised: int32,
+                variant_allele: str
+            }>,
+            most_severe_consequence: str,
+            motif_feature_consequences: array<struct {
+                allele_num: int32,
+                consequence_terms: array<str>,
+                high_inf_pos: str,
+                impact: str,
+                minimised: int32,
+                motif_feature_id: str,
+                motif_name: str,
+                motif_pos: int32,
+                motif_score_change: float64,
+                strand: int32,
+                variant_allele: str
+            }>,
+            regulatory_feature_consequences: array<struct {
+                allele_num: int32,
+                biotype: str,
+                consequence_terms: array<str>,
+                impact: str,
+                minimised: int32,
+                regulatory_feature_id: str,
+                variant_allele: str
+            }>,
+            seq_region_name: str,
+            start: int32,
+            strand: int32,
+            transcript_consequences: array<struct {
+                allele_num: int32,
+                amino_acids: str,
+                biotype: str,
+                canonical: int32,
+                ccds: str,
+                cdna_start: int32,
+                cdna_end: int32,
+                cds_end: int32,
+                cds_start: int32,
+                codons: str,
+                consequence_terms: array<str>,
+                distance: int32,
+                domains: array<struct {
+                    db: str,
+                    name: str
+                }>,
+                exon: str,
+                gene_id: str,
+                gene_pheno: int32,
+                gene_symbol: str,
+                gene_symbol_source: str,
+                hgnc_id: str,
+                hgvsc: str,
+                hgvsp: str,
+                hgvs_offset: int32,
+                impact: str,
+                intron: str,
+                lof: str,
+                lof_flags: str,
+                lof_filter: str,
+                lof_info: str,
+                minimised: int32,
+                polyphen_prediction: str,
+                polyphen_score: float64,
+                protein_end: int32,
+                protein_start: int32,
+                protein_id: str,
+                sift_prediction: str,
+                sift_score: float64,
+                strand: int32,
+                swissprot: str,
+                transcript_id: str,
+                trembl: str,
+                uniparc: str,
+                variant_allele: str
+            }>,
+            variant_class: str
         }
 
     Parameters
@@ -528,7 +530,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     name : :obj:`str`
         Name for resulting row field.
     csq : :obj:`bool`
-        If ``True``, annotates VCF CSQ field as a String.
+        If ``True``, annotates VCF CSQ field as a :py:data:`.tstr`.
         If ``False``, annotates with the full nested struct schema.
 
     Returns
@@ -598,185 +600,187 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
 
     .. code-block:: text
 
-        Struct{
-          chromosome: String,
-          refAllele: String,
-          position: Int,
-          altAlleles: Array[String],
-          cytogeneticBand: String,
-          quality: Double,
-          filters: Array[String],
-          jointSomaticNormalQuality: Int,
-          copyNumber: Int,
-          strandBias: Double,
-          recalibratedQuality: Double,
-          variants: Array[Struct{
-            altAllele: String,
-            refAllele: String,
-            chromosome: String,
-            begin: Int,
-            end: Int,
-            phylopScore: Double,
-            isReferenceMinor: Boolean,
-            variantType: String,
-            vid: String,
-            isRecomposed: Boolean,
-            regulatoryRegions: Array[Struct{
-              id: String,
-              consequence: Set[String],
-              type: String
-            }],
-            clinvar: Array[Struct{
-              id: String,
-              reviewStatus: String,
-              isAlleleSpecific: Boolean,
-              alleleOrigins: Array[String],
-              refAllele: String,
-              altAllele: String,
-              phenotypes: Array[String],
-              medGenIds: Array[String],
-              omimIds: Array[String],
-              orphanetIds: Array[String],
-              geneReviewsId: String,
-              significance: String,
-              lastUpdatedDate: String,
-              pubMedIds: Array[String]
-            }],
-            cosmic: Array[Struct{
-              id: String,
-              isAlleleSpecific: Boolean,
-              refAllele: String,
-              altAllele: String,
-              gene: String,
-              sampleCount: Int,
-              studies: Array[Struct{
-                id: Int,
-                histology: String,
-                primarySite: String
-              }]
-            }],
-            dbsnp: Struct{"ids: Array(String)},
-            evs: Struct{
-              coverage: Int,
-              sampleCount: Int,
-              allAf: Double,
-              afrAf: Double,
-              eurAf: Double
-            },
-            exac: Struct{
-              coverage: Int,
-              allAf: Double,
-              allAc: Int,
-              allAn: Int,
-              afrAf: Double,
-              afrAc: Int,
-              afrAn: Int,
-              amrAf: Double,
-              amrAc: Int,
-              amrAn: Int,
-              easAf: Double,
-              easAc: Int,
-              easAn: Int,
-              finAf: Double,
-              finAc: Int,
-              finAn: Int,
-              nfeAf: Double,
-              nfeAc: Int,
-              nfeAn: Int,
-              othAf: Double,
-              othAc: Int,
-              othAn: Int,
-              sasAf: Double,
-              sasAc: Int,
-              sasAn: Int
-            },
-            globalAllele: Struct{
-              globalMinorAllele: String,
-              globalMinorAlleleFrequency: Double
-            },
-            oneKg: Struct{
-              ancestralAllele: String,
-              allAf: Double,
-              allAc: Int,
-              allAn: Int,
-              afrAf: Double,
-              afrAc: Int,
-              afrAn: Int,
-              amrAf: Double,
-              amrAc: Int,
-              amrAn: Int,
-              easAf: Double,
-              easAc: Int,
-              easAn: Int,
-              eurAf: Double,
-              eurAc: Int,
-              eurAn: Int,
-              sasAf: Double,
-              sasAc: Int,
-              sasAn: Int
-            },
-            transcripts: Struct{
-              refSeq: Array[Struct{
-                transcript: String,
-                bioType: String,
-                aminoAcids: String,
-                cDnaPos: String,
-                codons: String,
-                cdsPos: String,
-                exons: String,
-                introns: String,
-                geneId: String,
-                hgnc: String,
-                consequence: Array[String],
-                hgvsc: String,
-                hgvsp: String,
-                isCanonical: Boolean,
-                polyPhenScore: Double,
-                polyPhenPrediction: String,
-                proteinId: String,
-                proteinPos: String,
-                siftScore: Double,
-                siftPrediction: String
-              }],
-              ensembl: Array[Struct{
-                transcript: String,
-                bioType: String,
-                aminoAcids: String,
-                cDnaPos: String,
-                codons: String,
-                cdsPos: String,
-                exons: String,
-                introns: String,
-                geneId: String,
-                hgnc: String,
-                consequence: Array[String],
-                hgvsc: String,
-                hgvsp: String,
-                isCanonical: Boolean,
-                polyPhenScore: Double,
-                polyPhenPrediction: String,
-                proteinId: String,
-                proteinPos: String,
-                siftScore: Double,
-                siftPrediction: String
-              }]
-            },
-            genes: Array[Struct{
-              name: String,
-              omim: Array[Struct{
-                mimNumber: Int,
-                hgnc: String,
-                description: String,
-                phenotypes: Array[Struct{
-                  mimNumber: Int,
-                  phenotype: String,
-                  mapping: String,
-                  inheritance: Array[String],
-                  comments: String
-                }]
-              }]
-            }]
-          }]
+        struct {
+            chromosome: str,
+            refAllele: str,
+            position: int32,
+            altAlleles: array<str>,
+            cytogeneticBand: str,
+            quality: float64,
+            filters: array<str>,
+            jointSomaticNormalQuality: int32,
+            copyNumber: int32,
+            strandBias: float64,
+            recalibratedQuality: float64,
+            variants: array<struct {
+                altAllele: str,
+                refAllele: str,
+                chromosome: str,
+                begin: int32,
+                end: int32,
+                phylopScore: float64,
+                isReferenceMinor: bool,
+                variantType: str,
+                vid: str,
+                isRecomposed: bool,
+                regulatoryRegions: array<struct {
+                    id: str,
+                    consequence: set<str>,
+                    type: str
+                }>,
+                clinvar: array<struct {
+                    id: str,
+                    reviewStatus: str,
+                    isAlleleSpecific: bool,
+                    alleleOrigins: array<str>,
+                    refAllele: str,
+                    altAllele: str,
+                    phenotypes: array<str>,
+                    medGenIds: array<str>,
+                    omimIds: array<str>,
+                    orphanetIds: array<str>,
+                    geneReviewsId: str,
+                    significance: str,
+                    lastUpdatedDate: str,
+                    pubMedIds: array<str>
+                }>,
+                cosmic: array<struct {
+                    id: str,
+                    isAlleleSpecific: bool,
+                    refAllele: str,
+                    altAllele: str,
+                    gene: str,
+                    sampleCount: int32,
+                    studies: array<struct {
+                        id: int32,
+                        histology: str,
+                        primarySite: str
+                    }>
+                }>,
+                dbsnp: struct {
+                    ids: array<str>
+                },
+                evs: struct {
+                    coverage: int32,
+                    sampleCount: int32,
+                    allAf: float64,
+                    afrAf: float64,
+                    eurAf: float64
+                },
+                exac: struct {
+                    coverage: int32,
+                    allAf: float64,
+                    allAc: int32,
+                    allAn: int32,
+                    afrAf: float64,
+                    afrAc: int32,
+                    afrAn: int32,
+                    amrAf: float64,
+                    amrAc: int32,
+                    amrAn: int32,
+                    easAf: float64,
+                    easAc: int32,
+                    easAn: int32,
+                    finAf: float64,
+                    finAc: int32,
+                    finAn: int32,
+                    nfeAf: float64,
+                    nfeAc: int32,
+                    nfeAn: int32,
+                    othAf: float64,
+                    othAc: int32,
+                    othAn: int32,
+                    sasAf: float64,
+                    sasAc: int32,
+                    sasAn: int32
+                },
+                globalAllele: struct {
+                    globalMinorAllele: str,
+                    globalMinorAlleleFrequency: float64
+                },
+                oneKg: struct {
+                    ancestralAllele: str,
+                    allAf: float64,
+                    allAc: int32,
+                    allAn: int32,
+                    afrAf: float64,
+                    afrAc: int32,
+                    afrAn: int32,
+                    amrAf: float64,
+                    amrAc: int32,
+                    amrAn: int32,
+                    easAf: float64,
+                    easAc: int32,
+                    easAn: int32,
+                    eurAf: float64,
+                    eurAc: int32,
+                    eurAn: int32,
+                    sasAf: float64,
+                    sasAc: int32,
+                    sasAn: int32
+                },
+                transcripts: struct {
+                    refSeq: array<struct {
+                        transcript: str,
+                        bioType: str,
+                        aminoAcids: str,
+                        cDnaPos: str,
+                        codons: str,
+                        cdsPos: str,
+                        exons: str,
+                        introns: str,
+                        geneId: str,
+                        hgnc: str,
+                        consequence: array<str>,
+                        hgvsc: str,
+                        hgvsp: str,
+                        isCanonical: bool,
+                        polyPhenScore: float64,
+                        polyPhenPrediction: str,
+                        proteinId: str,
+                        proteinPos: str,
+                        siftScore: float64,
+                        siftPrediction: str
+                    }>,
+                    ensembl: array<struct {
+                        transcript: str,
+                        bioType: str,
+                        aminoAcids: str,
+                        cDnaPos: str,
+                        codons: str,
+                        cdsPos: str,
+                        exons: str,
+                        introns: str,
+                        geneId: str,
+                        hgnc: str,
+                        consequence: array<str>,
+                        hgvsc: str,
+                        hgvsp: str,
+                        isCanonical: bool,
+                        polyPhenScore: float64,
+                        polyPhenPrediction: str,
+                        proteinId: str,
+                        proteinPos: str,
+                        siftScore: float64,
+                        siftPrediction: str
+                    }>
+                },
+                genes: array<struct {
+                    name: str,
+                    omim: array<struct {
+                        mimNumber: int32,
+                        hgnc: str,
+                        description: str,
+                        phenotypes: array<struct {
+                            mimNumber: int32,
+                            phenotype: str,
+                            mapping: str,
+                            inheritance: array<str>,
+                            comments: str
+                        }>
+                    }>
+                }>
+            }>
         }
 
     Parameters

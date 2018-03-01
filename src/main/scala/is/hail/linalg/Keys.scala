@@ -74,7 +74,7 @@ class Keys(val typ: Type, val values: Array[Annotation]) {
   }
   
   def write(sc: SparkContext, uri: String) {
-    val typeStr = typ.toString
+    val typeStr = typ.parsableString()
 
     sc.hadoopConfiguration.writeTextFile(uri) { out =>
       implicit val formats = defaultJSONFormats

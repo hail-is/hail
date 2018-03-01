@@ -36,7 +36,7 @@ def null(t):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(Literal('NA: {}'.format(t._jtype.toString())), t)
+    return construct_expr(Literal('NA: {}'.format(t._jtype.parsableString())), t)
 
 def literal(x, dtype=None):
     """Captures and broadcasts a Python variable or object as an expression.
@@ -51,7 +51,7 @@ def literal(x, dtype=None):
         +-------+----------------+
         | index | greeting       |
         +-------+----------------+
-        | Int32 | String         |
+        | int32 | str            |
         +-------+----------------+
         |     0 | NA             |
         |     1 | Good morning   |
@@ -322,19 +322,20 @@ def chisq(c1, c2, c3, c4):
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :class:`.TInt32`
+    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :class:`.TInt32`
+    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :class:`.TInt32`
+    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :class:`.TInt32`
+    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 4.
 
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `p_value` (``Float64``) and `odds_ratio` (``Float64``).
+        A :class:`.tstruct` expression with two fields, `p_value`
+        (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
     return _func("chisq", ret_type, c1, c2, c3, c4)
@@ -363,21 +364,22 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :class:`.TInt32`
+    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :class:`.TInt32`
+    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :class:`.TInt32`
+    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :class:`.TInt32`
+    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 4.
-    min_cell_count : int or :class:`.Expression` of type :class:`.TInt32`
+    min_cell_count : int or :class:`.Expression` of type :py:data:`.tint32`
         Minimum cell count for chi-squared approximation.
 
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `p_value` (``Float64``) and `odds_ratio` (``Float64``).
+        A :class:`.tstruct` expression with two fields, `p_value`
+        (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
@@ -396,7 +398,7 @@ def dict(collection):
 
     Notes
     -----
-    This method expects arrays or sets with elements of type :class:`.TTuple`
+    This method expects arrays or sets with elements of type :class:`.ttuple`
     with 2 fields. The first field of the tuple becomes the key, and the second
     field becomes the value.
 
@@ -436,13 +438,13 @@ def dbeta(x, a, b):
 
     Parameters
     ----------
-    x : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
+    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         Point in [0,1] at which to sample. If a < 1 then x must be positive.
         If b < 1 then x must be less than 1.
-    a : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
+    a : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         The alpha parameter in the beta distribution. The result is undefined
         for non-positive a.
-    b : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
+    b : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
@@ -462,16 +464,16 @@ def dpois(x, lamb, log_p=False):
 
     Parameters
     ----------
-    x : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
+    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         Non-negative number at which to compute the probability density.
-    lamb : :obj:`float` or :class:`.Expression` of type :class:`.TFloat64`
+    lamb : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         Poisson rate parameter. Must be non-negative.
     log_p : :obj:`bool` or :class:`.BooleanExpression`
         If true, the natural logarithm of the probability density is returned.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
         The (log) probability density.
     """
     return _func("dpois", tfloat64, x, lamb, log_p)
@@ -490,11 +492,11 @@ def exp(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("exp", tfloat64, x)
 
@@ -525,20 +527,22 @@ def fisher_exact_test(c1, c2, c3, c4):
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :class:`.TInt32`
+    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :class:`.TInt32`
+    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :class:`.TInt32`
+    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :class:`.TInt32`
+    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 4.
 
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with four fields, `p_value` (``Float64``), `odds_ratio` (``Float64``),
-        ci_95_lower (``Float64``), and ci_95_upper(``Float64``).
+        A :class:`.tstruct` expression with four fields, `p_value`
+        (:py:data:`.tfloat64`), `odds_ratio` (:py:data:`.tfloat64`),
+        `ci_95_lower (:py:data:`.tfloat64`), and `ci_95_upper`
+        (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64,
                        odds_ratio=tfloat64,
@@ -604,17 +608,18 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 
     Parameters
     ----------
-    num_hom_ref : int or :class:`.Expression` of type :class:`.TInt32`
+    num_hom_ref : int or :class:`.Expression` of type :py:data:`.tint32`
         Homozygous reference count.
-    num_het : int or :class:`.Expression` of type :class:`.TInt32`
+    num_het : int or :class:`.Expression` of type :py:data:`.tint32`
         Heterozygote count.
-    num_hom_var : int or :class:`.Expression` of type :class:`.TInt32`
+    num_hom_var : int or :class:`.Expression` of type :py:data:`.tint32`
         Homozygous alternate count.
 
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `r_expected_het_freq` (``Float64``) and`p_value` (``Float64``).
+        A struct expression with two fields, `r_expected_het_freq`
+        (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(r_expected_het_freq=tfloat64,
                        p_hwe=tfloat64)
@@ -624,7 +629,7 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 @typecheck(structs=oneof(expr_array),
            identifier=str)
 def index(structs, identifier):
-    if not isinstance(structs.dtype.element_type, TStruct):
+    if not isinstance(structs.dtype.element_type, tstruct):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
                         .format(structs.dtype))
     struct_type = structs._type.element_type
@@ -635,7 +640,7 @@ def index(structs, identifier):
                            "Struct type is {}.".format(identifier, struct_type))
 
     key_type = struct_fields[identifier]
-    value_type = TStruct.from_fields([f for f in struct_type.fields if f.name != identifier])
+    value_type = tstruct.from_fields([f for f in struct_type.fields if f.name != identifier])
 
     ast = StructOp('index', structs._ast, identifier)
     return construct_expr(ast, tdict(key_type, value_type),
@@ -658,7 +663,7 @@ def locus(contig, pos, reference_genome='default'):
     ----------
     contig : str or :class:`.StringExpression`
         Chromosome.
-    pos : int or :class:`.Expression` of type :class:`.TInt32`
+    pos : int or :class:`.Expression` of type :py:data:`.tint32`
         Base position along the chromosome.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
@@ -722,11 +727,11 @@ def parse_variant(s, reference_genome='default'):
 
     Notes
     -----
-    This method returns an expression of type :class:`.TStruct` with the
+    This method returns an expression of type :class:`.tstruct` with the
     following fields:
 
-     - `locus` (:class:`.TLocus`)
-     - `alleles` (:class:`.TArray` of :class:`.TString`)
+     - `locus` (:class:`.tlocus`)
+     - `alleles` (:class:`.tarray` of :py:data:`.tstr`)
 
     Parameters
     ----------
@@ -771,11 +776,11 @@ def gp_dosage(gp):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     if not is_numeric(gp.dtype.element_type):
         raise TypeError("'gp_dosage' expects an expression of type "
-                        "'Array[Float64]'. Found '{}'".format(gp.dtype))
+                        "'array<float64>'. Found '{}'".format(gp.dtype))
     return _func("dosage", tfloat64, gp)
 
 
@@ -795,16 +800,16 @@ def pl_dosage(pl):
 
     Parameters
     ----------
-    pl : :class:`.ArrayNumericExpression` of type :class:`.TInt32`
+    pl : :class:`.ArrayNumericExpression` of type :py:data:`.tint32`
         Length 3 array of bi-allelic Phred-scaled genotype likelihoods
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    if not isinstance(pl.dtype.element_type, TInt32):
+    if not pl.dtype.element_type == tint32:
         raise TypeError("Function 'pl_dosage' expects an expression of type "
-                        "'Array[Int32]'. Found {}".format(pl.dtype))
+                        "'array<int32>'. Found {}".format(pl.dtype))
     return _func("plDosage", tfloat64, pl)
 
 
@@ -895,7 +900,7 @@ def call(*alleles, phased=False):
 
     Parameters
     ----------
-    alleles : variable-length args of :obj:`int` or :class:`.Expression` of type :class:`.TInt32`
+    alleles : variable-length args of :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
         List of allele indices.
     phased : :obj:`bool`
         If ``True``, preserve the order of `alleles`.
@@ -924,7 +929,7 @@ def unphased_diploid_gt_index_call(gt_index):
 
     Parameters
     ----------
-    gt_index : :obj:`int` or :class:`.Expression` of type :class:`.TInt32`
+    gt_index : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
         Unphased, diploid genotype index.
 
     Returns
@@ -1063,7 +1068,7 @@ def is_nan(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Expression to test.
 
     Returns
@@ -1124,12 +1129,12 @@ def log(x, base=None):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
-    base : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    base : float or :class:`.Expression` of type :py:data:`.tfloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     x = to_expr(x)
     if base is not None:
@@ -1154,11 +1159,11 @@ def log10(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("log10", tfloat64, x)
 
@@ -1246,18 +1251,18 @@ def binom_test(x, n, p, alternative):
 
     Parameters
     ----------
-    x : int or :class:`.Expression` of type :class:`.TInt32`
+    x : int or :class:`.Expression` of type :py:data:`.tint32`
         Number of successes.
-    n : int or :class:`.Expression` of type :class:`.TInt32`
+    n : int or :class:`.Expression` of type :py:data:`.tint32`
         Number of trials.
-    p : float or :class:`.Expression` of type :class:`.TFloat64`
+    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability of success, between 0 and 1.
     alternative
         : One of, "two.sided", "greater", "less".
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
         p-value.
     """
     return _func("binomTest", tfloat64, x, n, p, to_expr(alternative))
@@ -1277,13 +1282,13 @@ def pchisqtail(x, df):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
-    df : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("pchisqtail", tfloat64, x, df)
 
@@ -1311,11 +1316,11 @@ def pnorm(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("pnorm", tfloat64, x)
 
@@ -1339,8 +1344,8 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
-    lamb : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
@@ -1350,7 +1355,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("ppois", tfloat64, x, lamb, lower_tail, log_p)
 
@@ -1373,14 +1378,14 @@ def qchisqtail(p, df):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`.TFloat64`
+    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability.
-    df : float or :class:`.Expression` of type :class:`.TFloat64`
+    df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("qchisqtail", tfloat64, p, df)
 
@@ -1403,12 +1408,12 @@ def qnorm(p):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`.TFloat64`
+    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("qnorm", tfloat64, p)
 
@@ -1431,8 +1436,8 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`.TFloat64`
-    lamb : float or :class:`.Expression` of type :class:`.TFloat64`
+    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :class:`.BooleanExpression`
         Corresponds to `lower_tail` parameter in inverse :meth:`.ppois`.
@@ -1441,7 +1446,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("qpois", tint32, p, lamb, lower_tail, log_p)
 
@@ -1466,11 +1471,11 @@ def range(start, stop, step=1):
 
     Parameters
     ----------
-    start : int or :class:`.Expression` of type :class:`.TInt32`
+    start : int or :class:`.Expression` of type :py:data:`.tint32`
         Start of range.
-    stop : int or :class:`.Expression` of type :class:`.TInt32`
+    stop : int or :class:`.Expression` of type :py:data:`.tint32`
         End of range.
-    step : int or :class:`.Expression` of type :class:`.TInt32`
+    step : int or :class:`.Expression` of type :py:data:`.tint32`
         Step of range.
 
     Returns
@@ -1501,7 +1506,7 @@ def rand_bool(p):
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :class:`.TFloat64`
+    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability between 0 and 1.
 
     Returns
@@ -1533,14 +1538,14 @@ def rand_norm(mean=0, sd=1):
 
     Parameters
     ----------
-    mean : float or :class:`.Expression` of type :class:`.TFloat64`
+    mean : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Mean of normal distribution.
-    sd : float or :class:`.Expression` of type :class:`.TFloat64`
+    sd : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Standard deviation of normal distribution.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("rnorm", tfloat64, mean, sd)
 
@@ -1567,12 +1572,12 @@ def rand_pois(lamb):
 
     Parameters
     ----------
-    lamb : float or :class:`.Expression` of type :class:`.TFloat64`
+    lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter for Poisson distribution.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("rpois", tfloat64, lamb)
 
@@ -1599,14 +1604,14 @@ def rand_unif(min, max):
 
     Parameters
     ----------
-    min : float or :class:`.Expression` of type :class:`.TFloat64`
+    min : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Left boundary of range.
-    max : float or :class:`.Expression` of type :class:`.TFloat64`
+    max : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Right boundary of range.
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("runif", tfloat64, min, max)
 
@@ -1629,11 +1634,11 @@ def sqrt(x):
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :class:`.TFloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("sqrt", tfloat64, x)
 
@@ -1964,7 +1969,7 @@ def hamming(s1, s2):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt32`
+    :class:`.Expression` of type :py:data:`.tint32`
     """
     return _func("hamming", tint32, s1, s2)
 
@@ -2008,7 +2013,7 @@ def downcode(c, i):
     ----------
     c : :class:`.CallExpression`
         A call.
-    i : :class:`.Expression` of type :class:`.TInt32`
+    i : :class:`.Expression` of type :py:data:`.tint32`
         The index of the allele that will be sent to the alternate allele. All
         other alleles will be downcoded to reference.
 
@@ -2036,10 +2041,10 @@ def gq_from_pl(pl):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt32`
+    :class:`.Expression` of type :py:data:`.tint32`
     """
-    if not isinstance(pl.dtype.element_type, TInt32):
-        raise TypeError("'gq_from_pl' expects an array with element type 'Int32', found '{}'"
+    if not pl.dtype.element_type == tint32:
+        raise TypeError("'gq_from_pl' expects an array with element type 'int32', found '{}'"
                         .format(pl.dtype
                                 ))
     return _func("gqFromPL", tint32, pl)
@@ -2062,11 +2067,11 @@ def triangle(n):
 
     Parameters
     ----------
-    n : :class:`.Expression` of type :class:`.TInt32`
+    n : :class:`.Expression` of type :py:data:`.tint32`
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt32`
+    :class:`.Expression` of type :py:data:`.tint32`
     """
     return _func("triangle", tint32, n)
 
@@ -2211,7 +2216,7 @@ def find(f, collection):
     -----
     If `f` returns ``False`` for every element, then the result is missing.
 
-    Sets are unordered. If `collection` is of type :class:`.TSet`, then the
+    Sets are unordered. If `collection` is of type :class:`.tset`, then the
     element returned comes from no guaranteed ordering.
 
     Parameters
@@ -2251,8 +2256,8 @@ def flatmap(f, collection):
     ----------
     f : function ( (arg) -> :class:`.CollectionExpression`)
         Function from the element type of the collection to the type of the
-        collection. For instance, `flatmap` on a ``Set[String]`` should take
-        a ``String`` and return a ``Set``.
+        collection. For instance, `flatmap` on a ``set<str>`` should take
+        a ``str`` and return a ``set``.
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression.
 
@@ -2260,7 +2265,7 @@ def flatmap(f, collection):
     -------
     :class:`.ArrayExpression` or :class:`.SetExpression`
     """
-    expected_type, s = (TArray, 'Array') if isinstance(collection.dtype, TArray) else (TSet, 'Set')
+    expected_type, s = (tarray, 'Array') if isinstance(collection.dtype, tarray) else (tset, 'Set')
 
     def unify_ret(t):
         if not isinstance(t, expected_type):
@@ -2318,7 +2323,7 @@ def zip(*arrays, fill_missing=False):
 
     Notes
     -----
-    The element type of the resulting array is a :class:`.TTuple` with a field
+    The element type of the resulting array is a :class:`.ttuple` with a field
     for each array.
 
     Parameters
@@ -2412,7 +2417,7 @@ def len(x):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt32`
+    :class:`.Expression` of type :py:data:`.tint32`
     """
     if isinstance(x.dtype, ttuple):
         return hl.int32(builtins.len(x))
@@ -2457,7 +2462,7 @@ def max(*exprs):
         raise ValueError("'max' requires at least one argument")
     if builtins.len(exprs) == 1:
         expr = exprs[0]
-        if not ((isinstance(expr.dtype, TSet) or isinstance(expr.dtype, TArray))
+        if not ((isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray))
                 and is_numeric(expr.dtype.element_type)):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
@@ -2511,7 +2516,7 @@ def min(*exprs):
         raise ValueError("'min' requires at least one argument")
     if builtins.len(exprs) == 1:
         expr = exprs[0]
-        if not ((isinstance(expr.dtype, TSet) or isinstance(expr.dtype, TArray))
+        if not ((isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray))
                 and is_numeric(expr.dtype.element_type)):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
@@ -2550,7 +2555,7 @@ def abs(x):
     -------
     :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
     """
-    if isinstance(x.dtype, TArray):
+    if isinstance(x.dtype, tarray):
         if not is_numeric(x.dtype.element_type):
             raise TypeError(
                 "'abs' expects a numeric expression or numeric array expression, found '{}'".format(x.dtype))
@@ -2587,7 +2592,7 @@ def signum(x):
     -------
     :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
     """
-    if isinstance(x.dtype, TArray):
+    if isinstance(x.dtype, tarray):
         if not is_numeric(x.dtype.element_type):
             raise TypeError(
                 "'signum' expects a numeric expression or numeric array expression, found '{}'".format(x.dtype))
@@ -2620,7 +2625,7 @@ def mean(collection):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TFloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`
     """
     if not is_numeric(collection.dtype.element_type):
         raise TypeError("'mean' expects a numeric collection, found '{}'".format(collection.dtype))
@@ -2782,7 +2787,7 @@ def set(collection):
     :class:`.SetExpression`
         Set of all unique elements.
     """
-    if isinstance(collection.dtype, TSet):
+    if isinstance(collection.dtype, tset):
         return collection
     return collection._method("toSet", tset(collection.dtype.element_type))
 
@@ -2905,15 +2910,15 @@ def flatten(collection):
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection with element type :class:`.TArray` or :class:`.TSet`.
+        Collection with element type :class:`.tarray` or :class:`.tset`.
 
     Returns
     -------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
     """
-    if (isinstance(collection.dtype, TSet) and not isinstance(collection.dtype.element_type, TSet)) or (
-            isinstance(collection.dtype, TArray) and not isinstance(collection.dtype.element_type, TArray)):
-        raise TypeError("'flatten' expects an expression of type 'Array[Array[_]]' or 'Set[Set[_]]', found '{}'"
+    if (isinstance(collection.dtype, tset) and not isinstance(collection.dtype.element_type, tset)) or (
+            isinstance(collection.dtype, tarray) and not isinstance(collection.dtype.element_type, tarray)):
+        raise TypeError("'flatten' expects an expression of type '<array<array<T>>' or 'set<set<T>>', found '{}'"
                         .format(collection.dtype))
     return collection._method("flatten", collection._type.element_type)
 
@@ -2934,7 +2939,7 @@ def delimit(collection, delimiter=','):
 
     Notes
     -----
-    If the element type of `collection` is not :class:`.TString`, then the
+    If the element type of `collection` is not :py:data:`.tstr`, then the
     :func:`str` function will be called on each element before joining with
     the delimiter.
 
@@ -2950,7 +2955,7 @@ def delimit(collection, delimiter=','):
     :class:`.StringExpression`
         Joined string expression.
     """
-    if not isinstance(collection.dtype.element_type, TString):
+    if not collection.dtype.element_type == tstr:
         collection = map(str, collection)
     return collection._method("mkString", tstr, delimiter)
 
@@ -2978,7 +2983,7 @@ def sorted(collection, key=None, reverse=False):
 
     Notes
     -----
-    The ordered types are :class:`.TString` and numeric types.
+    The ordered types are :py:data:`.tstr` and numeric types.
 
     Parameters
     ----------
@@ -2997,7 +3002,7 @@ def sorted(collection, key=None, reverse=False):
     ascending = ~reverse
 
     def can_sort(t):
-        return isinstance(t, TString) or is_numeric(t)
+        return t == tstr or is_numeric(t)
 
     if key is None:
         if not can_sort(collection.dtype.element_type):
@@ -3048,7 +3053,7 @@ def argmin(array, unique=False):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt32`
+    :class:`.Expression` of type :py:data:`.tint32`
     """
     if not is_numeric(array.dtype.element_type):
         raise TypeError("'argmin' expects an array with numeric element type, found '{}'"
@@ -3094,7 +3099,7 @@ def argmax(array, unique=False):
 
     Returns
     -------
-    :class:`.Expression` of type :class:`.TInt32`
+    :class:`.Expression` of type :py:data:`.tint32`
     """
     if not is_numeric(array.dtype.element_type):
         raise TypeError("'argmax' expects an array with numeric element type, found '{}'"
@@ -3128,7 +3133,7 @@ def float64(expr):
 
     Returns
     -------
-    :class:`.NumericExpression` of type :class:`.TFloat64`
+    :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
     return expr._method("toFloat64", tfloat64)
 
@@ -3156,7 +3161,7 @@ def float32(expr):
 
     Returns
     -------
-    :class:`.NumericExpression` of type :class:`.TFloat32`
+    :class:`.NumericExpression` of type :py:data:`.tfloat32`
     """
     return expr._method("toFloat32", tfloat32)
 
@@ -3184,7 +3189,7 @@ def int64(expr):
 
     Returns
     -------
-    :class:`.NumericExpression` of type :class:`.TInt64`
+    :class:`.NumericExpression` of type :py:data:`.tint64`
     """
     return expr._method("toInt64", tint64)
 
@@ -3212,7 +3217,7 @@ def int32(expr):
 
     Returns
     -------
-    :class:`.NumericExpression` of type :class:`.TInt32`
+    :class:`.NumericExpression` of type :py:data:`.tint32`
     """
     return expr._method("toInt32", tint32)
 
@@ -3244,7 +3249,7 @@ def int(expr):
 
     Returns
     -------
-    :class:`.NumericExpression` of type :class:`.TInt32`
+    :class:`.NumericExpression` of type :py:data:`.tint32`
     """
     return int32(expr)
 
@@ -3276,7 +3281,7 @@ def float(expr):
 
     Returns
     -------
-    :class:`.NumericExpression` of type :class:`.TFloat64`
+    :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
     return float64(expr)
 

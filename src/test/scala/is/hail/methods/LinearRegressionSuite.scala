@@ -353,36 +353,6 @@ class LinearRegressionSuite extends SparkSuite {
     assertNaN(qSe(a(v10)))
   }
 
-  @Test def testNonNumericPheno() {
-    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
-    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-      types = Map("Pheno" -> TString()), missing = "0").keyBy("Sample")
-
-    val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
-
-    interceptFatal("`sa.pheno.Pheno' must be numeric or Boolean, got String") {
-      vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
-    }
-  }
-
-  @Test def testNonNumericCov() {
-    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-      types = Map("Cov1" -> TFloat64(), "Cov2" -> TString())).keyBy("Sample")
-    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-      types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
-
-    val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
-
-    interceptFatal("`sa.cov.Cov2' must be numeric or Boolean, got String") {
-      vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
-    }
-  }
-
   @Test def testMultiPhenoSame() {
     val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")

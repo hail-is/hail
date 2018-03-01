@@ -246,10 +246,10 @@ class MatrixTable(object):
         self._fields = {}
         self._fields_inverse = {}
 
-        assert isinstance(self.global_schema, TStruct), self.col_schema
-        assert isinstance(self.col_schema, TStruct), self.col_schema
-        assert isinstance(self.row_schema, TStruct), self.row_schema
-        assert isinstance(self.entry_schema, TStruct), self.entry_schema
+        assert isinstance(self.global_schema, tstruct), self.col_schema
+        assert isinstance(self.col_schema, tstruct), self.col_schema
+        assert isinstance(self.row_schema, tstruct), self.row_schema
+        assert isinstance(self.entry_schema, tstruct), self.entry_schema
 
         for f in self.global_schema.fields:
             self._set_field(f.name, construct_reference(f.name, f.dtype, self._global_indices, prefix='global'))
@@ -358,7 +358,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.TStruct`
+        :class:`.tstruct`
             Global schema.
         """
         if self._global_schema is None:
@@ -383,7 +383,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.TStruct`
+        :class:`.tstruct`
              Column schema.
         """
         if self._col_schema is None:
@@ -421,7 +421,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.TStruct`
+        :class:`.tstruct`
              Row schema.
         """
         if self._row_schema is None:
@@ -434,7 +434,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.TStruct`
+        :class:`.tstruct`
              Entry schema.
         """
         if self._entry_schema is None:
@@ -1925,7 +1925,7 @@ class MatrixTable(object):
             else:
                 return self.rows().view_join_rows(*exprs)
 
-            schema = TStruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
+            schema = tstruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
             return construct_expr(Select(Reference(prefix), uid),
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
@@ -2265,7 +2265,7 @@ class MatrixTable(object):
 
         Notes
         -----
-        The field added is type :class:`.TInt64`.
+        The field added is type :py:data:`.tint64`.
 
         The row index is 0-indexed; the values are found in the range
         ``[0, N)``, where ``N`` is the total number of rows.
@@ -2293,7 +2293,7 @@ class MatrixTable(object):
 
         Notes
         -----
-        The field added is type :class:`.TInt32`.
+        The field added is type :py:data:`.tint32`.
 
         The column index is 0-indexed; the values are found in the range
         ``[0, N)``, where ``N`` is the total number of columns.

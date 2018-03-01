@@ -25,8 +25,8 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None):
     -----
     The resulting matrix table contains the following fields:
 
-     - `row_idx` (:class:`.TInt32`) - Row index (row key).
-     - `col_idx` (:class:`.TInt32`) - Column index (column key).
+     - `row_idx` (:py:data:`.tint32`) - Row index (row key).
+     - `col_idx` (:py:data:`.tint32`) - Column index (column key).
 
     It contains no entry fields.
 
@@ -65,7 +65,7 @@ def range_table(n, n_partitions=None):
     -----
     The resulting table contains one field:
 
-     - `idx` (:class:`.TInt32`) - Row index (key).
+     - `idx` (:py:data:`.tint32`) - Row index (key).
 
     This method is meant for testing and learning, and is not optimized for
     production performance.

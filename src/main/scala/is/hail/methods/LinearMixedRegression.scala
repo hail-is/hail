@@ -54,8 +54,8 @@ object LinearMixedRegression {
     else {
       val fkm = kinshipMatrix.filterSamples(completeSampleIds.toSet)
       if (!(fkm.sampleIds sameElements completeSampleIds))
-        fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
-          "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
+        fatal("Array of sample IDs in 'ds' and array of sample IDs in 'kinship_matrix' (with both filtered to complete " +
+          "samples in 'ds') do not agree. This should not happen when 'kinship_matrix' is computed from a filtered version of 'ds'.")
       fkm
     }
 

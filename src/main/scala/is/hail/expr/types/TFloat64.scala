@@ -12,9 +12,9 @@ case object TFloat64Optional extends TFloat64(false)
 case object TFloat64Required extends TFloat64(true)
 
 class TFloat64(override val required: Boolean) extends TNumeric {
-  override def _toString = "Float64"
+  override def _toPretty = "Float64"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("float64")
   }
 

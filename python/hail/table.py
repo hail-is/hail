@@ -94,14 +94,14 @@ class TableTemplate(object):
     def schema(self):
         if self._schema is None:
             self._schema = Type._from_java(self._jt.signature())
-            assert (isinstance(self._schema, TStruct))
+            assert (isinstance(self._schema, tstruct))
         return self._schema
 
     @property
     def global_schema(self):
         if self._global_schema is None:
             self._global_schema = Type._from_java(self._jt.globalSignature())
-            assert (isinstance(self._global_schema, TStruct))
+            assert (isinstance(self._global_schema, tstruct))
         return self._global_schema
 
     @property
@@ -226,16 +226,16 @@ class Table(TableTemplate):
 
     .. code-block:: text
 
-        +-------+-------+--------+-------+-------+-------+-------+-------+
-        |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |
-        +-------+-------+--------+-------+-------+-------+-------+-------+
-        | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 |
-        +-------+-------+--------+-------+-------+-------+-------+-------+
-        |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |
-        |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |
-        |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |
-        |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
-        +-------+-------+--------+-------+-------+-------+-------+-------+
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
     >>> table2 = hl.import_table('data/kt_example2.tsv', impute=True, key='ID')
     >>> table2.show()
@@ -245,7 +245,7 @@ class Table(TableTemplate):
         +-------+-------+--------+
         |    ID |     A | B      |
         +-------+-------+--------+
-        | Int32 | Int32 | String |
+        | int32 | int32 | str    |
         +-------+-------+--------+
         |     1 |    65 | cat    |
         |     2 |    72 | dog    |
@@ -328,7 +328,7 @@ class Table(TableTemplate):
     def schema(self):
         if self._schema is None:
             self._schema = Type._from_java(self._jt.signature())
-            assert (isinstance(self._schema, TStruct))
+            assert (isinstance(self._schema, tstruct))
         return self._schema
 
     @property
@@ -360,7 +360,7 @@ class Table(TableTemplate):
 
     @classmethod
     @typecheck_method(rows=anytype,
-                      schema=TStruct,
+                      schema=tstruct,
                       key=oneof(str, listof(str)),
                       num_partitions=nullable(int))
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
@@ -538,23 +538,23 @@ class Table(TableTemplate):
         .. doctest::
 
             >>> table4.show()
-            +-------+---------+--------+---------+-------+-------+-------+-------+
-            |     A | B.B0    | B.B1   | C       | D.cat | D.dog |   E.A |   E.B |
-            +-------+---------+--------+---------+-------+-------+-------+-------+
-            | Int32 | Boolean | String | Boolean | Int32 | Int32 | Int32 | Int32 |
-            +-------+---------+--------+---------+-------+-------+-------+-------+
-            |    32 | true    | hello  | false   |     5 |     7 |     5 |     7 |
-            +-------+---------+--------+---------+-------+-------+-------+-------+\
+            +-------+------+-------+-------+-------+-------+-------+-------+
+            |     A | B.B0 | B.B1  | C     | D.cat | D.dog |   E.A |   E.B |
+            +-------+------+-------+-------+-------+-------+-------+-------+
+            | int32 | bool | str   | bool  | int32 | int32 | int32 | int32 |
+            +-------+------+-------+-------+-------+-------+-------+-------+
+            |    32 | true | hello | false |     5 |     7 |     5 |     7 |
+            +-------+------+-------+-------+-------+-------+-------+-------+
 
             >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
             >>> table_result.show()
-            +---------+--------+---------+-------+-------+-------+
-            | B.B0    | B.B1   | C       | D.cat | D.dog |     F |
-            +---------+--------+---------+-------+-------+-------+
-            | Boolean | String | Boolean | Int32 | Int32 | Int32 |
-            +---------+--------+---------+-------+-------+-------+
-            | true    | hello  | false   |     5 |     7 |    46 |
-            +---------+--------+---------+-------+-------+-------+
+            +------+-------+-------+-------+-------+-------+
+            | B.B0 | B.B1  | C     | D.cat | D.dog |     F |
+            +------+-------+-------+-------+-------+-------+
+            | bool | str   | bool  | int32 | int32 | int32 |
+            +------+-------+-------+-------+-------+-------+
+            | true | hello | false |     5 |     7 |    46 |
+            +------+-------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -683,9 +683,9 @@ class Table(TableTemplate):
         expr = to_expr(expr)
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
-        if not isinstance(expr._type, TBoolean):
-            raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
-                            .format(expr._type.__class__))
+        if expr.dtype != tbool:
+            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
+                            .format(expr.dtype))
 
         return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
 
@@ -1079,16 +1079,16 @@ class Table(TableTemplate):
         .. doctest::
 
             >>> table1.show()
-            +-------+-------+--------+-------+-------+-------+-------+-------+
-            |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+
-            | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+
-            |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |
-            |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |
-            |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |
-            |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+
+            +-------+-------+-----+-------+-------+-------+-------+-------+
+            |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+            +-------+-------+-----+-------+-------+-------+-------+-------+
+            | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+            +-------+-------+-----+-------+-------+-------+-------+-------+
+            |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
+            |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
+            |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
+            |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+            +-------+-------+-----+-------+-------+-------+-------+-------+
 
         Parameters
         ----------
@@ -1123,7 +1123,7 @@ class Table(TableTemplate):
 
         key_set = set(self.key)
         new_fields = [x for x in self.schema.fields if x.name not in key_set]
-        new_schema = TStruct.from_fields(new_fields)
+        new_schema = tstruct.from_fields(new_fields)
 
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
@@ -1163,7 +1163,7 @@ class Table(TableTemplate):
                         key_type == tinterval(expr_type)):
                     raise ExpressionException(
                         "type mismatch at index 0 of table key: expected type {expected}, found '{et}'"
-                            .format(expected="'{}'".format(key_type) if not isinstance(key_type, TInterval)
+                            .format(expected="'{}'".format(key_type) if not isinstance(key_type, tinterval)
                         else "'{}' or '{}'".format(key_type, key_type.point_type), et=expr_type))
             else:
                 for i, (k, e) in enumerate(zip(self.key, exprs)):
@@ -1426,23 +1426,23 @@ class Table(TableTemplate):
 
             >>> table_result = table1.index()
             >>> table_result.show()
-            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
-            |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |   idx |
-            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
-            | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 | Int64 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
-            |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |     0 |
-            |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |     1 |
-            |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |     2 |
-            |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |     3 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+            |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
+            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+            | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int64 |
+            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+            |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |     0 |
+            |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |     1 |
+            |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |     2 |
+            |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |     3 |
+            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
 
         Notes
         -----
 
         This method returns a table with a new field whose name is given by
-        the `name` parameter, with type ``Int64``. The value of this field is
-        the integer index of each row, starting from 0. Methods that respect
+        the `name` parameter, with type :py:data:`.tint64`. The value of this field
+        is the integer index of each row, starting from 0. Methods that respect
         ordering (like :meth:`.Table.take` or :meth:`.Table.export`) will
         return rows in order.
 
@@ -1661,8 +1661,8 @@ class Table(TableTemplate):
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
         can be different. For example, if `table1` is keyed by fields ``['a',
-        'b']``, both of type ``Int32``, and `table2` is keyed by fields ``['c',
-        'd']``, both of type ``Int32``, then the two tables can be joined (their
+        'b']``, both of type ``int32``, and `table2` is keyed by fields ``['c',
+        'd']``, both of type ``int32``, then the two tables can be joined (their
         rows will be joined where ``table1.a == table2.c`` and ``table1.b ==
         table2.d``).
 
@@ -1709,9 +1709,9 @@ class Table(TableTemplate):
         expr = to_expr(expr)
         analyze('Table.all', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
-        if not isinstance(expr._type, TBoolean):
-            raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
-                            .format(expr._type.__class__))
+        if expr.dtype != tbool:
+            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
+                            .format(expr.dtype))
 
         return base._jt.forall(expr._ast.to_hql())
 
@@ -1740,9 +1740,9 @@ class Table(TableTemplate):
         expr = to_expr(expr)
         analyze('Table.any', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
-        if not isinstance(expr._type, TBoolean):
-            raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
-                            .format(expr._type.__class__))
+        if expr.dtype != tbool:
+            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
+                            .format(expr.dtype))
 
         return base._jt.exists(expr._ast.to_hql())
 
@@ -1784,13 +1784,13 @@ class Table(TableTemplate):
 
         Notes
         -----
-        Expands the following types: :class:`.TLocus`, :class:`.TInterval`,
-        :class:`.TSet`, :class:`.TDict`.
+        Expands the following types: :class:`.tlocus`, :class:`.tinterval`,
+        :class:`.tset`, :class:`.tdict`.
 
         The only types that will remain after this method are:
-        :class:`.TBoolean`, :class:`.TInt32`, :class:`.TInt64`,
-        :class:`.TFloat64`, :class:`.TFloat32`, :class:`.TArray`,
-        :class:`.TStruct`.
+        :py:data:`.tbool`, :py:data:`.tint32`, :py:data:`.tint64`,
+        :py:data:`.tfloat64`, :py:data:`.tfloat32`, :class:`.tarray`,
+        :class:`.tstruct`.
 
         Returns
         -------
@@ -1815,31 +1815,31 @@ class Table(TableTemplate):
 
         .. code-block:: text
 
-            a: Struct {
-                p: Int32,
-                q: String
+            a: struct{
+                p: int32,
+                q: str
             },
-            b: Int32,
-            c: Struct {
-                x: String,
-                y: Array[Struct {
-                    y: String,
-                    z: String
-                }]
+            b: int32,
+            c: struct{
+                x: str,
+                y: array<struct{
+                    y: str,
+                    z: str
+                }>
             }
 
         and key ``a``.  The result of flatten is
 
         .. code-block:: text
 
-            a.p: Int32
-            a.q: String
-            b: Int32
-            c.x: String
-            c.y: Array[Struct {
-                y: String,
-                z: String
-            }]
+            a.p: int32
+            a.q: str
+            b: int32
+            c.x: str
+            c.y: array<struct{
+                y: str,
+                z: str
+            }>
 
         with key ``a.p, a.q``.
 
@@ -1946,7 +1946,7 @@ class Table(TableTemplate):
             +----------+-------+--------------------------+
             | Name     |   Age | Children                 |
             +----------+-------+--------------------------+
-            | String   | Int32 | Array[String]            |
+            | str      | int32 | array<str>               |
             +----------+-------+--------------------------+
             | Alice    |    34 | ["Dave","Ernie","Frank"] |
             | Bob      |    51 | ["Gaby","Helen"]         |
@@ -1960,17 +1960,17 @@ class Table(TableTemplate):
 
             >>> exploded = people_table.explode('Children')
             >>> exploded.show()
-            +--------+-------+----------+
-            | Name   |   Age | Children |
-            +--------+-------+----------+
-            | String | Int32 | String   |
-            +--------+-------+----------+
-            | Alice  |    34 | Dave     |
-            | Alice  |    34 | Ernie    |
-            | Alice  |    34 | Frank    |
-            | Bob    |    51 | Gaby     |
-            | Bob    |    51 | Helen    |
-            +--------+-------+----------+
+            +-------+-------+----------+
+            | Name  |   Age | Children |
+            +-------+-------+----------+
+            | str   | int32 | str      |
+            +-------+-------+----------+
+            | Alice |    34 | Dave     |
+            | Alice |    34 | Ernie    |
+            | Alice |    34 | Frank    |
+            | Bob   |    51 | Gaby     |
+            | Bob   |    51 | Helen    |
+            +-------+-------+----------+
 
         Notes
         -----
@@ -2077,15 +2077,15 @@ class Table(TableTemplate):
 
         .. code-block:: text
 
-          BooleanType => :class:`.TBoolean`
-          IntegerType => :class:`.TInt32`
-          LongType => :class:`.TInt64`
-          FloatType => :class:`.TFloat32`
-          DoubleType => :class:`.TFloat64`
-          StringType => :class:`.TString`
+          BooleanType => :py:data:`.tbool`
+          IntegerType => :py:data:`.tint32`
+          LongType => :py:data:`.tint64`
+          FloatType => :py:data:`.tfloat32`
+          DoubleType => :py:data:`.tfloat64`
+          StringType => :py:data:`.tstr`
           BinaryType => :class:`.TBinary`
-          ArrayType => :class:`.TArray`
-          StructType => :class:`.TStruct`
+          ArrayType => :class:`.tarray`
+          StructType => :class:`.tstruct`
 
         Unlisted Spark SQL data types are currently unsupported.
 

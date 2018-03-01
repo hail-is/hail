@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 final case class TVariable(name: String, var t: Type = null) extends Type {
   override val required = true
 
-  override def _toString: String = s"?$name"
+  override def _toPretty: String = s"?$name"
 
   override def isRealizable = false
 

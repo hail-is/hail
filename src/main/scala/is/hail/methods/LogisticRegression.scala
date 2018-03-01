@@ -26,7 +26,7 @@ object LogisticRegression {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
-      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
+      fatal(s"For logistic regression, phenotype must be bool or numeric with all present values equal to 0 or 1")
 
     val n = y.size
     val k = cov.cols
