@@ -134,6 +134,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     call
     unphased_diploid_gt_index_call
     parse_call
+    downcode
+    triangle
     is_snp
     is_mnp
     is_transition
