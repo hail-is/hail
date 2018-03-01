@@ -333,6 +333,9 @@ class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
         return hl.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
 
+    def test_range_count(self):
+        self.assertEqual(hl.utils.range_matrix_table(7, 13).count(), (7, 13))
+
     def test_row_key_field_show_runs(self):
         ds = self.get_vds()
         ds.locus.show()

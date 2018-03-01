@@ -1451,7 +1451,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     orderedRVDLeftJoinDistinctAndInsert(rightRVD, root, product = false)
   }
 
-  def count(): (Long, Long) = (numCols, countRows())
+  def count(): (Long, Long) = (countRows(), numCols)
 
   def countRows(): Long = partitionCounts().sum
 

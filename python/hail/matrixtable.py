@@ -1761,18 +1761,18 @@ class MatrixTable(object):
         return self._jvds.numCols()
 
     def count(self):
-        """Count the number of columns and rows in the matrix.
+        """Count the number of rows and columns in the matrix.
 
         Examples
         --------
         .. doctest::
 
-            >>> dataset.count_cols()
+            >>> dataset.count()
 
         Returns
         -------
         :obj:`int`, :obj:`int`
-            Number of cols, number of rows.
+            Number of rows, number of cols.
         """
         r = self._jvds.count()
         return r._1(), r._2()

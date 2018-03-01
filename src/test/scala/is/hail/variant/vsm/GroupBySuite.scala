@@ -16,22 +16,22 @@ class GroupBySuite extends SparkSuite {
 
   @Test def testGroupSamplesBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    val vds2 = vds.groupSamplesBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    vds.groupSamplesBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupSamplesStruct() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("foo = {str1: 1, str2: \"bar\"}")
-    val vds2 = vds.groupSamplesBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    vds.groupSamplesBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    val vds2 = vds.groupRowsBy("AC = va.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    vds.groupRowsBy("AC = va.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupVariantsStruct() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC = {str1: \"foo\", str2: 1}")
-    val vds2 = vds.groupRowsBy("AC = va.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    vds.groupRowsBy("AC = va.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   // FIXME this test is broken, @tpoterba has fixed in a separate branch
