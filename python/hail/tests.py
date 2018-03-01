@@ -43,9 +43,9 @@ class TableTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
                                        [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
-        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
-                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
-                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
+        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3]),
+                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=[]),
+                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7])]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -542,10 +542,10 @@ class MatrixTests(unittest.TestCase):
                                   [hl.tint32, hl.tbool]),
             key=['key'])
         ds = ds.annotate_rows(key=ds.locus.position % 2)
-        ds = ds.annotate_rows(value=kt[ds['key']].value)
+        ds = ds.annotate_rows(value=kt[ds['key']]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all(((rt.locus.position % 2) == 0) == rt.value))
+            rt.all(((rt.locus.position % 2) == 0) == rt['value']))
 
     def test_computed_key_join_2(self):
         # multiple keys
@@ -559,10 +559,10 @@ class MatrixTests(unittest.TestCase):
                                   [hl.tint32, hl.tint32, hl.tint32]),
             key=['key1', 'key2'])
         ds = ds.annotate_rows(key1=ds.locus.position % 2, key2=ds.info.DP % 2)
-        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2].value)
+        ds = ds.annotate_rows(value=kt[ds.key1, ds.key2]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt.value))
+            rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt['value']))
 
     def test_computed_key_join_3(self):
         # duplicate row keys
@@ -576,13 +576,13 @@ class MatrixTests(unittest.TestCase):
             dsfoo='bar',
             info=ds.info.annotate(culprit=[ds.info.culprit, "foo"]))
         ds = ds.explode_rows(ds.info.culprit)
-        ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo].value)
+        ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo]['value'])
         rt = ds.rows()
         self.assertTrue(
             rt.all(hl.cond(
                 rt.info.culprit == "InbreedingCoeff",
-                rt.value == "IB",
-                hl.is_missing(rt.value))))
+                rt['value'] == "IB",
+                hl.is_missing(rt['value']))))
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(test_file('33alleles.vcf'))

@@ -299,7 +299,7 @@ def take(expr, n, ordering=None):
 
     .. doctest::
 
-        >>> table1.aggregate(agg.take(hl.Struct(ID=table1.ID, HT=table1.HT),
+        >>> table1.aggregate(agg.take(hl.struct(ID=table1.ID, HT=table1.HT),
         ...                           3,
         ...                           ordering=-table1.HT))
         [Struct(ID=2, HT=72), Struct(ID=3, HT=70), Struct(ID=1, HT=65)]

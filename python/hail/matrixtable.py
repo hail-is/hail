@@ -210,16 +210,16 @@ class MatrixTable(object):
 
     Query:
 
-    >>> col_stats = dataset.aggregate_cols(Struct(pop_counts=agg.counter(dataset.pop),
-    ...                                           high_quality=agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
+    >>> col_stats = dataset.aggregate_cols(hl.struct(pop_counts=agg.counter(dataset.pop),
+    ...                                              high_quality=agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
     >>> print(col_stats.pop_counts)
     >>> print(col_stats.high_quality)
 
     >>> het_dist = dataset.aggregate_rows(agg.stats(dataset.sas_hets))
     >>> print(het_dist)
 
-    >>> entry_stats = dataset.aggregate_entries(Struct(call_rate=agg.fraction(hl.is_defined(dataset.GT)),
-    ...                                         global_gq_mean=agg.mean(dataset.GQ)))
+    >>> entry_stats = dataset.aggregate_entries(hl.struct(call_rate=agg.fraction(hl.is_defined(dataset.GT)),
+    ...                                                   global_gq_mean=agg.mean(dataset.GQ)))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
@@ -445,12 +445,12 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.Struct`
+        :class:`.StructExpression`
             Global values.
         """
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jvds.globals())
-        return self._globals
+        return to_expr(self._globals)
 
     @property
     def globals(self):
@@ -1413,8 +1413,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_rows(Struct(n_high_quality=agg.count_where(dataset.qual > 40),
-            ...                               mean_qual=agg.mean(dataset.qual)))
+            >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
+            ...                                  mean_qual=agg.mean(dataset.qual)))
             Struct(n_high_quality=100150224, mean_qual=50.12515572)
 
         Notes
@@ -1426,8 +1426,8 @@ class MatrixTable(object):
         the following:
 
         >>> rows_table = dataset.rows()
-        >>> rows_table.aggregate(Struct(n_high_quality=agg.count_where(rows_table.qual > 40),
-        ...                             mean_qual=agg.mean(rows_table.qual)))
+        >>> rows_table.aggregate(hl.struct(n_high_quality=agg.count_where(rows_table.qual > 40),
+        ...                                mean_qual=agg.mean(rows_table.qual)))
 
         Note
         ----
@@ -1509,8 +1509,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_entries(Struct(global_gq_mean=agg.mean(dataset.GQ),
-            ...                                  call_rate=agg.fraction(hl.is_defined(dataset.GT))))
+            >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
+            ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
             Struct(global_gq_mean=31.16200, call_rate=0.981682)
 
         Notes
@@ -1519,8 +1519,8 @@ class MatrixTable(object):
         the following:
 
         >>> entries_table = dataset.entries()
-        >>> entries_table.aggregate(Struct(global_gq_mean=agg.mean(entries_table.GQ),
-        ...                                call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
+        >>> entries_table.aggregate(hl.struct(global_gq_mean=agg.mean(entries_table.GQ),
+        ...                                   call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
 
         Note
         ----

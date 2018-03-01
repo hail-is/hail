@@ -646,13 +646,12 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     return _func("hwe", ret_type, num_hom_ref, num_het, num_hom_var)
 
 
-@typecheck(structs=oneof(expr_array, listof(Struct)),
+@typecheck(structs=oneof(expr_array),
            identifier=str)
 def index(structs, identifier):
     if not isinstance(structs.dtype.element_type, TStruct):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
                         .format(structs.dtype))
-    structs = to_expr(structs)
     struct_type = structs._type.element_type
     struct_fields = {fd.name: fd.dtype for fd in struct_type.fields}
 
@@ -1111,7 +1110,7 @@ def json(x):
         >>> hl.eval_expr(hl.json([1,2,3,4,5]))
         '[1,2,3,4,5]'
 
-        >>> hl.eval_expr(hl.json(hl.Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
+        >>> hl.eval_expr(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
         '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -2003,7 +2002,7 @@ def str(x):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.str(hl.Struct(a=5, b=7)))
+        >>> hl.eval_expr(hl.str(hl.struct(a=5, b=7)))
         '{"a":5,"b":7}'
 
     Parameters

@@ -764,6 +764,10 @@ class Expression(object):
 
 
 
+    @property
+    def value(self):
+        return hail.eval_expr(self)
+
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
 
@@ -1912,7 +1916,7 @@ class Aggregable(object):
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
 
-    >>> s = hl.capture(hl.Struct(a=5, b='Foo'))
+    >>> s = hl.capture(hl.struct(a=5, b='Foo'))
 
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
@@ -2035,7 +2039,7 @@ class StructExpression(Mapping, Expression):
         for fd in self.dtype.fields:
             names.append(fd.name)
             types.append(fd.dtype)
-        kwargs_struct = to_expr(Struct(**named_exprs))
+        kwargs_struct = hl.struct(**named_exprs)
 
         for fd in kwargs_struct.dtype.fields:
             if not fd.name in self._fields:
@@ -2095,7 +2099,7 @@ class StructExpression(Mapping, Expression):
         select_names = names[:]
         select_name_set = set(select_names)
 
-        kwargs_struct = to_expr(Struct(**named_exprs))
+        kwargs_struct = hl.struct(**named_exprs)
         for fd in kwargs_struct.dtype.fields:
             if fd.name in select_name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))

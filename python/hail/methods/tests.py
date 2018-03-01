@@ -638,13 +638,14 @@ class Tests(unittest.TestCase):
 
         glob = ds.get_globals()
 
-        self.assertEqual(glob.num_populations, 2)
-        self.assertEqual(glob.num_samples, 20)
-        self.assertEqual(glob.num_variants, 25)
-        self.assertEqual(glob.pop_dist, [1, 2])
-        self.assertEqual(glob.fst, [.02, .06])
-        self.assertEqual(glob.seed, 1)
-        self.assertEqual(glob.ancestral_af_dist, hl.Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
+        self.assertEqual(glob.num_populations.value, 2)
+        self.assertEqual(glob.num_samples.value, 20)
+        self.assertEqual(glob.num_variants.value, 25)
+        self.assertEqual(glob.pop_dist.value, [1, 2])
+        self.assertEqual(glob.fst.value, [.02, .06])
+        self.assertEqual(glob.seed.value, 1)
+        self.assertEqual(glob.ancestral_af_dist.value,
+                         hl.struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95).value)
 
     def test_skat(self):
         ds2 = hl.import_vcf(test_file('sample2.vcf'))
