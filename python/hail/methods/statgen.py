@@ -591,7 +591,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
            sparsity_threshold=numeric,
            n_eigs=nullable(int),
            dropped_variance_fraction=(nullable(float)))
-def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
+def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
            run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
            n_eigs=None, dropped_variance_fraction=None):
     r"""Use a kinship-based linear mixed model to estimate the genetic component
@@ -1015,7 +1015,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     Parameters
     ----------
-    kinshipMatrix : :class:`.KinshipMatrix`
+    kinship_matrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
 
     y : :class:`.NumericExpression`
@@ -1072,7 +1072,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     base, cleanup = ds._process_joins(*all_exprs)
 
-    jds = base._jvds.lmmreg(kinshipMatrix._jkm,
+    jds = base._jvds.lmmreg(kinship_matrix._jkm,
                             y._ast.to_hql(),
                             x._ast.to_hql(),
                             jarray(Env.jvm().java.lang.String,
