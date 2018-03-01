@@ -43,9 +43,9 @@ class TableTests(unittest.TestCase):
         schema = hl.tstruct.from_lists(['a', 'b', 'c', 'd', 'e', 'f'],
                                        [hl.tint32, hl.tint32, hl.tint32, hl.tint32, hl.tstr, hl.tarray(hl.tint32)])
 
-        rows = [hl.struct(a=4, b=1, c=3, d=5, e="hello", f=[1, 2, 3]),
-                hl.struct(a=0, b=5, c=13, d=-1, e="cat", f=hl.empty_array(hl.tint32)),
-                hl.struct(a=4, b=2, c=20, d=3, e="dog", f=[5, 6, 7])]
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
         kt = hl.Table.parallelize(rows, schema)
 
