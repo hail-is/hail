@@ -328,6 +328,28 @@ class TableTests(unittest.TestCase):
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
+    def test_rename(self):
+        kt = hl.utils.range_table(10)
+        kt = kt.annotate_globals(foo = 5, fi = 3)
+        kt = kt.annotate(bar = 45, baz = 32).key_by('bar')
+        renamed = kt.rename({'foo': 'foo2', 'bar' : 'bar2'})
+        renamed.count()
+
+        self.assertEqual(list(renamed.key), ['bar2'])
+        self.assertEqual(renamed['foo2'].dtype, kt['foo'].dtype)
+        self.assertEqual(renamed['fi'].dtype, kt['fi'].dtype)
+        self.assertEqual(renamed['bar2'].dtype, kt['bar'].dtype)
+        self.assertEqual(renamed['baz'].dtype, kt['baz'].dtype)
+
+        self.assertEqual(renamed['bar2']._indices, renamed._row_indices)
+
+        self.assertFalse('foo' in renamed._fields)
+        self.assertFalse('bar' in renamed._fields)
+
+        self.assertRaises(ValueError, kt.rename, {'foo': 'bar'})
+        self.assertRaises(ValueError, kt.rename, {'bar': 'a', 'baz': 'a'})
+        self.assertRaises(LookupError, kt.rename, {'hello': 'a'})
+
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):

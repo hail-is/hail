@@ -258,31 +258,6 @@ class TableSuite extends SparkSuite {
     assert(!kt.exists("""row.Sample == "Sample1" && row.field1 == 13 && row.field2 == 2"""))
   }
 
-  @Test def testRename() {
-    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = Array("Sample")
-
-    val kt = Table(hc, rdd, signature, keyNames)
-    kt.typeCheck()
-
-    val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
-    assert(rename1.fieldNames sameElements Array("ID1", "ID2", "ID3"))
-
-    val rename2 = kt.rename(Map("field1" -> "ID1"))
-    assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
-
-    intercept[HailException](kt.rename(Array("ID1")))
-
-    intercept[HailException](kt.rename(Map("field1" -> "field2")))
-
-    intercept[HailException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
-
-    val outputFile = tmpDir.createTempFile("rename", "tsv")
-    rename2.export(outputFile)
-  }
-
   @Test def testSelect() {
     val data = Array(Array("Sample1", 9, 5, Row(5, "bunny")), Array("Sample2", 3, 5, Row(6, "hello")), Array("Sample3", 2, 5, null), Array("Sample4", 1, 5, null))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))

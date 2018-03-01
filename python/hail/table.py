@@ -105,6 +105,19 @@ class TableTemplate(object):
 
     @property
     def key(self):
+        """Return the row key schema.
+
+        Examples
+        --------
+
+        Get the row key names of the table
+
+        >>> list(table1.key)
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         if self._key is None:
             self._key = jiterable_to_list(self._jt.key())
         return hl.struct(**{k: self[k] for k in self._key})
@@ -1756,7 +1769,7 @@ class Table(TableTemplate):
         Parameters
         ----------
         mapping : :obj:`dict` of :obj:`str`, :obj:`str`
-            Mapping from old column names to new column names.
+            Mapping from old field names to new field names.
 
         Notes
         -----
@@ -1768,8 +1781,25 @@ class Table(TableTemplate):
         :class:`.Table`
             Table with renamed fields.
         """
+        seen = {}
 
-        return Table(self._jt.rename(mapping))
+        rowMap = {}
+        globalMap = {}
+
+        for k, v in mapping.items():
+            if v in seen:
+                raise ValueError(
+                    "Cannot rename two fields to the same name: attempted to rename '{}' and '{}' both to '{}'".format(
+                        seen[v], k, v))
+            if v in self._fields and v not in mapping.keys():
+                raise ValueError("Cannot rename '{}; to '{}': field already exists.".format(k, v))
+            seen[v] = k
+            if self[k]._indices == self._row_indices:
+                rowMap[k] = v
+            elif self[k]._indices == self._global_indices:
+                globalMap[k] = v
+
+        return Table(self._jt.rename(rowMap, globalMap))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.
