@@ -985,7 +985,7 @@ class ExprSuite extends SparkSuite {
       t == parsed
     })
     check(forAll { (t: Type) =>
-      val s = t.toString
+      val s = t.parsableString()
       val parsed = Parser.parseType(s)
       t == parsed
     })
