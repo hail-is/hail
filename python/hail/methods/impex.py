@@ -1145,12 +1145,12 @@ def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, mis
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError("""import_matrix_table expects field types to be one of: 
             'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
-    key = wrap_to_list(key)
+    row_key = wrap_to_list(row_key)
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of: 
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions),
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
                                      no_header, force_bgz)
     return MatrixTable(jmt)
 
