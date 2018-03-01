@@ -34,8 +34,8 @@ def _check_agg_bindings(expr):
     lambda_vars = {ast.lambda_var for ast in expr._ast.search(lambda ast: isinstance(ast, LambdaClassMethod))}
     declared_temp_vars = bind_vars.union(lambda_vars)
 
-    referenced_but_not_declared = bound_references - declared_temp_vars
-    if referenced_but_not_declared:
+    free_variables = bound_references - declared_temp_vars
+    if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 @typecheck(expr=oneof(Aggregable, expr_any))
@@ -826,9 +826,6 @@ def filter(condition, expr):
                 construct_expr(Reference(uid), agg._type, agg._indices, agg._aggregations, agg._joins, agg._refs)))
     else:
         lambda_result = to_expr(condition)
-
-    _check_agg_bindings(agg)
-    _check_agg_bindings(lambda_result)
 
     if not isinstance(lambda_result._type, TBoolean):
         raise TypeError(
