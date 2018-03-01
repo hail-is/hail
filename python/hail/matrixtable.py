@@ -2346,7 +2346,7 @@ class MatrixTable(object):
 
         In order to combine two datasets, three requirements must be met:
 
-         - The column key must be identical, both in type, value, and ordering.
+         - The column keys must be identical, both in type, value, and ordering.
          - The row key schemas and row schemas must match.
          - The entry schemas must match.
 

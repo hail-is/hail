@@ -375,7 +375,7 @@ class Table(TableTemplate):
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_by(self, *keys):
-        """Change which fields are keys.
+        """Change the key.
 
         Examples
         --------
@@ -388,7 +388,7 @@ class Table(TableTemplate):
 
         >>> table_result = table1.key_by(table1.C1)
 
-        Set to no keys:
+        Set to empty key:
 
         >>> table_result = table1.key_by()
 
@@ -400,7 +400,7 @@ class Table(TableTemplate):
         Returns
         -------
         :class:`.Table`
-            Table with new set of keys.
+            Table with a new key.
         """
         str_keys = []
         for k in keys:
@@ -896,7 +896,7 @@ class Table(TableTemplate):
         self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
     def group_by(self, *exprs, **named_exprs):
-        """Group by a new set of keys for use with :meth:`.GroupedTable.aggregate`.
+        """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
 
         Examples
         --------
@@ -1311,7 +1311,7 @@ class Table(TableTemplate):
 
         Examples
         --------
-        Persist the key table to both memory and disk:
+        Persist the table to both memory and disk:
 
         >>> table = table.persist() # doctest: +SKIP
 
@@ -1665,8 +1665,9 @@ class Table(TableTemplate):
         rows will be joined where ``table1.a == table2.c`` and ``table1.b ==
         table2.d``).
 
-        The key field names and order from the left table are preserved, while
-        the key fields from the right table are not present in the result.
+        The key fields and order from the left table are preserved,
+        while the key fields from the right table are not present in
+        the result.
 
         Parameters
         ----------
@@ -1679,6 +1680,7 @@ class Table(TableTemplate):
         -------
         :class:`.Table`
             Joined table.
+
         """
 
         return Table(self._jt.join(right._jt, how))
@@ -1825,7 +1827,7 @@ class Table(TableTemplate):
                 }]
             }
 
-        and a single key field ``a``.  The result of flatten is
+        and a single key ``a``.  The result of flatten is
 
         .. code-block:: text
 
@@ -1838,7 +1840,7 @@ class Table(TableTemplate):
                 z: String
             }]
 
-        with key fields ``a.p`` and ``a.q``.
+        with key ``a.p`` and ``a.q``.
 
         Note, structures inside collections like arrays or sets will not be
         flattened.
@@ -2104,7 +2106,7 @@ class Table(TableTemplate):
     @typecheck_method(expand=bool,
                       flatten=bool)
     def to_spark(self, expand=True, flatten=True):
-        """Converts this key table to a Spark DataFrame.
+        """Converts this table to a Spark DataFrame.
 
         Parameters
         ----------
