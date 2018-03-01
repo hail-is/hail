@@ -119,7 +119,7 @@ class BlockMatrixSuite extends SparkSuite {
       6, 3, 0, -3,
       9, 6, 3, 0))
 
-    val actual = (m :- m.t).toLocalMatrix()
+    val actual = (m -:- m.t).toLocalMatrix()
     assert(actual == expected)
   }
 

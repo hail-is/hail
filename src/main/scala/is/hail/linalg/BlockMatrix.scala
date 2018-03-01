@@ -163,16 +163,16 @@ object BlockMatrix {
       def *(r: BDM[Double]): M =
         l.multiply(r)
 
-      def :+(r: M): M =
+      def +:+(r: M): M =
         l.add(r)
 
-      def :-(r: M): M =
+      def -:-(r: M): M =
         l.subtract(r)
 
-      def :*(r: M): M =
+      def *:*(r: M): M =
         l.pointwiseMultiply(r)
 
-      def :/(r: M): M =
+      def /:/(r: M): M =
         l.pointwiseDivide(r)
 
       def +(r: Double): M =
