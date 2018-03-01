@@ -2439,7 +2439,7 @@ def len(x):
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    if isinstance(x.dtype, TTuple):
+    if isinstance(x.dtype, ttuple):
         return hl.int32(builtins.len(x))
     else:
         return x._method("size", tint32)

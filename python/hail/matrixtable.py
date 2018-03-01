@@ -440,18 +440,6 @@ class MatrixTable(object):
             self._entry_schema = Type._from_java(self._jvds.entryType())
         return self._entry_schema
 
-    def get_globals(self):
-        """Returns the global values of the dataset as Python values.
-
-        Returns
-        -------
-        :class:`.StructExpression`
-            Global values.
-        """
-        if self._globals is None:
-            self._globals = self.global_schema._convert_to_py(self._jvds.globals())
-        return to_expr(self._globals)
-
     @property
     def globals(self):
         """Returns a struct expression including all global fields.

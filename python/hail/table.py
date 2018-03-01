@@ -369,7 +369,7 @@ class Table(TableTemplate):
                       num_partitions=nullable(int))
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
         rows = to_expr(rows, hl.tarray(schema))
-        if not isinstance(rows.dtype.element_type, TStruct):
+        if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
         rows = rows.value

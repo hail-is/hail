@@ -742,7 +742,7 @@ class TStruct(Type):
 
     def _typecheck(self, annotation):
         if annotation:
-            if isinstance(annotation, Struct) or isinstance(annotation, dict):
+            if isinstance(annotation, Mapping):
                 s = set([f.name for f in self.fields])
                 for f in annotation:
                     if f not in s:
@@ -751,7 +751,7 @@ class TStruct(Type):
                 for f in self.fields:
                     f.dtype._typecheck(annotation.get(f.name))
             else:
-                raise TypeError("TStruct expected type hail.genetics.Struct or dict, but found '%s'" %
+                raise TypeError("TStruct expected type Mapping (e.g. hail.genetics.Struct or dict), but found '%s'" %
                                 type(annotation))
 
     def __str__(self):
