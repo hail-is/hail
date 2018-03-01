@@ -298,7 +298,7 @@ object VEP {
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
     val localRowType = vsm.rvRowType
-    val localGR = vsm.referenceGenome
+    val localRG = vsm.referenceGenome
     val annotations = vsm.rvd
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
@@ -383,7 +383,7 @@ object VEP {
               }
 
             val r = kt.toArray
-              .sortBy(_._1)(localGR.variantOrdering)
+              .sortBy(_._1)(localRG.variantOrdering)
 
             val rc = proc.waitFor()
             if (rc != 0)
