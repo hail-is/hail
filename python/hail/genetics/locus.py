@@ -1,4 +1,4 @@
-from hail.genetics.genomeref import GenomeReference, reference_genome_type
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import *
 from hail.utils.java import scala_object, Env
 import hail as hl
