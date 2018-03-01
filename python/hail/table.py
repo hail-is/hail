@@ -1441,7 +1441,7 @@ class Table(TableTemplate):
         -----
 
         This method returns a table with a new field whose name is given by
-        the `name` parameter, with type :py:data:`.int64`. The value of this field
+        the `name` parameter, with type :py:data:`.tint64`. The value of this field
         is the integer index of each row, starting from 0. Methods that respect
         ordering (like :meth:`.Table.take` or :meth:`.Table.export`) will
         return rows in order.

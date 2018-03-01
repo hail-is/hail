@@ -236,7 +236,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     INFO and FORMAT fields may be generated from Struct fields of type
     :py:data:`.tcall`, :py:data:`.tint32`, :py:data:`.tfloat32`,
-    :py:data:`.tfloat64`, or :py:data:`.str`. If a field has type
+    :py:data:`.tfloat64`, or :py:data:`.tstr`. If a field has type
     :py:data:`.tint64`, every value must be a valid ``int32``. Arrays and sets
     containing these types are also allowed but cannot be nested; for example,
     ``array<array<int32>>`` is invalid. Arrays and sets are written with the

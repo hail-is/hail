@@ -255,8 +255,8 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     With the default root, the following row-indexed fields are added. The
     indexing of the array fields corresponds to that of ``ys``.
 
-    - **linreg.nCompleteSamples** (:py:data:`.tint32`) -- Number of columns used
-    - **linreg.AC** (:py:data:`.tfloat64`) -- sum of input values ``x``.
+    - **linreg.nCompleteSamples** (:py:data:`.tint32`) -- Number of columns used.
+    - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values ``x``.
     - **linreg.ytx** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
       dot products of each response vector ``y`` with the input vector ``x``.
     - **linreg.beta** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
@@ -1731,7 +1731,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         kinship and identity-by-descent zero, one, and two.
 
         The fields of the resulting :class:`.Table` entries are of types: `i`:
-        :py:data:`.str`, `j`: :py:data:`.str`, `kin`: :py:data:`.tfloat64`, `k2`:
+        :py:data:`.tstr`, `j`: :py:data:`.tstr`, `kin`: :py:data:`.tfloat64`, `k2`:
         :py:data:`.tfloat64`, `k1`: :py:data:`.tfloat64`, `k0`:
         :py:data:`.tfloat64`. The table is keyed by `i` and `j`.
 
