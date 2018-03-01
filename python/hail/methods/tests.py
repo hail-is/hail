@@ -601,7 +601,7 @@ class Tests(unittest.TestCase):
             block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
             entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), num_cols * num_rows)
-            self.assertEqual(entries_table.num_columns, 3)
+            self.assertEqual(entries_table.num_fields, 3)
             self.assertTrue(table._same(entries_table))
 
     def test_min_rep(self):
