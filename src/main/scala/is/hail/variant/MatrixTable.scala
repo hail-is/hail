@@ -1627,14 +1627,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     */
   def filterSamplesExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
+    filterAST.typecheck(matrixType.colEC)
+    val tmp = new ASTShow(filterAST)
+    info(s"filterSamplesExpr filterAST ${tmp.toString()}")
     val pred = filterAST.toIR()
     pred match {
 		case Some(irPred) =>
 			new MatrixTable(hc,
-				FilterRows(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
+				FilterCols(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
 			)
 		case None =>
-			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterSamples")
+			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterCols")
     		if (!keep)
       			filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
     		copyAST(ast = FilterSamples(ast, filterAST))
@@ -1664,14 +1667,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
+    filterAST.typecheck(matrixType.rowEC)
+    val tmp = new ASTShow(filterAST)
+    info(s"filterVariantsExpr filterAST ${tmp.toString()}")
     val pred = filterAST.toIR()
     pred match {
 		case Some(irPred) =>
 			new MatrixTable(hc,
-				FilterCols(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
+				FilterRows(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
 			)
 		case None =>
-			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterCols")
+			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterRows")
     		if (!keep)
       			filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
     		copyAST(ast = FilterVariants(ast, filterAST))

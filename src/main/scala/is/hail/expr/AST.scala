@@ -268,6 +268,8 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
       f(values)
     }
   }
+  
+  def getSubexprs(): Array[AST] = subexprs;
 
   def toIR(agg: Option[String] = None): Option[IR]
 }
@@ -348,7 +350,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
   def toIR(agg: Option[String] = None): Option[IR] = for {
     s <- lhs.toIR(agg)
-    t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
+    t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct]) 
     f <- t.selfField(rhs)
   } yield ir.GetField(s, rhs, f.typ)
 }
@@ -728,8 +730,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
     } yield ir.ApplyBinaryPrimOp(op, x, y, t)
   }
-
-
+  
   def toIR(agg: Option[String] = None): Option[IR] = for {
     irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
     ir <- tryPrimOpConversion(irArgs)
@@ -941,3 +942,47 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     alternate <- elseTree.toIR(agg)
   } yield ir.If(condition, consequent, alternate, `type`)
 }
+
+class ASTShow(rootAST: AST) {
+  var sb: StringBuilder = new StringBuilder()
+  var str: String = {
+    putDeepAST(rootAST, 0)
+    sb.toString()
+  }
+
+  override def toString() : String = str
+  
+  def astToName(ast: AST): String = {
+    ast match {
+      case Apply(_,fn,_) => s"Apply[${fn}]"
+      case ApplyMethod(_,_,method,_) => s"ApplyMethod[${method}]"
+      case ArrayConstructor(_,_) => "ArrayConstructor"
+      case Const(_,value,_) => s"Const[${value.toString()}]"
+      case If(_,_,_,_) => "If"
+      case Lambda(_,param,_) => s"Lambda[${param}]"
+      case Let(_,_,_) => "Let"
+      case ReferenceGenomeDependentConstructor(_,_,_,_) => "RGDC"
+      case Select(_,_,rhs) => s"Select[${rhs}]"
+      case StructConstructor(_,_,_) => "StructConstructor"
+      case SymRef(_,symbol) => s"SymRef[${symbol}]"
+      case TupleConstructor(_,_) => "TupleConstructor"
+      case _ => "UnknownAST"
+    }
+  }
+  
+  def putDeepAST(ast: AST, depth: Int = 0): Unit = {
+    for (j <- 1 to depth) sb.append("  ")
+    val sub = ast.getSubexprs()
+    sb.append(astToName(ast))
+    if (sub.length > 0) {
+      sb.append("(\n")
+      for (oneSub <- sub) {
+        putDeepAST(oneSub, depth+1)
+      }
+      for (j <- 1 to depth) sb.append("  ")
+      sb.append(")")
+    }
+    sb.append("\n")
+  }
+}
+

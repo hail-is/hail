@@ -338,15 +338,15 @@ case class FilterSamples(
   }
 }
 
-case class FilterRows(
+case class FilterCols(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterCols = {
     assert(newChildren.length == 2)
-    FilterRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    FilterCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ
@@ -357,8 +357,8 @@ case class FilterRows(
     // Generate a predicate function which may access globals,
     // row annotations, and the row itself.
     //
-    // The predicate for FilterRows might access globals and column annotations
-    println(s"FilterRows.execute pred ${pred.toString()}")
+    // The predicate for FilterCols might access globals and column annotations
+    println(s"FilterCols.execute pred ${pred.toString()}")
     kmv
     /*
     val f = ir.Compile(
@@ -420,15 +420,15 @@ case class FilterVariants(
   }
 }
 
-case class FilterCols(
+case class FilterRows(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
 
-  def children: IndexedSeq[BaseIR] = Array(child)
+  def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterCols = {
-    assert(newChildren.length == 1)
-    FilterCols(newChildren(0).asInstanceOf[MatrixIR], pred)
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
+    assert(newChildren.length == 2)
+    FilterRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ
