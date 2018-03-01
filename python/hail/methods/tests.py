@@ -534,7 +534,7 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
-        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.capture(1), hl.capture(2), True))
+        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.lit(1), hl.lit(2), True))
 
     def test_filter_alleles(self):
         # poor man's Gen

@@ -547,9 +547,9 @@ class Expression(object):
 
         .. doctest::
 
-            >>> x = hl.capture(5)
-            >>> y = hl.capture(5)
-            >>> z = hl.capture(1)
+            >>> x = hl.lit(5)
+            >>> y = hl.lit(5)
+            >>> z = hl.lit(1)
 
             >>> hl.eval_expr(x == y)
             True
@@ -588,9 +588,9 @@ class Expression(object):
 
         .. doctest::
 
-            >>> x = hl.capture(5)
-            >>> y = hl.capture(5)
-            >>> z = hl.capture(1)
+            >>> x = hl.lit(5)
+            >>> y = hl.lit(5)
+            >>> z = hl.lit(1)
 
             >>> hl.eval_expr(x != y)
             False
@@ -679,7 +679,7 @@ class Expression(object):
             |     4 | F      |
             +-------+--------+
 
-            >>> hl.capture(123).show()
+            >>> hl.lit(123).show()
             +--------+
             | <expr> |
             +--------+
@@ -790,9 +790,9 @@ class Expression(object):
 class CollectionExpression(Expression):
     """Expression of type :class:`.TArray` or :class:`.TSet`
 
-    >>> a = hl.capture([1, 2, 3, 4, 5])
+    >>> a = hl.lit([1, 2, 3, 4, 5])
 
-    >>> s = hl.capture({'Alice', 'Bob', 'Charlie'})
+    >>> s = hl.lit({'Alice', 'Bob', 'Charlie'})
     """
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -1073,7 +1073,7 @@ class CollectionExpression(Expression):
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.TArray`.
 
-    >>> a = hl.capture(['Alice', 'Bob', 'Charlie'])
+    >>> a = hl.lit(['Alice', 'Bob', 'Charlie'])
 
     See Also
     --------
@@ -1228,9 +1228,9 @@ class ArrayNumericExpression(ArrayExpression):
     Arithmetic with a scalar will apply the operation to each element of the
     array.
 
-    >>> a1 = hl.capture([0, 1, 2, 3, 4, 5])
+    >>> a1 = hl.lit([0, 1, 2, 3, 4, 5])
 
-    >>> a2 = hl.capture([1, -1, 1, -1, 1, -1])
+    >>> a2 = hl.lit([1, -1, 1, -1, 1, -1])
 
     """
 
@@ -1489,8 +1489,8 @@ class ArrayNumericExpression(ArrayExpression):
 class SetExpression(CollectionExpression):
     """Expression of type :class:`.TSet`.
 
-    >>> s1 = hl.capture({1, 2, 3})
-    >>> s2 = hl.capture({1, 3, 5})
+    >>> s1 = hl.lit({1, 2, 3})
+    >>> s2 = hl.lit({1, 3, 5})
 
     See Also
     --------
@@ -1699,7 +1699,7 @@ class SetExpression(CollectionExpression):
 class DictExpression(Expression):
     """Expression of type :class:`.TDict`.
 
-    >>> d = hl.capture({'Alice': 43, 'Bob': 33, 'Charles': 44})
+    >>> d = hl.lit({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
 
     def _init(self):
@@ -1935,7 +1935,7 @@ class Aggregable(object):
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.TStruct`.
 
-    >>> s = hl.capture(hl.struct(a=5, b='Foo'))
+    >>> s = hl.struct(a=5, b='Foo')
 
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
@@ -2194,7 +2194,7 @@ class StructExpression(Mapping, Expression):
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.TTuple`.
 
-    >>> t = hl.capture(("a", 1, [1, 2, 3]))
+    >>> t = hl.lit(("a", 1, [1, 2, 3]))
     """
 
     @typecheck_method(item=int)
@@ -2245,8 +2245,8 @@ class TupleExpression(Expression, Sequence):
 class BooleanExpression(Expression):
     """Expression of type :class:`.TBoolean`.
 
-    >>> t = hl.capture(True)
-    >>> f = hl.capture(False)
+    >>> t = hl.lit(True)
+    >>> f = hl.lit(False)
     >>> na = hl.null(hl.tbool)
 
     .. doctest::
@@ -2297,7 +2297,7 @@ class BooleanExpression(Expression):
 
         .. doctest::
 
-            >>> x = hl.capture(5)
+            >>> x = hl.lit(5)
 
             >>> hl.eval_expr((x < 10) & (x > 2))
             True
@@ -2337,7 +2337,7 @@ class BooleanExpression(Expression):
 
         .. doctest::
 
-            >>> x = hl.capture(5)
+            >>> x = hl.lit(5)
 
             >>> hl.eval_expr((x < 10) | (x > 20))
             True
@@ -2381,9 +2381,9 @@ class BooleanExpression(Expression):
 class NumericExpression(Expression):
     """Expression of numeric type.
 
-    >>> x = hl.capture(3)
+    >>> x = hl.lit(3)
 
-    >>> y = hl.capture(4.5)
+    >>> y = hl.lit(4.5)
     """
 
     def _bin_op_ret_typ(self, other):
@@ -2772,7 +2772,7 @@ class Int64Expression(NumericExpression):
 class StringExpression(Expression):
     """Expression of type :class:`.TString`.
 
-    >>> s = hl.capture('The quick brown fox')
+    >>> s = hl.lit('The quick brown fox')
     """
 
     def __getitem__(self, item):
@@ -2927,7 +2927,7 @@ class StringExpression(Expression):
         Examples
         --------
 
-        >>> string = hl.capture('NA12878')
+        >>> string = hl.lit('NA12878')
 
         The `regex` parameter does not need to match the entire string:
 
@@ -2970,7 +2970,7 @@ class StringExpression(Expression):
         --------
         .. doctest::
 
-            >>> s = hl.capture('TRUE')
+            >>> s = hl.lit('TRUE')
             >>> hl.eval_expr(s.to_boolean())
             True
 
@@ -3441,7 +3441,7 @@ class LocusExpression(Expression):
 class IntervalExpression(Expression):
     """Expression of type :class:`.TInterval`.
 
-    >>> interval = hl.capture(hl.Interval.parse('X:1M-2M'))
+    >>> interval = hl.lit(hl.Interval.parse('X:1M-2M'))
     """
 
     @typecheck_method(locus=expr_locus)
