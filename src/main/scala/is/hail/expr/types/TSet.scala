@@ -14,11 +14,11 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
-  def _toString = s"Set[$elementType]"
+  def _toPretty = s"Set[$elementType]"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("set<")
-    elementType._toPyString(sb)
+    elementType.pyString(sb)
     sb.append('>')
   }
 

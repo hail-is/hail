@@ -11,9 +11,9 @@ case object TCallOptional extends TCall(false)
 case object TCallRequired extends TCall(true)
 
 class TCall(override val required: Boolean) extends ComplexType {
-  def _toString = "Call"
+  def _toPretty = "Call"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("call")
   }
   val representation: Type = TCall.representation(required)

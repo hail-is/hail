@@ -12,9 +12,9 @@ case object TInt64Optional extends TInt64(false)
 case object TInt64Required extends TInt64(true)
 
 class TInt64(override val required: Boolean) extends TIntegral {
-  def _toString = "Int64"
+  def _toPretty = "Int64"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("int64")
   }
   val conv = LongNumericConversion

@@ -12,9 +12,9 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
-    elementType._toPyString(sb)
+    elementType.pyString(sb)
     sb.append('>')
   }
   override val fundamentalType: TArray = {
@@ -24,7 +24,7 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
       this.copy(elementType = elementType.fundamentalType)
   }
 
-  def _toString = s"Array[$elementType]"
+  def _toPretty = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
     case TArray(otherType, _) => elementType.canCompare(otherType)

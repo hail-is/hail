@@ -8,7 +8,7 @@ import scala.reflect.ClassTag
 final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends Type {
   override val required = true
 
-  def _toString = s"?Aggregable[$elementType]"
+  def _toPretty = s"?Aggregable[$elementType]"
 
   override def isRealizable = false
 

@@ -20,7 +20,7 @@ object TVariant {
 }
 
 case class TVariant(rg: RGBase, override val required: Boolean = false) extends ComplexType {
-  def _toString = s"""Variant($rg)"""
+  def _toPretty = s"""Variant($rg)"""
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Variant]
 

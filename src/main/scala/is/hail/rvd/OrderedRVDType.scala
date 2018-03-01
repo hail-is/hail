@@ -60,7 +60,7 @@ class OrderedRVDType(
     JObject(List(
       "partitionKey" -> JArray(partitionKey.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
-      "rowType" -> JString(rowType.toString)))
+      "rowType" -> JString(rowType.parsableString())))
 
   override def equals(that: Any): Boolean = that match {
     case that: OrderedRVDType =>
@@ -93,7 +93,7 @@ class OrderedRVDType(
       rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
     }
     sb.append("],row:")
-    sb.append(rowType)
+    sb.append(rowType.parsableString())
     sb += '}'
     sb.result()
   }

@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
   override val required = true
 
-  def _toString = s"(${ paramTypes.mkString(",") }) => $returnType"
+  def _toPretty = s"(${ paramTypes.mkString(",") }) => $returnType"
 
   override def isRealizable = false
 

@@ -12,7 +12,7 @@ case object TBinaryOptional extends TBinary(false)
 case object TBinaryRequired extends TBinary(true)
 
 class TBinary(override val required: Boolean) extends Type {
-  def _toString = "Binary"
+  def _toPretty = "Binary"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]
 

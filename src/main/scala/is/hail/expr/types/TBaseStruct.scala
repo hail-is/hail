@@ -69,7 +69,7 @@ abstract class TBaseStruct extends Type {
 
   def size: Int
 
-  def _toString: String = {
+  def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
     sb.result()

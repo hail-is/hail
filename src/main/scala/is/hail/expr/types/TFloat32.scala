@@ -12,9 +12,9 @@ case object TFloat32Optional extends TFloat32(false)
 case object TFloat32Required extends TFloat32(true)
 
 class TFloat32(override val required: Boolean) extends TNumeric {
-  def _toString = "Float32"
+  def _toPretty = "Float32"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("float32")
   }
   val conv = FloatNumericConversion

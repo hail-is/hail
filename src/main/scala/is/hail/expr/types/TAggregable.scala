@@ -44,7 +44,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TAggregable is not realizable")
 
-  override def _toString: String = s"Aggregable[${ elementType.toString }]"
+  override def _toPretty: String = s"Aggregable[${ elementType.toString }]"
 
   override def desc: String = TAggregable.desc
 

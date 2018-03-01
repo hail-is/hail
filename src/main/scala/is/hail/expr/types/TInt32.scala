@@ -12,9 +12,9 @@ case object TInt32Optional extends TInt32(false)
 case object TInt32Required extends TInt32(true)
 
 class TInt32(override val required: Boolean) extends TIntegral {
-  def _toString = "Int32"
+  def _toPretty = "Int32"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("int32")
   }
   val conv = IntNumericConversion

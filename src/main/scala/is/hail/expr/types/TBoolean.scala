@@ -11,9 +11,9 @@ case object TBooleanOptional extends TBoolean(false)
 case object TBooleanRequired extends TBoolean(true)
 
 class TBoolean(override val required: Boolean) extends Type {
-  def _toString = "Boolean"
+  def _toPretty = "Boolean"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("bool")
   }
 

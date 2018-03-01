@@ -32,24 +32,24 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     identifiers are the sample IDs of the trio probands. The column fields and
     entries of the matrix are changed in the following ways:
 
-    The new column fields consist of three Structs (`proband`, `father`,
-    `mother`), a Boolean field, and a String field:
+    The new column fields consist of three structs (`proband`, `father`,
+    `mother`), a Boolean field, and a string field:
 
-    - proband.id** (*String*) - Proband sample ID, same as trio column key.
-    - proband.fields** (*Struct*) - Column fields on the proband.
-    - father.id** (*String*) - Father sample ID.
-    - father.fields** (*Struct*) - Column fields on the father.
-    - mother.id** (*String*) - Mother sample ID.
-    - mother.fields** (*Struct*) - Column fields on the mother.
-    - is_female** (*Boolean*) - Proband is female.
-      True for female, false for male, missing if unknown.
-    - **fam_id** (*String*) - Family ID.
+    - proband.id** (:py:data:`.tstr`) - Proband sample ID, same as trio column key.
+    - proband.fields** (:class:`.tstruct`) - Column fields on the proband.
+    - father.id** (:py:data:`.tstr`) - Father sample ID.
+    - father.fields** (:class:`.tstruct`) - Column fields on the father.
+    - mother.id** (:py:data:`.tstr`) - Mother sample ID.
+    - mother.fields** (:class:`.tstruct`) - Column fields on the mother.
+    - is_female** (:py:data:`.tbool`) - Proband is female.
+      ``True`` for female, ``False`` for male, missing if unknown.
+    - **fam_id** (:py:data:`.tstr`) - Family ID.
 
     The new entry fields are:
 
-    - **proband_entry** (*Struct*) - Proband entry fields.
-    - **father_entry** (*Struct*) - Father entry fields.
-    - **mother_entry** (*Struct*) - Mother entry fields.
+    - **proband_entry** (:class:`.tstruct`) - Proband entry fields.
+    - **father_entry** (:class:`.tstruct`) - Father entry fields.
+    - **mother_entry** (:class:`.tstruct`) - Mother entry fields.
 
     Parameters
     ----------
@@ -106,40 +106,40 @@ def mendel_errors(dataset, pedigree):
     **First table:** all Mendel errors. This table contains one row per Mendel
     error, keyed by the variant and proband id.
 
-        - `fam_id` (:class:`.TString`) -- Family ID.
-        - `locus` (:class:`.TLocus`) -- Variant locus, key field.
-        - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles, key field.
-        - `s` (:class:`.TString`) -- Proband ID, key field.
-        - `code` (:class:`.TInt32`) -- Mendel error code, see below.
-        - `error` (:class:`.TString`) -- Readable representation of Mendel error.
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - `locus` (:class:`.tlocus`) -- Variant locus, key field.
+        - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
+        - `s` (:py:data:`.tstr`) -- Proband ID, key field.
+        - `code` (:py:data:`.tint32`) -- Mendel error code, see below.
+        - `error` (:py:data:`.tstr`) -- Readable representation of Mendel error.
 
     **Second table:** errors per nuclear family. This table contains one row
     per nuclear family, keyed by the parents.
 
-        - `fam_id` (:class:`.TString`) -- Family ID.
-        - `pat_id` (:class:`.TString`) -- Paternal ID. (key field)
-        - `mat_id` (:class:`.TString`) -- Maternal ID. (key field)
-        - `children` (:class:`.TInt32`) -- Number of children in this nuclear family.
-        - `errors` (:class:`.TInt32`) -- Number of Mendel errors in this nuclear family.
-        - `snp_errors` (:class:`.TInt32`) -- Number of Mendel errors at SNPs in this
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - `pat_id` (:py:data:`.tstr`) -- Paternal ID. (key field)
+        - `mat_id` (:py:data:`.tstr`) -- Maternal ID. (key field)
+        - `children` (:py:data:`.tint32`) -- Number of children in this nuclear family.
+        - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this nuclear family.
+        - `snp_errors` (:py:data:`.tint32`) -- Number of Mendel errors at SNPs in this
           nuclear family.
 
     **Third table:** errors per individual. This table contains one row per
     individual. Each error is counted toward the proband, father, and mother
     according to the `Implicated` in the table below.
 
-        - `s` (:class:`.TString`) -- Sample ID (key field).
-        - `fam_id` (:class:`.TString`) -- Family ID.
-        - `errors` (:class:`.TInt64`) -- Number of Mendel errors involving this
+        - `s` (:py:data:`.tstr`) -- Sample ID (key field).
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - `errors` (:py:data:`.tint64`) -- Number of Mendel errors involving this
           individual.
-        - `snp_errors` (:class:`.TInt64`) -- Number of Mendel errors involving this
+        - `snp_errors` (:py:data:`.tint64`) -- Number of Mendel errors involving this
           individual at SNPs.
 
     **Fourth table:** errors per variant.
 
-        - `locus` (:class:`.TLocus`) -- Variant locus, key field.
-        - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles, key field.
-        - `errors` (:class:`.TInt32`) -- Number of Mendel errors in this variant.
+        - `locus` (:class:`.tlocus`) -- Variant locus, key field.
+        - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
+        - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this variant.
 
     This method only considers complete trios (two parents and proband with
     defined sex). The code of each Mendel error is determined by the table
@@ -230,14 +230,14 @@ def tdt(dataset, pedigree):
         >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
         >>> tdt_table = hl.tdt(tdt_dataset, pedigree)
         >>> tdt_table.show(2)
-        +------------------+-------+-------+-------------+-------------+
-        | v                |     t |     u |        chi2 |        pval |
-        +------------------+-------+-------+-------------+-------------+
-        | Variant(GRCh37)  | Int32 | Int32 |     Float64 |     Float64 |
-        +------------------+-------+-------+-------------+-------------+
-        | 1:246714629:C:A  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
-        | 2:167262169:T:C  |     0 |     0 |         NaN |         NaN |
-        +------------------+-------+-------+-------------+-------------+
+        +---------------+------------+-------+-------+-------------+-------------+
+        | locus         | alleles    |     t |     u |        chi2 |        pval |
+        +---------------+------------+-------+-------+-------------+-------------+
+        | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
+        +---------------+------------+-------+-------+-------------+-------------+
+        | 1:246714629   | ["C","A"]  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
+        | 2:167262169   | ["T","C"]  |    NA |    NA |          NA |          NA |
+        +---------------+------------+-------+-------+-------------+-------------+
 
     Export variants with p-values below 0.001:
 
@@ -311,12 +311,12 @@ def tdt(dataset, pedigree):
 
     :func:`tdt` produces a table with the following columns:
 
-     - `locus` (:class:`.TLocus`) -- Locus.
-     - `alleles` (:class:`.TArray` of :class:`.TString`) -- Alleles.
-     - `t` (:class:`.TInt32`) -- Number of transmitted alternate alleles.
-     - `u` (:class:`.TInt32`) -- Number of untransmitted alternate alleles.
-     - `chi2` (:class:`.TFloat64`) -- TDT statistic.
-     - `pval` (:class:`.TFloat64`) -- p-value.
+     - `locus` (:class:`.tlocus`) -- Locus.
+     - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Alleles.
+     - `t` (:py:data:`.tint32`) -- Number of transmitted alternate alleles.
+     - `u` (:py:data:`.tint32`) -- Number of untransmitted alternate alleles.
+     - `chi2` (:py:data:`.tfloat64`) -- TDT statistic.
+     - `pval` (:py:data:`.tfloat64`) -- p-value.
 
     Parameters
     ----------

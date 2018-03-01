@@ -125,16 +125,17 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None):
 
 def require_variant(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles'] or
-            not isinstance(dataset['locus'].dtype, TLocus) or
+            not isinstance(dataset['locus'].dtype, tlocus) or
             not dataset['alleles'].dtype == tarray(tstr)):
-        raise TypeError("Method '{}' requires row keys 'locus' (Locus) and 'alleles' (Array[String])\n"
+        raise TypeError("Method '{}' requires row keys 'locus' (type 'locus<>') and "
+                        "'alleles' (type 'array<str>')\n"
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
 
 def require_locus(dataset, method):
     if (len(dataset.partition_key) != 1 or
-            not isinstance(dataset.partition_key[0].dtype, TLocus)):
+            not isinstance(dataset.partition_key[0].dtype, tlocus)):
         raise TypeError("Method '{}' requires partition key of type Locus.\n"
                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
@@ -194,7 +195,7 @@ def filter_intervals(ds, intervals, keep=True):
     .. note::
 
         Requires the dataset to have a single partition key of type
-        :class:`.TLocus`.
+        :class:`.tlocus`.
 
     Examples
     --------

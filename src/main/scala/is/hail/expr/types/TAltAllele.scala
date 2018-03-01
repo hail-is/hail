@@ -11,7 +11,7 @@ case object TAltAlleleOptional extends TAltAllele(false)
 case object TAltAlleleRequired extends TAltAllele(true)
 
 class TAltAllele(override val required: Boolean) extends ComplexType {
-  def _toString = "AltAllele"
+  def _toPretty = "AltAllele"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[AltAllele]
 

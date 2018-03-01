@@ -33,13 +33,13 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   override def subst() = TDict(keyType.subst(), valueType.subst())
 
-  def _toString = s"Dict[$keyType, $valueType]"
+  def _toPretty = s"Dict[$keyType, $valueType]"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("dict<")
-    keyType._toPyString(sb)
+    keyType.pyString(sb)
     sb.append(", ")
-    valueType._toPyString(sb)
+    valueType.pyString(sb)
     sb.append('>')
   }
 
