@@ -1,9 +1,8 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import Env
 
 
-class BetaDist(HistoryMixin):
+class BetaDist(object):
     """
     Represents a
     `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
@@ -12,7 +11,6 @@ class BetaDist(HistoryMixin):
 
     @typecheck_method(a=numeric,
                       b=numeric)
-    @record_init
     def __init__(self, a, b):
         self.a = a
         self.b = b
@@ -21,14 +19,13 @@ class BetaDist(HistoryMixin):
         return Env.hail().stats.BetaDist.apply(float(self.a), float(self.b))
 
 
-class UniformDist(HistoryMixin):
+class UniformDist(object):
     """
     Represents a uniform distribution on the interval [min, max].
     """
 
     @typecheck_method(min=numeric,
                       max=numeric)
-    @record_init
     def __init__(self, min, max):
         if min >= max:
             raise ValueError("min must be less than max")
@@ -39,7 +36,7 @@ class UniformDist(HistoryMixin):
         return Env.hail().stats.UniformDist.apply(float(self.min), float(self.max))
 
 
-class TruncatedBetaDist(HistoryMixin):
+class TruncatedBetaDist(object):
     """
     Represents a truncated
     `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
@@ -51,7 +48,6 @@ class TruncatedBetaDist(HistoryMixin):
                       b=numeric,
                       min=numeric,
                       max=numeric)
-    @record_init
     def __init__(self, a, b, min, max):
         if min >= max:
             raise ValueError("min must be less than max")

@@ -1,9 +1,8 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
 
 
-class Call(HistoryMixin):
+class Call(object):
     """
     An object that represents an individual's call at a genomic locus.
 
@@ -24,7 +23,6 @@ class Call(HistoryMixin):
             Call._cached_jobject = scala_object(Env.hail().variant, 'Call')
         return Call._cached_jobject
 
-    @record_init
     @typecheck_method(alleles=listof(int),
                       phased=bool)
     def __init__(self, alleles, phased=False):

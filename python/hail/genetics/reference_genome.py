@@ -1,4 +1,3 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import jiterable_to_list, Env
@@ -6,7 +5,7 @@ from hail.typecheck import oneof, transformed
 import hail as hl
 
 
-class ReferenceGenome(HistoryMixin):
+class ReferenceGenome(object):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     :param str name: Name of reference. Must be unique and NOT one of Hail's
@@ -38,7 +37,6 @@ class ReferenceGenome(HistoryMixin):
 
     _references = {}
 
-    @record_init
     @typecheck_method(name=str,
                       contigs=listof(str),
                       lengths=dictof(str, int),
@@ -75,13 +73,6 @@ class ReferenceGenome(HistoryMixin):
 
         super(ReferenceGenome, self).__init__()
         ReferenceGenome._references[name] = self
-
-    def _set_history(self, history):
-        if not self._history_was_set: # only set varid if ReferenceGenome was constructed by user
-            self._history = history.set_varid(self.name)
-            self._history_was_set = True
-        else:
-            super(ReferenceGenome, self)._set_history(history)
 
     def __str__(self):
         return self._jrep.toString()
@@ -186,7 +177,6 @@ class ReferenceGenome(HistoryMixin):
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
     @classmethod
-    @record_classmethod
     def GRCh37(cls):
         """Reference genome for GRCh37.
 
@@ -202,7 +192,6 @@ class ReferenceGenome(HistoryMixin):
         )
 
     @classmethod
-    @record_classmethod
     def GRCh38(cls):
         """Reference genome for GRCh38.
 
@@ -218,7 +207,6 @@ class ReferenceGenome(HistoryMixin):
         )
 
     @classmethod
-    @record_classmethod
     @typecheck_method(file=str)
     def read(cls, file):
         """Load reference genome from a JSON file.

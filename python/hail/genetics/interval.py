@@ -1,14 +1,12 @@
 from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.genetics.locus import Locus
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
 import hail as hl
 
 interval_type = lazy()
 
-
-class Interval(HistoryMixin):
+class Interval(object):
     """
     A genomic interval marked by start and end loci.
 
@@ -21,7 +19,6 @@ class Interval(HistoryMixin):
     :type end: :class:`.Locus`
     """
 
-    @record_init
     @typecheck_method(start=Locus,
                       end=Locus)
     def __init__(self, start, end):
@@ -64,7 +61,6 @@ class Interval(HistoryMixin):
         return interval
 
     @classmethod
-    @record_classmethod
     @typecheck_method(string=str,
                       reference_genome=reference_genome_type)
     def parse(cls, string, reference_genome='default'):
@@ -136,7 +132,6 @@ class Interval(HistoryMixin):
         return Locus._from_java(self._jrep.end(), self._rg)
 
     @property
-    @record_property
     def reference_genome(self):
         """Reference genome.
 
