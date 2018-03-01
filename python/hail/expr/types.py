@@ -703,27 +703,6 @@ class TStruct(Type):
         super(TStruct, ts).__init__()
         return ts
 
-    @staticmethod
-    @typecheck(names=listof(str), types=listof(Type))
-    def from_lists(names, types):
-        """Construct a :class:`.TStruct` from a list of field names and a list of types.
-
-        Parameters
-        ----------
-        names : :obj:`list` of :obj:`str`
-            Field names.
-        types : :obj:`list` of :class:`.Type`
-            Field types.
-
-        Returns
-        -------
-        :class:`.TStruct`
-        """
-        if not len(names) == len(types):
-            raise ValueError("'from_lists': parameters 'names' and 'types' have different lengths: {}, {}"
-                             .format(len(names), len(types)))
-        return TStruct.from_fields([Field(name, dtype) for name, dtype in zip(names, types)])
-
     def _convert_to_py(self, annotation):
         if annotation is not None:
             d = dict()
