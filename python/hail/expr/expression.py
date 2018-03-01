@@ -160,7 +160,9 @@ def to_expr(e, dtype=None):
 
 
 def _to_expr(e, dtype):
-    if isinstance(e, Expression):
+    if e is None:
+        return hl.null(dtype)
+    elif isinstance(e, Expression):
         if e.dtype != dtype:
             assert is_numeric(dtype), 'expected {}, got {}'.format(dtype, e.dtype)
             if dtype == tfloat64:

@@ -8,6 +8,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 import json
+from collections import Mapping
 
 
 def dtype(type_str):
