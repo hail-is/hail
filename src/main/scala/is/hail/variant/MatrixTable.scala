@@ -2391,21 +2391,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def storageLevel: String = rvd.storageLevel.toReadableString()
 
-  def summarize(): SummaryResult = {
-    val localRVRowType = rvRowType
-    val localNSamples = numCols
-    rvd.aggregateWithContext(() =>
-      (HardCallView(localRVRowType),
-        new RegionValueVariant(localRVRowType))
-    )(new SummaryCombiner)(
-      { case ((view, rvVariant), summary, rv) =>
-        rvVariant.setRegion(rv)
-        view.setRegion(rv)
-        summary.merge(view, rvVariant)
-      }, _.merge(_))
-      .result(localNSamples)
-  }
-
   def numCols: Int = colValues.length
 
   def typecheck() {
