@@ -2004,7 +2004,7 @@ def downcode(c, i):
 
     .. doctest::
 
-        >>> hl.eval_expr(hl.downcode(hl.call([1, 2]), 2))
+        >>> hl.eval_expr(hl.downcode(hl.call(1, 2), 2))
         Call(alleles=[0, 2], phased=False)
 
     Parameters
