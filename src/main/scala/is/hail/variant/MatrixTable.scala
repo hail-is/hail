@@ -468,7 +468,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     rowKey.zip(rowKeyTypes) match {
       case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
       case _ =>
-        fatal(s"in $method: row key (variant) schema must be ('locus': Locus, 'alleles': Array[String], found: ${
+        fatal(s"in $method: row key must be ('locus' (type 'locus'), 'alleles': (type 'array<str>'), found: ${
           rowKey.zip(rowKeyTypes).mkString(", ")
         }")
     }
@@ -478,7 +478,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     rowPartitionKeyTypes match {
       case Array(_: TLocus) =>
       case t =>
-        fatal(s"in $method: partition key schema must be Locus, found: $t")
+        fatal(s"in $method: partition key must be type 'locus', found: $t")
     }
   }
 
@@ -486,7 +486,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     colKeyTypes match {
       case Array(_: TString) =>
       case t =>
-        fatal(s"in $method: column key schema must be String, found: $t")
+        fatal(s"in $method: column key must be type 'str', found: $t")
     }
   }
 

@@ -363,7 +363,7 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
 
-    interceptFatal("`sa.pheno.Pheno' must be numeric or Boolean, got String") {
+    interceptFatal("`sa.pheno.Pheno' must be numeric or bool, got str") {
       vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
@@ -378,7 +378,7 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
 
-    interceptFatal("`sa.cov.Cov2' must be numeric or Boolean, got String") {
+    interceptFatal("`sa.cov.Cov2' must be numeric or bool, got str") {
       vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
