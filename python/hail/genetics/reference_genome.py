@@ -5,7 +5,7 @@ from hail.typecheck import oneof, transformed
 import hail as hl
 
 
-class GenomeReference(object):
+class ReferenceGenome(object):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     :param str name: Name of reference. Must be unique and NOT one of Hail's
