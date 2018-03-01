@@ -108,6 +108,8 @@ def impute_type(x):
     elif isinstance(x, tuple):
         return ttuple(*(impute_type(element) for element in x))
     elif isinstance(x, list):
+        if len(x) == 0:
+            raise ExpressionException('Cannot impute type of empty list.')
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
         if not unified_type:
@@ -115,6 +117,8 @@ def impute_type(x):
                                       "found list with elements of types {} ".format(list(ts)))
         return tarray(unified_type)
     elif isinstance(x, set):
+        if len(x) == 0:
+            raise ExpressionException('Cannot impute type of empty set.')
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
         if not unified_type:
@@ -122,6 +126,8 @@ def impute_type(x):
                                       "found set with elements of types {} ".format(list(ts)))
         return tset(unified_type)
     elif isinstance(x, dict):
+        if len(x) == 0:
+            raise ExpressionException('Cannot impute type of empty dict.')
         kts = {impute_type(element) for element in x.keys()}
         vts = {impute_type(element) for element in x.values()}
         unified_key_type = unify_types_limited(*kts)
@@ -3693,6 +3699,7 @@ _lazy_set.set(SetExpression)
 _lazy_dict.set(DictExpression)
 _lazy_bool.set(BooleanExpression)
 _lazy_struct.set(StructExpression)
+_lazy_tuple.set(TupleExpression)
 _lazy_string.set(StringExpression)
 _lazy_locus.set(LocusExpression)
 _lazy_interval.set(IntervalExpression)

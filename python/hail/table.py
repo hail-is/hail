@@ -363,11 +363,16 @@ class Table(TableTemplate):
         return self._jt.forceCount()
 
     @classmethod
-    @typecheck_method(rows=oneof(listof(Struct), listof(dictof(str, anytype))),
+    @typecheck_method(rows=anytype,
                       schema=TStruct,
                       key=oneof(str, listof(str)),
                       num_partitions=nullable(int))
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
+        rows = to_expr(rows, hl.tarray(schema))
+        if not isinstance(rows.dtype.element_type, TStruct):
+            raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
+                            .format(rows.dtype))
+        rows = rows.value
         return Table(
             Env.hail().table.Table.parallelize(
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],

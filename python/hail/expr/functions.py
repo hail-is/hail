@@ -2410,7 +2410,7 @@ def map(f, collection):
                                          lambda t: collection.dtype.__class__(t))
 
 
-@typecheck(x=oneof(expr_set, expr_array, expr_dict, expr_str))
+@typecheck(x=oneof(expr_set, expr_array, expr_dict, expr_str, expr_tuple))
 def len(x):
     """Returns the size of a collection or string.
 
@@ -2439,7 +2439,10 @@ def len(x):
     -------
     :class:`.Expression` of type :class:`.TInt32`
     """
-    return x._method("size", tint32)
+    if isinstance(x.dtype, TTuple):
+        return hl.int32(builtins.len(x))
+    else:
+        return x._method("size", tint32)
 
 
 @typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))

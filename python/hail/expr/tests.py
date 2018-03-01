@@ -183,39 +183,39 @@ class Tests(unittest.TestCase):
             self.assertEqual(result, r)
 
         assert_typed(s.drop('f3'),
-                     hl.struct(f1=1, f2=2),
+                     hl.Struct(f1=1, f2=2),
                      tstruct.from_lists(['f1', 'f2'], [tint32, tint32]))
 
         assert_typed(s.drop('f1'),
-                     hl.struct(f2=2, f3=3),
+                     hl.Struct(f2=2, f3=3),
                      tstruct.from_lists(['f2', 'f3'], [tint32, tint32]))
 
         assert_typed(s.drop(),
-                     hl.struct(f1=1, f2=2, f3=3),
+                     hl.Struct(f1=1, f2=2, f3=3),
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
         assert_typed(s.select('f1', 'f2'),
-                     hl.struct(f1=1, f2=2),
+                     hl.Struct(f1=1, f2=2),
                      tstruct.from_lists(['f1', 'f2'], [tint32, tint32]))
 
         assert_typed(s.select('f2', 'f1', f4=5, f5=6),
-                     hl.struct(f2=2, f1=1, f4=5, f5=6),
+                     hl.Struct(f2=2, f1=1, f4=5, f5=6),
                      tstruct.from_lists(['f2', 'f1', 'f4', 'f5'], [tint32, tint32, tint32, tint32]))
 
         assert_typed(s.select(),
-                     hl.struct(),
+                     hl.Struct(),
                      tstruct())
 
         assert_typed(s.annotate(f1=5, f2=10, f4=15),
-                     hl.struct(f1=5, f2=10, f3=3, f4=15),
+                     hl.Struct(f1=5, f2=10, f3=3, f4=15),
                      tstruct.from_lists(['f1', 'f2', 'f3', 'f4'], [tint32, tint32, tint32, tint32]))
 
         assert_typed(s.annotate(f1=5),
-                     hl.struct(f1=5, f2=2, f3=3),
+                     hl.Struct(f1=5, f2=2, f3=3),
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
         assert_typed(s.annotate(),
-                     hl.struct(f1=1, f2=2, f3=3),
+                     hl.Struct(f1=1, f2=2, f3=3),
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
     def test_iter(self):
