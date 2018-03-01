@@ -253,14 +253,14 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     Notes
     -----
     With the default root, the following row-indexed fields are added. The
-    indexing of the array fields corresponds to that of ``ys``.
+    indexing of the array fields corresponds to that of `ys`.
 
     - **linreg.nCompleteSamples** (:py:data:`.tint32`) -- Number of columns used.
-    - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values ``x``.
+    - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values `x`.
     - **linreg.ytx** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
-      dot products of each response vector ``y`` with the input vector ``x``.
+      dot products of each response vector `y` with the input vector `x`.
     - **linreg.beta** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
-      fit effect coefficients of ``x``, :math:`\hat\\beta_1` below.
+      fit effect coefficients of `x`, :math:`\hat\\beta_1` below.
     - **linreg.se** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array of
       estimated standard errors, :math:`\widehat{\mathrm{se}}_1`.
     - **linreg.tstat** (:py:data:`tarray` of :py:data:`.tfloat64`) -- Array
@@ -269,7 +269,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     - **linreg.pval** (:py:data:`tarray` of :py:data:`.tfloat64`) -- array
       of :math:`p`-values.
 
-    In the statistical genetics example above, the input variable ``x`` encodes
+    In the statistical genetics example above, the input variable `x` encodes
     genotype as the number of alternate alleles (0, 1, or 2). For each variant
     (row), genotype is tested for association with height controlling for age
     and sex, by fitting the linear regression model:
