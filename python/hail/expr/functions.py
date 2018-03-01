@@ -38,7 +38,7 @@ def null(t):
     """
     return construct_expr(Literal('NA: {}'.format(t._jtype.toString())), t)
 
-def lit(x, dtype=None):
+def literal(x, dtype=None):
     """Captures and broadcasts a Python variable or object as an expression.
 
     Examples
@@ -46,7 +46,7 @@ def lit(x, dtype=None):
     .. doctest::
 
         >>> table = hl.utils.range_table(8)
-        >>> greetings = hl.lit({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
+        >>> greetings = hl.literal({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
         >>> table.annotate(greeting = greetings.get(table.idx)).show()
         +-------+----------------+
         | index | greeting       |
@@ -136,7 +136,7 @@ def cond(condition, consequent, alternate):
         >>> hl.eval_expr( hl.cond(x < 2, 'Hi', 'Bye') )
         'Bye'
 
-        >>> a = hl.lit([1, 2, 3, 4])
+        >>> a = hl.literal([1, 2, 3, 4])
         >>> hl.eval_expr( hl.cond(hl.len(a) > 0,
         ...                   2.0 * a,
         ...                   a / 2.0) )
@@ -184,7 +184,7 @@ def case():
     --------
     .. doctest::
 
-        >>> x = hl.lit('foo bar baz')
+        >>> x = hl.literal('foo bar baz')
         >>> expr = (hl.case()
         ...                  .when(x[:3] == 'FOO', 1)
         ...                  .when(hl.len(x) == 11, 2)
@@ -213,7 +213,7 @@ def switch(expr):
     --------
     .. doctest::
 
-        >>> csq = hl.lit('loss of function')
+        >>> csq = hl.literal('loss of function')
         >>> expr = (hl.switch(csq)
         ...                  .when('synonymous', 1)
         ...                  .when('SYN', 1)
@@ -1049,10 +1049,10 @@ def is_nan(x):
         >>> hl.eval_expr(hl.is_nan(0))
         False
 
-        >>> hl.eval_expr(hl.is_nan(hl.lit(0) / 0))
+        >>> hl.eval_expr(hl.is_nan(hl.literal(0) / 0))
         True
 
-        >>> hl.eval_expr(hl.is_nan(hl.lit(0) / hl.null(hl.tfloat64)))
+        >>> hl.eval_expr(hl.is_nan(hl.literal(0) / hl.null(hl.tfloat64)))
         None
 
     Notes
@@ -1895,7 +1895,7 @@ def is_strand_ambiguous(ref, alt):
     -------
     :class:`.BooleanExpression`
     """
-    alleles = hl.lit({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
+    alleles = hl.literal({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
     return alleles.contains((ref, alt))
 
 

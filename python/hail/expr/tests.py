@@ -87,7 +87,7 @@ class Tests(unittest.TestCase):
 
     def test_matches(self):
         self.assertEqual(hl.eval_expr('\d+'), '\d+')
-        string = hl.lit('12345')
+        string = hl.literal('12345')
         self.assertTrue(hl.eval_expr(string.matches('\d+')))
         self.assertFalse(hl.eval_expr(string.matches(r'\\d+')))
 
@@ -118,7 +118,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert2)
 
     def test_switch(self):
-        x = hl.lit('1')
+        x = hl.literal('1')
         na = hl.null(tint32)
 
         expr1 = (hl.switch(x)
@@ -159,7 +159,7 @@ class Tests(unittest.TestCase):
 
     def test_case(self):
         def make_case(x):
-            x = hl.lit(x)
+            x = hl.literal(x)
             return (hl.case()
                 .when(x == 6, 'A')
                 .when(x % 3 == 0, 'B')
@@ -219,7 +219,7 @@ class Tests(unittest.TestCase):
                      tstruct.from_lists(['f1', 'f2', 'f3'], [tint32, tint32, tint32]))
 
     def test_iter(self):
-        a = hl.lit([1, 2, 3])
+        a = hl.literal([1, 2, 3])
         self.assertRaises(TypeError, lambda: hl.eval_expr(list(a)))
 
     def test_dict_get(self):
@@ -268,23 +268,23 @@ class Tests(unittest.TestCase):
         self.assertEqual(df.aggregate(agg.all(agg.filter(lambda x: False, df.all_true))), True)
 
     def test_str_ops(self):
-        s = hl.lit("123")
+        s = hl.literal("123")
         self.assertEqual(hl.eval_expr(hl.int32(s)), 123)
 
-        s = hl.lit("123123123123")
+        s = hl.literal("123123123123")
         self.assertEqual(hl.eval_expr(hl.int64(s)), 123123123123)
 
-        s = hl.lit("1.5")
+        s = hl.literal("1.5")
         self.assertEqual(hl.eval_expr(hl.float32(s)), 1.5)
         self.assertEqual(hl.eval_expr(hl.float64(s)), 1.5)
 
-        s1 = hl.lit('true')
-        s2 = hl.lit('True')
-        s3 = hl.lit('TRUE')
+        s1 = hl.literal('true')
+        s2 = hl.literal('True')
+        s3 = hl.literal('TRUE')
 
-        s4 = hl.lit('false')
-        s5 = hl.lit('False')
-        s6 = hl.lit('FALSE')
+        s4 = hl.literal('false')
+        s5 = hl.literal('False')
+        s6 = hl.literal('FALSE')
 
         self.assertTrue(hl.eval_expr(hl.bool(s1)))
         self.assertTrue(hl.eval_expr(hl.bool(s2)))
@@ -932,9 +932,9 @@ class Tests(unittest.TestCase):
         self.check_expr(call_expr[1], 2, tint32)
         self.check_expr(call_expr.ploidy, 2, tint32)
 
-        a0 = hl.lit(1)
+        a0 = hl.literal(1)
         a1 = 2
-        phased = hl.lit(True)
+        phased = hl.literal(True)
         call_expr = hl.call(a0, a1, phased=phased)
         self.check_expr(call_expr[0], 1, tint32)
         self.check_expr(call_expr[1], 2, tint32)
@@ -1004,13 +1004,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
 
     def test_bool_r_ops(self):
-        self.assertTrue(hl.eval_expr(hl.lit(True) & True))
-        self.assertTrue(hl.eval_expr(True & hl.lit(True)))
-        self.assertTrue(hl.eval_expr(hl.lit(False) | True))
-        self.assertTrue(hl.eval_expr(True | hl.lit(False)))
+        self.assertTrue(hl.eval_expr(hl.literal(True) & True))
+        self.assertTrue(hl.eval_expr(True & hl.literal(True)))
+        self.assertTrue(hl.eval_expr(hl.literal(False) | True))
+        self.assertTrue(hl.eval_expr(True | hl.literal(False)))
 
     def test_array_neg(self):
-        self.assertEqual(hl.eval_expr(-(hl.lit([1, 2, 3]))), [-1, -2, -3])
+        self.assertEqual(hl.eval_expr(-(hl.literal([1, 2, 3]))), [-1, -2, -3])
 
     def test_min_max(self):
         self.assertEqual(hl.eval_expr(hl.max(1, 2)), 2)
@@ -1056,10 +1056,10 @@ class Tests(unittest.TestCase):
         ds.col_idx.show(3)
 
     def test_tuple_ops(self):
-        t0 = hl.lit(())
-        t1 = hl.lit((1,))
-        t2 = hl.lit((1, "hello"))
-        tn1 = hl.lit((1, (2, (3, 4))))
+        t0 = hl.literal(())
+        t1 = hl.literal((1,))
+        t2 = hl.literal((1, "hello"))
+        tn1 = hl.literal((1, (2, (3, 4))))
 
         t = hl.tuple([1, t1, hl.dict(hl.zip(["a", "b"], [t2, t2])), [1, 5], tn1])
 
