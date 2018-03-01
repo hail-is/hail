@@ -796,7 +796,7 @@ class Tests(unittest.TestCase):
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
         hl.import_matrix_table(doctest_file('matrix2.tsv'),
-                               row_fields=row_fields, key=[]).count()
+                               row_fields=row_fields, row_key=[]).count()
         hl.import_matrix_table(doctest_file('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True).count()
