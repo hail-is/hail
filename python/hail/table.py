@@ -1827,7 +1827,7 @@ class Table(TableTemplate):
                 }]
             }
 
-        and a key ``a``.  The result of flatten is
+        and key ``a``.  The result of flatten is
 
         .. code-block:: text
 
@@ -1840,7 +1840,7 @@ class Table(TableTemplate):
                 z: String
             }]
 
-        with key ``a.p`` and ``a.q``.
+        with key ``a.p, a.q``.
 
         Note, structures inside collections like arrays or sets will not be
         flattened.
