@@ -1087,7 +1087,7 @@ class ExprSuite extends SparkSuite {
     p.check()
   }
   
-  @Test def testFloatingPoint() {
+  @Test def testNumericParsing() {
     def evalWithType[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parseExpr(s, EvalContext())
       (t, Option(f()).map(_.asInstanceOf[T]))
@@ -1097,5 +1097,23 @@ class ExprSuite extends SparkSuite {
     assert(evalWithType("1e-8") == TFloat64Optional -> Some(1e-8))
     assert(evalWithType("1.1") == TFloat64Optional -> Some(1.1))
     assert(evalWithType("1") == TInt32Optional -> Some(1))
+
+    assert(evalWithType("f32#1.1e-5") == TFloat32Optional -> Some(1.1e-5f))
+    assert(evalWithType("f32#1.1") == TFloat32Optional -> Some(1.1f))
+    assert(evalWithType("f32#-1") == TFloat32Optional -> Some(-1.0f))
+
+    assert(evalWithType("f64#1.1e-5") == TFloat64Optional -> Some(1.1e-5))
+    assert(evalWithType("f64#1.1") == TFloat64Optional -> Some(1.1))
+    assert(evalWithType("f64#-1") == TFloat64Optional -> Some(-1.0))
+
+    assert(evalWithType("i32#1") == TInt32Optional -> Some(1))
+    assert(evalWithType("i32#-1") == TInt32Optional -> Some(-1))
+    assert(evalWithType(s"i32#${Int.MaxValue}") == TInt32Optional -> Some(Int.MaxValue))
+    assert(evalWithType(s"i32#${Int.MinValue}") == TInt32Optional -> Some(Int.MinValue))
+
+    assert(evalWithType("i64#1") == TInt64Optional -> Some(1L))
+    assert(evalWithType("i64#-1") == TInt64Optional -> Some(-1L))
+    assert(evalWithType(s"i64#${Long.MaxValue}") == TInt64Optional -> Some(Long.MaxValue))
+    assert(evalWithType(s"i64#${Long.MinValue}") == TInt64Optional -> Some(Long.MinValue))
   }
 }

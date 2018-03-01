@@ -359,7 +359,7 @@ def tdt(dataset, pedigree):
                      (hom_var, hom_ref,     het, hemi_x, 1, 0),
                      (hom_var, hom_var,     het, hemi_x, 1, 0)]
 
-    count_map = hl.broadcast({hl.capture([c[0], c[1], c[2], c[3]]): [c[4], c[5]] for c in config_counts})
+    count_map = hl.lit({(c[0], c[1], c[2], c[3]): [c[4], c[5]] for c in config_counts})
 
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
 
@@ -371,10 +371,10 @@ def tdt(dataset, pedigree):
 
     copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
 
-    config = [tri.proband_entry.GT.num_alt_alleles(),
+    config = (tri.proband_entry.GT.num_alt_alleles(),
               tri.father_entry.GT.num_alt_alleles(),
               tri.mother_entry.GT.num_alt_alleles(),
-              copy_state]
+              copy_state)
 
     tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
 

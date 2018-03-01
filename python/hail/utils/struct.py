@@ -49,6 +49,7 @@ class Struct(Mapping):
         else:
             raise KeyError(get_nice_field_error(self, item))
 
+    @typecheck_method(item=str)
     def __getitem__(self, item):
         return self._get_field(item)
 

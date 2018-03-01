@@ -102,6 +102,7 @@ class HailContext(object):
         Env._gateway = None
         Env._hc = None
         uninstall_exception_handler()
+        Env._dummy_table = None
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,

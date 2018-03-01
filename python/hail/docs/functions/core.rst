@@ -4,8 +4,7 @@ Core language functions
 
 .. autosummary::
 
-    broadcast
-    capture
+    lit
     cond
     switch
     case
@@ -19,8 +18,7 @@ Core language functions
     range
 
 
-.. autofunction:: broadcast
-.. autofunction:: capture
+.. autofunction:: lit
 .. autofunction:: cond
 .. autofunction:: switch
 .. autofunction:: case

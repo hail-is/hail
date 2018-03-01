@@ -1448,11 +1448,8 @@ class MatrixTable(object):
 
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
 
-        result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        assert len(ptypes) == 1
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        return annotations[0]
+        result_json = base._jvds.aggregateRowsJSON(expr._ast.to_hql())
+        return expr.dtype._from_json(result_json)
 
     def aggregate_cols(self, expr):
         """Aggregate over columns to a local value.
@@ -1500,11 +1497,8 @@ class MatrixTable(object):
 
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
 
-        result_list = base._jvds.querySamples(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        assert len(ptypes) == 1
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        return annotations[0]
+        result_json = base._jvds.aggregateColsJSON(expr._ast.to_hql())
+        return expr.dtype._from_json(result_json)
 
     def aggregate_entries(self, expr):
         """Aggregate over entries to a local value.
@@ -1548,11 +1542,8 @@ class MatrixTable(object):
 
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
 
-        result_list = base._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        assert len(ptypes) == 1
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        return annotations[0]
+        result_json = base._jvds.aggregateEntriesJSON(expr._ast.to_hql())
+        return expr.dtype._from_json(result_json)
 
     def explode_rows(self, field_expr):
         """Explodes a row field of type array or set, copying the entire row for each element.

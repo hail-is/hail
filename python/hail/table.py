@@ -4,6 +4,7 @@ from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.java import jiterable_to_list
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
+import itertools
 
 table_type = lazy()
 
@@ -38,7 +39,7 @@ def desc(col):
     return Descending(col)
 
 
-class TableTemplate(HistoryMixin):
+class TableTemplate(object):
     def __init__(self, jt):
         self._jt = jt
 
@@ -362,7 +363,6 @@ class Table(TableTemplate):
         return self._jt.forceCount()
 
     @classmethod
-    @record_classmethod
     @typecheck_method(rows=oneof(listof(Struct), listof(dictof(str, anytype))),
                       schema=TStruct,
                       key=oneof(str, listof(str)),
@@ -1035,11 +1035,8 @@ class Table(TableTemplate):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        result_list = base._jt.query(jarray(Env.jvm().java.lang.String, [expr._ast.to_hql()]))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        assert len(ptypes) == 1
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
-        return annotations[0]
+        result_json = base._jt.queryJSON(expr._ast.to_hql())
+        return expr.dtype._from_json(result_json)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1214,10 +1211,7 @@ class Table(TableTemplate):
 
                         vt = lrt.join(right)
                         # group uids
-                        od = OrderedDict()
-                        for u in uids:
-                            od[u] = vt[u]
-                        vt = vt.annotate(**{k_uid: Struct(**od)})
+                        vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
                         vt = vt.drop(*uids)
                         # group by v and index by the key exprs
                         vt = (vt.group_by(*rk_uids)
@@ -1388,7 +1382,7 @@ class Table(TableTemplate):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return [self.schema._convert_to_py(x) for x in self._jt.collect()]
+        return hl.tarray(self.schema)._from_json(self._jt.collectJSON())
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1538,7 +1532,7 @@ class Table(TableTemplate):
             List of row structs.
         """
 
-        return [self.schema._convert_to_py(r) for r in self._jt.take(n)]
+        return hl.tarray(self.schema)._from_json(self._jt.takeJSON(n))
 
     @typecheck_method(n=int)
     def head(self, n):

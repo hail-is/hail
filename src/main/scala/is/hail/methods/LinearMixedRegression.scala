@@ -37,8 +37,6 @@ object LinearMixedRegression {
     optNEigs: Option[Int],
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
-    Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
-
     val ec = assocVSM.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
@@ -134,7 +132,7 @@ object LinearMixedRegression {
         vds1.annotateGlobal(
           Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
           TStruct(("seH2", TFloat64()), ("normLkhdH2", TArray(TFloat64())), ("maxLogLkhd", TFloat64()),
-            ("logDeltaGrid", TArray(TFloat64())), ("logLkhdVals", TArray(TFloat64()))), rootGA + ".fit")
+            ("logDeltaGrid", TArray(TFloat64())), ("logLkhdVals", TArray(TFloat64()))), rootGA, "fit")
       case None =>
         assert(optDelta.isDefined)
         vds1

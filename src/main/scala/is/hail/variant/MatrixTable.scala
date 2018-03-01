@@ -22,7 +22,7 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Partitioner, SparkContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -722,9 +722,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       matrixType = newMatrixType)
   }
 
-  def annotateGlobal(a: Annotation, t: Type, code: String): MatrixTable = {
-    val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
+  def annotateGlobal(a: Annotation, t: Type, path: String*): MatrixTable = {
+    val (newT, i) = insertGlobal(t, path.toList)
     copyMT(matrixType = matrixType.copy(globalType = newT), globals = i(globals, a))
+  }
+
+  def annotateGlobalJSON(s: String, t: Type, name: String): MatrixTable = {
+    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), t)
+
+    annotateGlobal(ann, t, name)
   }
 
   /**
@@ -1909,6 +1915,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
 
+  def aggregateRowsJSON(expr: String): String = {
+    val (a, t) = queryVariants(expr)
+    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
+    JsonMethods.compact(jv)
+  }
+
+  def aggregateColsJSON(expr: String): String = {
+    val (a, t) = querySamples(expr)
+    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
+    JsonMethods.compact(jv)
+  }
+
+  def aggregateEntriesJSON(expr: String): String = {
+    val (a, t) = queryGenotypes(expr)
+    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
+    JsonMethods.compact(jv)
+  }
+
   def queryGenotypes(expr: String): (Annotation, Type) = {
     val qv = queryGenotypes(Array(expr))
     assert(qv.length == 1)
@@ -2769,7 +2793,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     x: String,
     covariates: Array[String] = Array.empty[String],
     useML: Boolean = false,
-    rootGA: String = "global.lmmreg",
+    rootGA: String = "lmmreg",
     rootVA: String = "lmmreg",
     runAssoc: Boolean = true,
     delta: Option[Double] = None,
