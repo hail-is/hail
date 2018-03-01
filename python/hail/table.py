@@ -1827,7 +1827,7 @@ class Table(TableTemplate):
                 }]
             }
 
-        and a single key ``a``.  The result of flatten is
+        and a key ``a``.  The result of flatten is
 
         .. code-block:: text
 
