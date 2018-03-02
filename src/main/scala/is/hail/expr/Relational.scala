@@ -438,8 +438,13 @@ case class FilterRows(
 
     val localGlobals = prev.globals
     val ec = prev.typ.rowEC
-/*
-    val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
+    
+    val predCompiledFunc = ir.Compile(
+        "va",     ir.RegionValueRep[Long](child.typ.rowType),
+		"global", ir.RegionValueRep[Long](child.typ.globalType),
+		ir.RegionValueRep[Boolean](TBoolean()),
+		pred
+    )
 
     val aggregatorOption = Aggregators.buildVariantAggregations(
       prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
@@ -453,17 +458,25 @@ case class FilterRows(
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
       val fullRow = new UnsafeRow(fullRowType)
       val row = fullRow.deleteField(localEntriesIndex)
+      val globalRVb = new RegionValueBuilder()
       it.filter { rv =>
         fullRow.set(rv)
         ec.set(1, row)
         aggregatorOption.foreach(_ (rv))
-        f() == true
+        //
+        // Hmm ... I think this is copying all the globals for each row,
+        // which seems a big waste of time.  Is that right ?  We ought
+        // to be able to do read-only accesses from multiple regions,
+        // though only modifying one region.
+        //
+        globalRVb.set(rv.region)
+        globalRVb.start(child.typ.globalType)
+        globalRVb.addAnnotation(child.typ.globalType, localGlobals)
+        predCompiledFunc()(rv.region, rv.offset, false, globalRVb.end(), false) == true
       }
     }
 
     prev.copy(rvd = filteredRDD)
- */
-    prev
   }
 }
 

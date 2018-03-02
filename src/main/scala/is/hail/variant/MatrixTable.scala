@@ -1673,6 +1673,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val pred = filterAST.toIR()
     pred match {
 		case Some(irPred) =>
+		    info("using FilterRows ...")
 			new MatrixTable(hc,
 				FilterRows(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
 			)
