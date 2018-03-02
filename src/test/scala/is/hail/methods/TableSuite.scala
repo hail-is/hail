@@ -192,7 +192,7 @@ class TableSuite extends SparkSuite {
 
     val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy(List("Sample", "Status"))
     assert(noNull.join(
-      noNull.rename(Map("qPhen" -> "qPhen_")), "outer"
+      noNull.rename(Map("qPhen" -> "qPhen_"), Map.empty[String, String]), "outer"
     ).rdd.forall { r => !r.toSeq.exists(_ == null) })
   }
 
@@ -203,7 +203,7 @@ class TableSuite extends SparkSuite {
     val ktLeft = hc.importTable(inputFile1, impute = true).keyBy("Sample")
     val ktRight = hc.importTable(inputFile2, impute = true)
       .keyBy("Sample")
-      .rename(Map("Sample" -> "sample"))
+      .rename(Map("Sample" -> "sample"), Map.empty[String, String])
     val ktBad = ktRight.keyBy("qPhen2")
 
     intercept[HailException] {

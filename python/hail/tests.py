@@ -330,8 +330,8 @@ class TableTests(unittest.TestCase):
 
     def test_rename(self):
         kt = hl.utils.range_table(10)
-        kt = kt.annotate_globals(foo = 5, fi = 3)
-        kt = kt.annotate(bar = 45, baz = 32).key_by('bar')
+        kt = kt.annotate_globals(foo=5, fi=3)
+        kt = kt.annotate(bar=45, baz=32).key_by('bar')
         renamed = kt.rename({'foo': 'foo2', 'bar' : 'bar2'})
         renamed.count()
 
@@ -346,9 +346,14 @@ class TableTests(unittest.TestCase):
         self.assertFalse('foo' in renamed._fields)
         self.assertFalse('bar' in renamed._fields)
 
-        self.assertRaises(ValueError, kt.rename, {'foo': 'bar'})
-        self.assertRaises(ValueError, kt.rename, {'bar': 'a', 'baz': 'a'})
-        self.assertRaises(LookupError, kt.rename, {'hello': 'a'})
+        with self.assertRaises(ValueError):
+            kt.rename({'foo': 'bar'})
+
+        with self.assertRaises(ValueError):
+            kt.rename({'bar': 'a', 'baz': 'a'})
+
+        with self.assertRaises(LookupError):
+            kt.rename({'hello': 'a'})
 
 
 class MatrixTests(unittest.TestCase):
@@ -698,9 +703,14 @@ class MatrixTests(unittest.TestCase):
         self.assertFalse('locus' in renamed1._fields)
         self.assertFalse('s' in renamed1._fields)
 
-        self.assertRaises(ValueError, dataset.rename, {'locus': 'info'})
-        self.assertRaises(ValueError, dataset.rename, {'locus': 'a', 's': 'a'})
-        self.assertRaises(LookupError, dataset.rename, {'foo': 'a'})
+        with self.assertRaises(ValueError):
+            dataset.rename({'locus': 'info'})
+
+        with self.assertRaises(ValueError):
+            dataset.rename({'locus': 'a', 's': 'a'})
+
+        with self.assertRaises(LookupError):
+            dataset.rename({'foo': 'a'})
 
     def test_range(self):
         ds = hl.utils.range_matrix_table(100, 10)

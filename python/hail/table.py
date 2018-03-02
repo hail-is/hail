@@ -40,6 +40,11 @@ def desc(col):
 
 
 class TableTemplate(object):
+    """
+    .. testsetup ::
+
+        table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
+    """
     def __init__(self, jt):
         self._jt = jt
 
@@ -105,14 +110,17 @@ class TableTemplate(object):
 
     @property
     def key(self):
-        """Return the row key schema.
+        """Returns a struct expression with the row keys.
 
         Examples
         --------
 
-        Get the row key names of the table
+        Get the row key names of the table:
 
-        >>> list(table1.key)
+        .. doctest::
+
+            >>> list(table1.key)
+            ['ID']
 
         Returns
         -------
@@ -1783,23 +1791,23 @@ class Table(TableTemplate):
         """
         seen = {}
 
-        rowMap = {}
-        globalMap = {}
+        row_map = {}
+        global_map = {}
 
         for k, v in mapping.items():
             if v in seen:
                 raise ValueError(
-                    "Cannot rename two fields to the same name: attempted to rename '{}' and '{}' both to '{}'".format(
-                        seen[v], k, v))
-            if v in self._fields and v not in mapping.keys():
-                raise ValueError("Cannot rename '{}; to '{}': field already exists.".format(k, v))
+                    "Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(
+                        repr(seen[v]), repr(k), repr(v)))
+            if v in self._fields and v not in mapping:
+                raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                rowMap[k] = v
+                row_map[k] = v
             elif self[k]._indices == self._global_indices:
-                globalMap[k] = v
+                global_map[k] = v
 
-        return Table(self._jt.rename(rowMap, globalMap))
+        return Table(self._jt.rename(row_map, global_map))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.

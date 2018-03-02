@@ -598,14 +598,13 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
 
-  def rename(oldToNewRows: java.util.HashMap[String, String],
-    oldToNewGlobals: java.util.HashMap[String, String]): Table = {
+  def rename(fieldMapRows: java.util.HashMap[String, String], fieldMapGlobals: java.util.HashMap[String, String]): Table =
+    rename(fieldMapRows.asScala.toMap, fieldMapGlobals.asScala.toMap)
 
-    val fieldMapRows = oldToNewRows.asScala
+  def rename(fieldMapRows: Map[String, String], fieldMapGlobals: Map[String, String]): Table = {
     assert(fieldMapRows.keys.forall(k => ktType.rowType.fieldNames.contains(k)),
       s"[${fieldMapRows.keys.mkString(", ")}], expected [${ ktType.rowType.fieldNames.mkString(", ") }]")
 
-    val fieldMapGlobals = oldToNewGlobals.asScala
     assert(fieldMapGlobals.keys.forall(k => ktType.globalType.fieldNames.contains(k)),
       s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ ktType.globalType.fieldNames.mkString(", ") }]")
 
