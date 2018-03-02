@@ -627,7 +627,7 @@ class Expression(object):
             uid = Env._get_uid()
             source = source.select_globals(**{uid: self})
             df = Env.dummy_table()
-            df = df.select(**{name: source.view_join_globals()[uid]})
+            df = df.select(**{name: source.index_globals()[uid]})
             return df
         elif len(axes) == 1:
             if isinstance(source, hail.Table):

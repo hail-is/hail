@@ -322,10 +322,10 @@ class Table(TableTemplate):
                     )
                 )
 
-            return self.view_join_globals()
+            return self.index_globals()
         else:
             exprs = item if isinstance(item, tuple) else (item,)
-            return self.view_join_rows(*exprs)
+            return self.index(*exprs)
 
     def __iter__(self):
         raise TypeError("'Table' object is not iterable")
@@ -1111,7 +1111,7 @@ class Table(TableTemplate):
         to_print = self._jt.showString(n, joption(truncate), types, width)
         print(to_print)
 
-    def view_join_rows(self, *exprs):
+    def index(self, *exprs):
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index a table')
 
@@ -1143,7 +1143,7 @@ class Table(TableTemplate):
                             .format(i, k, e))
 
             for e in exprs:
-                analyze('Table.view_join_rows', e, src._row_indices)
+                analyze('Table.index', e, src._row_indices)
 
             right = self
             right_keys = [right[k] for k in right.key]
@@ -1179,7 +1179,7 @@ class Table(TableTemplate):
                             "expected type '{}', found '{}'"
                                 .format(i, k, e))
             for e in exprs:
-                analyze('Table.view_join_rows', e, src._entry_indices)
+                analyze('Table.index', e, src._entry_indices)
 
             right = self
             # match on indices to determine join type
@@ -1253,7 +1253,7 @@ class Table(TableTemplate):
         else:
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
-    def view_join_globals(self):
+    def index_globals(self):
         uid = Env._get_uid()
 
         def joiner(obj):
@@ -1422,7 +1422,7 @@ class Table(TableTemplate):
         print(s)
 
     @typecheck_method(name=str)
-    def index(self, name='idx'):
+    def add_index(self, name='idx'):
         """Add the integer index of each row as a new row field.
 
         Examples
