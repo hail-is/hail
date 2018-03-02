@@ -45,9 +45,6 @@ class OrderedRVDPartitioner(
 
   def range: Option[Interval] = rangeTree.root.map(_.range)
 
-  def minBound: Any = rangeBounds(0).asInstanceOf[Interval].start
-  def maxBound: Any = rangeBounds(numPartitions - 1).asInstanceOf[Interval].end
-
   // if outside bounds, return min or max depending on location
   // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
@@ -79,10 +76,10 @@ class OrderedRVDPartitioner(
 
     part match {
       case Array() =>
-        if (pkType.ordering.lt(pkUR, minBound))
+        if (range.forall(_.greaterThanPoint(pkType.ordering, pkUR)))
           0
         else {
-          assert(pkType.ordering.gt(pkUR, maxBound))
+          assert(range.forall(_.lessThanPoint(pkType.ordering, pkUR)))
           numPartitions - 1
         }
       case Array(x) => x
