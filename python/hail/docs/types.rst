@@ -27,7 +27,6 @@ Types
     tinterval
     tcall
     tstruct
-    Field
 
 .. autoclass:: Type
 .. autofunction:: dtype
@@ -47,4 +46,3 @@ Types
 .. autodata:: hail.expr.types.tcall
 .. autoclass:: tlocus
 .. autoclass:: tinterval
-.. autoclass:: Field

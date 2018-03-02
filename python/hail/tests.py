@@ -20,8 +20,8 @@ def tearDownModule():
 
 
 def schema_eq(x, y):
-    x_fds = dict([(fd.name, fd.dtype) for fd in x.fields])
-    y_fds = dict([(fd.name, fd.dtype) for fd in y.fields])
+    x_fds = dict(x)
+    y_fds = dict(y)
     return x_fds == y_fds
 
 
@@ -506,16 +506,16 @@ class MatrixTests(unittest.TestCase):
         vds = vds.annotate_cols(bar=5)
 
         vds1 = vds.drop('GT', 'info', 'foo', 'bar')
-        self.assertTrue(not any(f.name == 'foo' for f in vds1.global_schema.fields))
-        self.assertTrue(not any(f.name == 'info' for f in vds1.row_schema.fields))
-        self.assertTrue(not any(f.name == 'bar' for f in vds1.col_schema.fields))
-        self.assertTrue(not any(f.name == 'GT' for f in vds1.entry_schema.fields))
+        self.assertTrue(not any(f == 'foo' for f in vds1.global_schema))
+        self.assertTrue(not any(f == 'info' for f in vds1.row_schema))
+        self.assertTrue(not any(f == 'bar' for f in vds1.col_schema))
+        self.assertTrue(not any(f == 'GT' for f in vds1.entry_schema))
 
         vds2 = vds.drop(vds.GT, vds.info, vds.foo, vds.bar)
-        self.assertTrue(not any(f.name == 'foo' for f in vds2.global_schema.fields))
-        self.assertTrue(not any(f.name == 'info' for f in vds2.row_schema.fields))
-        self.assertTrue(not any(f.name == 'bar' for f in vds2.col_schema.fields))
-        self.assertTrue(not any(f.name == 'GT' for f in vds2.entry_schema.fields))
+        self.assertTrue(not any(f == 'foo' for f in vds2.global_schema))
+        self.assertTrue(not any(f == 'info' for f in vds2.row_schema))
+        self.assertTrue(not any(f == 'bar' for f in vds2.col_schema))
+        self.assertTrue(not any(f == 'GT' for f in vds2.entry_schema))
 
     def test_drop_rows(self):
         vds = self.get_vds()
@@ -1049,8 +1049,8 @@ class ColumnTests(unittest.TestCase):
                            'x4': hl.tarray(hl.tint64),
                            'x5': hl.tarray(hl.tint32)}
 
-        for fd in kt.schema.fields:
-            self.assertEqual(expected_schema[fd.name], fd.dtype)
+        for f, t in kt.schema.items():
+            self.assertEqual(expected_schema[f], t)
 
     def test_constructors(self):
         rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
@@ -1070,4 +1070,4 @@ class ColumnTests(unittest.TestCase):
                            'l1': hl.tlocus(), 'l2': hl.tlocus(rg),
                            'i1': hl.tinterval(hl.tlocus(rg)), 'i2': hl.tinterval(hl.tlocus(rg))}
 
-        self.assertTrue(all([expected_schema[fd.name] == fd.dtype for fd in kt.schema.fields]))
+        self.assertTrue(all([expected_schema[f] == t for f, t in kt.schema.items()]))
