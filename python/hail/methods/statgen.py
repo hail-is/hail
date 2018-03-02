@@ -2360,7 +2360,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     Column fields:
 
-    - `s` (:py:data:`.tstr`) - Sample ID (key field).
+    - `sample_idx` (:py:data:`.tint32`) - Sample index (key field).
     - `pop` (:py:data:`.tint32`) -- Population of sample.
 
     Entry fields:
