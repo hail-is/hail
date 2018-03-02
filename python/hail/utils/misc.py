@@ -181,23 +181,23 @@ def get_obj_metadata(obj):
         return fmt_field
 
     if isinstance(obj, MatrixTable):
-        return 'MatrixTable', MatrixTable, table_error(obj)
+        return 'MatrixTable', MatrixTable, table_error(obj), True
     elif isinstance(obj, GroupedMatrixTable):
-        return 'GroupedMatrixTable', GroupedMatrixTable, table_error(obj._parent)
+        return 'GroupedMatrixTable', GroupedMatrixTable, table_error(obj._parent), True
     elif isinstance(obj, Table):
-        return 'Table', Table, table_error(obj)
+        return 'Table', Table, table_error(obj), True
     elif isinstance(obj, GroupedTable):
-        return 'GroupedTable', GroupedTable, table_error(obj)
+        return 'GroupedTable', GroupedTable, table_error(obj), False
     elif isinstance(obj, Struct):
-        return 'Struct', Struct, struct_error(obj)
+        return 'Struct', Struct, struct_error(obj), False
     elif isinstance(obj, StructExpression):
-        return 'StructExpression', StructExpression, struct_error(obj)
+        return 'StructExpression', StructExpression, struct_error(obj), True
     else:
         raise NotImplementedError(obj)
 
 
 def get_nice_attr_error(obj, item):
-    class_name, cls, handler = get_obj_metadata(obj)
+    class_name, cls, handler, has_describe = get_obj_metadata(obj)
 
     if item.startswith('_'):
         # don't handle 'private' attribute access
@@ -241,13 +241,13 @@ def get_nice_attr_error(obj, item):
                 word = plural('inherited method', len(inherited_matches))
                 s.append('\n        {} {}: {}'.format(class_name, word,
                                                       ', '.join("'{}'".format(m) for m in inherited_matches)))
-        else:
+        elif has_describe:
             s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
         return ''.join(s)
 
 
 def get_nice_field_error(obj, item):
-    class_name, _, handler = get_obj_metadata(obj)
+    class_name, _, handler, has_describe = get_obj_metadata(obj)
 
     field_names = obj._fields.keys()
     dd = defaultdict(lambda: [])
@@ -264,7 +264,8 @@ def get_nice_field_error(obj, item):
         for f in field_matches:
             for orig_f in dd[f]:
                 s.append("\n        {}".format(handler(orig_f)))
-    s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
+    if has_describe:
+        s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
 
 def check_collisions(fields, name, indices):

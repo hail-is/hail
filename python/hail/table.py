@@ -1159,7 +1159,7 @@ class Table(TableTemplate):
 
             all_uids = uids[:]
             all_uids.append(uid)
-            return construct_expr(Select(Reference('row'), uid), new_schema, indices, aggregations,
+            return construct_expr(Select(Reference('row', top_level=True), uid), new_schema, indices, aggregations,
                                   joins.push(Join(joiner, all_uids, uid)), refs)
         elif isinstance(src, MatrixTable):
             if len(exprs) == 1:
@@ -1198,7 +1198,7 @@ class Table(TableTemplate):
                         return MatrixTable(left._jvds.annotateRowsTable(
                             right._jt, uid, False))
 
-                    return construct_expr(Select(Reference('va'), uid), new_schema,
+                    return construct_expr(Select(Reference('va', top_level=True), uid), new_schema,
                                           indices, aggregations, joins.push(Join(joiner, [uid], uid)))
                 else:
                     # use vds_key
@@ -1233,7 +1233,7 @@ class Table(TableTemplate):
                         jl = jl.annotateRowsExpr(key_expr)
                         return MatrixTable(jl)
 
-                    return construct_expr(Select(Reference('va'), uid),
+                    return construct_expr(Select(Reference('va', top_level=True), uid),
                                           new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid)))
 
             elif indices == src._col_indices:
@@ -1246,7 +1246,7 @@ class Table(TableTemplate):
                     # use vds_key
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
                         right._jt, [e._ast.to_hql() for e in exprs], uid, False))
-                return construct_expr(Select(Reference('sa'), uid), new_schema,
+                return construct_expr(Select(Reference('sa', top_level=True), uid), new_schema,
                                       indices, aggregations, joins.push(Join(joiner, [uid], uid)))
             else:
                 raise NotImplementedError()
@@ -1264,7 +1264,7 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema,
+        return construct_expr(Select(Reference('global', top_level=True), uid), self.global_schema,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     def _process_joins(self, *exprs):
