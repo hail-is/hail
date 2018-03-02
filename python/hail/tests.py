@@ -42,14 +42,21 @@ def create_all_values_datasets():
         f32=hl.float32(3.14),
         i64=hl.int64(-9),
         m=hl.null(hl.tfloat64),
-        astruct=hl.struct(a=5, b=5.5),
+        astruct=hl.struct(a=hl.null(hl.tint32), b=5.5),
+        mstruct=hl.null(hl.tstruct(x=hl.tint32, y=hl.tstr)),
         aset=hl.set(['foo', 'bar', 'baz']),
-        d=hl.dict({hl.array(['a', 'b']): 0.5, hl.array(['x', 'y', 'z']): 0.3}),
+        mset=hl.null(hl.tset(hl.tfloat64)),
+        d=hl.dict({hl.array(['a', 'b']): 0.5, hl.array(['x', hl.null(hl.tstr), 'z']): 0.3}),
+        md=hl.null(hl.tdict(hl.tint32, hl.tstr)),
+        h38=hl.locus('chr22', 33878978, 'GRCh38'),
+        ml=hl.null(hl.tlocus('GRCh37')),
         i=hl.interval(
             hl.locus('1', 999),
             hl.locus('1', 1001)),
         c=hl.call(0, 1),
-        t=hl.tuple([hl.call(1, 2, phased=True), 'foo']))
+        mc=hl.null(hl.tcall),
+        t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.null(hl.tstr)]),
+        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool)))
 
     def prefix(s, p):
         return hl.struct(**{p + k: s[k] for k in s})
@@ -65,6 +72,7 @@ def create_all_values_datasets():
                                .annotate_cols(**prefix(all_values, 'col_'))
                                .annotate_entries(**prefix(all_values, 'entry_'))
                                .cache())
+
     return all_values_table, all_values_matrix_table
 
 def create_backward_compatability_test_files():
@@ -87,7 +95,7 @@ def create_backward_compatability_test_files():
     for codec in supported_codecs:
         all_values_table.write('{}/{}.ht'.format(table_dir, i), overwrite=True, _codec_spec=codec.toString())
         all_values_matrix_table.write('{}/{}.hmt'.format(matrix_table_dir, i), overwrite=True, _codec_spec=codec.toString())
-        i = i + 1
+        i += 1
 
 class FileFormatTests(unittest.TestCase):
     def test_backward_compatability(self):
@@ -104,18 +112,18 @@ class FileFormatTests(unittest.TestCase):
         while os.path.exists(f):
             ds = hl.read_table(f)
             self.assertTrue(ds._same(all_values_table))
-            i = i + 1
+            i += 1
             f = os.path.join(table_dir, '{}.ht'.format(i))
-            n = n + 1
+            n += 1
 
         i = 0
         f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
         while os.path.exists(f):
             ds = hl.read_matrix_table(f)
             self.assertTrue(ds._same(all_values_matrix_table))
-            i = i + 1
+            i += 1
             f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
-            n = n + 1
+            n += 1
 
         self.assertEqual(n, 8)
         
