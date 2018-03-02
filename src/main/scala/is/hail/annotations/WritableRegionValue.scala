@@ -27,7 +27,7 @@ class WritableRegionValue private (val t: Type) {
 
   def offset: Long = value.offset
 
-  def setSelect(fromT: TStruct, toFromFieldIdx: Array[Int], fromRV: RegionValue) {
+  def setSelect(fromT: TStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
     (t: @unchecked) match {
       case t: TStruct =>
         region.clear()
@@ -35,7 +35,7 @@ class WritableRegionValue private (val t: Type) {
         rvb.startStruct()
         var i = 0
         while (i < t.size) {
-          rvb.addField(fromT, fromRV, toFromFieldIdx(i))
+          rvb.addField(fromT, fromRV, fromFieldIdx(i))
           i += 1
         }
         rvb.endStruct()
@@ -77,16 +77,18 @@ class RegionValueArrayBuffer(val t: Type)
     this
   }
 
-  def appendSelect(fromT: TStruct,
-         toFromFieldIdx: Array[Int],
-         fromRV: RegionValue): this.type = {
+  def appendSelect(
+    fromT: TStruct,
+    fromFieldIdx: Array[Int],
+    fromRV: RegionValue): this.type = {
+
     (t: @unchecked) match {
       case t: TStruct =>
         rvb.start(t)
         rvb.startStruct()
         var i = 0
         while (i < t.size) {
-          rvb.addField(fromT, fromRV, toFromFieldIdx(i))
+          rvb.addField(fromT, fromRV, fromFieldIdx(i))
           i += 1
         }
         rvb.endStruct()

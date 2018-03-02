@@ -30,10 +30,10 @@ class FlipbookIteratorSuite extends SparkSuite {
 
   def boxOrdView[A](implicit ord: Ordering[A]): OrderingView[Box[A]] = new OrderingView[Box[A]] {
     var value: A = _
-    def basicSetValue(a: Box[A]) {
+    def setFiniteValue(a: Box[A]) {
       value = a.value
     }
-    def basicCompare(a: Box[A]): Int = {
+    def compareFinite(a: Box[A]): Int = {
       ord.compare(value, a.value)
     }
   }
@@ -79,13 +79,13 @@ class FlipbookIteratorSuite extends SparkSuite {
 
   implicit class RichTestIterator(it: FlipbookIterator[Box[Int]]) {
     def shouldBe(that: Iterator[Int]): Boolean =
-      it.compareUsing(that, (box: Box[Int], int: Int) => box.value == int)
+      it.sameElementsUsing(that, (box: Box[Int], int: Int) => box.value == int)
   }
 
   implicit class RichTestIteratorIterator(
       it: FlipbookIterator[FlipbookIterator[Box[Int]]]) {
     def shouldBe(that: Iterator[Iterator[Int]]): Boolean =
-      it.compareUsing(
+      it.sameElementsUsing(
         that,
         (flipIt: FlipbookIterator[Box[Int]], it: Iterator[Int]) =>
           flipIt shouldBe it)
@@ -94,7 +94,7 @@ class FlipbookIteratorSuite extends SparkSuite {
   implicit class RichTestIteratorMuple(
       it: FlipbookIterator[Muple[Box[Int], Box[Int]]]) {
     def shouldBe(that: Iterator[(Int, Int)]): Boolean =
-      it.compareUsing(
+      it.sameElementsUsing(
         that,
         (muple: Muple[Box[Int], Box[Int]], pair: (Int, Int)) =>
           (muple._1.value == pair._1) && (muple._2.value == pair._2)
@@ -105,7 +105,7 @@ class FlipbookIteratorSuite extends SparkSuite {
     it: FlipbookIterator[Muple[FlipbookIterator[Box[Int]],
                                FlipbookIterator[Box[Int]]]]) {
     def shouldBe(that: Iterator[(Iterator[Int], Iterator[Int])]): Boolean =
-      it.compareUsing(
+      it.sameElementsUsing(
         that,
         (muple: Muple[FlipbookIterator[Box[Int]], FlipbookIterator[Box[Int]]],
          pair: (Iterator[Int], Iterator[Int])) =>
@@ -113,7 +113,7 @@ class FlipbookIteratorSuite extends SparkSuite {
       )
   }
 
-  @Test def ephemeralIteratorStartsWithRightValue() {
+  @Test def flipbookIteratorStartsWithRightValue() {
     val it: FlipbookIterator[Box[Int]] =
       makeTestIterator(1, 2, 3, 4, 5)
     assert(it.value.value == 1)

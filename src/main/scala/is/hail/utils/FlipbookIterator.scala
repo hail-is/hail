@@ -88,7 +88,7 @@ object FlipbookIterator {
 
 /**
   * The primary public interface of FlipbookIterator[A] consists of the methods
-  * - isValid: Bolean
+  * - isValid: Boolean
   * - value: A
   * - advance(): Unit
   *
@@ -120,6 +120,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           self.advance()
         } while (self.isValid && !pred(self.value))
       }
+
       while (self.isValid && !pred(self.value)) self.advance()
     }
   )
@@ -175,13 +176,13 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)
-        }
-        else {
+        } else {
           ord.setBottom()
           isValid = false
         }
       }
     }
+
     sm.advance()
     StagingIterator(sm)
   }
@@ -230,8 +231,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           value.set(left.consume(), right.consume())
         else if (c < 0)
           value.set(left.consume(), rightDefault)
-        else
-          // c > 0
+        else // c > 0
           value.set(leftDefault, right.consume())
       }
     }
@@ -344,7 +344,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         result.set(lElem, rElem)))
   }
 
-  def compareUsing[B](that: Iterator[B], eq: (A, B) => Boolean): Boolean = {
+  def sameElementsUsing[B](that: Iterator[B], eq: (A, B) => Boolean): Boolean = {
     while (this.hasNext && that.hasNext)
       if (!eq(this.next(), that.next()))
         return false
@@ -352,7 +352,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
   }
 
   // head, next, and hasNext are not meant to be used directly, only to enable
-  // EphemeralIterator to be used where an Iterator is expected.
+  // FlipbookIterator to be used where an Iterator is expected.
   def head: A
   def next(): A
   def hasNext: Boolean

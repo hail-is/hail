@@ -56,10 +56,10 @@ class OrderedRVDType(
 
   def kRowOrdView = new OrderingView[RegionValue] {
     val wrv = WritableRegionValue(kType)
-    def basicSetValue(representative: RegionValue) {
+    def setFiniteValue(representative: RegionValue) {
       wrv.setSelect(rowType, kRowFieldIdx, representative)
     }
-    def basicCompare(rv: RegionValue): Int =
+    def compareFinite(rv: RegionValue): Int =
       kRowOrd.compare(wrv.value, rv)
   }
 
