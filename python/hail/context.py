@@ -157,6 +157,15 @@ def stop():
     if Env._hc:
         Env.hc().stop()
 
+def spark_context():
+    """Returns the active Spark context.
+
+    Returns
+    -------
+    :class:`pyspark.SparkContext`
+    """
+    return Env.hc().sc
+
 def default_reference():
     """Return the default reference genome.
 

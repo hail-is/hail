@@ -38,5 +38,6 @@ Use ``import hail as hl`` to access this functionality.
 
 .. autofunction:: hail.init
 .. autofunction:: hail.stop
+.. autofunction:: hail.spark_context
 .. autofunction:: hail.default_reference
 .. autofunction:: hail.get_reference
