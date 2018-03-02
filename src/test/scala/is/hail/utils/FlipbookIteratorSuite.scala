@@ -220,4 +220,38 @@ class FlipbookIteratorSuite extends SparkSuite {
     val it = Iterator((1, 0), (2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5))
     assert(joined shouldBe it)
   }
+
+  @Test def rightJoinWorks() {
+    val left = makeTestIterator(1, 2, 2, 4, 5, 5)
+    val right = makeTestIterator(2, 2, 4, 4, 5, 6)
+    val joined = left.rightJoin(
+      right,
+      boxOrdView[Int],
+      boxOrdView[Int],
+      Box(0),
+      Box(0),
+      boxBuffer[Int],
+      boxIntOrd
+    )
+
+    val it = Iterator((2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (0, 6))
+    assert(joined shouldBe it)
+  }
+
+  @Test def outerJoinWorks() {
+    val left = makeTestIterator(1, 2, 2, 4, 5, 5)
+    val right = makeTestIterator(2, 2, 4, 4, 5, 6)
+    val joined = left.outerJoin(
+      right,
+      boxOrdView[Int],
+      boxOrdView[Int],
+      Box(0),
+      Box(0),
+      boxBuffer[Int],
+      boxIntOrd
+    )
+
+    val it = Iterator((1, 0), (2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (0, 6))
+    assert(joined shouldBe it)
+  }
 }
