@@ -44,8 +44,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     /*
     comparing to output of R code:
@@ -106,8 +106,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -163,8 +163,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -217,8 +217,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -264,8 +264,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -314,8 +314,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -378,8 +378,8 @@ class LinearRegressionSuite extends SparkSuite {
                  |linreg.ytx = [va.linreg.ytx[$i]],
                  |linreg.beta = [va.linreg.beta[$i]],
                  |linreg.se = [va.linreg.se[$i]],
-                 |linreg.tstat = [va.linreg.tstat[$i]],
-                 |linreg.pval = [va.linreg.pval[$i]]
+                 |linreg.t_stat = [va.linreg.t_stat[$i]],
+                 |linreg.p_value = [va.linreg.p_value[$i]]
                  |""".stripMargin),
           root = "mlinreg").annotateRowsExpr("mlinreg = va.mlinreg.linreg")
 

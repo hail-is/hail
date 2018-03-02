@@ -231,7 +231,7 @@ def tdt(dataset, pedigree):
         >>> tdt_table = hl.tdt(tdt_dataset, pedigree)
         >>> tdt_table.show(2)
         +---------------+------------+-------+-------+-------------+-------------+
-        | locus         | alleles    |     t |     u |        chi2 |        pval |
+        | locus         | alleles    |     t |     u |        chi2 |    p_values |
         +---------------+------------+-------+-------+-------------+-------------+
         | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
         +---------------+------------+-------+-------+-------------+-------------+
@@ -241,7 +241,7 @@ def tdt(dataset, pedigree):
 
     Export variants with p-values below 0.001:
 
-    >>> tdt_table = tdt_table.filter(tdt_table.pval < 0.001)
+    >>> tdt_table = tdt_table.filter(tdt_table.p_value < 0.001)
     >>> tdt_table.export("output/tdt_results.tsv")
 
     Notes
@@ -316,7 +316,7 @@ def tdt(dataset, pedigree):
      - `t` (:py:data:`.tint32`) -- Number of transmitted alternate alleles.
      - `u` (:py:data:`.tint32`) -- Number of untransmitted alternate alleles.
      - `chi2` (:py:data:`.tfloat64`) -- TDT statistic.
-     - `pval` (:py:data:`.tfloat64`) -- p-value.
+     - `p_value` (:py:data:`.tfloat64`) -- p-value.
 
     Parameters
     ----------
@@ -381,6 +381,6 @@ def tdt(dataset, pedigree):
     tab = tri.rows().select('locus', 'alleles', 'counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
-    tab = tab.annotate(pval = hl.pchisqtail(tab.chi2, 1.0))
+    tab = tab.annotate(p_value = hl.pchisqtail(tab.chi2, 1.0))
 
     return tab.cache()

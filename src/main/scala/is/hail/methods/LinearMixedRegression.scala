@@ -18,9 +18,9 @@ import org.apache.commons.math3.util.FastMath
 object LinearMixedRegression {
   val schema: Type = TStruct(
     ("beta", TFloat64()),
-    ("sigmaG2", TFloat64()),
+    ("sigma_g2", TFloat64()),
     ("chi2", TFloat64()),
-    ("pval", TFloat64()))
+    ("p_value", TFloat64()))
 
   def apply(
     assocVSM: MatrixTable,
@@ -112,27 +112,27 @@ object LinearMixedRegression {
     log.info(s"\nlmmreg: table of eigenvalues\n$header\n$evalString\n")
 
     info(s"lmmreg: global model fit: beta = $globalBetaMap")
-    info(s"lmmreg: global model fit: sigmaG2 = $globalSg2")
-    info(s"lmmreg: global model fit: sigmaE2 = $globalSe2")
+    info(s"lmmreg: global model fit: sigma_g2 = $globalSg2")
+    info(s"lmmreg: global model fit: sigma_e2 = $globalSe2")
     info(s"lmmreg: global model fit: delta = $delta")
     info(s"lmmreg: global model fit: h2 = $h2")
 
     diagLMM.optGlobalFit.foreach { gf =>
-      info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }")
+      info(s"lmmreg: global model fit: se_h2 = ${ gf.sigmaH2 }")
     }
 
     val vds1 = assocVSM.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
-      TStruct(("useML", TBoolean()), ("beta", TDict(TString(), TFloat64())), ("sigmaG2", TFloat64()), ("sigmaE2", TFloat64()),
-        ("delta", TFloat64()), ("h2", TFloat64()), ("evals", TArray(TFloat64())), ("nEigs", TInt32()), ("dropped_variance_fraction", TFloat64())), rootGA)
+      TStruct(("use_ml", TBoolean()), ("beta", TDict(TString(), TFloat64())), ("sigma_g2", TFloat64()), ("sigma_e2", TFloat64()),
+        ("delta", TFloat64()), ("h2", TFloat64()), ("evals", TArray(TFloat64())), ("n_eigenvalues", TInt32()), ("dropped_variance_fraction", TFloat64())), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
           Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(("seH2", TFloat64()), ("normLkhdH2", TArray(TFloat64())), ("maxLogLkhd", TFloat64()),
-            ("logDeltaGrid", TArray(TFloat64())), ("logLkhdVals", TArray(TFloat64()))), rootGA, "fit")
+          TStruct(("se_h2", TFloat64()), ("norm_likelihood_h2", TArray(TFloat64())), ("max_log_likelihood", TFloat64()),
+            ("log_delta_grid", TArray(TFloat64())), ("log_likelihood_values", TArray(TFloat64()))), rootGA, "fit")
       case None =>
         assert(optDelta.isDefined)
         vds1

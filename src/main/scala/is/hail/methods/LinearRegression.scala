@@ -12,13 +12,13 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def schema = TStruct(
-    ("nCompleteSamples", TInt32()),
+    ("n_complete_samples", TInt32()),
     ("AC", TFloat64()),
     ("ytx", TArray(TFloat64())),
     ("beta", TArray(TFloat64())),
     ("se", TArray(TFloat64())),
-    ("tstat", TArray(TFloat64())),
-    ("pval", TArray(TFloat64())))
+    ("t_stat", TArray(TFloat64())),
+    ("p_value", TArray(TFloat64())))
 
   def apply(vsm: MatrixTable,
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
@@ -28,7 +28,7 @@ object LinearRegression {
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 
-    val n = y.rows // nCompleteSamples
+    val n = y.rows // n_complete_samples
     val k = cov.cols // nCovariates
     val d = n - k - 1
     val dRec = 1d / d

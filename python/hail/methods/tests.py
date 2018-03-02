@@ -509,14 +509,14 @@ class Tests(unittest.TestCase):
         if tdt_tab.count() != truth.count():
             self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
 
-        bad = (tdt_tab.filter(hl.is_nan(tdt_tab.pval), keep=False)
+        bad = (tdt_tab.filter(hl.is_nan(tdt_tab.p_value), keep=False)
             .join(truth.filter(hl.is_nan(truth.Pval), keep=False), how='outer'))
 
         bad = bad.filter(~(
                 (bad.t == bad.T) &
                 (bad.u == bad.U) &
                 (hl.abs(bad.chi2 - bad.Chi2) < 0.001) &
-                (hl.abs(bad.pval - bad.Pval) < 0.001)))
+                (hl.abs(bad.p_value - bad.Pval) < 0.001)))
 
         if bad.count() != 0:
             bad.order_by(hl.asc(bad.v)).show()

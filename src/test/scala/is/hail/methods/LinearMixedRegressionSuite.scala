@@ -119,9 +119,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles()", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
-    val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
+    val qSg2 = vds.queryVA("va.lmmreg.sigma_g2")._2
     val qChi2 = vds.queryVA("va.lmmreg.chi2")._2
-    val qPval = vds.queryVA("va.lmmreg.pval")._2
+    val qPval = vds.queryVA("va.lmmreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -155,9 +155,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
     
     val qBeta1 = vds1.queryVA("va.lmmreg.beta")._2
-    val qSg21 = vds1.queryVA("va.lmmreg.sigmaG2")._2
+    val qSg21 = vds1.queryVA("va.lmmreg.sigma_g2")._2
     val qChi21 = vds1.queryVA("va.lmmreg.chi2")._2
-    val qPval1 = vds1.queryVA("va.lmmreg.pval")._2
+    val qPval1 = vds1.queryVA("va.lmmreg.p_value")._2
 
     val a1 = vds1.variantsAndAnnotations.collect().toMap
     
@@ -271,7 +271,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles()", covariates = covExpr, delta = Some(delta), optDroppedVarianceFraction = Some(0))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
-    val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
+    val qSg2 = vds.queryVA("va.lmmreg.sigma_g2")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -326,16 +326,16 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
     val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
 
-    val seH2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
-    val seH2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
+    val seH2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
+    val seH2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
 
     val logDeltaGrid =
-      DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.logDeltaGrid")._2.asInstanceOf[IndexedSeq[Double]].toArray)
+      DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.log_delta_grid")._2.asInstanceOf[IndexedSeq[Double]].toArray)
 
     val logLkhdVals1 =
-      DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.logLkhdVals")._2.asInstanceOf[IndexedSeq[Double]].toArray)
+      DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.log_likelihood_values")._2.asInstanceOf[IndexedSeq[Double]].toArray)
     val logLkhdVals3 =
-      DenseVector(vdsChr3.queryGlobal("global.lmmreg.fit.logLkhdVals")._2.asInstanceOf[IndexedSeq[Double]].toArray)
+      DenseVector(vdsChr3.queryGlobal("global.lmmreg.fit.log_likelihood_values")._2.asInstanceOf[IndexedSeq[Double]].toArray)
 
     // Construct normalized likelihood function of h2
     // shift log lkhd to have max of 0, to prevent numerical issues
@@ -370,10 +370,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(math.abs(seH2Chr3 - sdPosterior3) < 0.02) // both are approx 0.13
 
     val h2NormLkhd1 = DenseVector(
-      vdsChr1.queryGlobal("global.lmmreg.fit.normLkhdH2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
+      vdsChr1.queryGlobal("global.lmmreg.fit.norm_likelihood_h2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
 
     val h2NormLkhd3 = DenseVector(
-      vdsChr3.queryGlobal("global.lmmreg.fit.normLkhdH2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
+      vdsChr3.queryGlobal("global.lmmreg.fit.norm_likelihood_h2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
 
     // checking that normLkhdH2 is normalized
     assert(D_==(sum(h2NormLkhd1), 1d))
@@ -501,12 +501,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
 
-    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
+    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.n_eigenvalues")._2.asInstanceOf[Int] == 3)
   }
 
   @Test def testVarianceFraction() {
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", "g.GT.nNonRefAlleles()", optDroppedVarianceFraction = Some(0.3))
-    assert(vdsLmmreg.queryGlobal("global.lmmreg.nEigs")._2 == 2)
+    assert(vdsLmmreg.queryGlobal("global.lmmreg.n_eigenvalues")._2 == 2)
     assert(vdsLmmreg.queryGlobal("global.lmmreg.dropped_variance_fraction")._2 == 0.3)
   }
 
