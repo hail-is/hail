@@ -50,7 +50,7 @@ class IntervalSuite extends TestNGSuite {
     for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.probablyOverlaps(pord, interval2), set_interval1.probablyOverlaps(set_interval2))
+      assertEquals(interval1.mayOverlap(pord, interval2), set_interval1.probablyOverlaps(set_interval2))
     }
   }
 
@@ -59,6 +59,50 @@ class IntervalSuite extends TestNGSuite {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assertEquals(interval1.definitelyDisjoint(pord, interval2), set_interval1.definitelyDisjoint(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_disjoint_greater_than() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.disjointAndGreaterThan(pord, interval2), set_interval1.disjointAndGreaterThan(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_disjoint_less_than() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.disjointAndLessThan(pord, interval2), set_interval1.disjointAndLessThan(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_mergeable() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.mergeable(pord, interval2), set_interval1.mergeable(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_merge() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.merge(pord, interval2), set_interval1.union(set_interval2).map(_.interval))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_intersect() {
+    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.intersect(pord, interval2), set_interval1.intersect(set_interval2).interval)
     }
   }
 
@@ -150,9 +194,16 @@ class IntervalSuite extends TestNGSuite {
   }
 }
 
+object SetInterval {
+  def from(i: Interval): SetInterval =
+    SetInterval(i.start.asInstanceOf[Int], i.end.asInstanceOf[Int], i.includeStart, i.includeEnd)
+}
+
 case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: Boolean) {
 
-  val doublepointset: Set[Int] = {
+  val pord: ExtendedOrdering = TInt32().ordering
+
+  val doubledPointSet: Set[Int] = {
     val first = if (includeStart) 2 * start else 2 * start + 1
     val last = if (includeEnd) 2 * end else 2 * end - 1
     (first to last).toSet
@@ -160,21 +211,63 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
 
   val interval: Interval = Interval(start, end, includeStart, includeEnd)
 
-  def contains(point: Int): Boolean = doublepointset.contains(2 * point)
+  def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
-  def probablyOverlaps(other: SetInterval): Boolean = doublepointset.intersect(other.doublepointset).nonEmpty
+  def probablyOverlaps(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).nonEmpty
 
-  def definitelyEmpty(): Boolean = doublepointset.isEmpty
+  def definitelyEmpty(): Boolean = doubledPointSet.isEmpty
 
-  def definitelyDisjoint(other: SetInterval): Boolean = doublepointset.intersect(other.doublepointset).isEmpty
+  def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
+
+  def disjointAndGreaterThan(other: SetInterval): Boolean =
+    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 > p2 ))
+
+  def disjointAndLessThan(other: SetInterval): Boolean =
+    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 < p2 ))
+
+  def mergeable(other: SetInterval): Boolean = {
+    val combinedPoints = doubledPointSet.union(other.doubledPointSet)
+    if (combinedPoints.isEmpty)
+      true
+    else {
+      val start = combinedPoints.min(pord.toOrdering)
+      val end = combinedPoints.max(pord.toOrdering)
+      (start to end).forall(combinedPoints.contains)
+    }
+  }
+
+  def unionedPoints(other: SetInterval): Set[Int] = doubledPointSet.union(other.doubledPointSet)
+
+  def union(other: SetInterval): Option[SetInterval] = {
+    val combined = doubledPointSet.union(other.doubledPointSet)
+    if (combined.isEmpty)
+      return Some(this)
+    if (mergeable(other)) {
+      val start = combined.min(pord.toOrdering)
+      val end = combined.max(pord.toOrdering)
+      Some(SetInterval(start / 2, (end + 1) / 2, start % 2 == 0, end % 2 == 0))
+    }
+    else None
+  }
+
+  def intersect(other: SetInterval): SetInterval = {
+    val intersection = doubledPointSet.intersect(other.doubledPointSet)
+    if (intersection.isEmpty)
+      SetInterval(start, start, false, false)
+    else {
+      val start = intersection.min(pord.toOrdering)
+      val end = intersection.max(pord.toOrdering)
+      SetInterval(start / 2, (end + 1) / 2, start % 2 == 0, end % 2 == 0)
+    }
+  }
 }
 
 case class SetIntervalTree(annotations: Array[(SetInterval, Int)]) {
 
   val pord: ExtendedOrdering = TInt32().ordering
 
-  val doublepointset: Set[Int] =
-    annotations.foldLeft(Set.empty[Int]) { case (ps, (i, _)) => ps.union(i.doublepointset) }
+  val doubledPointSet: Set[Int] =
+    annotations.foldLeft(Set.empty[Int]) { case (ps, (i, _)) => ps.union(i.doubledPointSet) }
 
   val (intervals, values) = annotations.unzip
 
@@ -182,13 +275,13 @@ case class SetIntervalTree(annotations: Array[(SetInterval, Int)]) {
 
   val intervalTree: IntervalTree[Unit] = IntervalTree(pord, intervals.map(_.interval))
 
-  def contains(point: Int): Boolean = doublepointset.contains(2 * point)
+  def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
-  def probablyOverlaps(other: SetInterval): Boolean = doublepointset.intersect(other.doublepointset).nonEmpty
+  def probablyOverlaps(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).nonEmpty
 
-  def definitelyEmpty(): Boolean = doublepointset.isEmpty
+  def definitelyEmpty(): Boolean = doubledPointSet.isEmpty
 
-  def definitelyDisjoint(other: SetInterval): Boolean = doublepointset.intersect(other.doublepointset).isEmpty
+  def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
 
   def queryIntervals(point: Int): Set[Interval] = intervals.filter(_.contains(point)).map(_.interval).toSet
 
