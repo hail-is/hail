@@ -60,15 +60,14 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   }
 
   private def adjacent(pord: ExtendedOrdering, other: Interval): Boolean = {
-      (pord.equiv(this.start, other.end) && (this.includeStart || other.includeEnd)) ||
+    (pord.equiv(this.start, other.end) && (this.includeStart || other.includeEnd)) ||
       (pord.equiv(this.end, other.start) && (this.includeEnd || other.includeStart))
   }
 
   def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
     (definitelyEmpty(pord), other.definitelyEmpty(pord)) match {
-      case (true, true) => Some(this)
+      case (_, true) => Some(this)
       case (true, false) => Some(other)
-      case (false, true) => Some(this)
       case (false, false) =>
         if (mayOverlap(pord, other) || adjacent(pord, other)) {
           val min = Interval.ordering(pord, startPrimary = true).min(this, other).asInstanceOf[Interval]
@@ -81,8 +80,8 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
   def intersect(pord: ExtendedOrdering, other: Interval): Interval = {
     if (mayOverlap(pord, other)) {
-      val s = Interval.ordering(pord, startPrimary=true).max(this, other).asInstanceOf[Interval]
-      val e = Interval.ordering(pord, startPrimary=false).min(this, other).asInstanceOf[Interval]
+      val s = Interval.ordering(pord, startPrimary = true).max(this, other).asInstanceOf[Interval]
+      val e = Interval.ordering(pord, startPrimary = false).min(this, other).asInstanceOf[Interval]
       Interval(s.start, e.end, s.includeStart, e.includeEnd)
     } else
       Interval(start, start, false, false)
@@ -174,13 +173,13 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
 
 object IntervalTree {
   def annotationTree[U: ClassTag](pord: ExtendedOrdering, values: Array[(Interval, U)]): IntervalTree[U] = {
-    val iord = Interval.ordering(pord, startPrimary=true)
+    val iord = Interval.ordering(pord, startPrimary = true)
     val sorted = values.sortBy(_._1)(iord.toOrdering.asInstanceOf[Ordering[Interval]])
     new IntervalTree[U](fromSorted(pord, sorted, 0, sorted.length))
   }
 
   def apply(pord: ExtendedOrdering, intervals: Array[Interval]): IntervalTree[Unit] = {
-    val iord = Interval.ordering(pord, startPrimary=true)
+    val iord = Interval.ordering(pord, startPrimary = true)
     val sorted = if (intervals.nonEmpty) {
       val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
       var i = 0
@@ -224,11 +223,13 @@ object IntervalTree {
       val right = fromSorted(pord, intervals, mid + 1, end)
 
       val min = left.map { inode => inode.range }.getOrElse(i)
-      val eord = Interval.ordering(pord, startPrimary=false)
+      val eord = Interval.ordering(pord, startPrimary = false)
       val max = right.foldLeft(
         left.foldLeft(i) { (i2, n) =>
-          eord.max(i2, n.range).asInstanceOf[Interval] }) { (i2, n) =>
-        eord.max(i2, n.range).asInstanceOf[Interval] }
+          eord.max(i2, n.range).asInstanceOf[Interval]
+        }) { (i2, n) =>
+        eord.max(i2, n.range).asInstanceOf[Interval]
+      }
 
       Some(IntervalTreeNode(i, left, right,
         Interval(min.start, max.end, min.includeStart, max.includeEnd), v))
