@@ -605,7 +605,7 @@ class MatrixTests(unittest.TestCase):
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.num_partitions(), 8)
-        ds = ds.index_rows('rowidx').index_cols('colidx')
+        ds = ds.add_row_index('rowidx').add_col_index('colidx')
 
         for i, struct in enumerate(ds.cols().select('colidx').collect()):
             self.assertEqual(i, struct.colidx)
@@ -678,7 +678,7 @@ class MatrixTests(unittest.TestCase):
         df = ds.annotate_rows(row_struct=ds.row).rows()
         self.assertTrue(df.all((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
 
-        ds2 = ds.index_cols()
+        ds2 = ds.add_col_index()
         df = ds2.annotate_cols(col_struct=ds2.col).cols()
         self.assertTrue(df.all((df.col_idx == df.col_struct.col_idx)))
 
@@ -777,7 +777,7 @@ class MatrixTests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(100, 10)
         self.assertEqual(ds.count_rows(), 100)
         self.assertEqual(ds.count_cols(), 10)
-        et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries().index()
+        et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries().add_index()
         self.assertTrue(et.all(et.idx == et.entry_idx))
 
 

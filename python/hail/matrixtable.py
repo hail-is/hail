@@ -549,13 +549,13 @@ class MatrixTable(object):
                             ', '.join(map(str, expected)), ', '.join(map(str, key_types))))
 
             if row_key is not None and col_key is not None:
-                return self.view_join_entries(row_key, col_key)
+                return self.index_entries(row_key, col_key)
             elif row_key is not None and col_key is None:
-                return self.view_join_rows(*row_key)
+                return self.index_rows(*row_key)
             elif row_key is None and col_key is not None:
-                return self.view_join_cols(*col_key)
+                return self.index_cols(*col_key)
             else:
-                return self.view_join_globals()
+                return self.index_globals()
 
     @property
     def global_schema(self):
@@ -2087,7 +2087,7 @@ class MatrixTable(object):
         """
         return Table(self._jvds.entriesTable())
 
-    def view_join_globals(self):
+    def index_globals(self):
         uid = Env._get_uid()
 
         def joiner(obj):
@@ -2100,7 +2100,7 @@ class MatrixTable(object):
         return construct_expr(Select(Reference('global', top_level=True), uid), self.global_schema,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
-    def view_join_rows(self, *exprs):
+    def index_rows(self, *exprs):
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins, refs = unify_all(*exprs)
         src = indices.source
@@ -2116,7 +2116,7 @@ class MatrixTable(object):
         if isinstance(src, Table):
             # join table with matrix.rows_table()
             right = self.rows()
-            return right.view_join_rows(*exprs)
+            return right.index(*exprs)
         else:
             assert isinstance(src, MatrixTable)
             right = self
@@ -2132,14 +2132,14 @@ class MatrixTable(object):
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid)))
             else:
-                return self.rows().view_join_rows(*exprs)
+                return self.rows().index(*exprs)
 
             schema = tstruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
             return construct_expr(Select(Reference(prefix, top_level=True), uid),
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
 
-    def view_join_cols(self, *exprs):
+    def index_cols(self, *exprs):
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins, refs = unify_all(*exprs)
         src = indices.source
@@ -2151,9 +2151,9 @@ class MatrixTable(object):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
-        return self.cols().view_join_rows(*exprs)
+        return self.cols().index(*exprs)
 
-    def view_join_entries(self, row_exprs, col_exprs):
+    def index_entries(self, row_exprs, col_exprs):
         row_exprs = [to_expr(e) for e in row_exprs]
         col_exprs = [to_expr(e) for e in col_exprs]
 
@@ -2165,9 +2165,9 @@ class MatrixTable(object):
 
         if isinstance(src, Table):
             # join table with matrix.entries_table()
-            return self.entries().view_join_rows(*(row_exprs + col_exprs))
+            return self.entries().index(*(row_exprs + col_exprs))
         else:
-            raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
+            raise NotImplementedError('matrix.index_entries with {}'.format(src.__class__))
 
     def _process_joins(self, *exprs):
 
@@ -2462,13 +2462,13 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unpersist())
 
     @typecheck_method(name=str)
-    def index_rows(self, name='row_idx'):
+    def add_row_index(self, name='row_idx'):
         """Add the integer index of each row as a new row field.
 
         Examples
         --------
 
-        >>> dataset_result = dataset.index_rows()
+        >>> dataset_result = dataset.add_row_index()
 
         Notes
         -----
@@ -2490,13 +2490,13 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.indexRows(name))
 
     @typecheck_method(name=str)
-    def index_cols(self, name='col_idx'):
+    def add_col_index(self, name='col_idx'):
         """Add the integer index of each column as a new column field.
 
         Examples
         --------
 
-        >>> dataset_result = dataset.index_cols()
+        >>> dataset_result = dataset.add_col_index()
 
         Notes
         -----
