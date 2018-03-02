@@ -1430,7 +1430,7 @@ class Table(TableTemplate):
 
         .. doctest::
 
-            >>> table_result = table1.index()
+            >>> table_result = table1.add_index()
             >>> table_result.show()
             +-------+-------+-----+-------+-------+-------+-------+-------+-------+
             |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
