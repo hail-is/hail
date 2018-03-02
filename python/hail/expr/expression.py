@@ -509,6 +509,7 @@ class Expression(object):
         lambda_result = to_expr(
             f(construct_expr(Reference(new_id), input_type, self._indices, self._aggregations, self._joins,
                              self._refs)))
+
         indices, aggregations, joins, refs = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
         return construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins, refs)

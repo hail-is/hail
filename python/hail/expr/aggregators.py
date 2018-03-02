@@ -14,16 +14,29 @@ def _to_agg(x):
         return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins, x._refs)
 
 
-@typecheck(name=str, aggregable=Aggregable, ret_type=Type, args=anytype)
 def _agg_func(name, aggregable, ret_type, *args):
     args = [to_expr(a) for a in args]
     indices, aggregations, joins, refs = unify_all(aggregable, *args)
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
+    for a in args:
+        _check_agg_bindings(a)
+    _check_agg_bindings(aggregable)
+
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
     return construct_expr(ast, ret_type, Indices(source=indices.source),
                           aggregations.push(Aggregation(indices, refs)), joins)
+
+def _check_agg_bindings(expr):
+    bound_references = {ast.name for ast in expr._ast.search(lambda ast: isinstance(ast, Reference) and not ast.top_level)}
+    bind_vars = {ast.uid for ast in expr._ast.search(lambda ast: isinstance(ast, Bind))}
+    lambda_vars = {ast.lambda_var for ast in expr._ast.search(lambda ast: isinstance(ast, LambdaClassMethod))}
+    declared_temp_vars = bind_vars.union(lambda_vars)
+
+    free_variables = bound_references - declared_temp_vars
+    if free_variables:
+        raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 @typecheck(expr=oneof(Aggregable, expr_any))
 def collect(expr):
@@ -349,6 +362,7 @@ def take(expr, n, ordering=None):
             lambda_result = to_expr(
                 ordering(construct_expr(Reference(uid), agg._type, agg._indices,
                                         agg._aggregations, agg._joins, agg._refs)))
+
         else:
             lambda_result = ordering
         indices, aggregations, joins, refs = unify_all(agg, lambda_result)
@@ -361,6 +375,9 @@ def take(expr, n, ordering=None):
 
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
+
+        _check_agg_bindings(agg)
+        _check_agg_bindings(lambda_result)
 
         return construct_expr(ast, tarray(agg._type), Indices(source=indices.source),
                               aggregations.push(Aggregation(indices, refs)), joins)
@@ -897,6 +914,8 @@ def inbreeding(expr, prior):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
+    _check_agg_bindings(agg)
+    _check_agg_bindings(prior)
     t = tstruct(f_stat=tfloat64,
                 n_called=tint64,
                 expected_homs=tfloat64,
@@ -977,9 +996,12 @@ def call_stats(expr, alleles):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
+    _check_agg_bindings(agg)
+    _check_agg_bindings(alleles)
     t = tstruct(AC=tarray(tint32),
                 AF=tarray(tfloat64),
                 AN=tint32)
+
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 @typecheck(expr=oneof(Aggregable, expr_numeric), start=numeric, end=numeric, bins=numeric)
