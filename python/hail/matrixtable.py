@@ -152,9 +152,9 @@ class GroupedMatrixTable(object):
         if self._col_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols; cannot also group by rows.")
         new_keys = {}
-        kept_fields = [f.name for f in self._parent.global_schema.fields]
+        kept_fields = list(self._parent.global_schema)
         if self._col_keys is None:
-            kept_fields.extend([f.name for f in self._parent.col_schema.fields])
+            kept_fields.extend(list(self._parent.col_schema))
 
         for e in exprs:
             if isinstance(e, str):
@@ -216,9 +216,9 @@ class GroupedMatrixTable(object):
         if self._col_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols.")
         new_keys = {}
-        kept_fields = [f.name for f in self._parent.global_schema.fields]
+        kept_fields = list(self._parent.global_schema)
         if self._row_keys is None:
-            kept_fields.extend([f.name for f in self._parent.row_schema.fields])
+            kept_fields.extend(list(self._parent.row_schema))
 
         for e in exprs:
             if isinstance(e, str):
@@ -330,15 +330,15 @@ class GroupedMatrixTable(object):
 
         strs = []
 
-        fixed_fields = [f.name for f in self._parent.global_schema.fields]
+        fixed_fields = list(self._parent.global_schema)
         if self._row_keys is not None:
             fixed_fields.extend(self._row_keys.keys())
         else:
-            fixed_fields.extend([f.name for f in self._parent.row_schema.fields])
+            fixed_fields.extend(list(self._parent.row_schema))
         if self._col_keys is not None:
             fixed_fields.extend(self._col_keys.keys())
         else:
-            fixed_fields.extend([f.name for f in self._parent.col_schema.fields])
+            fixed_fields.extend(list(self._parent.col_schema))
 
         base, _ = self._parent._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
@@ -453,17 +453,17 @@ class MatrixTable(object):
         assert isinstance(self.row_schema, tstruct), self.row_schema
         assert isinstance(self.entry_schema, tstruct), self.entry_schema
 
-        for f in self.global_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.dtype, self._global_indices, prefix='global'))
+        for f, t in self.global_schema.items():
+            self._set_field(f, construct_reference(f, t, self._global_indices, prefix='global'))
 
-        for f in self.col_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.dtype, self._col_indices, prefix='sa'))
+        for f, t in self.col_schema.items():
+            self._set_field(f, construct_reference(f, t, self._col_indices, prefix='sa'))
 
-        for f in self.row_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.dtype, self._row_indices, prefix='va'))
+        for f, t in self.row_schema.items():
+            self._set_field(f, construct_reference(f, t, self._row_indices, prefix='va'))
 
-        for f in self.entry_schema.fields:
-            self._set_field(f.name, construct_reference(f.name, f.dtype, self._entry_indices, prefix='g'))
+        for f, t in self.entry_schema.items():
+            self._set_field(f, construct_reference(f, t, self._entry_indices, prefix='g'))
 
     def _set_field(self, key, value):
         assert key not in self._fields, key
@@ -658,7 +658,7 @@ class MatrixTable(object):
         return construct_expr(Reference('global', False), self.global_schema,
                               indices=self._global_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f.name, self._global_indices) for f in self.global_schema.fields]))
+                                  *[(f, self._global_indices) for f in self.global_schema]))
 
     @property
     def row(self):
@@ -672,7 +672,7 @@ class MatrixTable(object):
         return construct_expr(Reference('va', False), self.row_schema,
                               indices=self._row_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f.name, self._row_indices) for f in self.row_schema.fields]))
+                                  *[(f, self._row_indices) for f in self.row_schema]))
 
     @property
     def col(self):
@@ -686,7 +686,7 @@ class MatrixTable(object):
         return construct_expr(Reference('sa', False), self.col_schema,
                               indices=self._col_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f.name, self._col_indices) for f in self.col_schema.fields]))
+                                  *[(f, self._col_indices) for f in self.col_schema]))
 
     @property
     def entry(self):
@@ -700,7 +700,7 @@ class MatrixTable(object):
         return construct_expr(Reference('g', False), self.entry_schema,
                               indices=self._entry_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f.name, self._entry_indices) for f in self.entry_schema.fields]))
+                                  *[(f, self._entry_indices) for f in self.entry_schema]))
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_cols_by(self, *keys):
@@ -1317,7 +1317,7 @@ class MatrixTable(object):
         m = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = [k.name for k in m.global_schema.fields if k.name not in fields_to_drop]
+            new_global_fields = [f for f in m.global_schema if f not in fields_to_drop]
             m = m.select_globals(*new_global_fields)
 
         row_fields = [x for x in fields_to_drop if self._fields[x]._indices == self._row_indices]
@@ -1327,7 +1327,7 @@ class MatrixTable(object):
 
         if any(self._fields[field]._indices == self._col_indices for field in fields_to_drop):
             # need to drop col fields
-            new_col_fields = [k.name for k in m.col_schema.fields if k.name not in fields_to_drop]
+            new_col_fields = [f for f in m.col_schema if f not in fields_to_drop]
             m = m.select_cols(*new_col_fields)
 
         entry_fields = [x for x in fields_to_drop if self._fields[x]._indices == self._entry_indices]
@@ -2134,7 +2134,7 @@ class MatrixTable(object):
             else:
                 return self.rows().view_join_rows(*exprs)
 
-            schema = tstruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
+            schema = tstruct(**{f: t for f, t in self.row_schema.items() if f not in self.row_key})
             return construct_expr(Select(Reference(prefix, top_level=True), uid),
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
@@ -2194,14 +2194,14 @@ class MatrixTable(object):
         def format_type(typ):
             return typ.pretty(indent=4)
 
-        if len(self.global_schema.fields) == 0:
+        if len(self.global_schema) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.dtype)) for fd in self.global_schema.fields)
+                name=f, type=format_type(t)) for f, t in self.global_schema.items())
 
         row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.dtype)) for fd in self.row_schema.fields)
+            name=f, type=format_type(t)) for f, t in self.row_schema.items())
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.row_key) if self.row_key else '\n    None'
@@ -2209,16 +2209,16 @@ class MatrixTable(object):
                                 for f in self.partition_key) if self.partition_key else '\n    None'
 
         col_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.dtype)) for fd in self.col_schema.fields)
+            name=f, type=format_type(t)) for f, t in self.col_schema.items())
 
         col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.col_key) if self.col_key else '\n    None'
 
-        if len(self.entry_schema.fields) == 0:
+        if len(self.entry_schema) == 0:
             entry_fields = '\n    None'
         else:
             entry_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.dtype)) for fd in self.entry_schema.fields)
+                name=f, type=format_type(t)) for f, t in self.entry_schema.items())
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \

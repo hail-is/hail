@@ -612,43 +612,7 @@ class tdict(Type):
                  'value':self.value_type._convert_to_json(v)} for k, v in x.items()]
 
 
-class Field(object):
-    """Class representing a field of a :class:`.tstruct`."""
-
-    def __init__(self, name, typ):
-        self._name = name
-        self._typ = typ
-
-    @property
-    def name(self):
-        """Field name.
-
-        Returns
-        -------
-        :obj:`str`
-            Field name.
-        """
-        return self._name
-
-    @property
-    def dtype(self):
-        """Field type.
-
-        Returns
-        -------
-        :class:`.Type`
-            Field type.
-        """
-        return self._typ
-
-    def __eq__(self, other):
-        return isinstance(other, Field) and self.name == other.name and self.dtype == other.dtype
-
-    def __hash__(self):
-        return 31 + hash(self.name) + hash(self.dtype)
-
-
-class tstruct(Type):
+class tstruct(Type, Mapping):
     """Hail type for structured groups of heterogeneous fields.
 
     In Python, these are represented as :class:`.Struct`.
@@ -661,12 +625,13 @@ class tstruct(Type):
 
     @typecheck_method(field_types=Type)
     def __init__(self, **field_types):
+        self._field_types = field_types
+        self._fields = tuple(field_types)
 
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply(
-            list(field_types.keys()),
-            list(map(lambda t: t._jtype, field_types.values())), False)
-        fields = tuple(Field(name, dtype) for name, dtype in field_types.items())
-        self._fields = fields
+            list(self._fields),
+            [t._jtype for f, t in self._field_types.items()],
+            False)
 
         super(tstruct, self).__init__()
 
@@ -681,33 +646,11 @@ class tstruct(Type):
         """
         return self._fields
 
-    @classmethod
-    @typecheck_method(fields=listof(Field))
-    def from_fields(cls, fields):
-        """Construct a :class:`.tstruct` from a list of fields.
-
-        Parameters
-        ----------
-        fields : :obj:`list` of :class:`.Field`
-            Struct fields.
-
-        Returns
-        -------
-        :class:`.tstruct`
-        """
-        ts = tstruct.__new__(cls)
-        ts._fields = tuple(fields)
-        ts._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply([f.name for f in fields],
-                                                                                     [f.dtype._jtype for f in fields],
-                                                                                     False)
-        super(tstruct, ts).__init__()
-        return ts
-
     def _convert_to_py(self, annotation):
         if annotation is not None:
             d = dict()
-            for i, f in enumerate(self.fields):
-                d[f.name] = f.dtype._convert_to_py(annotation.get(i))
+            for i, (f, t) in enumerate(self.items()):
+                d[f] = t._convert_to_py(annotation.get(i))
             return Struct(**d)
         else:
             return None
@@ -716,51 +659,65 @@ class tstruct(Type):
         if annotation is not None:
             return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
                 Env.jutils().arrayListToISeq(
-                    [f.dtype._convert_to_j(annotation.get(f.name)) for f in self.fields]))
+                    [t._convert_to_j(annotation.get(f)) for f, t in self.items()]))
         else:
             return None
 
     def _typecheck(self, annotation):
         if annotation:
             if isinstance(annotation, Mapping):
-                s = set([f.name for f in self.fields])
+                s = set(self)
                 for f in annotation:
                     if f not in s:
                         raise TypeError("type '%s' expected fields '%s', but found fields '%s'" %
-                                        (self, [f.name for f in self.fields], list(annotation)))
-                for f in self.fields:
-                    f.dtype._typecheck(annotation.get(f.name))
+                                        (self, list(self), list(annotation)))
+                for f, t in self.items():
+                    t._typecheck(annotation.get(f))
             else:
                 raise TypeError("type 'struct' expected type Mapping (e.g. hail.genetics.Struct or dict), but found '%s'" %
                                 type(annotation))
 
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            return self._field_types[item]
+        else:
+            self._field_types[self._fields[item]]
+
+    def __iter__(self):
+        return iter(self._field_types)
+
+    def __len__(self):
+        return len(self._fields)
+
     def __str__(self):
         return "struct{{{}}}".format(
-            ', '.join('{}: {}'.format(escape_parsable(fd.name), str(fd.dtype)) for fd in self.fields))
+            ', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
 
     def _eq(self, other):
-        return isinstance(other, tstruct) and self.fields == other.fields
+        return (isinstance(other, tstruct)
+                and self._fields == other._fields
+                and all(self[f] == other[f] for f in self._fields))
 
     def _pretty(self, l, indent, increment):
         pre_indent = indent
         indent += increment
         l.append('struct {')
-        for i, f in enumerate(self.fields):
+        for i, (f, t) in enumerate(self.items()):
             if i > 0:
                 l.append(', ')
             l.append('\n')
             l.append(' ' * indent)
-            l.append('{}: '.format(escape_parsable(f.name)))
-            f.dtype._pretty(l, indent, increment)
+            l.append('{}: '.format(escape_parsable(f)))
+            t._pretty(l, indent, increment)
         l.append('\n')
         l.append(' ' * pre_indent)
         l.append('}')
 
     def _convert_from_json(self, x):
-        return Struct(**{field.name: field.dtype._convert_from_json_na(x.get(field.name)) for field in self.fields})
+        return Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
 
     def _convert_to_json(self, x):
-        return {field.name: field.dtype._convert_to_json_na(x[field.name]) for field in self.fields}
+        return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
 class ttuple(Type):
     """Hail type for tuples.

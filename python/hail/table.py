@@ -301,11 +301,11 @@ class Table(TableTemplate):
         self._row_axis = 'row'
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        for fd in self.global_schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.dtype, self._global_indices, prefix='global'))
+        for f, t in self.global_schema.items():
+            self._set_field(f, construct_reference(f, t, self._global_indices, prefix='global'))
 
-        for fd in self.schema.fields:
-            self._set_field(fd.name, construct_reference(fd.name, fd.dtype, self._row_indices, prefix='row'))
+        for f, t in self.schema.items():
+            self._set_field(f, construct_reference(f, t, self._row_indices, prefix='row'))
 
     @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
@@ -856,14 +856,14 @@ class Table(TableTemplate):
         table = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = [k.name for k in table.global_schema.fields if
-                                 k.name not in fields_to_drop]
+            new_global_fields = [f for f in table.global_schema if
+                                 f not in fields_to_drop]
             table = table.select_globals(*new_global_fields)
 
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
-            new_row_fields = [k.name for k in table.schema.fields if
-                              k.name not in fields_to_drop]
+            new_row_fields = [f for f in table.schema if
+                              f not in fields_to_drop]
             table = table.select(*new_row_fields)
 
         return table
@@ -1128,8 +1128,7 @@ class Table(TableTemplate):
         src = indices.source
 
         key_set = set(self.key)
-        new_fields = [x for x in self.schema.fields if x.name not in key_set]
-        new_schema = tstruct.from_fields(new_fields)
+        new_schema = tstruct(**{f: t for f, t in self.schema.items() if f not in key_set})
 
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
@@ -1398,14 +1397,14 @@ class Table(TableTemplate):
         def format_type(typ):
             return typ.pretty(indent=4)
 
-        if len(self.global_schema.fields) == 0:
+        if len(self.global_schema) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=fd.name, type=format_type(fd.dtype)) for fd in self.global_schema.fields)
+                name=f, type=format_type(t)) for f, t in self.global_schema.items())
 
         row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=fd.name, type=format_type(fd.dtype)) for fd in self.schema.fields)
+            name=f, type=format_type(t)) for f, t in self.schema.items())
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.key) if self.key else '\n    None'
@@ -2050,7 +2049,7 @@ class Table(TableTemplate):
         return construct_expr(Reference('global', False), self.global_schema,
                               indices=self._global_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f.name, self._global_indices) for f in self.global_schema.fields]))
+                                  *[(f, self._global_indices) for f in self.global_schema]))
 
     @property
     def row(self):

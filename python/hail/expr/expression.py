@@ -181,8 +181,8 @@ def _to_expr(e, dtype):
     elif isinstance(dtype, tstruct):
         new_fields = []
         any_expr = False
-        for field in dtype.fields:
-            value = _to_expr(e[field.name], field.dtype)
+        for f, t in dtype.items():
+            value = _to_expr(e[f], t)
             any_expr = any_expr or isinstance(value, Expression)
             new_fields.append(value)
 
@@ -190,10 +190,10 @@ def _to_expr(e, dtype):
             return e
         else:
             exprs = [new_fields[i] if isinstance(new_fields[i], Expression)
-                     else hl.literal(new_fields[i], dtype.fields[i].dtype)
+                     else hl.literal(new_fields[i], dtype[i])
                      for i in range(len(new_fields))]
             indices, aggregations, joins, refs = unify_all(*exprs)
-            return construct_expr(StructDeclaration([field.name for field in dtype.fields],
+            return construct_expr(StructDeclaration(list(dtype),
                                                     [expr._ast for expr in exprs]),
                                   dtype, indices, aggregations, joins, refs)
 
@@ -1973,15 +1973,14 @@ class StructExpression(Mapping, Expression):
     def _init(self):
         self._fields = {}
 
-        for i in range(len(self.dtype.fields)):
-            fd = self.dtype.fields[i]
+        for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ast, StructDeclaration):
-                expr = construct_expr(self._ast.values[i], fd.dtype, self._indices,
+                expr = construct_expr(self._ast.values[i], t, self._indices,
                                       self._aggregations, self._joins, self._refs)
             else:
-                expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
+                expr = construct_expr(Select(self._ast, f), t, self._indices,
                                       self._aggregations, self._joins, self._refs)
-            self._set_field(fd.name, expr)
+            self._set_field(f, expr)
 
     def _set_field(self, key, value):
         self._fields[key] = value
@@ -2030,7 +2029,7 @@ class StructExpression(Mapping, Expression):
         if isinstance(item, str):
             return self._get_field(item)
         else:
-            return self._get_field(self.dtype.fields[item].name)
+            return self._get_field(self.dtype.fields[item])
 
     def __iter__(self):
         return iter(self._fields)
@@ -2076,15 +2075,15 @@ class StructExpression(Mapping, Expression):
         """
         names = []
         types = []
-        for fd in self.dtype.fields:
-            names.append(fd.name)
-            types.append(fd.dtype)
+        for f, t in self.dtype.items():
+            names.append(f)
+            types.append(t)
         kwargs_struct = hl.struct(**named_exprs)
 
-        for fd in kwargs_struct.dtype.fields:
-            if not fd.name in self._fields:
-                names.append(fd.name)
-                types.append(fd.dtype)
+        for f, t in kwargs_struct.dtype.items():
+            if not f in self._fields:
+                names.append(f)
+                types.append(t)
 
         result_type = tstruct(**dict(zip(names, types)))
         indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
@@ -2140,11 +2139,11 @@ class StructExpression(Mapping, Expression):
         select_name_set = set(select_names)
 
         kwargs_struct = hl.struct(**named_exprs)
-        for fd in kwargs_struct.dtype.fields:
-            if fd.name in select_name_set:
-                raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
-            names.append(fd.name)
-            types.append(fd.dtype)
+        for f, t in kwargs_struct.dtype.items():
+            if f in select_name_set:
+                raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(f))
+            names.append(f)
+            types.append(t)
         result_type = tstruct(**dict(zip(names, types)))
 
         indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
@@ -2184,10 +2183,10 @@ class StructExpression(Mapping, Expression):
 
         names = []
         types = []
-        for fd in self.dtype.fields:
-            if not fd.name in to_drop:
-                names.append(fd.name)
-                types.append(fd.dtype)
+        for f, t in self.dtype.items():
+            if not f in to_drop:
+                names.append(f)
+                types.append(t)
         result_type = tstruct(**dict(zip(names, types)))
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._aggregations, self._joins, self._refs)

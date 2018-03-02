@@ -634,14 +634,13 @@ def index(structs, identifier):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
                         .format(structs.dtype))
     struct_type = structs._type.element_type
-    struct_fields = {fd.name: fd.dtype for fd in struct_type.fields}
 
-    if identifier not in struct_fields:
+    if identifier not in struct_type:
         raise RuntimeError("`structs' does not have a field with identifier `{}'. " \
                            "Struct type is {}.".format(identifier, struct_type))
 
-    key_type = struct_fields[identifier]
-    value_type = tstruct.from_fields([f for f in struct_type.fields if f.name != identifier])
+    key_type = struct_type[identifier]
+    value_type = tstruct(**{f: t for f, t in struct_type.items() if f != identifier})
 
     ast = StructOp('index', structs._ast, identifier)
     return construct_expr(ast, tdict(key_type, value_type),
