@@ -323,7 +323,6 @@ def unify_all(*exprs):
         from collections import defaultdict
         sources = defaultdict(lambda: [])
         for e in exprs:
-            # for name, inds in e._refs:
             for name, inds in itertools.chain(e._refs, *(a.refs for a in e._aggregations)):
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."
