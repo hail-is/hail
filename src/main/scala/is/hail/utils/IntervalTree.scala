@@ -192,14 +192,12 @@ object IntervalTree {
       val ab = new ArrayBuilder[Interval](intervals.length)
       var tmp = unpruned(i)
       while (i < unpruned.length) {
-        if (!unpruned(i).definitelyEmpty(pord)) {
-          tmp.merge(pord, unpruned(i)) match {
-            case Some(interval) =>
-              tmp = interval
-            case None =>
-              ab += tmp
-              tmp = unpruned(i)
-          }
+        tmp.merge(pord, unpruned(i)) match {
+          case Some(interval) =>
+            tmp = interval
+          case None =>
+            ab += tmp
+            tmp = unpruned(i)
         }
         i += 1
       }
