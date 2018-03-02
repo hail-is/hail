@@ -75,8 +75,7 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     Seq[Dependency[_]](new OneToOneDependency(left.rdd),
       new OrderedDependency(left, right))) {
 
-  assert(left.partitioner.pkType.ordering.lteq(left.partitioner.minBound, right.partitioner.minBound) &&
-    left.partitioner.pkType.ordering.gteq(left.partitioner.maxBound, right.partitioner.maxBound))
+  assert(left.partitioner.range.includes(left.partitioner.pkType.ordering, right.partitioner.range))
 
   private val leftPartitionForRightRow = new OrderedRVDPartitioner(
     right.typ.partitionKey,

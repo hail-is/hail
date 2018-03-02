@@ -21,6 +21,15 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
       false
   }
 
+  def includes(pord: ExtendedOrdering, other: Interval): Boolean =
+  other.definitelyEmpty(pord) || ({
+    val cstart = pord.compare(this.start, other.start)
+    cstart < 0 || ((!other.includeStart || this.includeStart) && cstart == 0)
+  } && {
+    val cend = pord.compare(this.end, other.end)
+    cend > 0 || ((!other.includeEnd || this.includeEnd) && cend == 0)
+  })
+
   def mayOverlap(pord: ExtendedOrdering, other: Interval): Boolean = {
     !definitelyDisjoint(pord, other)
   }

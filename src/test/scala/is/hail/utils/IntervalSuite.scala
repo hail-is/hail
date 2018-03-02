@@ -60,6 +60,14 @@ class IntervalSuite extends TestNGSuite {
     }
   }
 
+  @Test def interval_agrees_with_set_interval_includes()  {
+    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.includes(pord, interval2), set_interval1.includes(set_interval2))
+    }
+  }
+
   @Test def interval_agrees_with_set_interval_probably_overlaps() {
     for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
       val interval1 = set_interval1.interval
@@ -226,6 +234,9 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
   val interval: Interval = Interval(start, end, includeStart, includeEnd)
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
+
+  def includes(other: SetInterval): Boolean =
+    (other.doubledPointSet -- this.doubledPointSet).isEmpty
 
   def probablyOverlaps(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).nonEmpty
 
