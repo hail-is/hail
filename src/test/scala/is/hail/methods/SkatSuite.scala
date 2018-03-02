@@ -199,7 +199,7 @@ class SkatSuite extends SparkSuite {
       val pvalR = resultsR(i).getAs[Double](2)
 
       if (displayValues) {
-        println(f"HAIL qstat: $qstat%2.9f  pval: $pval  fault: $fault  size: $size")
+        println(f"Hail qstat: $qstat%2.9f  pval: $pval  fault: $fault  size: $size")
         println(f"   R qstat: $qstatR%2.9f  pval: $pvalR")
       }
 

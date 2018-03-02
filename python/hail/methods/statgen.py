@@ -255,7 +255,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     With the default root, the following row-indexed fields are added. The
     indexing of the array fields corresponds to that of `ys`.
 
-    - **linreg.nCompleteSamples** (:py:data:`.tint32`) -- Number of columns used.
+    - **linreg.n_complete_samples** (:py:data:`.tint32`) -- Number of columns used.
     - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values `x`.
     - **linreg.ytx** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       dot products of each response vector `y` with the input vector `x`.
@@ -263,10 +263,10 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
       fit effect coefficients of `x`, :math:`\hat\\beta_1` below.
     - **linreg.se** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       estimated standard errors, :math:`\widehat{\mathrm{se}}_1`.
-    - **linreg.tstat** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array
+    - **linreg.t_stat** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array
       of :math:`t`-statistics, equal to
       :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
-    - **linreg.pval** (:class:`.tarray` of :py:data:`.tfloat64`) -- array
+    - **linreg.p_value** (:class:`.tarray` of :py:data:`.tfloat64`) -- array
       of :math:`p`-values.
 
     In the statistical genetics example above, the input variable `x` encodes
@@ -402,24 +402,24 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     The resulting variant annotations depend on the test statistic as shown
     in the tables below.
 
-    ========== =============== ======  ============================================
-    Test       Field           Type    Value
-    ========== =============== ======  ============================================
-    Wald       `logreg.beta`   Double  fit effect coefficient,
-                                       :math:`\hat\beta_1`
-    Wald       `logreg.se`     Double  estimated standard error,
-                                       :math:`\widehat{\mathrm{se}}`
-    Wald       `logreg.zstat`  Double  Wald :math:`z`-statistic, equal to
-                                       :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    Wald       `logreg.pval`   Double  Wald p-value testing :math:`\beta_1 = 0`
-    LRT, Firth `logreg.beta`   Double  fit effect coefficient,
-                                       :math:`\hat\beta_1`
-    LRT, Firth `logreg.chi2`   Double  deviance statistic
-    LRT, Firth `logreg.pval`   Double  LRT / Firth p-value testing
-                                       :math:`\beta_1 = 0`
-    Score      `logreg.chi2`   Double  score statistic
-    Score      `logreg.pval`   Double  score p-value testing :math:`\beta_1 = 0`
-    ========== =============== ======  ============================================
+    ========== ================ ======= ============================================
+    Test       Field            Type    Value
+    ========== ================ ======= ============================================
+    Wald       `logreg.beta`    float64 fit effect coefficient,
+                                        :math:`\hat\beta_1`
+    Wald       `logreg.se`      float64 estimated standard error,
+                                        :math:`\widehat{\mathrm{se}}`
+    Wald       `logreg.z_stat`  float64 Wald :math:`z`-statistic, equal to
+                                        :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `logreg.p_value` float64 Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `logreg.beta`    float64 fit effect coefficient,
+                                        :math:`\hat\beta_1`
+    LRT, Firth `logreg.chi2`    float64 deviance statistic
+    LRT, Firth `logreg.p_value` float64 LRT / Firth p-value testing
+                                        :math:`\beta_1 = 0`
+    Score      `logreg.chi2`    float64 score statistic
+    Score      `logreg.p_value` float64 score p-value testing :math:`\beta_1 = 0`
+    ========== ================ ======= ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
     each row using Newton iteration and only emits the above annotations
@@ -428,16 +428,16 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     convergence issues, Hail also emits three variant annotations which
     summarize the iterative fitting process:
 
-    ================ ======================= ======= ===========================
+    ================ ======================= ======= ===============================
     Test             Field                   Type    Value
-    ================ ======================= ======= ===========================
-    Wald, LRT, Firth `logreg.fit.nIter`      Int     number of iterations until
+    ================ ======================= ======= ===============================
+    Wald, LRT, Firth `logreg.fit.n_iter`     int32   number of iterations until
                                                      convergence, explosion, or
                                                      reaching the max (25 for
                                                      Wald, LRT; 100 for Firth)
-    Wald, LRT, Firth `logreg.fit.converged`  Boolean true if iteration converged
-    Wald, LRT, Firth `logreg.fit.exploded`   Boolean true if iteration exploded
-    ================ ======================= ======= ===========================
+    Wald, LRT, Firth `logreg.fit.converged`  bool    ``True`` if iteration converged
+    Wald, LRT, Firth `logreg.fit.exploded`   bool    ``True`` if iteration exploded
+    ================ ======================= ======= ===============================
 
     We consider iteration to have converged when every coordinate of
     :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
@@ -515,14 +515,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     Those variants that don't vary across the included samples (e.g., all
     genotypes are HomRef) will have missing annotations.
 
-    Phenotype and covariate sample annotations may also be specified using
-    `programmatic expressions <exprlang.html>`__ without identifiers, such as:
-
-    .. code-block:: text
-
-        if (ds.is_female) ds.cov.age else (2 * ds.cov.age + 10)
-
-    For Boolean covariate types, true is coded as 1 and false as 0. In
+    For Boolean covariate types, ``True`` is coded as 1 and ``False`` as 0. In
     particular, for the sample annotation `fam.is_case` added by importing a FAM
     file with case-control phenotype, case is 1 and control is 0.
 
@@ -584,14 +577,14 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
            global_root=str,
-           va_root=str,
+           row_root=str,
            run_assoc=bool,
            use_ml=bool,
            delta=nullable(numeric),
            sparsity_threshold=numeric,
            n_eigs=nullable(int),
            dropped_variance_fraction=(nullable(float)))
-def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global", va_root="lmmreg",
+def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global", row_root="lmmreg",
            run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
            n_eigs=None, dropped_variance_fraction=None):
     r"""Use a kinship-based linear mixed model to estimate the genetic component
@@ -650,7 +643,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
       rather that fitting :math:`\delta` in Step 4.
     - Set the `global_root` argument to change the global annotation root in
       Step 4.
-    - Set the `va_root` argument to change the variant annotation root in
+    - Set the `row_root` argument to change the variant annotation root in
       Step 5.
 
     :func:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on
@@ -664,17 +657,17 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
        * - Field
          - Type
          - Value
-       * - `useML`
+       * - `use_ml`
          - bool
          - true if fit by ML, false if fit by REML
        * - `beta`
          - dict<str, float64>
-         - map from *intercept* and the given ``covariates`` expressions to the
+         - map from *intercept* and the given `covariates` expressions to the
            corresponding fit :math:`\beta` coefficients
-       * - `sigmaG2`
+       * - `sigma_g2`
          - float64
          - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
-       * - `sigmaE2`
+       * - `sigma_e2`
          - float64
          - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
        * - `delta`
@@ -683,7 +676,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
        * - `h2`
          - float64
          - fit narrow-sense heritability, :math:`\hat{h}^2`
-       * - `nEigs`
+       * - `n_eigenvalues`
          - int32
          - number of eigenvectors of kinship matrix used to fit model
        * - `dropped_variance_fraction`
@@ -692,23 +685,23 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
        * - `evals`
          - array<float64>
          - all eigenvalues of the kinship matrix in descending order
-       * - `fit.seH2`
+       * - `fit.se_h2`
          - float64
          - standard error of :math:`\hat{h}^2` under asymptotic normal
            approximation
-       * - `fit.normLkhdH2`
+       * - `fit.norm_likelihood_h2`
          - array<float64>
          - likelihood function of :math:`h^2` normalized on the discrete grid
            ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
            percentage ``i``.
-       * - `fit.maxLogLkhd`
+       * - `fit.max_log_likelihood`
          - float64
          - (restricted) maximum log likelihood corresponding to
            :math:`\hat{\delta}`
-       * - `fit.logDeltaGrid`
+       * - `fit.log_delta_grid`
          - array<float64>
          - values of :math:`\mathrm{ln}(\delta)` used in the grid search
-       * - `fit.logLkhdVals`
+       * - `fit.log_likelihood_values`
          - array<float64>
          - (restricted) log likelihood of :math:`y` given :math:`X` and
            :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and
@@ -720,22 +713,22 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
 
     If Step 5 is performed, :func:`.lmmreg` also adds four linear regression
     variant annotations. These annotations are stored under the row-indexed
-    field prefix `va_root`, which defaults to ``lmmreg``. Once again, the prefix
+    field prefix `row_root`, which defaults to ``lmmreg``. Once again, the prefix
     is not displayed in the table.
 
-    +-----------+---------+------------------------------------------------+
-    | Field     | Type    | Value                                          |
-    +===========+=========+================================================+
-    | `beta`    | float64 | fit genotype coefficient, :math:`\hat\beta_0`  |
-    +-----------+---------+------------------------------------------------+
-    | `sigmaG2` | float64 | fit coefficient of genetic variance component, |
-    |           |         | :math:`\hat{\sigma}_g^2`                       |
-    +-----------+---------+------------------------------------------------+
-    | `chi2`    | float64 | :math:`\chi^2` statistic of the likelihood     |
-    |           |         | ratio test                                     |
-    +-----------+---------+------------------------------------------------+
-    | `pval`    | float64 | :math:`p`-value                                |
-    +-----------+---------+------------------------------------------------+
+    +------------+---------+------------------------------------------------+
+    | Field      | Type    | Value                                          |
+    +============+=========+================================================+
+    | `beta`     | float64 | fit genotype coefficient, :math:`\hat\beta_0`  |
+    +------------+---------+------------------------------------------------+
+    | `sigma_g2` | float64 | fit coefficient of genetic variance component, |
+    |            |         | :math:`\hat{\sigma}_g^2`                       |
+    +------------+---------+------------------------------------------------+
+    | `chi2`     | float64 | :math:`\chi^2` statistic of the likelihood     |
+    |            |         | ratio test                                     |
+    +------------+---------+------------------------------------------------+
+    | `p_value`  | float64 | :math:`p`-value                                |
+    +------------+---------+------------------------------------------------+
 
     Those variants that don't vary across the included samples (e.g., all
     genotypes are HomRef) will have missing annotations.
@@ -909,7 +902,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     .. _change of variables: https://en.wikipedia.org/wiki/Integration_by_substitution
     .. _sigmoid differential equation: https://en.wikipedia.org/wiki/Sigmoid_function#Properties
 
-    For convenience, `lmmreg.fit.normLkhdH2` records the the likelihood
+    For convenience, `lmmreg.fit.norm_likelihood_h2` records the the likelihood
     function of :math:`h^2` normalized over the discrete grid
     :math:`0.01, 0.02, \ldots, 0.98, 0.99`. The length of the array is 101 so
     that index ``i`` contains the likelihood at percentage ``i``. The values at
@@ -935,7 +928,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     :math:`\sigma`.
 
     Note that the mean and standard deviation of the (discretized or continuous)
-    distribution held in `lmmreg.fit.normLkhdH2` will not coincide with
+    distribution held in `lmmreg.fit.norm_likelihood_h2` will not coincide with
     :math:`\hat{h}^2` and :math:`\hat{\sigma}`, since this distribution only
     becomes normal in the infinite sample limit. One can visually assess
     normality by plotting this distribution against a normal distribution with
@@ -1017,38 +1010,27 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     ----------
     kinship_matrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
-
     y : :class:`.NumericExpression`
         Response sample expression.
-
     x : :class:`.NumericExpression`
         Input variable.
-
     covariates : :obj:`list` of :class:`.NumericExpression`
         List of covariate sample expressions.
-
     global_root : :obj:`str`
-        Global field root, a period-delimited path.
-
-    va_root : :obj:`str`
-        Variant-indexed field root, a period-delimited path.
-
+        Global field root.
+    row_root : :obj:`str`
+        Row-indexed field root.
     run_assoc : :obj:`bool`
         If true, run association testing in addition to fitting the global model.
-
     use_ml : :obj:`bool`
         Use ML instead of REML throughout.
-
     delta : :obj:`float` or :obj:`None`
         Fixed delta value to use in the global model, overrides fitting delta.
-
     sparsity_threshold : :obj:`float`
         Genotype vector sparsity at or below which to use sparse genotype
         vector in rotation (advanced).
-
     n_eigs : :obj:`int`
         Number of eigenvectors of the kinship matrix used to fit the model.
-
     dropped_variance_fraction : :obj:`float`
         Upper bound on fraction of sample variance lost by dropping
         eigenvectors with small eigenvalues.
@@ -1079,7 +1061,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
                                    [cov._ast.to_hql() for cov in covariates]),
                             use_ml,
                             global_root,
-                            va_root,
+                            row_root,
                             run_assoc,
                             joption(delta),
                             sparsity_threshold,
@@ -1178,24 +1160,24 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     as 1 and 0, respectively.
 
     The resulting :class:`.Table` provides the group's key, the size (number of
-    rows) in the group, the variance component score ``qstat``, the SKAT
+    rows) in the group, the variance component score `q_stat`, the SKAT
     p-value, and a fault flag. For the toy example above, the table has the
     form:
 
-    +-------+------+-------+-------+-------+
-    |  key  | size | qstat | pval  | fault |
-    +=======+======+=======+=======+=======+
-    | geneA |   2  | 4.136 | 0.205 |   0   |
-    +-------+------+-------+-------+-------+
-    | geneB |   1  | 5.659 | 0.195 |   0   |
-    +-------+------+-------+-------+-------+
-    | geneC |   3  | 4.122 | 0.192 |   0   |
-    +-------+------+-------+-------+-------+
+    +-------+------+--------+---------+-------+
+    |  key  | size | q_stat | p_value | fault |
+    +=======+======+========+=========+=======+
+    | geneA |   2  | 4.136  | 0.205   |   0   |
+    +-------+------+--------+---------+-------+
+    | geneB |   1  | 5.659  | 0.195   |   0   |
+    +-------+------+--------+---------+-------+
+    | geneC |   3  | 4.122  | 0.192   |   0   |
+    +-------+------+--------+---------+-------+
 
-    Groups larger than `max_size` appear with missing ``qstat``, ``pval``, and
-    ``fault``. The hard limit on the number of rows in a group is 46340.
+    Groups larger than `max_size` appear with missing `q_stat`, `p_value`, and
+    `fault`. The hard limit on the number of rows in a group is 46340.
 
-    Note that the variance component score ``qstat`` agrees with ``Q`` in the R
+    Note that the variance component score `q_stat` agrees with ``Q`` in the R
     package ``skat``, but both differ from :math:`Q` in the paper by the factor
     :math:`\frac{1}{2\sigma^2}` in the linear case and :math:`\frac{1}{2}` in
     the logistic case, where :math:`\sigma^2` is the unbiased estimator of

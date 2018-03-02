@@ -101,7 +101,7 @@ class GroupBySuite extends SparkSuite {
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select("row.genes", "row.linreg.beta",
-      "row.linreg.se", "row.linreg.tstat", "row.linreg.pval")
+      "row.linreg.se", "row.linreg.t_stat", "row.linreg.p_value")
       .rdd.map { r => (r.getAs[String](0), (1 to 4).map{ i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }
       .collect()
       .toMap
