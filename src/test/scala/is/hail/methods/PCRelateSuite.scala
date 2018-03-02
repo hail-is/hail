@@ -126,6 +126,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 10000
     val vds: MatrixTable = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
+      .annotateSamplesExpr("s = str(sa.s)")
     val pcs = samplePCA(vds, 2, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01)
@@ -217,6 +218,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 1000
     val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
+      .annotateSamplesExpr("s = str(sa.s)")
     val pcs = samplePCA(vds, 10, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .mapValues(quadMap(toBoxedD).tupled)

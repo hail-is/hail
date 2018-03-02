@@ -196,6 +196,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop),
       scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
+      .annotateSamplesExpr("s = str(sa.s)")
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
