@@ -1890,7 +1890,8 @@ class SplitMulti(object):
            keep_star=bool,
            left_aligned=bool)
 def split_multi_hts(ds, keep_star=False, left_aligned=False):
-    """Split multiallelic variants for HTS :meth:`.MatrixTable.entry_schema`:
+    """Split multiallelic variants for datasets with a standard high-throughput
+    sequencing entry schema.
 
     .. code-block:: text
 
@@ -2023,12 +2024,12 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     """
 
-    if ds.entry_schema != hl.hts_entry_schema:
+    if ds.entry.dtype != hl.hts_entry_schema:
         raise FatalError("'split_multi_hts': entry schema must be the HTS entry schema:\n"
                          "  found: {}\n"
                          "  expected: {}\n"
                          "  Use 'split_multi' to split entries with non-HTS entry fields.".format(
-            ds.entry_schema, hl.hts_entry_schema
+            ds.entry.dtype, hl.hts_entry_schema
         ))
 
     sm = SplitMulti(ds, keep_star=keep_star, left_aligned=left_aligned)
