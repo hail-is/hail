@@ -71,17 +71,18 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     })
 
   def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
-    (definitelyEmpty(pord), other.definitelyEmpty(pord)) match {
-      case (_, true) => Some(this)
-      case (true, false) => Some(other)
-      case (false, false) =>
-        if (mergeable(pord, other)) {
-          val min = Interval.ordering(pord, startPrimary = true).min(this, other).asInstanceOf[Interval]
-          val max = Interval.ordering(pord, startPrimary = false).max(this, other).asInstanceOf[Interval]
-          Some(Interval(min.start, max.end, min.includeStart, max.includeEnd))
-        } else
-          None
-    }
+    if (mergeable(pord, other)) {
+      if (other.definitelyEmpty(pord))
+        Some(this)
+      else if (this.definitelyEmpty(pord))
+        Some(other)
+      else {
+        val min = Interval.ordering(pord, startPrimary = true).min(this, other).asInstanceOf[Interval]
+        val max = Interval.ordering(pord, startPrimary = false).max(this, other).asInstanceOf[Interval]
+        Some(Interval(min.start, max.end, min.includeStart, max.includeEnd))
+      }
+    } else
+      None
   }
 
   def intersect(pord: ExtendedOrdering, other: Interval): Interval = {
