@@ -116,6 +116,11 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_joins_inside_aggregators(self):
+        table = hl.utils.range_table(10)
+        table2 = hl.utils.range_table(10)
+        self.assertEqual(table.aggregate(agg.count_where(hl.is_defined(table2[table.idx]))), 10)
+
     def test_switch(self):
         x = hl.literal('1')
         na = hl.null(tint32)
