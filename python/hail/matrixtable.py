@@ -24,33 +24,222 @@ class GroupedMatrixTable(object):
 
     """
 
-    def __init__(self, parent, groups, grouped_indices):
+    def __init__(self, parent, row_keys=None, col_keys=None):
         self._parent = parent
-        self._groups = groups
-        self._grouped_indices = grouped_indices
+        self._row_keys = row_keys
+        self._col_keys = col_keys
         self._partitions = None
         self._partition_key = None
-        self._fields = {}
-        self._fields_inverse = {}
-
-        for f in parent._fields:
-            self._set_field(f, parent._fields[f])
 
     def _get_field(self, item):
-        if item in self._fields:
-            return self._fields[item]
+        return self._parent._get_field(item)
+
+    def _fixed_indices(self):
+        if self._row_keys is None and self._col_keys is None:
+            return self._parent._entry_indices
+        elif self._row_keys is not None and self._col_keys is None:
+            return self._parent._col_indices
+        elif self._row_keys is None and self._col_keys is not None:
+            return self._parent._row_indices
         else:
-            raise KeyError(get_nice_field_error(self, item))
+            return self._parent._global_indices
 
     @typecheck_method(item=str)
     def __getitem__(self, item):
         return self._get_field(item)
 
     def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
+        if item in self._parent.__dict__:
+            return self._parent.__dict__[item]
         else:
-            raise AttributeError(get_nice_attr_error(self, item))
+            raise AttributeError(get_nice_attr_error(self._parent, item))
+
+    def _process_keys(self, left):
+        row_keys = []
+        col_keys = []
+        renamed = {}
+        new_row_fields = {}
+        new_col_fields = {}
+
+        if self._row_keys is not None:
+            for k, v in self._row_keys.items():
+                if v in self._parent._fields_inverse:
+                    f = self._parent._fields_inverse[v]
+                else:
+                    f = Env._get_uid()
+                    new_row_fields[f] = v
+                row_keys.append(f)
+                if k != f:
+                    renamed[f] = k
+            left = left.annotate_rows(**new_row_fields)
+        if self._col_keys is not None:
+            for k, v in self._col_keys.items():
+                if v in self._parent._fields_inverse:
+                    f = self._parent._fields_inverse[v]
+                else:
+                    f = Env._get_uid()
+                new_col_fields[f] = v
+                col_keys.append(f)
+                if k != f:
+                    renamed[f] = k
+            left = left.annotate_cols(**new_col_fields)
+
+        self._new_row_keys = row_keys
+        self._new_col_keys = col_keys
+
+        def cleanup(mt):
+            return mt.rename(renamed)
+        return left, cleanup
+
+    def describe(self):
+        """Print information about grouped matrix table."""
+
+        if self._row_keys is None:
+            rowstr = ""
+        else:
+            rowstr = "\nRows: \n" + "\n    ".join(["{}: {}".format(k, v._type) for k, v in self._row_keys.items()])
+            if self._partition_key:
+                rowstr += "\n  Partition by: {}".format(self._partition_key)
+
+        if self._col_keys is None:
+            colstr = ""
+        else:
+            colstr = "\nColumns: \n" + "\n    ".join(["{}: {}".format(k, v) for k, v in self._col_keys.items()])
+
+        s = '----------------------------------------\n' \
+        'GroupedMatrixTable grouped by {}\n' \
+        '----------------------------------------\n' \
+        'Parent MatrixTable:\n'.format(
+            rowstr,
+            colstr,
+            self._partition_key)
+
+        print(s)
+        self._parent.describe()
+
+
+    @typecheck_method(exprs=oneof(str, Expression),
+                      named_exprs=oneof(str, Expression))
+    def group_rows_by(self, *exprs, **named_exprs):
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
+
+        Examples
+        --------
+        Aggregate to a matrix with genes as row keys, computing the number of
+        non-reference calls as an entry field:
+
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+
+        Notes
+        -----
+        All complex expressions must be passed as named expressions.
+
+        Parameters
+        ----------
+        exprs : args of :obj:`str` or :class:`.Expression`
+            Row fields to group by.
+        named_exprs : keyword args of :class:`.Expression`
+            Row-indexed expressions to group by.
+
+        Returns
+        -------
+        :class:`.GroupedMatrixTable`
+        Grouped matrix. Can be used to call :meth:`.GroupedMatrixTable.aggregate`.
+        """
+        if self._row_keys:
+            raise NotImplementedError("GroupedMatrixTable is already grouped by rows.")
+        if self._col_keys:
+            raise NotImplementedError("GroupedMatrixTable is already grouped by cols; cannot also group by rows.")
+        new_keys = {}
+        kept_fields = [f.name for f in self._parent.global_schema.fields]
+        if self._col_keys is None:
+            kept_fields.extend([f.name for f in self._parent.col_schema.fields])
+
+        for e in exprs:
+            if isinstance(e, str):
+                e = self[e]
+            else:
+                e = to_expr(e)
+            analyze('MatrixTable.group_rows_by', e, self._parent._row_indices)
+            ast = e._ast.expand()
+            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
+                raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
+            key = ast[0].name
+
+            if key in new_keys or key in kept_fields:
+                raise ExpressionException("method 'group_rows_by' found duplicate field: {}".format(key))
+            new_keys[key] = e
+
+        for key, e in named_exprs.items():
+            if key in new_keys or key in kept_fields:
+                raise ExpressionException("method 'group_rows_by' found duplicate field: {}".format(key))
+            new_keys[key] = e
+
+        return GroupedMatrixTable(self._parent, row_keys=new_keys)
+
+    @typecheck_method(exprs=oneof(str, Expression),
+                      named_exprs=oneof(str, Expression))
+    def group_cols_by(self, *exprs, **named_exprs):
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
+
+        Examples
+        --------
+        Aggregate to a matrix with cohort as column keys, computing the call rate
+        as an entry field:
+
+        .. testsetup::
+
+            dataset = dataset.annotate_cols(cohort = 'cohort')
+
+        >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
+        ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
+
+        Notes
+        -----
+        All complex expressions must be passed as named expressions.
+
+        Parameters
+        ----------
+        exprs : args of :obj:`str` or :class:`.Expression`
+            Column fields to group by.
+        named_exprs : keyword args of :class:`.Expression`
+            Column-indexed expressions to group by.
+
+        Returns
+        -------
+        :class:`.GroupedMatrixTable`
+            Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
+        """
+        if self._row_keys:
+            raise NotImplementedError("GroupedMatrixTable is already grouped by rows; cannot also group by cols.")
+        if self._col_keys:
+            raise NotImplementedError("GroupedMatrixTable is already grouped by cols.")
+        new_keys = {}
+        kept_fields = [f.name for f in self._parent.global_schema.fields]
+        if self._row_keys is None:
+            kept_fields.extend([f.name for f in self._parent.row_schema.fields])
+
+        for e in exprs:
+            if isinstance(e, str):
+                e = self[e]
+            else:
+                e = to_expr(e)
+            analyze('MatrixTable.group_cols_by', e, self._parent._col_indices)
+            ast = e._ast.expand()
+            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
+                raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
+            key = ast[0].name
+            if key in new_keys or key in kept_fields:
+                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
+            new_keys[key] = e
+
+        for key, e in named_exprs.items():
+            if key in new_keys or key in kept_fields:
+                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
+            new_keys[key] = e
+
+        return GroupedMatrixTable(self._parent, col_keys=new_keys)
 
     def partition_by(self, *fields):
         """Set the partition key.
@@ -58,7 +247,8 @@ class GroupedMatrixTable(object):
         Parameters
         ----------
         fields : varargs of :obj:`str`
-            Fields to partition by. Must be a prefix of the key.
+            Row partition key. Must be a a prefix of the key. By default, the
+            partition key is the entire key.
 
         Returns
         -------
@@ -70,7 +260,9 @@ class GroupedMatrixTable(object):
             raise ValueError('require at least one partition field')
         if not fields == tuple(name for name, _ in self._groups[:len(fields)]):
             raise ValueError('Expect partition fields to be a prefix of the keys {}'.format(
-                ', '.join("'{}'".format(name) for name, _ in self._groups)))
+                ', '.join("'{}'".format(name) for name in self._keys)))
+        self._partition_key = fields
+        return self
 
     def partition_hint(self, n):
         """Set the target number of partitions for aggregation.
@@ -110,16 +302,6 @@ class GroupedMatrixTable(object):
         self._partitions = n
         return self
 
-    def _set_field(self, key, value):
-        assert key not in self._fields, key
-        self._fields[key] = value
-        self._fields_inverse[value] = key
-        if key in dir(self):
-            warn("Name collision: field '{}' already in object dict."
-                 " This field must be referenced with indexing syntax".format(key))
-        else:
-            self.__dict__[key] = value
-
     def aggregate(self, **named_exprs):
         """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
 
@@ -141,26 +323,44 @@ class GroupedMatrixTable(object):
         :class:`.MatrixTable`
             Aggregated matrix table.
         """
+
+        assert self._row_keys is not None or self._col_keys is not None
+
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
 
-        base, cleanup = self._parent._process_joins(*itertools.chain(
-            [x for _, x in self._groups], named_exprs.values()))
+        fixed_fields = [f.name for f in self._parent.global_schema.fields]
+        if self._row_keys is not None:
+            fixed_fields.extend(self._row_keys.keys())
+        else:
+            fixed_fields.extend([f.name for f in self._parent.row_schema.fields])
+        if self._col_keys is not None:
+            fixed_fields.extend(self._col_keys.keys())
+        else:
+            fixed_fields.extend([f.name for f in self._parent.col_schema.fields])
+
+        base, _ = self._parent._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze('GroupedMatrixTable.aggregate', v, self._grouped_indices,
+            if k in fixed_fields:
+                raise ExpressionException("GroupedMatrixTable.aggregate cannot assign duplicate field '{}'".format(k))
+            analyze('GroupedMatrixTable.aggregate', v, self._fixed_indices(),
                     {self._parent._row_axis, self._parent._col_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        key_strs = ['{} = {}'.format(escape_id(id), e._ast.to_hql()) for id, e in self._groups]
-        if self._grouped_indices == self._parent._row_indices:
-            # group rows
-            return cleanup(
-                MatrixTable(base._jvds.groupRowsBy(','.join(key_strs), ',\n'.join(strs), self._partition_key)))
+        base, rename = self._process_keys(base)
+
+
+        if self._col_keys is not None:
+            assert self._new_col_keys is not None
+            base = MatrixTable(base.key_cols_by(*self._new_col_keys)._jvds
+                               .groupSamplesBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]), ',\n'.join(strs)))
+        elif self._row_keys is not None:
+            base = MatrixTable(base.key_rows_by(*self._new_row_keys, partition_key=self._partition_key)._jvds.aggregateRowsByKey(',\n'.join(strs)))
         else:
-            assert self._grouped_indices == self._parent._col_indices
-            # group cols
-            return cleanup(MatrixTable(base._jvds.groupSamplesBy(','.join(key_strs), ',\n'.join(strs))))
+            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
+
+        return rename(base)
 
     def __iter__(self):
         raise TypeError("'GroupedMatrixTable' object is not iterable")
@@ -531,34 +731,48 @@ class MatrixTable(object):
                 str_keys.append(k)
         return MatrixTable(self._jvds.keyColsBy(str_keys))
 
-    @typecheck_method(keys=oneof(str, Expression))
-    def key_rows_by(self, *keys):
+    @typecheck_method(keys=oneof(str, Expression),
+                      partition_key=nullable(oneof(oneof(str, Expression), listof(oneof(str, Expression)))))
+    def key_rows_by(self, *keys, partition_key=None):
         """Key rows by a new set of fields.
 
         Parameters
         ----------
-        keys : varargs of :obj:`str`
+        keys : varargs of :obj:`str` or :class:`.Expression`.
             Row fields to key by.
+        partition_key : :obj:`str` or :class:`.Expression`, or :obj:`list` of :obj:`str` or :class:`.Expression`, optional
+            Row fields to partition by. Must be a prefix of the key.
+            Default: all keys.
         Returns
         -------
         :class:`.MatrixTable`
         """
-        str_keys = []
-        for k in keys:
+
+        def check_ref(key):
             if isinstance(k, Expression):
                 if k not in self._fields_inverse:
                     raise ExpressionException("'key_rows_by' permits only top-level fields of the matrix table")
                 elif k._indices != self._row_indices:
                     raise ExpressionException("key_rows_by' expects row fields, found index {}"
                                               .format(list(k._indices.axes)))
-                str_keys.append(self._fields_inverse[k])
+                return self._fields_inverse[k]
             else:
-                if k not in self._fields:
-                    raise LookupError(get_nice_field_error(self, k))
-                if not self._fields[k]._indices == self._row_indices:
+                if not self._get_field(k)._indices == self._row_indices:
                     raise ValueError("'{}' is not a row field".format(k))
-                str_keys.append(k)
-        return MatrixTable(self._jvds.keyRowsBy(str_keys, str_keys))
+                return key
+        str_keys = []
+
+        for k in keys:
+            str_keys.append(check_ref(k))
+
+        if partition_key == None:
+            str_pks = str_keys
+        else:
+            str_pks = []
+            for k in wrap_to_tuple(partition_key):
+                str_pks.append(check_ref(k))
+
+        return MatrixTable(self._jvds.keyRowsBy(str_keys, str_pks))
 
     def annotate_globals(self, **named_exprs):
         """Create new global fields by name.
@@ -1635,7 +1849,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.explodeSamples(s))
 
     def group_rows_by(self, *exprs, **named_exprs):
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
@@ -1647,40 +1861,25 @@ class MatrixTable(object):
 
         Notes
         -----
-        The `key_expr` argument can either be a string referring to a row-indexed field
-        of the dataset, or an expression that will become the new row key.
+        All complex expressions must be passed as named expressions.
 
         Parameters
         ----------
-        key_expr : str or :class:`.Expression`
-            Field name or expression to use as new row key.
+        exprs : args of :obj:`str` or :class:`.Expression`
+            Row fields to group by.
+        named_exprs : keyword args of :class:`.Expression`
+            Row-indexed expressions to group by.
 
         Returns
         -------
         :class:`.GroupedMatrixTable`
-            Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
+            Grouped matrix. Can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
-        groups = []
-        for e in exprs:
-            if isinstance(e, str):
-                e = self[e]
-            else:
-                e = to_expr(e)
-            analyze('MatrixTable.group_rows_by', e, self._row_indices)
-            ast = e._ast.expand()
-            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
-                raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = ast[0].name
-            groups.append((key, e))
-        for k, e in named_exprs.items():
-            e = to_expr(e)
-            analyze('MatrixTable.group_rows_by', e, self._row_indices)
-            groups.append((k, e))
 
-        return GroupedMatrixTable(self, groups, self._row_indices)
+        return GroupedMatrixTable(self).group_rows_by(*exprs, **named_exprs)
 
     def group_cols_by(self, *exprs, **named_exprs):
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
@@ -1696,20 +1895,21 @@ class MatrixTable(object):
 
         Notes
         -----
-        The `key_expr` argument can either be a string referring to a column-indexed
-        field of the dataset, or an expression that will become the new column key.
+        All complex expressions must be passed as named expressions.
 
         Parameters
         ----------
-        key_expr : str or :class:`.Expression`
-            Field name or expression to use as new column key.
+        exprs : args of :obj:`str` or :class:`.Expression`
+            Column fields to group by.
+        named_exprs : keyword args of :class:`.Expression`
+            Column-indexed expressions to group by.
 
         Returns
         -------
         :class:`.GroupedMatrixTable`
             Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
-        groups = []
+        new_keys = []
         for e in exprs:
             if isinstance(e, str):
                 e = self[e]
@@ -1718,15 +1918,19 @@ class MatrixTable(object):
             analyze('MatrixTable.group_cols_by', e, self._col_indices)
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
-                raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
+                raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
             key = ast[0].name
-            groups.append((key, e))
-        for k, e in named_exprs.items():
-            e = to_expr(e)
-            analyze('MatrixTable.group_cols_by', e, self._col_indices)
-            groups.append((k, e))
+            if key in new_keys:
+                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
+            new_keys.append(key)
 
-        return GroupedMatrixTable(self, groups, self._col_indices)
+        ds = self.annotate_cols(**named_exprs)
+        for key in named_exprs.keys():
+            if key in new_keys:
+                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
+            new_keys.append(key)
+
+        return GroupedMatrixTable(self).group_cols_by(*exprs, **named_exprs)
 
     def count_rows(self):
         """Count the number of rows in the matrix.

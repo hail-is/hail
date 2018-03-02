@@ -661,65 +661,63 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def groupRowsBy(keyExpr: String, aggExpr: String, partitionKey: java.util.ArrayList[String]): MatrixTable =
-    groupRowsBy(keyExpr, aggExpr, Option(partitionKey).map(_.asScala.toArray))
+  def aggregateRowsByKey(aggExpr: String): MatrixTable = {
 
-  def groupRowsBy(keyExpr: String, aggExpr: String, partitionKey: Option[Array[String]] = None): MatrixTable = {
-    val fullRowType = rvRowType
-    val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
-      "va" -> (1, rowType)))
-    vEC.set(0, globals)
-    val (keyNames, keyTypes, keyFs) = Parser.parseNamedExprs(keyExpr, vEC)
-    partitionKey.foreach(pk => assert(keyNames.startsWith(pk)))
-    partitionKey.foreach(pk => assert(pk.nonEmpty))
-
-    val keyStruct = TStruct(keyNames.zip(keyTypes): _*)
-
-    val SampleFunctions(zero, seqOp, combOp, resultOp, newEntryType) = Aggregators.makeSampleFunctions(this, aggExpr)
-    val pk: IndexedSeq[String] = partitionKey.map(_.toFastIndexedSeq).getOrElse(keyNames.toFastIndexedSeq)
+    val SampleFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeSampleFunctions(this, aggExpr)
+    val newRowType = matrixType.orvdType.kType
     val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
-      pk, keyNames, keyStruct, newEntryType)
+      rowPartitionKey, rowKey, newRowType, newEntryType)
 
-    val localRowType = rowType
-    val localEntriesIndex = entriesIndex
-    val keyedRDD = rvd.rdd.mapPartitions { it =>
-      val fullRow = new UnsafeRow(fullRowType)
-      it.map { rv =>
-        fullRow.set(rv)
-        val row = fullRow.deleteField(localEntriesIndex)
-        vEC.set(1, row)
-        val k = Annotation.copy(keyStruct, Row.fromSeq(keyFs()))
-        k -> rv
-      }
-    }
-
-    // FIXME: this shuffles twice
     val newRVType = newMatrixType.rvRowType
-    val rdd = keyedRDD
-      .aggregateByKey(zero)(seqOp, combOp)
-      .mapPartitions { it =>
+    val localRVType = rvRowType
+    val selectIdx = matrixType.orvdType.kRowFieldIdx
+    val keyOrd = matrixType.orvdType.kRowOrd
+
+    val newRVD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+      new Iterator[RegionValue] {
+        var isEnd = false
+        var current: RegionValue = null
+        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
         val region = Region()
-        val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
-        it.map { case (key, agg) =>
-          val k = key.asInstanceOf[Row]
+        val newRV = RegionValue(region)
+
+        def hasNext: Boolean = {
+          if (isEnd || (current == null && !it.hasNext)) {
+            isEnd = true
+            return false
+          }
+          if (current == null)
+            current = it.next()
+          true
+        }
+
+        def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+          rvRowKey.setSelect(localRVType, selectIdx, current)
+          var aggs = zero()
+          while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
+            aggs = seqOp(aggs, current)
+            current = null
+          }
           region.clear()
           rvb.start(newRVType)
           rvb.startStruct()
           var i = 0
-          while (i < keyStruct.size) {
-            rvb.addAnnotation(keyStruct.types(i), k.get(i))
+          while (i < newRowType.size) {
+            rvb.addField(newRowType, rvRowKey.value, i)
             i += 1
           }
-          resultOp(agg, rvb)
+          resultOp(aggs, rvb)
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+          newRV.setOffset(rvb.end())
+          newRV
         }
       }
+    }
 
-    copyMT(rvd = OrderedRVD(newMatrixType.orvdType, rdd, None, None),
-      matrixType = newMatrixType)
+    copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
 
   def annotateGlobal(a: Annotation, t: Type, path: String*): MatrixTable = {

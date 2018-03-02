@@ -691,6 +691,82 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(et.all(et.idx == et.entry_idx))
 
 
+class GroupedMatrixTests(unittest.TestCase):
+
+    def get_groupable_matrix(self):
+        rt = hl.utils.range_matrix_table(n_rows=100, n_cols=20)
+        rt = rt.annotate_globals(foo="foo")
+        rt = rt.annotate_rows(group1=rt['row_idx'] % 6,
+                              group2=hl.Struct(a=rt['row_idx'] % 6,
+                                                 b="foo"))
+        rt = rt.annotate_cols(group3=rt['col_idx'] % 6,
+                              group4=hl.Struct(a=rt['col_idx'] % 6,
+                                                 b="foo"))
+        return rt.annotate_entries(c=rt['row_idx'],
+                                   d=rt['col_idx'],
+                                   e="foo",
+                                   f=rt['group1'],
+                                   g=rt['group2']['a'],
+                                   h=rt['group3'],
+                                   i=rt['group4']['a'])
+
+    def test_errors_caught_correctly(self):
+
+        from hail.expr.expression import ExpressionException
+
+        mt = self.get_groupable_matrix()
+        self.assertRaises(ExpressionException, mt.group_rows_by, mt['group1'] + 1)
+        self.assertRaises(ExpressionException, mt.group_cols_by, mt['group1'])
+        self.assertRaises(ExpressionException, mt.group_cols_by, mt['group3'] + 1)
+        self.assertRaises(ExpressionException, mt.group_rows_by, mt['group3'])
+        self.assertRaises(ExpressionException, mt.group_rows_by, group3=mt['group1'])
+        self.assertRaises(ExpressionException, mt.group_cols_by, group1=mt['group3'])
+        self.assertRaises(ExpressionException, mt.group_rows_by, foo=mt['group1'])
+        self.assertRaises(ExpressionException, mt.group_cols_by, foo=mt['group3'])
+
+        a = mt.group_rows_by(group5=(mt['group2']['a'] + 1))
+        self.assertRaises(ExpressionException, a.aggregate, group3=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate, group5=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate, foo=hl.agg.sum(mt['c']))
+
+        b = mt.group_cols_by(group5=(mt['group4']['a'] + 1))
+        self.assertRaises(ExpressionException, b.aggregate, group1=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate, group5=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate, foo=hl.agg.sum(mt['c']))
+
+
+    def test_fields_work_correctly(self):
+        mt = self.get_groupable_matrix()
+        a = mt.group_rows_by(mt['group1']).aggregate(c=hl.agg.sum(mt['c']))
+        self.assertEqual(a.count_rows(), 6)
+        self.assertTrue('group1' in a.row_key)
+
+        b = mt.group_cols_by(mt['group3']).aggregate(c=hl.agg.sum(mt['c']))
+        self.assertEqual(b.count_cols(), 6)
+        self.assertTrue('group3' in b.col_key)
+
+    def test_nested_fields_work_correctly(self):
+        mt = self.get_groupable_matrix()
+        a = mt.group_rows_by(mt['group2']['a']).aggregate(c=hl.agg.sum(mt['c']))
+        self.assertEqual(a.count_rows(), 6)
+        self.assertTrue('a' in a.row_key)
+
+        b = mt.group_cols_by(mt['group4']['a']).aggregate(c=hl.agg.sum(mt['c']))
+        self.assertEqual(b.count_cols(), 6)
+        self.assertTrue('a' in b.col_key)
+
+    def test_named_fields_work_correctly(self):
+        mt = self.get_groupable_matrix()
+        a = mt.group_rows_by(group5=(mt['group2']['a'] + 1)).aggregate(c=hl.agg.sum(mt['c']))
+        self.assertEqual(a.count_rows(), 6)
+        self.assertTrue('group5' in a.row_key)
+
+        b = mt.group_cols_by(group5=(mt['group4']['a'] + 1)).aggregate(c=hl.agg.sum(mt['c']))
+        self.assertEqual(b.count_cols(), 6)
+        self.assertTrue('group5' in b.col_key)
+
+
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr,
