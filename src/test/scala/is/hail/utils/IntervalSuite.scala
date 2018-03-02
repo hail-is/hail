@@ -39,6 +39,20 @@ class IntervalSuite extends TestNGSuite {
     }
   }
 
+  @Test def interval_agrees_with_set_interval_greater_than_point() {
+    for (set_interval <- test_intervals; p <- points) {
+      val interval = set_interval.interval
+      assertEquals(interval.greaterThanPoint(pord, p), set_interval.doubledPointSet.forall(dp => dp > 2*p))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_less_than_point() {
+    for (set_interval <- test_intervals; p <- points) {
+      val interval = set_interval.interval
+      assertEquals(interval.lessThanPoint(pord, p), set_interval.doubledPointSet.forall(dp => dp < 2*p))
+    }
+  }
+
   @Test def interval_agrees_with_set_interval_contains() {
     for (set_interval <- test_intervals; p <- points) {
       val interval = set_interval.interval

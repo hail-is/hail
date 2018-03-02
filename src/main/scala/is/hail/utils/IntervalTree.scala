@@ -25,6 +25,18 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     !definitelyDisjoint(pord, other)
   }
 
+  def greaterThanPoint(pord: ExtendedOrdering, p: Any): Boolean =
+    definitelyEmpty(pord) || {
+      val c = pord.compare(p, start)
+      c < 0 || (!includeStart && c == 0)
+    }
+
+  def lessThanPoint(pord: ExtendedOrdering, p: Any): Boolean =
+    definitelyEmpty(pord) || {
+      val c = pord.compare(p, end)
+      c > 0 || (!includeEnd && c == 0)
+    }
+
   def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
     definitelyEmpty(pord) || other.definitelyEmpty(pord) ||
       disjointAndLessThan(pord, other) || disjointAndGreaterThan(pord, other)
