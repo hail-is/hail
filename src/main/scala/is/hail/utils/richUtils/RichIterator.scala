@@ -5,7 +5,22 @@ import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.io.Source
 
+import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
+
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
+  def toStagingIterator: StagingIterator[T] = {
+    val bit = it.buffered
+    StagingIterator(
+      new StateMachine[T] {
+        def value: T = bit.head
+        def isValid = bit.hasNext
+        def advance() { bit.next() }
+      }
+    )
+  }
+
+  def toFlipbookIterator: FlipbookIterator[T] = toStagingIterator
+
   def foreachBetween(f: (T) => Unit)(g: => Unit) {
     if (it.hasNext) {
       f(it.next())

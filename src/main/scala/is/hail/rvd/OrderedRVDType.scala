@@ -47,6 +47,22 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
+  def kComp(other: OrderedRVDType): UnsafeOrdering =
+    OrderedRVDType.selectUnsafeOrdering(
+      this.rowType,
+      this.kRowFieldIdx,
+      other.rowType,
+      other.kRowFieldIdx)
+
+  def kRowOrdView = new OrderingView[RegionValue] {
+    val wrv = WritableRegionValue(kType)
+    def setFiniteValue(representative: RegionValue) {
+      wrv.setSelect(rowType, kRowFieldIdx, representative)
+    }
+    def compareFinite(rv: RegionValue): Int =
+      kRowOrd.compare(wrv.value, rv)
+  }
+
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))

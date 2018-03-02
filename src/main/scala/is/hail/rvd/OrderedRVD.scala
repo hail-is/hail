@@ -296,71 +296,32 @@ class OrderedRVD private(
     val newRowType = newTyp.rowType
 
     val newRDD: RDD[RegionValue] = rdd.mapPartitions { it =>
-      new Iterator[RegionValue] {
-        val wrv = WritableRegionValue(typ.kType)
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      val outRV = RegionValue(region)
+      val buffer = new RegionValueArrayBuffer(typ.valueType)
+      val stepped: FlipbookIterator[FlipbookIterator[RegionValue]] =
+        OrderedRVIterator(typ, it).staircase
 
-        var peekRV: RegionValue =
-          if (it.hasNext)
-            it.next()
-          else
-            null
-
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        val rv2 = RegionValue(region)
-
-        val ab = new ArrayBuilder[Long]()
-
-        var present: Boolean = false
-
-        def advance() {
-          region.clear()
-          assert(ab.isEmpty)
-
-          wrv.setSelect(typ.rowType, typ.kRowFieldIdx, peekRV)
-          do {
-            rvb.start(typ.valueType)
-            rvb.startStruct()
-            rvb.addFields(typ.rowType, peekRV, typ.valueFieldIdx)
-            rvb.endStruct()
-            ab += rvb.end()
-            peekRV = if (it.hasNext) it.next() else null
-          } while (peekRV != null
-            && typ.kRowOrd.compare(wrv.region, wrv.offset, peekRV) == 0)
-
-          rvb.start(newRowType)
-          rvb.startStruct()
-          var i = 0
-          while (i < typ.kType.size) {
-            rvb.addField(typ.kType, wrv.value, i)
-            i += 1
-          }
-          rvb.startArray(ab.length)
-          i = 0
-          while (i < ab.length) {
-            rvb.addRegionValue(typ.valueType, region, ab(i))
-            i += 1
-          }
-          ab.clear()
-          rvb.endArray()
-          rvb.endStruct()
-          rv2.setOffset(rvb.end())
-
-          present = true
+      stepped.map { stepIt =>
+        region.clear()
+        buffer.clear()
+        rvb.start(newRowType)
+        rvb.startStruct()
+        var i = 0
+        while (i < typ.kType.size) {
+          rvb.addField(typ.rowType, stepIt.value, typ.kRowFieldIdx(i))
+          i += 1
         }
-
-        def hasNext: Boolean = {
-          if (!present && peekRV != null)
-            advance()
-          present
-        }
-
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new NoSuchElementException("next on empty iterator")
-          present = false
-          rv2
-        }
+        for (rv <- stepIt)
+          buffer.appendSelect(typ.rowType, typ.valueFieldIdx, rv)
+        rvb.startArray(buffer.length)
+        for (rv <- buffer)
+          rvb.addRegionValue(typ.valueType, rv)
+        rvb.endArray()
+        rvb.endStruct()
+        outRV.setOffset(rvb.end())
+        outRV
       }
     }
 

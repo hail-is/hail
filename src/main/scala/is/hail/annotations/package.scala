@@ -1,4 +1,5 @@
 package is.hail
+import is.hail.utils.Muple
 
 package object annotations {
 
@@ -19,4 +20,6 @@ package object annotations {
   type Filterer = (Annotation) => Annotation
 
   type UnsafeInserter = (Region, Long, RegionValueBuilder, () => Unit) => Unit
+
+  type JoinedRegionValue = Muple[RegionValue, RegionValue]
 }

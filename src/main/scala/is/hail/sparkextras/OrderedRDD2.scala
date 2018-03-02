@@ -55,85 +55,20 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
     }
 
     joinType match {
-      case "inner" => new OrderedInnerJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
-      case "left" => new OrderedLeftJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
+      case "inner" => OrderedRVIterator(left.typ, leftIt)
+        .innerJoinDistinct(OrderedRVIterator(right.typ, rightIt))
+      case "left" => OrderedRVIterator(left.typ, leftIt)
+          .leftJoinDistinct(OrderedRVIterator(right.typ, rightIt))
       case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }
 }
 
-class OrderedZipJoinIterator(
-  leftTyp: OrderedRVDType, rightTyp: OrderedRVDType,
-  lit: Iterator[RegionValue], rit: Iterator[RegionValue])
-  extends Iterator[JoinedRegionValue] {
-
-  private val lrKOrd = OrderedRVDType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
-
-  val jrv = JoinedRegionValue()
-  var present: Boolean = false
-
-  var lrv: RegionValue = _
-  var rrv: RegionValue = _
-
-  def nextLeft() {
-    if (lrv == null && lit.hasNext)
-      lrv = lit.next()
-  }
-
-  def nextRight() {
-    if (rrv == null && rit.hasNext)
-      rrv = rit.next()
-  }
-
-  def hasNext: Boolean = {
-    if (!present) {
-      nextLeft()
-      nextRight()
-
-      val c = {
-        if (lrv != null) {
-          if (rrv != null)
-            lrKOrd.compare(lrv, rrv)
-          else
-            -1
-        } else if (rrv != null)
-          1
-        else {
-          assert(!lit.hasNext && !rit.hasNext)
-          return false
-        }
-      }
-
-      if (c == 0) {
-        jrv.rvLeft = lrv
-        jrv.rvRight = rrv
-        lrv = null
-        rrv = null
-      } else if (c < 0) {
-        jrv.rvLeft = lrv
-        lrv = null
-        jrv.rvRight = null
-      } else {
-        // c > 0
-        jrv.rvLeft = null
-        jrv.rvRight = rrv
-        rrv = null
-      }
-      present = true
-    }
-
-    present
-  }
-
-  def next(): JoinedRegionValue = {
-    if (!hasNext)
-      throw new NoSuchElementException("next on empty iterator")
-    present = false
-    jrv
-  }
-}
-
-case class OrderedZipJoinRDDPartition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
+case class OrderedZipJoinRDDPartition(
+    index: Int,
+    leftPartition: Partition,
+    rightPartitions: Array[Partition])
+  extends Partition
 
 class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
   extends RDD[JoinedRegionValue](left.sparkContext,
@@ -159,7 +94,8 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
           .toArray))
   }
 
-  override def getPreferredLocations(split: Partition): Seq[String] = left.rdd.preferredLocations(split)
+  override def getPreferredLocations(split: Partition): Seq[String] =
+    left.rdd.preferredLocations(split)
 
   override def compute(split: Partition, context: TaskContext): Iterator[JoinedRegionValue] = {
     val partition = split.asInstanceOf[OrderedZipJoinRDDPartition]
@@ -171,6 +107,6 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     }
       .filter { rrv => leftPartitionForRightRow.getPartition(rrv) == index }
 
-    new OrderedZipJoinIterator(left.typ, right.typ, leftIt, rightIt)
+    OrderedRVIterator(left.typ, leftIt).zipJoin(OrderedRVIterator(right.typ, rightIt))
   }
 }

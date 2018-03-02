@@ -760,8 +760,14 @@ class Table(val hc: HailContext, val ir: TableIR) {
     )
   }
 
-  def toMatrixTable(rowKeys: Array[String], colKeys: Array[String], rowFields: Array[String], colFields: Array[String],
-    partitionKeys: Array[String], nPartitions: Option[Int] = None): MatrixTable = {
+  def toMatrixTable(
+    rowKeys: Array[String],
+    colKeys: Array[String],
+    rowFields: Array[String],
+    colFields: Array[String],
+    partitionKeys: Array[String],
+    nPartitions: Option[Int] = None
+  ): MatrixTable = {
 
     // all keys accounted for
     assert(rowKeys.length + colKeys.length == key.length)
@@ -857,7 +863,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val ordType = new OrderedRVDType(partitionKeys, rowKeys ++ Array(INDEX_UID), rowEntryStruct)
     val ordered = OrderedRVD(ordType, rowEntryRVD.rdd, None, None)
 
-    val matrixType: MatrixType = MatrixType.fromParts(globalSignature,
+    val matrixType: MatrixType = MatrixType.fromParts(
+      globalSignature,
       colKeys,
       colType,
       partitionKeys,
@@ -876,71 +883,47 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val orderedRKStruct = matrixType.rowKeyStruct
 
     val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
-      new Iterator[RegionValue] {
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
-        var rvRowKey: WritableRegionValue = WritableRegionValue(orderedRKStruct)
-        var currentRowKey: WritableRegionValue = WritableRegionValue(orderedRKStruct)
-        var current: RegionValue = null
-        var isEnd: Boolean = false
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      val outRV = RegionValue(region)
 
-        def hasNext: Boolean = {
-          if (isEnd || (current == null && !it.hasNext)) {
-            isEnd = true
-            return false
-          }
-          if (current == null)
-            current = it.next()
-
-          currentRowKey.setSelect(rowEntryStruct, orderedRKIndices, current)
-          true
+      OrderedRVIterator(
+        new OrderedRVDType(partitionKeys, rowKeys, rowEntryStruct),
+        it
+      ).staircase.map { rowIt =>
+        region.clear()
+        rvb.start(newRVType)
+        rvb.startStruct()
+        var i = 0
+        while (i < orderedRowIndices.length) {
+          rvb.addField(rowEntryStruct, rowIt.value, orderedRowIndices(i))
+          i += 1
         }
-
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new java.util.NoSuchElementException()
-          region.clear()
-          rvb.start(newRVType)
-          rvb.startStruct()
-          var i = 0
-          while (i < orderedRowIndices.length) {
-            rvb.addField(rowEntryStruct, current, orderedRowIndices(i))
-            i += 1
-          }
-
-          rvRowKey.setSelect(rowEntryStruct, orderedRKIndices, current)
-
-          rvb.startArray(nCols)
-          i = 0
-
-          // hasNext updates current
-          while (i < nCols && hasNext && orderedRKStruct.unsafeOrdering().compare(rvRowKey.value, currentRowKey.value) == 0) {
-            val nextInt = current.region.loadInt(rowEntryStruct.fieldOffset(current.offset, idxIndex))
-            while (i < nextInt) {
-              rvb.setMissing()
-              i += 1
-            }
-
-            rvb.startStruct()
-            var j = 0
-            while (j < orderedEntryIndices.length) {
-              rvb.addField(rowEntryStruct, current, orderedEntryIndices(j))
-              j += 1
-            }
-            rvb.endStruct()
-            current = null
-            i += 1
-          }
-          while (i < nCols) {
+        rvb.startArray(nCols)
+        i = 0
+        for (rv <- rowIt) {
+          val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
+          while (i < nextInt) {
             rvb.setMissing()
             i += 1
           }
-          rvb.endArray()
+          rvb.startStruct()
+          var j = 0
+          while (j < orderedEntryIndices.length) {
+            rvb.addField(rowEntryStruct, rv, orderedEntryIndices(j))
+            j += 1
+          }
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+          i += 1
         }
+        while (i < nCols) {
+          rvb.setMissing()
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+        outRV.setOffset(rvb.end())
+        outRV
       }
     }
     new MatrixTable(hc,
