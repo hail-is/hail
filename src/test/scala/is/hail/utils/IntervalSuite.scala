@@ -62,7 +62,34 @@ class IntervalSuite extends TestNGSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_union() {
+  @Test def interval_agrees_with_set_interval_disjoint_greater_than() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.disjointAndGreaterThan(pord, interval2), set_interval1.disjointAndGreaterThan(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_disjoint_less_than() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.disjointAndLessThan(pord, interval2), set_interval1.disjointAndLessThan(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_mergeable() {
+    for {set_interval1 <- test_intervals
+    set_interval2 <- test_intervals} {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.mergeable(pord, interval2), set_interval1.mergeable(set_interval2))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_merge() {
     for {set_interval1 <- test_intervals
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
@@ -192,16 +219,34 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
 
   def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
 
+  def disjointAndGreaterThan(other: SetInterval): Boolean =
+    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 > p2 ))
+
+  def disjointAndLessThan(other: SetInterval): Boolean =
+    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 < p2 ))
+
+  def mergeable(other: SetInterval): Boolean = {
+    val combinedPoints = doubledPointSet.union(other.doubledPointSet)
+    if (combinedPoints.isEmpty)
+      true
+    else {
+      val start = combinedPoints.min(pord.toOrdering)
+      val end = combinedPoints.max(pord.toOrdering)
+      (start to end).forall(combinedPoints.contains)
+    }
+  }
+
   def unionedPoints(other: SetInterval): Set[Int] = doubledPointSet.union(other.doubledPointSet)
 
   def union(other: SetInterval): Option[SetInterval] = {
     val combined = doubledPointSet.union(other.doubledPointSet)
     if (combined.isEmpty)
       return Some(this)
-    val start = combined.min(pord.toOrdering)
-    val end = combined.max(pord.toOrdering)
-    if ((start to end).forall(combined.contains))
+    if (mergeable(other)) {
+      val start = combined.min(pord.toOrdering)
+      val end = combined.max(pord.toOrdering)
       Some(SetInterval(start / 2, (end + 1) / 2, start % 2 == 0, end % 2 == 0))
+    }
     else None
   }
 

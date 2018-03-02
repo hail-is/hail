@@ -49,27 +49,33 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
       "includeStart" -> TBoolean().toJSON(includeStart),
       "includeEnd" -> TBoolean().toJSON(includeEnd))
 
-  private def disjointAndLessThan(pord: ExtendedOrdering, other: Interval): Boolean = {
-    val c = pord.compare(this.end, other.start)
-    c < 0 || (c == 0 && (!this.includeEnd || !other.includeStart))
-  }
+  def disjointAndLessThan(pord: ExtendedOrdering, other: Interval): Boolean =
+    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
+      val c = pord.compare(this.end, other.start)
+      c < 0 || (c == 0 && (!this.includeEnd || !other.includeStart))
+    }
 
-  private def disjointAndGreaterThan(pord: ExtendedOrdering, other: Interval): Boolean = {
-    val c = pord.compare(this.start, other.end)
-    c > 0 || (c == 0 && (!this.includeStart || !other.includeEnd))
-  }
+  def disjointAndGreaterThan(pord: ExtendedOrdering, other: Interval): Boolean =
+    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
+      val c = pord.compare(this.start, other.end)
+      c > 0 || (c == 0 && (!this.includeStart || !other.includeEnd))
+    }
 
-  private def adjacent(pord: ExtendedOrdering, other: Interval): Boolean = {
-    (pord.equiv(this.start, other.end) && (this.includeStart || other.includeEnd)) ||
-      (pord.equiv(this.end, other.start) && (this.includeEnd || other.includeStart))
-  }
+  def mergeable(pord: ExtendedOrdering, other: Interval): Boolean =
+    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
+      val c = pord.compare(this.start, other.end)
+      c < 0 || (c == 0 && (this.includeStart || other.includeEnd))
+    } && {
+      val c = pord.compare(this.end, other.start)
+      c > 0 || (c == 0 && (this.includeEnd || other.includeStart))
+    }
 
   def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
     (definitelyEmpty(pord), other.definitelyEmpty(pord)) match {
       case (_, true) => Some(this)
       case (true, false) => Some(other)
       case (false, false) =>
-        if (mayOverlap(pord, other) || adjacent(pord, other)) {
+        if (mergeable(pord, other)) {
           val min = Interval.ordering(pord, startPrimary = true).min(this, other).asInstanceOf[Interval]
           val max = Interval.ordering(pord, startPrimary = false).max(this, other).asInstanceOf[Interval]
           Some(Interval(min.start, max.end, min.includeStart, max.includeEnd))
