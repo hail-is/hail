@@ -326,8 +326,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
     val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
 
-    val se_h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
-    val se_h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
+    val seH2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
+    val seH2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
 
     val logDeltaGrid =
       DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.log_delta_grid")._2.asInstanceOf[IndexedSeq[Double]].toArray)
