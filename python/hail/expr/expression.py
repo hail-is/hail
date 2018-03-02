@@ -1973,9 +1973,14 @@ class StructExpression(Mapping, Expression):
     def _init(self):
         self._fields = {}
 
-        for fd in self.dtype.fields:
-            expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
-                                  self._aggregations, self._joins, self._refs)
+        for i in range(len(self.dtype.fields)):
+            fd = self.dtype.fields[i]
+            if isinstance(self._ast, StructDeclaration):
+                expr = construct_expr(self._ast.values[i], fd.dtype, self._indices,
+                                      self._aggregations, self._joins, self._refs)
+            else:
+                expr = construct_expr(Select(self._ast, fd.name), fd.dtype, self._indices,
+                                      self._aggregations, self._joins, self._refs)
             self._set_field(fd.name, expr)
 
     def _set_field(self, key, value):

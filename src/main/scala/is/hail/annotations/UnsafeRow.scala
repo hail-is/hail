@@ -296,6 +296,7 @@ class UnsafeRow(var t: TBaseStruct,
   }
 
   override def write(kryo: Kryo, output: Output) {
+    output.writeBoolean(t.isInstanceOf[TStruct])
     kryo.writeObject(output, t)
 
     val aos = new ByteArrayOutputStream()
@@ -322,7 +323,8 @@ class UnsafeRow(var t: TBaseStruct,
   }
 
   override def read(kryo: Kryo, input: Input) {
-    t = kryo.readObject(input, classOf[TStruct])
+    val isStruct = input.readBoolean()
+    t = kryo.readObject(input, if (isStruct) classOf[TStruct] else classOf[TTuple])
 
     val smallInOff = input.readInt()
     val a = new Array[Byte](smallInOff)
@@ -334,7 +336,7 @@ class UnsafeRow(var t: TBaseStruct,
   }
 
   private def readObject(in: ObjectInputStream) {
-    t = in.readObject().asInstanceOf[TStruct]
+    t = in.readObject().asInstanceOf[TBaseStruct]
 
     val smallInOff = in.readInt()
     val a = new Array[Byte](smallInOff)

@@ -74,6 +74,10 @@ object CodecSpec {
     Array(new DirectCodecSpec(bufferSpec),
       new PackCodecSpec(bufferSpec))
   }
+
+  val supportedCodecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
+    Array(new PackCodecSpec(bufferSpec))
+  }
 }
 
 trait CodecSpec extends Serializable {
