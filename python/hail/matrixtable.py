@@ -162,6 +162,8 @@ class GroupedMatrixTable(object):
             # group cols
             return cleanup(MatrixTable(base._jvds.groupSamplesBy(','.join(key_strs), ',\n'.join(strs))))
 
+    def __iter__(self):
+        raise TypeError("'GroupedMatrixTable' object is not iterable")
 
 matrix_table_type = lazy()
 
@@ -294,6 +296,9 @@ class MatrixTable(object):
             return self.__dict__[item]
         else:
             raise AttributeError(get_nice_attr_error(self, item))
+
+    def __iter__(self):
+        raise TypeError("'MatrixTable' object is not iterable")
 
     @typecheck_method(item=oneof(str, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
                                                     oneof(slice, Expression, tupleof(Expression)))))
