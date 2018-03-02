@@ -2097,7 +2097,7 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        return construct_expr(Select(Reference('global'), uid), self.global_schema,
+        return construct_expr(Select(Reference('global', top_level=True), uid), self.global_schema,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     def view_join_rows(self, *exprs):
@@ -2135,7 +2135,7 @@ class MatrixTable(object):
                 return self.rows().view_join_rows(*exprs)
 
             schema = tstruct.from_fields([f for f in self.row_schema.fields if f.name not in self.row_key])
-            return construct_expr(Select(Reference(prefix), uid),
+            return construct_expr(Select(Reference(prefix, top_level=True), uid),
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
 
@@ -2147,7 +2147,6 @@ class MatrixTable(object):
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
         uid = Env._get_uid()
-        uids_to_delete = [uid]
 
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
@@ -2163,7 +2162,6 @@ class MatrixTable(object):
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
         uid = Env._get_uid()
-        uids_to_delete = [uid]
 
         if isinstance(src, Table):
             # join table with matrix.entries_table()

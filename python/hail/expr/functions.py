@@ -121,7 +121,8 @@ def literal(x, dtype=None):
             else:
                 return hl.MatrixTable(obj._jvds.annotateGlobalJSON(json, dtype._jtype, uid))
 
-        return construct_expr(GlobalJoinReference(uid), dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
+        return construct_expr(Select(Reference('global', top_level=True), uid),
+                              dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)

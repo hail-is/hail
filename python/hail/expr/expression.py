@@ -405,27 +405,44 @@ class Expression(object):
 
         self._verify_sources()
 
-    def __str__(self):
-        return repr(self)
-
-    def __repr__(self):
-        s = "{super_repr}\n  Type: {type}".format(
-            super_repr=super(Expression, self).__repr__(),
-            type=str(self._type),
-        )
-
-        indices = self._indices
-        if len(indices.axes) == 0:
-            s += '\n  Index{agg}: None'.format(agg=' (aggregated)' if self._aggregations else '')
+    def describe(self):
+        """Print information about type, index, and dependencies."""
+        if self._aggregations:
+            agg_indices = set()
+            for a in self._aggregations:
+                agg_indices = agg_indices.union(a.indices.axes)
+            agg_tag = ' (aggregated)'
+            agg_str = f'Includes aggregation with index {list(agg_indices)}\n' \
+                      f'    (Aggregation index may be promoted based on context)'
         else:
-            s += '\n  {ind}{agg}:\n    {index_lines}'.format(ind=plural('Index', len(indices.axes), 'Indices'),
-                                                             agg=' (aggregated)' if self._aggregations else '',
-                                                             index_lines='\n    '.join('{} of {}'.format(
-                                                                 axis, indices.source) for axis in indices.axes))
+            agg_tag = ''
+            agg_str = ''
+
         if self._joins:
-            s += '\n  Dependent on {} {}'.format(len(self._joins),
-                                                 plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
-        return s
+            n_joins = len(self._joins)
+            word = plural('join or literal', n_joins, 'joins or literals')
+            join_str = f'\nDepends on {n_joins} {word}'
+        else:
+            join_str = ''
+
+        bar = '--------------------------------------------------------'
+        s = '{bar}\n' \
+            'Type:\n' \
+            '    {t}\n' \
+            '{bar}\n' \
+            'Source:\n' \
+            '    {src}\n' \
+            'Index:\n' \
+            '    {inds}{agg_tag}{maybe_bar}{agg}{joins}\n' \
+            '{bar}'.format(bar=bar,
+                           t=self.dtype.pretty(indent=4),
+                           src=self._indices.source.__class__,
+                           inds=list(self._indices.axes),
+                           maybe_bar='\n' + bar + '\n' if join_str or agg_str else '',
+                           agg_tag=agg_tag,
+                           agg=agg_str,
+                           joins=join_str)
+        print(s)
 
     def __lt__(self, other):
         raise NotImplementedError("'<' comparison with expression of type {}".format(str(self._type)))
@@ -778,6 +795,7 @@ class Expression(object):
 
         """
         return eval_expr(self)
+
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.tarray` or :class:`.tset`
@@ -2169,19 +2187,6 @@ class StructExpression(Mapping, Expression):
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._aggregations, self._joins, self._refs)
 
-    def describe(self):
-        """Print information about the schema of the struct."""
-        if len(self._fields) == 0:
-            fields = '\n    None'
-        else:
-            fields = ''.join("\n    '{name}': {type} ".format(
-                name=name, type=value.dtype.pretty(indent=4)) for name, value in self._fields.items())
-
-        s = '----------------------------------------\n' \
-            'Fields:{f}\n' \
-            '----------------------------------------'.format(f=fields)
-        print(s)
-
 
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
@@ -3519,6 +3524,7 @@ typ_to_expr = {
     tstruct: StructExpression,
     ttuple: TupleExpression
 }
+
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):
