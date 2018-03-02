@@ -243,11 +243,11 @@ def concordance(left, right):
     Table 2: Concordance statistics per row key
 
         - **v** -- row key.
-        - **n_discordant** (*Long*) -- Count of discordant calls (see below for
+        - **n_discordant** (:py:data:`.tfloat64`) -- Count of discordant calls (see below for
           full definition).
-        - **concordance** (*Array[Array[Long]]*) -- Array of concordance per
-          state on left and right, matching the structure of the global summary
-          defined above.
+        - **concordance** (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
+          Array of concordance per state on left and right, matching the structure of the
+          global summary defined above.
 
     In these tables, the column **n_discordant** is provided as a convenience,
     because this is often one of the most useful concordance statistics. This

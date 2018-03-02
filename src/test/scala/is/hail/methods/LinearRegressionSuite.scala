@@ -378,7 +378,7 @@ class LinearRegressionSuite extends SparkSuite {
                  |linreg.ytx = [va.linreg.ytx[$i]],
                  |linreg.beta = [va.linreg.beta[$i]],
                  |linreg.se = [va.linreg.se[$i]],
-                 |linreg.tstat = [va.linreg.t_stat[$i]],
+                 |linreg.t_stat = [va.linreg.t_stat[$i]],
                  |linreg.p_value = [va.linreg.p_value[$i]]
                  |""".stripMargin),
           root = "mlinreg").annotateRowsExpr("mlinreg = va.mlinreg.linreg")
