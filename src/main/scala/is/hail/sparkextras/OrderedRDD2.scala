@@ -7,6 +7,8 @@ import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
+// make (newPartitioner: OrderedRVDPartitioner, rvd: OrderedRVD)
+// use in RepartitionedOrderedRDD2
 class OrderedDependency(left: OrderedRVD, right: OrderedRVD) extends NarrowDependency[RegionValue](right.rdd) {
   override def getParents(partitionId: Int): Seq[Int] =
     OrderedDependency.getDependencies(left.partitioner, right.partitioner)(partitionId)
