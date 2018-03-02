@@ -62,13 +62,13 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     }
 
   def mergeable(pord: ExtendedOrdering, other: Interval): Boolean =
-    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
+    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || ({
       val c = pord.compare(this.start, other.end)
       c < 0 || (c == 0 && (this.includeStart || other.includeEnd))
     } && {
       val c = pord.compare(this.end, other.start)
       c > 0 || (c == 0 && (this.includeEnd || other.includeStart))
-    }
+    })
 
   def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
     (definitelyEmpty(pord), other.definitelyEmpty(pord)) match {
