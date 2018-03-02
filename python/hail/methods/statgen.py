@@ -2044,7 +2044,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
             ds.entry_schema, hl.hts_entry_schema
         ))
 
-    sm = SplitMulti(ds)
+    sm = SplitMulti(ds, keep_star=keep_star, left_aligned=left_aligned)
     pl = hl.or_missing(
         hl.is_defined(ds.PL),
         (hl.range(0, 3).map(lambda i: hl.min((hl.range(0, hl.triangle(ds.alleles.length()))
