@@ -7,7 +7,7 @@ from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *
 from collections import Mapping, Sequence, OrderedDict
-
+import itertools
 
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(str))
@@ -325,7 +325,7 @@ def unify_all(*exprs):
         from collections import defaultdict
         sources = defaultdict(lambda: [])
         for e in exprs:
-            for name, inds in e._refs:
+            for name, inds in itertools.chain(e._refs, *(a.refs for a in e._aggregations)):
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."
                                   "\n    Found fields from {n} objects:{fields}".format(
