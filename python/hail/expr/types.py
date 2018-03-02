@@ -677,6 +677,7 @@ class tstruct(Type, Mapping):
                 raise TypeError("type 'struct' expected type Mapping (e.g. hail.genetics.Struct or dict), but found '%s'" %
                                 type(annotation))
 
+    @typecheck_method(item=oneof(int, str))
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._field_types[item]
