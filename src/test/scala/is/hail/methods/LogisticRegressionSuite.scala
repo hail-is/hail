@@ -52,7 +52,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .logreg("wald", "sa.pheno.isCase", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
-    val qSe = vds.queryVA("va.logreg.se")._2
+    val qSe = vds.queryVA("va.logreg.standard_error")._2
     val qZstat = vds.queryVA("va.logreg.z_stat")._2
     val qPVal = vds.queryVA("va.logreg.p_value")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
@@ -115,7 +115,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .logreg("wald", "sa.pheno.isCase", "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
-    val qSe = vds.queryVA("va.logreg.se")._2
+    val qSe = vds.queryVA("va.logreg.standard_error")._2
     val qZstat = vds.queryVA("va.logreg.z_stat")._2
     val qPVal = vds.queryVA("va.logreg.p_value")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
@@ -177,7 +177,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .logreg("wald", "sa.pheno.isCase", "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
-    val qSe = vds.queryVA("va.logreg.se")._2
+    val qSe = vds.queryVA("va.logreg.standard_error")._2
     val qZstat = vds.queryVA("va.logreg.z_stat")._2
     val qPVal = vds.queryVA("va.logreg.p_value")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
@@ -239,7 +239,7 @@ class LogisticRegressionSuite extends SparkSuite {
 
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
-    val qChi2 = vds.queryVA("va.logreg.chi2")._2
+    val qChi2 = vds.queryVA("va.logreg.chi_squared")._2
     val qPVal = vds.queryVA("va.logreg.p_value")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
 
@@ -298,7 +298,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .annotateSamplesTable(phenotypes, root = "pheno")
       .logreg("score", "sa.pheno.isCase", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
-    val qChi2 = vds.queryVA("va.logreg.chi2")._2
+    val qChi2 = vds.queryVA("va.logreg.chi_squared")._2
     val qPVal = vds.queryVA("va.logreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
@@ -365,7 +365,7 @@ class LogisticRegressionSuite extends SparkSuite {
     val v5 = Variant("22", 16117953, "G", "C") // MAC   21
 
     val qBeta = vds.queryVA("va.wald.beta")._2
-    val qSe = vds.queryVA("va.wald.se")._2
+    val qSe = vds.queryVA("va.wald.standard_error")._2
     val qZstat = vds.queryVA("va.wald.z_stat")._2
     val qPVal = vds.queryVA("va.wald.p_value")._2
     val qPValLR = vds.queryVA("va.lrt.p_value")._2

@@ -119,8 +119,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles()", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
-    val qSg2 = vds.queryVA("va.lmmreg.sigma_g2")._2
-    val qChi2 = vds.queryVA("va.lmmreg.chi2")._2
+    val qSg2 = vds.queryVA("va.lmmreg.sigma_g_squared")._2
+    val qChi2 = vds.queryVA("va.lmmreg.chi_squared")._2
     val qPval = vds.queryVA("va.lmmreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
@@ -155,8 +155,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
     
     val qBeta1 = vds1.queryVA("va.lmmreg.beta")._2
-    val qSg21 = vds1.queryVA("va.lmmreg.sigma_g2")._2
-    val qChi21 = vds1.queryVA("va.lmmreg.chi2")._2
+    val qSg21 = vds1.queryVA("va.lmmreg.sigma_g_squared")._2
+    val qChi21 = vds1.queryVA("va.lmmreg.chi_squared")._2
     val qPval1 = vds1.queryVA("va.lmmreg.p_value")._2
 
     val a1 = vds1.variantsAndAnnotations.collect().toMap
@@ -271,7 +271,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles()", covariates = covExpr, delta = Some(delta), optDroppedVarianceFraction = Some(0))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
-    val qSg2 = vds.queryVA("va.lmmreg.sigma_g2")._2
+    val qSg2 = vds.queryVA("va.lmmreg.sigma_g_squared")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -312,8 +312,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     .lmmreg(ComputeRRM(vdsFastLMM.filterRowsExpr("""va.locus.contig != "3"""")), "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
 
   @Test def fastLMMTest() {
-    val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
-    val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
+    val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h_squared")._2.asInstanceOf[Double]
+    val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h_squared")._2.asInstanceOf[Double]
 
     assert(D_==(h2Chr1, 0.36733240))
     assert(D_==(h2Chr3, 0.14276117))
@@ -323,11 +323,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
     // Testing that the parabolic approximation of h2 standard error is close to the empirical standard deviation of the
     // normalized likelihood function, e.g. the posterior with uniform prior on [0,1].
 
-    val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
-    val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
+    val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h_squared")._2.asInstanceOf[Double]
+    val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h_squared")._2.asInstanceOf[Double]
 
-    val seH2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
-    val seH2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.se_h2")._2.asInstanceOf[Double]
+    val seH2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.standard_error_h_squared")._2.asInstanceOf[Double]
+    val seH2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.standard_error_h_squared")._2.asInstanceOf[Double]
 
     val logDeltaGrid =
       DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.log_delta_grid")._2.asInstanceOf[IndexedSeq[Double]].toArray)
@@ -370,10 +370,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(math.abs(seH2Chr3 - sdPosterior3) < 0.02) // both are approx 0.13
 
     val h2NormLkhd1 = DenseVector(
-      vdsChr1.queryGlobal("global.lmmreg.fit.norm_likelihood_h2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
+      vdsChr1.queryGlobal("global.lmmreg.fit.normalized_likelihood_h_squared")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
 
     val h2NormLkhd3 = DenseVector(
-      vdsChr3.queryGlobal("global.lmmreg.fit.norm_likelihood_h2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
+      vdsChr3.queryGlobal("global.lmmreg.fit.normalized_likelihood_h_squared")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
 
     // checking that normLkhdH2 is normalized
     assert(D_==(sum(h2NormLkhd1), 1d))
@@ -467,8 +467,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(D_==(vds1.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
       vds2.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
 
-    assert(D_==(vds1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double],
-      vds2.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]))
+    assert(D_==(vds1.queryGlobal("global.lmmreg.h_squared")._2.asInstanceOf[Double],
+      vds2.queryGlobal("global.lmmreg.h_squared")._2.asInstanceOf[Double]))
   }
 
   lazy val smallMat = DenseMatrix(

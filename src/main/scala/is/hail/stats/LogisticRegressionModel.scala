@@ -34,7 +34,7 @@ class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override
 object WaldTest extends LogisticRegressionTest {
   val schema: Type = TStruct(
     ("beta", TFloat64()),
-    ("se", TFloat64()),
+    ("standard_error", TFloat64()),
     ("z_stat", TFloat64()),
     ("p_value", TFloat64()),
     ("fit", LogisticRegressionFit.schema))
@@ -74,7 +74,7 @@ case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVe
 object LikelihoodRatioTest extends LogisticRegressionTest {
   val schema = TStruct(
     ("beta", TFloat64()),
-    ("chi2", TFloat64()),
+    ("chi_squared", TFloat64()),
     ("p_value", TFloat64()),
     ("fit", LogisticRegressionFit.schema))
 
@@ -110,7 +110,7 @@ case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double)
 object FirthTest extends LogisticRegressionTest {
   val schema = TStruct(
     ("beta", TFloat64()),
-    ("chi2", TFloat64()),
+    ("chi_squared", TFloat64()),
     ("p_value", TFloat64()),
     ("fit", LogisticRegressionFit.schema))
 
@@ -153,7 +153,7 @@ case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends L
 
 object ScoreTest extends LogisticRegressionTest {
   val schema: Type = TStruct(
-    ("chi2", TFloat64()),
+    ("chi_squared", TFloat64()),
     ("p_value", TFloat64()))
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size)
@@ -322,7 +322,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
 object LogisticRegressionFit {
   val schema: Type = TStruct(
-    ("n_iter", TInt32()),
+    ("n_iterations", TInt32()),
     ("converged", TBoolean()),
     ("exploded", TBoolean()))
 }

@@ -61,7 +61,7 @@ class Tests(unittest.TestCase):
 
         def compare(ds, min=None, max=None):
             plink_results = plinkify(ds, min, max)
-            hail_results = hl.ibd(ds, min=min, max=max).collect()
+            hail_results = hl.identity_by_descent(ds, min=min, max=max).collect()
 
             for row in hail_results:
                 key = (row.i, row.j)
@@ -76,8 +76,8 @@ class Tests(unittest.TestCase):
         compare(dataset)
         compare(dataset, min=0.0, max=1.0)
         dataset = dataset.annotate_rows(dummy_maf=0.01)
-        hl.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
-        hl.ibd(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
+        hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
+        hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
 
     def test_impute_sex_same_as_plink(self):
         import subprocess as sp
@@ -135,10 +135,10 @@ class Tests(unittest.TestCase):
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
-        dataset = hl.linreg(dataset,
-                            ys=dataset.pheno,
-                            x=dataset.GT.num_alt_alleles(),
-                            covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
+        dataset = hl.linear_regression(dataset,
+                                       ys=dataset.pheno,
+                                       x=dataset.GT.num_alt_alleles(),
+                                       covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
         dataset.count_rows()
 
@@ -223,7 +223,7 @@ class Tests(unittest.TestCase):
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
-        grm = hl.grm(dataset)
+        grm = hl.genetic_relatedness_matrix(dataset)
         grm.export_id_file(rel_id_file)
 
         ############
@@ -316,7 +316,7 @@ class Tests(unittest.TestCase):
             return rrm
 
         def hail_calculation(ds):
-            rrm = hl.rrm(ds['GT'])
+            rrm = hl.realized_relationship_matrix(ds['GT'])
             fn = utils.new_temp_file(suffix='.tsv')
 
             rrm.export_tsv(fn)
@@ -493,7 +493,7 @@ class Tests(unittest.TestCase):
 
     def test_tdt(self):
         pedigree = hl.Pedigree.read(test_file('tdt.fam'))
-        tdt_tab = (hl.tdt(
+        tdt_tab = (hl.transmission_disequilibrium_test(
             hl.split_multi_hts(hl.import_vcf(test_file('tdt.vcf'), min_partitions=4)),
             pedigree))
 

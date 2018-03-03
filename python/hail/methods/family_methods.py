@@ -208,7 +208,7 @@ def mendel_errors(dataset, pedigree):
 
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
-def tdt(dataset, pedigree):
+def transmission_disequilibrium_test(dataset, pedigree):
     """Performs the transmission disequilibrium test on trios.
 
     .. include:: ../_templates/req_tstring.rst
@@ -228,7 +228,7 @@ def tdt(dataset, pedigree):
     .. doctest::
     
         >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
-        >>> tdt_table = hl.tdt(tdt_dataset, pedigree)
+        >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
         >>> tdt_table.show(2)
         +---------------+------------+-------+-------+-------------+-------------+
         | locus         | alleles    |     t |     u |        chi2 |    p_values |
@@ -259,13 +259,14 @@ def tdt(dataset, pedigree):
     and asymptotically follows a chi-squared distribution with one degree of
     freedom under the null hypothesis.
 
-    :func:`tdt` only considers complete trios (two parents and a proband with
-    defined sex) and only returns results for the autosome, as defined by
-    :meth:`~hail.genetics.Locus.in_autosome`, and chromosome X. Transmissions
-    and non-transmissions are counted only for the configurations of genotypes
-    and copy state in the table below, in order to filter out Mendel errors and
-    configurations where transmission is guaranteed. The copy state of a locus
-    with respect to a trio is defined as follows:
+    :func:`transmission_disequilibrium_test` only considers complete trios (two
+    parents and a proband with defined sex) and only returns results for the
+    autosome, as defined by :meth:`~hail.genetics.Locus.in_autosome`, and
+    chromosome X. Transmissions and non-transmissions are counted only for the
+    configurations of genotypes and copy state in the table below, in order to
+    filter out Mendel errors and configurations where transmission is
+    guaranteed. The copy state of a locus with respect to a trio is defined as
+    follows:
 
     - Auto -- in autosome or in PAR of X or female child
     - HemiX -- in non-PAR of X and male child
@@ -331,7 +332,7 @@ def tdt(dataset, pedigree):
         Table of TDT results.
     """
 
-    dataset = require_biallelic(dataset, 'tdt')
+    dataset = require_biallelic(dataset, 'transmission_disequilibrium_test')
     dataset = dataset.annotate_rows(auto_or_x_par = dataset.locus.in_autosome() | dataset.locus.in_x_par())
     dataset = dataset.filter_rows(dataset.auto_or_x_par | dataset.locus.in_x_nonpar())
 
