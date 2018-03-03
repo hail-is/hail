@@ -1,3 +1,4 @@
-Requires the dataset to contain no multiallelic variants (``vds.was_split == True``).
-Use :py:meth:`~hail.VariantDataset.split_multi` to split multiallelic sites
-or :py:meth:`~hail.VariantDataset.filter_multi` to remove them.
+Requires the dataset to contain no multiallelic variants.
+Use :func:`.split_multi` or :func:`.split_multi_hts` to split
+multiallelic sites, or :meth:`.MatrixTable.filter_rows` to remove
+them.
