@@ -1412,8 +1412,11 @@ class Table(TableTemplate):
             global_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.globals.dtype.items())
 
-        row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=f, type=format_type(t)) for f, t in self.row.dtype.items())
+        if len(self.row) == 0:
+            row_fields = '\n    None'
+        else:
+            row_fields = ''.join("\n    '{name}': {type} ".format(
+                name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.key) if self.key else '\n    None'
