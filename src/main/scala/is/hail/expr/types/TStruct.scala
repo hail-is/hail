@@ -55,7 +55,11 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
-  assert(fieldNames.areDistinct(), fieldNames.duplicates())
+  if (!fieldNames.areDistinct()) {
+    val duplicates = fieldNames.duplicates()
+    fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
+      s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
+  }
 
   val size: Int = fields.length
 

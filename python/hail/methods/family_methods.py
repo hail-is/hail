@@ -109,7 +109,7 @@ def mendel_errors(dataset, pedigree):
         - `fam_id` (:py:data:`.tstr`) -- Family ID.
         - `locus` (:class:`.tlocus`) -- Variant locus, key field.
         - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
-        - `s` (:py:data:`.tstr`) -- Proband ID, key field.
+        - (column key of `dataset`) (:py:data:`.tstr`) -- Proband ID, key field.
         - `code` (:py:data:`.tint32`) -- Mendel error code, see below.
         - `error` (:py:data:`.tstr`) -- Readable representation of Mendel error.
 
@@ -128,7 +128,7 @@ def mendel_errors(dataset, pedigree):
     individual. Each error is counted toward the proband, father, and mother
     according to the `Implicated` in the table below.
 
-        - `s` (:py:data:`.tstr`) -- Sample ID (key field).
+        - (column key of `dataset`) (:py:data:`.tstr`) -- Sample ID (key field).
         - `fam_id` (:py:data:`.tstr`) -- Family ID.
         - `errors` (:py:data:`.tint64`) -- Number of Mendel errors involving this
           individual.
