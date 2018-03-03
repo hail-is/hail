@@ -580,7 +580,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
-        self.assertEqual(vds.num_partitions(), 8)
+        self.assertEqual(vds.n_partitions(), 8)
         repart = vds.naive_coalesce(2)
         self.assertTrue(vds._same(repart))
 
@@ -604,7 +604,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
-        self.assertEqual(ds.num_partitions(), 8)
+        self.assertEqual(ds.n_partitions(), 8)
         ds = ds.add_row_index('rowidx').add_col_index('colidx')
 
         for i, struct in enumerate(ds.cols().select('colidx').collect()):
@@ -690,9 +690,9 @@ class MatrixTests(unittest.TestCase):
 
     def test_filter_partitions(self):
         ds = self.get_vds(min_partitions=8)
-        self.assertEqual(ds.num_partitions(), 8)
-        self.assertEqual(ds._filter_partitions([0, 1, 4]).num_partitions(), 3)
-        self.assertEqual(ds._filter_partitions([4, 5, 7], keep=False).num_partitions(), 5)
+        self.assertEqual(ds.n_partitions(), 8)
+        self.assertEqual(ds._filter_partitions([0, 1, 4]).n_partitions(), 3)
+        self.assertEqual(ds._filter_partitions([4, 5, 7], keep=False).n_partitions(), 5)
         self.assertTrue(
             ds._same(hl.MatrixTable.union_rows(
                 ds._filter_partitions([0, 3, 7]),

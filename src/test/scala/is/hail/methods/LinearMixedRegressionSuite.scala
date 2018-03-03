@@ -501,12 +501,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
 
-    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.num_eigenvectors")._2.asInstanceOf[Int] == 3)
+    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.n_eigenvectors")._2.asInstanceOf[Int] == 3)
   }
 
   @Test def testVarianceFraction() {
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", "g.GT.nNonRefAlleles()", optDroppedVarianceFraction = Some(0.3))
-    assert(vdsLmmreg.queryGlobal("global.lmmreg.num_eigenvectors")._2 == 2)
+    assert(vdsLmmreg.queryGlobal("global.lmmreg.n_eigenvectors")._2 == 2)
     assert(vdsLmmreg.queryGlobal("global.lmmreg.dropped_variance_fraction")._2 == 0.3)
   }
 

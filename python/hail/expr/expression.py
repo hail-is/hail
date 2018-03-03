@@ -3197,14 +3197,14 @@ class CallExpression(Expression):
         """
         return self._method("isHomVar", tbool)
 
-    def num_alt_alleles(self):
+    def n_alt_alleles(self):
         """Returns the number of non-reference alleles.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(call.num_alt_alleles())
+            >>> hl.eval_expr(call.n_alt_alleles())
             1
 
         Returns

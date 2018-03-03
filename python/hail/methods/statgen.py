@@ -239,7 +239,7 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
     Examples
     --------
 
-    >>> dataset_result = hl.linear_regression(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
+    >>> dataset_result = hl.linear_regression(dataset, [dataset.pheno.height], dataset.GT.n_alt_alleles(),
     ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
@@ -361,7 +361,7 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     ...     dataset,
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
-    ...     x=dataset.GT.num_alt_alleles(),
+    ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
@@ -581,11 +581,11 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
            use_ml=bool,
            delta=nullable(numeric),
            sparsity_threshold=numeric,
-           num_eigenvectors=nullable(int),
+           n_eigenvectors=nullable(int),
            dropped_variance_fraction=(nullable(float)))
 def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
                             row_root="lmmreg", run_assoc=True, use_ml=False, delta=None,
-                            sparsity_threshold=1.0, num_eigenvectors=None, dropped_variance_fraction=None):
+                            sparsity_threshold=1.0, n_eigenvectors=None, dropped_variance_fraction=None):
     r"""Use a kinship-based linear mixed model to estimate the genetic component
     of phenotypic variance (narrow-sense heritability) and optionally test each
     variant for association.
@@ -609,7 +609,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     >>> lmm_ds = hl.linear_mixed_regression(lmm_ds,
     ...                                     kinship_matrix,
     ...                                     lmm_ds.pheno,
-    ...                                     lmm_ds.GT.num_alt_alleles(),
+    ...                                     lmm_ds.GT.n_alt_alleles(),
     ...                                     [lmm_ds.cov1, lmm_ds.cov2])
 
     Notes
@@ -675,7 +675,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
        * - `h_squared`
          - float64
          - fit narrow-sense heritability, :math:`\hat{h}^2`
-       * - `num_eigenvectors`
+       * - `n_eigenvectors`
          - int32
          - number of eigenvectors of kinship matrix used to fit model
        * - `dropped_variance_fraction`
@@ -991,8 +991,8 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     approximation of the kinship matrix to more rapidly fit delta and the
     statistics for each variant. The computational complexity per variant is
     proportional to the number of eigenvectors used. This number can be
-    specified in two ways. Specify the parameter `num_eigenvectors` to use only the
-    top `num_eigenvectors` eigenvectors. Alternatively, specify
+    specified in two ways. Specify the parameter `n_eigenvectors` to use only the
+    top `n_eigenvectors` eigenvectors. Alternatively, specify
     `dropped_variance_fraction` to use as many eigenvectors as necessary to
     capture all but at most this fraction of the sample variance (also known as
     the trace, or the sum of the eigenvalues). For example, setting
@@ -1034,7 +1034,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     sparsity_threshold : :obj:`float`
         Genotype vector sparsity at or below which to use sparse genotype
         vector in rotation (advanced).
-    num_eigenvectors : :obj:`int`
+    n_eigenvectors : :obj:`int`
         Number of eigenvectors of the kinship matrix used to fit the model.
     dropped_variance_fraction : :obj:`float`
         Upper bound on fraction of sample variance lost by dropping
@@ -1070,7 +1070,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
                             run_assoc,
                             joption(delta),
                             sparsity_threshold,
-                            joption(num_eigenvectors),
+                            joption(n_eigenvectors),
                             joption(dropped_variance_fraction))
 
     return cleanup(MatrixTable(jds))
@@ -1113,7 +1113,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     ...                      key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
-    ...                      x=burden_ds.GT.num_alt_alleles(),
+    ...                      x=burden_ds.GT.n_alt_alleles(),
     ...                      covariates=[burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
@@ -1334,7 +1334,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
         List of eigenvalues, table with column scores, table with row loadings.
     """
     dataset = require_biallelic(dataset, 'hwe_normalized_pca')
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                     n_called=agg.count_where(hl.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
 
@@ -1348,7 +1348,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     entry_expr = hl.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.num_alt_alleles() - mean_gt) /
+                                (dataset.GT.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0))
     result = pca(entry_expr,
@@ -2118,7 +2118,7 @@ def genetic_relatedness_matrix(dataset):
     """
 
     dataset = require_biallelic(dataset, "genetic_relatedness_matrix")
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                     n_called=agg.count_where(hl.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
 
@@ -2130,7 +2130,7 @@ def genetic_relatedness_matrix(dataset):
     normalized_genotype_expr = hl.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.num_alt_alleles() - mean_gt) /
+                                (dataset.GT.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0))
 
@@ -2208,7 +2208,7 @@ def realized_relationship_matrix(call_expr):
     dataset = dataset.annotate_entries(call=call_expr)
     dataset = require_biallelic(dataset, 'rrm')
 
-    gt_expr = dataset.call.num_alt_alleles()
+    gt_expr = dataset.call.n_alt_alleles()
     dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
                                     ACsq=agg.sum(gt_expr * gt_expr),
                                     n_called=agg.count_where(hl.is_defined(dataset.call)))
@@ -2224,7 +2224,7 @@ def realized_relationship_matrix(call_expr):
         raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing RRM using {} variants.".format(n_variants))
 
-    gt_expr = dataset.call.num_alt_alleles()
+    gt_expr = dataset.call.n_alt_alleles()
     normalized_genotype_expr = hl.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: hl.bind(
@@ -2244,16 +2244,16 @@ def realized_relationship_matrix(call_expr):
                                             n_variants)
 
 
-@typecheck(num_populations=int,
-           num_samples=int,
-           num_variants=int,
-           num_partitions=nullable(int),
+@typecheck(n_populations=int,
+           n_samples=int,
+           n_variants=int,
+           n_partitions=nullable(int),
            pop_dist=nullable(listof(numeric)),
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
            reference_genome=reference_genome_type)
-def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
+def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                           seed=0, reference_genome='default'):
     r"""Generate a matrix table of variants, samples, and genotypes using the
@@ -2338,9 +2338,9 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Global fields:
 
-    - `num_populations` (:py:data:`.tint32`) -- Number of populations.
-    - `num_samples` (:py:data:`.tint32`) -- Number of samples.
-    - `num_variants` (:py:data:`.tint32`) -- Number of variants.
+    - `n_populations` (:py:data:`.tint32`) -- Number of populations.
+    - `n_samples` (:py:data:`.tint32`) -- Number of samples.
+    - `n_variants` (:py:data:`.tint32`) -- Number of variants.
     - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
     - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
@@ -2368,21 +2368,21 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Parameters
     ----------
-    num_populations : :obj:`int`
+    n_populations : :obj:`int`
         Number of modern populations.
-    num_samples : :obj:`int`
+    n_samples : :obj:`int`
         Total number of samples.
-    num_variants : :obj:`int`
+    n_variants : :obj:`int`
         Number of variants.
-    num_partitions : :obj:`int`, optional
+    n_partitions : :obj:`int`, optional
         Number of partitions.
         Default is 1 partition per million entries or 8, whichever is larger.
     pop_dist : :obj:`list` of :obj:`float`, optional
         Unnormalized population distribution, a list of length
-        ``num_populations`` with non-negative values.
+        ``n_populations`` with non-negative values.
         Default is ``[1, ..., 1]``.
     fst : :obj:`list` of :obj:`float`, optional
-        :math:`F_{ST}` values, a list of length ``num_populations`` with values
+        :math:`F_{ST}` values, a list of length ``n_populations`` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
     af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
         Ancestral allele frequency distribution.
@@ -2408,8 +2408,8 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
-    jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
-                                            joption(num_partitions),
+    jmt = Env.hc()._jhc.baldingNicholsModel(n_populations, n_samples, n_variants,
+                                            joption(n_partitions),
                                             jvm_pop_dist_opt,
                                             jvm_fst_opt,
                                             af_dist._jrep(),
@@ -2806,12 +2806,12 @@ class FilterAlleles(object):
 
 
 @typecheck(ds=MatrixTable,
-           num_cores=int,
+           n_cores=int,
            r2=numeric,
            window=int,
            memory_per_core=int)
-def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
-    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
+def ld_prune(ds, n_cores, r2=0.2, window=1000000, memory_per_core=256):
+    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, n_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)
 
 

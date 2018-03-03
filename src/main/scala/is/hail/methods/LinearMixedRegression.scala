@@ -132,7 +132,7 @@ object LinearMixedRegression {
         ("delta", TFloat64()),
         ("h_squared", TFloat64()),
         ("eigenvalues", TArray(TFloat64())),
-        ("num_eigenvectors", TInt32()),
+        ("n_eigenvectors", TInt32()),
         ("dropped_variance_fraction", TFloat64())), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
