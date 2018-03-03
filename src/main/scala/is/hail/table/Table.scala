@@ -11,7 +11,7 @@ import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{ComponentSpec, FileFormat, ReferenceGenome, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
+import is.hail.variant.{ComponentSpec, FileFormat, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome, RelationalSpec}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -598,32 +598,30 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
 
-  def rename(columnMap: Map[String, String]): Table = {
-    val newFields = signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) }
-    val duplicates = newFields.map(_.name).duplicates()
-    if (duplicates.nonEmpty)
-      fatal(s"Found duplicate column names after renaming columns: `${ duplicates.mkString(", ") }'")
+  def rename(fieldMapRows: java.util.HashMap[String, String], fieldMapGlobals: java.util.HashMap[String, String]): Table =
+    rename(fieldMapRows.asScala.toMap, fieldMapGlobals.asScala.toMap)
 
-    val newSignature = TStruct(newFields)
-    val newColumns = newSignature.fields.map(_.name)
-    val newKey = key.map(n => columnMap.getOrElse(n, n))
-    val duplicateColumns = newColumns.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
-      _._2 > 1
+  def rename(fieldMapRows: Map[String, String], fieldMapGlobals: Map[String, String]): Table = {
+    assert(fieldMapRows.keys.forall(k => ktType.rowType.fieldNames.contains(k)),
+      s"[${fieldMapRows.keys.mkString(", ")}], expected [${ ktType.rowType.fieldNames.mkString(", ") }]")
+
+    assert(fieldMapGlobals.keys.forall(k => ktType.globalType.fieldNames.contains(k)),
+      s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ ktType.globalType.fieldNames.mkString(", ") }]")
+
+    val rowKey = ktType.key
+    val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
+
+    val rowType = ktType.rowType
+    val newRowType = TStruct(rowType.required, rowType.fields.map { f => (fieldMapRows.getOrElse(f.name, f.name), f.typ) }: _*)
+
+    val globalType = ktType.globalType
+    val newGlobalType = if (fieldMapGlobals.isEmpty) globalType else {
+      val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
+      TStruct(globalType.required, newFieldNames.zip(globalType.types): _*)
     }
 
-    copy(rdd = rdd, signature = newSignature, key = newKey)
+    copy(signature = newRowType, key = newKey, globalSignature = newGlobalType)
   }
-
-  def rename(newColumns: Array[String]): Table = {
-    if (newColumns.length != nColumns)
-      fatal(s"Found ${ newColumns.length } new column names but need $nColumns.")
-
-    rename((fieldNames, newColumns).zipped.toMap)
-  }
-
-  def rename(columnMap: java.util.HashMap[String, String]): Table = rename(columnMap.asScala.toMap)
-
-  def rename(newColumns: java.util.ArrayList[String]): Table = rename(newColumns.asScala.toArray)
 
   def join(other: Table, joinType: String): Table = {
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))

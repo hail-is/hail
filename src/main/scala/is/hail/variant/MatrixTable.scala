@@ -2170,7 +2170,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       (newPK, newKey, newRVRowType)
     }
 
-    val newGlobalType = if (fieldMapEntries.isEmpty) globalType else {
+    val newGlobalType = if (fieldMapGlobals.isEmpty) globalType else {
       val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
       TStruct(globalType.required, newFieldNames.zip(globalType.types): _*)
     }

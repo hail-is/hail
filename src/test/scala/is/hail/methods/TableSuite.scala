@@ -192,7 +192,7 @@ class TableSuite extends SparkSuite {
 
     val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy(List("Sample", "Status"))
     assert(noNull.join(
-      noNull.rename(Map("qPhen" -> "qPhen_")), "outer"
+      noNull.rename(Map("qPhen" -> "qPhen_"), Map.empty[String, String]), "outer"
     ).rdd.forall { r => !r.toSeq.exists(_ == null) })
   }
 
@@ -203,7 +203,7 @@ class TableSuite extends SparkSuite {
     val ktLeft = hc.importTable(inputFile1, impute = true).keyBy("Sample")
     val ktRight = hc.importTable(inputFile2, impute = true)
       .keyBy("Sample")
-      .rename(Map("Sample" -> "sample"))
+      .rename(Map("Sample" -> "sample"), Map.empty[String, String])
     val ktBad = ktRight.keyBy("qPhen2")
 
     intercept[HailException] {
@@ -256,31 +256,6 @@ class TableSuite extends SparkSuite {
     assert(!kt.forall("row.field2 == 0 && row.field1 == 5"))
     assert(kt.exists("""row.Sample == "Sample1" && row.field1 == 9 && row.field2 == 5"""))
     assert(!kt.exists("""row.Sample == "Sample1" && row.field1 == 13 && row.field2 == 2"""))
-  }
-
-  @Test def testRename() {
-    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = Array("Sample")
-
-    val kt = Table(hc, rdd, signature, keyNames)
-    kt.typeCheck()
-
-    val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
-    assert(rename1.fieldNames sameElements Array("ID1", "ID2", "ID3"))
-
-    val rename2 = kt.rename(Map("field1" -> "ID1"))
-    assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
-
-    intercept[HailException](kt.rename(Array("ID1")))
-
-    intercept[HailException](kt.rename(Map("field1" -> "field2")))
-
-    intercept[HailException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
-
-    val outputFile = tmpDir.createTempFile("rename", "tsv")
-    rename2.export(outputFile)
   }
 
   @Test def testSelect() {

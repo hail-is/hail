@@ -41,6 +41,11 @@ def desc(col):
 
 
 class TableTemplate(object):
+    """
+    .. testsetup ::
+
+        table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
+    """
     def __init__(self, jt):
         self._jt = jt
 
@@ -106,6 +111,22 @@ class TableTemplate(object):
 
     @property
     def key(self):
+        """Returns a struct expression with the row keys.
+
+        Examples
+        --------
+
+        Get the row key names of the table:
+
+        .. doctest::
+
+            >>> list(table1.key)
+            ['ID']
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         if self._key is None:
             self._key = jiterable_to_list(self._jt.key())
         return hl.struct(**{k: self[k] for k in self._key})
@@ -1776,8 +1797,25 @@ class Table(TableTemplate):
         :class:`.Table`
             Table with renamed fields.
         """
+        seen = {}
 
-        return Table(self._jt.rename(mapping))
+        row_map = {}
+        global_map = {}
+
+        for k, v in mapping.items():
+            if v in seen:
+                raise ValueError(
+                    "Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(
+                        repr(seen[v]), repr(k), repr(v)))
+            if v in self._fields and v not in mapping:
+                raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
+            seen[v] = k
+            if self[k]._indices == self._row_indices:
+                row_map[k] = v
+            elif self[k]._indices == self._global_indices:
+                global_map[k] = v
+
+        return Table(self._jt.rename(row_map, global_map))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.

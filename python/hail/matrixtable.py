@@ -572,7 +572,17 @@ class MatrixTable(object):
 
     @property
     def col_key(self):
-        """The list of column key fields.
+        """Return a struct expression with the column keys.
+
+        Examples
+        --------
+
+        Get the column key names:
+
+        .. doctest::
+
+            >>> list(dataset.col_key)
+            ['s']
 
         Returns
         -------
@@ -597,7 +607,17 @@ class MatrixTable(object):
 
     @property
     def row_key(self):
-        """The list of row key fields.
+        """Return a struct expression with the row keys.
+
+        Examples
+        --------
+
+        Get the row key names:
+
+        .. doctest::
+
+            >>> list(dataset.row_key)
+            ['locus', 'alleles']
 
         Returns
         -------
@@ -609,7 +629,17 @@ class MatrixTable(object):
 
     @property
     def partition_key(self):
-        """The row partition key.
+        """Returns a struct expression with the partition keys.
+
+        Examples
+        --------
+
+        Get the partition key names:
+
+        .. doctest::
+
+            >>> list(dataset.partition_key)
+            ['locus']
 
         Returns
         -------
@@ -653,7 +683,6 @@ class MatrixTable(object):
         Returns
         -------
         :class:`.StructExpression`
-            Struct of all global fields.
         """
         return construct_expr(Reference('global', False), self.global_schema,
                               indices=self._global_indices,
@@ -663,6 +692,16 @@ class MatrixTable(object):
     @property
     def row(self):
         """Returns a struct expression including all row-indexed fields.
+
+        Examples
+        --------
+
+        Get the first five row field names:
+
+        .. doctest::
+
+            >>> list(dataset.row)[:5]
+            ['locus', 'alleles', 'rsid', 'qual', 'filters']
 
         Returns
         -------
@@ -678,6 +717,16 @@ class MatrixTable(object):
     def col(self):
         """Returns a struct expression including all column-indexed fields.
 
+        Examples
+        --------
+
+        Get all column field names:
+
+        .. doctest::
+
+            >>> list(dataset.col)
+            ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
+
         Returns
         -------
         :class:`.StructExpression`
@@ -691,6 +740,17 @@ class MatrixTable(object):
     @property
     def entry(self):
         """Returns a struct expression including all row-and-column-indexed fields.
+
+        Examples
+        --------
+
+        Get all entry field names:
+
+        .. doctest::
+
+            >>> list(dataset.entry)
+            ['GT', 'AD', 'DP', 'GQ', 'PL']
+
 
         Returns
         -------
@@ -2749,7 +2809,7 @@ class MatrixTable(object):
         Parameters
         ----------
         fields : :obj:`dict` from :obj:`str` to :obj:`str`
-            Mapping from old fields to new fields.
+            Mapping from old field names to new field names.
 
         Returns
         -------
@@ -2759,29 +2819,29 @@ class MatrixTable(object):
 
         seen = {}
 
-        rowMap = {}
-        colMap = {}
-        entryMap = {}
-        globalMap = {}
+        row_map = {}
+        col_map = {}
+        entry_map = {}
+        global_map = {}
 
         for k, v in fields.items():
             if v in seen:
                 raise ValueError(
-                    "Cannot rename two fields to the same name: attempted to rename '{}' and '{}' both to '{}'".format(
-                        seen[v], k, v))
-            if v in self._fields and v not in fields.keys():
-                raise ValueError("Cannot rename '{}; to '{}': field already exists.".format(k, v))
+                    "Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(
+                        repr(seen[v]), repr(k), repr(v)))
+            if v in self._fields and v not in fields:
+                raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                rowMap[k] = v
+                row_map[k] = v
             elif self[k]._indices == self._col_indices:
-                colMap[k] = v
+                col_map[k] = v
             elif self[k]._indices == self._entry_indices:
-                entryMap[k] = v
+                entry_map[k] = v
             elif self[k]._indices == self._global_indices:
-                globalMap[k] = v
+                global_map[k] = v
 
-        return MatrixTable(self._jvds.renameFields(rowMap, colMap, entryMap, globalMap))
+        return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
 
 
 matrix_table_type.set(MatrixTable)
