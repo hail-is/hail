@@ -19,7 +19,7 @@ object LinearMixedRegression {
   val schema: Type = TStruct(
     ("beta", TFloat64()),
     ("sigma_g_squared", TFloat64()),
-    ("chi_squared", TFloat64()),
+    ("chi_sq_stat", TFloat64()),
     ("p_value", TFloat64()))
 
   def apply(
@@ -132,7 +132,7 @@ object LinearMixedRegression {
         ("delta", TFloat64()),
         ("h_squared", TFloat64()),
         ("eigenvalues", TArray(TFloat64())),
-        ("n_eigenvalues", TInt32()),
+        ("num_eigenvectors", TInt32()),
         ("dropped_variance_fraction", TFloat64())), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {

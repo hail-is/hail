@@ -61,7 +61,7 @@ Methods
     min_rep
     nirvana
     pc_relate
-    realized_relatedness_matrix
+    realized_relationship_matrix
     sample_qc
     skat
     split_multi_hts

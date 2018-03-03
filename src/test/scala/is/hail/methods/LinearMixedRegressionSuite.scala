@@ -120,7 +120,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigma_g_squared")._2
-    val qChi2 = vds.queryVA("va.lmmreg.chi_squared")._2
+    val qChi2 = vds.queryVA("va.lmmreg.chi_sq_stat")._2
     val qPval = vds.queryVA("va.lmmreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
@@ -156,7 +156,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     
     val qBeta1 = vds1.queryVA("va.lmmreg.beta")._2
     val qSg21 = vds1.queryVA("va.lmmreg.sigma_g_squared")._2
-    val qChi21 = vds1.queryVA("va.lmmreg.chi_squared")._2
+    val qChi21 = vds1.queryVA("va.lmmreg.chi_sq_stat")._2
     val qPval1 = vds1.queryVA("va.lmmreg.p_value")._2
 
     val a1 = vds1.variantsAndAnnotations.collect().toMap
@@ -501,12 +501,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
 
-    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.n_eigenvalues")._2.asInstanceOf[Int] == 3)
+    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.num_eigenvectors")._2.asInstanceOf[Int] == 3)
   }
 
   @Test def testVarianceFraction() {
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", "g.GT.nNonRefAlleles()", optDroppedVarianceFraction = Some(0.3))
-    assert(vdsLmmreg.queryGlobal("global.lmmreg.n_eigenvalues")._2 == 2)
+    assert(vdsLmmreg.queryGlobal("global.lmmreg.num_eigenvectors")._2 == 2)
     assert(vdsLmmreg.queryGlobal("global.lmmreg.dropped_variance_fraction")._2 == 0.3)
   }
 

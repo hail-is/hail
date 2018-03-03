@@ -413,10 +413,10 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     Wald       `logreg.p_value`        float64 Wald p-value testing :math:`\beta_1 = 0`
     LRT, Firth `logreg.beta`           float64 fit effect coefficient,
                                                :math:`\hat\beta_1`
-    LRT, Firth `logreg.chi_squared`    float64 deviance statistic
+    LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
     LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
                                                :math:`\beta_1 = 0`
-    Score      `logreg.chi_squared`    float64 score statistic
+    Score      `logreg.chi_sq_stat`    float64 score statistic
     Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
     ========== ======================= ======= ============================================
 
@@ -581,11 +581,11 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
            use_ml=bool,
            delta=nullable(numeric),
            sparsity_threshold=numeric,
-           n_eigenvalues=nullable(int),
+           num_eigenvectors=nullable(int),
            dropped_variance_fraction=(nullable(float)))
 def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
                             row_root="lmmreg", run_assoc=True, use_ml=False, delta=None,
-                            sparsity_threshold=1.0, n_eigenvalues=None, dropped_variance_fraction=None):
+                            sparsity_threshold=1.0, num_eigenvectors=None, dropped_variance_fraction=None):
     r"""Use a kinship-based linear mixed model to estimate the genetic component
     of phenotypic variance (narrow-sense heritability) and optionally test each
     variant for association.
@@ -675,7 +675,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
        * - `h_squared`
          - float64
          - fit narrow-sense heritability, :math:`\hat{h}^2`
-       * - `n_eigenvalues`
+       * - `num_eigenvectors`
          - int32
          - number of eigenvectors of kinship matrix used to fit model
        * - `dropped_variance_fraction`
@@ -724,7 +724,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     | `sigma_g_squared` | float64 | fit coefficient of genetic variance component, |
     |                   |         | :math:`\hat{\sigma}_g^2`                       |
     +-------------------+---------+------------------------------------------------+
-    | `chi_squared`     | float64 | :math:`\chi^2` statistic of the likelihood     |
+    | `chi_sq_stat`     | float64 | :math:`\chi^2` statistic of the likelihood     |
     |                   |         | ratio test                                     |
     +-------------------+---------+------------------------------------------------+
     | `p_value`         | float64 | :math:`p`-value                                |
@@ -991,8 +991,8 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     approximation of the kinship matrix to more rapidly fit delta and the
     statistics for each variant. The computational complexity per variant is
     proportional to the number of eigenvectors used. This number can be
-    specified in two ways. Specify the parameter `n_eigenvalues` to use only the
-    top `n_eigenvalues` eigenvectors. Alternatively, specify
+    specified in two ways. Specify the parameter `num_eigenvectors` to use only the
+    top `num_eigenvectors` eigenvectors. Alternatively, specify
     `dropped_variance_fraction` to use as many eigenvectors as necessary to
     capture all but at most this fraction of the sample variance (also known as
     the trace, or the sum of the eigenvalues). For example, setting
@@ -1034,7 +1034,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     sparsity_threshold : :obj:`float`
         Genotype vector sparsity at or below which to use sparse genotype
         vector in rotation (advanced).
-    n_eigenvalues : :obj:`int`
+    num_eigenvectors : :obj:`int`
         Number of eigenvectors of the kinship matrix used to fit the model.
     dropped_variance_fraction : :obj:`float`
         Upper bound on fraction of sample variance lost by dropping
@@ -1070,7 +1070,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
                             run_assoc,
                             joption(delta),
                             sparsity_threshold,
-                            joption(n_eigenvalues),
+                            joption(num_eigenvectors),
                             joption(dropped_variance_fraction))
 
     return cleanup(MatrixTable(jds))
