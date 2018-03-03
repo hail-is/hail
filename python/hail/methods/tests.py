@@ -271,14 +271,14 @@ class Tests(unittest.TestCase):
                                     load_bin(n_samples, grm_nbin_file),
                                     atol=tolerance))
 
-    def test_block_matrix_from_numpy_matrix(self):
-        numpy_matrix = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]])
+    def test_block_matrix_from_ndarray(self):
+        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]])
 
         for block_size in [1, 2, 5, 1024]:
-            block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
+            block_matrix = BlockMatrix._from_ndarray(ndarray, block_size)
             assert (block_matrix.num_rows == 3)
             assert (block_matrix.num_cols == 5)
-            assert (block_matrix.to_numpy_matrix() == numpy_matrix).all()
+            assert (block_matrix.to_ndarray() == ndarray).all()
 
     def test_rrm(self):
         seed = 0
@@ -295,7 +295,7 @@ class Tests(unittest.TestCase):
                                            num_partitions=4)
 
         def direct_calculation(ds):
-            ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_numpy_matrix()
+            ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_ndarray()
 
             # filter out constant rows
             isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])
@@ -311,7 +311,7 @@ class Tests(unittest.TestCase):
 
             mat = np.array([[(g - mean[i]) / stddev[i] for g in row] for i, row in enumerate(ds)])
 
-            rrm = mat.T.dot(mat) / nvariants
+            rrm = (mat.T @ mat) / nvariants
 
             return rrm
 
@@ -594,10 +594,10 @@ class Tests(unittest.TestCase):
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))
 
-        numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (num_rows, num_cols))
+        ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (num_rows, num_cols))
 
         for block_size in [1, 2, 1024]:
-            block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
+            block_matrix = BlockMatrix._from_ndarray(ndarray, block_size)
             entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), num_cols * num_rows)
             self.assertEqual(entries_table.num_fields, 3)

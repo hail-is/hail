@@ -77,8 +77,10 @@ class RowMatrix(val hc: HailContext,
   
   // length nPartitions + 1, first element 0, last element rdd2 count
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
-    
-  def toLocalMatrix(): DenseMatrix[Double] = {
+  
+  def toLocalMatrix(): LocalMatrix = LocalMatrix(toBreezeMatrix)
+  
+  def toBreezeMatrix(): DenseMatrix[Double] = {
     require(_nRows.forall(_ <= Int.MaxValue), "The number of rows of this matrix should be less than or equal to " +
         s"Int.MaxValue. Currently numRows: ${ _nRows.get }")
     

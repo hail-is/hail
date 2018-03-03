@@ -174,9 +174,9 @@ class PCRelateSuite extends SparkSuite {
     // blockedG : variant x sample
     val blockedG = BlockMatrix.from(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
-    val actual_g = blockedG.toLocalMatrix().t
-    val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toLocalMatrix()
-    val actual_mean = dmu.toLocalMatrix()
+    val actual_g = blockedG.toBreezeMatrix().t
+    val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toBreezeMatrix()
+    val actual_mean = dmu.toBreezeMatrix()
 
     compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)

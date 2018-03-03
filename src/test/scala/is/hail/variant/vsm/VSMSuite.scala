@@ -162,7 +162,7 @@ class VSMSuite extends SparkSuite {
 
       val lm = new DenseMatrix[Double](6, 9, data).t // data is row major
       
-      assert(BlockMatrix.read(hc, dirname).toLocalMatrix() === lm)
+      assert(BlockMatrix.read(hc, dirname).toBreezeMatrix() === lm)
     }
   }
   
@@ -188,7 +188,7 @@ class VSMSuite extends SparkSuite {
     
     val kbm = KeyedBlockMatrix.read(hc, dirname)
     
-    assert(kbm.bm.toLocalMatrix() === lm)
+    assert(kbm.bm.toBreezeMatrix() === lm)
     kbm.rowKeys.get.assertSame(rowKeys)
     kbm.colKeys.get.assertSame(colKeys)    
   }  

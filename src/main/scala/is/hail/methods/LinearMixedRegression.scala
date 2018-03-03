@@ -69,7 +69,7 @@ object LinearMixedRegression {
     info(s"lmmreg: running linear mixed regression on $n samples for response variable y,\n"
        + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
-    val K = filteredKinshipMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
+    val K = filteredKinshipMatrix.matrix.toHailBlockMatrix().toBreezeMatrix()
 
     info(s"lmmreg: computing eigendecomposition of kinship matrix...")
 

@@ -1,17 +1,17 @@
 Linalg
 ======
 
-**File formats and interface for numeric matrices are experimental**.
-Improvements to Hail 0.2 may necessitate re-writing pipelines and files
-to maintain compatibility.
+**Interface and file formats for numeric matrices are under development and experimental**.
+Improvements to Hail 0.2 may necessitate re-writing pipelines and files to
+maintain compatibility.
 
 .. toctree::
     :maxdepth: 2
 
 .. autosummary::
     :nosignatures:
-    :template: class.rst
+    :toctree: ./
+    :template: class_special.rst
 
+    hail.linalg.LocalMatrix
     hail.linalg.BlockMatrix
-
-.. autoclass:: hail.linalg.BlockMatrix
