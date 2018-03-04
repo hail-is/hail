@@ -235,7 +235,7 @@ def concordance(left, right):
 
     This table contains the column key field of `left`, and the following fields:
 
-        - `num_discordant` (:py:data:`.tint64`) -- Count of discordant calls (see below for
+        - `n_discordant` (:py:data:`.tint64`) -- Count of discordant calls (see below for
           full definition).
         - `concordance` (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
           Array of concordance per state on left and right, matching the structure of
@@ -245,13 +245,13 @@ def concordance(left, right):
 
     This table contains the row key fields of `left`, and the following fields:
 
-        - `num_discordant` (:py:data:`.tfloat64`) -- Count of discordant calls (see below for
+        - `n_discordant` (:py:data:`.tfloat64`) -- Count of discordant calls (see below for
           full definition).
         - `concordance` (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
           Array of concordance per state on left and right, matching the structure of the
           global summary defined above.
 
-    In these tables, the column **num_discordant** is provided as a convenience,
+    In these tables, the column **n_discordant** is provided as a convenience,
     because this is often one of the most useful concordance statistics. This
     value is the number of genotypes which were called (homozygous reference,
     heterozygous, or homozygous variant) in both datasets, but where the call

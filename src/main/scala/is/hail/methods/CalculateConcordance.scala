@@ -84,13 +84,13 @@ object CalculateConcordance {
 
     val sampleSchema = TStruct(
       left.colKey.zip(left.colKeyTypes) ++
-      Array("num_discordant" -> TInt64(),
+      Array("n_discordant" -> TInt64(),
       "concordance" -> ConcordanceCombiner.schema): _*
     )
 
     val variantSchema = TStruct(
       left.rowKey.zip(left.rowKeyTypes) ++
-        Array("num_discordant" -> TInt64(), "concordance" -> ConcordanceCombiner.schema): _*
+        Array("n_discordant" -> TInt64(), "concordance" -> ConcordanceCombiner.schema): _*
     )
 
     val leftIds = leftFiltered.stringSampleIds

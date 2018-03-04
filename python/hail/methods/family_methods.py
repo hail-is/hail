@@ -107,9 +107,9 @@ def mendel_errors(dataset, pedigree):
     error, keyed by the variant and proband id.
 
         - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - (column key of `dataset`) (:py:data:`.tstr`) -- Proband ID, key field.
         - `locus` (:class:`.tlocus`) -- Variant locus, key field.
         - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
-        - (column key of `dataset`) (:py:data:`.tstr`) -- Proband ID, key field.
         - `code` (:py:data:`.tint32`) -- Mendel error code, see below.
         - `error` (:py:data:`.tstr`) -- Readable representation of Mendel error.
 
