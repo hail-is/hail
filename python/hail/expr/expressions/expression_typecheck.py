@@ -65,7 +65,7 @@ class AnyChecker(ExpressionTypechecker):
 
 def lift(tc: Any) -> ExpressionTypechecker:
     if tc is Ellipsis:
-        return _AnyChecker()
+        return AnyChecker()
     else:
         return tc
 
