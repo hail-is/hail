@@ -50,8 +50,10 @@ class TableTemplate(object):
         self._jt = jt
 
         self._globals = None
-        self._global_schema = None
-        self._schema = None
+        self._global_type = Type._from_java(self._jt.globalSignature())
+        assert (isinstance(self._global_type, tstruct))
+        self._row_type = Type._from_java(self._jt.signature())
+        assert (isinstance(self._row_type, tstruct))
         self._num_fields = None
         self._key = None
         self._field_names = None
@@ -94,20 +96,6 @@ class TableTemplate(object):
 
     def __repr__(self):
         return self._jt.toString()
-
-    @property
-    def schema(self):
-        if self._schema is None:
-            self._schema = Type._from_java(self._jt.signature())
-            assert (isinstance(self._schema, tstruct))
-        return self._schema
-
-    @property
-    def global_schema(self):
-        if self._global_schema is None:
-            self._global_schema = Type._from_java(self._jt.globalSignature())
-            assert (isinstance(self._global_schema, tstruct))
-        return self._global_schema
 
     @property
     def key(self):
@@ -322,10 +310,10 @@ class Table(TableTemplate):
         self._row_axis = 'row'
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        for f, t in self.global_schema.items():
+        for f, t in self._global_type.items():
             self._set_field(f, construct_reference(f, t, self._global_indices, prefix='global'))
 
-        for f, t in self.schema.items():
+        for f, t in self._row_type.items():
             self._set_field(f, construct_reference(f, t, self._row_indices, prefix='row'))
 
     @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
@@ -877,13 +865,13 @@ class Table(TableTemplate):
         table = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = [f for f in table.global_schema if
+            new_global_fields = [f for f in table.globals if
                                  f not in fields_to_drop]
             table = table.select_globals(*new_global_fields)
 
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
-            new_row_fields = [f for f in table.schema if
+            new_row_fields = [f for f in table.row if
                               f not in fields_to_drop]
             table = table.select(*new_row_fields)
 
@@ -1149,7 +1137,7 @@ class Table(TableTemplate):
         src = indices.source
 
         key_set = set(self.key)
-        new_schema = tstruct(**{f: t for f, t in self.schema.items() if f not in key_set})
+        new_schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in key_set})
 
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
@@ -1284,7 +1272,7 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(Select(Reference('global', top_level=True), uid), self.global_schema,
+        return construct_expr(Select(Reference('global', top_level=True), uid), self.globals.dtype,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     def _process_joins(self, *exprs):
@@ -1410,7 +1398,7 @@ class Table(TableTemplate):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return hl.tarray(self.schema)._from_json(self._jt.collectJSON())
+        return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1418,14 +1406,17 @@ class Table(TableTemplate):
         def format_type(typ):
             return typ.pretty(indent=4)
 
-        if len(self.global_schema) == 0:
+        if len(self.globals.dtype) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=f, type=format_type(t)) for f, t in self.global_schema.items())
+                name=f, type=format_type(t)) for f, t in self.globals.dtype.items())
 
-        row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=f, type=format_type(t)) for f, t in self.schema.items())
+        if len(self.row) == 0:
+            row_fields = '\n    None'
+        else:
+            row_fields = ''.join("\n    '{name}': {type} ".format(
+                name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.key) if self.key else '\n    None'
@@ -1560,7 +1551,7 @@ class Table(TableTemplate):
             List of row structs.
         """
 
-        return hl.tarray(self.schema)._from_json(self._jt.takeJSON(n))
+        return hl.tarray(self.row.dtype)._from_json(self._jt.takeJSON(n))
 
     @typecheck_method(n=int)
     def head(self, n):
@@ -2076,7 +2067,7 @@ class Table(TableTemplate):
                                                   joption(None)))
 
     @property
-    def globals(self):
+    def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.
 
         Returns
@@ -2084,13 +2075,13 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all global fields.
         """
-        return construct_expr(Reference('global', False), self.global_schema,
+        return construct_expr(Reference('global', top_level=True), self._global_type,
                               indices=self._global_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f, self._global_indices) for f in self.global_schema]))
+                                  *[(f, self._global_indices) for f in self._global_type]))
 
     @property
-    def row(self):
+    def row(self) -> 'StructExpression':
         """Returns a struct expression including all row-indexed fields.
 
         Returns
@@ -2098,9 +2089,10 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        # FIXME: Impossible to correct a struct with the correct schema
-        # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
-        raise NotImplementedError()
+        return construct_expr(Reference('row', top_level=True), self._row_type,
+                              indices=self._row_indices,
+                              refs=LinkedList(tuple).push(
+                                  *[(f, self._row_indices) for f in self._row_type]))
 
     @staticmethod
     @typecheck(df=DataFrame,

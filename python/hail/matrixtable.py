@@ -152,9 +152,9 @@ class GroupedMatrixTable(object):
         if self._col_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols; cannot also group by rows.")
         new_keys = {}
-        kept_fields = list(self._parent.global_schema)
+        kept_fields = list(self._parent.globals.dtype)
         if self._col_keys is None:
-            kept_fields.extend(list(self._parent.col_schema))
+            kept_fields.extend(list(self._parent.col.dtype))
 
         for e in exprs:
             if isinstance(e, str):
@@ -216,9 +216,9 @@ class GroupedMatrixTable(object):
         if self._col_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols.")
         new_keys = {}
-        kept_fields = list(self._parent.global_schema)
+        kept_fields = list(self._parent.globals.dtype)
         if self._row_keys is None:
-            kept_fields.extend(list(self._parent.row_schema))
+            kept_fields.extend(list(self._parent.row.dtype))
 
         for e in exprs:
             if isinstance(e, str):
@@ -330,15 +330,15 @@ class GroupedMatrixTable(object):
 
         strs = []
 
-        fixed_fields = list(self._parent.global_schema)
+        fixed_fields = list(self._parent.globals.dtype)
         if self._row_keys is not None:
             fixed_fields.extend(self._row_keys.keys())
         else:
-            fixed_fields.extend(list(self._parent.row_schema))
+            fixed_fields.extend(list(self._parent.row.dtype))
         if self._col_keys is not None:
             fixed_fields.extend(self._col_keys.keys())
         else:
-            fixed_fields.extend(list(self._parent.col_schema))
+            fixed_fields.extend(list(self._parent.col.dtype))
 
         base, _ = self._parent._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
@@ -434,10 +434,10 @@ class MatrixTable(object):
         self._col_key = None
         self._row_key = None
         self._row_partition_key = None
-        self._global_schema = None
-        self._col_schema = None
-        self._row_schema = None
-        self._entry_schema = None
+        self._global_type = Type._from_java(self._jvds.globalType())
+        self._col_type = Type._from_java(self._jvds.colType())
+        self._row_type = Type._from_java(self._jvds.rowType())
+        self._entry_type = Type._from_java(self._jvds.entryType())
         self._num_samples = None
         self._row_axis = 'row'
         self._col_axis = 'column'
@@ -448,21 +448,21 @@ class MatrixTable(object):
         self._fields = {}
         self._fields_inverse = {}
 
-        assert isinstance(self.global_schema, tstruct), self.col_schema
-        assert isinstance(self.col_schema, tstruct), self.col_schema
-        assert isinstance(self.row_schema, tstruct), self.row_schema
-        assert isinstance(self.entry_schema, tstruct), self.entry_schema
+        assert isinstance(self._global_type, tstruct), self._global_type
+        assert isinstance(self._col_type, tstruct), self._col_type
+        assert isinstance(self._row_type, tstruct), self._row_type
+        assert isinstance(self._entry_type, tstruct), self._entry_type
 
-        for f, t in self.global_schema.items():
+        for f, t in self.globals.dtype.items():
             self._set_field(f, construct_reference(f, t, self._global_indices, prefix='global'))
 
-        for f, t in self.col_schema.items():
+        for f, t in self.col.dtype.items():
             self._set_field(f, construct_reference(f, t, self._col_indices, prefix='sa'))
 
-        for f, t in self.row_schema.items():
+        for f, t in self.row.dtype.items():
             self._set_field(f, construct_reference(f, t, self._row_indices, prefix='va'))
 
-        for f, t in self.entry_schema.items():
+        for f, t in self.entry.dtype.items():
             self._set_field(f, construct_reference(f, t, self._entry_indices, prefix='g'))
 
     def _set_field(self, key, value):
@@ -558,19 +558,6 @@ class MatrixTable(object):
                 return self.index_globals()
 
     @property
-    def global_schema(self):
-        """The schema of global fields in the matrix.
-
-        Returns
-        -------
-        :class:`.tstruct`
-            Global schema.
-        """
-        if self._global_schema is None:
-            self._global_schema = Type._from_java(self._jvds.globalType())
-        return self._global_schema
-
-    @property
     def col_key(self):
         """Return a struct expression with the column keys.
 
@@ -591,19 +578,6 @@ class MatrixTable(object):
         if self._col_key is None:
             self._col_key = jiterable_to_list(self._jvds.colKey())
         return hail.struct(**{k: self[k] for k in self._col_key})
-
-    @property
-    def col_schema(self):
-        """The schema of column-indexed fields in the matrix.
-
-        Returns
-        -------
-        :class:`.tstruct`
-             Column schema.
-        """
-        if self._col_schema is None:
-            self._col_schema = Type._from_java(self._jvds.colType())
-        return self._col_schema
 
     @property
     def row_key(self):
@@ -651,32 +625,6 @@ class MatrixTable(object):
         return pk
 
     @property
-    def row_schema(self):
-        """The schema of row-indexed fields in the matrix.
-
-        Returns
-        -------
-        :class:`.tstruct`
-             Row schema.
-        """
-        if self._row_schema is None:
-            self._row_schema = Type._from_java(self._jvds.rowType())
-        return self._row_schema
-
-    @property
-    def entry_schema(self):
-        """The schema of row-and-column-indexed fields in the matrix.
-
-        Returns
-        -------
-        :class:`.tstruct`
-             Entry schema.
-        """
-        if self._entry_schema is None:
-            self._entry_schema = Type._from_java(self._jvds.entryType())
-        return self._entry_schema
-
-    @property
     def globals(self):
         """Returns a struct expression including all global fields.
 
@@ -684,10 +632,10 @@ class MatrixTable(object):
         -------
         :class:`.StructExpression`
         """
-        return construct_expr(Reference('global', False), self.global_schema,
+        return construct_expr(Reference('global', True), self._global_type,
                               indices=self._global_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f, self._global_indices) for f in self.global_schema]))
+                                  *[(f, self._global_indices) for f in self._global_type]))
 
     @property
     def row(self):
@@ -708,10 +656,10 @@ class MatrixTable(object):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return construct_expr(Reference('va', False), self.row_schema,
+        return construct_expr(Reference('va', True), self._row_type,
                               indices=self._row_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f, self._row_indices) for f in self.row_schema]))
+                                  *[(f, self._row_indices) for f in self._row_type]))
 
     @property
     def col(self):
@@ -732,10 +680,10 @@ class MatrixTable(object):
         :class:`.StructExpression`
             Struct of all column fields.
         """
-        return construct_expr(Reference('sa', False), self.col_schema,
+        return construct_expr(Reference('sa', True), self._col_type,
                               indices=self._col_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f, self._col_indices) for f in self.col_schema]))
+                                  *[(f, self._col_indices) for f in self._col_type]))
 
     @property
     def entry(self):
@@ -757,10 +705,10 @@ class MatrixTable(object):
         :class:`.StructExpression`
             Struct of all entry fields.
         """
-        return construct_expr(Reference('g', False), self.entry_schema,
+        return construct_expr(Reference('g', True), self._entry_type,
                               indices=self._entry_indices,
                               refs=LinkedList(tuple).push(
-                                  *[(f, self._entry_indices) for f in self.entry_schema]))
+                                  *[(f, self._entry_indices) for f in self._entry_type]))
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_cols_by(self, *keys):
@@ -1377,7 +1325,7 @@ class MatrixTable(object):
         m = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = [f for f in m.global_schema if f not in fields_to_drop]
+            new_global_fields = [f for f in m.globals if f not in fields_to_drop]
             m = m.select_globals(*new_global_fields)
 
         row_fields = [x for x in fields_to_drop if self._fields[x]._indices == self._row_indices]
@@ -1387,7 +1335,7 @@ class MatrixTable(object):
 
         if any(self._fields[field]._indices == self._col_indices for field in fields_to_drop):
             # need to drop col fields
-            new_col_fields = [f for f in m.col_schema if f not in fields_to_drop]
+            new_col_fields = [f for f in m.col if f not in fields_to_drop]
             m = m.select_cols(*new_col_fields)
 
         entry_fields = [x for x in fields_to_drop if self._fields[x]._indices == self._entry_indices]
@@ -2107,7 +2055,7 @@ class MatrixTable(object):
         """
         return Table(self._jvds.rowsTable())
 
-    def cols(self):
+    def cols(self) -> Table:
         """Returns a table with all column fields in the matrix.
 
         Examples
@@ -2157,7 +2105,7 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        return construct_expr(Select(Reference('global', top_level=True), uid), self.global_schema,
+        return construct_expr(Select(Reference('global', top_level=True), uid), self.globals.dtype,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
     def index_rows(self, *exprs):
@@ -2194,7 +2142,7 @@ class MatrixTable(object):
             else:
                 return self.rows().index(*exprs)
 
-            schema = tstruct(**{f: t for f, t in self.row_schema.items() if f not in self.row_key})
+            schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
             return construct_expr(Select(Reference(prefix, top_level=True), uid),
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
@@ -2254,31 +2202,37 @@ class MatrixTable(object):
         def format_type(typ):
             return typ.pretty(indent=4)
 
-        if len(self.global_schema) == 0:
+        if len(self.globals.dtype) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
-                name=f, type=format_type(t)) for f, t in self.global_schema.items())
+                name=f, type=format_type(t)) for f, t in self.globals.dtype.items())
 
-        row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=f, type=format_type(t)) for f, t in self.row_schema.items())
+        if len(self.row) == 0:
+            row_fields = '\n    None'
+        else:
+            row_fields = ''.join("\n    '{name}': {type} ".format(
+            name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.row_key) if self.row_key else '\n    None'
         partition_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                                 for f in self.partition_key) if self.partition_key else '\n    None'
 
-        col_fields = ''.join("\n    '{name}': {type} ".format(
-            name=f, type=format_type(t)) for f, t in self.col_schema.items())
+        if len(self.col) == 0:
+            col_fields = '\n    None'
+        else:
+            col_fields = ''.join("\n    '{name}': {type} ".format(
+            name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
         col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.col_key) if self.col_key else '\n    None'
 
-        if len(self.entry_schema) == 0:
+        if len(self.entry) == 0:
             entry_fields = '\n    None'
         else:
             entry_fields = ''.join("\n    '{name}': {type} ".format(
-                name=f, type=format_type(t)) for f, t in self.entry_schema.items())
+                name=f, type=format_type(t)) for f, t in self.entry.dtype.items())
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \

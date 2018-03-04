@@ -530,7 +530,7 @@ class Tests(unittest.TestCase):
         mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
         mis = [row['node'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
-        self.assertEqual(mis_table.schema, hl.tstruct(node=hl.tint64))
+        self.assertEqual(mis_table.row.dtype, hl.tstruct(node=hl.tint64))
 
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
@@ -724,14 +724,14 @@ class Tests(unittest.TestCase):
                               entry_fields=['dosage'],
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
-        self.assertEqual(bgen.entry_schema, hl.tstruct(dosage=hl.tfloat64))
+        self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
 
         bgen = hl.import_bgen(test_file('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=test_file('example.sample'),
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
-        self.assertEqual(bgen.entry_schema, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
+        self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
         self.assertEqual(bgen.count_rows(), 199)
 
         hl.index_bgen(test_file('example.10bits.bgen'))
@@ -739,7 +739,7 @@ class Tests(unittest.TestCase):
                               entry_fields=['GT', 'GP', 'dosage'],
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
-        self.assertEqual(bgen.entry_schema, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64), dosage=hl.tfloat64))
+        self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64), dosage=hl.tfloat64))
         self.assertEqual(bgen.locus.dtype, hl.tlocus('GRCh37'))
 
     def test_import_bgen_no_reference_specified(self):

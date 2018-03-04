@@ -447,7 +447,7 @@ class TableTests(unittest.TestCase):
 
 
 class MatrixTests(unittest.TestCase):
-    def get_vds(self, min_partitions=None):
+    def get_vds(self, min_partitions=None) -> hl.MatrixTable:
         return hl.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
 
     def test_range_count(self):
@@ -460,16 +460,15 @@ class MatrixTests(unittest.TestCase):
     def test_update(self):
         vds = self.get_vds()
         vds = vds.select_entries(dp=vds.DP, gq=vds.GQ)
-        self.assertTrue(schema_eq(vds.entry_schema, hl.tstruct(dp=hl.tint32, gq=hl.tint32)))
+        self.assertTrue(schema_eq(vds.entry.dtype, hl.tstruct(dp=hl.tint32, gq=hl.tint32)))
 
     def test_annotate(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
 
-        new_global_schema = vds.global_schema
-        self.assertEqual(new_global_schema, hl.tstruct(foo=hl.tint32))
+        self.assertEqual(vds.globals.dtype, hl.tstruct(foo=hl.tint32))
 
-        orig_variant_schema = vds.row_schema
+        orig_variant_schema = vds.row.dtype
         vds = vds.annotate_rows(x1=agg.count(),
                                 x2=agg.fraction(False),
                                 x3=agg.count_where(True),
@@ -483,12 +482,12 @@ class MatrixTests(unittest.TestCase):
 
         expected_schema = hl.tstruct(s=hl.tstr, apple=hl.tint32, y1=hl.tint64, y2=hl.tfloat64, y3=hl.tint64, y4=hl.tint32)
 
-        self.assertTrue(schema_eq(vds.col_schema, expected_schema),
-                        "expected: " + str(vds.col_schema) + "\nactual: " + str(expected_schema))
+        self.assertTrue(schema_eq(vds.col.dtype, expected_schema),
+                        "expected: " + str(vds.col.dtype) + "\nactual: " + str(expected_schema))
 
         vds = vds.select_entries(z1=vds.x1 + vds.foo,
                                  z2=vds.x1 + vds.y1 + vds.foo)
-        self.assertTrue(schema_eq(vds.entry_schema, hl.tstruct(z1=hl.tint64, z2=hl.tint64)))
+        self.assertTrue(schema_eq(vds.entry.dtype, hl.tstruct(z1=hl.tint64, z2=hl.tint64)))
 
     def test_filter(self):
         vds = self.get_vds()
@@ -533,16 +532,16 @@ class MatrixTests(unittest.TestCase):
         vds = vds.annotate_cols(bar=5)
 
         vds1 = vds.drop('GT', 'info', 'foo', 'bar')
-        self.assertTrue(not any(f == 'foo' for f in vds1.global_schema))
-        self.assertTrue(not any(f == 'info' for f in vds1.row_schema))
-        self.assertTrue(not any(f == 'bar' for f in vds1.col_schema))
-        self.assertTrue(not any(f == 'GT' for f in vds1.entry_schema))
+        self.assertTrue('foo' not in vds1.globals)
+        self.assertTrue('info' not in vds1.row)
+        self.assertTrue('bar' not in vds1.col)
+        self.assertTrue('GT' not in vds1.entry)
 
         vds2 = vds.drop(vds.GT, vds.info, vds.foo, vds.bar)
-        self.assertTrue(not any(f == 'foo' for f in vds2.global_schema))
-        self.assertTrue(not any(f == 'info' for f in vds2.row_schema))
-        self.assertTrue(not any(f == 'bar' for f in vds2.col_schema))
-        self.assertTrue(not any(f == 'GT' for f in vds2.entry_schema))
+        self.assertTrue('foo' not in vds2.globals)
+        self.assertTrue('info' not in vds2.row)
+        self.assertTrue('bar' not in vds2.col)
+        self.assertTrue('GT' not in vds2.entry)
 
     def test_drop_rows(self):
         vds = self.get_vds()
@@ -1081,7 +1080,7 @@ class ColumnTests(unittest.TestCase):
                            'x4': hl.tarray(hl.tint64),
                            'x5': hl.tarray(hl.tint32)}
 
-        for f, t in kt.schema.items():
+        for f, t in kt.row.dtype.items():
             self.assertEqual(expected_schema[f], t)
 
     def test_constructors(self):
@@ -1102,4 +1101,4 @@ class ColumnTests(unittest.TestCase):
                            'l1': hl.tlocus(), 'l2': hl.tlocus(rg),
                            'i1': hl.tinterval(hl.tlocus(rg)), 'i2': hl.tinterval(hl.tlocus(rg))}
 
-        self.assertTrue(all([expected_schema[f] == t for f, t in kt.schema.items()]))
+        self.assertTrue(all([expected_schema[f] == t for f, t in kt.row.dtype.items()]))
