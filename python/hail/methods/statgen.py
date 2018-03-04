@@ -2141,7 +2141,7 @@ def genetic_relatedness_matrix(dataset):
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0))
 
-    bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
+    bm = BlockMatrix.from_entry_expr(normalized_genotype_expr)
     dataset.unpersist()
     grm = bm.T.dot(bm)
 
@@ -2242,7 +2242,7 @@ def realized_relationship_matrix(call_expr):
             lambda stddev: hl.cond(hl.is_defined(dataset.call),
                                    (gt_expr - mean_gt) / stddev, 0)))
 
-    bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
+    bm = BlockMatrix.from_entry_expr(normalized_genotype_expr)
     dataset.unpersist()
     rrm = bm.T.dot(bm) / n_variants
 

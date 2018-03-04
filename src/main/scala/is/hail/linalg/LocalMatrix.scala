@@ -163,7 +163,7 @@ class LocalMatrix(val m: BDM[Double]) {
   }
 
   def toBlockMatrix(hc: HailContext, blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix =
-    BlockMatrix.from(hc.sc, m, blockSize)
+    BlockMatrix.fromBreezeMatrix(hc.sc, m, blockSize)
 
   def apply(i: Int, j: Int): Double = m(i, j)
 

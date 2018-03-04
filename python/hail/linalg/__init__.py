@@ -1,3 +1,3 @@
-from .matrix import BlockMatrix
+from .blockmatrix import BlockMatrix
 
 __all__ = ['BlockMatrix']

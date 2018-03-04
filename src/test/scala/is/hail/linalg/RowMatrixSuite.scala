@@ -36,7 +36,7 @@ class RowMatrixSuite extends SparkSuite {
     
     BlockMatrix.from(hc.sc, localMatrix).write(fname)
     
-    assert(rowMatrix.toLocalMatrix() === localMatrix)
+    assert(rowMatrix.toBreezeMatrix() === localMatrix)
   }
 
   @Test
@@ -51,7 +51,7 @@ class RowMatrixSuite extends SparkSuite {
     
     val rowMatrixFromBlock = RowMatrix.readBlockMatrix(hc, fname, 1)
     
-    assert(rowMatrixFromBlock.toLocalMatrix() == localMatrix)
+    assert(rowMatrixFromBlock.toBreezeMatrix() == localMatrix)
   }
   
   @Test
@@ -66,7 +66,7 @@ class RowMatrixSuite extends SparkSuite {
       BlockMatrix.from(sc, lm, blockSize).write(fname, forceRowMajor = true)
       val rowMatrix = RowMatrix.readBlockMatrix(hc, fname, partSize)
       
-      assert(rowMatrix.toLocalMatrix() === lm)
+      assert(rowMatrix.toBreezeMatrix() === lm)
     }
   }
   

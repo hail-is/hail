@@ -42,7 +42,7 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       val blockMat = irm.toHailBlockMatrix(blockSize)
       assert(blockMat.nRows === nRows)
       assert(blockMat.nCols === nCols)
-      assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(irm))
+      assert(blockMat.toBreezeMatrix() === convertDistributedMatrixToBreeze(irm))
     }
 
     intercept[IllegalArgumentException] {
@@ -68,12 +68,12 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     val m = irm.toHailBlockMatrix(2)
     assert(m.nRows == nRows)
     assert(m.nCols == nCols)
-    assert(m.toLocalMatrix() == convertDistributedMatrixToBreeze(irm))
+    assert(m.toBreezeMatrix() == convertDistributedMatrixToBreeze(irm))
     assert(m.blocks.count() == 5)
 
-    (m * m.t).toLocalMatrix() // assert no exception
+    (m * m.t).toBreezeMatrix() // assert no exception
 
-    assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toLocalMatrix() ===
+    assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix() ===
       new BDM[Double](nRows, nCols, Array[Double](
         0.0, 1.0, 2.0, 4.0, 5.0, 6.0, 6.0, 7.0, 9.0,
         10.0, 11.0, 12.0, 15.0, 16.0, 17.0, 16.0, 17.0, 20.0
