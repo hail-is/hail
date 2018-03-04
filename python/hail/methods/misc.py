@@ -2,9 +2,11 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.utils.java import Env, jarray_to_list, joption
 from hail.utils import wrap_to_list
-from hail.typecheck.check import typecheck
-from hail.expr.expression import *
+from hail.genetics import Interval
+from hail.typecheck import *
+from hail.expr.expressions import *
 from hail.expr.ast import Reference
+from hail.expr.types import *
 
 
 @typecheck(i=Expression,

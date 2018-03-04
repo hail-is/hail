@@ -1,5 +1,5 @@
 from hail.typecheck import typecheck_method
-from hail.expr.expression import unify_types, unify_types_limited, expr_any, expr_bool, ExpressionException
+from hail.expr.expressions import unify_types, unify_types_limited, expr_any, expr_bool, ExpressionException
 
 
 class ConditionalBuilder(object):

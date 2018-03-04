@@ -5,7 +5,7 @@ from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
-from hail.expr.expression import analyze, expr_any
+from hail.expr.expressions import analyze, expr_any
 from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant
 
@@ -156,7 +156,7 @@ def export_plink(dataset, output, **fam_args):
         Dataset.
     output : :obj:`str`
         Filename root for output BED, BIM, and FAM files.
-    fam_args : varargs of :class:`hail.expr.expression.Expression`
+    fam_args : varargs of :class:`hail.expr.expressions.Expression`
         Named expressions defining FAM field values.
     """
 

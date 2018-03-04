@@ -1,8 +1,11 @@
 from pyspark.sql import DataFrame
 import hail as hl
-from hail.expr.expression import *
-from hail.utils import wrap_to_list, storage_level
-from hail.utils.java import jiterable_to_list
+from hail.expr.expressions import *
+from hail.expr.ast import *
+from hail.expr.types import *
+from hail.typecheck import *
+from hail.utils import wrap_to_list, storage_level, LinkedList
+from hail.utils.java import *
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 import itertools
 
