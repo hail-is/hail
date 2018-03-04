@@ -1,17 +1,11 @@
 import unittest
-
 import hail as hl
 from hail.genetics import *
+from .utils import resource, setUpModule, tearDownModule
 
-def setUpModule():
-    hl.init(master='local[2]', min_block_size=0)
-
-def tearDownModule():
-    hl.stop()
 
 class Tests(unittest.TestCase):
     def test_classes(self):
-
         l = Locus.parse('1:100')
 
         self.assertEqual(l, Locus('1', 100))

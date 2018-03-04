@@ -1,15 +1,10 @@
 import unittest
 
 from hail.utils import *
-from .linkedlist import LinkedList
+from hail.utils.linkedlist import LinkedList
 import hail as hl
-from hail.utils.misc import test_file
+from .utils import resource, setUpModule, tearDownModule
 
-def setUpModule():
-    hl.init(master='local[2]', min_block_size=0)
-
-def tearDownModule():
-    hl.stop()
 
 class Tests(unittest.TestCase):
     def test_hadoop_methods(self):
@@ -43,7 +38,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(data, data4)
 
-        with hadoop_read(test_file('randomBytes'), buffer_size=100) as f:
+        with hadoop_read(resource('randomBytes'), buffer_size=100) as f:
             with hadoop_write('/tmp/randomBytesOut', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)

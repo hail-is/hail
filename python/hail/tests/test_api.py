@@ -6,17 +6,10 @@ import random
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.java import Env, scala_object
-from hail.utils.misc import test_file, new_temp_file
+from hail.utils.misc import new_temp_file
 import json
 import pyspark.sql
-
-
-def setUpModule():
-    hl.init(master='local[2]', min_block_size=0)
-
-
-def tearDownModule():
-    hl.stop()
+from .utils import resource, setUpModule, tearDownModule
 
 
 def schema_eq(x, y):
@@ -103,8 +96,8 @@ class FileFormatTests(unittest.TestCase):
         
         all_values_table, all_values_matrix_table = create_all_values_datasets()
 
-        table_dir = test_file('backward_compatability/1.0.0/table')
-        matrix_table_dir = test_file('backward_compatability/1.0.0/matrix_table')
+        table_dir = resource('backward_compatability/1.0.0/table')
+        matrix_table_dir = resource('backward_compatability/1.0.0/matrix_table')
 
         n = 0
         i = 0
@@ -358,7 +351,7 @@ class TableTests(unittest.TestCase):
 
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
-        m = hl.import_vcf(test_file('sample.vcf'))
+        m = hl.import_vcf(resource('sample.vcf'))
         vkt = m.rows()
         vkt = vkt.select(vkt.locus, vkt.alleles, vkt.qual)
         vkt = vkt.annotate(qual2=m[(vkt.locus, vkt.alleles), :].qual)
@@ -448,7 +441,7 @@ class TableTests(unittest.TestCase):
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
-        return hl.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
+        return hl.import_vcf(resource("sample.vcf"), min_partitions=min_partitions)
 
     def test_range_count(self):
         self.assertEqual(hl.utils.range_matrix_table(7, 13).count(), (7, 13))
@@ -611,7 +604,7 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(vds._same(repart))
 
     def tests_unions(self):
-        dataset = hl.import_vcf(test_file('sample2.vcf'))
+        dataset = hl.import_vcf(resource('sample2.vcf'))
 
         # test union_rows
         ds1 = dataset.filter_rows(dataset.locus.position % 2 == 1)
@@ -694,7 +687,7 @@ class MatrixTests(unittest.TestCase):
                 hl.is_missing(rt['value']))))
 
     def test_vcf_regression(self):
-        ds = hl.import_vcf(test_file('33alleles.vcf'))
+        ds = hl.import_vcf(resource('33alleles.vcf'))
         self.assertEqual(
             ds.filter_rows(ds.alleles.length() == 2).count_rows(), 0)
 
@@ -725,7 +718,7 @@ class MatrixTests(unittest.TestCase):
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
     def test_from_rows_table(self):
-        ds = hl.import_vcf(test_file('sample.vcf'))
+        ds = hl.import_vcf(resource('sample.vcf'))
         rt = ds.rows()
         rm = hl.MatrixTable.from_rows_table(rt)
         # would be nice to compare rm to ds.drop_cols(), but the latter
