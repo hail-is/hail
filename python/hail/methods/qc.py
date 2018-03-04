@@ -231,21 +231,23 @@ def concordance(left, right):
 
     **Using the table results**
 
-    Table 1: Concordance statistics per column key
+    Table 1: Concordance statistics by column
 
-        - **s** -- column key.
-        - **n_discordant** (:py:data:`.tint64`) -- Count of discordant calls (see below for
+    This table contains the column key field of `left`, and the following fields:
+
+        - `n_discordant` (:py:data:`.tint64`) -- Count of discordant calls (see below for
           full definition).
-        - **concordance** (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
+        - `concordance` (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
           Array of concordance per state on left and right, matching the structure of
           the global summary defined above.
 
-    Table 2: Concordance statistics per row key
+    Table 2: Concordance statistics by row
 
-        - **v** -- row key.
-        - **n_discordant** (:py:data:`.tfloat64`) -- Count of discordant calls (see below for
+    This table contains the row key fields of `left`, and the following fields:
+
+        - `n_discordant` (:py:data:`.tfloat64`) -- Count of discordant calls (see below for
           full definition).
-        - **concordance** (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
+        - `concordance` (:class:`.tarray` of :class:`.tarray` of :py:data:`.tint64`) --
           Array of concordance per state on left and right, matching the structure of the
           global summary defined above.
 
@@ -255,7 +257,7 @@ def concordance(left, right):
     heterozygous, or homozygous variant) in both datasets, but where the call
     did not match between the two.
 
-    The column **concordance** matches the structure of the global summmary,
+    The column `concordance` matches the structure of the global summmary,
     which is detailed above. Once again, the first index into this array is the
     state on the left, and the second index is the state on the right. For
     example, ``concordance[1][4]`` is the number of "no call" genotypes on the
