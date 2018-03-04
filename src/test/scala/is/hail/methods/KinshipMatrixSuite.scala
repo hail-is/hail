@@ -25,7 +25,9 @@ class KinshipMatrixSuite extends SparkSuite {
 
 
   @Test def testFilterSamplesDimensions() {
-    val km = ComputeRRM(hc.baldingNicholsModel(1, 15, 15).annotateSamplesExpr("s = str(sa.sample_idx)"))
+    val km = ComputeRRM(hc.baldingNicholsModel(1, 15, 15)
+      .annotateSamplesExpr("s = str(sa.sample_idx)")
+      .keyColsBy("s"))
 
     val kmFilt = km.filterSamples { s =>
       val n = s.asInstanceOf[String].toInt
