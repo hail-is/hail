@@ -2339,7 +2339,7 @@ class MatrixTable(object):
         jvds = self._jvds.reorderSamples(order)
         return MatrixTable(jvds)
 
-    def num_partitions(self):
+    def n_partitions(self):
         """Number of partitions.
 
         Notes
@@ -2359,9 +2359,9 @@ class MatrixTable(object):
         """
         return self._jvds.nPartitions()
 
-    @typecheck_method(num_partitions=int,
+    @typecheck_method(n_partitions=int,
                       shuffle=bool)
-    def repartition(self, num_partitions, shuffle=True):
+    def repartition(self, n_partitions, shuffle=True):
         """Increase or decrease the number of partitions.
 
         Examples
@@ -2374,7 +2374,7 @@ class MatrixTable(object):
         Notes
         -----
 
-        Check the current number of partitions with :meth:`.num_partitions`.
+        Check the current number of partitions with :meth:`.n_partitions`.
 
         The data in a dataset is divided into chunks called partitions, which
         may be stored together or across a network, so that each partition may
@@ -2391,7 +2391,7 @@ class MatrixTable(object):
         and creates equal sized partitions. With ``shuffle=False``, Hail
         combines existing partitions to avoid a full shuffle. These algorithms
         correspond to the `repartition` and `coalesce` commands in Spark,
-        respectively. In particular, when ``shuffle=False``, ``num_partitions``
+        respectively. In particular, when ``shuffle=False``, ``n_partitions``
         cannot exceed current number of partitions.
 
         Note
@@ -2401,7 +2401,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        num_partitions : int
+        n_partitions : int
             Desired number of partitions.
         shuffle : bool
             If ``True``, use full shuffle to repartition.
@@ -2411,7 +2411,7 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
-        jvds = self._jvds.coalesce(num_partitions, shuffle)
+        jvds = self._jvds.coalesce(n_partitions, shuffle)
         return MatrixTable(jvds)
 
     @typecheck_method(max_partitions=int)
@@ -2781,7 +2781,7 @@ class MatrixTable(object):
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix table with approximately ``p * num_rows`` rows.
+            Matrix table with approximately ``p * n_rows`` rows.
         """
 
         if not (0 <= p <= 1):

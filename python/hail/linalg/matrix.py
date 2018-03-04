@@ -41,7 +41,7 @@ class BlockMatrix(object):
         """
         # convert to float64 to ensure that jarray method below works
         numpy_matrix = numpy_matrix.astype(np.float64)
-        num_rows, num_cols = numpy_matrix.shape[0:2]
+        n_rows, n_cols = numpy_matrix.shape[0:2]
         sc = Env.hc()._jsc
         # np.ravel() exports row major by default
         data = jarray(Env.jvm().double, np.ravel(numpy_matrix))
@@ -53,7 +53,7 @@ class BlockMatrix(object):
 
         return BlockMatrix(
             block_matrix_constructor(sc,
-                                     breeze_matrix_constructor(num_rows, num_cols, data, is_transpose),
+                                     breeze_matrix_constructor(n_rows, n_cols, data, is_transpose),
                                      block_size))
 
     @classmethod
@@ -77,20 +77,20 @@ class BlockMatrix(object):
         return cls.read(path)
 
     @staticmethod
-    def random(num_rows, num_cols, block_size, seed=0, gaussian=False):
+    def random(n_rows, n_cols, block_size, seed=0, gaussian=False):
         hc = Env.hc()
         return BlockMatrix(scala_object(Env.hail().linalg, 'BlockMatrix').random(
-            hc._jhc, num_rows, num_cols, block_size, seed, gaussian))
+            hc._jhc, n_rows, n_cols, block_size, seed, gaussian))
 
     def __init__(self, jbm):
         self._jbm = jbm
 
     @property
-    def num_rows(self):
+    def n_rows(self):
         return self._jbm.nRows()
 
     @property
-    def num_cols(self):
+    def n_cols(self):
         return self._jbm.nCols()
 
     @property

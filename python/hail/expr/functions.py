@@ -588,8 +588,8 @@ def ceil(x):
     return _func("ceil", unify_types(x.dtype, tfloat32), x)
 
 
-@typecheck(num_hom_ref=expr_int32, num_het=expr_int32, num_hom_var=expr_int32)
-def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
+@typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
+def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var):
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
     Examples
@@ -609,11 +609,11 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 
     Parameters
     ----------
-    num_hom_ref : int or :class:`.Expression` of type :py:data:`.tint32`
+    n_hom_ref : int or :class:`.Expression` of type :py:data:`.tint32`
         Homozygous reference count.
-    num_het : int or :class:`.Expression` of type :py:data:`.tint32`
+    n_het : int or :class:`.Expression` of type :py:data:`.tint32`
         Heterozygote count.
-    num_hom_var : int or :class:`.Expression` of type :py:data:`.tint32`
+    n_hom_var : int or :class:`.Expression` of type :py:data:`.tint32`
         Homozygous alternate count.
 
     Returns
@@ -624,7 +624,7 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     """
     ret_type = tstruct(r_expected_het_freq=tfloat64,
                        p_hwe=tfloat64)
-    return _func("hwe", ret_type, num_hom_ref, num_het, num_hom_var)
+    return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
 @typecheck(structs=oneof(expr_array),

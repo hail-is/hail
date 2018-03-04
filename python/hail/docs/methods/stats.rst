@@ -8,12 +8,12 @@ Statistics
 
 .. autosummary::
 
-    linreg
-    logreg
-    lmmreg
+    linear_regression
+    logistic_regression
+    linear_mixed_regression
     pca
 
-.. autofunction:: linreg
-.. autofunction:: logreg
-.. autofunction:: lmmreg
+.. autofunction:: linear_regression
+.. autofunction:: logistic_regression
+.. autofunction:: linear_mixed_regression
 .. autofunction:: pca

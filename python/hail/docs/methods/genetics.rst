@@ -12,21 +12,21 @@ Genetics
     concordance
     filter_intervals
     FilterAlleles
-    grm
     hwe_normalized_pca
-    ibd
+    identity_by_descent
+    genetic_relatedness_matrix
+    realized_relationship_matrix
     impute_sex
     ld_prune
     mendel_errors
     min_rep
     nirvana
     pc_relate
-    rrm
     sample_qc
     skat
     split_multi_hts
     SplitMulti
-    tdt
+    transmission_disequilibrium_test
     trio_matrix
     variant_qc
     vep
@@ -36,21 +36,21 @@ Genetics
 .. autofunction:: concordance
 .. autofunction:: filter_intervals
 .. autoclass:: FilterAlleles
-.. autofunction:: grm
 .. autofunction:: hwe_normalized_pca
-.. autofunction:: ibd
+.. autofunction:: identity_by_descent
+.. autofunction:: genetic_relatedness_matrix
+.. autofunction:: realized_relationship_matrix
 .. autofunction:: impute_sex
 .. autofunction:: ld_prune
 .. autofunction:: mendel_errors
 .. autofunction:: min_rep
 .. autofunction:: nirvana
 .. autofunction:: pc_relate
-.. autofunction:: rrm
 .. autofunction:: sample_qc
 .. autofunction:: skat
 .. autofunction:: split_multi_hts
 .. autoclass:: SplitMulti
-.. autofunction:: tdt
+.. autofunction:: transmission_disequilibrium_test
 .. autofunction:: trio_matrix
 .. autofunction:: variant_qc
 .. autofunction:: vep

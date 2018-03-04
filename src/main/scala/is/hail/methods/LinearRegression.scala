@@ -14,9 +14,9 @@ object LinearRegression {
   def schema = TStruct(
     ("n_complete_samples", TInt32()),
     ("AC", TFloat64()),
-    ("ytx", TArray(TFloat64())),
+    ("y_transpose_x", TArray(TFloat64())),
     ("beta", TArray(TFloat64())),
-    ("se", TArray(TFloat64())),
+    ("standard_error", TArray(TFloat64())),
     ("t_stat", TArray(TFloat64())),
     ("p_value", TArray(TFloat64())))
 
@@ -36,7 +36,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"linreg: running linear regression on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
+    info(s"linear_regression: running linear regression on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
        + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val Qt = qr.reduced.justQ(cov).t

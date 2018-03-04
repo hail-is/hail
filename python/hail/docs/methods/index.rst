@@ -38,9 +38,9 @@ Methods
 
 .. autosummary::
 
-    linreg
-    logreg
-    lmmreg
+    linear_regression
+    logistic_regression
+    linear_mixed_regression
     pca
 
 
@@ -52,21 +52,21 @@ Methods
     concordance
     filter_intervals
     FilterAlleles
-    grm
+    genetic_relatedness_matrix
     hwe_normalized_pca
-    ibd
+    identity_by_descent
     impute_sex
     ld_prune
     mendel_errors
     min_rep
     nirvana
     pc_relate
-    rrm
+    realized_relationship_matrix
     sample_qc
     skat
     split_multi_hts
     SplitMulti
-    tdt
+    transmission_disequilibrium_test
     trio_matrix
     variant_qc
     vep

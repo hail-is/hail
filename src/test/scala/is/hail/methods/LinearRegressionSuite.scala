@@ -43,7 +43,7 @@ class LinearRegressionSuite extends SparkSuite {
     val a = vds.variantsAndAnnotations.collect().toMap
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
     val qTstat = vds.queryVA("va.linreg.t_stat")._2
     val qPval = vds.queryVA("va.linreg.p_value")._2
 
@@ -105,7 +105,7 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
     val qTstat = vds.queryVA("va.linreg.t_stat")._2
     val qPval = vds.queryVA("va.linreg.p_value")._2
 
@@ -162,7 +162,7 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
     val qTstat = vds.queryVA("va.linreg.t_stat")._2
     val qPval = vds.queryVA("va.linreg.p_value")._2
 
@@ -216,7 +216,7 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array.empty[String])
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
     val qTstat = vds.queryVA("va.linreg.t_stat")._2
     val qPval = vds.queryVA("va.linreg.p_value")._2
 
@@ -263,7 +263,7 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.fam.is_case"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
     val qTstat = vds.queryVA("va.linreg.t_stat")._2
     val qPval = vds.queryVA("va.linreg.p_value")._2
 
@@ -313,7 +313,7 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.fam.quant_pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
     val qTstat = vds.queryVA("va.linreg.t_stat")._2
     val qPval = vds.queryVA("va.linreg.p_value")._2
 
@@ -375,9 +375,9 @@ class LinearRegressionSuite extends SparkSuite {
             Array("sa.cov.Cov1", "sa.cov.Cov2"))
             .annotateRowsExpr(
               s"""
-                 |linreg.ytx = [va.linreg.ytx[$i]],
+                 |linreg.y_transpose_x = [va.linreg.y_transpose_x[$i]],
                  |linreg.beta = [va.linreg.beta[$i]],
-                 |linreg.se = [va.linreg.se[$i]],
+                 |linreg.standard_error = [va.linreg.standard_error[$i]],
                  |linreg.t_stat = [va.linreg.t_stat[$i]],
                  |linreg.p_value = [va.linreg.p_value[$i]]
                  |""".stripMargin),

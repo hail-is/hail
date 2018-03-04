@@ -168,7 +168,7 @@ class Call(object):
 
         return Call._call_jobject().isHetRef(self._call)
 
-    def num_alt_alleles(self):
+    def n_alt_alleles(self):
         """Returns the count of non-reference alleles.
 
         :rtype: int
@@ -176,8 +176,8 @@ class Call(object):
 
         return Call._call_jobject().nNonRefAlleles(self._call)
 
-    @typecheck_method(num_alleles=int)
-    def one_hot_alleles(self, num_alleles):
+    @typecheck_method(n_alleles=int)
+    def one_hot_alleles(self, n_alleles):
         """Returns a list containing the one-hot encoded representation of the
         called alleles.
 
@@ -185,15 +185,15 @@ class Call(object):
         --------
         .. doctest::
 
-            >>> num_alleles = 2
+            >>> n_alleles = 2
             >>> hom_ref = hl.Call([0, 0])
             >>> het = hl.Call([0, 1])
             >>> hom_var = hl.Call([1, 1])
 
-            >>> het.one_hot_alleles(num_alleles)
+            >>> het.one_hot_alleles(n_alleles)
             [1, 1]
 
-            >>> hom_var.one_hot_alleles(num_alleles)
+            >>> hom_var.one_hot_alleles(n_alleles)
             [0, 2]
 
         Notes
@@ -205,14 +205,14 @@ class Call(object):
 
         Parameters
         ----------
-        num_alleles : :obj:`int`
+        n_alleles : :obj:`int`
             Number of total alleles, including the reference.
 
         Returns
         -------
         :obj:`list` of :obj:`int`
         """
-        return jiterable_to_list(Call._call_jobject().oneHotAlleles(self._call, num_alleles))
+        return jiterable_to_list(Call._call_jobject().oneHotAlleles(self._call, n_alleles))
 
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.

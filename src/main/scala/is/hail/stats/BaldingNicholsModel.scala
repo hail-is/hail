@@ -97,9 +97,9 @@ object BaldingNicholsModel {
     }
 
     val globalSignature = TStruct(
-      "num_populations" -> TInt32(),
-      "num_samples" -> TInt32(),
-      "num_variants" -> TInt32(),
+      "n_populations" -> TInt32(),
+      "n_samples" -> TInt32(),
+      "n_variants" -> TInt32(),
       "pop_dist" -> TArray(TFloat64()),
       "fst" -> TArray(TFloat64()),
       "ancestral_af_dist" -> ancestralAFAnnotationSignature,

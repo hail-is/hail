@@ -365,12 +365,12 @@ class Table(TableTemplate):
         return self._field_names
 
     @property
-    def num_fields(self):
+    def n_fields(self):
         if self._num_fields is None:
             self._num_fields = self._jt.nColumns()
         return self._num_fields
 
-    def num_partitions(self):
+    def n_partitions(self):
         """Returns the number of partitions in the table.
 
         Returns
@@ -389,8 +389,8 @@ class Table(TableTemplate):
     @typecheck_method(rows=anytype,
                       schema=tstruct,
                       key=oneof(str, listof(str)),
-                      num_partitions=nullable(int))
-    def parallelize(cls, rows, schema, key=[], num_partitions=None):
+                      n_partitions=nullable(int))
+    def parallelize(cls, rows, schema, key=[], n_partitions=None):
         rows = to_expr(rows, hl.tarray(schema))
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
@@ -399,7 +399,7 @@ class Table(TableTemplate):
         return Table(
             Env.hail().table.Table.parallelize(
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
-                schema._jtype, wrap_to_list(key), joption(num_partitions)))
+                schema._jtype, wrap_to_list(key), joption(n_partitions)))
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_by(self, *keys):
@@ -1617,7 +1617,7 @@ class Table(TableTemplate):
         Returns
         -------
         :class:`.Table`
-            Table with approximately ``p * num_rows`` rows.
+            Table with approximately ``p * n_rows`` rows.
         """
 
         if not (0 <= p <= 1):

@@ -61,7 +61,7 @@ class Tests(unittest.TestCase):
 
         def compare(ds, min=None, max=None):
             plink_results = plinkify(ds, min, max)
-            hail_results = hl.ibd(ds, min=min, max=max).collect()
+            hail_results = hl.identity_by_descent(ds, min=min, max=max).collect()
 
             for row in hail_results:
                 key = (row.i, row.j)
@@ -76,8 +76,8 @@ class Tests(unittest.TestCase):
         compare(dataset)
         compare(dataset, min=0.0, max=1.0)
         dataset = dataset.annotate_rows(dummy_maf=0.01)
-        hl.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
-        hl.ibd(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
+        hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
+        hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
 
     def test_impute_sex_same_as_plink(self):
         import subprocess as sp
@@ -135,10 +135,10 @@ class Tests(unittest.TestCase):
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
-        dataset = hl.linreg(dataset,
-                            ys=dataset.pheno,
-                            x=dataset.GT.num_alt_alleles(),
-                            covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
+        dataset = hl.linear_regression(dataset,
+                                       ys=dataset.pheno,
+                                       x=dataset.GT.n_alt_alleles(),
+                                       covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
         dataset.count_rows()
 
@@ -212,7 +212,7 @@ class Tests(unittest.TestCase):
 
         dataset = self.get_dataset()
         n_samples = dataset.count_cols()
-        dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+        dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                         n_called=agg.count_where(hl.is_defined(dataset.GT)))
         dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
         dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
@@ -223,7 +223,7 @@ class Tests(unittest.TestCase):
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
-        grm = hl.grm(dataset)
+        grm = hl.genetic_relatedness_matrix(dataset)
         grm.export_id_file(rel_id_file)
 
         ############
@@ -276,8 +276,8 @@ class Tests(unittest.TestCase):
 
         for block_size in [1, 2, 5, 1024]:
             block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
-            assert (block_matrix.num_rows == 3)
-            assert (block_matrix.num_cols == 5)
+            assert (block_matrix.n_rows == 3)
+            assert (block_matrix.n_cols == 5)
             assert (block_matrix.to_numpy_matrix() == numpy_matrix).all()
 
     def test_rrm(self):
@@ -292,10 +292,10 @@ class Tests(unittest.TestCase):
                                            m1,
                                            fst=(k * [fst]),
                                            seed=seed,
-                                           num_partitions=4)
+                                           n_partitions=4)
 
         def direct_calculation(ds):
-            ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_numpy_matrix()
+            ds = BlockMatrix.from_matrix_table(ds['GT'].n_alt_alleles()).to_numpy_matrix()
 
             # filter out constant rows
             isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])
@@ -316,7 +316,7 @@ class Tests(unittest.TestCase):
             return rrm
 
         def hail_calculation(ds):
-            rrm = hl.rrm(ds['GT'])
+            rrm = hl.realized_relationship_matrix(ds['GT'])
             fn = utils.new_temp_file(suffix='.tsv')
 
             rrm.export_tsv(fn)
@@ -336,7 +336,7 @@ class Tests(unittest.TestCase):
 
     def test_pca(self):
         dataset = hl.balding_nichols_model(3, 100, 100)
-        eigenvalues, scores, loadings = hl.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=True)
+        eigenvalues, scores, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=True)
 
         self.assertEqual(len(eigenvalues), 2)
         self.assertTrue(isinstance(scores, hl.Table))
@@ -344,7 +344,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(isinstance(loadings, hl.Table))
         self.assertEqual(loadings.count(), 100)
 
-        _, _, loadings = hl.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=False)
+        _, _, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
     def test_pcrelate(self):
@@ -493,7 +493,7 @@ class Tests(unittest.TestCase):
 
     def test_tdt(self):
         pedigree = hl.Pedigree.read(test_file('tdt.fam'))
-        tdt_tab = (hl.tdt(
+        tdt_tab = (hl.transmission_disequilibrium_test(
             hl.split_multi_hts(hl.import_vcf(test_file('tdt.vcf'), min_partitions=4)),
             pedigree))
 
@@ -587,20 +587,20 @@ class Tests(unittest.TestCase):
         hl.ld_prune(ds, 8).count_rows()
 
     def test_entries_table(self):
-        num_rows, num_cols = 5, 3
-        rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(num_rows) for j in range(num_cols)]
+        n_rows, n_cols = 5, 3
+        rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
         schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
         table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))
 
-        numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (num_rows, num_cols))
+        numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
 
         for block_size in [1, 2, 1024]:
             block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
             entries_table = block_matrix.entries()
-            self.assertEqual(entries_table.count(), num_cols * num_rows)
-            self.assertEqual(entries_table.num_fields, 3)
+            self.assertEqual(entries_table.count(), n_cols * n_rows)
+            self.assertEqual(entries_table.n_fields, 3)
             self.assertTrue(table._same(entries_table))
 
     def test_min_rep(self):
@@ -610,7 +610,7 @@ class Tests(unittest.TestCase):
 
     def test_filter_intervals(self):
         ds = hl.import_vcf(test_file('sample.vcf'), min_partitions=20)
-        print(ds.num_partitions())
+        print(ds.n_partitions())
         self.assertEqual(
             hl.filter_intervals(ds, hl.Interval.parse('20:10639222-10644705')).count_rows(), 3)
 
@@ -633,12 +633,12 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(ds.count_cols(), 20)
         self.assertEqual(ds.count_rows(), 25)
-        self.assertEqual(ds.num_partitions(), 3)
+        self.assertEqual(ds.n_partitions(), 3)
 
         glob = ds.globals
-        self.assertEqual(glob.num_populations.value, 2)
-        self.assertEqual(glob.num_samples.value, 20)
-        self.assertEqual(glob.num_variants.value, 25)
+        self.assertEqual(glob.n_populations.value, 2)
+        self.assertEqual(glob.n_samples.value, 20)
+        self.assertEqual(glob.n_variants.value, 25)
         self.assertEqual(glob.pop_dist.value, [1, 2])
         self.assertEqual(glob.fst.value, [.02, .06])
         self.assertEqual(glob.seed.value, 1)
@@ -678,7 +678,7 @@ class Tests(unittest.TestCase):
                 key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
-                x=ds.GT.num_alt_alleles(),
+                x=ds.GT.n_alt_alleles(),
                 covariates=[ds.cov.Cov1, ds.cov.Cov2],
                 logistic=False).count()
 

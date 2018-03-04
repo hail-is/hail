@@ -20,7 +20,7 @@ import itertools
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
-def ibd(dataset, maf=None, bounded=True, min=None, max=None):
+def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
     """Compute matrix of identity-by-descent estimations.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -33,13 +33,13 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     To calculate a full IBD matrix, using minor allele frequencies computed
     from the dataset itself:
 
-    >>> hl.ibd(dataset)
+    >>> hl.identity_by_descent(dataset)
 
     To calculate an IBD matrix containing only pairs of samples with
     ``PI_HAT`` in :math:`[0.2, 0.9]`, using minor allele frequencies stored in
     the row field `panel_maf`:
 
-    >>> hl.ibd(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
+    >>> hl.identity_by_descent(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
 
     Notes
     -----
@@ -47,9 +47,9 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     The implementation is based on the IBD algorithm described in the `PLINK
     paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
 
-    :func:`.ibd` requires the dataset to be biallelic and does not perform LD
-    pruning. Linkage disequilibrium may bias the result so consider filtering
-    variants first.
+    :func:`.identity_by_descent` requires the dataset to be biallelic and does
+    not perform LD pruning. Linkage disequilibrium may bias the result so
+    consider filtering variants first.
 
     The resulting :class:`.Table` entries have the type: *{ i: String,
     j: String, ibd: { Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double },
@@ -86,11 +86,10 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     Returns
     -------
     :class:`.Table`
-        A table which maps pairs of samples to their IBD statistics
     """
 
     if maf is not None:
-        analyze('ibd/maf', maf, dataset._row_indices)
+        analyze('identity_by_descent/maf', maf, dataset._row_indices)
         dataset, _ = dataset._process_joins(maf)
         maf = maf._ast.to_hql()
 
@@ -233,22 +232,22 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=listof(oneof(expr_numeric, expr_bool)),
            root=str,
            block_size=int)
-def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
+def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     """For each row, test a derived input variable for association with
     response variables using linear regression.
 
     Examples
     --------
 
-    >>> dataset_result = hl.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
-    ...                            covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    >>> dataset_result = hl.linear_regression(dataset, [dataset.pheno.height], dataset.GT.n_alt_alleles(),
+    ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
-    :func:`.linreg` considers the same set of columns (i.e., samples, points)
+    :func:`.linear_regression` considers the same set of columns (i.e., samples, points)
     for every response variable and row, namely those columns for which **all**
     response variables and covariates are defined. For each row, missing values
-    of ``x`` are mean-imputed over these columns.
+    of `x` are mean-imputed over these columns.
 
     Notes
     -----
@@ -256,12 +255,12 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     indexing of the array fields corresponds to that of `ys`.
 
     - **linreg.n_complete_samples** (:py:data:`.tint32`) -- Number of columns used.
-    - **linreg.AC** (:py:data:`.tfloat64`) -- Sum of input values `x`.
-    - **linreg.ytx** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
+    - **linreg.sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
+    - **linreg.y_transpose_x** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       dot products of each response vector `y` with the input vector `x`.
     - **linreg.beta** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       fit effect coefficients of `x`, :math:`\hat\\beta_1` below.
-    - **linreg.se** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
+    - **linreg.standard_error** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
       estimated standard errors, :math:`\widehat{\mathrm{se}}_1`.
     - **linreg.t_stat** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array
       of :math:`t`-statistics, equal to
@@ -318,16 +317,16 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     ys = wrap_to_list(ys)
 
     # x is entry-indexed
-    analyze('linreg/x', x, dataset._entry_indices)
+    analyze('linear_regression/x', x, dataset._entry_indices)
 
     # ys and covariates are col-indexed
     ys = wrap_to_list(ys)
     for e in ys:
         all_exprs.append(e)
-        analyze('linreg/ys', e, dataset._col_indices)
+        analyze('linear_regression/ys', e, dataset._col_indices)
     for e in covariates:
         all_exprs.append(e)
-        analyze('linreg/covariates', e, dataset._col_indices)
+        analyze('linear_regression/covariates', e, dataset._col_indices)
 
     base, cleanup = dataset._process_joins(*all_exprs)
 
@@ -348,7 +347,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
            x=expr_numeric,
            covariates=listof(oneof(expr_numeric, expr_bool)),
            root=str)
-def logreg(dataset, test, y, x, covariates=[], root='logreg'):
+def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
     Boolean response variable using logistic regression.
 
@@ -358,27 +357,27 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     Run the logistic regression Wald test per variant using a Boolean
     phenotype and two covariates stored in column-indexed fields:
 
-    >>> ds_result = hl.logreg(
+    >>> ds_result = hl.logistic_regression(
     ...     dataset,
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
-    ...     x=dataset.GT.num_alt_alleles(),
+    ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
     -----
 
-    The :func:`.logreg` method performs, for each row, a significance test of
-    the input variable in predicting a binary (case-control) response
-    variable based on the logistic regression model. The response variable
-    type must either be numeric (with all present values 0 or 1) or Boolean,
-    in which case true and false are coded as 1 and 0, respectively.
+    This method performs, for each row, a significance test of the input
+    variable in predicting a binary (case-control) response variable based on
+    the logistic regression model. The response variable type must either be
+    numeric (with all present values 0 or 1) or Boolean, in which case true and
+    false are coded as 1 and 0, respectively.
 
-    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
-    Rao score test ('score'), and Firth test ('firth'). Hail only includes
-    columns for which the response variable and all covariates are defined.
-    For each row, Hail imputes missing input values as the mean of the
-    non-missing values.
+    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao
+    score test ('score'), and Firth test ('firth'). Hail only includes columns
+    for which the response variable and all covariates are defined. For each
+    row, Hail imputes missing input values as the mean of the non-missing
+    values.
 
     The example above considers a model of the form
 
@@ -394,7 +393,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     where :math:`\mathrm{sigmoid}` is the `sigmoid function`_, the genotype
     :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
     HomVar, and the Boolean covariate :math:`\mathrm{is_female}` is coded as
-    for true (female) and 0 for false (male). The null model sets
+    for ``True`` (female) and 0 for ``False`` (male). The null model sets
     :math:`\beta_1 = 0`.
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
@@ -402,24 +401,24 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     The resulting variant annotations depend on the test statistic as shown
     in the tables below.
 
-    ========== ================ ======= ============================================
-    Test       Field            Type    Value
-    ========== ================ ======= ============================================
-    Wald       `logreg.beta`    float64 fit effect coefficient,
-                                        :math:`\hat\beta_1`
-    Wald       `logreg.se`      float64 estimated standard error,
-                                        :math:`\widehat{\mathrm{se}}`
-    Wald       `logreg.z_stat`  float64 Wald :math:`z`-statistic, equal to
-                                        :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    Wald       `logreg.p_value` float64 Wald p-value testing :math:`\beta_1 = 0`
-    LRT, Firth `logreg.beta`    float64 fit effect coefficient,
-                                        :math:`\hat\beta_1`
-    LRT, Firth `logreg.chi2`    float64 deviance statistic
-    LRT, Firth `logreg.p_value` float64 LRT / Firth p-value testing
-                                        :math:`\beta_1 = 0`
-    Score      `logreg.chi2`    float64 score statistic
-    Score      `logreg.p_value` float64 score p-value testing :math:`\beta_1 = 0`
-    ========== ================ ======= ============================================
+    ========== ======================= ======= ============================================
+    Test       Field                   Type    Value
+    ========== ======================= ======= ============================================
+    Wald       `logreg.beta`           float64 fit effect coefficient,
+                                               :math:`\hat\beta_1`
+    Wald       `logreg.standard_error` float64 estimated standard error,
+                                               :math:`\widehat{\mathrm{se}}`
+    Wald       `logreg.z_stat`         float64 Wald :math:`z`-statistic, equal to
+                                               :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `logreg.p_value`        float64 Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `logreg.beta`           float64 fit effect coefficient,
+                                               :math:`\hat\beta_1`
+    LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
+    LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
+                                               :math:`\beta_1 = 0`
+    Score      `logreg.chi_sq_stat`    float64 score statistic
+    Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
+    ========== ======================= ======= ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
     each row using Newton iteration and only emits the above annotations
@@ -428,16 +427,16 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     convergence issues, Hail also emits three variant annotations which
     summarize the iterative fitting process:
 
-    ================ ======================= ======= ===============================
-    Test             Field                   Type    Value
-    ================ ======================= ======= ===============================
-    Wald, LRT, Firth `logreg.fit.n_iter`     int32   number of iterations until
-                                                     convergence, explosion, or
-                                                     reaching the max (25 for
-                                                     Wald, LRT; 100 for Firth)
-    Wald, LRT, Firth `logreg.fit.converged`  bool    ``True`` if iteration converged
-    Wald, LRT, Firth `logreg.fit.exploded`   bool    ``True`` if iteration exploded
-    ================ ======================= ======= ===============================
+    ================ ========================= ======= ===============================
+    Test             Field                     Type    Value
+    ================ ========================= ======= ===============================
+    Wald, LRT, Firth `logreg.fit.n_iterations` int32   number of iterations until
+                                                       convergence, explosion, or
+                                                       reaching the max (25 for
+                                                       Wald, LRT; 100 for Firth)
+    Wald, LRT, Firth `logreg.fit.converged`    bool    ``True`` if iteration converged
+    Wald, LRT, Firth `logreg.fit.exploded`     bool    ``True`` if iteration exploded
+    ================ ========================= ======= ===============================
 
     We consider iteration to have converged when every coordinate of
     :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
@@ -498,7 +497,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     quadratic. For Firth, 100 iterations are attempted for the null model and,
     if that is successful, for the full model as well. In testing we find 20
     iterations nearly always suffices. If the null model fails to converge, then
-    the `lmmreg.fit` fields reflect the null model; otherwise, they reflect the
+    the `logreg.fit` fields reflect the null model; otherwise, they reflect the
     full model.
 
     See
@@ -548,15 +547,15 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     """
 
     # x is entry-indexed
-    analyze('logreg/x', x, dataset._entry_indices)
+    analyze('logistic_regression/x', x, dataset._entry_indices)
 
     # y and covariates are col-indexed
-    analyze('logreg/y', y, dataset._col_indices)
+    analyze('logistic_regression/y', y, dataset._col_indices)
 
     all_exprs = [x, y]
     for e in covariates:
         all_exprs.append(e)
-        analyze('logreg/covariates', e, dataset._col_indices)
+        analyze('logistic_regression/covariates', e, dataset._col_indices)
 
     base, cleanup = dataset._process_joins(*all_exprs)
 
@@ -582,11 +581,11 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
            use_ml=bool,
            delta=nullable(numeric),
            sparsity_threshold=numeric,
-           n_eigs=nullable(int),
+           n_eigenvectors=nullable(int),
            dropped_variance_fraction=(nullable(float)))
-def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global", row_root="lmmreg",
-           run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
-           n_eigs=None, dropped_variance_fraction=None):
+def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
+                            row_root="lmmreg", run_assoc=True, use_ml=False, delta=None,
+                            sparsity_threshold=1.0, n_eigenvectors=None, dropped_variance_fraction=None):
     r"""Use a kinship-based linear mixed model to estimate the genetic component
     of phenotypic variance (narrow-sense heritability) and optionally test each
     variant for association.
@@ -606,20 +605,20 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
 
 
     >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
-    >>> kinship_matrix = hl.rrm(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
-    >>> lmm_ds = hl.lmmreg(lmm_ds,
-    ...                    kinship_matrix,
-    ...                    lmm_ds.pheno,
-    ...                    lmm_ds.GT.num_alt_alleles(),
-    ...                    [lmm_ds.cov1, lmm_ds.cov2])
+    >>> kinship_matrix = hl.realized_relationship_matrix(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
+    >>> lmm_ds = hl.linear_mixed_regression(lmm_ds,
+    ...                                     kinship_matrix,
+    ...                                     lmm_ds.pheno,
+    ...                                     lmm_ds.GT.n_alt_alleles(),
+    ...                                     [lmm_ds.cov1, lmm_ds.cov2])
 
     Notes
     -----
     Suppose the variant dataset saved at :file:`data/example_lmmreg.vds` has a
     Boolean variant-indexed field `use_in_kinship` and numeric or Boolean
     sample-indexed fields `pheno`, `cov1`, and `cov2`. Then the
-    :func:`.lmmreg` function in the above example will execute the following
-    four steps in order:
+    :func:`.linear_mixed_regression` function in the above example will execute
+    the following four steps in order:
 
     1) filter to samples in given kinship matrix to those for which
        `ds.pheno`, `ds.cov`, and `ds.cov2` are all defined
@@ -646,10 +645,10 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     - Set the `row_root` argument to change the variant annotation root in
       Step 5.
 
-    :func:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on
-    whether :math:`\delta` is set or fit. These global annotations are stored
-    under the prefix `global_root`, which is by default ``lmmreg_global``. The
-    prefix is not displayed in the table below.
+    :func:`.linear_mixed_regression` adds 9 or 13 global annotations in Step 4,
+    depending on whether :math:`\delta` is set or fit. These global annotations
+    are stored under the prefix `global_root`, which is by default
+    ``lmmreg_global``. The prefix is not displayed in the table below.
 
     .. list-table::
        :header-rows: 1
@@ -664,32 +663,32 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
          - dict<str, float64>
          - map from *intercept* and the given `covariates` expressions to the
            corresponding fit :math:`\beta` coefficients
-       * - `sigma_g2`
+       * - `sigma_g_squared`
          - float64
          - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
-       * - `sigma_e2`
+       * - `sigma_e_squared`
          - float64
          - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
        * - `delta`
          - float64
          - fit ratio of variance component coefficients, :math:`\hat{\delta}`
-       * - `h2`
+       * - `h_squared`
          - float64
          - fit narrow-sense heritability, :math:`\hat{h}^2`
-       * - `n_eigenvalues`
+       * - `n_eigenvectors`
          - int32
          - number of eigenvectors of kinship matrix used to fit model
        * - `dropped_variance_fraction`
          - float64
          - specified value of `dropped_variance_fraction`
-       * - `evals`
+       * - `eigenvalues`
          - array<float64>
          - all eigenvalues of the kinship matrix in descending order
-       * - `fit.se_h2`
+       * - `fit.standard_error_h_squared`
          - float64
          - standard error of :math:`\hat{h}^2` under asymptotic normal
            approximation
-       * - `fit.norm_likelihood_h2`
+       * - `fit.normalized_likelihood_h_squared`
          - array<float64>
          - likelihood function of :math:`h^2` normalized on the discrete grid
            ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
@@ -709,49 +708,51 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
 
     These global annotations are also added to ``hail.log``, with the ranked
     evals and :math:`\delta` grid with values in .tsv tabular form.  Use
-    ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
+    ``grep 'linear mixed regression' hail.log`` to find the lines just above
+    each table.
 
-    If Step 5 is performed, :func:`.lmmreg` also adds four linear regression
-    variant annotations. These annotations are stored under the row-indexed
-    field prefix `row_root`, which defaults to ``lmmreg``. Once again, the prefix
-    is not displayed in the table.
+    If Step 5 is performed, :func:`.linear_mixed_regression` also adds four
+    linear regression row fields. These annotations are stored as `row_root`,
+    which defaults to ``lmmreg``. Once again, the prefix is not displayed in the
+    table.
 
-    +------------+---------+------------------------------------------------+
-    | Field      | Type    | Value                                          |
-    +============+=========+================================================+
-    | `beta`     | float64 | fit genotype coefficient, :math:`\hat\beta_0`  |
-    +------------+---------+------------------------------------------------+
-    | `sigma_g2` | float64 | fit coefficient of genetic variance component, |
-    |            |         | :math:`\hat{\sigma}_g^2`                       |
-    +------------+---------+------------------------------------------------+
-    | `chi2`     | float64 | :math:`\chi^2` statistic of the likelihood     |
-    |            |         | ratio test                                     |
-    +------------+---------+------------------------------------------------+
-    | `p_value`  | float64 | :math:`p`-value                                |
-    +------------+---------+------------------------------------------------+
+    +-------------------+---------+------------------------------------------------+
+    | Field             | Type    | Value                                          |
+    +===================+=========+================================================+
+    | `beta`            | float64 | fit genotype coefficient, :math:`\hat\beta_0`  |
+    +-------------------+---------+------------------------------------------------+
+    | `sigma_g_squared` | float64 | fit coefficient of genetic variance component, |
+    |                   |         | :math:`\hat{\sigma}_g^2`                       |
+    +-------------------+---------+------------------------------------------------+
+    | `chi_sq_stat`     | float64 | :math:`\chi^2` statistic of the likelihood     |
+    |                   |         | ratio test                                     |
+    +-------------------+---------+------------------------------------------------+
+    | `p_value`         | float64 | :math:`p`-value                                |
+    +-------------------+---------+------------------------------------------------+
 
     Those variants that don't vary across the included samples (e.g., all
     genotypes are HomRef) will have missing annotations.
 
     **Performance**
 
-    Hail's initial version of :func:`.lmmreg` scales beyond 15k samples and
-    to an essentially unbounded number of variants, making it particularly
-    well-suited to modern sequencing studies and complementary to tools
-    designed for SNP arrays. Analysts have used :func:`.lmmreg` in research to
-    compute kinship from 100k common variants and test 32 million non-rare
-    variants on 8k whole genomes in about 10 minutes on `Google cloud`_.
+    Hail's initial version of :func:`.linear_mixed_regression` scales beyond
+    15k samples and to an essentially unbounded number of variants, making it
+    particularly well-suited to modern sequencing studies and complementary to
+    tools designed for SNP arrays. Analysts have used
+    :func:`.linear_mixed_regression` in research to compute kinship from 100k
+    common variants and test 32 million non-rare variants on 8k whole genomes in
+    about 10 minutes on `Google cloud`_.
 
     .. _Google cloud:
         http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80
 
-    While :func:`.lmmreg` computes the kinship matrix :math:`K` using
-    distributed matrix multiplication (Step 2), the full `eigendecomposition`_
-    (Step 3) is currently run on a single core of master using the
-    `LAPACK routine DSYEVD`_, which we empirically find to be the most
+    While :func:`.linear_mixed_regression` computes the kinship matrix
+    :math:`K` using distributed matrix multiplication (Step 2), the full
+    `eigendecomposition`_ (Step 3) is currently run on a single core of master
+    using the `LAPACK routine DSYEVD`_, which we empirically find to be the most
     performant of the four available routines; laptop performance plots showing
-    cubic complexity in :math:`n` are available
-    `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud,
+    cubic complexity in :math:`n` are available `here
+    <https://github.com/hail-is/hail/pull/906>`__. On Google cloud,
     eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for
     8185 samples. If you see worse performance, check that LAPACK natives are
     being properly loaded (see "BLAS and LAPACK" in Getting Started).
@@ -777,10 +778,10 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
 
     **Linear mixed model**
 
-    :func:`.lmmreg` estimates the genetic proportion of residual phenotypic
-    variance (narrow-sense heritability) under a kinship-based linear mixed
-    model, and then optionally tests each variant for association using the
-    likelihood ratio test. Inference is exact.
+    :func:`.linear_mixed_regression` estimates the genetic proportion of
+    residual phenotypic variance (narrow-sense heritability) under a
+    kinship-based linear mixed model, and then optionally tests each variant for
+    association using the likelihood ratio test. Inference is exact.
 
     We first describe the sample-covariates-only model used to estimate
     heritability, which we simply refer to as the *global model*. With
@@ -871,7 +872,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     is very small. A maximum at the upper boundary is highly suspicious and
     will also cause Hail to exit. In any case, the log file records the table
     of grid values for further inspection, beginning under the info line
-    containing "lmmreg: table of delta".
+    containing "linear mixed regression: table of delta".
 
     If the optimal grid point falls in the interior of the grid as expected,
     we then use `Brent's method`_ to find the precise location of the maximum
@@ -902,8 +903,8 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     .. _change of variables: https://en.wikipedia.org/wiki/Integration_by_substitution
     .. _sigmoid differential equation: https://en.wikipedia.org/wiki/Sigmoid_function#Properties
 
-    For convenience, `lmmreg.fit.norm_likelihood_h2` records the the likelihood
-    function of :math:`h^2` normalized over the discrete grid
+    For convenience, `lmmreg.fit.normalized_likelihood_h_squared` records the
+    the likelihood function of :math:`h^2` normalized over the discrete grid
     :math:`0.01, 0.02, \ldots, 0.98, 0.99`. The length of the array is 101 so
     that index ``i`` contains the likelihood at percentage ``i``. The values at
     indices 0 and 100 are left undefined.
@@ -927,8 +928,9 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     The standard error :math:`\hat{\sigma}` is then estimated by solving for
     :math:`\sigma`.
 
-    Note that the mean and standard deviation of the (discretized or continuous)
-    distribution held in `lmmreg.fit.norm_likelihood_h2` will not coincide with
+    Note that the mean and standard deviation of the (discretized or
+    continuous) distribution held in
+    `lmmreg.fit.normalized_likelihood_h_squared` will not coincide with
     :math:`\hat{h}^2` and :math:`\hat{\sigma}`, since this distribution only
     becomes normal in the infinite sample limit. One can visually assess
     normality by plotting this distribution against a normal distribution with
@@ -985,26 +987,29 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
 
     **Low-rank approximation of kinship for improved performance**
 
-    :func:`.lmmreg` can implicitly use a low-rank approximation of the kinship
-    matrix to more rapidly fit delta and the statistics for each variant. The
-    computational complexity per variant is proportional to the number of
-    eigenvectors used. This number can be specified in two ways. Specify the
-    parameter `n_eigs` to use only the top `n_eigs` eigenvectors.
-    Alternatively, specify `dropped_variance_fraction` to use as many
-    eigenvectors as necessary to capture all but at most this fraction of the
-    sample variance (also known as the trace, or the sum of the eigenvalues).
-    For example, setting `dropped_variance_fraction` to 0.01 will use the
-    minimal number of eigenvectors to account for 99% of the sample variance.
-    Specifying both parameters will apply the more stringent (fewest
-    eigenvectors) of the two.
+    :func:`.linear_mixed_regression` can implicitly use a low-rank
+    approximation of the kinship matrix to more rapidly fit delta and the
+    statistics for each variant. The computational complexity per variant is
+    proportional to the number of eigenvectors used. This number can be
+    specified in two ways. Specify the parameter `n_eigenvectors` to use only the
+    top `n_eigenvectors` eigenvectors. Alternatively, specify
+    `dropped_variance_fraction` to use as many eigenvectors as necessary to
+    capture all but at most this fraction of the sample variance (also known as
+    the trace, or the sum of the eigenvalues). For example, setting
+    `dropped_variance_fraction` to 0.01 will use the minimal number of
+    eigenvectors to account for 99% of the sample variance. Specifying both
+    parameters will apply the more stringent (fewest eigenvectors) of the two.
 
     **Further background**
 
     For the history and mathematics of linear mixed models in genetics,
-    including `FastLMM`_, see
-    `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__.
+    including `FastLMM`_, see `Christoph Lippert's PhD thesis
+    <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__.
     For an investigation of various approaches to defining kinship, see
-    `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
+    `Comparison of Methods to Account for Relatedness in Genome-Wide Association
+    Studies with Family-Based Data
+    <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
+
 
     Parameters
     ----------
@@ -1029,7 +1034,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     sparsity_threshold : :obj:`float`
         Genotype vector sparsity at or below which to use sparse genotype
         vector in rotation (advanced).
-    n_eigs : :obj:`int`
+    n_eigenvectors : :obj:`int`
         Number of eigenvectors of the kinship matrix used to fit the model.
     dropped_variance_fraction : :obj:`float`
         Upper bound on fraction of sample variance lost by dropping
@@ -1042,15 +1047,15 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
     """
 
     # x is entry-indexed
-    analyze('lmmreg/x', x, ds._entry_indices)
+    analyze('linear_mixed_regression/x', x, ds._entry_indices)
 
     # y and covariates are col-indexed
-    analyze('lmmreg/y', y, ds._col_indices)
+    analyze('linear_mixed_regression/y', y, ds._col_indices)
 
     all_exprs = [x, y]
     for e in covariates:
         all_exprs.append(e)
-        analyze('lmmreg/covariates', e, ds._col_indices)
+        analyze('linear_mixed_regression/covariates', e, ds._col_indices)
 
     base, cleanup = ds._process_joins(*all_exprs)
 
@@ -1065,7 +1070,7 @@ def lmmreg(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
                             run_assoc,
                             joption(delta),
                             sparsity_threshold,
-                            joption(n_eigs),
+                            joption(n_eigenvectors),
                             joption(dropped_variance_fraction))
 
     return cleanup(MatrixTable(jds))
@@ -1108,7 +1113,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     ...                      key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
-    ...                      x=burden_ds.GT.num_alt_alleles(),
+    ...                      x=burden_ds.GT.n_alt_alleles(),
     ...                      covariates=[burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
@@ -1329,7 +1334,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
         List of eigenvalues, table with column scores, table with row loadings.
     """
     dataset = require_biallelic(dataset, 'hwe_normalized_pca')
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                     n_called=agg.count_where(hl.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
 
@@ -1343,7 +1348,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     entry_expr = hl.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.num_alt_alleles() - mean_gt) /
+                                (dataset.GT.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0))
     result = pca(entry_expr,
@@ -2049,7 +2054,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
 
 @typecheck(dataset=MatrixTable)
-def grm(dataset):
+def genetic_relatedness_matrix(dataset):
     """Compute the Genetic Relatedness Matrix (GRM).
 
     .. include:: ../_templates/req_tvariant.rst
@@ -2058,7 +2063,7 @@ def grm(dataset):
     Examples
     --------
 
-    >>> km = hl.grm(dataset)
+    >>> km = hl.genetic_relatedness_matrix(dataset)
 
     Notes
     -----
@@ -2112,8 +2117,8 @@ def grm(dataset):
         Genetic Relatedness Matrix for all samples.
     """
 
-    dataset = require_biallelic(dataset, "grm")
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+    dataset = require_biallelic(dataset, "genetic_relatedness_matrix")
+    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                     n_called=agg.count_where(hl.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
 
@@ -2125,7 +2130,7 @@ def grm(dataset):
     normalized_genotype_expr = hl.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.num_alt_alleles() - mean_gt) /
+                                (dataset.GT.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0))
 
@@ -2140,7 +2145,7 @@ def grm(dataset):
 
 
 @typecheck(call_expr=CallExpression)
-def rrm(call_expr):
+def realized_relationship_matrix(call_expr):
     """Computes the Realized Relationship Matrix (RRM).
 
     .. include:: ../_templates/req_biallelic.rst
@@ -2148,7 +2153,7 @@ def rrm(call_expr):
     Examples
     --------
 
-    >>> kinship_matrix = hl.rrm(dataset['GT'])
+    >>> kinship_matrix = hl.realized_relationship_matrix(dataset['GT'])
 
     Notes
     -----
@@ -2179,9 +2184,10 @@ def rrm(call_expr):
         K = MM^T
 
     Note that the only difference between the Realized Relationship Matrix and
-    the Genetic Relationship Matrix (GRM) used in :func:`.grm` is the
-    variant (column) normalization: where RRM uses empirical variance, GRM uses
-    expected variance under Hardy-Weinberg Equilibrium.
+    the Genetic Relationship Matrix (GRM) used in
+    :func:`.realized_relationship_matrix` is the variant (column) normalization:
+    where RRM uses empirical variance, GRM uses expected variance under
+    Hardy-Weinberg Equilibrium.
 
 
     Parameters
@@ -2198,11 +2204,11 @@ def rrm(call_expr):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
             "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     dataset = source
-    analyze('rrm', call_expr, dataset._entry_indices)
+    analyze('realized_relationship_matrix', call_expr, dataset._entry_indices)
     dataset = dataset.annotate_entries(call=call_expr)
     dataset = require_biallelic(dataset, 'rrm')
 
-    gt_expr = dataset.call.num_alt_alleles()
+    gt_expr = dataset.call.n_alt_alleles()
     dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
                                     ACsq=agg.sum(gt_expr * gt_expr),
                                     n_called=agg.count_where(hl.is_defined(dataset.call)))
@@ -2218,7 +2224,7 @@ def rrm(call_expr):
         raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing RRM using {} variants.".format(n_variants))
 
-    gt_expr = dataset.call.num_alt_alleles()
+    gt_expr = dataset.call.n_alt_alleles()
     normalized_genotype_expr = hl.bind(
         dataset.AC / dataset.n_called,
         lambda mean_gt: hl.bind(
@@ -2234,20 +2240,20 @@ def rrm(call_expr):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
-                                            [row.s for row in dataset.cols().select('s').collect()],
+                                            dataset['s'].collect(),
                                             n_variants)
 
 
-@typecheck(num_populations=int,
-           num_samples=int,
-           num_variants=int,
-           num_partitions=nullable(int),
+@typecheck(n_populations=int,
+           n_samples=int,
+           n_variants=int,
+           n_partitions=nullable(int),
            pop_dist=nullable(listof(numeric)),
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
            reference_genome=reference_genome_type)
-def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
+def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                           seed=0, reference_genome='default'):
     r"""Generate a matrix table of variants, samples, and genotypes using the
@@ -2332,9 +2338,9 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Global fields:
 
-    - `num_populations` (:py:data:`.tint32`) -- Number of populations.
-    - `num_samples` (:py:data:`.tint32`) -- Number of samples.
-    - `num_variants` (:py:data:`.tint32`) -- Number of variants.
+    - `n_populations` (:py:data:`.tint32`) -- Number of populations.
+    - `n_samples` (:py:data:`.tint32`) -- Number of samples.
+    - `n_variants` (:py:data:`.tint32`) -- Number of variants.
     - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
     - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
@@ -2362,21 +2368,21 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Parameters
     ----------
-    num_populations : :obj:`int`
+    n_populations : :obj:`int`
         Number of modern populations.
-    num_samples : :obj:`int`
+    n_samples : :obj:`int`
         Total number of samples.
-    num_variants : :obj:`int`
+    n_variants : :obj:`int`
         Number of variants.
-    num_partitions : :obj:`int`, optional
+    n_partitions : :obj:`int`, optional
         Number of partitions.
         Default is 1 partition per million entries or 8, whichever is larger.
     pop_dist : :obj:`list` of :obj:`float`, optional
         Unnormalized population distribution, a list of length
-        ``num_populations`` with non-negative values.
+        ``n_populations`` with non-negative values.
         Default is ``[1, ..., 1]``.
     fst : :obj:`list` of :obj:`float`, optional
-        :math:`F_{ST}` values, a list of length ``num_populations`` with values
+        :math:`F_{ST}` values, a list of length ``n_populations`` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
     af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
         Ancestral allele frequency distribution.
@@ -2402,8 +2408,8 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
-    jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
-                                            joption(num_partitions),
+    jmt = Env.hc()._jhc.baldingNicholsModel(n_populations, n_samples, n_variants,
+                                            joption(n_partitions),
                                             jvm_pop_dist_opt,
                                             jvm_fst_opt,
                                             af_dist._jrep(),
@@ -2800,12 +2806,12 @@ class FilterAlleles(object):
 
 
 @typecheck(ds=MatrixTable,
-           num_cores=int,
+           n_cores=int,
            r2=numeric,
            window=int,
            memory_per_core=int)
-def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
-    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
+def ld_prune(ds, n_cores, r2=0.2, window=1000000, memory_per_core=256):
+    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, n_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)
 
 
