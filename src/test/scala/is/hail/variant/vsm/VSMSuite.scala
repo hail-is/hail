@@ -171,7 +171,7 @@ class VSMSuite extends SparkSuite {
     val nSamples = 6
     val nVariants = 9
     val vsm = hc.baldingNicholsModel(1, nSamples, nVariants, Some(4))
-      .annotateSamplesExpr("s = str(sa.s)")
+      .annotateSamplesExpr("s = str(sa.sample_idx)")
       .indexRows("rowIdx")
       .indexCols("colIdx")
 

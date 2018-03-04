@@ -155,7 +155,7 @@ class SkatSuite extends SparkSuite {
     val cov2Array: Array[Double] = Array.fill[Double](nSamples)(rand.nextGaussian())
 
     val vdsBN0 = hc.baldingNicholsModel(1, nSamples, nVariants, seed = seed)
-      .annotateSamplesExpr("s = str(sa.s)")
+      .annotateSamplesExpr("s = str(sa.sample_idx)")
 
     val G: DenseMatrix[Double] = TestUtils.vdsToMatrixDouble(vdsBN0)
     val pi: DenseVector[Double] = sigmoid(sum(G(*, ::)) - nVariants.toDouble)
