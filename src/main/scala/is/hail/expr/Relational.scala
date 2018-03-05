@@ -141,11 +141,12 @@ object MatrixIR {
       MatrixRead(path, spec, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropSamples, dropRows = true)
+
       case FilterSamples(
       MatrixRead(path, spec, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropCols = true, dropVariants)
-
+    
       case FilterRows(m, Const(_, true, TBoolean(_))) =>
         m
       case FilterSamples(m, Const(_, true, TBoolean(_))) =>
@@ -160,6 +161,31 @@ object MatrixIR {
 
       case FilterSamples(FilterSamples(m, pred1), pred2) =>
         FilterSamples(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
+
+      // Equivalent rewrites for the new Filter{Cols,Rows}IR
+      case FilterRowsIR(MatrixRead(path, spec, dropSamples, _), False()) =>
+        MatrixRead(path, spec, dropSamples, dropRows = true)
+
+      case FilterColsIR(MatrixRead(path, spec, dropVariants, _), False()) =>
+        MatrixRead(path, spec, dropCols = true, dropVariants)
+
+      // Keep all rows/cols = do nothing
+      case FilterRowsIR(m, True()) => m
+      
+      case FilterColsIR(m, True()) => m
+      
+      // Push FilterRowsIR into FilterColsIR
+      case FilterRowsIR(FilterColsIR(m, colPred), rowPred) =>
+        FilterColsIR(FilterRowsIR(m, rowPred), colPred)
+      
+      // Combine multiple filters into one
+      case FilterRowsIR(FilterRowsIR(m, pred1), pred2) =>
+        FilterRowsIR(m,
+          ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
+    
+      case FilterColsIR(FilterColsIR(m, pred1), pred2) =>
+        FilterColsIR(m,
+          ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
     })
   }
 }
