@@ -416,10 +416,6 @@ def dict(collection):
     :class:`.DictExpression`
     """
     if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
-        if not isinstance(collection.dtype.element_type, ttuple) or builtins.len(
-                collection.dtype.element_type.types) != 2:
-            raise TypeError("'dict': arguments of type array or set must have element type 'tuple(any, any)', found '{}'"
-                            .format(collection.dtype.element_type))
         key_type, value_type = collection.dtype.element_type.types
         return _func('dict', tdict(key_type, value_type), collection)
     else:
@@ -631,13 +627,13 @@ def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var):
     return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
-@typecheck(structs=oneof(expr_array(...)),
+@typecheck(structs=oneof(expr_array(expr_struct)),
            identifier=str)
 def index(structs, identifier):
     if not isinstance(structs.dtype.element_type, tstruct):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
                         .format(structs.dtype))
-    struct_type = structs._type.element_type
+    struct_type = structs.dtype.element_type
 
     if identifier not in struct_type:
         raise RuntimeError("`structs' does not have a field with identifier `{}'. " \
@@ -2456,8 +2452,7 @@ def max(*exprs):
         raise ValueError("'max' requires at least one argument")
     if builtins.len(exprs) == 1:
         expr = exprs[0]
-        if not ((isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray))
-                and is_numeric(expr.dtype.element_type)):
+        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
         return expr._method('max', expr.dtype.element_type)
@@ -2510,8 +2505,7 @@ def min(*exprs):
         raise ValueError("'min' requires at least one argument")
     if builtins.len(exprs) == 1:
         expr = exprs[0]
-        if not ((isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray))
-                and is_numeric(expr.dtype.element_type)):
+        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
         return expr._method('min', expr.dtype.element_type)

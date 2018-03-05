@@ -22,21 +22,21 @@ class ExpressionTypechecker(TypeChecker):
             expr_x = to_expr(x)
             if self.exact_match(expr_x.dtype):
                 return expr_x
-            elif self.can_cast(expr_x.dtype):
-                return self.coerce(expr_x.dtype)(expr_x)
+            elif self.can_cast_from(expr_x.dtype):
+                return self.cast_from(expr_x.dtype)(expr_x)
             else:
                 self.cast_error(expr_x)
         except ExpressionException as e:
             raise TypecheckFailure from e
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
         return False
 
     @abc.abstractmethod
     def exact_match(self, dtype: HailType) -> bool:
         ...
 
-    def coerce(self, dtype: HailType) -> Union[Callable[[Expression], Expression]]:
+    def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
         raise AssertionError
 
     def expects(self):
@@ -74,13 +74,13 @@ class Int32Checker(ExpressionTypechecker):
     def expected_type_str(self) -> str:
         return 'int32'
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
         return dtype == hl.tbool
 
     def exact_match(self, dtype: HailType) -> bool:
         return dtype == hl.tint32
 
-    def coerce(self, dtype: HailType) -> Any:
+    def cast_from(self, dtype: HailType) -> Any:
         if dtype == hl.tbool:
             return hl.int32
         else:
@@ -91,13 +91,13 @@ class Int64Checker(ExpressionTypechecker):
     def expected_type_str(self) -> str:
         return 'int64'
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
         return dtype == hl.tbool or dtype == hl.tint32
 
     def exact_match(self, dtype: HailType) -> bool:
         return dtype == hl.tint64
 
-    def coerce(self, dtype: HailType) -> Union[Callable[[Expression], Expression]]:
+    def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
         if dtype == hl.tint32 or dtype == hl.tbool:
             return hl.int64
         else:
@@ -108,13 +108,13 @@ class Float32Checker(ExpressionTypechecker):
     def expected_type_str(self) -> str:
         return 'float32'
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
         return dtype == hl.tbool or dtype == hl.tint32 or dtype == hl.tint64
 
     def exact_match(self, dtype: HailType) -> bool:
         return dtype == hl.tfloat32
 
-    def coerce(self, dtype: HailType) -> Union[Callable[[Expression], Expression]]:
+    def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
         if dtype == hl.tint32 or dtype == hl.tint64 or dtype == hl.tbool:
             return hl.float32
         else:
@@ -125,13 +125,13 @@ class Float64Checker(ExpressionTypechecker):
     def expected_type_str(self) -> str:
         return 'float64'
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
         return dtype == hl.tbool or dtype == hl.tint32 or dtype == hl.tint64 or dtype == hl.tfloat32
 
     def exact_match(self, dtype: HailType) -> bool:
         return dtype == hl.tfloat64
 
-    def coerce(self, dtype: HailType) -> Union[Callable[[Expression], Expression]]:
+    def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
         if dtype == hl.tint32 or dtype == hl.tint64 or dtype == hl.tfloat64 or dtype == hl.tbool:
             return hl.float64
         else:
@@ -175,10 +175,12 @@ class ArrayChecker(ExpressionTypechecker):
         self.element_type = lift(element_type)
         super(ArrayChecker, self).__init__()
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
+        # the is_container check is to prevent possibly expensive nested conversion
+        # we can enable it in the future if we want
         return (isinstance(dtype, hl.tarray)
                 and not is_container(dtype.element_type)
-                and self.element_type.can_cast(dtype.element_type))
+                and self.element_type.can_cast_from(dtype.element_type))
 
     def exact_match(self, dtype: HailType) -> bool:
         return isinstance(dtype, hl.tarray) and self.element_type.exact_match(dtype.element_type)
@@ -186,9 +188,9 @@ class ArrayChecker(ExpressionTypechecker):
     def expected_type_str(self) -> str:
         return f'array<{self.element_type.expected_type_str()}>'
 
-    def coerce(self, dtype: HailType) -> Union[Callable[[Expression], Expression]]:
+    def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
         assert isinstance(dtype, hl.tarray)
-        coerce_element = self.element_type.coerce(dtype.element_type)
+        coerce_element = self.element_type.cast_from(dtype.element_type)
         return lambda a: hl.map(coerce_element, a)
 
 
@@ -197,10 +199,10 @@ class SetChecker(ExpressionTypechecker):
         self.element_type = lift(element_type)
         super(SetChecker, self).__init__()
 
-    def can_cast(self, dtype: HailType) -> bool:
+    def can_cast_from(self, dtype: HailType) -> bool:
         return (isinstance(dtype, hl.tset)
                 and not is_container(dtype.element_type)
-                and self.element_type.can_cast(dtype.element_type))
+                and self.element_type.can_cast_from(dtype.element_type))
 
     def exact_match(self, dtype: HailType) -> bool:
         return isinstance(dtype, hl.tset) and self.element_type.exact_match(dtype.element_type)
@@ -208,9 +210,9 @@ class SetChecker(ExpressionTypechecker):
     def expected_type_str(self) -> str:
         return f'set<{self.element_type.expected_type_str()}>'
 
-    def coerce(self, dtype: HailType) -> Union[Callable[[Expression], Expression]]:
+    def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
         assert isinstance(dtype, hl.tset)
-        coerce_element = self.element_type.coerce(dtype.element_type)
+        coerce_element = self.element_type.cast_from(dtype.element_type)
         return lambda a: hl.map(coerce_element, a)
 
 
@@ -232,7 +234,7 @@ class DictChecker(ExpressionTypechecker):
 
 
 class TupleChecker(ExpressionTypechecker):
-    def __init__(self, elements: Union[None, Tuple[Union[ExpressionTypechecker]]]):
+    def __init__(self, elements: Optional[Tuple[Union[ExpressionTypechecker]]]):
         self.elements = elements
         super(TupleChecker, self).__init__()
 
@@ -255,7 +257,7 @@ class StructChecker(ExpressionTypechecker):
         super(StructChecker, self).__init__()
 
     def expected_type_str(self) -> str:
-        return 'tuple'
+        return 'struct'
 
     def exact_match(self, dtype: HailType) -> bool:
         return isinstance(dtype, hl.tstruct)
