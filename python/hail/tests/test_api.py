@@ -372,6 +372,24 @@ class TableTests(unittest.TestCase):
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
+    def test_index_maintains_count(self):
+        t1 = hl.Table.parallelize([
+            {'a': 'foo', 'b': 1},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 2}],
+            hl.tstruct(a=hl.tstr, b=hl.tint32),
+            key='a')
+        t2 = hl.Table.parallelize([
+            {'t': 'foo', 'x': 3.14},
+            {'t': 'bar', 'x': 2.78},
+            {'t': 'bar', 'x': -1},
+            {'t': 'quam', 'x': 0}],
+            hl.tstruct(t=hl.tstr, x=hl.tfloat64),
+            key='t')
+
+        j = t1.annotate(f = t2[t1.a].x)
+        self.assertEqual(j.count(), t1.count())
+
     def test_drop(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
@@ -438,6 +456,48 @@ class TableTests(unittest.TestCase):
         with self.assertRaises(LookupError):
             kt.rename({'hello': 'a'})
 
+    def test_distinct(self):
+        t1 = hl.Table.parallelize([
+            {'a': 'foo', 'b': 1},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 3},
+            {'a': 'bar', 'b': 3},
+            {'a': 'baz', 'b': 2},
+            {'a': 'baz', 'b': 0},
+            {'a': 'baz', 'b': 0},
+            {'a': 'foo', 'b': 0},
+            {'a': '1', 'b': 0},
+            {'a': '2', 'b': 0},
+            {'a': '3', 'b': 0}],
+            hl.tstruct(a=hl.tstr, b=hl.tint32),
+            key='a',
+            n_partitions=4)
+
+        dist = t1.distinct().collect_by_key()
+        self.assertTrue(dist.all(hl.len(dist.values) == 1))
+        self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
+
+    def test_group_by_key(self):
+        t1 = hl.Table.parallelize([
+            {'a': 'foo', 'b': 1},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 3},
+            {'a': 'bar', 'b': 3},
+            {'a': 'baz', 'b': 2},
+            {'a': 'baz', 'b': 0},
+            {'a': 'baz', 'b': 0},
+            {'a': 'foo', 'b': 0},
+            {'a': '1', 'b': 0},
+            {'a': '2', 'b': 0},
+            {'a': '3', 'b': 0}],
+            hl.tstruct(a=hl.tstr, b=hl.tint32),
+            key='a',
+            n_partitions=4)
+        g = t1.collect_by_key().explode('values')
+        g = g.transmute(**g.values)
+        self.assertTrue(g._same(t1))
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:

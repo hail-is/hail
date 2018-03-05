@@ -326,6 +326,16 @@ class OrderedRVD private(
     OrderedRVD(newTyp, partitioner, newRDD)
   }
 
+  def distinctByKey(): OrderedRVD = {
+    val localRowType = rowType
+    val newRVD = rdd.mapPartitions { it =>
+      OrderedRVIterator(typ, it)
+        .staircase
+        .map(_.head)
+    }
+    OrderedRVD(typ, partitioner, newRVD)
+  }
+
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {
     require(keep.length <= rdd.partitions.length, "tried to subset to more partitions than exist")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < rdd.partitions.length)),
