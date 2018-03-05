@@ -114,23 +114,21 @@ class OrderedRVD private(
 
   def orderedZipJoin(right: OrderedRVD): OrderedZipJoinRDD = {
     val pkOrd = this.partitioner.pkType.ordering
-    if (pkOrd.gt(this.partitioner.minBound, right.partitioner.minBound) ||
-      pkOrd.lt(this.partitioner.maxBound, right.partitioner.maxBound)) {
-
+    if (this.partitioner.range.includes(pkOrd, right.partitioner.range))
+      new OrderedZipJoinRDD(this, right)
+    else {
       val newRangeBounds = partitioner.rangeBounds.toArray
-
+      val newStart = pkOrd.min(this.partitioner.range.start, right.partitioner.range.start)
+      val newEnd = pkOrd.max(this.partitioner.range.end, right.partitioner.range.end)
       newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-        .copy(start = pkOrd.min(this.partitioner.minBound, right.partitioner.minBound))
+        .copy(start = newStart, includeStart = true)
       newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-        .copy(end = pkOrd.max(this.partitioner.maxBound, right.partitioner.maxBound))
+        .copy(end = newEnd, includeEnd = true)
 
       val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
         partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
       new OrderedZipJoinRDD(OrderedRVD(this.typ, newPartitioner, this.rdd), right)
-
-    } else {
-      new OrderedZipJoinRDD(this, right)
     }
   }
 
