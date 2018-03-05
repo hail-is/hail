@@ -52,10 +52,10 @@ class OrderedRVDPartitioner(
     val part = rangeTree.queryValues(pkType.ordering, pk)
     part match {
       case Array() =>
-        if (range.greaterThanPoint(pkType.ordering, pk))
+        if (range.isAbovePosition(pkType.ordering, pk))
           0
         else {
-          assert(range.lessThanPoint(pkType.ordering, pk))
+          assert(range.isBelowPosition(pkType.ordering, pk))
           numPartitions - 1
         }
 
@@ -76,10 +76,10 @@ class OrderedRVDPartitioner(
 
     part match {
       case Array() =>
-        if (range.greaterThanPoint(pkType.ordering, pkUR))
+        if (range.isAbovePosition(pkType.ordering, pkUR))
           0
         else {
-          assert(range.lessThanPoint(pkType.ordering, pkUR))
+          assert(range.isBelowPosition(pkType.ordering, pkUR))
           numPartitions - 1
         }
       case Array(x) => x
