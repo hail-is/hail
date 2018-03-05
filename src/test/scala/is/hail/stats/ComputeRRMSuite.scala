@@ -69,6 +69,7 @@ class ComputeRRMSuite extends SparkSuite {
     val FstOfPop = Array.fill[Double](k)(Fst)
 
     val vds1 = BaldingNicholsModel(hc, k, n1, m1, None, Some(FstOfPop), seed, Some(4), UniformDist(0.1, 0.9))
+      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
 
     val G1 = TestUtils.vdsToMatrixInt(vds1)
 

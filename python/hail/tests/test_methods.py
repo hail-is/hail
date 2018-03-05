@@ -342,6 +342,7 @@ class Tests(unittest.TestCase):
 
     def test_pcrelate(self):
         dataset = hl.balding_nichols_model(3, 100, 100)
+        dataset = dataset.annotate_cols(sample_idx = hl.str(dataset.sample_idx))
         t = hl.pc_relate(dataset, 2, 0.05, block_size=64, statistics="phi")
 
         self.assertTrue(isinstance(t, hl.Table))

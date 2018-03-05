@@ -10,7 +10,7 @@ from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import joption, jarray
 from hail.utils.misc import check_collisions
-from hail.methods.misc import require_biallelic, require_variant
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 import itertools
 
@@ -1723,6 +1723,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         :py:data:`.tfloat64`. The table is keyed by `i` and `j`.
 
     """
+    require_col_key_str(dataset, 'pc_relate')
     dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
     _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
@@ -2360,7 +2361,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     Column fields:
 
-    - `s` (:py:data:`.tstr`) - Sample ID (key field).
+    - `sample_idx` (:py:data:`.tint32`) - Sample index (key field).
     - `pop` (:py:data:`.tint32`) -- Population of sample.
 
     Entry fields:
