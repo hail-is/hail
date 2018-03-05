@@ -99,12 +99,12 @@ class TableTemplate(object):
 
     @property
     def key(self):
-        """Returns a struct expression with the row keys.
+        """Row key struct.
 
         Examples
         --------
 
-        Get the row key names of the table:
+        Get the row key field names:
 
         .. doctest::
 
