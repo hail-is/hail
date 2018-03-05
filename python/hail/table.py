@@ -1162,7 +1162,7 @@ class Table(TableTemplate):
 
             def joiner(left):
                 left = Table(left._jt.annotate(full_key_strs)).key_by(*uids)
-                left = Table(left._jt.join(right._jt, 'left'))
+                left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
             all_uids = uids[:]
@@ -2192,5 +2192,98 @@ class Table(TableTemplate):
     def _same(self, other, tolerance=1e-6):
         return self._jt.same(other._jt, tolerance)
 
+    def group_by_key(self, name: str='values') -> 'Table':
+        """Group values for each unique key into an array.
+
+        Examples
+        --------
+        >>> t1 = hl.Table.parallelize([
+        ...     {'t': 'foo', 'x': 4, 'y': 'A'},
+        ...     {'t': 'bar', 'x': 2, 'y': 'B'},
+        ...     {'t': 'bar', 'x': -3, 'y': 'C'},
+        ...     {'t': 'quam', 'x': 0, 'y': 'D'}],
+        ...     hl.tstruct(t=hl.tstr, x=hl.tint32, y=hl.tstr),
+        ...     key='t')
+
+        >>> t1.show()
+        +------+-------+-----+
+        | t    |     x | y   |
+        +------+-------+-----+
+        | str  | int32 | str |
+        +------+-------+-----+
+        | foo  |     4 | A   |
+        | bar  |     2 | B   |
+        | bar  |    -3 | C   |
+        | quam |     0 | D   |
+        +------+-------+-----+
+
+        >>> t1.group_by_key().show()
+        +------+------------------------------------+
+        | t    | values                             |
+        +------+------------------------------------+
+        | str  | array<struct{x: int32, y: str}>    |
+        +------+------------------------------------+
+        | bar  | [{"x":2,"y":"B"},{"x":-3,"y":"C"}] |
+        | foo  | [{"x":4,"y":"A"}]                  |
+        | quam | [{"x":0,"y":"D"}]                  |
+        +------+------------------------------------+
+
+        Notes
+        -----
+        The order of the values array is not guaranteed.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Field name for all values per key.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return Table(self._jt.groupByKey(name))
+
+    def distinct(self) -> 'Table':
+        """Keep only one row for each unique key.
+
+        Examples
+        --------
+        >>> t1 = hl.Table.parallelize([
+        ...     {'a': 'foo', 'b': 1},
+        ...     {'a': 'bar', 'b': 5},
+        ...     {'a': 'bar', 'b': 2}],
+        ...     hl.tstruct(a=hl.tstr, b=hl.tint32),
+        ...     key='a')
+
+        >>> t1.show()
+        +-----+-------+
+        | a   |     b |
+        +-----+-------+
+        | str | int32 |
+        +-----+-------+
+        | foo |     1 |
+        | bar |     5 |
+        | bar |     2 |
+        +-----+-------+
+
+        >>> t1.distinct().show()
+        +-----+-------+
+        | a   |     b |
+        +-----+-------+
+        | str | int32 |
+        +-----+-------+
+        | bar |     5 |
+        | foo |     1 |
+        +-----+-------+
+
+        Notes
+        -----
+        The row chosen per distinct key is not guaranteed.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return Table(self._jt.distinctByKey())
 
 table_type.set(Table)
