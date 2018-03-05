@@ -68,7 +68,7 @@ def create_all_values_datasets():
 
     return all_values_table, all_values_matrix_table
 
-def create_backward_compatability_test_files():
+def create_backward_compatibility_files():
     import os
 
     all_values_table, all_values_matrix_table = create_all_values_datasets()
@@ -603,7 +603,7 @@ class MatrixTests(unittest.TestCase):
         repart = vds.naive_coalesce(2)
         self.assertTrue(vds._same(repart))
 
-    def tests_unions(self):
+    def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
         # test union_rows
