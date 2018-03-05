@@ -37,13 +37,13 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
     definitelyEmpty(pord) || {
       val c = pord.compare(p, start)
-      c < 0 || (!includeStart && c == 0)
+      c < 0 || (c == 0 && !includeStart)
     }
 
   def isBelowPosition(pord: ExtendedOrdering, p: Any): Boolean =
     definitelyEmpty(pord) || {
       val c = pord.compare(p, end)
-      c > 0 || (!includeEnd && c == 0)
+      c > 0 || (c == 0 && !includeEnd)
     }
 
   def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
