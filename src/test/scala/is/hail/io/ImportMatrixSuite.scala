@@ -47,7 +47,8 @@ class ImportMatrixSuite extends SparkSuite {
       new java.util.HashMap[String, String](),
       new java.util.HashMap[String, String]())
 
-    renamed.copy2(colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row("col" + i.toString) })
+    renamed.copy2(colType = TStruct("s" -> TInt32()),
+      colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row(i) })
   }
 
   def renameColKeyField(vsm: MatrixTable): MatrixTable = {

@@ -985,13 +985,13 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
 @typecheck(paths=oneof(str, listof(str)),
            row_fields=dictof(str, Type),
-           key=oneof(str, listof(str)),
+           row_key=oneof(str, listof(str)),
            entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
            missing=str,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None,
+def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, missing="NA", min_partitions=None,
                         no_header=False, force_bgz=False):
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
@@ -1018,9 +1018,33 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
 
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
     ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
-    ...                                  key='Barcode')
+    ...                                  row_key='Barcode')
+    >>> matrix1.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Column fields:
+        'col_id': str
+    ----------------------------------------
+    Row fields:
+        'Barcode': str
+        'Tissue': str
+        'Days': float32
+    ----------------------------------------
+    Entry fields:
+        'x': int32
+    ----------------------------------------
+    Column key:
+        'col_id': str
+    Row key:
+        'Barcode': str
+    Partition key:
+        'Barcode': str
+    ----------------------------------------
 
-    If the header information is missing for the row fields, like in the following:
+    In this example, the header information is missing for the row fields, but
+    the column IDs are still present:
 
     .. code-block:: text
 
@@ -1035,7 +1059,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
 
     >>> matrix2 = hl.import_matrix_table('data/matrix2.tsv',
     ...                                  row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2':hl.tfloat32},
-    ...                                  key='f0')
+    ...                                  row_key='f0')
     >>> matrix2.rename({'f0': 'Barcode', 'f1': 'Tissue', 'f2': 'Days'})
 
     Sometimes, the header and row information is missing completely:
@@ -1055,22 +1079,35 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
 
     Notes
     -----
+
+    The resulting matrix table has the following structure:
+
+        * The row fields are named as specified in the column header. If they
+          are missing from the header or ``no_header=True``, row field names are
+          set to the strings `f0`, `f1`, ... (0-indexed) in column order. The types
+          of all row fields must be specified in the `row_fields` argument.
+        * The row key is taken from the `row_key` argument, and must be a
+          subset of row fields. If left empty, the row key will be a new row field
+          `row_idx` of type :obj:`int`, whose values 0, 1, ... index the original
+          rows of the matrix.
+        * There is one column field, **col_id**, which is a key field of type
+          :obj:str or :obj:int. By default, its values are the strings given by
+          the corresponding column names in the header line. If ``no_header=True``,
+          column IDs are set to integers 0, 1, ... (also 0-indexed) in column
+          order.
+        * There is one entry field, **x**, that contains the data from the imported
+          matrix.
+
+
     All columns to be imported as row fields must be at the start of the row.
 
     Unlike import_table, no type imputation is done so types must be specified
-    for all columns that should be imported as row fields.
+    for all columns that should be imported as row fields. (The other columns are
+    imported as entries in the matrix.)
 
     The header information for row fields is allowed to be missing, if the
     column IDs are present, but the header must then consist only of tab-delimited
     column IDs (no row field names).
-
-    If row field names are missing (or the no_header flag is ``True``), row fields
-    are imported in column-order as `f0`, `f1`, ... (0-indexed).
-
-    If the no_header flag is ``True``, column IDs will be imported as `col0`,
-    `col1`, ... (also 0-indexed).
-
-    Entries are imported into an entry-indexed field `x`.
 
     Parameters
     ----------
@@ -1079,7 +1116,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     row_fields: :obj:`dict` of :obj:`str` to :class:`.Type`
         Columns to take as row fields in the MatrixTable. They must be located
         before all entry columns.
-    key: :obj:`str` or :obj:`list` of :obj:`str`
+    row_key: :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s). If empty, creates an index `row_id` to use as key.
     entry_type: :class:`.Type`
         Type of entries in matrix table. Must be one of: :py:data:`.tint32`,
@@ -1091,8 +1128,7 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
         Minimum number of partitions.
     no_header: :obj:`bool`
         If ``True``, assume the file has no header and name the row fields `f0`,
-        `f1`, ... `fK` (0-indexed) and the column keys `col0`, `col1`, ...
-        `colN`.
+        `f1`, ... `fK` (0-indexed) and the column keys 0, 1, ... N.
     force_bgz : :obj:`bool`
         If ``True``, load **.gz** files as blocked gzip files, assuming
         that they were actually compressed using the BGZ codec.
@@ -1109,12 +1145,12 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError("""import_matrix_table expects field types to be one of: 
             'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
-    key = wrap_to_list(key)
+    row_key = wrap_to_list(row_key)
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of: 
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions),
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
                                      no_header, force_bgz)
     return MatrixTable(jmt)
 
