@@ -2,7 +2,7 @@ from hail.typecheck import *
 from hail.utils.java import Env
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from .misc import require_biallelic, require_variant, require_string_id
+from .misc import require_biallelic, require_variant_key, require_col_key_str
 
 
 @typecheck(dataset=MatrixTable, name=str)
@@ -278,8 +278,8 @@ def concordance(left, right):
 
     """
 
-    require_string_id(left, 'concordance, left')
-    require_string_id(right, 'concordance, right')
+    require_col_key_str(left, 'concordance, left')
+    require_col_key_str(right, 'concordance, right')
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
@@ -543,7 +543,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         Dataset with new row-indexed field `name` containing VEP annotations.
     """
 
-    require_variant(dataset, 'vep')
+    require_variant_key(dataset, 'vep')
     return MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
 
 
@@ -804,5 +804,5 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
         Dataset with new row-indexed field `name` containing Nirvana annotations.
     """
 
-    require_variant(dataset, 'nirvana')
+    require_variant_key(dataset, 'nirvana')
     return MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))
