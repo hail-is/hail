@@ -115,7 +115,7 @@ object LoadBgen {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus.annotationFromRG(contigRecoded, pos, rg))
+        rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
 
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)
@@ -146,7 +146,7 @@ object LoadBgen {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus.annotationFromRG(contigRecoded, pos, rg))
+        rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
 
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)
