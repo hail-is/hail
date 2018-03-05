@@ -1428,7 +1428,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           rvb.startStruct()
           var j = 0
           while (j < keepIndices.length) {
-            rvb.addField(localEntryType, rv.region, eltOffset, j)
+            rvb.addField(localEntryType, rv.region, eltOffset, keepIndices(j))
             j += 1
           }
           rvb.endStruct()
