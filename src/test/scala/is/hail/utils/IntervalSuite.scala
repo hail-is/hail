@@ -89,7 +89,7 @@ class IntervalSuite extends TestNGSuite {
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.disjointAndGreaterThan(pord, interval2), set_interval1.disjointAndGreaterThan(set_interval2))
+      assertEquals(interval1.isAbove(pord, interval2), set_interval1.isAboveInterval(set_interval2))
     }
   }
 
@@ -98,7 +98,7 @@ class IntervalSuite extends TestNGSuite {
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.disjointAndLessThan(pord, interval2), set_interval1.disjointAndLessThan(set_interval2))
+      assertEquals(interval1.isBelow(pord, interval2), set_interval1.isBelowInterval(set_interval2))
     }
   }
 
@@ -107,7 +107,7 @@ class IntervalSuite extends TestNGSuite {
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.mergeable(pord, interval2), set_interval1.mergeable(set_interval2))
+      assertEquals(interval1.canMergeWith(pord, interval2), set_interval1.mergeable(set_interval2))
     }
   }
 
@@ -244,10 +244,10 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
 
   def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
 
-  def disjointAndGreaterThan(other: SetInterval): Boolean =
+  def isAboveInterval(other: SetInterval): Boolean =
     doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 > p2 ))
 
-  def disjointAndLessThan(other: SetInterval): Boolean =
+  def isBelowInterval(other: SetInterval): Boolean =
     doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 < p2 ))
 
   def mergeable(other: SetInterval): Boolean = {

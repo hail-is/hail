@@ -22,25 +22,25 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
   }
 
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
-  other.definitelyEmpty(pord) || ({
-    val cstart = pord.compare(this.start, other.start)
-    cstart < 0 || ((!other.includeStart || this.includeStart) && cstart == 0)
-  } && {
-    val cend = pord.compare(this.end, other.end)
-    cend > 0 || ((!other.includeEnd || this.includeEnd) && cend == 0)
-  })
+    other.definitelyEmpty(pord) || ({
+      val cstart = pord.compare(this.start, other.start)
+      cstart < 0 || (cstart == 0 && (!other.includeStart || this.includeStart))
+    } && {
+      val cend = pord.compare(this.end, other.end)
+      cend > 0 || (cend == 0 && (!other.includeEnd || this.includeEnd))
+    })
 
   def mayOverlap(pord: ExtendedOrdering, other: Interval): Boolean = {
     !definitelyDisjoint(pord, other)
   }
 
-  def greaterThanPoint(pord: ExtendedOrdering, p: Any): Boolean =
+  def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
     definitelyEmpty(pord) || {
       val c = pord.compare(p, start)
       c < 0 || (!includeStart && c == 0)
     }
 
-  def lessThanPoint(pord: ExtendedOrdering, p: Any): Boolean =
+  def isBelowPosition(pord: ExtendedOrdering, p: Any): Boolean =
     definitelyEmpty(pord) || {
       val c = pord.compare(p, end)
       c > 0 || (!includeEnd && c == 0)
@@ -48,7 +48,7 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
 
   def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
     definitelyEmpty(pord) || other.definitelyEmpty(pord) ||
-      disjointAndLessThan(pord, other) || disjointAndGreaterThan(pord, other)
+      isBelow(pord, other) || isAbove(pord, other)
 
   private var _emptyDefined: Boolean = false
   private var _empty: Boolean = false
@@ -70,19 +70,19 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
       "includeStart" -> TBoolean().toJSON(includeStart),
       "includeEnd" -> TBoolean().toJSON(includeEnd))
 
-  def disjointAndLessThan(pord: ExtendedOrdering, other: Interval): Boolean =
+  def isBelow(pord: ExtendedOrdering, other: Interval): Boolean =
     this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
       val c = pord.compare(this.end, other.start)
       c < 0 || (c == 0 && (!this.includeEnd || !other.includeStart))
     }
 
-  def disjointAndGreaterThan(pord: ExtendedOrdering, other: Interval): Boolean =
+  def isAbove(pord: ExtendedOrdering, other: Interval): Boolean =
     this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
       val c = pord.compare(this.start, other.end)
       c > 0 || (c == 0 && (!this.includeStart || !other.includeEnd))
     }
 
-  def mergeable(pord: ExtendedOrdering, other: Interval): Boolean =
+  def canMergeWith(pord: ExtendedOrdering, other: Interval): Boolean =
     this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || ({
       val c = pord.compare(this.start, other.end)
       c < 0 || (c == 0 && (this.includeStart || other.includeEnd))
@@ -92,7 +92,7 @@ case class Interval(start: Any, end: Any, includeStart: Boolean, includeEnd: Boo
     })
 
   def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
-    if (mergeable(pord, other)) {
+    if (canMergeWith(pord, other)) {
       if (other.definitelyEmpty(pord))
         Some(this)
       else if (this.definitelyEmpty(pord))
