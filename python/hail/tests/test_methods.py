@@ -746,7 +746,7 @@ class Tests(unittest.TestCase):
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
-                          reference_genome=hl.ReferenceGenome.GRCh38(),
+                          reference_genome=hl.get_reference('GRCh38'),
                           contig_recoding={"22": "chr22"}))
 
         vcf_table = vcf.rows()
@@ -762,7 +762,7 @@ class Tests(unittest.TestCase):
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
-                          reference_genome=hl.ReferenceGenome.GRCh38(),
+                          reference_genome=hl.get_reference('GRCh38'),
                           contig_recoding={"22": "chr22"}))
 
         hl.export_plink(vcf, '/tmp/sample_plink')

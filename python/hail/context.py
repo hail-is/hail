@@ -115,10 +115,10 @@ class HailContext(object):
            branching_factor=int,
            tmp_dir=str,
            default_reference=enumeration('GRCh37', 'GRCh38'))
-def init(sc=None, app_name="Hail", master=None, local='local[*]',
+def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference="GRCh37"):
+             default_reference='GRCh37'):
     """Initialize Hail and Spark.
 
     Parameters
@@ -167,7 +167,7 @@ def spark_context():
     return Env.hc().sc
 
 def default_reference():
-    """Return the default reference genome.
+    """Return the default reference genome ``'GRCh37'``.
 
     Returns
     -------
@@ -178,7 +178,19 @@ def default_reference():
 def get_reference(name):
     """Return the reference genome corresponding to `name`.
 
+    Hail built-in references are ``'GRCh37'`` and ``GRCh38'``. The contig names
+    and lengths were obtained from the GATK resource bundle for
+    `human_g1k_v37.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__
+    and `Homo_sapiens_assembly38.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
+
     If `name` is ``'default'``, return the reference from :func:`.default_reference`.
+
+    Parameters
+    ----------
+    name : :obj:`str`
+        Reference genome name. This can be a previously loaded reference genome
+        or one of Hail's built-in references: ``'GRCh37'``, ``'GRCh38'``, and
+        ``'default'``.
 
     Returns
     -------
@@ -186,7 +198,7 @@ def get_reference(name):
     """
     from hail import ReferenceGenome
 
-    if name == "default":
+    if name == 'default':
         return default_reference()
     else:
         return ReferenceGenome._references.get(

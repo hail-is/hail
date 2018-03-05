@@ -113,7 +113,7 @@ class Tests(unittest.TestCase):
                                Call,
                                [1, 1, 1, 1])
 
-        rg = ReferenceGenome.GRCh37()
+        rg = hl.get_reference('GRCh37')
         self.assertEqual(rg.name, "GRCh37")
         self.assertEqual(rg.contigs[0], "1")
         self.assertListEqual(rg.x_contigs, ["X"])

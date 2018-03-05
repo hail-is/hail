@@ -9,7 +9,7 @@ class ReferenceGenome(object):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     :param str name: Name of reference. Must be unique and NOT one of Hail's
-        predefined references: "GRCh37", "GRCh38", and "default".
+        predefined references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
 
     :param contigs: Contig names.
     :type contigs: list of str
@@ -177,36 +177,6 @@ class ReferenceGenome(object):
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
     @classmethod
-    def GRCh37(cls):
-        """Reference genome for GRCh37.
-
-        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__.
-
-        >>> grch37 = hl.ReferenceGenome.GRCh37()
-
-        :rtype: :class:`.ReferenceGenome`
-        """
-        return ReferenceGenome._references.get(
-            'GRCh37',
-            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.GRCh37())
-        )
-
-    @classmethod
-    def GRCh38(cls):
-        """Reference genome for GRCh38.
-
-        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
-
-        >>> grch38 = hl.ReferenceGenome.GRCh38()
-
-        :rtype: :class:`.ReferenceGenome`
-        """
-        return ReferenceGenome._references.get(
-            'GRCh38',
-            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.GRCh38())
-        )
-
-    @classmethod
     @typecheck_method(file=str)
     def read(cls, file):
         """Load reference genome from a JSON file.
@@ -230,10 +200,12 @@ class ReferenceGenome(object):
 
         **Notes**
 
-        `name` must be unique and not overlap with Hail's pre-instantiated references: "GRCh37" and "GRCh38".
-        The contig names in `xContigs`, `yContigs`, and `mtContigs` must be present in `contigs`. The intervals listed in
-        `par` must have contigs in either `xContigs` or `yContigs` and have positions between 0 and the contig length given
-        in `contigs`.
+        `name` must be unique and not overlap with Hail's pre-instantiated
+        references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.The contig
+        names in `xContigs`, `yContigs`, and `mtContigs` must be present in
+        `contigs`. The intervals listed in `par` must have contigs in either
+        `xContigs` or `yContigs` and have positions between 0 and the contig
+        length given in `contigs`.
 
         :param file: Path to JSON file.
         :type file: str
