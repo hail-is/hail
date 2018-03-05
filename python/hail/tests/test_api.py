@@ -529,12 +529,14 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue('info' not in vds1.row)
         self.assertTrue('bar' not in vds1.col)
         self.assertTrue('GT' not in vds1.entry)
+        vds1._force_count_rows()
 
         vds2 = vds.drop(vds.GT, vds.info, vds.foo, vds.bar)
         self.assertTrue('foo' not in vds2.globals)
         self.assertTrue('info' not in vds2.row)
         self.assertTrue('bar' not in vds2.col)
         self.assertTrue('GT' not in vds2.entry)
+        vds2._force_count_rows()
 
     def test_drop_rows(self):
         vds = self.get_vds()
