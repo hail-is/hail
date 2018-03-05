@@ -10,11 +10,11 @@ import scala.reflect.{ClassTag, classTag}
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
   override def children = Seq(pointType)
 
-  def _toString = s"""Interval[$pointType]"""
+  def _toPretty = s"""Interval[$pointType]"""
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("interval<")
-    pointType._toPyString(sb)
+    pointType.pyString(sb)
     sb.append('>')
   }
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
@@ -34,8 +34,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(Interval.ordering(pointType.ordering))
+  val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 

@@ -11,13 +11,14 @@ import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{ComponentSpec, FileFormat, ReferenceGenome, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, RelationalSpec}
+import is.hail.variant.{ComponentSpec, FileFormat, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome, RelationalSpec}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
+import org.json4s._
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -322,6 +323,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
     }
   }
 
+  def queryJSON(expr: String): String = {
+    val (a, t) = query(Array(expr)).head
+    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
+    JsonMethods.compact(jv)
+  }
+
   def query(expr: String): (Annotation, Type) = query(Array(expr)).head
 
   def query(exprs: java.util.ArrayList[String]): Array[(Annotation, Type)] = query(exprs.asScala.toArray)
@@ -345,6 +352,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     val (newT, i) = globalSignature.insert(t, name)
     copy2(globalSignature = newT.asInstanceOf[TStruct], globals = i(globals, a).asInstanceOf[Row])
+  }
+
+  def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
+    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), t)
+
+    annotateGlobal(ann, t, name)
   }
 
   def annotateGlobalExpr(expr: String): Table = {
@@ -585,32 +598,30 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
 
-  def rename(columnMap: Map[String, String]): Table = {
-    val newFields = signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) }
-    val duplicates = newFields.map(_.name).duplicates()
-    if (duplicates.nonEmpty)
-      fatal(s"Found duplicate column names after renaming columns: `${ duplicates.mkString(", ") }'")
+  def rename(fieldMapRows: java.util.HashMap[String, String], fieldMapGlobals: java.util.HashMap[String, String]): Table =
+    rename(fieldMapRows.asScala.toMap, fieldMapGlobals.asScala.toMap)
 
-    val newSignature = TStruct(newFields)
-    val newColumns = newSignature.fields.map(_.name)
-    val newKey = key.map(n => columnMap.getOrElse(n, n))
-    val duplicateColumns = newColumns.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
-      _._2 > 1
+  def rename(fieldMapRows: Map[String, String], fieldMapGlobals: Map[String, String]): Table = {
+    assert(fieldMapRows.keys.forall(k => ktType.rowType.fieldNames.contains(k)),
+      s"[${fieldMapRows.keys.mkString(", ")}], expected [${ ktType.rowType.fieldNames.mkString(", ") }]")
+
+    assert(fieldMapGlobals.keys.forall(k => ktType.globalType.fieldNames.contains(k)),
+      s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ ktType.globalType.fieldNames.mkString(", ") }]")
+
+    val rowKey = ktType.key
+    val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
+
+    val rowType = ktType.rowType
+    val newRowType = TStruct(rowType.required, rowType.fields.map { f => (fieldMapRows.getOrElse(f.name, f.name), f.typ) }: _*)
+
+    val globalType = ktType.globalType
+    val newGlobalType = if (fieldMapGlobals.isEmpty) globalType else {
+      val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
+      TStruct(globalType.required, newFieldNames.zip(globalType.types): _*)
     }
 
-    copy(rdd = rdd, signature = newSignature, key = newKey)
+    copy(signature = newRowType, key = newKey, globalSignature = newGlobalType)
   }
-
-  def rename(newColumns: Array[String]): Table = {
-    if (newColumns.length != nColumns)
-      fatal(s"Found ${ newColumns.length } new column names but need $nColumns.")
-
-    rename((fieldNames, newColumns).zipped.toMap)
-  }
-
-  def rename(columnMap: java.util.HashMap[String, String]): Table = rename(columnMap.asScala.toMap)
-
-  def rename(newColumns: java.util.ArrayList[String]): Table = rename(newColumns.asScala.toArray)
 
   def join(other: Table, joinType: String): Table = {
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
@@ -747,8 +758,14 @@ class Table(val hc: HailContext, val ir: TableIR) {
     )
   }
 
-  def toMatrixTable(rowKeys: Array[String], colKeys: Array[String], rowFields: Array[String], colFields: Array[String],
-    partitionKeys: Array[String], nPartitions: Option[Int] = None): MatrixTable = {
+  def toMatrixTable(
+    rowKeys: Array[String],
+    colKeys: Array[String],
+    rowFields: Array[String],
+    colFields: Array[String],
+    partitionKeys: Array[String],
+    nPartitions: Option[Int] = None
+  ): MatrixTable = {
 
     // all keys accounted for
     assert(rowKeys.length + colKeys.length == key.length)
@@ -844,7 +861,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val ordType = new OrderedRVDType(partitionKeys, rowKeys ++ Array(INDEX_UID), rowEntryStruct)
     val ordered = OrderedRVD(ordType, rowEntryRVD.rdd, None, None)
 
-    val matrixType: MatrixType = MatrixType.fromParts(globalSignature,
+    val matrixType: MatrixType = MatrixType.fromParts(
+      globalSignature,
       colKeys,
       colType,
       partitionKeys,
@@ -863,71 +881,47 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val orderedRKStruct = matrixType.rowKeyStruct
 
     val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
-      new Iterator[RegionValue] {
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
-        var rvRowKey: WritableRegionValue = WritableRegionValue(orderedRKStruct)
-        var currentRowKey: WritableRegionValue = WritableRegionValue(orderedRKStruct)
-        var current: RegionValue = null
-        var isEnd: Boolean = false
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      val outRV = RegionValue(region)
 
-        def hasNext: Boolean = {
-          if (isEnd || (current == null && !it.hasNext)) {
-            isEnd = true
-            return false
-          }
-          if (current == null)
-            current = it.next()
-
-          currentRowKey.setSelect(rowEntryStruct, orderedRKIndices, current)
-          true
+      OrderedRVIterator(
+        new OrderedRVDType(partitionKeys, rowKeys, rowEntryStruct),
+        it
+      ).staircase.map { rowIt =>
+        region.clear()
+        rvb.start(newRVType)
+        rvb.startStruct()
+        var i = 0
+        while (i < orderedRowIndices.length) {
+          rvb.addField(rowEntryStruct, rowIt.value, orderedRowIndices(i))
+          i += 1
         }
-
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new java.util.NoSuchElementException()
-          region.clear()
-          rvb.start(newRVType)
-          rvb.startStruct()
-          var i = 0
-          while (i < orderedRowIndices.length) {
-            rvb.addField(rowEntryStruct, current, orderedRowIndices(i))
-            i += 1
-          }
-
-          rvRowKey.setSelect(rowEntryStruct, orderedRKIndices, current)
-
-          rvb.startArray(nCols)
-          i = 0
-
-          // hasNext updates current
-          while (i < nCols && hasNext && orderedRKStruct.unsafeOrdering().compare(rvRowKey.value, currentRowKey.value) == 0) {
-            val nextInt = current.region.loadInt(rowEntryStruct.fieldOffset(current.offset, idxIndex))
-            while (i < nextInt) {
-              rvb.setMissing()
-              i += 1
-            }
-
-            rvb.startStruct()
-            var j = 0
-            while (j < orderedEntryIndices.length) {
-              rvb.addField(rowEntryStruct, current, orderedEntryIndices(j))
-              j += 1
-            }
-            rvb.endStruct()
-            current = null
-            i += 1
-          }
-          while (i < nCols) {
+        rvb.startArray(nCols)
+        i = 0
+        for (rv <- rowIt) {
+          val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
+          while (i < nextInt) {
             rvb.setMissing()
             i += 1
           }
-          rvb.endArray()
+          rvb.startStruct()
+          var j = 0
+          while (j < orderedEntryIndices.length) {
+            rvb.addField(rowEntryStruct, rv, orderedEntryIndices(j))
+            j += 1
+          }
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+          i += 1
         }
+        while (i < nCols) {
+          rvb.setMissing()
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+        outRV.setOffset(rvb.end())
+        outRV
       }
     }
     new MatrixTable(hc,
@@ -1057,6 +1051,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def collect(): Array[Row] = rdd.collect()
 
+  def collectJSON(): String = {
+    val r = JSONAnnotationImpex.exportAnnotation(collect().toFastIndexedSeq, TArray(signature))
+    JsonMethods.compact(r)
+  }
+
+
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -1172,6 +1172,11 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
+  def takeJSON(n: Int): String = {
+    val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
+    JsonMethods.compact(r)
+  }
+
   def sample(p: Double, seed: Int = 1): Table = {
     require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
     copy2(rvd = rvd.sample(withReplacement = false, p, seed))
@@ -1261,7 +1266,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
           convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
         }
         case _ =>
-          ab += (name, t.toPyString, t.isInstanceOf[TNumeric])
+          ab += (name, t.toString, t.isInstanceOf[TNumeric])
       }
     }
 

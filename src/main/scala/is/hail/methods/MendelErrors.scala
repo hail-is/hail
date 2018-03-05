@@ -95,7 +95,7 @@ object MendelErrors {
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
     val localRowType = vds.rowType
-    new MendelErrors(vds.hc, vds.rowKeyStruct, trios, vds.stringSampleIds,
+    new MendelErrors(vds, trios, vds.stringSampleIds,
       trioMatrix.rvd.mapPartitions { it =>
         val view = new HardcallTrioGenotypeView(fullRowType, "GT")
         val variantView = new RegionValueVariant(localRowType)
@@ -122,13 +122,14 @@ object MendelErrors {
   }
 }
 
-case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[CompleteTrio],
+case class MendelErrors(mt: MatrixTable, trios: IndexedSeq[CompleteTrio],
   sampleIds: IndexedSeq[String],
   mendelErrors: RDD[MendelError]) {
 
   private val sc = mendelErrors.sparkContext
   private val trioFam = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
   private val nuclearFams = Pedigree.nuclearFams(trios)
+  val IndexedSeq(colKeyName) = mt.colKey
 
   def nErrorPerVariant: RDD[(Row, Int)] = {
     mendelErrors
@@ -155,16 +156,16 @@ case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[Comple
   def mendelKT(): Table = {
     val signature = TStruct(
       "fam_id" -> TString(),
-      "s" -> TString(),
-      "locus" -> vSig.types(0),
-      "alleles" -> vSig.types(1),
+      colKeyName -> TString(),
+      "locus" -> mt.rowKeyStruct.types(0),
+      "alleles" -> mt.rowKeyStruct.types(1),
       "code" -> TInt32(),
       "error" -> TString())
 
-    val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, Locus(e.contig, e.position),
+    val rdd = mendelErrors.map { e => Row(e.trio.kid, e.trio.fam.orNull, Locus(e.contig, e.position),
       e.alleles, e.code, e.errorString) }
 
-    Table(hc, rdd, signature, Array("s", "locus", "alleles"))
+    Table(mt.hc, rdd, signature, Array("locus", "alleles", colKeyName))
   }
 
   def fMendelKT(): Table = {
@@ -186,14 +187,14 @@ case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[Comple
       Row(kids.flatMap(x => trioFamBc.value.get(x.head)).orNull, dad, mom, kids.map(_.length).getOrElse(0), n, nSNP)
     }
 
-    Table(hc, rdd, signature, Array("pat_id", "mat_id"))
+    Table(mt.hc, rdd, signature, Array("pat_id", "mat_id"))
   }
 
   def iMendelKT(): Table = {
 
     val signature = TStruct(
+      colKeyName -> TString(),
       "fam_id" -> TString(),
-      "s" -> TString(),
       "errors" -> TInt64(),
       "snp_errors" -> TInt64()
     )
@@ -204,20 +205,20 @@ case class MendelErrors(hc: HailContext, vSig: TStruct, trios: IndexedSeq[Comple
       }
     }.toMap)
 
-    val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(trioFamBc.value.getOrElse(s, null), s, n, nSNP) }
+    val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(s, trioFamBc.value.getOrElse(s, null), n, nSNP) }
 
-    Table(hc, rdd, signature, Array("s"))
+    Table(mt.hc, rdd, signature, Array(colKeyName))
   }
 
   def lMendelKT(): Table = {
     val signature = TStruct(
-      "locus" -> vSig.types(0),
-      "alleles" -> vSig.types(1),
+      "locus" -> mt.rowKeyStruct.types(0),
+      "alleles" -> mt.rowKeyStruct.types(1),
       "errors" -> TInt32()
     )
 
     val rdd = nErrorPerVariant.map { case (v, l) => Row(v.getAs[Locus](0), v.getAs[IndexedSeq[String]](1), l.toInt) }
 
-    Table(hc, rdd, signature, Array("locus", "alleles"))
+    Table(mt.hc, rdd, signature, Array("locus", "alleles"))
   }
 }

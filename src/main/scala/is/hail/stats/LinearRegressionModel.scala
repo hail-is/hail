@@ -9,8 +9,8 @@ object LinearRegressionModel {
   def schema = TStruct(
     ("beta", TFloat64()),
     ("se", TFloat64()),
-    ("tstat", TFloat64()),
-    ("pval", TFloat64()))
+    ("t_stat", TFloat64()),
+    ("p_value", TFloat64()))
 
   def fit(x: Vector[Double], y: Vector[Double], yyp: Double, qt: Matrix[Double], qty: Vector[Double], d: Int): Annotation = {
     val qtx = qt * x

@@ -34,17 +34,17 @@ class InbreedingCoefficientSuite extends SparkSuite {
     val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds =>
-        vds.filterVariantsExpr("va.locus.isAutosomal()")
+        vds.filterRowsExpr("va.locus.isAutosomal()")
       }
-      .filter(vds => vds.countVariants > 2 && vds.numCols >= 2)
+      .filter(vds => vds.countRows > 2 && vds.numCols >= 2)
 
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: MatrixTable) =>
 
         val vds2 = VariantQC(vds)
-          .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.n_called * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
+          .filterRowsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.n_called * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 
-        if (vds2.numCols < 5 || vds2.countVariants() < 5) {
+        if (vds2.numCols < 5 || vds2.countRows() < 5) {
           true
         } else {
           val localRoot = tmpDir.createLocalTempFile("ibcCheck")

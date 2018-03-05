@@ -2,13 +2,11 @@ import hail as hl
 from hail.genetics.pedigree import Pedigree
 from hail.typecheck import *
 import hail.expr.aggregators as agg
-from hail.utils.java import handle_py4j
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from .misc import require_biallelic
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree,
            complete_trios=bool)
@@ -34,24 +32,24 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     identifiers are the sample IDs of the trio probands. The column fields and
     entries of the matrix are changed in the following ways:
 
-    The new column fields consist of three Structs (`proband`, `father`,
-    `mother`), a Boolean field, and a String field:
+    The new column fields consist of three structs (`proband`, `father`,
+    `mother`), a Boolean field, and a string field:
 
-    - proband.id** (*String*) - Proband sample ID, same as trio column key.
-    - proband.fields** (*Struct*) - Column fields on the proband.
-    - father.id** (*String*) - Father sample ID.
-    - father.fields** (*Struct*) - Column fields on the father.
-    - mother.id** (*String*) - Mother sample ID.
-    - mother.fields** (*Struct*) - Column fields on the mother.
-    - is_female** (*Boolean*) - Proband is female.
-      True for female, false for male, missing if unknown.
-    - **fam_id** (*String*) - Family ID.
+    - proband.id** (:py:data:`.tstr`) - Proband sample ID, same as trio column key.
+    - proband.fields** (:class:`.tstruct`) - Column fields on the proband.
+    - father.id** (:py:data:`.tstr`) - Father sample ID.
+    - father.fields** (:class:`.tstruct`) - Column fields on the father.
+    - mother.id** (:py:data:`.tstr`) - Mother sample ID.
+    - mother.fields** (:class:`.tstruct`) - Column fields on the mother.
+    - is_female** (:py:data:`.tbool`) - Proband is female.
+      ``True`` for female, ``False`` for male, missing if unknown.
+    - **fam_id** (:py:data:`.tstr`) - Family ID.
 
     The new entry fields are:
 
-    - **proband_entry** (*Struct*) - Proband entry fields.
-    - **father_entry** (*Struct*) - Father entry fields.
-    - **mother_entry** (*Struct*) - Mother entry fields.
+    - **proband_entry** (:class:`.tstruct`) - Proband entry fields.
+    - **father_entry** (:class:`.tstruct`) - Father entry fields.
+    - **mother_entry** (:class:`.tstruct`) - Mother entry fields.
 
     Parameters
     ----------
@@ -63,7 +61,6 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     """
     return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
 def mendel_errors(dataset, pedigree):
@@ -72,7 +69,7 @@ def mendel_errors(dataset, pedigree):
     .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
-    
+
     .. include:: ../_templates/req_biallelic.rst
 
     Examples
@@ -109,40 +106,40 @@ def mendel_errors(dataset, pedigree):
     **First table:** all Mendel errors. This table contains one row per Mendel
     error, keyed by the variant and proband id.
 
-        - `fam_id` (:class:`.TString`) -- Family ID.
-        - `locus` (:class:`.TLocus`) -- Variant locus, key field.
-        - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles, key field.
-        - `s` (:class:`.TString`) -- Proband ID, key field.
-        - `code` (:class:`.TInt32`) -- Mendel error code, see below.
-        - `error` (:class:`.TString`) -- Readable representation of Mendel error.
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - (column key of `dataset`) (:py:data:`.tstr`) -- Proband ID, key field.
+        - `locus` (:class:`.tlocus`) -- Variant locus, key field.
+        - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
+        - `code` (:py:data:`.tint32`) -- Mendel error code, see below.
+        - `error` (:py:data:`.tstr`) -- Readable representation of Mendel error.
 
     **Second table:** errors per nuclear family. This table contains one row
     per nuclear family, keyed by the parents.
 
-        - `fam_id` (:class:`.TString`) -- Family ID.
-        - `pat_id` (:class:`.TString`) -- Paternal ID. (key field)
-        - `mat_id` (:class:`.TString`) -- Maternal ID. (key field)
-        - `children` (:class:`.TInt32`) -- Number of children in this nuclear family.
-        - `errors` (:class:`.TInt32`) -- Number of Mendel errors in this nuclear family.
-        - `snp_errors` (:class:`.TInt32`) -- Number of Mendel errors at SNPs in this
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - `pat_id` (:py:data:`.tstr`) -- Paternal ID. (key field)
+        - `mat_id` (:py:data:`.tstr`) -- Maternal ID. (key field)
+        - `children` (:py:data:`.tint32`) -- Number of children in this nuclear family.
+        - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this nuclear family.
+        - `snp_errors` (:py:data:`.tint32`) -- Number of Mendel errors at SNPs in this
           nuclear family.
 
     **Third table:** errors per individual. This table contains one row per
     individual. Each error is counted toward the proband, father, and mother
     according to the `Implicated` in the table below.
 
-        - `s` (:class:`.TString`) -- Sample ID (key field).
-        - `fam_id` (:class:`.TString`) -- Family ID.
-        - `errors` (:class:`.TInt64`) -- Number of Mendel errors involving this
+        - (column key of `dataset`) (:py:data:`.tstr`) -- Sample ID (key field).
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - `errors` (:py:data:`.tint64`) -- Number of Mendel errors involving this
           individual.
-        - `snp_errors` (:class:`.TInt64`) -- Number of Mendel errors involving this
+        - `snp_errors` (:py:data:`.tint64`) -- Number of Mendel errors involving this
           individual at SNPs.
 
     **Fourth table:** errors per variant.
 
-        - `locus` (:class:`.TLocus`) -- Variant locus, key field.
-        - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles, key field.
-        - `errors` (:class:`.TInt32`) -- Number of Mendel errors in this variant.
+        - `locus` (:class:`.tlocus`) -- Variant locus, key field.
+        - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
+        - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this variant.
 
     This method only considers complete trios (two parents and proband with
     defined sex). The code of each Mendel error is determined by the table
@@ -209,10 +206,9 @@ def mendel_errors(dataset, pedigree):
     return Table(kts._1()), Table(kts._2()), \
            Table(kts._3()), Table(kts._4())
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
-def tdt(dataset, pedigree):
+def transmission_disequilibrium_test(dataset, pedigree):
     """Performs the transmission disequilibrium test on trios.
 
     .. include:: ../_templates/req_tstring.rst
@@ -232,20 +228,20 @@ def tdt(dataset, pedigree):
     .. doctest::
     
         >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
-        >>> tdt_table = hl.tdt(tdt_dataset, pedigree)
+        >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
         >>> tdt_table.show(2)
-        +------------------+-------+-------+-------------+-------------+
-        | v                |     t |     u |        chi2 |        pval |
-        +------------------+-------+-------+-------------+-------------+
-        | Variant(GRCh37)  | Int32 | Int32 |     Float64 |     Float64 |
-        +------------------+-------+-------+-------------+-------------+
-        | 1:246714629:C:A  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
-        | 2:167262169:T:C  |     0 |     0 |         NaN |         NaN |
-        +------------------+-------+-------+-------------+-------------+
+        +---------------+------------+-------+-------+-------------+-------------+
+        | locus         | alleles    |     t |     u |        chi2 |    p_values |
+        +---------------+------------+-------+-------+-------------+-------------+
+        | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
+        +---------------+------------+-------+-------+-------------+-------------+
+        | 1:246714629   | ["C","A"]  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
+        | 2:167262169   | ["T","C"]  |    NA |    NA |          NA |          NA |
+        +---------------+------------+-------+-------+-------------+-------------+
 
     Export variants with p-values below 0.001:
 
-    >>> tdt_table = tdt_table.filter(tdt_table.pval < 0.001)
+    >>> tdt_table = tdt_table.filter(tdt_table.p_value < 0.001)
     >>> tdt_table.export("output/tdt_results.tsv")
 
     Notes
@@ -263,13 +259,14 @@ def tdt(dataset, pedigree):
     and asymptotically follows a chi-squared distribution with one degree of
     freedom under the null hypothesis.
 
-    :func:`tdt` only considers complete trios (two parents and a proband with
-    defined sex) and only returns results for the autosome, as defined by
-    :meth:`~hail.genetics.Locus.in_autosome`, and chromosome X. Transmissions
-    and non-transmissions are counted only for the configurations of genotypes
-    and copy state in the table below, in order to filter out Mendel errors and
-    configurations where transmission is guaranteed. The copy state of a locus
-    with respect to a trio is defined as follows:
+    :func:`transmission_disequilibrium_test` only considers complete trios (two
+    parents and a proband with defined sex) and only returns results for the
+    autosome, as defined by :meth:`~hail.genetics.Locus.in_autosome`, and
+    chromosome X. Transmissions and non-transmissions are counted only for the
+    configurations of genotypes and copy state in the table below, in order to
+    filter out Mendel errors and configurations where transmission is
+    guaranteed. The copy state of a locus with respect to a trio is defined as
+    follows:
 
     - Auto -- in autosome or in PAR of X or female child
     - HemiX -- in non-PAR of X and male child
@@ -315,12 +312,12 @@ def tdt(dataset, pedigree):
 
     :func:`tdt` produces a table with the following columns:
 
-     - `locus` (:class:`.TLocus`) -- Locus.
-     - `alleles` (:class:`.TArray` of :class:`.TString`) -- Alleles.
-     - `t` (:class:`.TInt32`) -- Number of transmitted alternate alleles.
-     - `u` (:class:`.TInt32`) -- Number of untransmitted alternate alleles.
-     - `chi2` (:class:`.TFloat64`) -- TDT statistic.
-     - `pval` (:class:`.TFloat64`) -- p-value.
+     - `locus` (:class:`.tlocus`) -- Locus.
+     - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Alleles.
+     - `t` (:py:data:`.tint32`) -- Number of transmitted alternate alleles.
+     - `u` (:py:data:`.tint32`) -- Number of untransmitted alternate alleles.
+     - `chi2` (:py:data:`.tfloat64`) -- TDT statistic.
+     - `p_value` (:py:data:`.tfloat64`) -- p-value.
 
     Parameters
     ----------
@@ -335,7 +332,7 @@ def tdt(dataset, pedigree):
         Table of TDT results.
     """
 
-    dataset = require_biallelic(dataset, 'tdt')
+    dataset = require_biallelic(dataset, 'transmission_disequilibrium_test')
     dataset = dataset.annotate_rows(auto_or_x_par = dataset.locus.in_autosome() | dataset.locus.in_x_par())
     dataset = dataset.filter_rows(dataset.auto_or_x_par | dataset.locus.in_x_nonpar())
 
@@ -363,28 +360,28 @@ def tdt(dataset, pedigree):
                      (hom_var, hom_ref,     het, hemi_x, 1, 0),
                      (hom_var, hom_var,     het, hemi_x, 1, 0)]
 
-    count_map = hl.broadcast({hl.capture([c[0], c[1], c[2], c[3]]): [c[4], c[5]] for c in config_counts})
+    count_map = hl.literal({(c[0], c[1], c[2], c[3]): [c[4], c[5]] for c in config_counts})
 
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
 
     # this filter removes mendel error of het father in x_nonpar. It also avoids
     #   building and looking up config in common case that neither parent is het
     parent_is_valid_het = hl.bind(tri.father_entry.GT.is_het(),
-        lambda father_is_het: (father_is_het & tri.auto_or_x_par) | 
+        lambda father_is_het: (father_is_het & tri.auto_or_x_par) |
                               (tri.mother_entry.GT.is_het() & ~father_is_het))
 
     copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
 
-    config = [tri.proband_entry.GT.num_alt_alleles(),
-              tri.father_entry.GT.num_alt_alleles(),
-              tri.mother_entry.GT.num_alt_alleles(),
-              copy_state]
+    config = (tri.proband_entry.GT.n_alt_alleles(),
+              tri.father_entry.GT.n_alt_alleles(),
+              tri.mother_entry.GT.n_alt_alleles(),
+              copy_state)
 
     tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
 
     tab = tri.rows().select('locus', 'alleles', 'counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
-    tab = tab.annotate(pval = hl.pchisqtail(tab.chi2, 1.0))
+    tab = tab.annotate(p_value = hl.pchisqtail(tab.chi2, 1.0))
 
     return tab.cache()

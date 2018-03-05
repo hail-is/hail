@@ -160,7 +160,7 @@ object ExportVCF {
         case t => validFormatType(t)
       }
       if (!valid)
-        fatal(s"Invalid type for format field `${ fd.name }'. Found ${ fd.typ }.")
+        fatal(s"Invalid type for format field '${ fd.name }'. Found '${ fd.typ }'.")
     }
   }
   

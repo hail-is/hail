@@ -62,10 +62,10 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
     sb += ']'
   }
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("tuple(")
     fields.foreachBetween({ field =>
-      field.typ._toPyString(sb)
+      field.typ.pyString(sb)
     }) { sb.append(", ")}
     sb.append(')')
   }

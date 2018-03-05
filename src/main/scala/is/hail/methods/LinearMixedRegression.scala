@@ -18,9 +18,9 @@ import org.apache.commons.math3.util.FastMath
 object LinearMixedRegression {
   val schema: Type = TStruct(
     ("beta", TFloat64()),
-    ("sigmaG2", TFloat64()),
-    ("chi2", TFloat64()),
-    ("pval", TFloat64()))
+    ("sigma_g_squared", TFloat64()),
+    ("chi_sq_stat", TFloat64()),
+    ("p_value", TFloat64()))
 
   def apply(
     assocVSM: MatrixTable,
@@ -36,8 +36,6 @@ object LinearMixedRegression {
     sparsityThreshold: Double,
     optNEigs: Option[Int],
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
-
-    Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
     val ec = assocVSM.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
@@ -56,8 +54,8 @@ object LinearMixedRegression {
     else {
       val fkm = kinshipMatrix.filterSamples(completeSampleIds.toSet)
       if (!(fkm.sampleIds sameElements completeSampleIds))
-        fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
-          "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
+        fatal("Array of sample IDs in 'ds' and array of sample IDs in 'kinship_matrix' (with both filtered to complete " +
+          "samples in 'ds') do not agree. This should not happen when 'kinship_matrix' is computed from a filtered version of 'ds'.")
       fkm
     }
 
@@ -68,20 +66,20 @@ object LinearMixedRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"lmmreg: running linear mixed regression on $n samples for response variable y,\n"
+    info(s"linear_mixed_regression: running linear mixed regression on $n samples for response variable y,\n"
        + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val K = filteredKinshipMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
 
-    info(s"lmmreg: computing eigendecomposition of kinship matrix...")
+    info(s"linear_mixed_regression: computing eigendecomposition of kinship matrix...")
 
     val eigK = eigSymD(K)
     val fullU = eigK.eigenvectors
     val fullS = eigK.eigenvalues // increasing order
 
     optDelta match {
-      case Some(_) => info(s"lmmreg: delta specified by user")
-      case None => info(s"lmmreg: estimating delta using ${ if (useML) "ML" else "REML" }... ")
+      case Some(_) => info(s"linear_mixed_regression: delta specified by user")
+      case None => info(s"linear_mixed_regression: estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
     val nEigs = (optNEigs, optDroppedVarianceFraction) match {
@@ -91,13 +89,14 @@ object LinearMixedRegression {
       case (None, None) => n
     }
 
-    require(nEigs > 0 && nEigs <= n, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the number of samples $n inclusive: got $nEigs")
+    require(nEigs > 0 && nEigs <= n, s"linear_mixed_regression: number of kinship eigenvectors to use " +
+      s"must be between 1 and the number of samples $n inclusive: got $nEigs")
 
     val Ut = fullU(::, (n - nEigs) until n).t
     val S = fullS((n - nEigs) until n)
 
-    info(s"lmmreg: eigenvalues 1 to ${ math.min(20, nEigs) }: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
-    info(s"lmmreg: eigenvalues $nEigs to ${ math.max(1, nEigs - 20) }: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
+    info(s"linear_mixed_regression: eigenvalues 1 to ${ math.min(20, nEigs) }: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
+    info(s"linear_mixed_regression: eigenvalues $nEigs to ${ math.max(1, nEigs - 20) }: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
     val lmmConstants = LMMConstants(y, cov, S, Ut)
 
@@ -111,30 +110,42 @@ object LinearMixedRegression {
 
     val header = "rank\teval"
     val evalString = (0 until nEigs).map(i => s"$i\t${ S(nEigs - i - 1) }").mkString("\n")
-    log.info(s"\nlmmreg: table of eigenvalues\n$header\n$evalString\n")
+    log.info(s"\nlinear_mixed_regression: table of eigenvalues\n$header\n$evalString\n")
 
-    info(s"lmmreg: global model fit: beta = $globalBetaMap")
-    info(s"lmmreg: global model fit: sigmaG2 = $globalSg2")
-    info(s"lmmreg: global model fit: sigmaE2 = $globalSe2")
-    info(s"lmmreg: global model fit: delta = $delta")
-    info(s"lmmreg: global model fit: h2 = $h2")
+    info(s"linear_mixed_regression: global model fit: beta = $globalBetaMap")
+    info(s"linear_mixed_regression: global model fit: sigma_g_squared = $globalSg2")
+    info(s"linear_mixed_regression: global model fit: sigma_e_squared = $globalSe2")
+    info(s"linear_mixed_regression: global model fit: delta = $delta")
+    info(s"linear_mixed_regression: global model fit: h_squared = $h2")
 
     diagLMM.optGlobalFit.foreach { gf =>
-      info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }")
+      info(s"linear_mixed_regression: global model fit: standard_error_h_squared = ${ gf.sigmaH2 }")
     }
 
     val vds1 = assocVSM.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
-      TStruct(("useML", TBoolean()), ("beta", TDict(TString(), TFloat64())), ("sigmaG2", TFloat64()), ("sigmaE2", TFloat64()),
-        ("delta", TFloat64()), ("h2", TFloat64()), ("evals", TArray(TFloat64())), ("nEigs", TInt32()), ("dropped_variance_fraction", TFloat64())), rootGA)
+      TStruct(
+        ("use_ml", TBoolean()),
+        ("beta", TDict(TString(), TFloat64())),
+        ("sigma_g_squared", TFloat64()),
+        ("sigma_e_squared", TFloat64()),
+        ("delta", TFloat64()),
+        ("h_squared", TFloat64()),
+        ("eigenvalues", TArray(TFloat64())),
+        ("n_eigenvectors", TInt32()),
+        ("dropped_variance_fraction", TFloat64())), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
           Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(("seH2", TFloat64()), ("normLkhdH2", TArray(TFloat64())), ("maxLogLkhd", TFloat64()),
-            ("logDeltaGrid", TArray(TFloat64())), ("logLkhdVals", TArray(TFloat64()))), rootGA + ".fit")
+          TStruct(
+            ("standard_error_h_squared", TFloat64()),
+            ("normalized_likelihood_h_squared", TArray(TFloat64())),
+            ("max_log_likelihood", TFloat64()),
+            ("log_delta_grid", TArray(TFloat64())),
+            ("log_likelihood_values", TArray(TFloat64()))), rootGA, "fit")
       case None =>
         assert(optDelta.isDefined)
         vds1
@@ -148,10 +159,10 @@ object LinearMixedRegression {
 
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
-      info(s"lmmreg: Computing statistics for each variant...")
+      info(s"linear_mixed_regression: Computing statistics for each variant...")
 
       val scalerLMM = if (nEigs == n) {
-        val T = Ut(::, *) :* diagLMM.sqrtInvD
+        val T = Ut(::, *) *:* diagLMM.sqrtInvD
         val Qt = qr.reduced.justQ(diagLMM.TC).t
         val QtTy = Qt * diagLMM.Ty
         val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
@@ -259,8 +270,8 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
   val invDelta = 1 / delta
 
   val Z = (con.S + delta).map(1 / _ - invDelta)
-  val ydy = con.yty / delta + (Uty dot (Uty :* Z))
-  val UtcovZUtcov = Utcov.t * (Utcov(::, *) :* Z)
+  val ydy = con.yty / delta + (Uty dot (Uty *:* Z))
+  val UtcovZUtcov = Utcov.t * (Utcov(::, *) *:* Z)
 
   val r1 = 0 to 0
   val r2 = 1 to d
@@ -275,10 +286,10 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
 
     val Utx = Ut * x
     val UtC = DenseMatrix.horzcat(Utx.toDenseMatrix.t, Utcov)
-    val ZUtx = Utx :* Z
+    val ZUtx = Utx *:* Z
 
     val Cty = DenseVector.vertcat(DenseVector(x dot y), covty)
-    val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
+    val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
 
     val CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
     CzC(0, 0) = Utx dot ZUtx
@@ -329,12 +340,12 @@ object DiagLMM {
           val delta = FastMath.exp(logDelta)
           val invDelta = 1 / delta
           val D = S + delta
-          val dy = Uty :/ D
+          val dy = Uty /:/ D
           val Z = D.map(1 / _ - invDelta)
 
-          val ydy = invDelta * yty + (Uty dot (Uty :* Z))
-          val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
-          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
+          val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
+          val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
+          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) *:* Z))
 
           val b = CdC \ Cdy
           val sigma2 = (ydy - (Cdy dot b)) / n
@@ -352,12 +363,12 @@ object DiagLMM {
           val delta = FastMath.exp(logDelta)
           val invDelta = 1 / delta
           val D = S + delta
-          val dy = Uty :/ D
+          val dy = Uty /:/ D
           val Z = D.map(1 / _ - invDelta)
 
-          val ydy = invDelta * yty + (Uty dot (Uty :* Z))
-          val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
-          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
+          val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
+          val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
+          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) *:* Z))
 
           val b = CdC \ Cdy
           val sigma2 = (ydy - (Cdy dot b)) / (n - d)
@@ -381,16 +392,16 @@ object DiagLMM {
 
       val gridLogLkhd = grid.map(logDelta => (logDelta, logLkhdFunction.value(logDelta)))
 
-      val header = "logDelta\tlogLkhd"
+      val header = "log_delta_grid\tlog_likelihood"
       val gridValsString = gridLogLkhd.map { case (d, nll) => s"$d\t$nll" }.mkString("\n")
-      log.info(s"\nlmmreg: table of delta\n$header\n$gridValsString\n")
+      log.info(s"\nlinear_mixed_regression: table of delta\n$header\n$gridValsString\n")
 
       val (approxLogDelta, _) = gridLogLkhd.maxBy(_._2)
 
       if (approxLogDelta == minLogDelta)
-        fatal(s"lmmreg: failed to fit delta: ${ if (useML) "ML" else "REML" } realized at delta lower search boundary e^$minLogDelta = ${ FastMath.exp(minLogDelta) }, indicating negligible enviromental component of variance. The model is likely ill-specified.")
+        fatal(s"linear_mixed_regression: failed to fit delta: ${ if (useML) "ML" else "REML" } realized at delta lower search boundary e^$minLogDelta = ${ FastMath.exp(minLogDelta) }, indicating negligible enviromental component of variance. The model is likely ill-specified.")
       else if (approxLogDelta == maxLogDelta)
-        fatal(s"lmmreg: failed to fit delta: ${ if (useML) "ML" else "REML" } realized at delta upper search boundary e^$maxLogDelta = ${ FastMath.exp(maxLogDelta) }, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
+        fatal(s"linear_mixed_regression: failed to fit delta: ${ if (useML) "ML" else "REML" } realized at delta upper search boundary e^$maxLogDelta = ${ FastMath.exp(maxLogDelta) }, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
 
       val searchInterval = new SearchInterval(minLogDelta, maxLogDelta, approxLogDelta)
       val goal = GoalType.MAXIMIZE
@@ -403,7 +414,7 @@ object DiagLMM {
       val maxLogLkhd = logDeltaPointValuePair.getValue
 
       if (math.abs(maxlogDelta - approxLogDelta) > 1d / pointsPerUnit) {
-        warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and" +
+        warn(s"linear_mixed_regression: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and" +
           s"the optimal value $maxlogDelta of ln(delta) by Brent's method exceeds the grid resolution" +
           s"of ${ 1d / pointsPerUnit }. Plot the values over the full grid to investigate.")
       }
@@ -447,19 +458,19 @@ object DiagLMM {
     def fitUsingDelta(delta: Double, optGlobalFit: Option[GlobalFitLMM]): DiagLMM = {
       val invDelta = 1 / delta
       val invD = (S + delta).map(1 / _)
-      val dy = Uty :* invD
+      val dy = Uty *:* invD
 
       val Z = invD - invDelta
 
-      val ydy = invDelta * yty + (Uty dot (Uty :* Z))
-      val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
-      val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
+      val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
+      val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
+      val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) *:* Z))
 
       val b = CdC \ Cdy
       val s2 = (ydy - (Cdy dot b)) / (if (useML) n else n - d)
       val sqrtInvD = sqrt(invD)
-      val TC = UtC(::, *) :* sqrtInvD
-      val Ty = Uty :* sqrtInvD
+      val TC = UtC(::, *) *:* sqrtInvD
+      val Ty = Uty *:* sqrtInvD
       val TyTy = Ty dot Ty
 
       DiagLMM(b, s2, math.log(s2), delta, optGlobalFit, sqrtInvD, TC, Ty, TyTy, useML)

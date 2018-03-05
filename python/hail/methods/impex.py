@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils.java import Env, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
 from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
@@ -7,10 +7,9 @@ from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics.reference_genome import reference_genome_type
-from hail.methods.misc import require_biallelic
+from hail.methods.misc import require_biallelic, require_variant
 
 
-@handle_py4j
 @typecheck(table=Table,
            address=str,
            keyspace=str,
@@ -28,7 +27,6 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
     table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            output=str,
            precision=int)
@@ -44,9 +42,9 @@ def export_gen(dataset, output, precision=4):
     Import genotype probability data, filter variants based on INFO score, and
     export data to a GEN and SAMPLE file:
 
-    >>> ds = hl.import_gen('data/example.gen', sample_file='data/example.sample')
-    >>> ds = ds.filter_rows(agg.info_score(ds.GP).score >= 0.9) # doctest: +SKIP
-    >>> hl.export_gen(ds, 'output/infoscore_filtered')
+    >>> example_ds = hl.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> example_ds = example_ds.filter_rows(agg.info_score(example_ds.GP).score >= 0.9) # doctest: +SKIP
+    >>> hl.export_gen(example_ds, 'output/infoscore_filtered')
 
     Notes
     -----
@@ -54,18 +52,18 @@ def export_gen(dataset, output, precision=4):
     `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
 
     This method requires a `GP` (genotype probabilities) entry field of type
-    ``Array[Float64]``. The values at indices 0, 1, and 2 are exported as the
+    ``array<float64>``. The values at indices 0, 1, and 2 are exported as the
     probabilities of homozygous reference, heterozygous, and homozygous variant,
     respectively. Missing `GP` values are exported as ``0 0 0``.
 
     The first six columns of the GEN file are as follows:
 
-    - chromosome (`v.contig`)
+    - chromosome (`locus.contig`)
     - variant ID (`varid` if defined, else Contig:Position:Ref:Alt)
     - rsID (`rsid` if defined, else ``.``)
-    - position (`v.start`)
-    - reference allele (`v.ref`)
-    - alternate allele (`v.alt`)
+    - position (`locus.position`)
+    - reference allele (`alleles[0]`)
+    - alternate allele (`alleles[1]`)
 
     The SAMPLE file has three columns:
 
@@ -75,7 +73,7 @@ def export_gen(dataset, output, precision=4):
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        Dataset with entry field `GP` of type Array[TFloat64].
+        Dataset with entry field `GP` of type ``array<float64>``.
     output : :obj:`str`
         Filename root for output GEN and SAMPLE files.
     precision : :obj:`int`
@@ -88,14 +86,13 @@ def export_gen(dataset, output, precision=4):
         if gp.dtype != tarray(tfloat64) or gp._indices != dataset._entry_indices:
             raise KeyError
     except KeyError:
-        raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
+        raise FatalError("export_gen: no entry field 'GP' of type 'array<float64>'")
 
     dataset = require_biallelic(dataset, 'export_plink')
 
     Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            output=str,
            fam_args=expr_any)
@@ -124,12 +121,12 @@ def export_plink(dataset, output, **fam_args):
     `FAM file <https://www.cog-genomics.org/plink2/formats#fam>`__
     via expressions with column and global fields in scope:
 
-    - ``fam_id``: :class:`.TString` for the family ID
-    - ``id``: :class:`.TString` for the individual (proband) ID
-    - ``mat_id``: :class:`.TString` for the maternal ID
-    - ``pat_id``: :class:`.TString` for the paternal ID
-    - ``is_female``: :class:`.TBoolean` for the proband sex
-    - ``is_case``: :class:`.TBoolean` or `quant_pheno`: :class:`.TFloat64` for the
+    - ``fam_id``: :py:data:`.tstr` for the family ID
+    - ``id``: :py:data:`.tstr` for the individual (proband) ID
+    - ``mat_id``: :py:data:`.tstr` for the maternal ID
+    - ``pat_id``: :py:data:`.tstr` for the paternal ID
+    - ``is_female``: :py:data:`.tbool` for the proband sex
+    - ``is_case``: :py:data:`.tbool` or `quant_pheno`: :py:data:`.tfloat64` for the
        phenotype
 
     If no assignment is given, the corresponding PLINK missing value is written:
@@ -184,7 +181,6 @@ def export_plink(dataset, output, **fam_args):
     Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
 
 
-@handle_py4j
 @typecheck(table=Table,
            zk_host=str,
            collection=str,
@@ -200,7 +196,6 @@ def export_solr(table, zk_host, collection, block_size=100):
     table._jkt.exportSolr(zk_host, collection, block_size)
 
 
-@handle_py4j
 @typecheck(dataset=MatrixTable,
            output=str,
            append_to_header=nullable(str),
@@ -231,21 +226,22 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         output (`parallel` set to ``'separate_header'`` or
         ``'header_per_shard'``) when exporting large VCFs.
 
-    Hail exports the fields of Struct `info` as INFO fields,
-    the elements of Set[String] `filters` as FILTERS, and the
-    value of Float64 `qual` as QUAL. No other row fields are exported.
+    Hail exports the fields of struct `info` as INFO fields,
+    the elements of ``set<str>`` `filters` as FILTERS, and the
+    value of float64 `qual` as QUAL. No other row fields are exported.
 
     The FORMAT field is generated from the entry schema, which
-    must be a :class:`~hail.expr.TStruct`.  There is a FORMAT
+    must be a :class:`.tstruct`.  There is a FORMAT
     field for each field of the Struct.
 
-    INFO and FORMAT fields may be generated from Struct fields of type Call,
-    Int32, Float32, Float64, or String. If a field has type Int64, every value
-    must be a valid Int32. Arrays and Sets containing these types are also
-    allowed but cannot be nested; for example, Array[Array[Int32]] is invalid.
-    Sets and Arrays are written with the same comma-separated format. Boolean
-    fields are also permitted in `info` and will generate INFO fields of
-    VCF type Flag.
+    INFO and FORMAT fields may be generated from Struct fields of type
+    :py:data:`.tcall`, :py:data:`.tint32`, :py:data:`.tfloat32`,
+    :py:data:`.tfloat64`, or :py:data:`.tstr`. If a field has type
+    :py:data:`.tint64`, every value must be a valid ``int32``. Arrays and sets
+    containing these types are also allowed but cannot be nested; for example,
+    ``array<array<int32>>`` is invalid. Arrays and sets are written with the
+    same comma-separated format. Fields of type :py:data:`.tbool` are also
+    permitted in `info` and will generate INFO fields of VCF type Flag.
 
     Hail also exports the name, length, and assembly of each contig as a VCF
     header line, where the assembly is set to the :class:`.ReferenceGenome`
@@ -309,13 +305,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     """
 
+    require_variant(dataset, 'export_vcf')
     typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
     Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
                                       Env.hail().utils.ExportType.getExportType(parallel),
                                       joption(typ._convert_to_j(metadata)))
 
 
-@handle_py4j
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
 def import_interval_list(path, reference_genome='default'):
@@ -339,17 +335,17 @@ def import_interval_list(path, reference_genome='default'):
     A file in either of the first two formats produces a table with one
     field:
 
-    - **interval** (:class:`.TInterval`) - Row key. Genomic interval. If
+    - **interval** (:class:`.tinterval`) - Row key. Genomic interval. If
       `reference_genome` is defined, the point type of the interval will be
-      :class:`.TLocus` parameterized by the `reference_genome`. Otherwise,
-      the point type is a :class:`.TStruct` with two fields: `contig` with
-      type :class:`.TString` and `position` with type :class:`.TInt32`.
+      :class:`.tlocus` parameterized by the `reference_genome`. Otherwise,
+      the point type is a :class:`.tstruct` with two fields: `contig` with
+      type :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
 
     A file in the third format (with a "target" column) produces a table with two
     fields:
 
-     - **interval** (:class:`.TInterval`) - Row key. Same schema as above.
-     - **target** (:class:`.TString`)
+     - **interval** (:class:`.tinterval`) - Row key. Same schema as above.
+     - **target** (:py:data:`.tstr`)
 
     Note
     ----
@@ -385,7 +381,6 @@ def import_interval_list(path, reference_genome='default'):
     return Table(t)
 
 
-@handle_py4j
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
 def import_bed(path, reference_genome='default'):
@@ -422,17 +417,17 @@ def import_bed(path, reference_genome='default'):
     the .bed file has only three fields (`chrom`, `chromStart`, and
     `chromEnd`), then the produced table has only one column:
 
-        - **interval** (:class:`.TInterval`) - Row key. Genomic interval. If
+        - **interval** (:class:`.tinterval`) - Row key. Genomic interval. If
           `reference_genome` is defined, the point type of the interval will be
-          :class:`.TLocus` parameterized by the `reference_genome`. Otherwise,
-          the point type is a :class:`.TStruct` with two fields: `contig` with
-          type :class:`.TString` and `position` with type :class:`.TInt32`.
+          :class:`.tlocus` parameterized by the `reference_genome`. Otherwise,
+          the point type is a :class:`.tstruct` with two fields: `contig` with
+          type :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
 
     If the .bed file has four or more columns, then Hail will store the fourth
     column as a field in the table:
 
-        - **interval** (*Interval*) - Row key. Genomic interval. Same schema as above.
-        - **target** (*String*) - Fourth column of .bed file.
+        - *interval* (:class:`.tinterval`) - Row key. Genomic interval. Same schema as above.
+        - *target* (:py:data:`.tstr`) - Fourth column of .bed file.
 
     `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`__ can
     have up to 12 fields, but Hail will only ever look at the first four. Hail
@@ -476,7 +471,6 @@ def import_bed(path, reference_genome='default'):
     return Table(jt)
 
 
-@handle_py4j
 @typecheck(path=str,
            quant_pheno=bool,
            delimiter=str,
@@ -507,17 +501,17 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
 
     The resulting :class:`.Table` will have fields, types, and values that are interpreted as missing.
 
-     - **fam_id** (*String*) -- Family ID (missing = "0")
-     - **id** (*String*) -- Sample ID (key column)
-     - **pat_id** (*String*) -- Paternal ID (missing = "0")
-     - **mat_id** (*String*) -- Maternal ID (missing = "0")
-     - **is_female** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+     - *fam_id* (:py:data:`.tstr`) -- Family ID (missing = "0")
+     - *id* (:py:data:`.tstr`) -- Sample ID (key column)
+     - *pat_id* (:py:data:`.tstr`) -- Paternal ID (missing = "0")
+     - *mat_id* (:py:data:`.tstr`) -- Maternal ID (missing = "0")
+     - *is_female* (:py:data:`.tstr`) -- Sex (missing = "NA", "-9", "0")
 
     One of:
 
-     - **is_case** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
+     - *is_case* (:py:data:`.tbool`) -- Case-control phenotype (missing = "0", "-9",
        non-numeric or the ``missing`` argument, if given.
-     - **quant_pheno** (*Float64*) -- Quantitative phenotype (missing = "NA" or
+     - *quant_pheno* (:py:data:`.tfloat64`) -- Quantitative phenotype (missing = "NA" or
        the ``missing`` argument, if given.
 
     Parameters
@@ -542,7 +536,6 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     return Table(jkt)
 
 
-@handle_py4j
 @typecheck(regex=str,
            path=oneof(str, listof(str)),
            max_count=int)
@@ -582,7 +575,6 @@ def grep(regex, path, max_count=100):
     Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)),
            sample_file=nullable(str),
            entry_fields=listof(str),
@@ -629,25 +621,25 @@ def import_bgen(path, entry_fields, sample_file=None,
 
     **Column Fields**
 
-    - `s` (:class:`.TString`) -- Column key. This is the sample ID imported
+    - `s` (:py:data:`.tstr`) -- Column key. This is the sample ID imported
       from the first column of the sample file if given. Otherwise, the sample
       ID is taken from the sample identifying block in the first BGEN file if it
       exists; else IDs are assigned from `_0`, `_1`, to `_N`.
 
     **Row Fields**
 
-    - `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The chromosome
+    - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The chromosome
       and position. If `reference_genome` is defined, the type will be
-      :class:`.TLocus` parameterized by `reference_genome`. Otherwise, the type
-      will be a :class:`.TStruct` with two fields: `contig` with type
-      :class:`.TString` and `position` with type :class:`.TInt32`.
-    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An array
+      :class:`.tlocus` parameterized by `reference_genome`. Otherwise, the type
+      will be a :class:`.tstruct` with two fields: `contig` with type
+      :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
+    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An array
       containing the alleles of the variant. The reference allele (A allele in
       the v1.1 spec and first allele in the v1.2 spec) is the first element in
       the array.
-    - `varid` (:class:`.TString`) -- The variant identifier. The third field in
+    - `varid` (:py:data:`.tstr`) -- The variant identifier. The third field in
       each variant identifying block.
-    - `rsid` (:class:`.TString`) -- The rsID for the variant. The fifth field in
+    - `rsid` (:py:data:`.tstr`) -- The rsID for the variant. The fifth field in
       each variant identifying block.
 
     **Entry Fields**
@@ -658,9 +650,9 @@ def import_bgen(path, entry_fields, sample_file=None,
     to missing if the sum of the genotype probabilities is a distance greater
     than `tolerance` from 1.0.
 
-    - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
+    - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
       the greatest probability.
-    - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
+    - `GP` (:class:`.tarray` of :py:data:`.tfloat64`) -- Genotype probabilities
       as defined by the BGEN file spec. For bi-allelic variants, the array has
       three elements giving the probabilities of homozygous reference,
       heterozygous, and homozygous alternate genotype, in that order.
@@ -668,7 +660,7 @@ def import_bgen(path, entry_fields, sample_file=None,
       probabilities. For v1.1 files, the probabilities are normalized to
       sum to 1.0. For example, ``[0.98, 0.0, 0.0]`` is normalized to
       ``[1.0, 0.0, 0.0]``.
-    - `dosage` (:class:`.TFloat64`) -- The expected value of the number of
+    - `dosage` (:py:data:`.tfloat64`) -- The expected value of the number of
       alternate alleles, given by the probability of heterozygous genotype plus
       twice the probability of homozygous alternate genotype. All variants must
       be bi-allelic.
@@ -722,7 +714,6 @@ def import_bgen(path, entry_fields, sample_file=None,
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)),
            sample_file=nullable(str),
            tolerance=numeric,
@@ -756,33 +747,33 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
 
     **Column Fields**
 
-    - `s` (:class:`.TString`) -- Column key. This is the sample ID imported
+    - `s` (:py:data:`.tstr`) -- Column key. This is the sample ID imported
       from the first column of the sample file.
 
     **Row Fields**
 
-    - `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The genomic
+    - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The genomic
       location consisting of the chromosome (1st column if present, otherwise
       given by `chromosome`) and position (3rd column if `chromosome` is not
       defined). If `reference_genome` is defined, the type will be
-      :class:`.TLocus` parameterized by `reference_genome`. Otherwise, the type
-      will be a :class:`.TStruct` with two fields: `contig` with type
-      :class:`.TString` and `position` with type :class:`.TInt32`.
-    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An array
+      :class:`.tlocus` parameterized by `reference_genome`. Otherwise, the type
+      will be a :class:`.tstruct` with two fields: `contig` with type
+      :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
+    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An array
       containing the alleles of the variant. The reference allele (4th column if
       `chromosome` is not defined) is the first element of the array and the
       alternate allele (5th column if `chromosome` is not defined) is the second
       element.
-    - `varid` (:class:`.TString`) -- The variant identifier. 2nd column of GEN
+    - `varid` (:py:data:`.tstr`) -- The variant identifier. 2nd column of GEN
       file if chromosome present, otherwise 1st column.
-    - `rsid` (:class:`.TString`) -- The rsID. 3rd column of GEN file if
+    - `rsid` (:py:data:`.tstr`) -- The rsID. 3rd column of GEN file if
       chromosome present, otherwise 2nd column.
 
     **Entry Fields**
 
-    - `GT` (:class:`.TCall`) -- The hard call corresponding to the genotype with
+    - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
       the highest probability.
-    - `GP` (:class:`.TArray` of :class:`.TFloat64`) -- Genotype probabilities
+    - `GP` (:class:`.tarray` of :py:data:`.tfloat64`) -- Genotype probabilities
       as defined by the GEN file spec. The array is set to missing if the
       sum of the probabilities is a distance greater than the `tolerance`
       parameter from 1.0. Otherwise, the probabilities are normalized to sum to
@@ -823,7 +814,6 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(paths=oneof(str, listof(str)),
            key=oneof(str, listof(str)),
            min_partitions=nullable(int),
@@ -863,7 +853,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     >>> table = hl.import_table('data/samples1.tsv',
     ...                              types={'Height': hl.tfloat64, 'Age': hl.tint32})
 
-    Note ``Sample`` and ``Status`` need no type, because :class:`.TString` is
+    Note ``Sample`` and ``Status`` need no type, because :py:data:`.tstr` is
     the default type.
 
     To import a table using type imputation (which causes the file to be parsed
@@ -947,13 +937,13 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     ... `fN` (0-indexed).
 
     The `types` parameter allows the user to pass the types of fields in the
-    table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.Type`
-    values. See the examples above for a standard usage. Additionally, this
-    option can be used to override type imputation. For example, if the field
+    table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.Type` values.
+    See the examples above for a standard usage. Additionally, this option can
+    be used to override type imputation. For example, if the field
     ``Chromosome`` only contains the values ``1`` through ``22``, it will be
-    imputed to have type :class:.TInt32, whereas most Hail methods expect that a
-    chromosome field will be of type :class:.TString.  Setting ``impute=True``
-    and ``types={'Chromosome': tstr}`` solves this problem.
+    imputed to have type :py:data:`.tint32`, whereas most Hail methods expect
+    that a chromosome field will be of type :py:data:`.tstr`. Setting
+    ``impute=True`` and ``types={'Chromosome': hl.tstr}`` solves this problem.
 
     Parameters
     ----------
@@ -992,16 +982,17 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
                                    no_header, impute, quote)
     return Table(jt)
 
-@handle_py4j
+
 @typecheck(paths=oneof(str, listof(str)),
            row_fields=dictof(str, Type),
            key=oneof(str, listof(str)),
-           entry_type=oneof(TInt32, TInt64, TFloat32, TFloat64, TString),
+           entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
            missing=str,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None, no_header=False, force_bgz=False):
+def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing="NA", min_partitions=None,
+                        no_header=False, force_bgz=False):
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1026,8 +1017,8 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     To import this matrix:
 
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
-    ...                              row_fields={'Barcode': hl.TString(), 'Tissue': hl.TString(), 'Days':hl.TFloat32()},
-    ...                              key='Barcode')
+    ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
+    ...                                  key='Barcode')
 
     If the header information is missing for the row fields, like in the following:
 
@@ -1043,8 +1034,8 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     The row fields get imported as `f0`, `f1`, and `f2`, so we need to do:
 
     >>> matrix2 = hl.import_matrix_table('data/matrix2.tsv',
-    ...                              row_fields={'f0': hl.TString(), 'f1': hl.TString(), 'f2':hl.TFloat32()},
-    ...                              key='f0')
+    ...                                  row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2':hl.tfloat32},
+    ...                                  key='f0')
     >>> matrix2.rename({'f0': 'Barcode', 'f1': 'Tissue', 'f2': 'Days'})
 
     Sometimes, the header and row information is missing completely:
@@ -1091,8 +1082,9 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     key: :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s). If empty, creates an index `row_id` to use as key.
     entry_type: :class:`.Type`
-        Type of entries in matrix table. Must be one of: TInt32, TInt64, TFloat32,
-        TFloat64, or TString. Default: TInt64.
+        Type of entries in matrix table. Must be one of: :py:data:`.tint32`,
+        :py:data:`.tint64`, :py:data:`.tfloat32`, :py:data:`.tfloat64`, or
+        :py:data:`.tstr`. Default: :py:data:`.tint32`.
     missing: :obj:`str`
         Identifier to be treated as missing. Default: NA
     min_partitions: :obj:`int` or :obj:`None`
@@ -1116,17 +1108,17 @@ def import_matrix_table(paths, row_fields={}, key=[], entry_type=tint32, missing
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError("""import_matrix_table expects field types to be one of: 
-            TInt32, TInt64, TFloat32, TFloat64, TString: field {} had type {}""".format(k, v))
+            'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
     key = wrap_to_list(key)
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of: 
-        TInt32, TInt64, TFloat32, TFloat64, TString: found {}""".format(entry_type))
+        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions), no_header, force_bgz)
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, key, entry_type._jtype, missing, joption(min_partitions),
+                                     no_header, force_bgz)
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(bed=str,
            bim=str,
            fam=str,
@@ -1173,40 +1165,40 @@ def import_plink(bed, bim, fam,
 
     * Row fields:
 
-        * `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The
+        * `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The
           chromosome and position. If `reference_genome` is defined, the type
-          will be :class:`.TLocus` parameterized by `reference_genome`.
-          Otherwise, the type will be a :class:`.TStruct` with two fields:
-          `contig` with type :class:`.TString` and `position` with type
-          :class:`.TInt32`.
-        * `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An
+          will be :class:`.tlocus` parameterized by `reference_genome`.
+          Otherwise, the type will be a :class:`.tstruct` with two fields:
+          `contig` with type :py:data:`.tstr` and `position` with type
+          :py:data:`.tint32`.
+        * `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An
           array containing the alleles of the variant. The reference allele (A2
           if `a2_reference` is ``True``) is the first element in the array.
-        * `rsid` (:class:`.TString`) -- Column 2 in the BIM file.
+        * `rsid` (:py:data:`.tstr`) -- Column 2 in the BIM file.
 
     * Column fields:
 
-        * `s` (:class:`.TString`) -- Column 2 in the Fam file (key field).
-        * `fam_id` (:class:`.TString`) -- Column 1 in the FAM file. Set to
+        * `s` (:py:data:`.tstr`) -- Column 2 in the Fam file (key field).
+        * `fam_id` (:py:data:`.tstr`) -- Column 1 in the FAM file. Set to
           missing if ID equals "0".
-        * `pat_id` (:class:`.TString`) -- Column 3 in the FAM file. Set to
+        * `pat_id` (:py:data:`.tstr`) -- Column 3 in the FAM file. Set to
           missing if ID equals "0".
-        * `mat_id` (:class:`.TString`) -- Column 4 in the FAM file. Set to
+        * `mat_id` (:py:data:`.tstr`) -- Column 4 in the FAM file. Set to
           missing if ID equals "0".
-        * `is_female` (:class:`.TString`) -- Column 5 in the FAM file. Set to
+        * `is_female` (:py:data:`.tstr`) -- Column 5 in the FAM file. Set to
           missing if value equals "-9", "0", or "N/A". Set to true if value
           equals "2". Set to false if value equals "1".
-        * `is_case` (:class:`.TString`) -- Column 6 in the FAM file. Only
+        * `is_case` (:py:data:`.tstr`) -- Column 6 in the FAM file. Only
           present if `quant_pheno` equals False. Set to missing if value equals
           "-9", "0", "N/A", or the value specified by `missing`. Set to true if
           value equals "2". Set to false if value equals "1".
-        * `quant_pheno` (:class:`.TString`) -- Column 6 in the FAM file. Only
+        * `quant_pheno` (:py:data:`.tstr`) -- Column 6 in the FAM file. Only
           present if `quant_pheno` equals True. Set to missing if value equals
           `missing`.
 
     * Entry fields:
 
-        * `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
+        * `GT` (:py:data:`.tcall`) -- Genotype call (diploid, unphased).
 
     Parameters
     ----------
@@ -1263,7 +1255,6 @@ def import_plink(bed, bim, fam,
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)))
 def read_matrix_table(path):
     """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
@@ -1280,7 +1271,6 @@ def read_matrix_table(path):
     return MatrixTable(Env.hc()._jhc.read(path, False, False))
 
 
-@handle_py4j
 @typecheck(path=str)
 def get_vcf_metadata(path):
     """Extract metadata from VCF header.
@@ -1339,7 +1329,6 @@ def get_vcf_metadata(path):
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)),
            force=bool,
            force_bgz=bool,
@@ -1389,7 +1378,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         Using the **FILTER** field:
 
         The information in the FILTER field of a VCF is contained in the
-        ``filters`` row field. This annotation is a ``Set[String]`` and can be
+        ``filters`` row field. This annotation is a ``set<str>`` and can be
         queried for filter membership with expressions like
         ``ds.filters.contains("VQSRTranche99.5...")``. Variants that are flagged
         as "PASS" will have no filters applied; for these variants,
@@ -1400,25 +1389,25 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 
     **Column Fields**
 
-    - `s` (:class:`.TString`) -- Column key. This is the sample ID.
+    - `s` (:py:data:`.tstr`) -- Column key. This is the sample ID.
 
     **Row Fields**
 
-    - `locus` (:class:`.TLocus` or :class:`.TStruct`) -- Row key. The
+    - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The
       chromosome (CHROM field) and position (POS field). If `reference_genome`
-      is defined, the type will be :class:`.TLocus` parameterized by
-      `reference_genome`. Otherwise, the type will be a :class:`.TStruct` with
-      two fields: `contig` with type :class:`.TString` and `position` with type
-      :class:`.TInt32`.
-    - `alleles` (:class:`.TArray` of :class:`.TString`) -- Row key. An array
+      is defined, the type will be :class:`.tlocus` parameterized by
+      `reference_genome`. Otherwise, the type will be a :class:`.tstruct` with
+      two fields: `contig` with type :py:data:`.tstr` and `position` with type
+      :py:data:`.tint32`.
+    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An array
       containing the alleles of the variant. The reference allele (REF field) is
       the first element in the array and the alternate alleles (ALT field) are
       the subsequent elements.
-    - `filters` (:class:`.TSet` of :class:`.TString`) -- Set containing all filters applied to a
+    - `filters` (:class:`.tset` of :py:data:`.tstr`) -- Set containing all filters applied to a
       variant.
-    - `rsid` (:class:`.TString`) -- rsID of the variant.
-    - `qual` (:class:`.TFloat64`) -- Floating-point number in the QUAL field.
-    - `info` (:class:`.TStruct`) -- All INFO fields defined in the VCF header
+    - `rsid` (:py:data:`.tstr`) -- rsID of the variant.
+    - `qual` (:py:data:`.tfloat64`) -- Floating-point number in the QUAL field.
+    - `info` (:class:`.tstruct`) -- All INFO fields defined in the VCF header
       can be found in the struct `info`. Data types match the type specified
       in the VCF header, and if the declared ``Number`` is not 1, the result
       will be stored as an array.
@@ -1428,7 +1417,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     :func:`.import_vcf` generates an entry field for each FORMAT field declared
     in the VCF header. The types of these fields are generated according to the
     same rules as INFO fields, with one difference -- "GT" and other fields
-    specified in `call_fields` will be read as :class:`.TCall`.
+    specified in `call_fields` will be read as :py:data:`.tcall`.
 
     Parameters
     ----------
@@ -1449,7 +1438,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         If ``True``, create sites-only dataset. Don't load sample IDs or
         entries.
     call_fields : :obj:`list` of :obj:`str`
-        List of FORMAT fields to load as :class:`.TCall`. "GT" is loaded as
+        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is loaded as
         a call automatically.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
@@ -1475,7 +1464,6 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     return MatrixTable(jmt)
 
 
-@handle_py4j
 @typecheck(path=oneof(str, listof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.
@@ -1503,7 +1491,6 @@ def index_bgen(path):
     Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
 
 
-@handle_py4j
 @typecheck(path=str)
 def read_table(path):
     """Read in a :class:`.Table` written with :meth:`.Table.write`.

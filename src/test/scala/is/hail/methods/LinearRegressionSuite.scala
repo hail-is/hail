@@ -43,9 +43,9 @@ class LinearRegressionSuite extends SparkSuite {
     val a = vds.variantsAndAnnotations.collect().toMap
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     /*
     comparing to output of R code:
@@ -105,9 +105,9 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -162,9 +162,9 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -216,9 +216,9 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array.empty[String])
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -263,9 +263,9 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.fam.is_case"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -313,9 +313,9 @@ class LinearRegressionSuite extends SparkSuite {
       .linreg(Array("sa.fam.quant_pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
+    val qSe = vds.queryVA("va.linreg.standard_error")._2
+    val qTstat = vds.queryVA("va.linreg.t_stat")._2
+    val qPval = vds.queryVA("va.linreg.p_value")._2
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -353,36 +353,6 @@ class LinearRegressionSuite extends SparkSuite {
     assertNaN(qSe(a(v10)))
   }
 
-  @Test def testNonNumericPheno() {
-    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
-    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-      types = Map("Pheno" -> TString()), missing = "0").keyBy("Sample")
-
-    val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
-
-    interceptFatal("`sa.pheno.Pheno' must be numeric or Boolean, got String") {
-      vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
-    }
-  }
-
-  @Test def testNonNumericCov() {
-    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-      types = Map("Cov1" -> TFloat64(), "Cov2" -> TString())).keyBy("Sample")
-    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-      types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
-
-    val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
-
-    interceptFatal("`sa.cov.Cov2' must be numeric or Boolean, got String") {
-      vds.linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
-    }
-  }
-
   @Test def testMultiPhenoSame() {
     val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
@@ -399,19 +369,19 @@ class LinearRegressionSuite extends SparkSuite {
         .linreg(Array("sa.pheno.Pheno"),
           if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
           Array("sa.cov.Cov1", "sa.cov.Cov2"))
-        .annotateVariantsVDS(
+        .annotateRowsVDS(
           inputVDS.linreg(Array("sa.pheno.Pheno", "sa.pheno.Pheno"),
             if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
             Array("sa.cov.Cov1", "sa.cov.Cov2"))
-            .annotateVariantsExpr(
+            .annotateRowsExpr(
               s"""
-                 |linreg.ytx = [va.linreg.ytx[$i]],
+                 |linreg.y_transpose_x = [va.linreg.y_transpose_x[$i]],
                  |linreg.beta = [va.linreg.beta[$i]],
-                 |linreg.se = [va.linreg.se[$i]],
-                 |linreg.tstat = [va.linreg.tstat[$i]],
-                 |linreg.pval = [va.linreg.pval[$i]]
+                 |linreg.standard_error = [va.linreg.standard_error[$i]],
+                 |linreg.t_stat = [va.linreg.t_stat[$i]],
+                 |linreg.p_value = [va.linreg.p_value[$i]]
                  |""".stripMargin),
-          root = "mlinreg").annotateVariantsExpr("mlinreg = va.mlinreg.linreg")
+          root = "mlinreg").annotateRowsExpr("mlinreg = va.mlinreg.linreg")
 
       val (t, q) = result.queryVA("va.linreg")
       val (mt, mq) = result.queryVA("va.mlinreg")

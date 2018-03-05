@@ -1,5 +1,5 @@
 from hail.utils import new_temp_file, storage_level
-from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_breeze, joption
+from hail.utils.java import Env, scala_object, jarray, numpy_from_breeze, joption
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -12,19 +12,16 @@ block_matrix_type = lazy()
 class BlockMatrix(object):
 
     @classmethod
-    @handle_py4j
     def default_block_size(cls):
         return scala_object(Env.hail().linalg, "BlockMatrix").defaultBlockSize()
 
     @classmethod
-    @handle_py4j
     def read(cls, path):
         hc = Env.hc()
         return cls(Env.hail().linalg.BlockMatrix.read(
             hc._jhc, path))
 
     @staticmethod
-    @handle_py4j
     def _from_numpy_matrix(numpy_matrix, block_size):
         """Create a block matrix from a NumPy matrix.
 
@@ -44,7 +41,7 @@ class BlockMatrix(object):
         """
         # convert to float64 to ensure that jarray method below works
         numpy_matrix = numpy_matrix.astype(np.float64)
-        num_rows, num_cols = numpy_matrix.shape[0:2]
+        n_rows, n_cols = numpy_matrix.shape[0:2]
         sc = Env.hc()._jsc
         # np.ravel() exports row major by default
         data = jarray(Env.jvm().double, np.ravel(numpy_matrix))
@@ -56,11 +53,10 @@ class BlockMatrix(object):
 
         return BlockMatrix(
             block_matrix_constructor(sc,
-                                     breeze_matrix_constructor(num_rows, num_cols, data, is_transpose),
+                                     breeze_matrix_constructor(n_rows, n_cols, data, is_transpose),
                                      block_size))
 
     @classmethod
-    @handle_py4j
     @typecheck_method(entry_expr=expr_numeric,
                       path=nullable(str),
                       block_size=nullable(int))
@@ -81,47 +77,39 @@ class BlockMatrix(object):
         return cls.read(path)
 
     @staticmethod
-    @handle_py4j
-    def random(num_rows, num_cols, block_size, seed=0, gaussian=False):
+    def random(n_rows, n_cols, block_size, seed=0, gaussian=False):
         hc = Env.hc()
         return BlockMatrix(scala_object(Env.hail().linalg, 'BlockMatrix').random(
-            hc._jhc, num_rows, num_cols, block_size, seed, gaussian))
+            hc._jhc, n_rows, n_cols, block_size, seed, gaussian))
 
     def __init__(self, jbm):
         self._jbm = jbm
 
     @property
-    @handle_py4j
-    def num_rows(self):
+    def n_rows(self):
         return self._jbm.nRows()
 
     @property
-    @handle_py4j
-    def num_cols(self):
+    def n_cols(self):
         return self._jbm.nCols()
 
     @property
-    @handle_py4j
     def block_size(self):
         return self._jbm.blockSize()
 
-    @handle_py4j
     @typecheck_method(path=str,
                       force_row_major=bool)
     def write(self, path, force_row_major=False):
         self._jbm.write(path, force_row_major, joption(None))
 
-    @handle_py4j
     @typecheck_method(cols_to_keep=listof(int))
     def filter_cols(self, cols_to_keep):
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
-    @handle_py4j
     @typecheck_method(rows_to_keep=listof(int))
     def filter_rows(self, rows_to_keep):
         return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
-    @handle_py4j
     @typecheck_method(rows_to_keep=listof(int),
                       cols_to_keep=listof(int))
     def filter(self, rows_to_keep, cols_to_keep):
@@ -129,7 +117,6 @@ class BlockMatrix(object):
                                             jarray(Env.jvm().long, cols_to_keep)))
 
     @property
-    @handle_py4j
     def T(self):
         return BlockMatrix(self._jbm.transpose())
 
@@ -143,21 +130,17 @@ class BlockMatrix(object):
     def unpersist(self):
         return BlockMatrix(self._jbm.unpersist())
 
-    @handle_py4j
     def to_numpy_matrix(self):
         return numpy_from_breeze(self._jbm.toLocalMatrix())
 
-    @handle_py4j
     @typecheck_method(that=block_matrix_type)
     def __add__(self, that):
         return BlockMatrix(self._jbm.add(that._jbm))
 
-    @handle_py4j
     @typecheck_method(that=block_matrix_type)
     def __sub__(self, that):
         return BlockMatrix(self._jbm.subtract(that._jbm))
 
-    @handle_py4j
     @typecheck_method(that=block_matrix_type)
     def dot(self, that):
         return BlockMatrix(self._jbm.multiply(that._jbm))
@@ -173,16 +156,16 @@ class BlockMatrix(object):
         >>> block_matrix = BlockMatrix._from_numpy_matrix(np.matrix([[5, 7], [2, 8]]), 2)
         >>> entries_table = block_matrix.entries()
         >>> entries_table.show()
-        +--------+--------+-------------+
-        |      i |      j |       entry |
-        +--------+--------+-------------+
-        | !Int64 | !Int64 |    !Float64 |
-        +--------+--------+-------------+
-        |      0 |      0 | 5.00000e+00 |
-        |      0 |      1 | 7.00000e+00 |
-        |      1 |      0 | 2.00000e+00 |
-        |      1 |      1 | 8.00000e+00 |
-        +--------+--------+-------------+
+        +-------+-------+-------------+
+        |     i |     j |       entry |
+        +-------+-------+-------------+
+        | int64 | int64 |     float64 |
+        +-------+-------+-------------+
+        |     0 |     0 | 5.00000e+00 |
+        |     0 |     1 | 7.00000e+00 |
+        |     1 |     0 | 2.00000e+00 |
+        |     1 |     1 | 8.00000e+00 |
+        +-------+-------+-------------+
 
         Warning
         -------
@@ -197,12 +180,10 @@ class BlockMatrix(object):
         hc = Env.hc()
         return Table(self._jbm.entriesTable(hc._jhc))
 
-    @handle_py4j
     @typecheck_method(i=numeric)
     def __mul__(self, i):
         return BlockMatrix(self._jbm.scalarMultiply(float(i)))
 
-    @handle_py4j
     @typecheck_method(i=numeric)
     def __truediv__(self, i):
         return self * (1. / i)

@@ -189,15 +189,15 @@ object TextTableReader {
         columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>
-              sb.append(s"\n  Loading column `$name' as type $t (user-specified)")
+              sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
               (name, t)
             case None =>
               imputedType match {
                 case Some(t) =>
-                  sb.append(s"\n  Loading column `$name' as type $t (imputed)")
+                  sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
                   (name, t)
                 case None =>
-                  sb.append(s"\n  Loading column `$name' as type String (no non-missing values for imputation)")
+                  sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
                   (name, TString())
               }
           }
@@ -207,10 +207,10 @@ object TextTableReader {
         columns.map { c =>
           types.get(c) match {
             case Some(t) =>
-              sb.append(s"  Loading column `$c' as type `$t' (user-specified)\n")
+              sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
               (c, t)
             case None =>
-              sb.append(s"  Loading column `$c' as type `String' (type not specified)\n")
+              sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
               (c, TString())
           }
         }

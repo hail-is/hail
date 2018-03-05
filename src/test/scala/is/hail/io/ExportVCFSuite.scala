@@ -64,7 +64,7 @@ class ExportVCFSuite extends SparkSuite {
   }
 
   @Test def testEmptyReadWrite() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").dropVariants()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").dropRows()
     val out = tmpDir.createTempFile("foo", "vcf")
     val out2 = tmpDir.createTempFile("foo", "vcf.bgz")
 
@@ -80,7 +80,7 @@ class ExportVCFSuite extends SparkSuite {
   @Test def testGeneratedInfo() {
     val out = tmpDir.createTempFile("export", "vcf")
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC = va.info.AC, va.info.another = 5")
+      .annotateRowsExpr("va.info.AC = va.info.AC, va.info.another = 5")
     ExportVCF(vds, out)
 
     hadoopConf.readFile(out) { in =>
@@ -124,7 +124,7 @@ class ExportVCFSuite extends SparkSuite {
     // cast Long to Int
     val out = tmpDir.createTempFile("out", "vcf")
     ExportVCF(vds
-      .annotateVariantsExpr("info.AC_pass = AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
+      .annotateRowsExpr("info.AC_pass = AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
         "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()) >= 0.2 ) )).count()"),
       out)
 
@@ -141,7 +141,7 @@ class ExportVCFSuite extends SparkSuite {
     // other valid types
     val out2 = tmpDir.createTempFile("out2", "vcf")
     ExportVCF(vds
-      .annotateVariantsExpr(
+      .annotateRowsExpr(
         "info.array = [\"foo\", \"bar\"]," +
           "info.set = [4, 5].toSet, " +
           "info.float = let x = 5.0 in x.toFloat64(), " +
@@ -175,47 +175,47 @@ class ExportVCFSuite extends SparkSuite {
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = [[1]]"),
+        .annotateRowsExpr("info.foo = [[1]]"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = [UnphasedDiploidGtIndexCall(3)]"),
+        .annotateRowsExpr("info.foo = [UnphasedDiploidGtIndexCall(3)]"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = va.locus"),
+        .annotateRowsExpr("info.foo = va.locus"),
         out)
     }
 
     TestUtils.interceptSpark("Cannot convert Long to Int") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = 2147483648L"),
+        .annotateRowsExpr("info.foo = 2147483648L"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = [true]"),
+        .annotateRowsExpr("info.foo = [true]"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       ExportVCF(vds
-        .annotateVariantsExpr("info.foo = {INT: 5}"),
+        .annotateRowsExpr("info.foo = {INT: 5}"),
         out)
     }
 
-    TestUtils.interceptFatal("Invalid type for format field `BOOL'. Found Boolean.") {
+    TestUtils.interceptFatal("Invalid type for format field 'BOOL'. Found 'bool'.") {
       ExportVCF(vds
         .annotateGenotypesExpr("g = {BOOL: true}"),
         out)
     }
 
-    TestUtils.interceptFatal("Invalid type for format field `AA'.") {
+    TestUtils.interceptFatal("Invalid type for format field 'AA'.") {
       ExportVCF(vds
         .annotateGenotypesExpr("g = {AA: [[0]]}"),
         out)
@@ -224,7 +224,7 @@ class ExportVCFSuite extends SparkSuite {
 
   @Test def testInfoFieldSemicolons() {
     val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
-      .annotateVariantsExpr("info = {foo: 5, bar: NA: Int}")
+      .annotateRowsExpr("info = {foo: 5, bar: NA: Int}")
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)

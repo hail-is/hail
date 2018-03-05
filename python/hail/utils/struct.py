@@ -1,5 +1,4 @@
 from hail.typecheck import *
-from hail.history import HistoryMixin, record_init, record_method
 from collections import Mapping, OrderedDict
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error
 
@@ -49,6 +48,7 @@ class Struct(Mapping):
         else:
             raise KeyError(get_nice_field_error(self, item))
 
+    @typecheck_method(item=str)
     def __getitem__(self, item):
         return self._get_field(item)
 
@@ -149,20 +149,6 @@ class Struct(Mapping):
         """
         d = OrderedDict((k, v) for k, v in self.items() if not k in args)
         return Struct(**d)
-
-    def describe(self):
-        """Print information about the fields of the struct."""
-
-        if len(self._fields) == 0:
-            fields = '\n  None'
-        else:
-            fields = ''.join("\n  '{}': {}".format(name, value) for name, value in self._fields.items())
-
-        s = '----------------------------------------\n' \
-            'Fields:{f}\n' \
-            '----------------------------------------'.format(f=fields)
-        print(s)
-
 
 
 @typecheck(struct=Struct)

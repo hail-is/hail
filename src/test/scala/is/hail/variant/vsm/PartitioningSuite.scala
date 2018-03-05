@@ -37,7 +37,7 @@ class PartitioningSuite extends SparkSuite {
       orig.write(out)
       val problem = hc.readVDS(out)
 
-      hc.readVDS(out).annotateVariantsExpr("va = va").countVariants()
+      hc.readVDS(out).annotateRowsExpr("va = va").countRows()
 
       // need to do 2 writes to ensure that the RDD is ordered
       hc.readVDS(out)
@@ -57,7 +57,7 @@ class PartitioningSuite extends SparkSuite {
     val t = Table.range(hc, 205, "idx", partitions=Some(6))
       .select("tidx = 200 - row.idx")
       .keyBy("tidx")
-    mt.annotateVariantsTable(t, "foo").forceCountRows()
+    mt.annotateRowsTable(t, "foo").forceCountRows()
   }
 
   @Test def testShuffleOnEmptyRDD() {
@@ -67,7 +67,7 @@ class PartitioningSuite extends SparkSuite {
         TableType(TStruct("tidx"->TInt32()), Array("tidx"), TStruct.empty()),
         Row(),
         UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32())))))
-    mt.annotateVariantsTable(t, "foo").forceCountRows()
+    mt.annotateRowsTable(t, "foo").forceCountRows()
   }
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {

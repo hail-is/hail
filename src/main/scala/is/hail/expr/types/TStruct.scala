@@ -13,7 +13,7 @@ import scala.collection.mutable
 
 class TStructSerializer extends CustomSerializer[TStruct](format => (
   { case JString(s) => Parser.parseStructType(s) },
-  { case t: TStruct => JString(t.toString) }))
+  { case t: TStruct => JString(t.parsableString()) }))
 
 object TStruct {
   private val requiredEmpty = TStruct(Array.empty[Field], true)
@@ -55,7 +55,11 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
-  assert(fieldNames.areDistinct(), fieldNames.duplicates())
+  if (!fieldNames.areDistinct()) {
+    val duplicates = fieldNames.duplicates()
+    fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
+      s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
+  }
 
   val size: Int = fields.length
 
@@ -550,12 +554,12 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
-  override def _toPyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit = {
     sb.append("struct{")
     fields.foreachBetween({ field =>
       sb.append(prettyIdentifier(field.name))
       sb.append(": ")
-      field.typ._toPyString(sb)
+      field.typ.pyString(sb)
     }) { sb.append(", ")}
     sb.append('}')
   }

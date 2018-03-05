@@ -57,16 +57,16 @@ class LocusIntervalSuite extends SparkSuite {
       out.write("1\t50\t150\t+\tTHING5")
     }
 
-    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
-      .annotateVariantsExpr("foo = va.foo.map(x => x.target)")
+    assert(vds.annotateRowsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
+      .annotateRowsExpr("foo = va.foo.map(x => x.target)")
       .rowsTable().query("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testAnnotateIntervalsAll() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
+      .annotateRowsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
         "annot", product = true)
-      .annotateVariantsExpr("annot = va.annot.map(x => x.target)")
+      .annotateRowsExpr("annot = va.annot.map(x => x.target)")
 
     val (t, q) = vds.queryVA("va.annot")
     assert(t == TArray(TString()))
@@ -147,6 +147,6 @@ class LocusIntervalSuite extends SparkSuite {
     val intervals = Array(Interval(Row(Locus("20", 10019093)), Row(Locus("20", 10026348)), true, true),
       Interval(Row(Locus("20", 17705793)), Row(Locus("20", 17716416)), true, true))
     val iTree = IntervalTree(ds.rvd.typ.pkType.ordering, intervals)
-    assert(FilterIntervals(ds, iTree, true).countVariants() == 4)
+    assert(FilterIntervals(ds, iTree, true).countRows() == 4)
   }
 }

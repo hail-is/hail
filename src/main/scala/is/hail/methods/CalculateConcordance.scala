@@ -83,14 +83,14 @@ object CalculateConcordance {
     val rightFiltered = right.filterSamples { case (_, i) => overlap(rightPreIds(i)) }
 
     val sampleSchema = TStruct(
-      "s" -> TString(),
-      "nDiscordant" -> TInt64(),
-      "concordance" -> ConcordanceCombiner.schema
+      left.colKey.zip(left.colKeyTypes) ++
+      Array("n_discordant" -> TInt64(),
+      "concordance" -> ConcordanceCombiner.schema): _*
     )
 
     val variantSchema = TStruct(
       left.rowKey.zip(left.rowKeyTypes) ++
-        Array("nDiscordant" -> TInt64(), "concordance" -> ConcordanceCombiner.schema): _*
+        Array("n_discordant" -> TInt64(), "concordance" -> ConcordanceCombiner.schema): _*
     )
 
     val leftIds = leftFiltered.stringSampleIds

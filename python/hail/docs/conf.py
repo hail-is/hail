@@ -42,7 +42,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'nbsphinx',
     'IPython.sphinxext.ipython_console_highlighting', # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
-    'sphinxcontrib.napoleon'
+    'sphinx.ext.napoleon'
 ]
 
 mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
@@ -63,15 +63,14 @@ autosummary_generate = ['api.rst',
                         'utils/index.rst',
                         'linalg/index.rst',
                         'stats/index.rst',
-                        'expr/utils.rst',
-                        'expr/expression.rst',
-                        'expr/functions/index.rst',
-                        'expr/functions/core.rst',
-                        'expr/functions/string.rst',
-                        'expr/functions/stats.rst',
-                        'expr/functions/collections.rst',
-                        'expr/functions/numeric.rst',
-                        'expr/functions/genetics.rst',
+                        'expression.rst',
+                        'functions/index.rst',
+                        'functions/core.rst',
+                        'functions/string.rst',
+                        'functions/stats.rst',
+                        'functions/collections.rst',
+                        'functions/numeric.rst',
+                        'functions/genetics.rst',
                         ]
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']

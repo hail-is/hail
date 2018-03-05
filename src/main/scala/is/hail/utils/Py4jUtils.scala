@@ -102,11 +102,11 @@ trait Py4jUtils {
   }
 
   def joinGlobals(left: MatrixTable, right: Table, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globals, right.globalSignature, "global." + identifier)
+    left.annotateGlobal(right.globals, right.globalSignature, identifier)
   }
 
   def joinGlobals(left: MatrixTable, right: MatrixTable, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globals, right.globalType, "global." + identifier)
+    left.annotateGlobal(right.globals, right.globalType, identifier)
   }
 
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)

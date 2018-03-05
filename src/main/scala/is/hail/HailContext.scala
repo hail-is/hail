@@ -443,8 +443,8 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno, a2Reference, rg, contigRecoding)
   }
 
-  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {
-    MatrixTable.read(this, file, dropSamples = dropSamples, dropVariants = dropVariants)
+  def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
+    MatrixTable.read(this, file, dropCols = dropCols, dropRows = dropRows)
   }
 
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =

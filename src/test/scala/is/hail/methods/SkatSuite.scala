@@ -133,10 +133,10 @@ class SkatSuite extends SparkSuite {
       types = Map("locus" -> TLocus(rg), "weight" -> TFloat64())).keyBy("locus")
 
     hc.importVCF("src/test/resources/sample2.vcf")
-      .filterVariantsExpr("va.alleles.length() == 2")
-      .annotateVariantsTable(intervalsSkat, "gene")
-      .annotateVariantsTable(weightsSkat, "weight")
-      .annotateVariantsExpr("gene = va.gene.target, weight = va.weight.weight")
+      .filterRowsExpr("va.alleles.length() == 2")
+      .annotateRowsTable(intervalsSkat, "gene")
+      .annotateRowsTable(weightsSkat, "weight")
+      .annotateRowsExpr("gene = va.gene.target, weight = va.weight.weight")
       .annotateSamplesTable(covSkat, root = "cov")
       .annotateSamplesTable(phenoSkat, root = "pheno")
       .annotateSamplesExpr("pheno = if (sa.pheno.Pheno == 1.0) false else if (sa.pheno.Pheno == 2.0) true else NA: Boolean")
@@ -164,9 +164,9 @@ class SkatSuite extends SparkSuite {
       .annotateSamplesF(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
-      .annotateVariantsExpr("gene = va.locus.position % 3") // three genes
-      .annotateVariantsExpr("AF = AGG.map(g => g.GT).callStats(GT => va.alleles).AF")
-      .annotateVariantsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
+      .annotateRowsExpr("gene = va.locus.position % 3") // three genes
+      .annotateRowsExpr("AF = AGG.map(g => g.GT).callStats(GT => va.alleles).AF")
+      .annotateRowsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
         "dbeta(af, 1.0, 25.0)**2")
   }
 
@@ -199,7 +199,7 @@ class SkatSuite extends SparkSuite {
       val pvalR = resultsR(i).getAs[Double](2)
 
       if (displayValues) {
-        println(f"HAIL qstat: $qstat%2.9f  pval: $pval  fault: $fault  size: $size")
+        println(f"Hail qstat: $qstat%2.9f  pval: $pval  fault: $fault  size: $size")
         println(f"   R qstat: $qstatR%2.9f  pval: $pvalR")
       }
 
@@ -269,15 +269,15 @@ class SkatSuite extends SparkSuite {
     // annotations from table
     val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")
     val vds = vds0
-      .annotateVariantsTable(kt, "key", product = true)
-      .annotateVariantsExpr("key = va.key.map(x => x.target).toSet(), weight = va.locus.position")
-      .explodeVariants("va.key")
-      .annotateVariantsExpr("key = va.key.toInt32()")
+      .annotateRowsTable(kt, "key", product = true)
+      .annotateRowsExpr("key = va.key.map(x => x.target).toSet(), weight = va.locus.position")
+      .explodeRows("va.key")
+      .annotateRowsExpr("key = va.key.toInt32()")
     
     // annotations from expr
     val vds2 = vds0
-      .annotateVariantsExpr("key = [9, va.locus.position % 2, va.locus.position // 2 + 1].toSet(), weight = va.locus.position") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
-      .explodeVariants("va.key") // 0 -> {v2}, 1 -> {v1, v3}, 2 -> {v2, v3}, 9 -> {v1, v2, v3}
+      .annotateRowsExpr("key = [9, va.locus.position % 2, va.locus.position // 2 + 1].toSet(), weight = va.locus.position") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
+      .explodeRows("va.key") // 0 -> {v2}, 1 -> {v1, v3}, 2 -> {v2, v3}, 9 -> {v1, v2, v3}
     
     // table/explode and annotate/explode give same keys
     assert(vds.same(vds2))

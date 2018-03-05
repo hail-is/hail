@@ -47,6 +47,22 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
+  def kComp(other: OrderedRVDType): UnsafeOrdering =
+    OrderedRVDType.selectUnsafeOrdering(
+      this.rowType,
+      this.kRowFieldIdx,
+      other.rowType,
+      other.kRowFieldIdx)
+
+  def kRowOrdView = new OrderingView[RegionValue] {
+    val wrv = WritableRegionValue(kType)
+    def setFiniteValue(representative: RegionValue) {
+      wrv.setSelect(rowType, kRowFieldIdx, representative)
+    }
+    def compareFinite(rv: RegionValue): Int =
+      kRowOrd.compare(wrv.value, rv)
+  }
+
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
@@ -60,7 +76,7 @@ class OrderedRVDType(
     JObject(List(
       "partitionKey" -> JArray(partitionKey.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
-      "rowType" -> JString(rowType.toString)))
+      "rowType" -> JString(rowType.parsableString())))
 
   override def equals(that: Any): Boolean = that match {
     case that: OrderedRVDType =>
@@ -93,7 +109,7 @@ class OrderedRVDType(
       rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
     }
     sb.append("],row:")
-    sb.append(rowType)
+    sb.append(rowType.parsableString())
     sb += '}'
     sb.result()
   }

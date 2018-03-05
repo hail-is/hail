@@ -280,7 +280,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
   def compile() = CM.ret(value match {
     case i: Int => Code.newInstance[java.lang.Integer, Int](i)
     case l: Long => Code.newInstance[java.lang.Long, Long](l)
-    // case f: Float => (FloatInfo, f)
+    case f: Float => Code.newInstance[java.lang.Float, Float](f)
     case d: Double => Code.newInstance[java.lang.Double, Double](d)
     case s: String => (s: Code[String]).asInstanceOf[Code[AnyRef]]
     case z: Boolean => Code.newInstance[java.lang.Boolean, Boolean](z)

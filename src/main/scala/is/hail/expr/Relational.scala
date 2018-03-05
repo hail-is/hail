@@ -137,26 +137,26 @@ case class MatrixValue(
 object MatrixIR {
   def optimize(ast: MatrixIR): MatrixIR = {
     BaseIR.rewriteTopDown(ast, {
-      case FilterVariants(
+      case FilterRows(
       MatrixRead(path, spec, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, spec, dropSamples, dropVariants = true)
+        MatrixRead(path, spec, dropSamples, dropRows = true)
       case FilterSamples(
       MatrixRead(path, spec, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, spec, dropSamples = true, dropVariants)
+        MatrixRead(path, spec, dropCols = true, dropVariants)
 
-      case FilterVariants(m, Const(_, true, TBoolean(_))) =>
+      case FilterRows(m, Const(_, true, TBoolean(_))) =>
         m
       case FilterSamples(m, Const(_, true, TBoolean(_))) =>
         m
 
       // minor, but push FilterVariants into FilterSamples
-      case FilterVariants(FilterSamples(m, spred), vpred) =>
-        FilterSamples(FilterVariants(m, vpred), spred)
+      case FilterRows(FilterSamples(m, spred), vpred) =>
+        FilterSamples(FilterRows(m, vpred), spred)
 
-      case FilterVariants(FilterVariants(m, pred1), pred2) =>
-        FilterVariants(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
+      case FilterRows(FilterRows(m, pred1), pred2) =>
+        FilterRows(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
 
       case FilterSamples(FilterSamples(m, pred1), pred2) =>
         FilterSamples(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
@@ -191,8 +191,8 @@ case class MatrixLiteral(
 case class MatrixRead(
   path: String,
   spec: MatrixTableSpec,
-  dropSamples: Boolean,
-  dropVariants: Boolean) extends MatrixIR {
+  dropCols: Boolean,
+  dropRows: Boolean) extends MatrixIR {
   def typ: MatrixType = spec.matrix_type
 
   override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
@@ -210,20 +210,20 @@ case class MatrixRead(
     val globals = spec.globalsComponent.readLocal(hc, path)(0)
 
     val colAnnotations =
-      if (dropSamples)
+      if (dropCols)
         IndexedSeq.empty[Annotation]
       else
         spec.colsComponent.readLocal(hc, path)
 
     val rvd =
-      if (dropVariants)
+      if (dropRows)
         OrderedRVD.empty(hc.sc, typ.orvdType)
       else {
         val fullRowType = typ.rvRowType
         val localEntriesIndex = typ.entriesIdx
 
         val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
-        if (dropSamples) {
+        if (dropCols) {
           rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
             var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
@@ -298,7 +298,7 @@ case class MatrixRead(
       rvd)
   }
 
-  override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
+  override def toString: String = s"MatrixRead($path, dropSamples = $dropCols, dropVariants = $dropRows)"
 }
 
 /*
@@ -338,15 +338,15 @@ case class FilterSamples(
   }
 }
 
-case class FilterCols(
+case class FilterColsIR(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterCols = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterColsIR = {
     assert(newChildren.length == 2)
-    FilterCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    FilterColsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ
@@ -372,18 +372,18 @@ case class FilterCols(
 }
 
 /*
- * FilterVariants is only used for a predicate which fails toIR()
+ * FilterRows is only used for a predicate which fails toIR()
  * This should go away when everything is IR-compatible
  */
-case class FilterVariants(
+case class FilterRows(
   child: MatrixIR,
   pred: AST) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterVariants = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
     assert(newChildren.length == 1)
-    FilterVariants(newChildren(0).asInstanceOf[MatrixIR], pred)
+    FilterRows(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
@@ -420,15 +420,15 @@ case class FilterVariants(
   }
 }
 
-case class FilterRows(
+case class FilterRowsIR(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterRowsIR = {
     assert(newChildren.length == 2)
-    FilterRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    FilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ

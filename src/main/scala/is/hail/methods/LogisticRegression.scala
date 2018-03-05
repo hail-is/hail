@@ -26,7 +26,7 @@ object LogisticRegression {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
-      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
+      fatal(s"For logistic regression, phenotype must be bool or numeric with all present values equal to 0 or 1")
 
     val n = y.size
     val k = cov.cols
@@ -35,7 +35,7 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"logreg: running $test logistic regression on $n samples for response variable y,\n"
+    info(s"logistic_regression: running $test logistic regression on $n samples for response variable y,\n"
       + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)

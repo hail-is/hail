@@ -6,8 +6,8 @@ Getting Started
 
 You'll need:
 
-- The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
-- `Spark 2.2.0 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
+- The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
+- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_. Hail should work with other versions of Spark 2, see below.
 - Python 3.6 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------

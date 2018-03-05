@@ -32,7 +32,7 @@ class KeysSuite extends SparkSuite {
     val k3 = new Keys(TInt32(), Array(0, 1, 2))
     val k4 = new Keys(TInt32(), Array(0, 2))
     
-    TestUtils.interceptFatal("Keys have different types: Int32, String") {
+    TestUtils.interceptFatal("Keys have different types: int32, str") {
       k1.assertSame(k2)
     }
     

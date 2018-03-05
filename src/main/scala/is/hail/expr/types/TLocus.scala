@@ -23,12 +23,12 @@ object TLocus {
 }
 
 case class TLocus(rg: RGBase, override val required: Boolean = false) extends ComplexType {
-  def _toString = s"Locus($rg)"
+  def _toPretty = s"Locus($rg)"
 
-  override def _toPyString(sb: StringBuilder): Unit = {
-    sb.append("locus[")
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("locus<")
     sb.append(prettyIdentifier(rg.name))
-    sb.append(']')
+    sb.append('>')
   }
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 

@@ -208,19 +208,10 @@ abstract class Type extends BaseType with Serializable {
     _pretty(sb, indent, compact)
   }
 
-  def _toString: String
-
-  def toPyString: String = {
-    val sb = new StringBuilder
-    _toPyString(sb)
-    sb.result()
-  }
-
-  def _toPyString(sb: StringBuilder): Unit = ???
-
+  def _toPretty: String
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    sb.append(_toString)
+    sb.append(_toPretty)
   }
 
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)

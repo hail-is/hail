@@ -4,7 +4,7 @@ from pyspark.sql import SQLContext
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
-from hail.utils.java import Env, joption, FatalError, connect_logger
+from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 
 import sys
 
@@ -65,22 +65,25 @@ class HailContext(object):
         self._default_ref = None
         Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
-        sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
-        if self._jsc.uiWebUrl().isDefined():
-            sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
-
         if not quiet:
+            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
+            if self._jsc.uiWebUrl().isDefined():
+                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
+
             connect_logger('localhost', 12888)
 
-        sys.stderr.write(
-            'Welcome to\n'
-            '     __  __     <>__\n'
-            '    / /_/ /__  __/ /\n'
-            '   / __  / _ `/ / /\n'
-            '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
+            sys.stderr.write(
+                'Welcome to\n'
+                '     __  __     <>__\n'
+                '    / /_/ /__  __/ /\n'
+                '   / __  / _ `/ / /\n'
+                '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
 
-        if self.version.startswith('devel'):
-            sys.stderr.write('WARNING: This is an unstable development build.\n')
+            if self.version.startswith('devel'):
+                sys.stderr.write('WARNING: This is an unstable development build.\n')
+
+        install_exception_handler()
+
 
     @property
     def version(self):
@@ -98,6 +101,8 @@ class HailContext(object):
         Env._jvm = None
         Env._gateway = None
         Env._hc = None
+        uninstall_exception_handler()
+        Env._dummy_table = None
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
@@ -151,6 +156,15 @@ def stop():
     """Stop the currently running Hail session."""
     if Env._hc:
         Env.hc().stop()
+
+def spark_context():
+    """Returns the active Spark context.
+
+    Returns
+    -------
+    :class:`pyspark.SparkContext`
+    """
+    return Env.hc().sc
 
 def default_reference():
     """Return the default reference genome.

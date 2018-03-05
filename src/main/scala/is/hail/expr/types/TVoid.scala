@@ -5,7 +5,7 @@ import is.hail.annotations.ExtendedOrdering
 case object TVoid extends Type {
   override val required = true
 
-  override def _toString = "Void"
+  override def _toPretty = "Void"
 
   val ordering: ExtendedOrdering = null
 

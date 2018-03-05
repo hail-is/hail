@@ -20,7 +20,7 @@ class ImportPlinkSuite extends SparkSuite {
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
       vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => SplitMulti(vds).cache())
-      nPartitions <- choose(1, LoadPlink.expectedBedSize(vds.numCols, vds.countVariants()).toInt.min(10))
+      nPartitions <- choose(1, LoadPlink.expectedBedSize(vds.numCols, vds.countRows()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
@@ -36,7 +36,7 @@ class ImportPlinkSuite extends SparkSuite {
             hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), rg = Some(vds.referenceGenome))
           }
           true
-        } else if (vds.countVariants() == 0) {
+        } else if (vds.countRows() == 0) {
           TestUtils.interceptFatal(".bim file does not contain any variants") {
             hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
           }
@@ -89,7 +89,7 @@ class ImportPlinkSuite extends SparkSuite {
         "row.variant_qc.n_het",
         "row.variant_qc.n_hom_var")
       .rename(Map("alleles" -> "vA1", "n_not_called" -> "nNotCalledA1",
-        "n_hom_ref" -> "nHomRefA1", "n_het" -> "nHetA1", "n_hom_var" -> "nHomVarA1"))
+        "n_hom_ref" -> "nHomRefA1", "n_het" -> "nHetA1", "n_hom_var" -> "nHomVarA1"), Map.empty[String, String])
       .keyBy("rsid")
 
     val a2kt = VariantQC(a2ref, "variant_qc")
@@ -102,7 +102,7 @@ class ImportPlinkSuite extends SparkSuite {
         "row.variant_qc.n_het",
         "row.variant_qc.n_hom_var")
       .rename(Map("alleles" -> "vA2", "n_not_called" -> "nNotCalledA2",
-        "n_hom_ref" -> "nHomRefA2", "n_het" -> "nHetA2", "n_hom_var" -> "nHomVarA2"))
+        "n_hom_ref" -> "nHomRefA2", "n_het" -> "nHetA2", "n_hom_var" -> "nHomVarA2"), Map.empty[String, String])
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")

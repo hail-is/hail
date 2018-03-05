@@ -123,7 +123,7 @@ object PCA {
     val S = DenseVector(svd.s.toArray)
 
     val eigenvalues = svd.s.toArray.map(math.pow(_, 2))
-    val scaledEigenvectors = V(*, ::) :* S
+    val scaledEigenvectors = V(*, ::) *:* S
     
     (eigenvalues, scaledEigenvectors, optionLoadings)
   }

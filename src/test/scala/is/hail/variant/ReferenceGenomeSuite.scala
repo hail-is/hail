@@ -59,7 +59,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     ReferenceGenome.addReference(rg)
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("l = NA: Locus(foo), i = NA: Interval[Locus(foo)]")
+      .annotateRowsExpr("l = NA: Locus(foo), i = NA: Interval[Locus(foo)]")
 
     val vas = vds.rowType.asInstanceOf[TStruct]
 
@@ -214,7 +214,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rg = ReferenceGenome("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     ReferenceGenome.addReference(rg)
     kt.annotate("""l1 = Locus(foo)("1:3")""").write(outKT)
-    vds.annotateVariantsExpr("""l2 = Locus(foo)("1:3")""").write(outVDS)
+    vds.annotateRowsExpr("""l2 = Locus(foo)("1:3")""").write(outVDS)
     ReferenceGenome.removeReference("foo")
 
     val rg2 = ReferenceGenome("foo", Array("1"), Map("1" -> 5))

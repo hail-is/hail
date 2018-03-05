@@ -1,5 +1,5 @@
 import hail as hl
-from hail.utils.java import handle_py4j, Env, joption, error
+from hail.utils.java import Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
 from collections import defaultdict, Counter
@@ -13,20 +13,20 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None):
     --------
     .. doctest::
 
-        >>> ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
+        >>> range_ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
 
-        >>> ds.count_rows()
+        >>> range_ds.count_rows()
         100
 
-        >>> ds.count_cols()
+        >>> range_ds.count_cols()
         10
 
     Notes
     -----
     The resulting matrix table contains the following fields:
 
-     - `row_idx` (:class:`.TInt32`) - Row index (row key).
-     - `col_idx` (:class:`.TInt32`) - Column index (column key).
+     - `row_idx` (:py:data:`.tint32`) - Row index (row key).
+     - `col_idx` (:py:data:`.tint32`) - Column index (column key).
 
     It contains no entry fields.
 
@@ -65,7 +65,7 @@ def range_table(n, n_partitions=None):
     -----
     The resulting table contains one field:
 
-     - `idx` (:class:`.TInt32`) - Row index (key).
+     - `idx` (:py:data:`.tint32`) - Row index (key).
 
     This method is meant for testing and learning, and is not optimized for
     production performance.
@@ -105,7 +105,6 @@ def get_URI(path):
     return Env.jutils().getURI(path)
 
 
-@handle_py4j
 def new_temp_file(n_char=10, prefix=None, suffix=None):
     return Env.hc()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
 
@@ -114,35 +113,6 @@ storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
                             'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',
                             'MEMORY_AND_DISK_SER_2', 'OFF_HEAP')
-
-_test_dir = None
-_doctest_dir = None
-
-
-def test_file(filename):
-    global _test_dir
-    if _test_dir is None:
-        path = '.'
-        while not os.path.exists(os.path.join(path, 'LICENSE')):
-            path = os.path.join(path, '..')
-        _test_dir = os.path.join(path, 'src', 'test', 'resources')
-        from hail.utils import info
-        info('Test dir relative path is {}'.format(_test_dir))
-
-    return os.path.join(_test_dir, filename)
-
-
-def doctest_file(filename):
-    global _doctest_dir
-    if _doctest_dir is None:
-        path = '.'
-        while not os.path.exists(os.path.join(path, 'LICENSE')):
-            path = os.path.join(path, '..')
-        _doctest_dir = os.path.join(path, 'python', 'hail', 'docs', 'data')
-        from hail.utils import info
-        info('Doctest dir relative path is {}'.format(_doctest_dir))
-
-    return os.path.join(_doctest_dir, filename)
 
 
 def plural(orig, n, alternate=None):
@@ -182,23 +152,23 @@ def get_obj_metadata(obj):
         return fmt_field
 
     if isinstance(obj, MatrixTable):
-        return 'MatrixTable', MatrixTable, table_error(obj)
+        return 'MatrixTable', MatrixTable, table_error(obj), True
     elif isinstance(obj, GroupedMatrixTable):
-        return 'GroupedMatrixTable', GroupedMatrixTable, table_error(obj._parent)
+        return 'GroupedMatrixTable', GroupedMatrixTable, table_error(obj._parent), True
     elif isinstance(obj, Table):
-        return 'Table', Table, table_error(obj)
+        return 'Table', Table, table_error(obj), True
     elif isinstance(obj, GroupedTable):
-        return 'GroupedTable', GroupedTable, table_error(obj)
+        return 'GroupedTable', GroupedTable, table_error(obj), False
     elif isinstance(obj, Struct):
-        return 'Struct', Struct, struct_error(obj)
+        return 'Struct', Struct, struct_error(obj), False
     elif isinstance(obj, StructExpression):
-        return 'StructExpression', StructExpression, struct_error(obj)
+        return 'StructExpression', StructExpression, struct_error(obj), True
     else:
         raise NotImplementedError(obj)
 
 
 def get_nice_attr_error(obj, item):
-    class_name, cls, handler = get_obj_metadata(obj)
+    class_name, cls, handler, has_describe = get_obj_metadata(obj)
 
     if item.startswith('_'):
         # don't handle 'private' attribute access
@@ -242,13 +212,13 @@ def get_nice_attr_error(obj, item):
                 word = plural('inherited method', len(inherited_matches))
                 s.append('\n        {} {}: {}'.format(class_name, word,
                                                       ', '.join("'{}'".format(m) for m in inherited_matches)))
-        else:
+        elif has_describe:
             s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
         return ''.join(s)
 
 
 def get_nice_field_error(obj, item):
-    class_name, _, handler = get_obj_metadata(obj)
+    class_name, _, handler, has_describe = get_obj_metadata(obj)
 
     field_names = obj._fields.keys()
     dd = defaultdict(lambda: [])
@@ -265,7 +235,8 @@ def get_nice_field_error(obj, item):
         for f in field_matches:
             for orig_f in dd[f]:
                 s.append("\n        {}".format(handler(orig_f)))
-    s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
+    if has_describe:
+        s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
 
 def check_collisions(fields, name, indices):

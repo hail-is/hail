@@ -12,13 +12,13 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def schema = TStruct(
-    ("nCompleteSamples", TInt32()),
+    ("n_complete_samples", TInt32()),
     ("AC", TFloat64()),
-    ("ytx", TArray(TFloat64())),
+    ("y_transpose_x", TArray(TFloat64())),
     ("beta", TArray(TFloat64())),
-    ("se", TArray(TFloat64())),
-    ("tstat", TArray(TFloat64())),
-    ("pval", TArray(TFloat64())))
+    ("standard_error", TArray(TFloat64())),
+    ("t_stat", TArray(TFloat64())),
+    ("p_value", TArray(TFloat64())))
 
   def apply(vsm: MatrixTable,
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
@@ -28,7 +28,7 @@ object LinearRegression {
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 
-    val n = y.rows // nCompleteSamples
+    val n = y.rows // n_complete_samples
     val k = cov.cols // nCovariates
     val d = n - k - 1
     val dRec = 1d / d
@@ -36,7 +36,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"linreg: running linear regression on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
+    info(s"linear_regression: running linear regression on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
        + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val Qt = qr.reduced.justQ(cov).t
@@ -121,9 +121,9 @@ object LinearRegression {
               i += 1
             }
 
-            val se = sqrt(dRec * (yyp * xxpRec.t - (b :* b)))
+            val se = sqrt(dRec * (yyp * xxpRec.t - (b *:* b)))
 
-            val t = b :/ se
+            val t = b /:/ se
             val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
 
             (0 until blockLength).iterator.map { i =>

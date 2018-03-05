@@ -99,19 +99,19 @@ class FisherExactTestSuite extends SparkSuite {
 
         val vds2 = vds.annotateSamplesTable(hc.importTable(phenotypeFile).keyBy("Sample"), root = "pheno")
           .annotateSamplesExpr("pheno = sa.pheno.Pheno1")
-          .annotateVariantsExpr(
+          .annotateRowsExpr(
             """macCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
               |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
-          .annotateVariantsExpr(
+          .annotateRowsExpr(
             """majCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
               |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
-          .annotateVariantsExpr(
+          .annotateRowsExpr(
             """macControl = AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
               |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
-          .annotateVariantsExpr(
+          .annotateRowsExpr(
             """majControl = AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
               |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
-          .annotateVariantsExpr(
+          .annotateRowsExpr(
             """fet = fet(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
 
 

@@ -1,9 +1,8 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
 
 
-class Call(HistoryMixin):
+class Call(object):
     """
     An object that represents an individual's call at a genomic locus.
 
@@ -16,16 +15,14 @@ class Call(HistoryMixin):
         `alleles`.
     """
 
-    _call_jobject = None
+    _cached_jobject = None
 
     @staticmethod
-    def call_jobject():
-        if not Call._call_jobject:
-            Call._call_jobject = scala_object(Env.hail().variant, 'Call')
-        return Call._call_jobject
+    def _call_jobject():
+        if not Call._cached_jobject:
+            Call._cached_jobject = scala_object(Env.hail().variant, 'Call')
+        return Call._cached_jobject
 
-    @handle_py4j
-    @record_init
     @typecheck_method(alleles=listof(int),
                       phased=bool)
     def __init__(self, alleles, phased=False):
@@ -47,7 +44,7 @@ class Call(HistoryMixin):
         return c
 
     def __str__(self):
-        return Call.call_jobject().toString(self._call)
+        return Call._call_jobject().toString(self._call)
 
     def __repr__(self):
         return 'Call(alleles=%s, phased=%s)' % (self.alleles, self.phased)
@@ -78,7 +75,7 @@ class Call(HistoryMixin):
         """
 
         if self._alleles is None:
-            self._alleles = Call.call_jobject().alleles(self._call)
+            self._alleles = Call._call_jobject().alleles(self._call)
         return self._alleles
 
     @property
@@ -91,7 +88,7 @@ class Call(HistoryMixin):
         """
 
         if not self._ploidy:
-            self._ploidy = Call.call_jobject().ploidy(self._call)
+            self._ploidy = Call._call_jobject().ploidy(self._call)
         return self._ploidy
 
     @property
@@ -104,7 +101,7 @@ class Call(HistoryMixin):
         """
 
         if not self._phased:
-            self._phased = Call.call_jobject().isPhased(self._call)
+            self._phased = Call._call_jobject().isPhased(self._call)
         return self._phased
 
     def is_haploid(self):
@@ -113,7 +110,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isHaploid(self._call)
+        return Call._call_jobject().isHaploid(self._call)
 
     def is_diploid(self):
         """True if the ploidy == 2.
@@ -121,7 +118,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isDiploid(self._call)
+        return Call._call_jobject().isDiploid(self._call)
 
     def is_hom_ref(self):
         """True if the call has no alternate alleles.
@@ -129,7 +126,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isHomRef(self._call)
+        return Call._call_jobject().isHomRef(self._call)
 
     def is_het(self):
         """True if the call contains two different alleles.
@@ -137,7 +134,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isHet(self._call)
+        return Call._call_jobject().isHet(self._call)
 
     def is_hom_var(self):
         """True if the call contains two identical alternate alleles.
@@ -145,7 +142,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isHomVar(self._call)
+        return Call._call_jobject().isHomVar(self._call)
 
     def is_non_ref(self):
         """True if the call contains any non-reference alleles.
@@ -153,7 +150,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isNonRef(self._call)
+        return Call._call_jobject().isNonRef(self._call)
 
     def is_het_non_ref(self):
         """True if the call contains two different alternate alleles.
@@ -161,7 +158,7 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isHetNonRef(self._call)
+        return Call._call_jobject().isHetNonRef(self._call)
 
     def is_het_ref(self):
         """True if the call contains one reference and one alternate allele.
@@ -169,19 +166,18 @@ class Call(HistoryMixin):
         :rtype: bool
         """
 
-        return Call.call_jobject().isHetRef(self._call)
+        return Call._call_jobject().isHetRef(self._call)
 
-    def num_alt_alleles(self):
+    def n_alt_alleles(self):
         """Returns the count of non-reference alleles.
 
         :rtype: int
         """
 
-        return Call.call_jobject().nNonRefAlleles(self._call)
+        return Call._call_jobject().nNonRefAlleles(self._call)
 
-    @handle_py4j
-    @typecheck_method(num_alleles=int)
-    def one_hot_alleles(self, num_alleles):
+    @typecheck_method(n_alleles=int)
+    def one_hot_alleles(self, n_alleles):
         """Returns a list containing the one-hot encoded representation of the
         called alleles.
 
@@ -189,15 +185,15 @@ class Call(HistoryMixin):
         --------
         .. doctest::
 
-            >>> num_alleles = 2
+            >>> n_alleles = 2
             >>> hom_ref = hl.Call([0, 0])
             >>> het = hl.Call([0, 1])
             >>> hom_var = hl.Call([1, 1])
 
-            >>> het.one_hot_alleles(num_alleles)
+            >>> het.one_hot_alleles(n_alleles)
             [1, 1]
 
-            >>> hom_var.one_hot_alleles(num_alleles)
+            >>> hom_var.one_hot_alleles(n_alleles)
             [0, 2]
 
         Notes
@@ -209,16 +205,15 @@ class Call(HistoryMixin):
 
         Parameters
         ----------
-        num_alleles : :obj:`int`
+        n_alleles : :obj:`int`
             Number of total alleles, including the reference.
 
         Returns
         -------
         :obj:`list` of :obj:`int`
         """
-        return jiterable_to_list(Call.call_jobject().oneHotAlleles(self._call, num_alleles))
+        return jiterable_to_list(Call._call_jobject().oneHotAlleles(self._call, n_alleles))
 
-    @handle_py4j
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.
 
@@ -230,4 +225,4 @@ class Call(HistoryMixin):
         if self.ploidy != 2 or self.phased:
             raise FatalError(
                 "'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
-        return Call.call_jobject().unphasedDiploidGtIndex(self._call)
+        return Call._call_jobject().unphasedDiploidGtIndex(self._call)

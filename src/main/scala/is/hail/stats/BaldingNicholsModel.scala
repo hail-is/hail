@@ -76,7 +76,7 @@ object BaldingNicholsModel {
     val popOfSample_nBc = sc.broadcast(popOfSample_n)
 
     val Fst_k = FstOfPop
-    val Fst1_k = (1d - Fst_k) :/ Fst_k
+    val Fst1_k = (1d - Fst_k) /:/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
     val saSignature = TStruct("s" -> TString(), "pop" -> TInt32())
@@ -97,9 +97,9 @@ object BaldingNicholsModel {
     }
 
     val globalSignature = TStruct(
-      "num_populations" -> TInt32(),
-      "num_samples" -> TInt32(),
-      "num_variants" -> TInt32(),
+      "n_populations" -> TInt32(),
+      "n_samples" -> TInt32(),
+      "n_variants" -> TInt32(),
       "pop_dist" -> TArray(TFloat64()),
       "fst" -> TArray(TFloat64()),
       "ancestral_af_dist" -> ancestralAFAnnotationSignature,

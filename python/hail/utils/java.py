@@ -5,7 +5,6 @@ import re
 from threading import Thread
 
 import py4j
-from pyspark.sql.utils import CapturedException
 from decorator import decorator
 import numpy as np
 
@@ -66,6 +65,16 @@ class Env:
     @staticmethod
     def sql_context():
         return Env.hc()._sql_context
+
+    _dummy_table = None
+
+    @staticmethod
+    def dummy_table():
+        if Env._dummy_table is None:
+            import hail
+            Env._dummy_table = hail.utils.range_table(1, 1).cache()
+        return Env._dummy_table
+
 
 
 def jarray(jtype, lst):
@@ -145,8 +154,10 @@ def unescape_parsable(s):
 def escape_id(s):
     return Env.jutils().escapeIdentifier(s)
 
+
 def jarray_to_list(a):
     return list(a) if a else None
+
 
 def numpy_from_breeze(bdm):
     isT = bdm.isTranspose()
@@ -186,39 +197,71 @@ class Log4jLogger:
             Log4jLogger.log_pkg = Env.jutils()
         return Log4jLogger.log_pkg
 
+
 def error(msg):
     Log4jLogger.get().error(msg)
+
 
 def warn(msg):
     Log4jLogger.get().warn(msg)
 
+
 def info(msg):
     Log4jLogger.get().info(msg)
 
-@decorator
-def handle_py4j(func, *args, **kwargs):
 
-    try:
-        r = func(*args, **kwargs)
-    except py4j.protocol.Py4JJavaError as e:
-        tpl = Env.jutils().handleForPython(e.java_exception)
-        deepest, full = tpl._1(), tpl._2()
-        raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                         'Hail version: %s\n'
-                         'Error summary: %s' % (deepest, full, Env.hc().version, deepest))
-    except py4j.protocol.Py4JError as e:
-        if e.args[0].startswith('An error occurred while calling'):
-            msg = 'An error occurred while calling into JVM, probably due to invalid parameter types.'
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (msg, e.message, Env.hc().version, msg))
-        else:
-            raise e
-    except CapturedException as e:
-        raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                         'Hail version: %s\n'
-                         'Error summary: %s' % (e.desc, e.stackTrace, Env.hc().version, e.desc))
-    return r
+def handle_java_exception(f):
+    def deco(*args, **kwargs):
+        import pyspark
+        _exception = None
+        try:
+            return f(*args, **kwargs)
+        except py4j.protocol.Py4JJavaError as e:
+            s = e.java_exception.toString()
+
+            # py4j catches NoSuchElementExceptions to stop array iteration
+            if s.startswith('java.util.NoSuchElementException'):
+                raise
+
+            tpl = Env.jutils().handleForPython(e.java_exception)
+            deepest, full = tpl._1(), tpl._2()
+            _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
+                                    'Hail version: %s\n'
+                                    'Error summary: %s' % (deepest, full, Env.hc().version, deepest))
+        except pyspark.sql.utils.CapturedException as e:
+            _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
+                                    'Hail version: %s\n'
+                                    'Error summary: %s' % (e.desc, e.stackTrace, Env.hc().version, e.desc))
+        finally:
+            # this is a hack to suppress the original error's stack trace
+            if _exception:
+                raise _exception
+
+    return deco
+
+
+_installed = False
+_original = None
+
+
+def install_exception_handler():
+    global _installed
+    global _original
+    if not _installed:
+        _original = py4j.protocol.get_return_value
+        _installed = True
+        # The original `get_return_value` is not patched, it's idempotent.
+        patched = handle_java_exception(_original)
+        # only patch the one used in py4j.java_gateway (call Java API)
+        py4j.java_gateway.get_return_value = patched
+
+
+def uninstall_exception_handler():
+    global _installed
+    global _original
+    if _installed:
+        _installed = False
+        py4j.protocol.get_return_value = _original
 
 
 class LoggingTCPHandler(socketserver.StreamRequestHandler):
