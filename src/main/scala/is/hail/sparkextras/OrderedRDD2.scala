@@ -39,10 +39,11 @@ class RepartitionedOrderedRDD2(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[RegionValue] = {
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
-    ordPartition.parents.iterator
+    val it = ordPartition.parents.iterator
       .flatMap { parentPartition =>
         prev.rdd.iterator(parentPartition, context)
-      } //.restrictToInterval(ordPartition.range)
+      }
+    OrderedRVIterator(prev.typ, it).restrictToPKInterval(ordPartition.range)
   }
 
   val dependency = new OrderedDependency(prev, newPartitioner)

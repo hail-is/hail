@@ -108,11 +108,11 @@ class OrderedRVD private(
 
     val repartitionedRight = new RepartitionedOrderedRDD2(right, this.partitioner)
     joinType match {
-      case "inner" => this.rdd.zipPartitions(right.rdd, true){ (leftIt, rightIt) =>
+      case "inner" => this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
         OrderedRVIterator(lTyp, leftIt) innerJoinDistinct
           OrderedRVIterator(rTyp, rightIt)
       }
-      case "left" => this.rdd.zipPartitions(right.rdd, true){ (leftIt, rightIt) =>
+      case "left" => this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
         OrderedRVIterator(lTyp, leftIt) leftJoinDistinct
           OrderedRVIterator(rTyp, rightIt)
       }
