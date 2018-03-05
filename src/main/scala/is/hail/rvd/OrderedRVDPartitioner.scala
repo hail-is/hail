@@ -63,6 +63,18 @@ class OrderedRVDPartitioner(
     }
   }
 
+  // Return the sequence of partition IDs overlapping the given interval of
+  // partition keys.
+  def getPartitionRangePK(pkInterval: Interval): Seq[Int] = {
+    if (!rangeTree.probablyOverlaps(pkType.ordering, pkInterval))
+      Seq.empty[Int]
+    else {
+      val start = getPartitionPK(pkInterval.start)
+      val end = getPartitionPK(pkInterval.end)
+      start to end
+    }
+  }
+
   // return the partition containing key
   // if outside bounds, return min or max depending on location
   // key: RegionValue[kType]

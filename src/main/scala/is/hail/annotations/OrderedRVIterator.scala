@@ -5,6 +5,8 @@ import is.hail.utils._
 
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
+  def restrictToInterval(interval: Interval):
+
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
     iterator.toFlipbookIterator.staircased(t.kRowOrdView)
 

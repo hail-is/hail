@@ -106,13 +106,21 @@ class OrderedRVD private(
            | Right key type: ${ rTyp.kType.toString }
          """.stripMargin)
 
+    val repartitionedRight = new RepartitionedOrderedRDD2(right, this.partitioner)
     joinType match {
-      case "inner" | "left" => new OrderedJoinDistinctRDD2(this, right, joinType)
+      case "inner" => this.rdd.zipPartitions(right.rdd, true){ (leftIt, rightIt) =>
+        OrderedRVIterator(lTyp, leftIt) innerJoinDistinct
+          OrderedRVIterator(rTyp, rightIt)
+      }
+      case "left" => this.rdd.zipPartitions(right.rdd, true){ (leftIt, rightIt) =>
+        OrderedRVIterator(lTyp, leftIt) leftJoinDistinct
+          OrderedRVIterator(rTyp, rightIt)
+      }
       case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }
 
-  def orderedZipJoin(right: OrderedRVD): OrderedZipJoinRDD = {
+  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] = {
     val pkOrd = this.partitioner.pkType.ordering
     if (this.partitioner.range.includes(pkOrd, right.partitioner.range))
       new OrderedZipJoinRDD(this, right)
