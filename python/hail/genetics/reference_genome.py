@@ -8,31 +8,31 @@ import hail as hl
 class ReferenceGenome(object):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
-    :param str name: Name of reference. Must be unique and NOT one of Hail's
-        predefined references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
-
-    :param contigs: Contig names.
-    :type contigs: list of str
-
-    :param lengths: Dict of contig names to contig lengths.
-    :type lengths: dict of str to int
-
-    :param x_contigs: Contigs to be treated as X chromosomes.
-    :type x_contigs: str or list of str
-
-    :param y_contigs: Contigs to be treated as Y chromosomes.
-    :type y_contigs: str or list of str
-
-    :param mt_contigs: Contigs to be treated as mitochondrial DNA.
-    :type mt_contigs: str or list of str
-
-    :param par: List of tuples with (contig, start, end)
-    :type par: list of tuple of (str or int, int, int)
+    Examples
+    --------
 
     >>> contigs = ["1", "X", "Y", "MT"]
     >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
     >>> par = [("X", 60001, 2699521)]
     >>> my_ref = hl.ReferenceGenome("my_ref", contigs, lengths, "X", "Y", "MT", par)
+
+    Parameters
+    ----------
+    name : :obj:`str`
+        Name of reference. Must be unique and NOT one of Hail's
+        predefined references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
+    contigs : :obj:`list` of :obj:`str`
+        Contig names.
+    lengths : :obj:`dict` of :obj:`str` to :obj:`int`
+        Dict of contig names to contig lengths.
+    x_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+        Contigs to be treated as X chromosomes.
+    y_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+        Contigs to be treated as Y chromosomes.
+    mt_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+        Contigs to be treated as mitochondrial DNA.
+    par : :obj:`list` of :obj:`tuple` of (str or int, int, int)
+        List of tuples with (contig, start, end)
     """
 
     _references = {}
@@ -93,7 +93,9 @@ class ReferenceGenome(object):
     def name(self):
         """Name of reference genome.
 
-        :rtype: str
+        Returns
+        -------
+        :obj:`str`
         """
         if self._name is None:
             self._name = self._jrep.name()
@@ -103,7 +105,9 @@ class ReferenceGenome(object):
     def contigs(self):
         """Contig names.
 
-        :rtype: list of str
+        Returns
+        -------
+        :obj:`list` of :obj:`str`
         """
         if self._contigs is None:
             self._contigs = [str(x) for x in self._jrep.contigs()]
@@ -113,7 +117,9 @@ class ReferenceGenome(object):
     def lengths(self):
         """Dict of contig name to contig length.
 
-        :rtype: dict of str to int
+        Returns
+        -------
+        :obj:`list` of :obj:`str`
         """
         if self._lengths is None:
             self._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(self._jrep.lengths())}
@@ -123,7 +129,9 @@ class ReferenceGenome(object):
     def x_contigs(self):
         """X contigs.
 
-        :rtype: list of str
+        Returns
+        -------
+        :obj:`list` of :obj:`str`
         """
         if self._x_contigs is None:
             self._x_contigs = [str(x) for x in jiterable_to_list(self._jrep.xContigs())]
@@ -133,7 +141,9 @@ class ReferenceGenome(object):
     def y_contigs(self):
         """Y contigs.
 
-        :rtype: list of str
+        Returns
+        -------
+        :obj:`list` of :obj:`str`
         """
         if self._y_contigs is None:
             self._y_contigs = [str(x) for x in jiterable_to_list(self._jrep.yContigs())]
@@ -143,7 +153,9 @@ class ReferenceGenome(object):
     def mt_contigs(self):
         """Mitochondrial contigs.
 
-        :rtype: list of str
+        Returns
+        -------
+        :obj:`list` of :obj:`str`
         """
         if self._mt_contigs is None:
             self._mt_contigs = [str(x) for x in jiterable_to_list(self._jrep.mtContigs())]
@@ -153,7 +165,9 @@ class ReferenceGenome(object):
     def par(self):
         """Pseudoautosomal regions.
 
-        :rtype: list of :class:`.Interval`
+        Returns
+        -------
+        :obj:`list` of :class:`.Interval`
         """
 
         from hail.genetics.interval import Interval
@@ -165,11 +179,15 @@ class ReferenceGenome(object):
     def contig_length(self, contig):
         """Contig length.
 
-        :param contig: Contig
-        :type contig: str
+        Parameters
+        ----------
+        contig : :obj:`str`
+            Contig name.
 
-        :return: Length of contig.
-        :rtype: int
+        Returns
+        -------
+        :obj:`int`
+            Length of contig.
         """
         if contig in self.lengths:
             return self.lengths[contig]
@@ -180,6 +198,9 @@ class ReferenceGenome(object):
     @typecheck_method(file=str)
     def read(cls, file):
         """Load reference genome from a JSON file.
+
+        Notes
+        -----
 
         The JSON file must have the following format:
 
@@ -198,19 +219,22 @@ class ReferenceGenome(object):
                      {"start": {"contig": "Y","position": 10001},"end": {"contig": "Y","position": 2649521}}]
             }
 
-        **Notes**
 
         `name` must be unique and not overlap with Hail's pre-instantiated
         references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.The contig
         names in `xContigs`, `yContigs`, and `mtContigs` must be present in
         `contigs`. The intervals listed in `par` must have contigs in either
-        `xContigs` or `yContigs` and have positions between 0 and the contig
-        length given in `contigs`.
+        `xContigs` or `yContigs` and must have positions between 0 and the
+        contig length given in `contigs`.
 
-        :param file: Path to JSON file.
-        :type file: str
+        Parameters
+        ----------
+        file : :obj:`str`
+            Path to JSON file.
 
-        :rtype: :class:`.ReferenceGenome`
+        Returns
+        -------
+        :class:`.ReferenceGenome`
         """
         return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFile(Env.hc()._jhc, file))
 
@@ -218,17 +242,22 @@ class ReferenceGenome(object):
     def write(self, output):
         """"Write this reference genome to a file in JSON format.
 
-        **Examples**
+        Examples
+        --------
 
         >>> my_rg = hl.ReferenceGenome("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
         >>> my_rg.write("output/new_reference.json")
 
-        **Notes**
+        Notes
+        -----
 
         Use :class:`~hail.ReferenceGenome.read` to reimport the exported
         reference genome in a new HailContext session.
 
-        :param str output: Path of JSON file to write.
+        Parameters
+        ----------
+        output : :obj:`str`
+            Path of JSON file to write.
         """
 
         self._jrep.write(Env.hc()._jhc, output)

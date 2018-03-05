@@ -167,7 +167,7 @@ def spark_context():
     return Env.hc().sc
 
 def default_reference():
-    """Return the default reference genome ``'GRCh37'``.
+    """Returns the default reference genome ``'GRCh37'``.
 
     Returns
     -------
@@ -176,21 +176,23 @@ def default_reference():
     return Env.hc().default_reference
 
 def get_reference(name):
-    """Return the reference genome corresponding to `name`.
+    """Returns the reference genome corresponding to `name`.
 
-    Hail built-in references are ``'GRCh37'`` and ``GRCh38'``. The contig names
-    and lengths were obtained from the GATK resource bundle for
+    Notes
+    -----
+
+    Hail's built-in references are ``'GRCh37'`` and ``GRCh38'``. The contig names
+    and lengths come from the GATK resource bundle:
     `human_g1k_v37.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__
     and `Homo_sapiens_assembly38.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
 
-    If `name` is ``'default'``, return the reference from :func:`.default_reference`.
+    If ``name='default'``, the value of :func:`.default_reference` is returned.
 
     Parameters
     ----------
     name : :obj:`str`
-        Reference genome name. This can be a previously loaded reference genome
-        or one of Hail's built-in references: ``'GRCh37'``, ``'GRCh38'``, and
-        ``'default'``.
+        Name of a previously loaded reference genome or one of Hail's built-in
+        references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
 
     Returns
     -------
