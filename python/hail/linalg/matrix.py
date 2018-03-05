@@ -3,7 +3,7 @@ from hail.utils.java import Env, scala_object, jarray, numpy_from_breeze, joptio
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.expr.expression import expr_numeric, to_expr, analyze
+from hail.expr.expressions import expr_numeric, to_expr, analyze
 import numpy as np
 
 block_matrix_type = lazy()

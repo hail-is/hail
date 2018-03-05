@@ -1,14 +1,19 @@
+import itertools
+
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.matrixtable import MatrixTable
-from hail.table import Table
-from hail.expr.expression import *
-from hail.genetics import KinshipMatrix, ReferenceGenome
+from hail.expr.expressions import *
+from hail.expr.types import *
+from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
+from hail.matrixtable import MatrixTable
+from hail.methods.misc import require_biallelic
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+from hail.table import Table
 from hail.typecheck import *
-from hail.utils import wrap_to_list, new_temp_file, info
-from hail.utils.java import joption, jarray
+from hail.utils import wrap_to_list, info
+from hail.utils.java import *
 from hail.utils.misc import check_collisions
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
@@ -2480,7 +2485,7 @@ class FilterAlleles(object):
         alleles are ``*`` alleles.
     """
 
-    @typecheck_method(filter_expr=expr_array, keep=bool, left_aligned=bool, keep_star=bool)
+    @typecheck_method(filter_expr=expr_array(expr_bool), keep=bool, left_aligned=bool, keep_star=bool)
     def __init__(self, filter_expr, keep=True, left_aligned=False, keep_star=False):
         source = filter_expr._indices.source
         if not isinstance(source, MatrixTable):
@@ -2489,9 +2494,6 @@ class FilterAlleles(object):
         ds = source
         require_biallelic(ds, 'FilterAlleles')
 
-        if filter_expr.dtype.element_type != tbool:
-            raise TypeError("'FilterAlleles' expects 'filter_expr' to be type 'Array[Boolean]', found '{}'"
-                            .format(filter_expr.dtype))
         analyze('FilterAlleles', filter_expr, ds._row_indices)
 
         self._ds = ds

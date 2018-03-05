@@ -128,7 +128,7 @@ def get_obj_metadata(obj):
     from hail.matrixtable import MatrixTable, GroupedMatrixTable
     from hail.table import Table, GroupedTable
     from hail.utils import Struct
-    from hail.expr.expression import StructExpression
+    from hail.expr.expressions import StructExpression
 
     def table_error(index_obj):
         def fmt_field(field):
@@ -240,7 +240,7 @@ def get_nice_field_error(obj, item):
     return ''.join(s)
 
 def check_collisions(fields, name, indices):
-    from hail.expr.expression import ExpressionException
+    from hail.expr.expressions import ExpressionException
     if name in fields and not fields[name]._indices == indices:
         msg = 'name collision with field indexed by {}: {}'.format(list(fields[name]._indices.axes), name)
         error('Analysis exception: {}'.format(msg))
@@ -249,5 +249,5 @@ def check_collisions(fields, name, indices):
 def check_field_uniqueness(fields):
     for k, v in Counter(fields).items():
         if v > 1:
-            from hail.expr.expression import ExpressionException
+            from hail.expr.expressions import ExpressionException
             raise ExpressionException("selection would produce duplicate field {}".format(repr(k)))

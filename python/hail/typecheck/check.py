@@ -1,6 +1,7 @@
 from decorator import decorator
 import re
 import inspect
+import abc
 
 
 class TypecheckFailure(Exception):
@@ -19,14 +20,18 @@ def extract(t):
 
 
 class TypeChecker(object):
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self):
         pass
 
+    @abc.abstractmethod
     def check(self, x, caller, param):
-        raise NotImplementedError
+        ...
 
+    @abc.abstractmethod
     def expects(self):
-        raise NotImplementedError
+        ...
 
     def format(self, arg):
         return extract(type(arg))

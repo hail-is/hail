@@ -1,7 +1,9 @@
-from hail.typecheck import *
-from hail.expr.expression import *
+from hail.expr.expressions import *
+from hail.expr.expressions.expression_typecheck import *
 from hail.expr.ast import *
+from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
+from hail.utils import LinkedList
 import builtins
 
 
@@ -386,7 +388,9 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
-@typecheck(collection=oneof(expr_dict, expr_set, expr_array))
+@typecheck(collection=oneof(expr_dict(..., ...),
+                            expr_set(expr_tuple([..., ...])),
+                            expr_array(expr_tuple([..., ...]))))
 def dict(collection):
     """Creates a dictionary.
 
@@ -412,10 +416,6 @@ def dict(collection):
     :class:`.DictExpression`
     """
     if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
-        if not isinstance(collection.dtype.element_type, ttuple) or builtins.len(
-                collection.dtype.element_type.types) != 2:
-            raise TypeError("'dict': arguments of type array or set must have element type 'tuple(_, _)', found '{}'"
-                            .format(collection.dtype.element_type))
         key_type, value_type = collection.dtype.element_type.types
         return _func('dict', tdict(key_type, value_type), collection)
     else:
@@ -627,13 +627,13 @@ def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var):
     return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
-@typecheck(structs=oneof(expr_array),
+@typecheck(structs=oneof(expr_array(expr_struct)),
            identifier=str)
 def index(structs, identifier):
     if not isinstance(structs.dtype.element_type, tstruct):
         raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
                         .format(structs.dtype))
-    struct_type = structs._type.element_type
+    struct_type = structs.dtype.element_type
 
     if identifier not in struct_type:
         raise RuntimeError("`structs' does not have a field with identifier `{}'. " \
@@ -752,7 +752,7 @@ def parse_variant(s, reference_genome='default'):
                           s._indices, s._aggregations, s._joins, s._refs)
 
 
-@typecheck(gp=expr_array)
+@typecheck(gp=expr_array(expr_float64))
 def gp_dosage(gp):
     """
     Return expected genotype dosage from array of genotype probabilities.
@@ -778,13 +778,10 @@ def gp_dosage(gp):
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    if not is_numeric(gp.dtype.element_type):
-        raise TypeError("'gp_dosage' expects an expression of type "
-                        "'array<float64>'. Found '{}'".format(gp.dtype))
     return _func("dosage", tfloat64, gp)
 
 
-@typecheck(pl=expr_array)
+@typecheck(pl=expr_array(expr_int32))
 def pl_dosage(pl):
     """
     Return expected genotype dosage from array of Phred-scaled genotype
@@ -807,9 +804,6 @@ def pl_dosage(pl):
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    if not pl.dtype.element_type == tint32:
-        raise TypeError("Function 'pl_dosage' expects an expression of type "
-                        "'array<int32>'. Found {}".format(pl.dtype))
     return _func("plDosage", tfloat64, pl)
 
 
@@ -2024,7 +2018,7 @@ def downcode(c, i):
     return _func("downcode", tcall, c, i)
 
 
-@typecheck(pl=expr_array)
+@typecheck(pl=expr_array(expr_int32))
 def gq_from_pl(pl):
     """Compute genotype quality from Phred-scaled probability likelihoods.
 
@@ -2043,10 +2037,6 @@ def gq_from_pl(pl):
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if not pl.dtype.element_type == tint32:
-        raise TypeError("'gq_from_pl' expects an array with element type 'int32', found '{}'"
-                        .format(pl.dtype
-                                ))
     return _func("gqFromPL", tint32, pl)
 
 
@@ -2077,7 +2067,7 @@ def triangle(n):
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def filter(f, collection):
     """Returns a new collection containing elements where `f` returns ``True``.
 
@@ -2117,7 +2107,7 @@ def filter(f, collection):
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def any(f, collection):
     """Returns ``True`` if `f` returns ``True`` for any element.
 
@@ -2156,7 +2146,7 @@ def any(f, collection):
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def all(f, collection):
     """Returns ``True`` if `f` returns ``True`` for every element.
 
@@ -2195,7 +2185,7 @@ def all(f, collection):
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def find(f, collection):
     """Returns the first element where `f` returns ``True``.
 
@@ -2239,7 +2229,7 @@ def find(f, collection):
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def flatmap(f, collection):
     """Map each element of the collection to a new collection, and flatten the results.
 
@@ -2276,7 +2266,7 @@ def flatmap(f, collection):
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def group_by(f, collection):
     """Group collection elements into a dict according to a lambda function.
 
@@ -2307,7 +2297,7 @@ def group_by(f, collection):
                                          lambda t: tdict(t, collection.dtype))
 
 
-@typecheck(arrays=expr_array, fill_missing=bool)
+@typecheck(arrays=expr_array(...), fill_missing=bool)
 def zip(*arrays, fill_missing=False):
     """Zip together arrays into a single array.
 
@@ -2360,7 +2350,7 @@ def zip(*arrays, fill_missing=False):
         return bind([hl.len(a) for a in arrays], _)
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=oneof(expr_set, expr_array))
+           collection=oneof(expr_set(...), expr_array(...)))
 def map(f, collection):
     """Transform each element of a collection.
 
@@ -2390,7 +2380,7 @@ def map(f, collection):
                                          lambda t: collection.dtype.__class__(t))
 
 
-@typecheck(x=oneof(expr_set, expr_array, expr_dict, expr_str, expr_tuple))
+@typecheck(x=oneof(expr_set(...), expr_array(...), expr_dict(..., ...), expr_str, expr_tuple(...), expr_struct))
 def len(x):
     """Returns the size of a collection or string.
 
@@ -2419,13 +2409,13 @@ def len(x):
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if isinstance(x.dtype, ttuple):
+    if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     else:
         return x._method("size", tint32)
 
 
-@typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))
+@typecheck(exprs=oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
 def max(*exprs):
     """Returns the maximum element of a collection or of given numeric expressions.
 
@@ -2462,8 +2452,7 @@ def max(*exprs):
         raise ValueError("'max' requires at least one argument")
     if builtins.len(exprs) == 1:
         expr = exprs[0]
-        if not ((isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray))
-                and is_numeric(expr.dtype.element_type)):
+        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
         return expr._method('max', expr.dtype.element_type)
@@ -2479,7 +2468,7 @@ def max(*exprs):
             return max([e for e in exprs])
 
 
-@typecheck(exprs=oneof(expr_numeric, expr_set, expr_array))
+@typecheck(exprs=oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
 def min(*exprs):
     """Returns the minimum of a collection or of given numeric expressions.
 
@@ -2516,8 +2505,7 @@ def min(*exprs):
         raise ValueError("'min' requires at least one argument")
     if builtins.len(exprs) == 1:
         expr = exprs[0]
-        if not ((isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray))
-                and is_numeric(expr.dtype.element_type)):
+        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
         return expr._method('min', expr.dtype.element_type)
@@ -2533,7 +2521,7 @@ def min(*exprs):
             return min([e for e in exprs])
 
 
-@typecheck(x=oneof(expr_numeric, expr_array))
+@typecheck(x=oneof(expr_numeric, expr_array(expr_numeric)))
 def abs(x):
     """Take the absolute value of a numeric value or array.
 
@@ -2556,15 +2544,12 @@ def abs(x):
     :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
     """
     if isinstance(x.dtype, tarray):
-        if not is_numeric(x.dtype.element_type):
-            raise TypeError(
-                "'abs' expects a numeric expression or numeric array expression, found '{}'".format(x.dtype))
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
 
 
-@typecheck(x=oneof(expr_numeric, expr_array))
+@typecheck(x=oneof(expr_numeric, expr_array(expr_numeric)))
 def signum(x):
     """Returns the sign (1, 0, or -1) of a numeric value or array.
 
@@ -2593,15 +2578,12 @@ def signum(x):
     :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
     """
     if isinstance(x.dtype, tarray):
-        if not is_numeric(x.dtype.element_type):
-            raise TypeError(
-                "'signum' expects a numeric expression or numeric array expression, found '{}'".format(x.dtype))
         return map(signum, x)
     else:
         return x._method('signum', tint32)
 
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def mean(collection):
     """Returns the mean of all values in the collection.
 
@@ -2627,12 +2609,10 @@ def mean(collection):
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'mean' expects a numeric collection, found '{}'".format(collection.dtype))
     return collection._method("mean", tfloat64)
 
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def median(collection):
     """Returns the median value in the collection.
 
@@ -2658,12 +2638,10 @@ def median(collection):
     -------
     :class:`.NumericExpression`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'median' expects a numeric collection, found '{}'".format(collection.dtype))
     return collection._method("median", collection.dtype.element_type)
 
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def product(collection):
     """Returns the product of values in the collection.
 
@@ -2689,12 +2667,10 @@ def product(collection):
     -------
     :class:`.NumericExpression`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'product' expects a numeric collection, found '{}'".format(collection.dtype))
     return collection._method("product", collection.dtype.element_type)
 
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def sum(collection):
     """Returns the sum of values in the collection.
 
@@ -2720,8 +2696,6 @@ def sum(collection):
     -------
     :class:`.NumericExpression`
     """
-    if not is_numeric(collection.dtype.element_type):
-        raise TypeError("'sum' expects a numeric collection, found '{}'".format(collection.dtype))
     return collection._method("sum", collection.dtype.element_type)
 
 @typecheck(kwargs=expr_any)
@@ -2770,7 +2744,7 @@ def tuple(iterable):
     t = builtins.tuple(iterable)
     return to_expr(t)
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set(...), expr_array(...)))
 def set(collection):
     """Convert a set expression.
 
@@ -2816,7 +2790,7 @@ def empty_set(t):
     return filter(lambda x: False, set([null(t)]))
 
 
-@typecheck(collection=oneof(expr_set, expr_array, expr_dict))
+@typecheck(collection=oneof(expr_set(...), expr_array(...), expr_dict(..., ...)))
 def array(collection):
     """Construct an array expression.
 
@@ -2894,7 +2868,7 @@ def empty_dict(key_type, value_type):
     """
     return hl.dict(hl.empty_array(hl.ttuple(key_type, value_type)))
 
-@typecheck(collection=oneof(expr_set, expr_array))
+@typecheck(collection=oneof(expr_set(expr_set(...)), expr_array(expr_array(...))))
 def flatten(collection):
     """Flatten a nested collection by concatenating sub-collections.
 
@@ -2916,14 +2890,10 @@ def flatten(collection):
     -------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
     """
-    if (isinstance(collection.dtype, tset) and not isinstance(collection.dtype.element_type, tset)) or (
-            isinstance(collection.dtype, tarray) and not isinstance(collection.dtype.element_type, tarray)):
-        raise TypeError("'flatten' expects an expression of type '<array<array<T>>' or 'set<set<T>>', found '{}'"
-                        .format(collection.dtype))
     return collection._method("flatten", collection._type.element_type)
 
 
-@typecheck(collection=oneof(expr_array, expr_set),
+@typecheck(collection=oneof(expr_array(...), expr_set(...)),
            delimiter=expr_str)
 def delimit(collection, delimiter=','):
     """Joins elements of `collection` into single string delimited by `delimiter`.
@@ -2960,7 +2930,7 @@ def delimit(collection, delimiter=','):
     return collection._method("mkString", tstr, delimiter)
 
 
-@typecheck(collection=expr_array,
+@typecheck(collection=expr_array(...),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
 def sorted(collection, key=None, reverse=False):
@@ -3018,7 +2988,7 @@ def sorted(collection, key=None, reverse=False):
         return collection._bin_lambda_method("sortBy", key, collection.dtype.element_type, check_f, ascending)
 
 
-@typecheck(array=expr_array, unique=bool)
+@typecheck(array=expr_array(expr_numeric), unique=bool)
 def argmin(array, unique=False):
     """Return the index of the minimum value in the array.
 
@@ -3055,16 +3025,13 @@ def argmin(array, unique=False):
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if not is_numeric(array.dtype.element_type):
-        raise TypeError("'argmin' expects an array with numeric element type, found '{}'"
-                        .format(array.dtype))
     if unique:
         return array._method("uniqueMinIndex", tint32)
     else:
         return array._method("argmin", tint32)
 
 
-@typecheck(array=expr_array, unique=bool)
+@typecheck(array=expr_array(expr_numeric), unique=bool)
 def argmax(array, unique=False):
     """Return the index of the maximum value in the array.
 
@@ -3101,9 +3068,6 @@ def argmax(array, unique=False):
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if not is_numeric(array.dtype.element_type):
-        raise TypeError("'argmax' expects an array with numeric element type, found '{}'"
-                        .format(array.dtype))
     if unique:
         return array._method("uniqueMaxIndex", tint32)
     else:

@@ -897,7 +897,7 @@ class GroupedMatrixTests(unittest.TestCase):
 
     def test_errors_caught_correctly(self):
 
-        from hail.expr.expression import ExpressionException
+        from hail.expr.expressions import ExpressionException
 
         mt = self.get_groupable_matrix()
         self.assertRaises(ExpressionException, mt.group_rows_by, mt['group1'] + 1)
