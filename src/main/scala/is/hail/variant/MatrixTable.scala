@@ -1684,7 +1684,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newGlobals: Annotation = globals)(newEntryType: TStruct,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-      TArray(newEntryType, required = true), MatrixType.entriesIdentifier, inserter)
+      TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
   }
 
   def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
