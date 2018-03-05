@@ -305,7 +305,7 @@ class Tests(unittest.TestCase):
 
             mat = np.array([[(g - mean[i]) / stddev[i] for g in row] for i, row in enumerate(ds)])
 
-            rrm = mat.T.dot(mat) / nvariants
+            rrm = (mat.T @ mat) / nvariants
 
             return rrm
 

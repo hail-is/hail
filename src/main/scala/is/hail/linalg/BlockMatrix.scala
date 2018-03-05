@@ -29,10 +29,10 @@ object BlockMatrix {
       new LZ4BlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec))
 
-  def from(sc: SparkContext, lm: BDM[Double]): M =
-    from(sc, lm, defaultBlockSize)
+  def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double]): M =
+    fromBreezeMatrix(sc, lm, defaultBlockSize)
 
-  def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
+  def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
     val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
@@ -58,10 +58,10 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
 
-  def from(irm: IndexedRowMatrix): M =
-    from(irm, defaultBlockSize)
+  def fromIRM(irm: IndexedRowMatrix): M =
+    fromIRM(irm, defaultBlockSize)
 
-  def from(irm: IndexedRowMatrix, blockSize: Int): M =
+  def fromIRM(irm: IndexedRowMatrix, blockSize: Int): M =
     irm.toHailBlockMatrix(blockSize)
 
   // uniform or Gaussian
@@ -204,22 +204,16 @@ object BlockMatrix {
       def +(r: M): M =
         r.scalarAdd(l)
 
-      def -(r: M): M = {
-        val ll = l
-        r.blockMap(ll - _)
-      }
+      def -(r: M): M =
+        r.reverseScalarSubtract(l)
 
       def *(r: M): M =
         r.scalarMultiply(l)
 
-      def /(r: M): M = {
-        val ll = l
-        r.blockMap(ll / _)
-      }
+      def /(r: M): M =
+        r.reverseScalarDivide(l)
     }
-
   }
-
 }
 
 // must be top-level for Jackson to serialize correctly
@@ -263,14 +257,21 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def multiply(lm: BDM[Double]): M = {
     require(nCols == lm.rows,
       s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
-    multiply(BlockMatrix.from(blocks.sparkContext, lm, blockSize))
+    multiply(BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize))
   }
+
+  def unary_+(): M = this
+
+  def unary_-(): M = blockMap(-_)
 
   def scalarAdd(i: Double): M =
     blockMap(_ + i)
 
   def scalarSubtract(i: Double): M =
     blockMap(_ - i)
+  
+  def reverseScalarSubtract(i: Double): M =
+    blockMap(i - _)
 
   def scalarMultiply(i: Double): M =
     blockMap(_ *:* i)
@@ -278,6 +279,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def scalarDivide(i: Double): M =
     blockMap(_ /:/ i)
 
+  def reverseScalarDivide(i: Double): M =
+    blockMap(i /:/ _)
+  
   def vectorAddToEveryColumn(v: Array[Double]): M = {
     require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)

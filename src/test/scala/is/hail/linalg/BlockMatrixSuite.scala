@@ -31,14 +31,14 @@ class BlockMatrixSuite extends SparkSuite {
     val n = rows.length
     val m = if (n == 0) 0 else rows(0).length
 
-    BlockMatrix.from(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
+    BlockMatrix.fromBreezeMatrix(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
   }
 
   def toBM(lm: BDM[Double]): BlockMatrix =
     toBM(lm, BlockMatrix.defaultBlockSize)
 
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
-    BlockMatrix.from(sc, lm, blockSize)
+    BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
 
   private val defaultBlockSize = choose(1, 1 << 6)
   private val defaultDims = nonEmptySquareOfAreaAtMostSize
@@ -355,11 +355,11 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def fromLocalTest() {
     forAll(denseMatrix[Double]()) { lm =>
-      assert(lm === BlockMatrix.from(sc, lm, lm.rows + 1).toBreezeMatrix())
-      assert(lm === BlockMatrix.from(sc, lm, lm.rows).toBreezeMatrix())
+      assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, lm.rows + 1).toBreezeMatrix())
+      assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, lm.rows).toBreezeMatrix())
       if (lm.rows > 1) {
-        assert(lm === BlockMatrix.from(sc, lm, lm.rows - 1).toBreezeMatrix())
-        assert(lm === BlockMatrix.from(sc, lm, math.sqrt(lm.rows).toInt).toBreezeMatrix())
+        assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, lm.rows - 1).toBreezeMatrix())
+        assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, math.sqrt(lm.rows).toInt).toBreezeMatrix())
       }
       true
     }.check()
@@ -607,7 +607,7 @@ class BlockMatrixSuite extends SparkSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1),
@@ -631,7 +631,7 @@ class BlockMatrixSuite extends SparkSuite {
 
     for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize).transpose()
+      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).transpose()
       for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
@@ -651,7 +651,7 @@ class BlockMatrixSuite extends SparkSuite {
 
     for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
@@ -671,7 +671,7 @@ class BlockMatrixSuite extends SparkSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1),
@@ -694,7 +694,7 @@ class BlockMatrixSuite extends SparkSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.from(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
       for {
         keepRows <- Seq(
           Array(1),
@@ -749,7 +749,7 @@ class BlockMatrixSuite extends SparkSuite {
     def prefix(blockSize: Double): String = "/parts/part-" + (if (blockSize <= 3) "0" else "")
     
     for {blockSize <- Seq(2, 4, 8)} {
-      val bm = BlockMatrix.from(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
       val pre = prefix(blockSize)
 
       val allFile = tmpDir.createTempFile("all")

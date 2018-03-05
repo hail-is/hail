@@ -2143,7 +2143,7 @@ def genetic_relatedness_matrix(dataset):
 
     bm = BlockMatrix.from_entry_expr(normalized_genotype_expr)
     dataset.unpersist()
-    grm = bm.T.dot(bm)
+    grm = bm.T @ bm
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             grm,
@@ -2244,7 +2244,7 @@ def realized_relationship_matrix(call_expr):
 
     bm = BlockMatrix.from_entry_expr(normalized_genotype_expr)
     dataset.unpersist()
-    rrm = bm.T.dot(bm) / n_variants
+    rrm = (bm.T @ bm) / n_variants
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
