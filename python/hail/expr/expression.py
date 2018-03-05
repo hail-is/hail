@@ -786,7 +786,7 @@ class Expression(object):
         Notes
         -----
         This expression must have no indices, but can refer to the
-        globals of a a :class:`.hail.Table` or
+        globals of a :class:`.hail.Table` or
         :class:`.hail.MatrixTable`.
 
         Returns
@@ -3647,7 +3647,7 @@ def eval_expr(expression):
     how to compose them.
 
     The expression must have no indices, but can refer to the globals
-    of a a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
+    of a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
 
     Examples
     --------
@@ -3680,7 +3680,7 @@ def eval_expr_typed(expression):
     how to compose them.
 
     The expression must have no indices, but can refer to the globals
-    of a a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
+    of a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
 
     Examples
     --------

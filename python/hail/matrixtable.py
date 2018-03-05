@@ -247,7 +247,7 @@ class GroupedMatrixTable(object):
         Parameters
         ----------
         fields : varargs of :obj:`str`
-            Row partition key. Must be a a prefix of the key. By default, the
+            Row partition key. Must be a prefix of the key. By default, the
             partition key is the entire key.
 
         Returns
@@ -559,12 +559,12 @@ class MatrixTable(object):
 
     @property
     def col_key(self):
-        """Return a struct expression with the column keys.
+        """Column key struct.
 
         Examples
         --------
 
-        Get the column key names:
+        Get the column key field names:
 
         .. doctest::
 
@@ -581,12 +581,12 @@ class MatrixTable(object):
 
     @property
     def row_key(self):
-        """Return a struct expression with the row keys.
+        """Row key struct.
 
         Examples
         --------
 
-        Get the row key names:
+        Get the row key field names:
 
         .. doctest::
 
@@ -603,12 +603,12 @@ class MatrixTable(object):
 
     @property
     def partition_key(self):
-        """Returns a struct expression with the partition keys.
+        """Partition key struct.
 
         Examples
         --------
 
-        Get the partition key names:
+        Get the partition key field names:
 
         .. doctest::
 
