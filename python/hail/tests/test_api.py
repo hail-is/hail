@@ -806,6 +806,15 @@ class MatrixTests(unittest.TestCase):
         et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries().add_index()
         self.assertTrue(et.all(et.idx == et.entry_idx))
 
+    def test_filter_entries(self):
+        ds = hl.utils.range_matrix_table(100, 10)
+        ds = ds.annotate_rows(foo = 5) # triggered a RV bug
+        ds = ds.annotate_cols(bar = 5)
+        ds = ds.filter_entries((ds.col_idx * ds.row_idx) % 4 == 0)
+
+        entries = ds.entries()
+        self.assertTrue(entries.all((entries.col_idx * entries.row_idx) % 4 == 0))
+
 
 class GroupedMatrixTests(unittest.TestCase):
 

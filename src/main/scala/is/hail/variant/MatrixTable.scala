@@ -1684,7 +1684,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newGlobals: Annotation = globals)(newEntryType: TStruct,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-      TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+      TArray(newEntryType, required = true), MatrixType.entriesIdentifier, inserter)
   }
 
   def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
@@ -2607,53 +2607,48 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val localKeep = keep
-    val localRVRowType = rvRowType
+    val fullRowType = rvRowType
     val localNSamples = numCols
     val localEntryType = entryType
     val localColValuesBc = colValuesBc
     val localEntriesIndex = entriesIndex
+    val localEntriesType = matrixType.entryArrayType
 
-    copy2(
-      rvd = rvd.mapPartitionsPreservesPartitioning(rvd.typ) { it =>
-        val rvb = new RegionValueBuilder()
-        val rv2 = RegionValue()
-        val fullRow = new UnsafeRow(localRVRowType)
+    insertEntries(() => {
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
+      (fullRow, row)
+    })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
+      fullRow.set(rv)
+      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
-        it.map { rv =>
-          fullRow.set(rv)
-          val row = fullRow.deleteField(localEntriesIndex)
+      rvb.startArray(localNSamples)
 
-          rvb.set(rv.region)
-          rvb.start(localRVRowType)
-          rvb.startStruct()
-
-          var i = 0
-          while (i < localEntriesIndex) {
-            rvb.addField(localRVRowType, rv, i)
-            i += 1
+      var i = 0
+      while (i < localNSamples) {
+        val entry = entries(i)
+        ec.setAll(row,
+          localColValuesBc.value(i),
+          entry)
+        if (Filter.boxedKeepThis(f(), localKeep)) {
+          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
+          if (!isDefined)
+            rvb.setMissing()
+          else {
+            // can't use addElement because we could be losing requiredness
+            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
+            rvb.startStruct()
+            rvb.addAllFields(localEntryType, rv.region, elementOffset)
+            rvb.endStruct()
           }
+        } else
+          rvb.setMissing()
 
-          val gs = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
-
-          rvb.startArray(localNSamples)
-          i = 0
-          while (i < localNSamples) {
-            val sa = localColValuesBc.value(i)
-            val g = gs(i)
-            ec.setAll(row, sa, g)
-            if (Filter.boxedKeepThis(f(), localKeep))
-              rvb.addAnnotation(localEntryType, g)
-            else
-              rvb.setMissing()
-
-            i += 1
-          }
-          rvb.endArray()
-          rvb.endStruct()
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      })
+        i += 1
+      }
+      rvb.endArray()
+    })
   }
 
 
