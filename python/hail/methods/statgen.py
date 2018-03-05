@@ -10,7 +10,7 @@ from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import joption, jarray
 from hail.utils.misc import check_collisions
-from hail.methods.misc import require_biallelic, require_variant_key, require_col_key_str
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 import itertools
 

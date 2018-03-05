@@ -129,7 +129,7 @@ def require_col_key_str(dataset: MatrixTable, method: str):
                          f"{list(str(x.dtype) for x in dataset.col_key.values())}")
 
 
-def require_variant_key(dataset, method):
+def require_row_key_variant(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles'] or
             not isinstance(dataset['locus'].dtype, tlocus) or
             not dataset['alleles'].dtype == tarray(tstr)):
@@ -139,7 +139,7 @@ def require_variant_key(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
 
-def require_locus_key(dataset, method):
+def require_partition_key_locus(dataset, method):
     if (len(dataset.partition_key) != 1 or
             not isinstance(dataset.partition_key[0].dtype, tlocus)):
         raise ValueError("Method '{}' requires partition key to be one field of type 'locus<any>'.\n"
@@ -149,7 +149,7 @@ def require_locus_key(dataset, method):
 
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method):
-    require_variant_key(dataset, method)
+    require_row_key_variant(dataset, method)
     dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
     return dataset
 
@@ -246,7 +246,7 @@ def filter_intervals(ds, intervals, keep=True):
     :class:`.MatrixTable`
     """
 
-    require_locus_key(ds, 'filter_intervals')
+    require_partition_key_locus(ds, 'filter_intervals')
 
     intervals = wrap_to_list(intervals)
     jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)
