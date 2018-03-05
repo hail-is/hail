@@ -5,14 +5,7 @@ from hail import Table, Locus
 import hail.expr.aggregators as agg
 from hail.expr.types import *
 from hail.expr import dtype
-
-
-def setUpModule():
-    hl.init(master='local[2]', min_block_size=0)
-
-
-def tearDownModule():
-    hl.stop()
+from .utils import resource, setUpModule, tearDownModule
 
 
 class TypeTests(unittest.TestCase):

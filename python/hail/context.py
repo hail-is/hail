@@ -65,22 +65,22 @@ class HailContext(object):
         self._default_ref = None
         Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
-        sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
-        if self._jsc.uiWebUrl().isDefined():
-            sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
-
         if not quiet:
+            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
+            if self._jsc.uiWebUrl().isDefined():
+                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
+
             connect_logger('localhost', 12888)
 
-        sys.stderr.write(
-            'Welcome to\n'
-            '     __  __     <>__\n'
-            '    / /_/ /__  __/ /\n'
-            '   / __  / _ `/ / /\n'
-            '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
+            sys.stderr.write(
+                'Welcome to\n'
+                '     __  __     <>__\n'
+                '    / /_/ /__  __/ /\n'
+                '   / __  / _ `/ / /\n'
+                '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
 
-        if self.version.startswith('devel'):
-            sys.stderr.write('WARNING: This is an unstable development build.\n')
+            if self.version.startswith('devel'):
+                sys.stderr.write('WARNING: This is an unstable development build.\n')
 
         install_exception_handler()
 
