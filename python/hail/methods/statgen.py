@@ -2118,7 +2118,7 @@ def genetic_relatedness_matrix(dataset):
     :class:`.genetics.KinshipMatrix`
         Genetic Relatedness Matrix for all samples.
     """
-
+    require_col_key_str(dataset, 'genetic_relatedness_matrix')
     dataset = require_biallelic(dataset, "genetic_relatedness_matrix")
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                     n_called=agg.count_where(hl.is_defined(dataset.GT)))
@@ -2207,6 +2207,7 @@ def realized_relationship_matrix(call_expr):
             "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     dataset = source
     analyze('realized_relationship_matrix', call_expr, dataset._entry_indices)
+    require_col_key_str(dataset, 'realized_relationship_matrix')
     dataset = dataset.annotate_entries(call=call_expr)
     dataset = require_biallelic(dataset, 'rrm')
 
@@ -2242,7 +2243,7 @@ def realized_relationship_matrix(call_expr):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
-                                            dataset['s'].collect(),
+                                            dataset.col_key[0].collect(),
                                             n_variants)
 
 
