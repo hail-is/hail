@@ -80,7 +80,7 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("locus" -> TLocus.schemaFromGR(rg),
+    val signature = TStruct("locus" -> TLocus.schemaFromRG(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "varid" -> TString())

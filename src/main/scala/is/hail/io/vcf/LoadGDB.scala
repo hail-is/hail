@@ -142,7 +142,7 @@ object LoadGDB {
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(
-      "locus" -> TLocus.schemaFromGR(rg),
+      "locus" -> TLocus.schemaFromRG(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "qual" -> TFloat64(),

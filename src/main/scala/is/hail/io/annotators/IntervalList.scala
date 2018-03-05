@@ -33,7 +33,7 @@ object IntervalList {
         }.value
     }
 
-    val locusSchema = TLocus.schemaFromGR(rg)
+    val locusSchema = TLocus.schemaFromRG(rg)
 
     val schema = if (hasValue)
       TStruct("interval" -> TInterval(locusSchema), "target" -> TString())
