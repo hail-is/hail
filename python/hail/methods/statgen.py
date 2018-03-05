@@ -1,6 +1,3 @@
-import itertools
-
-import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
@@ -8,14 +5,12 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
-from hail.utils import wrap_to_list, info
+from hail.utils import wrap_to_list
 from hail.utils.java import *
 from hail.utils.misc import check_collisions
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
+from hail.methods.misc import require_biallelic, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 import itertools
 
