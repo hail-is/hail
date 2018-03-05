@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
-import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
+import breeze.linalg.{DenseVector => BDV}
 
 class LocalMatrixSuite extends SparkSuite {
   
@@ -14,10 +14,10 @@ class LocalMatrixSuite extends SparkSuite {
     val fname = tmpDir.createTempFile("test")
     
     val m1 = LocalMatrix(2, 3, Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
-    val m2 = LocalMatrix(2, 3, Array(1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 5.0, 6.0, 0.0), isTransposed = false, 0, 3)
-    val m3 = LocalMatrix(2, 3, Array(0.0, 1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 5.0, 6.0), isTransposed = false, 1, 3)
+    val m2 = LocalMatrix(2, 3, Array(1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 5.0, 6.0, 0.0), 0, 3, isTransposed = false)
+    val m3 = LocalMatrix(2, 3, Array(0.0, 1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 5.0, 6.0), 1, 3, isTransposed = false)
     val m4 = LocalMatrix(2, 3, Array(1.0, 3.0, 5.0, 2.0, 4.0, 6.0), isTransposed = true)
-    val m5 = LocalMatrix(2, 3, Array(0.0, 1.0, 3.0, 5.0, 0.0, 2.0, 4.0, 6.0), isTransposed = true, 1, 4)
+    val m5 = LocalMatrix(2, 3, Array(0.0, 1.0, 3.0, 5.0, 0.0, 2.0, 4.0, 6.0), 1, 4, isTransposed = true)
     
     for { m <- Seq(m1, m2, m3, m4, m5) } {
       m.write(hc, fname)

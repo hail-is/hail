@@ -44,11 +44,12 @@ object LocalMatrix {
     LocalMatrix(new BDM[Double](nRows, nCols))
 
   def apply(nRows: Int, nCols: Int, data: Array[Double], isTransposed: Boolean = false): M = {
+    require(nRows * nCols == data.length)
     val m = new BDM[Double](nRows, nCols, data, 0, if (isTransposed) nCols else nRows, isTransposed)
     LocalMatrix(m)
   }
 
-  def apply(nRows: Int, nCols: Int, data: Array[Double], isTransposed: Boolean, offset: Int, majorStride: Int): M = {
+  def apply(nRows: Int, nCols: Int, data: Array[Double], offset: Int, majorStride: Int, isTransposed: Boolean): M = {
     val m = new BDM[Double](nRows, nCols, data, offset, majorStride, isTransposed)
     LocalMatrix(m)
   }
@@ -100,11 +101,11 @@ object LocalMatrix {
     }
     
     implicit class ScalarShim(l: Double) {      
-      def +(r: M): M = r + l
+      def +(r: M): M = r.add(l)
 
       def -(r: M): M = r.rsubtract(l)
 
-      def *(r: M): M = r * l
+      def *(r: M): M = r.multiply(l)
 
       def /(r: M): M = r.rdivide(l)
     }
