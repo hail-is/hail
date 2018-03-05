@@ -474,7 +474,7 @@ class TableTests(unittest.TestCase):
             key='a',
             n_partitions=4)
 
-        dist = t1.distinct().group_by_key()
+        dist = t1.distinct().collect_by_key()
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
@@ -495,7 +495,7 @@ class TableTests(unittest.TestCase):
             hl.tstruct(a=hl.tstr, b=hl.tint32),
             key='a',
             n_partitions=4)
-        g = t1.group_by_key().explode('values')
+        g = t1.collect_by_key().explode('values')
         g = g.transmute(**g.values)
         self.assertTrue(g._same(t1))
 

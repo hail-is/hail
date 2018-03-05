@@ -2192,8 +2192,8 @@ class Table(TableTemplate):
     def _same(self, other, tolerance=1e-6):
         return self._jt.same(other._jt, tolerance)
 
-    def group_by_key(self, name: str='values') -> 'Table':
-        """Group values for each unique key into an array.
+    def collect_by_key(self, name: str= 'values') -> 'Table':
+        """Collect values for each unique key into an array.
 
         Examples
         --------
@@ -2217,7 +2217,7 @@ class Table(TableTemplate):
         | quam |     0 | D   |
         +------+-------+-----+
 
-        >>> t1.group_by_key().show()
+        >>> t1.collect_by_key().show()
         +------+------------------------------------+
         | t    | values                             |
         +------+------------------------------------+
