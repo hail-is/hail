@@ -2242,7 +2242,7 @@ def realized_relationship_matrix(call_expr):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             rrm,
-                                            dataset['s'].collect(),
+                                            dataset.col_key[0].collect(),
                                             n_variants)
 
 

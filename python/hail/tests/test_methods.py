@@ -796,18 +796,18 @@ class Tests(unittest.TestCase):
         mt.count()
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
-        hl.import_matrix_table(doctest_file('matrix2.tsv'),
+        hl.import_matrix_table(doctest_resource('matrix2.tsv'),
                                row_fields=row_fields, row_key=[]).count()
-        hl.import_matrix_table(doctest_file('matrix3.tsv'),
+        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True).count()
-        hl.import_matrix_table(doctest_file('matrix3.tsv'),
+        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True,
                                row_key=[]).count()
         self.assertRaises(hl.utils.FatalError,
                      hl.import_matrix_table,
-                     doctest_file('matrix3.tsv'),
+                          doctest_resource('matrix3.tsv'),
                      row_fields=row_fields,
                      no_header=True,
                      row_key=['foo'])
