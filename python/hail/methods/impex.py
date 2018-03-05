@@ -1018,7 +1018,7 @@ def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, mis
 
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
     ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
-    ...                                  key='Barcode')
+    ...                                  row_key='Barcode')
     >>> matrix1.describe()
     ----------------------------------------
     Global fields:
@@ -1059,7 +1059,7 @@ def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, mis
 
     >>> matrix2 = hl.import_matrix_table('data/matrix2.tsv',
     ...                                  row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2':hl.tfloat32},
-    ...                                  key='f0')
+    ...                                  row_key='f0')
     >>> matrix2.rename({'f0': 'Barcode', 'f1': 'Tissue', 'f2': 'Days'})
 
     Sometimes, the header and row information is missing completely:
