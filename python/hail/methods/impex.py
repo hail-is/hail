@@ -1082,21 +1082,21 @@ def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, mis
 
     The resulting matrix table has the following structure:
 
-        - The row fields are named as specified in the column header. If they
-        are missing from the header or ``no_header=True``, row field names are
-        set to the strings `f0`, `f1`, ... (0-indexed) in column order. The types
-        of all row fields must be specified in the `row_fields` argument.
-        - The row key is taken from the `row_key` argument, and must be a
-        subset of row fields. If left empty, the row key will be a new row field
-        `row_idx` of type :obj:`int`, whose values 0, 1, ... index the original
-        rows of the matrix.
-        - There is one column field, **col_id**, which is a key field of type
-        :obj:str or :obj:int. By default, its values are the strings given by
-        the corresponding column names in the header line. If ``no_header=True``,
-        column IDs are set to integers 0, 1, ... (also 0-indexed) in column
-        order.
-        - There is one entry field, **x**, that contains the data from the imported
-        matrix.
+        * The row fields are named as specified in the column header. If they
+          are missing from the header or ``no_header=True``, row field names are
+          set to the strings `f0`, `f1`, ... (0-indexed) in column order. The types
+          of all row fields must be specified in the `row_fields` argument.
+        * The row key is taken from the `row_key` argument, and must be a
+          subset of row fields. If left empty, the row key will be a new row field
+          `row_idx` of type :obj:`int`, whose values 0, 1, ... index the original
+          rows of the matrix.
+        * There is one column field, **col_id**, which is a key field of type
+          :obj:str or :obj:int. By default, its values are the strings given by
+          the corresponding column names in the header line. If ``no_header=True``,
+          column IDs are set to integers 0, 1, ... (also 0-indexed) in column
+          order.
+        * There is one entry field, **x**, that contains the data from the imported
+          matrix.
 
 
     All columns to be imported as row fields must be at the start of the row.
