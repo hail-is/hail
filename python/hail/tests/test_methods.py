@@ -286,6 +286,7 @@ class Tests(unittest.TestCase):
                                            fst=(k * [fst]),
                                            seed=seed,
                                            n_partitions=4)
+        dataset = dataset.annotate_cols(s = hl.str(dataset.sample_idx)).key_cols_by('s')
 
         def direct_calculation(ds):
             ds = BlockMatrix.from_matrix_table(ds['GT'].n_alt_alleles()).to_numpy_matrix()
