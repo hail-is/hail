@@ -833,7 +833,7 @@ object LoadVCF {
       TStruct.empty(true),
       colType = TStruct("s" -> TString()),
       colKey = Array("s"),
-      rowType = TStruct("locus" -> TLocus.schemaFromGR(rg), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString())) ++ vaSignature,
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)

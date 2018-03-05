@@ -80,7 +80,7 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("locus" -> TLocus.schemaFromGR(rg),
+    val signature = TStruct("locus" -> TLocus.schemaFromRG(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "varid" -> TString())
@@ -115,7 +115,7 @@ object LoadBgen {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, rg))
+        rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
 
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)
@@ -146,7 +146,7 @@ object LoadBgen {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contigRecoded, pos, rg))
+        rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
 
         val nAlleles = alleles.length
         rvb.startArray(nAlleles)

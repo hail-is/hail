@@ -346,7 +346,7 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of samples in GEN files: $nSamples")
 
     val signature = TStruct(
-      "locus" -> TLocus.schemaFromGR(rg),
+      "locus" -> TLocus.schemaFromRG(rg),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(), "varid" -> TString())
 
