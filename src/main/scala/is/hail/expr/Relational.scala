@@ -378,22 +378,43 @@ case class FilterColsIR(
   def typ: MatrixType = child.typ
 
   def execute(hc: HailContext): MatrixValue = {
-    val kmv = child.execute(hc)
-    //
-    // Generate a predicate function which may access globals,
-    // row annotations, and the row itself.
-    //
-    // The predicate for FilterCols might access globals and column annotations
-    println(s"FilterCols.execute pred ${pred.toString()}")
-    kmv
-    /*
-    val f = ir.Compile(
-        "global", ir.RegionValueRep[Long](child.typ.globalType),
-		"rvRow",  ir.RegionValueRep[Long](child.typ.rvRowType),
+    val prev = child.execute(hc)
+
+    val localGlobals = prev.globals
+    val sas = typ.colType
+    val ec = typ.colEC
+	//
+	// Initialize a region containing the globals
+	//
+	val colRegion = Region()
+	val rvb = new RegionValueBuilder(colRegion)
+	rvb.start(typ.globalType)
+	rvb.addAnnotation(typ.globalType, localGlobals)
+	val vaStartOffset = colRegion.size
+	
+    val predCompiledFunc = ir.Compile(
+		"global", ir.RegionValueRep[Long](child.typ.globalType),
+        "sa",     ir.RegionValueRep[Long](child.typ.rowType),
 		ir.RegionValueRep[Boolean](TBoolean()),
-		pred)
-	kmv.filterSamples((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
-	 */
+		pred
+    )
+	//
+	// Hmm ... is this going to do a separate reduction for each column/sample ?
+	// Won't that be slow in the distributed case ?
+	//
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, prev, ec)
+
+    val p = (sa: Annotation, i: Int) => {
+      sampleAggregationOption.foreach(f => f.apply(i))
+      ec.setAll(localGlobals, sa)
+      colRegion.truncate(vaStartOffset)
+      val colRVb = new RegionValueBuilder(colRegion)
+      colRVb.start = vaStartOffset
+      colRVb.start(typ.colType)
+      colRVb.addAnnotation(typ.colType, sa)
+      predCompiledFunc()(colRegion, 0, false, vaStartOffset, false) == true
+    }
+    prev.filterSamples(p)
   }
 }
 

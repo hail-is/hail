@@ -22,6 +22,11 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
 
   def capacity: Long = mem.length
 
+  def truncate(smallerSize: Long): Unit = {
+    assert(smallerSize <= end)
+    end = smallerSize
+  }
+
   def copyFrom(other: Region, readStart: Long, writeStart: Long, n: Long) {
     assert(size <= capacity)
     assert(other.size <= other.capacity)
