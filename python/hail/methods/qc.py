@@ -2,7 +2,7 @@ from hail.typecheck import *
 from hail.utils.java import Env
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from .misc import require_biallelic, require_variant
+from .misc import require_biallelic, require_variant, require_string_id
 
 
 @typecheck(dataset=MatrixTable, name=str)
@@ -278,6 +278,8 @@ def concordance(left, right):
 
     """
 
+    require_string_id(left, 'concordance, left')
+    require_string_id(right, 'concordance, right')
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 

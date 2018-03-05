@@ -123,21 +123,27 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None):
         i._ast.to_hql(), j._ast.to_hql(), keep, joption(tie_breaker_hql)))
 
 
+def require_string_id(dataset: MatrixTable, method: str):
+    if not len(dataset.col_key) == 1 or dataset[next(iter(dataset.col_key))].dtype != hl.tstr:
+        raise ValueError(f"Method '{method}' requires 1 column key of type 'str', found "
+                         f"{list(str(x.dtype) for x in dataset.col_key.values())}")
+
+
 def require_variant(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles'] or
             not isinstance(dataset['locus'].dtype, tlocus) or
             not dataset['alleles'].dtype == tarray(tstr)):
-        raise TypeError("Method '{}' requires row keys 'locus' (type 'locus<>') and "
-                        "'alleles' (type 'array<str>')\n"
-                        "  Found:{}".format(method, ''.join(
+        raise ValueError("Method '{}' requires row keys 'locus' (type 'locus<>') and "
+                         "'alleles' (type 'array<str>')\n"
+                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
 
 def require_locus(dataset, method):
     if (len(dataset.partition_key) != 1 or
             not isinstance(dataset.partition_key[0].dtype, tlocus)):
-        raise TypeError("Method '{}' requires partition key of type Locus.\n"
-                        "  Found:{}".format(method, ''.join(
+        raise ValueError("Method '{}' requires partition key of type Locus.\n"
+                         "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
 

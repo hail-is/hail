@@ -596,7 +596,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def requireUniqueSamples(method: String) {
     val dups = stringSampleIds.counter().filter(_._2 > 1).toArray
     if (dups.nonEmpty)
-      fatal(s"Method '$method' does not support duplicate sample IDs. Duplicates:" +
+      fatal(s"Method '$method' does not support duplicate column keys. Duplicates:" +
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
