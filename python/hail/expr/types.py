@@ -35,7 +35,7 @@ def dtype(type_str):
 
     Notes
     -----
-    This function is able to reverse ``str(t)`` on a :class:`.Type`.
+    This function is able to reverse ``str(t)`` on a :class:`.HailType`.
 
     The grammar is defined as follows:
 
@@ -70,20 +70,20 @@ def dtype(type_str):
 
     Returns
     -------
-    :class:`.Type`
+    :class:`.HailType`
     """
     tree = type_grammar.parse(type_str)
     return type_node_visitor.visit(tree)
 
 
-class Type(object):
+class HailType(object):
     """
     Hail type superclass.
     """
 
     def __init__(self):
         self._cached_jtype = None
-        super(Type, self).__init__()
+        super(HailType, self).__init__()
 
     def __repr__(self):
         s = str(self).replace("'", "\\'")
@@ -100,7 +100,7 @@ class Type(object):
         return
 
     def __eq__(self, other):
-        return isinstance(other, Type) and self._eq(other)
+        return isinstance(other, HailType) and self._eq(other)
 
     @abc.abstractmethod
     def __str__(self):
@@ -172,10 +172,10 @@ class Type(object):
         return x
 
 
-hail_type = oneof(Type, transformed((str, dtype)))
+hail_type = oneof(HailType, transformed((str, dtype)))
 
 
-class _tint32(Type):
+class _tint32(HailType):
     """Hail type for signed 32-bit integers.
 
     Their values can range from :math:`-2^{31}` to :math:`2^{31} - 1`
@@ -216,7 +216,7 @@ class _tint32(Type):
         return (1 << 31) - 1
 
 
-class _tint64(Type):
+class _tint64(HailType):
     """Hail type for signed 64-bit integers.
 
     Their values can range from :math:`-2^{63}` to :math:`2^{63} - 1`.
@@ -253,7 +253,7 @@ class _tint64(Type):
         return (1 << 63) - 1
 
 
-class _tfloat32(Type):
+class _tfloat32(HailType):
     """Hail type for 32-bit floating point numbers.
 
     In Python, these are represented as :obj:`float`.
@@ -289,7 +289,7 @@ class _tfloat32(Type):
         return float(x)
 
 
-class _tfloat64(Type):
+class _tfloat64(HailType):
     """Hail type for 64-bit floating point numbers.
 
     In Python, these are represented as :obj:`float`.
@@ -320,7 +320,7 @@ class _tfloat64(Type):
     def _convert_from_json(self, x):
         return float(x)
 
-class _tstr(Type):
+class _tstr(HailType):
     """Hail type for text strings.
 
     In Python, these are represented as strings.
@@ -347,7 +347,7 @@ class _tstr(Type):
         return isinstance(other, _tstr)
 
 
-class _tbool(Type):
+class _tbool(HailType):
     """Hail type for Boolean (``True`` or ``False``) values.
 
     In Python, these are represented as :obj:`bool`.
@@ -374,7 +374,7 @@ class _tbool(Type):
         return isinstance(other, _tbool)
 
 
-class tarray(Type):
+class tarray(HailType):
     """Hail type for variable-length arrays of elements.
 
     In Python, these are represented as :obj:`list`.
@@ -386,7 +386,7 @@ class tarray(Type):
 
     Parameters
     ----------
-    element_type : :class:`.Type`
+    element_type : :class:`.HailType`
         Element type of array.
     """
 
@@ -402,7 +402,7 @@ class tarray(Type):
 
         Returns
         -------
-        :class:`.Type`
+        :class:`.HailType`
             Element type.
         """
         return self._element_type
@@ -447,7 +447,7 @@ class tarray(Type):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
 
-class tset(Type):
+class tset(HailType):
     """Hail type for collections of distinct elements.
 
     In Python, these are represented as :obj:`set`.
@@ -459,7 +459,7 @@ class tset(Type):
 
     Parameters
     ----------
-    element_type : :class:`.Type`
+    element_type : :class:`.HailType`
         Element type of set.
     """
 
@@ -475,7 +475,7 @@ class tset(Type):
 
         Returns
         -------
-        :class:`.Type`
+        :class:`.HailType`
             Element type.
         """
         return self._element_type
@@ -519,7 +519,7 @@ class tset(Type):
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
-class tdict(Type):
+class tdict(HailType):
     """Hail type for key-value maps.
 
     In Python, these are represented as :obj:`dict`.
@@ -531,9 +531,9 @@ class tdict(Type):
 
     Parameters
     ----------
-    key_type: :class:`.Type`
+    key_type: :class:`.HailType`
         Key type.
-    value_type: :class:`.Type`
+    value_type: :class:`.HailType`
         Value type.
     """
 
@@ -551,7 +551,7 @@ class tdict(Type):
 
         Returns
         -------
-        :class:`.Type`
+        :class:`.HailType`
             Key type.
         """
         return self._key_type
@@ -562,7 +562,7 @@ class tdict(Type):
 
         Returns
         -------
-        :class:`.Type`
+        :class:`.HailType`
             Value type.
         """
         return self._value_type
@@ -615,14 +615,14 @@ class tdict(Type):
                  'value':self.value_type._convert_to_json(v)} for k, v in x.items()]
 
 
-class tstruct(Type, Mapping):
+class tstruct(HailType, Mapping):
     """Hail type for structured groups of heterogeneous fields.
 
     In Python, these are represented as :class:`.Struct`.
 
     Parameters
     ----------
-    field_types : keyword args of :class:`.Type`
+    field_types : keyword args of :class:`.HailType`
         Fields.
     """
 
@@ -723,14 +723,14 @@ class tstruct(Type, Mapping):
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
-class ttuple(Type):
+class ttuple(HailType):
     """Hail type for tuples.
 
     In Python, these are represented as :obj:`tuple`.
 
     Parameters
     ----------
-    types: varargs of :class:`.Type`
+    types: varargs of :class:`.HailType`
         Element types.
     """
 
@@ -747,7 +747,7 @@ class ttuple(Type):
 
         Returns
         -------
-        :obj:`tuple` of :class:`.Type`
+        :obj:`tuple` of :class:`.HailType`
         """
         return self._types
 
@@ -804,7 +804,7 @@ class ttuple(Type):
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
-class _tcall(Type):
+class _tcall(HailType):
     """Hail type for a diploid genotype.
 
     In Python, these are represented by :class:`.Call`.
@@ -846,7 +846,7 @@ class _tcall(Type):
         return str(x)
 
 
-class tlocus(Type):
+class tlocus(HailType):
     """Hail type for a genomic coordinate with a contig and a position.
 
     In Python, these are represented by :class:`.Locus`.
@@ -914,7 +914,7 @@ class tlocus(Type):
         return {'contig': x.contig, 'position': x.position}
 
 
-class tinterval(Type):
+class tinterval(HailType):
     """Hail type for intervals of ordered values.
 
     In Python, these are represented by :class:`.Interval`.
@@ -925,7 +925,7 @@ class tinterval(Type):
 
     Parameters
     ----------
-    point_type: :class:`.Type`
+    point_type: :class:`.HailType`
         Interval point type.
     """
 
@@ -941,7 +941,7 @@ class tinterval(Type):
 
         Returns
         -------
-        :class:`.Type`
+        :class:`.HailType`
             Interval point type.
         """
         return self._point_type
@@ -1051,16 +1051,16 @@ _numeric_types = {tint32, tint64, tfloat32, tfloat64}
 _primitive_types = _numeric_types.union({tbool, tstr})
 
 
-@typecheck(t=Type)
+@typecheck(t=HailType)
 def is_numeric(t):
     return t in _numeric_types
 
 
-@typecheck(t=Type)
+@typecheck(t=HailType)
 def is_primitive(t):
     return t in _primitive_types
 
-@typecheck(t=Type)
+@typecheck(t=HailType)
 def is_container(t):
     return (isinstance(t, tarray)
             or isinstance(t, tset)
@@ -1076,7 +1076,7 @@ _old_printer = pprint.PrettyPrinter
 
 class TypePrettyPrinter(pprint.PrettyPrinter):
     def _format(self, object, stream, indent, allowance, context, level):
-        if isinstance(object, Type):
+        if isinstance(object, HailType):
             stream.write(object.pretty(self._indent_per_level))
         else:
             return _old_printer._format(self, object, stream, indent, allowance, context, level)

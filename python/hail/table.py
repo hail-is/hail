@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 import hail as hl
 from hail.expr.expressions import *
-from hail.expr.ast import *
+from hail.expr.expr_ast import *
 from hail.expr.types import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList
@@ -53,9 +53,9 @@ class TableTemplate(object):
         self._jt = jt
 
         self._globals = None
-        self._global_type = Type._from_java(self._jt.globalSignature())
+        self._global_type = HailType._from_java(self._jt.globalSignature())
         assert (isinstance(self._global_type, tstruct))
-        self._row_type = Type._from_java(self._jt.signature())
+        self._row_type = HailType._from_java(self._jt.signature())
         assert (isinstance(self._row_type, tstruct))
         self._num_fields = None
         self._key = None
@@ -345,7 +345,7 @@ class Table(TableTemplate):
     @property
     def schema(self):
         if self._schema is None:
-            self._schema = Type._from_java(self._jt.signature())
+            self._schema = HailType._from_java(self._jt.signature())
             assert (isinstance(self._schema, tstruct))
         return self._schema
 

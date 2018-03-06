@@ -30,11 +30,11 @@ class KinshipMatrix(object):
         """
         Returns the signature of the key indexing this matrix.
 
-        :rtype: :class:`.Type`
+        :rtype: :class:`.HailType`
         """
-        from hail.expr import Type
+        from hail.expr import HailType
         if self._key_schema is None:
-            self._key_schema = Type._from_java(self._jkm.sampleSignature())
+            self._key_schema = HailType._from_java(self._jkm.sampleSignature())
         return self._key_schema
 
     def sample_list(self):

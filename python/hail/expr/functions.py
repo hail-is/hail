@@ -1,6 +1,6 @@
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
-from hail.expr.ast import *
+from hail.expr.expr_ast import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.utils import LinkedList
@@ -33,7 +33,7 @@ def null(t):
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.Type`
+    t : :obj:`str` or :class:`.HailType`
         Type of the missing expression.
 
     Returns
@@ -2783,7 +2783,7 @@ def empty_set(t):
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.Type`
+    t : :obj:`str` or :class:`.HailType`
         Type of the set elements.
 
     Returns
@@ -2836,7 +2836,7 @@ def empty_array(t):
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.Type`
+    t : :obj:`str` or :class:`.HailType`
         Type of the array elements.
 
     Returns
@@ -2859,9 +2859,9 @@ def empty_dict(key_type, value_type):
 
     Parameters
     ----------
-    key_type : :obj:`str` or :class:`.Type`
+    key_type : :obj:`str` or :class:`.HailType`
         Type of the keys.
-    value_type : :obj:`str` or :class:`.Type`
+    value_type : :obj:`str` or :class:`.HailType`
         Type of the values.
     Returns
     -------

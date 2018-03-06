@@ -937,7 +937,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     ... `fN` (0-indexed).
 
     The `types` parameter allows the user to pass the types of fields in the
-    table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.Type` values.
+    table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.HailType` values.
     See the examples above for a standard usage. Additionally, this option can
     be used to override type imputation. For example, if the field
     ``Chromosome`` only contains the values ``1`` through ``22``, it will be
@@ -965,7 +965,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         Field delimiter regex.
     missing: :obj:`str`
         Identifier to be treated as missing.
-    types: :obj:`dict` mapping :obj:`str` to :class:`.Type`
+    types: :obj:`dict` mapping :obj:`str` to :class:`.HailType`
         Dictionary defining field types.
     quote: :obj:`str` or :obj:`None`
         Quote character.
@@ -1113,12 +1113,12 @@ def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, mis
     ----------
     paths: :obj:`str` or :obj:`list` of :obj:`str`
         Files to import.
-    row_fields: :obj:`dict` of :obj:`str` to :class:`.Type`
+    row_fields: :obj:`dict` of :obj:`str` to :class:`.HailType`
         Columns to take as row fields in the MatrixTable. They must be located
         before all entry columns.
     row_key: :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s). If empty, creates an index `row_id` to use as key.
-    entry_type: :class:`.Type`
+    entry_type: :class:`.HailType`
         Type of entries in matrix table. Must be one of: :py:data:`.tint32`,
         :py:data:`.tint64`, :py:data:`.tfloat32`, :py:data:`.tfloat64`, or
         :py:data:`.tstr`. Default: :py:data:`.tint32`.

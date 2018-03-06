@@ -49,5 +49,8 @@ __all__ = ['Indices',
            'expr_dict',
            'expr_struct',
            'expr_tuple',
-           'expr_interval'
+           'expr_interval',
+           'FieldRefArgs',
+           'FieldRef',
+           'NamedExprs'
            ]
