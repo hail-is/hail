@@ -1,14 +1,19 @@
 package is.hail.methods
 
+import breeze.linalg.{DenseMatrix => BDM}
 import breeze.linalg.{Vector => BVector}
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
+import is.hail.linalg.BlockMatrix
+import is.hail.stats.RegressionUtils
+import is.hail.table.Table
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {
@@ -215,8 +220,8 @@ class LDPruneSuite extends SparkSuite {
 
   object Spec extends Properties("LDPrune") {
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-      v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
-      v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
+    v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
+    v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
     ) yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
@@ -307,4 +312,66 @@ class LDPruneSuite extends SparkSuite {
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countRows() == filteredVDS.countRows())
   }
+
+  @Test def testGetIntervals() {
+    val rows = List[(Long, String, Int)](
+      (0, "X", 5),
+      (1, "X", 7),
+      (2, "X", 13),
+      (3, "X", 14),
+      (4, "X", 65),
+      (5, "X", 70),
+      (6, "X", 73),
+      (7, "Y", 74),
+      (8, "Y", 75),
+      (9, "Y", 200),
+      (10, "Y", 300)
+    ).map { case (x, y, z) => Row(x, y, z) }.toIndexedSeq
+    val tbl = Table.parallelize(hc, rows, TStruct("index" -> TInt64(), "chromosome" -> TString(), "position" -> TInt32()),
+      IndexedSeq[String](), None)
+    val intervals = LDPruneSparseEntriesTable.windows(tbl, 10)
+    val expected = List((7, 8), (4, 6), (0, 3))
+    assert(intervals == expected)
+  }
+
+  @Test def testSparseEntriesTable() {
+    val tbl = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz")).rowsTable().index()
+      .annotate("chromosome=row.locus.contig, position=row.locus.position")
+      .select("row.index", "row.chromosome", "row.position")
+
+    // need requiredness to match in order to join tables
+    val requiredRowType = TStruct(tbl.signature.required,
+      tbl.signature.fields.map(f => (f.name, f.typ.setRequired(true))): _*)
+    val tblRequired = tbl.copy(signature = requiredRowType).keyBy("index")
+
+    val window = 100000
+    val numRows = tbl.count().toInt
+    val numEntries = scala.math.pow(numRows, 2).toInt
+    val lm = new BDM[Double](numRows, numRows, (0 until numEntries).map(_.toDouble).toArray)
+    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize = 10)
+
+    val sparseEntriesTable = LDPruneSparseEntriesTable.entriesTable(hc, tbl, bm, window)
+
+    val matchVariantToIndices = (t: Table) => {
+      t.joinOn(tblRequired, Map("index" -> "i"))
+        .rename(Map("chromosome" -> "iChr", "position" -> "iPos"), Map.empty[String, String])
+        .joinOn(tblRequired, Map("index" -> "j"))
+        .rename(Map("chromosome" -> "jChr", "position" -> "jPos"), Map.empty[String, String])
+    }
+
+    val removeDuplicate = "(row.iPos<row.jPos)"
+    val closeVariants = s"(row.iChr==row.jChr) && (abs(row.iPos - row.jPos) <= $window)"
+
+    val filteredSparseEntriesTable = matchVariantToIndices(sparseEntriesTable)
+      .filter(s"($closeVariants) && $removeDuplicate", keep = true)
+
+    val fullEntriesTable = bm.entriesTable(hc)
+
+    val filteredFullEntriesTable = matchVariantToIndices(fullEntriesTable)
+      .filter(s"($closeVariants) && $removeDuplicate", keep = true)
+
+    // filter of sparse block matrix's entries table should give same results as filtering complete entries table
+    assert(filteredSparseEntriesTable.count() == filteredFullEntriesTable.count())
+  }
+
 }

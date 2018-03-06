@@ -638,6 +638,16 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     new Table(hc, entriesRDD, rvRowType)
   }
+
+  def sparsify(keep: Array[Int]): M = {
+    val sB = this.blocks.mapPartitionsWithIndex((i, it) => if (keep.contains(i)) {
+      it
+    } else {
+      Iterator.empty
+    },
+      preservesPartitioning = true)
+    return new BlockMatrix(sB, this.blockSize, this.nRows, this.nCols)
+  }
 }
 
 case class BlockMatrixFilterRDDPartition(index: Int,

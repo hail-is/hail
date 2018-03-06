@@ -7,7 +7,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   private def assertLayout(hg: GridPartitioner, layout: ((Int, Int), Int)*) {
     layout.foreach { case ((i, j), p) =>
-      assert(hg.coordinatesBlock(i, j) === p, s"at coordinates ${(i,j)}")
+      assert(hg.coordinatesBlock(i, j) === p, s"at coordinates ${ (i, j) }")
     }
     layout.foreach { case ((i, j), p) =>
       assert(hg.blockCoordinates(p) === (i, j), s"at pid $p")
@@ -77,7 +77,7 @@ class GridPartitionerSuite extends TestNGSuite {
       assert(gp.bandedBlocks(1000, 1000) sameElements (0 until 12))
     }
   }
-  
+
   @Test
   def rectangularBlocksTest() {
     // 0  3  6  9
@@ -94,7 +94,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
       assert(gp.rectangularBlocks(9, 10, 9, 10) sameElements Array(0, 1, 3, 4))
       assert(gp.rectangularBlocks(Array(Array(9, 10, 9, 10))) sameElements Array(0, 1, 3, 4))
-      
+
       assert(gp.rectangularBlocks(10, 19, 10, 29) sameElements Array(4, 7))
 
       assert(gp.rectangularBlocks(Array(
@@ -103,5 +103,15 @@ class GridPartitionerSuite extends TestNGSuite {
 
       assert(gp.rectangularBlocks(0, 20, 0, 30) sameElements (0 until 12))
     }
+  }
+
+  @Test
+  def triangularBlocksTest() {
+    val gp = GridPartitioner(blockSize = 10, nRows = 40, nCols = 40)
+
+    val intervals: Array[Array[Long]] = Array(Array(0, 3), Array(4, 9), Array(10, 11),
+      Array(12, 20), Array(23, 30), Array(31, 33), Array(35, 39))
+
+    assert(gp.triangularBlocks(intervals).toSet sameElements Array(0, 5, 9, 10, 14, 15).toSet)
   }
 }

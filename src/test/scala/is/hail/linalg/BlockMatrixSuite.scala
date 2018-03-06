@@ -732,7 +732,7 @@ class BlockMatrixSuite extends SparkSuite {
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
   }
-  
+
   @Test
   def writeSubsetTest() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
@@ -786,13 +786,23 @@ class BlockMatrixSuite extends SparkSuite {
       assert(entriesTable.signature === expectedSignature)
     }
   }
-  
+
+  @Test
+  def testSparsify(): Unit = {
+    val data = (0 until 50).map(_.toDouble).toArray
+    val lm = new BDM[Double](5, 10, data)
+    val bm = toBM(lm, blockSize = 2)
+
+    assert(bm.sparsify(Array(0, 1, 6)).entriesTable(hc).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
+      Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
+  }
+
   @Test
   def testPowSqrt(): Unit = {
     val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
     val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize = 2)
     val expected = new BDM[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
-    
+
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
     TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
