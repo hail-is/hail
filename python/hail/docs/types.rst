@@ -9,7 +9,7 @@ know how to manipulate the types themselves, but some operations like
 
 Constructing types can be done either by using the type objects and classes
 (prefixed by "t") or by parsing from strings. As an example, we will construct
-a :class:`.tstruct` in each fashion:
+a :class:`.tstruct` with each option:
 
 .. doctest::
 
