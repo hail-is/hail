@@ -982,13 +982,17 @@ class tinterval(Type):
         if not isinstance(self.point_type, tlocus):
             raise NotImplementedError(self.point_type)
         return genetics.Interval(self.point_type._convert_from_json_na(x['start']),
-                                 self.point_type._convert_from_json_na(x['end']))
+                                 self.point_type._convert_from_json_na(x['end']),
+                                 x['includeStart'],
+                                 x['includeEnd'])
 
     def _convert_to_json(self, x):
         if not isinstance(self.point_type, tlocus):
             raise NotImplementedError(self.point_type)
         return {'start': self.point_type._convert_to_json_na(x.start),
-                'end': self.point_type._convert_to_json_na(x.end)}
+                'end': self.point_type._convert_to_json_na(x.end),
+                'includeStart': True,
+                'includeEnd': False}
 
 
 tint32 = _tint32()
