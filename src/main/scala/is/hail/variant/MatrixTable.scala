@@ -1377,7 +1377,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       var i = 0
       while (i < localNCols) {
         val entry = entries(i)
-        ec.set(2, localColValuesBc)
+        ec.set(2, localColValuesBc.value(i))
         ec.set(3, entry)
         val results = f()
         var j = 0
