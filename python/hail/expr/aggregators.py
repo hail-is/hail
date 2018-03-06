@@ -1,6 +1,6 @@
 from hail.typecheck import *
 from hail.expr.expressions import *
-from hail.expr.ast import *
+from hail.expr.expr_ast import *
 from hail.expr.types import *
 
 

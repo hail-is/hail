@@ -48,7 +48,7 @@ a :class:`.tstruct` with each option:
     tcall
     tstruct
 
-.. autoclass:: Type
+.. autoclass:: HailType
 .. autofunction:: dtype
 .. autodata:: hail.expr.types.tint
 .. autodata:: hail.expr.types.tint32

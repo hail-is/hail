@@ -2,7 +2,7 @@ import itertools
 
 import hail
 from hail.expr import expressions
-from hail.expr.ast import *
+from hail.expr.expr_ast import *
 from hail.expr.types import *
 from hail.genetics import Locus, Interval, Call
 from hail.typecheck import *

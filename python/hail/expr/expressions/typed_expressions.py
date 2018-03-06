@@ -1,6 +1,6 @@
 from collections import Mapping, Sequence
 
-from hail.expr.ast import *
+from hail.expr.expr_ast import *
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \
     unify_all, Indices, Join, Aggregation, unify_types
 from hail.expr.expressions.expression_typecheck import *

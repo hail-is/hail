@@ -485,7 +485,6 @@ def typecheck_method(**checkers):
 
     return decorator(_typecheck)
 
-
 def typecheck(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
 

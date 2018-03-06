@@ -1,6 +1,6 @@
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
-from hail.expr.ast import *
+from hail.expr.expr_ast import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.utils import LinkedList

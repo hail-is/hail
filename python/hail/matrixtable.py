@@ -1,7 +1,7 @@
 import hail
 from hail.expr.expressions import *
 from hail.typecheck import *
-from hail.expr.ast import Select, Reference
+from hail.expr.expr_ast import Select, Reference
 from hail.expr.types import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, info, jiterable_to_list
@@ -1365,7 +1365,7 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_rows(False)
 
-        .. include:: ../_templates/experimental.rst
+        .. include:: _templates/experimental.rst
 
         Returns
         -------
@@ -1380,7 +1380,7 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_cols(False)
 
-        .. include:: ../_templates/experimental.rst
+        .. include:: _templates/experimental.rst
 
         Returns
         -------
@@ -2708,7 +2708,7 @@ class MatrixTable(object):
     def from_rows_table(cls, table: Table) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
 
-        .. include:: ../_templates/experimental.rst
+        .. include:: _templates/experimental.rst
 
         Examples
         --------

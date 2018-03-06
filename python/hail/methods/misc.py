@@ -5,7 +5,7 @@ from hail.utils import wrap_to_list
 from hail.genetics import Interval
 from hail.typecheck import *
 from hail.expr.expressions import *
-from hail.expr.ast import Reference
+from hail.expr.expr_ast import Reference
 from hail.expr.types import *
 
 
