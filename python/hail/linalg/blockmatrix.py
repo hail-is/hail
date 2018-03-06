@@ -128,15 +128,10 @@ class BlockMatrix(object):
             path = new_temp_file(suffix="bm")
         if not block_size:
             block_size = cls.default_block_size()
-        source = entry_expr._indices.source
-        if not isinstance(source, MatrixTable):
-            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-        mt = source
-        base, _ = mt._process_joins(entry_expr)
-        analyze('from_entry_expr', entry_expr, mt._entry_indices)
 
-        base._jvds.writeBlockMatrix(path, to_expr(entry_expr)._ast.to_hql(), block_size)
+        mt = entry_expr._indices.source
+
+        mt._jvds.writeBlockMatrix(path, entry_expr, block_size)
         return cls.read(path)
 
     @classmethod

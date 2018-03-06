@@ -155,7 +155,7 @@ class VSMSuite extends SparkSuite {
         .indexCols("colIdx")
       
       mt.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1.0")
-        .writeBlockMatrix(dirname, "g.x", blockSize)
+        .writeBlockMatrix(dirname, "x", blockSize)
 
       val data = mt.entriesTable()
           .select("x = row.GT.nNonRefAlleles() + row.rowIdx + row.colIdx + 1.0")

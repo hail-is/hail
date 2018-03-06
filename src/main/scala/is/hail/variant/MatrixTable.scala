@@ -3044,17 +3044,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
   }
 
-  def writeBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
+  def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rvd.getNumPartitions + 1)
-
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rowType),
-      "sa" -> (2, colType),
-      "g" -> (3, entryType)))
-    val f = RegressionUtils.parseExprAsDouble(expr, ec)
-    ec.set(0, globals)
 
     val nRows = partStarts.last
     val localNCols = numCols
@@ -3075,7 +3067,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockCount =
       new WriteBlocksRDD(dirname, rvd, sparkContext, matrixType,
-        sparkContext.broadcast(colValues), partStarts, f, ec, gp)
+        sparkContext.broadcast(colValues), partStarts, entryField, gp)
         .reduce(_ + _)
 
     assert(blockCount == gp.numPartitions)
