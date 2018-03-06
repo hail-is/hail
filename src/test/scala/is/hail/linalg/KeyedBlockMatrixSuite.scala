@@ -21,7 +21,7 @@ class KeyedBlockMatrixSuite extends SparkSuite {
       case _ => assert(false)
     }
     
-    assert(left.bm.toLocalMatrix() === right.bm.toLocalMatrix())
+    assert(left.bm.toBreezeMatrix() === right.bm.toBreezeMatrix())
   }
 
   @Test
@@ -29,7 +29,7 @@ class KeyedBlockMatrixSuite extends SparkSuite {
     val nRows = 9
     val nCols = 10
     val lm = Gen.denseMatrix[Double](9, 10).sample()
-    val bm = BlockMatrix.from(sc, lm, 3)    
+    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, 3)    
     val rk = new Keys(TInt32(), (0 until nRows).toArray)
     val ck = new Keys(TString(), (0 until nCols).map(_.toString).toArray)
     
@@ -45,7 +45,7 @@ class KeyedBlockMatrixSuite extends SparkSuite {
   }
 
   def fromLocal(lm: BDM[Double], blockSize: Int = 3): KeyedBlockMatrix = {
-    val bm = BlockMatrix.from(sc, lm, blockSize)
+    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
     val rowKeys = Some(new Keys(TInt32Required, (0 until lm.rows).toArray))
     val colKeys = Some(new Keys(TString(), (0 until lm.cols).map(_.toString).toArray))
     new KeyedBlockMatrix(bm, rowKeys, colKeys)

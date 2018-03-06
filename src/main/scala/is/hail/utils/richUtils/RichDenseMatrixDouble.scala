@@ -30,9 +30,16 @@ object RichDenseMatrixDouble {
     hc.hadoopConf.readDataFile(path)(is => read(is, bufferSpec))
   }
 
-  def from(nRows: Int, nCols: Int, data: Array[Double], isTranspose: Boolean = false): DenseMatrix[Double] = {
-    new DenseMatrix[Double](rows = nRows, cols = nCols, data = data,
-      offset = 0, majorStride = nCols, isTranspose = isTranspose)
+  def apply(nRows: Int, nCols: Int, data: Array[Double], isTranspose: Boolean = false): DenseMatrix[Double] = {
+    require(data.length == nRows * nCols)
+    
+    new DenseMatrix[Double](
+      rows = nRows,
+      cols = nCols,
+      data = data,
+      offset = 0,
+      majorStride = if (isTranspose) nCols else nRows,
+      isTranspose = isTranspose)
   }
 }
 

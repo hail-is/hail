@@ -174,7 +174,7 @@ object PCRelate {
       val a = ols.estimateRegressionParameters()
       IndexedRow(i, Vectors.dense(a))
     }
-    BlockMatrix.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.cols + 1), blockSize)
+    BlockMatrix.fromIRM(new IndexedRowMatrix(rdd, g.numRows(), pcs.cols + 1), blockSize)
   }
 
   def k1(k2: M, k0: M): M = {
@@ -205,7 +205,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs).cache()
-    val blockedG = BlockMatrix.from(g, blockSize).cache()
+    val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
 
     val variance =
       BlockMatrix.map2 { (g, mu) =>

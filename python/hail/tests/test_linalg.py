@@ -19,5 +19,5 @@ class Tests(unittest.TestCase):
         file = utils.new_temp_file()
 
         ds = self.get_dataset()
-        bm = BlockMatrix.from_matrix_table(hl.or_else(ds.GT.n_alt_alleles(), 0), block_size=32)
+        bm = BlockMatrix.from_entry_expr(hl.or_else(ds.GT.n_alt_alleles(), 0), block_size=32)
         bm.write(file)

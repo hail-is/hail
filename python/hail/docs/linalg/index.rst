@@ -1,4 +1,4 @@
-Linalg
+linalg
 ======
 
 **File formats and interface for numeric matrices are experimental**.
@@ -8,10 +8,13 @@ to maintain compatibility.
 .. toctree::
     :maxdepth: 2
 
+.. currentmodule:: hail.linalg
+
+.. rubric:: Classes
+
 .. autosummary::
     :nosignatures:
+    :toctree: ./
     :template: class.rst
 
-    hail.linalg.BlockMatrix
-
-.. autoclass:: hail.linalg.BlockMatrix
+    BlockMatrix
