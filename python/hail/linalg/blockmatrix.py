@@ -21,6 +21,9 @@ class BlockMatrix(object):
     or type :obj:`int` or :obj:`float`. Block matrix operands must have the same
     shape.
 
+    Use ``**`` for element-wise exponentiation of a block matrix using a power
+    of type :obj:`int` or :obj:`float`.
+
     Use ``@`` for matrix multiplication of block matrices.
 
     Blocks are square with side length a common block size.
@@ -477,6 +480,30 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return BlockMatrix(self._jbm.multiply(b._jbm))
+
+    @typecheck_method(x=numeric)
+    def __pow__(self, x):
+        """Element-wise exponentiation: a ** x.
+
+        Parameters
+        ----------
+        x: :obj:`int` or :obj:`float`
+            Exponent.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return BlockMatrix(self._jbm.pow(float(x)))
+
+    def sqrt(self):
+        """Element-wise square root.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return BlockMatrix(self._jbm.sqrt())
 
     def entries(self):
         """Returns a table with the coordinates and numeric value of each block matrix entry.

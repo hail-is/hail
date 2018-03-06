@@ -3,6 +3,7 @@ package is.hail.linalg
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, _}
+import breeze.numerics.{sqrt => breezeSqrt, pow => breezePow}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
@@ -281,7 +282,13 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def reverseScalarDivide(i: Double): M =
     blockMap(i /:/ _)
-  
+
+  def pow(exponent: Double): M =
+    blockMap(breezePow(_, exponent))
+
+  def sqrt(): M =
+    blockMap(breezeSqrt(_))
+
   def vectorAddToEveryColumn(v: Array[Double]): M = {
     require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
