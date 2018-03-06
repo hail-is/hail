@@ -12,7 +12,7 @@ def _func(name, ret_type, *args):
     return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins, refs)
 
 
-@typecheck(t=Type)
+@typecheck(t=hail_type)
 def null(t):
     """Creates an expression representing a missing value of a specified type.
 
@@ -20,7 +20,10 @@ def null(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.null(hl.tstr))
+        >>> hl.eval_expr(hl.null(hl.tarray(hl.tstr)))
+        None
+
+        >>> hl.eval_expr(hl.null('array<str>'))
         None
 
     Notes
@@ -30,7 +33,7 @@ def null(t):
 
     Parameters
     ----------
-    t : :class:`.Type`
+    t : :obj:`str` or :class:`.Type`
         Type of the missing expression.
 
     Returns
@@ -40,6 +43,7 @@ def null(t):
     """
     return construct_expr(Literal('NA: {}'.format(t._jtype.parsableString())), t)
 
+@typecheck(x=anytype, dtype=nullable(hail_type))
 def literal(x, dtype=None):
     """Captures and broadcasts a Python variable or object as an expression.
 
@@ -2766,7 +2770,7 @@ def set(collection):
     return collection._method("toSet", tset(collection.dtype.element_type))
 
 
-@typecheck(t=Type)
+@typecheck(t=hail_type)
 def empty_set(t):
     """Returns an empty set of elements of a type `t`.
 
@@ -2779,13 +2783,12 @@ def empty_set(t):
 
     Parameters
     ----------
-    t : :class:`.Type`
+    t : :obj:`str` or :class:`.Type`
         Type of the set elements.
 
     Returns
     -------
     :class:`.SetExpression`
-        Empty set of elements of type `t`.
     """
     return filter(lambda x: False, set([null(t)]))
 
@@ -2810,7 +2813,6 @@ def array(collection):
     Returns
     -------
     :class:`.ArrayExpression`
-        Elements as an array.
     """
     if isinstance(collection.dtype, tarray):
         return collection
@@ -2821,7 +2823,7 @@ def array(collection):
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)
 
 
-@typecheck(t=Type)
+@typecheck(t=hail_type)
 def empty_array(t):
     """Returns an empty array of elements of a type `t`.
 
@@ -2834,17 +2836,16 @@ def empty_array(t):
 
     Parameters
     ----------
-    t : :class:`.Type`
+    t : :obj:`str` or :class:`.Type`
         Type of the array elements.
 
     Returns
     -------
     :class:`.ArrayExpression`
-        Empty array of elements of type `t`.
     """
     return filter(lambda x: False, array([null(t)]))
 
-@typecheck(key_type=Type, value_type=Type)
+@typecheck(key_type=hail_type, value_type=hail_type)
 def empty_dict(key_type, value_type):
     """Returns an empty dictionary with key type `key_type` and value type
     `value_type`.
@@ -2858,9 +2859,9 @@ def empty_dict(key_type, value_type):
 
     Parameters
     ----------
-    key_type : :class:`.Type`
+    key_type : :obj:`str` or :class:`.Type`
         Type of the keys.
-    value_type : :class:`.Type`
+    value_type : :obj:`str` or :class:`.Type`
         Type of the values.
     Returns
     -------

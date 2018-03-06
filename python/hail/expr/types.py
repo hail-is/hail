@@ -172,6 +172,9 @@ class Type(object):
         return x
 
 
+hail_type = oneof(Type, transformed((str, dtype)))
+
+
 class _tint32(Type):
     """Hail type for signed 32-bit integers.
 
@@ -387,7 +390,7 @@ class tarray(Type):
         Element type of array.
     """
 
-    @typecheck_method(element_type=Type)
+    @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, False)
         self._element_type = element_type
@@ -460,7 +463,7 @@ class tset(Type):
         Element type of set.
     """
 
-    @typecheck_method(element_type=Type)
+    @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TSet').apply(element_type._jtype, False)
         self._element_type = element_type
@@ -534,7 +537,7 @@ class tdict(Type):
         Value type.
     """
 
-    @typecheck_method(key_type=Type, value_type=Type)
+    @typecheck_method(key_type=hail_type, value_type=hail_type)
     def __init__(self, key_type, value_type):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TDict').apply(
             key_type._jtype, value_type._jtype, False)
@@ -623,7 +626,7 @@ class tstruct(Type, Mapping):
         Fields.
     """
 
-    @typecheck_method(field_types=Type)
+    @typecheck_method(field_types=hail_type)
     def __init__(self, **field_types):
         self._field_types = field_types
         self._fields = tuple(field_types)
@@ -731,7 +734,7 @@ class ttuple(Type):
         Element types.
     """
 
-    @typecheck_method(types=Type)
+    @typecheck_method(types=hail_type)
     def __init__(self, *types):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TTuple').apply(map(lambda t: t._jtype, types),
                                                                                       False)
@@ -926,7 +929,7 @@ class tinterval(Type):
         Interval point type.
     """
 
-    @typecheck_method(point_type=Type)
+    @typecheck_method(point_type=hail_type)
     def __init__(self, point_type):
         self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInterval').apply(self.point_type._jtype, False)
         self._point_type = point_type
@@ -1068,6 +1071,7 @@ def is_container(t):
 import pprint
 
 _old_printer = pprint.PrettyPrinter
+
 
 
 class TypePrettyPrinter(pprint.PrettyPrinter):

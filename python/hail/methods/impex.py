@@ -822,7 +822,7 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
            comment=nullable(str),
            delimiter=str,
            missing=str,
-           types=dictof(str, Type),
+           types=dictof(str, hail_type),
            quote=nullable(char))
 def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
                  comment=None, delimiter="\t", missing="NA", types={}, quote=None):
@@ -984,7 +984,7 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 
 
 @typecheck(paths=oneof(str, listof(str)),
-           row_fields=dictof(str, Type),
+           row_fields=dictof(str, hail_type),
            row_key=oneof(str, listof(str)),
            entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
            missing=str,
