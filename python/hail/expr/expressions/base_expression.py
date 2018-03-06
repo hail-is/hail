@@ -9,7 +9,7 @@ from hail.typecheck import *
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import plural
-
+from typing import *
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):
@@ -789,3 +789,8 @@ class Expression(object):
 
         """
         return hl.eval_expr(self)
+
+
+FieldRef = Union[str, Expression]
+FieldRefArgs = Tuple[FieldRef]
+NamedExprs = Dict[str, Expression]

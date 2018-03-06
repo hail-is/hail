@@ -10,9 +10,6 @@ from hail.table import Table
 import itertools
 from typing import *
 
-FieldRef = Union[str, Expression]
-FieldRefArgs = Tuple[FieldRef]
-NamedExprs = Dict[str, Expression]
 
 class GroupedMatrixTable(object):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
