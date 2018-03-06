@@ -522,36 +522,39 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     assert(totalSize == localNKeys + size1 + size2)
 
-    val merger = (k: Row, r1: Row, r2: Row) => {
-      val result = Array.fill[Any](totalSize)(null)
-
+    def merger(rvb: RegionValueBuilder, rv: RegionValue)(joined: JoinedRegionValue) = {
+      val lrv = joined._1
+      val rrv = joined._2
+      rvb.set(lrv.region)
+      rvb.start(newSignature)
       var i = 0
       while (i < localNKeys) {
-        result(i) = k.get(i)
-        i += 1
+        if (lrv != null)
+          rvb.addField(signature, lrv, keyFieldIdx(i))
+        else
+          rvb.addField(other.signature, rrv, other.keyFieldIdx(i))
       }
-
-      if (r1 != null) {
-        i = 0
-        while (i < size1) {
-          result(localNKeys + i) = r1.get(i)
-          i += 1
-        }
+      i = 0
+      while (i < valueSignature.size) {
+        if (lrv != null)
+          rvb.addField(signature, lrv, valueFieldIdx(i))
+        else
+          rvb.setMissing()
       }
-
-      if (r2 != null) {
-        i = 0
-        while (i < size2) {
-          result(localNKeys + size1 + i) = r2.get(i)
-          i += 1
-        }
+      i = 0
+      while (i < other.valueSignature.size) {
+        if (rrv != null)
+          rvb.addField(other.signature, rrv, other.valueFieldIdx(i))
+        else
+          rvb.setMissing()
       }
-      Row.fromSeq(result)
+      rv.set(rvb.region, rvb.end())
     }
 
-    val rddLeft = keyedRDD()
-    val rddRight = other.keyedRDD()
-
+    val rvb = new RegionValueBuilder()
+    val rv = RegionValue()
+    orvd.orderedJoin(other.rvd, joinType).map(merger(rvb, rv) _)
+    // start here, and maybe move above merger method to JoinedRegionValue
     val joinedRDD = joinType match {
       case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l, r.orNull) }
       case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r) }
