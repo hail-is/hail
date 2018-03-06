@@ -115,10 +115,10 @@ class HailContext(object):
            branching_factor=int,
            tmp_dir=str,
            default_reference=enumeration('GRCh37', 'GRCh38'))
-def init(sc=None, app_name="Hail", master=None, local='local[*]',
+def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference="GRCh37"):
+             default_reference='GRCh37'):
     """Initialize Hail and Spark.
 
     Parameters
@@ -167,7 +167,7 @@ def spark_context():
     return Env.hc().sc
 
 def default_reference():
-    """Return the default reference genome.
+    """Returns the default reference genome ``'GRCh37'``.
 
     Returns
     -------
@@ -176,9 +176,23 @@ def default_reference():
     return Env.hc().default_reference
 
 def get_reference(name):
-    """Return the reference genome corresponding to `name`.
+    """Returns the reference genome corresponding to `name`.
 
-    If `name` is ``'default'``, return the reference from :func:`.default_reference`.
+    Notes
+    -----
+
+    Hail's built-in references are ``'GRCh37'`` and ``GRCh38'``. The contig names
+    and lengths come from the GATK resource bundle:
+    `human_g1k_v37.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__
+    and `Homo_sapiens_assembly38.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
+
+    If ``name='default'``, the value of :func:`.default_reference` is returned.
+
+    Parameters
+    ----------
+    name : :obj:`str`
+        Name of a previously loaded reference genome or one of Hail's built-in
+        references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
 
     Returns
     -------
@@ -186,7 +200,7 @@ def get_reference(name):
     """
     from hail import ReferenceGenome
 
-    if name == "default":
+    if name == 'default':
         return default_reference()
     else:
         return ReferenceGenome._references.get(
