@@ -160,7 +160,7 @@ def eval_expr_typed(expression):
 
     Returns
     -------
-    (any, :class:`.Type`)
+    (any, :class:`.HailType`)
         Result of evaluating `expression`, and its type.
 
     """

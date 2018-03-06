@@ -383,7 +383,7 @@ class Expression(object):
         if (len(sources.keys()) != 0 and next(iter(sources.keys())) != self._indices.source):
             raise FatalError("verify: incompatible sources:\n  {}\n  {}\n  {}".format(sources, self._indices, self))
 
-    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
+    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
     def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join),
                  refs=LinkedList(tuple)):
         self._ast = ast
@@ -531,7 +531,7 @@ class Expression(object):
 
         Returns
         -------
-        :class:`.Type`
+        :class:`.HailType`
             Data type.
         """
         return self._type

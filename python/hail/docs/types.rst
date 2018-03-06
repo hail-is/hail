@@ -29,7 +29,7 @@ a :class:`.tstruct` with each option:
 .. autosummary::
     :nosignatures:
 
-    Type
+    HailType
     dtype
     tint
     tint32

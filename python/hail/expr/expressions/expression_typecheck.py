@@ -1,5 +1,5 @@
 import hail as hl
-from hail.expr.types import Type as HailType
+from hail.expr.types import HailType as HailType
 from hail.expr.expressions import Expression, ExpressionException, to_expr
 from hail.typecheck import TypeChecker, TypecheckFailure, identity, oneof
 from hail.expr.types import is_numeric, is_container

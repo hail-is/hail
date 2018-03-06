@@ -2743,7 +2743,7 @@ typ_to_expr = {
     ttuple: TupleExpression
 }
 
-@typecheck(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
+@typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
 def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join),
                    refs=LinkedList(tuple)):
     if isinstance(type, tarray) and is_numeric(type.element_type):
@@ -2756,7 +2756,7 @@ def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggrega
         raise NotImplementedError(type)
 
 
-@typecheck(name=str, type=Type, indices=Indices, prefix=nullable(str))
+@typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(str))
 def construct_reference(name, type, indices, prefix=None):
     if prefix is not None:
         ast = Select(Reference(prefix, True), name)

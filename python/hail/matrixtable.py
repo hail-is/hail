@@ -1,13 +1,18 @@
 import hail
 from hail.expr.expressions import *
 from hail.typecheck import *
-from hail.expr.ast import *
+from hail.expr.ast import Select, Reference
 from hail.expr.types import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, info, jiterable_to_list
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
 from hail.table import Table
 import itertools
+from typing import *
+
+FieldRef = Union[str, Expression]
+FieldRefArgs = Tuple[FieldRef]
+NamedExprs = Dict[str, Expression]
 
 class GroupedMatrixTable(object):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
@@ -122,8 +127,10 @@ class GroupedMatrixTable(object):
 
 
     @typecheck_method(exprs=oneof(str, Expression),
-                      named_exprs=oneof(str, Expression))
-    def group_rows_by(self, *exprs, **named_exprs):
+                      named_exprs=expr_any)
+    def group_rows_by(self,
+                      *exprs: Tuple[Union[Expression, str]],
+                      **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -182,8 +189,10 @@ class GroupedMatrixTable(object):
         return GroupedMatrixTable(self._parent, row_keys=new_keys)
 
     @typecheck_method(exprs=oneof(str, Expression),
-                      named_exprs=oneof(str, Expression))
-    def group_cols_by(self, *exprs, **named_exprs):
+                      named_exprs=expr_any)
+    def group_cols_by(self,
+                      *exprs: FieldRefArgs,
+                      **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -244,7 +253,7 @@ class GroupedMatrixTable(object):
 
         return GroupedMatrixTable(self._parent, col_keys=new_keys)
 
-    def partition_by(self, *fields):
+    def partition_by(self, *fields: Tuple[str]) -> 'GroupedMatrixTable':
         """Set the partition key.
 
         Parameters
@@ -267,7 +276,7 @@ class GroupedMatrixTable(object):
         self._partition_key = fields
         return self
 
-    def partition_hint(self, n):
+    def partition_hint(self, n: int) -> 'GroupedMatrixTable':
         """Set the target number of partitions for aggregation.
 
         Examples
@@ -305,7 +314,7 @@ class GroupedMatrixTable(object):
         self._partitions = n
         return self
 
-    def aggregate(self, **named_exprs):
+    def aggregate(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
 
         Examples
@@ -437,10 +446,10 @@ class MatrixTable(object):
         self._col_key = None
         self._row_key = None
         self._row_partition_key = None
-        self._global_type = Type._from_java(self._jvds.globalType())
-        self._col_type = Type._from_java(self._jvds.colType())
-        self._row_type = Type._from_java(self._jvds.rowType())
-        self._entry_type = Type._from_java(self._jvds.entryType())
+        self._global_type = HailType._from_java(self._jvds.globalType())
+        self._col_type = HailType._from_java(self._jvds.colType())
+        self._row_type = HailType._from_java(self._jvds.rowType())
+        self._entry_type = HailType._from_java(self._jvds.entryType())
         self._num_samples = None
         self._row_axis = 'row'
         self._col_axis = 'column'
@@ -561,7 +570,7 @@ class MatrixTable(object):
                 return self.index_globals()
 
     @property
-    def col_key(self):
+    def col_key(self) -> StructExpression:
         """Column key struct.
 
         Examples
@@ -583,7 +592,7 @@ class MatrixTable(object):
         return hail.struct(**{k: self[k] for k in self._col_key})
 
     @property
-    def row_key(self):
+    def row_key(self) -> StructExpression:
         """Row key struct.
 
         Examples
@@ -605,7 +614,7 @@ class MatrixTable(object):
         return hail.struct(**{k: self[k] for k in self._row_key})
 
     @property
-    def partition_key(self):
+    def partition_key(self) -> StructExpression:
         """Partition key struct.
 
         Examples
@@ -628,7 +637,7 @@ class MatrixTable(object):
         return pk
 
     @property
-    def globals(self):
+    def globals(self) -> StructExpression:
         """Returns a struct expression including all global fields.
 
         Returns
@@ -641,7 +650,7 @@ class MatrixTable(object):
                                   *[(f, self._global_indices) for f in self._global_type]))
 
     @property
-    def row(self):
+    def row(self) -> StructExpression:
         """Returns a struct expression including all row-indexed fields.
 
         Examples
@@ -665,7 +674,7 @@ class MatrixTable(object):
                                   *[(f, self._row_indices) for f in self._row_type]))
 
     @property
-    def col(self):
+    def col(self) -> StructExpression:
         """Returns a struct expression including all column-indexed fields.
 
         Examples
@@ -689,7 +698,7 @@ class MatrixTable(object):
                                   *[(f, self._col_indices) for f in self._col_type]))
 
     @property
-    def entry(self):
+    def entry(self) -> StructExpression:
         """Returns a struct expression including all row-and-column-indexed fields.
 
         Examples
@@ -714,7 +723,7 @@ class MatrixTable(object):
                                   *[(f, self._entry_indices) for f in self._entry_type]))
 
     @typecheck_method(keys=oneof(str, Expression))
-    def key_cols_by(self, *keys):
+    def key_cols_by(self, *keys: FieldRefArgs) -> 'MatrixTable':
         """Key columns by a new set of fields.
 
         Parameters
@@ -744,7 +753,10 @@ class MatrixTable(object):
 
     @typecheck_method(keys=oneof(str, Expression),
                       partition_key=nullable(oneof(oneof(str, Expression), listof(oneof(str, Expression)))))
-    def key_rows_by(self, *keys, partition_key=None):
+    def key_rows_by(self,
+                    *keys: FieldRefArgs,
+                    partition_key: Optional[Union[FieldRef, Sequence[FieldRef]]]=None
+                    ) -> 'MatrixTable':
         """Key rows by a new set of fields.
 
         Parameters
@@ -785,7 +797,7 @@ class MatrixTable(object):
 
         return MatrixTable(self._jvds.keyRowsBy(str_keys, str_pks))
 
-    def annotate_globals(self, **named_exprs):
+    def annotate_globals(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Create new global fields by name.
 
         Examples
@@ -837,7 +849,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def annotate_rows(self, **named_exprs):
+    def annotate_rows(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Create new row-indexed fields by name.
 
         Examples
@@ -893,7 +905,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateRowsExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def annotate_cols(self, **named_exprs):
+    def annotate_cols(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
 
         Examples
@@ -946,7 +958,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def annotate_entries(self, **named_exprs):
+    def annotate_entries(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Create new row-and-column-indexed fields by name.
 
         Examples
@@ -1002,7 +1014,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def select_globals(self, *exprs, **named_exprs):
+    def select_globals(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Select existing global fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1067,7 +1079,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
-    def select_rows(self, *exprs, **named_exprs):
+    def select_rows(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Select existing row fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1135,7 +1147,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.selectRows(strs))
         return cleanup(m)
 
-    def select_cols(self, *exprs, **named_exprs):
+    def select_cols(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Select existing column fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1202,7 +1214,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.selectCols(strs))
         return cleanup(m)
 
-    def select_entries(self, *exprs, **named_exprs):
+    def select_entries(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Select existing entry fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1266,7 +1278,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @typecheck_method(exprs=oneof(str, Expression))
-    def drop(self, *exprs):
+    def drop(self, *exprs: FieldRefArgs) -> 'MatrixTable':
         """Drop fields.
 
         Examples
@@ -1353,6 +1365,8 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_rows(False)
 
+        .. include:: ../_templates/experimental.rst
+
         Returns
         -------
         :class:`.MatrixTable`
@@ -1366,6 +1380,8 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_cols(False)
 
+        .. include:: ../_templates/experimental.rst
+
         Returns
         -------
         :class:`.MatrixTable`
@@ -1374,8 +1390,8 @@ class MatrixTable(object):
         warn("deprecation: 'drop_cols' will be removed before 0.2 release")
         return MatrixTable(self._jvds.dropSamples())
 
-    @typecheck_method(expr=anytype, keep=bool)
-    def filter_rows(self, expr, keep=True):
+    @typecheck_method(expr=expr_any, keep=bool)
+    def filter_rows(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
         """Filter rows of the matrix.
 
         Examples
@@ -1423,14 +1439,13 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Filtered matrix table.
         """
-        expr = to_expr(expr)
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_rows', expr, self._row_indices, {self._col_axis})
         m = MatrixTable(base._jvds.filterRowsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
-    @typecheck_method(expr=anytype, keep=bool)
-    def filter_cols(self, expr, keep=True):
+    @typecheck_method(expr=expr_bool, keep=bool)
+    def filter_cols(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
         """Filter columns of the matrix.
 
         Examples
@@ -1491,7 +1506,8 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
-    def filter_entries(self, expr, keep=True):
+    @typecheck_method(expr=expr_bool, keep=bool)
+    def filter_entries(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
         """Filter entries of the matrix.
 
         Examples
@@ -1546,7 +1562,7 @@ class MatrixTable(object):
         m = MatrixTable(base._jvds.filterGenotypes(expr._ast.to_hql(), keep))
         return cleanup(m)
 
-    def transmute_globals(self, **named_exprs):
+    def transmute_globals(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.
 
         Note
@@ -1565,7 +1581,7 @@ class MatrixTable(object):
         """
         raise NotImplementedError()
 
-    def transmute_rows(self, **named_exprs):
+    def transmute_rows(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_rows`, but drops referenced fields.
 
         Note
@@ -1585,7 +1601,7 @@ class MatrixTable(object):
 
         raise NotImplementedError()
 
-    def transmute_cols(self, **named_exprs):
+    def transmute_cols(self, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
         Note
@@ -1623,7 +1639,8 @@ class MatrixTable(object):
         """
         raise NotImplementedError()
 
-    def aggregate_rows(self, expr):
+    @typecheck_method(expr=expr_any)
+    def aggregate_rows(self, expr: Expression) -> Any:
         """Aggregate over rows to a local value.
 
         Examples
@@ -1662,7 +1679,6 @@ class MatrixTable(object):
         any
             Aggregated value dependent on `expr`.
         """
-        expr = to_expr(expr)
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
@@ -1670,7 +1686,8 @@ class MatrixTable(object):
         result_json = base._jvds.aggregateRowsJSON(expr._ast.to_hql())
         return expr.dtype._from_json(result_json)
 
-    def aggregate_cols(self, expr):
+    @typecheck_method(expr=expr_any)
+    def aggregate_cols(self, expr: Expression) -> Any:
         """Aggregate over columns to a local value.
 
         Examples
@@ -1711,7 +1728,6 @@ class MatrixTable(object):
         any
             Aggregated value dependent on `expr`.
         """
-        expr = to_expr(expr)
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
@@ -1719,7 +1735,8 @@ class MatrixTable(object):
         result_json = base._jvds.aggregateColsJSON(expr._ast.to_hql())
         return expr.dtype._from_json(result_json)
 
-    def aggregate_entries(self, expr):
+    @typecheck_method(expr=expr_any)
+    def aggregate_entries(self, expr: Expression) -> Any:
         """Aggregate over entries to a local value.
 
         Examples
@@ -1756,7 +1773,6 @@ class MatrixTable(object):
             Aggregated value dependent on `expr`.
         """
 
-        expr = to_expr(expr)
         base, _ = self._process_joins(expr)
 
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
@@ -1764,7 +1780,8 @@ class MatrixTable(object):
         result_json = base._jvds.aggregateEntriesJSON(expr._ast.to_hql())
         return expr.dtype._from_json(result_json)
 
-    def explode_rows(self, field_expr):
+    @typecheck_method(field_expr=oneof(str, Expression))
+    def explode_rows(self, field_expr: FieldRef) -> 'MatrixTable':
         """Explodes a row field of type array or set, copying the entire row for each element.
 
         Examples
@@ -1804,15 +1821,15 @@ class MatrixTable(object):
                                           .format(self._fields[field_expr]._indices.axes))
             s = 'va.{}'.format(escape_id(field_expr))
         else:
-            e = to_expr(field_expr)
             analyze('MatrixTable.explode_rows', field_expr, self._row_indices, set(self._fields.keys()))
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if field_expr._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException(
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
-            s = e._ast.to_hql()
+            s = field_expr._ast.to_hql()
         return MatrixTable(self._jvds.explodeRows(s))
 
-    def explode_cols(self, field_expr):
+    @typecheck_method(field_expr=oneof(str, Expression))
+    def explode_cols(self, field_expr: FieldRef) -> 'MatrixTable':
         """Explodes a column field of type array or set, copying the entire column for each element.
 
         Examples
@@ -1851,15 +1868,15 @@ class MatrixTable(object):
                                           .format(self._fields[field_expr]._indices.axes))
             s = 'sa.{}'.format(escape_id(field_expr))
         else:
-            e = to_expr(field_expr)
             analyze('MatrixTable.explode_cols', field_expr, self._col_indices)
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if field_expr._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException(
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
-            s = e._ast.to_hql()
+            s = field_expr._ast.to_hql()
         return MatrixTable(self._jvds.explodeSamples(s))
 
-    def group_rows_by(self, *exprs, **named_exprs):
+    @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
+    def group_rows_by(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -1889,7 +1906,8 @@ class MatrixTable(object):
 
         return GroupedMatrixTable(self).group_rows_by(*exprs, **named_exprs)
 
-    def group_cols_by(self, *exprs, **named_exprs):
+    @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
+    def group_cols_by(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -1943,7 +1961,7 @@ class MatrixTable(object):
 
         return GroupedMatrixTable(self).group_cols_by(*exprs, **named_exprs)
 
-    def count_rows(self):
+    def count_rows(self) -> int:
         """Count the number of rows in the matrix.
 
         Examples
@@ -1963,7 +1981,7 @@ class MatrixTable(object):
     def _force_count_rows(self):
         return self._jvds.forceCountRows()
 
-    def count_cols(self):
+    def count_cols(self) -> int:
         """Count the number of columns in the matrix.
 
         Examples
@@ -1980,7 +1998,7 @@ class MatrixTable(object):
         """
         return self._jvds.numCols()
 
-    def count(self):
+    def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
 
         Examples
@@ -2000,7 +2018,7 @@ class MatrixTable(object):
     @typecheck_method(output=str,
                       overwrite=bool,
                       _codec_spec=nullable(str))
-    def write(self, output, overwrite=False, _codec_spec=None):
+    def write(self, output: str, overwrite: bool=False, _codec_spec: Optional[str]=None):
         """Write to disk.
 
         Examples
@@ -2026,7 +2044,7 @@ class MatrixTable(object):
 
         self._jvds.write(output, overwrite, _codec_spec)
 
-    def globals_table(self):
+    def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
 
         Examples
@@ -2042,7 +2060,7 @@ class MatrixTable(object):
         """
         return Table(self._jvds.globalsTable())
 
-    def rows(self):
+    def rows(self) -> Table:
         """Returns a table with all row fields in the matrix.
 
         Examples
@@ -2074,7 +2092,7 @@ class MatrixTable(object):
         """
         return Table(self._jvds.colsTable())
 
-    def entries(self):
+    def entries(self) -> Table:
         """Returns a matrix in coordinate table form.
 
         Examples
@@ -2098,7 +2116,7 @@ class MatrixTable(object):
         """
         return Table(self._jvds.entriesTable())
 
-    def index_globals(self):
+    def index_globals(self) -> Expression:
         uid = Env._get_uid()
 
         def joiner(obj):
@@ -2111,7 +2129,7 @@ class MatrixTable(object):
         return construct_expr(Select(Reference('global', top_level=True), uid), self.globals.dtype,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
 
-    def index_rows(self, *exprs):
+    def index_rows(self, *exprs: Tuple[Expression]) -> StructExpression:
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins, refs = unify_all(*exprs)
         src = indices.source
@@ -2150,7 +2168,7 @@ class MatrixTable(object):
                                   schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete, uid)), refs)
 
-    def index_cols(self, *exprs):
+    def index_cols(self, *exprs: Tuple[Expression]) -> StructExpression:
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins, refs = unify_all(*exprs)
         src = indices.source
@@ -2164,7 +2182,7 @@ class MatrixTable(object):
 
         return self.cols().index(*exprs)
 
-    def index_entries(self, row_exprs, col_exprs):
+    def index_entries(self, row_exprs: Tuple[Expression], col_exprs: Tuple[Expression]) -> StructExpression:
         row_exprs = [to_expr(e) for e in row_exprs]
         col_exprs = [to_expr(e) for e in col_exprs]
 
@@ -2259,7 +2277,7 @@ class MatrixTable(object):
         print(s)
 
     @typecheck_method(order=listof(str))
-    def reorder_columns(self, order):
+    def reorder_columns(self, order: Sequence[str]) -> 'MatrixTable':
         """Reorder columns.
 
         .. include:: _templates/req_tstring.rst
@@ -2296,7 +2314,7 @@ class MatrixTable(object):
         jvds = self._jvds.reorderSamples(order)
         return MatrixTable(jvds)
 
-    def n_partitions(self):
+    def n_partitions(self) -> int:
         """Number of partitions.
 
         Notes
@@ -2318,7 +2336,7 @@ class MatrixTable(object):
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
-    def repartition(self, n_partitions, shuffle=True):
+    def repartition(self, n_partitions: int, shuffle: bool=True) -> 'MatrixTable':
         """Increase or decrease the number of partitions.
 
         Examples
@@ -2372,7 +2390,7 @@ class MatrixTable(object):
         return MatrixTable(jvds)
 
     @typecheck_method(max_partitions=int)
-    def naive_coalesce(self, max_partitions):
+    def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
         """Naively decrease the number of partitions.
 
         Example
@@ -2402,7 +2420,7 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.naiveCoalesce(max_partitions))
 
-    def cache(self):
+    def cache(self) -> 'MatrixTable':
         """Persist the dataset in memory.
 
         Examples
@@ -2424,7 +2442,7 @@ class MatrixTable(object):
         return self.persist('MEMORY_ONLY')
 
     @typecheck_method(storage_level=storage_level)
-    def persist(self, storage_level='MEMORY_AND_DISK'):
+    def persist(self, storage_level: str='MEMORY_AND_DISK') -> 'MatrixTable':
         """Persist this table in memory or on disk.
 
         Examples
@@ -2462,7 +2480,7 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.persist(storage_level))
 
-    def unpersist(self):
+    def unpersist(self) -> 'MatrixTable':
         """
         Unpersists this dataset from memory/disk.
 
@@ -2479,7 +2497,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unpersist())
 
     @typecheck_method(name=str)
-    def add_row_index(self, name='row_idx'):
+    def add_row_index(self, name: str='row_idx') -> 'MatrixTable':
         """Add the integer index of each row as a new row field.
 
         Examples
@@ -2507,7 +2525,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.indexRows(name))
 
     @typecheck_method(name=str)
-    def add_col_index(self, name='col_idx'):
+    def add_col_index(self, name: str='col_idx') -> 'MatrixTable':
         """Add the integer index of each column as a new column field.
 
         Examples
@@ -2540,7 +2558,7 @@ class MatrixTable(object):
         return self._jvds.same(other._jvds, tolerance)
 
     @typecheck(datasets=matrix_table_type)
-    def union_rows(*datasets):
+    def union_rows(*datasets: Tuple['MatrixTable']) -> 'MatrixTable':
         """Take the union of dataset rows.
 
         Examples
@@ -2603,7 +2621,7 @@ class MatrixTable(object):
             return MatrixTable(Env.hail().variant.MatrixTable.unionRows([d._jvds for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)
-    def union_cols(self, other):
+    def union_cols(self, other: 'MatrixTable') -> 'MatrixTable':
         """Take the union of dataset columns.
 
         Examples
@@ -2649,7 +2667,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unionCols(other._jvds))
 
     @typecheck_method(n=int)
-    def head(self, n):
+    def head(self, n: int) -> 'MatrixTable':
         """Subset matrix to first `n` rows.
 
         Examples
@@ -2687,8 +2705,10 @@ class MatrixTable(object):
 
     @classmethod
     @typecheck_method(table=Table)
-    def from_rows_table(cls, table):
+    def from_rows_table(cls, table: Table) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
+
+        .. include:: ../_templates/experimental.rst
 
         Examples
         --------
@@ -2718,7 +2738,7 @@ class MatrixTable(object):
 
     @typecheck_method(p=numeric,
                       seed=int)
-    def sample_rows(self, p, seed=0):
+    def sample_rows(self, p: float, seed: int=0) -> 'MatrixTable':
         """Downsample the matrix table by keeping each row with probability ``p``.
 
         Examples
@@ -2747,7 +2767,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.sampleRows(p, seed))
 
     @typecheck_method(fields=dictof(str, str))
-    def rename(self, fields):
+    def rename(self, fields: Dict[str, str]) -> 'MatrixTable':
         """Rename fields of a matrix table.
 
         Examples
