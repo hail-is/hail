@@ -31,7 +31,7 @@ class ReferenceGenome(object):
         Contigs to be treated as Y chromosomes.
     mt_contigs : :obj:`str` or :obj:`list` of :obj:`str`
         Contigs to be treated as mitochondrial DNA.
-    par : :obj:`list` of :obj:`tuple` of (str or int, int, int)
+    par : :obj:`list` of :obj:`tuple` of (str, int, int)
         List of tuples with (contig, start, end)
     """
 
@@ -43,7 +43,7 @@ class ReferenceGenome(object):
                       x_contigs=oneof(str, listof(str)),
                       y_contigs=oneof(str, listof(str)),
                       mt_contigs=oneof(str, listof(str)),
-                      par=listof(sized_tupleof(oneof(str, int), int, int)))
+                      par=listof(sized_tupleof(str, int, int)))
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
@@ -195,8 +195,8 @@ class ReferenceGenome(object):
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
     @classmethod
-    @typecheck_method(file=str)
-    def read(cls, file):
+    @typecheck_method(path=str)
+    def read(cls, path):
         """Load reference genome from a JSON file.
 
         Notes
@@ -229,14 +229,14 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        file : :obj:`str`
+        path : :obj:`str`
             Path to JSON file.
 
         Returns
         -------
         :class:`.ReferenceGenome`
         """
-        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFile(Env.hc()._jhc, file))
+        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFile(Env.hc()._jhc, path))
 
     @typecheck_method(output=str)
     def write(self, output):
