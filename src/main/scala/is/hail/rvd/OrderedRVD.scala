@@ -95,7 +95,7 @@ class OrderedRVD private(
 
   override def unpersist(): OrderedRVD = this
 
-  def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
+  private def checkJoinCompatability(right: OrderedRVD) {
     val lTyp = typ
     val rTyp = right.typ
 
@@ -105,18 +105,43 @@ class OrderedRVD private(
            | Left key type: ${ lTyp.kType.toString }
            | Right key type: ${ rTyp.kType.toString }
          """.stripMargin)
+  }
+
+  def orderedJoin(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
+    checkJoinCompatability(right)
+    val lTyp = typ
+    val rTyp = right.typ
+
+    val repartitionedLeft = this
+    val repartitionedRight = new RepartitionedOrderedRDD2(right, this.partitioner)
+    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
+      joinType match {
+        case "inner" => _.innerJoin(_)
+        case "left" => _.leftJoin(_)
+        case "right" => _.rightJoin(_)
+        case "outer" => _.outerJoin(_)
+        case _ => fatal(
+          s"Unknown join type `$joinType'. Choose from `inner', `left', `right', or `outer'.")
+      }
+    repartitionedLeft.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
+      compute(OrderedRVIterator(lTyp, leftIt), OrderedRVIterator(rTyp, rightIt))
+    }
+  }
+
+  def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
+    checkJoinCompatability(right)
+    val lTyp = typ
+    val rTyp = right.typ
 
     val repartitionedRight = new RepartitionedOrderedRDD2(right, this.partitioner)
-    joinType match {
-      case "inner" => this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
-        OrderedRVIterator(lTyp, leftIt) innerJoinDistinct
-          OrderedRVIterator(rTyp, rightIt)
+    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
+      joinType match {
+        case "inner" => _.innerJoinDistinct(_)
+        case "left" => _.leftJoinDistinct(_)
+        case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
       }
-      case "left" => this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
-        OrderedRVIterator(lTyp, leftIt) leftJoinDistinct
-          OrderedRVIterator(rTyp, rightIt)
-      }
-      case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
+    this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
+      compute(OrderedRVIterator(lTyp, leftIt), OrderedRVIterator(rTyp, rightIt))
     }
   }
 
@@ -393,8 +418,8 @@ object OrderedRVD {
 
   def apply(typ: OrderedRVDType,
     rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedRVDPartitioner]): OrderedRVD = {
-    val (_, orderedRDD) = coerce(typ, rdd, fastKeys, hintPartitioner)
-    orderedRDD
+    val (_, orderedRVD) = coerce(typ, rdd, fastKeys, hintPartitioner)
+    orderedRVD
   }
 
   /**

@@ -23,6 +23,7 @@ case class RepartitionedOrderedRDD2Partition(
     range: Interval)
   extends Partition
 
+// TODO: should this be implemented in terms of AdjustedPartitionsRDD?
 class RepartitionedOrderedRDD2(
     prev: OrderedRVD,
     newPartitioner: OrderedRVDPartitioner)
