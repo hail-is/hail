@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from subprocess import call as syscall
+from subprocess import DEVNULL, call as syscall
 import numpy as np
 from struct import unpack
 import hail.utils as utils
@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
                         threshold_string)
             result_file = utils.get_URI(plinkpath + ".genome")
 
-            syscall(plink_command, shell=True)
+            syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
             ### format of .genome file is:
             # _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe,
@@ -226,7 +226,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-rel --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
         self.assertEqual(load_id_file(p_file + ".rel.id"), sample_ids)
 
         grm.export_rel(rel_file)
@@ -240,7 +240,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-gz --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
         self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
         grm.export_gcta_grm(grm_file)
@@ -253,7 +253,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-bin --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
         self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 

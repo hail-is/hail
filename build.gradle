@@ -207,7 +207,9 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'nosetests',
+     commandLine 'python3',
+             '-m',
+             'nose',
              '-c',
              'python/hail/setup.cfg',
              'python/hail/tests'
