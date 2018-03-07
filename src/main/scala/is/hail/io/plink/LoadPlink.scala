@@ -130,7 +130,7 @@ object LoadPlink {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = sampleAnnotationSignature,
-      rowType = TStruct("locus" -> TLocus.schemaFromGR(rg), "alleles" -> TArray(TString()), "rsid" -> TString()),
+      rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString()), "rsid" -> TString()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))
@@ -149,7 +149,7 @@ object LoadPlink {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contig, pos, rg))
+        rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
         rvb.startArray(2)
         rvb.addString(ref)
         rvb.addString(alt)
@@ -172,7 +172,7 @@ object LoadPlink {
         region.clear()
         rvb.start(rvRowType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus(contig, pos, rg))
+        rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
         rvb.startArray(2)
         rvb.addString(ref)
         rvb.addString(alt)

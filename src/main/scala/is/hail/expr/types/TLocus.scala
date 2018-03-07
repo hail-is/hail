@@ -16,7 +16,7 @@ object TLocus {
     rep.setRequired(required).asInstanceOf[TStruct]
   }
 
-  def schemaFromGR(rg: Option[ReferenceGenome], required: Boolean = false): Type = rg match {
+  def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): Type = rg match {
     case Some(ref) => TLocus(ref)
     case None => TLocus.representation(required)
   }

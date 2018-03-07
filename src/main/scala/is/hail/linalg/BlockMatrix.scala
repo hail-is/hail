@@ -3,6 +3,7 @@ package is.hail.linalg
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, _}
+import breeze.numerics.{sqrt => breezeSqrt, pow => breezePow}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
@@ -29,10 +30,10 @@ object BlockMatrix {
       new LZ4BlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec))
 
-  def from(sc: SparkContext, lm: BDM[Double]): M =
-    from(sc, lm, defaultBlockSize)
+  def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double]): M =
+    fromBreezeMatrix(sc, lm, defaultBlockSize)
 
-  def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
+  def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
     val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
@@ -58,10 +59,10 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
 
-  def from(irm: IndexedRowMatrix): M =
-    from(irm, defaultBlockSize)
+  def fromIRM(irm: IndexedRowMatrix): M =
+    fromIRM(irm, defaultBlockSize)
 
-  def from(irm: IndexedRowMatrix, blockSize: Int): M =
+  def fromIRM(irm: IndexedRowMatrix, blockSize: Int): M =
     irm.toHailBlockMatrix(blockSize)
 
   // uniform or Gaussian
@@ -204,22 +205,16 @@ object BlockMatrix {
       def +(r: M): M =
         r.scalarAdd(l)
 
-      def -(r: M): M = {
-        val ll = l
-        r.blockMap(ll - _)
-      }
+      def -(r: M): M =
+        r.reverseScalarSubtract(l)
 
       def *(r: M): M =
         r.scalarMultiply(l)
 
-      def /(r: M): M = {
-        val ll = l
-        r.blockMap(ll / _)
-      }
+      def /(r: M): M =
+        r.reverseScalarDivide(l)
     }
-
   }
-
 }
 
 // must be top-level for Jackson to serialize correctly
@@ -263,20 +258,36 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def multiply(lm: BDM[Double]): M = {
     require(nCols == lm.rows,
       s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
-    multiply(BlockMatrix.from(blocks.sparkContext, lm, blockSize))
+    multiply(BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize))
   }
+
+  def unary_+(): M = this
+
+  def unary_-(): M = blockMap(-_)
 
   def scalarAdd(i: Double): M =
     blockMap(_ + i)
 
   def scalarSubtract(i: Double): M =
     blockMap(_ - i)
+  
+  def reverseScalarSubtract(i: Double): M =
+    blockMap(i - _)
 
   def scalarMultiply(i: Double): M =
     blockMap(_ *:* i)
 
   def scalarDivide(i: Double): M =
     blockMap(_ /:/ i)
+
+  def reverseScalarDivide(i: Double): M =
+    blockMap(i /:/ _)
+
+  def pow(exponent: Double): M =
+    blockMap(breezePow(_, exponent))
+
+  def sqrt(): M =
+    blockMap(breezeSqrt(_))
 
   def vectorAddToEveryColumn(v: Array[Double]): M = {
     require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
@@ -364,7 +375,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     this
   }
 
-  def toLocalMatrix(): BDM[Double] = {
+  def toBreezeMatrix(): BDM[Double] = {
     require(this.nRows <= Int.MaxValue, "The number of rows of this matrix should be less than or equal to " +
       s"Int.MaxValue. Currently numRows: ${ this.nRows }")
     require(this.nCols <= Int.MaxValue, "The number of columns of this matrix should be less than or equal to " +
@@ -1038,10 +1049,8 @@ class WriteBlocksRDD(path: String,
   rvd: RVD,
   sc: SparkContext,
   matrixType: MatrixType,
-  sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]],
   parentPartStarts: Array[Long],
-  f: () => java.lang.Double,
-  ec: EvalContext,
+  entryField: String,
   gp: GridPartitioner) extends RDD[Int](sc, Nil) {
 
   require(gp.nRows == parentPartStarts.last)
@@ -1106,17 +1115,28 @@ class WriteBlocksRDD(path: String,
 
       val os = sHadoopBc.value.value.unsafeWriter(filename)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
-      
+
       out.writeInt(nRowsInBlock)
       out.writeInt(nColsInBlock)
       out.writeBoolean(true) // transposed, stored row major
-      
+
       out
     }
 
-    val entriesIndex = matrixType.entriesIdx
-    val fullRow = new UnsafeRow(matrixType.rvRowType)
-    val row = fullRow.deleteField(entriesIndex)
+    val rvRowType = matrixType.rvRowType
+    val entryArrayType = matrixType.entryArrayType
+    val entryType = matrixType.entryType
+    val fieldType = entryType.field(entryField).typ
+    
+    def loadAsDouble(region: Region, offset: Long): Double = fieldType match {
+      case _: TInt32 => region.loadInt(offset).toDouble
+      case _: TInt64 => region.loadLong(offset).toDouble
+      case _: TFloat32 => region.loadLong(offset).toDouble
+      case _: TFloat64 => region.loadDouble(offset)
+    }
+    
+    val entryArrayIdx = matrixType.entriesIdx
+    val fieldIdx = entryType.fieldIdx(entryField)
 
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
@@ -1136,22 +1156,30 @@ class WriteBlocksRDD(path: String,
       var i = 0
       while (it.hasNext && i < nRowsInBlock) {
         val rv = it.next()
-        fullRow.set(rv)
-        ec.set(1, row)
-        val gs = fullRow.getAs[IndexedSeq[Any]](entriesIndex)
+        val region = rv.region
+
+        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+
         var blockCol = 0
-        var sampleIndex = 0
+        var colIdx = 0
         while (blockCol < gp.nBlockCols) {
           val n = gp.blockColNCols(blockCol)
           var j = 0
           while (j < n) {
-            ec.set(2, sampleAnnotationsBc.value(sampleIndex))
-            ec.set(3, gs(sampleIndex))
-            f() match {
-              case null => fatal(s"Entry expr must be non-missing. Found missing value for col $j and row $row}")
-              case t => data(j) = t.toDouble
+            if (entryArrayType.isElementDefined(region, entryArrayOffset, colIdx)) {
+              val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
+              if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
+                val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+                data(j) = loadAsDouble(region, fieldOffset)
+              } else {
+                val rowIdx = blockRow * blockSize + i
+                fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")
+              }
+            } else {
+              val rowIdx = blockRow * blockSize + i
+              fatal(s"Cannot create BlockMatrix: missing entry at row $rowIdx and col $colIdx")
             }
-            sampleIndex += 1
+            colIdx += 1
             j += 1
           }
           outPerBlockCol(blockCol).writeDoubles(data, 0, n)          

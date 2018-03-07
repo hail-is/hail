@@ -1,7 +1,7 @@
 from hail.typecheck import *
-from hail.expr.expression import *
-from hail.expr.ast import *
-from hail.genetics import Locus, Call, ReferenceGenome
+from hail.expr.expressions import *
+from hail.expr.expr_ast import *
+from hail.expr.types import *
 
 
 def _to_agg(x):
@@ -728,7 +728,7 @@ def hardy_weinberg(expr):
     return _agg_func('hardyWeinberg', agg, t)
 
 
-@typecheck(expr=oneof(Aggregable, expr_array, expr_set))
+@typecheck(expr=oneof(Aggregable, expr_array(...), expr_set(...)))
 def explode(expr):
     """Explode an array or set expression to aggregate the elements of all records.
 
@@ -923,7 +923,7 @@ def inbreeding(expr, prior):
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
-@typecheck(expr=oneof(Aggregable, expr_call), alleles=expr_array)
+@typecheck(expr=oneof(Aggregable, expr_call), alleles=expr_array(expr_str))
 def call_stats(expr, alleles):
     """Compute useful call statistics.
 
@@ -980,9 +980,6 @@ def call_stats(expr, alleles):
     """
     agg = _to_agg(expr)
     alleles = to_expr(alleles)
-    if not alleles.dtype.element_type == tstr:
-        raise TypeError("aggregator 'call_stats' requires 'alleles' to be an expression of type 'Array[String]',"
-                        " found '{}'".format(alleles.dtype))
 
     uid = Env._get_uid()
 

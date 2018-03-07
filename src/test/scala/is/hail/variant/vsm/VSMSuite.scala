@@ -150,19 +150,21 @@ class VSMSuite extends SparkSuite {
       numSlices <- Seq(1, 2, 4, 9, 11)
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
     } {
-      val vsm = hc.baldingNicholsModel(1, 6, 9, Some(numSlices), seed = blockSize + numSlices)
+      val mt = hc.baldingNicholsModel(1, 6, 9, Some(numSlices), seed = blockSize + numSlices)
         .indexRows("rowIdx")
         .indexCols("colIdx")
-      vsm.writeBlockMatrix(dirname, "g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1", blockSize)
+      
+      mt.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
+        .writeBlockMatrix(dirname, "x", blockSize)
 
-      val data = vsm.entriesTable()
-          .select("x = row.GT.nNonRefAlleles() + row.rowIdx + 1 + row.colIdx.toFloat64()")
+      val data = mt.entriesTable()
+          .select("x = row.GT.nNonRefAlleles() + row.rowIdx + row.colIdx + 1.0")
           .collect()
           .map(_.getAs[Double](0))
 
       val lm = new DenseMatrix[Double](6, 9, data).t // data is row major
       
-      assert(BlockMatrix.read(hc, dirname).toLocalMatrix() === lm)
+      assert(BlockMatrix.read(hc, dirname).toBreezeMatrix() === lm)
     }
   }
   
@@ -171,6 +173,7 @@ class VSMSuite extends SparkSuite {
     val nSamples = 6
     val nVariants = 9
     val vsm = hc.baldingNicholsModel(1, nSamples, nVariants, Some(4))
+      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
       .indexRows("rowIdx")
       .indexCols("colIdx")
 
@@ -184,12 +187,13 @@ class VSMSuite extends SparkSuite {
       Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
     val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
     
-    vsm.writeKeyedBlockMatrix(dirname, "g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1", blockSize = 3)
+    vsm.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
+      .writeKeyedBlockMatrix(dirname, "x", blockSize = 3)
     
     val kbm = KeyedBlockMatrix.read(hc, dirname)
     
-    assert(kbm.bm.toLocalMatrix() === lm)
+    assert(kbm.bm.toBreezeMatrix() === lm)
     kbm.rowKeys.get.assertSame(rowKeys)
     kbm.colKeys.get.assertSame(colKeys)    
-  }  
+  }
 }

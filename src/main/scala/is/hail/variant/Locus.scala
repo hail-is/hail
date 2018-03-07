@@ -19,7 +19,7 @@ object Locus {
     Locus(contig, position)
   }
 
-  def apply(contig: String, position: Int, rg: Option[ReferenceGenome]): Annotation = {
+  def annotation(contig: String, position: Int, rg: Option[ReferenceGenome]): Annotation = {
     rg match {
       case Some(ref) => Locus(contig, position, ref)
       case None => Annotation(contig, position)

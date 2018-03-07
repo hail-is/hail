@@ -1,8 +1,11 @@
 from pyspark.sql import DataFrame
 import hail as hl
-from hail.expr.expression import *
-from hail.utils import wrap_to_list, storage_level
-from hail.utils.java import jiterable_to_list
+from hail.expr.expressions import *
+from hail.expr.expr_ast import *
+from hail.expr.types import *
+from hail.typecheck import *
+from hail.utils import wrap_to_list, storage_level, LinkedList
+from hail.utils.java import *
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 import itertools
 
@@ -50,9 +53,9 @@ class TableTemplate(object):
         self._jt = jt
 
         self._globals = None
-        self._global_type = Type._from_java(self._jt.globalSignature())
+        self._global_type = HailType._from_java(self._jt.globalSignature())
         assert (isinstance(self._global_type, tstruct))
-        self._row_type = Type._from_java(self._jt.signature())
+        self._row_type = HailType._from_java(self._jt.signature())
         assert (isinstance(self._row_type, tstruct))
         self._num_fields = None
         self._key = None
@@ -99,12 +102,12 @@ class TableTemplate(object):
 
     @property
     def key(self):
-        """Returns a struct expression with the row keys.
+        """Row key struct.
 
         Examples
         --------
 
-        Get the row key names of the table:
+        Get the row key field names:
 
         .. doctest::
 
@@ -342,7 +345,7 @@ class Table(TableTemplate):
     @property
     def schema(self):
         if self._schema is None:
-            self._schema = Type._from_java(self._jt.signature())
+            self._schema = HailType._from_java(self._jt.signature())
             assert (isinstance(self._schema, tstruct))
         return self._schema
 
@@ -1162,7 +1165,7 @@ class Table(TableTemplate):
 
             def joiner(left):
                 left = Table(left._jt.annotate(full_key_strs)).key_by(*uids)
-                left = Table(left._jt.join(right._jt, 'left'))
+                left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
             all_uids = uids[:]
@@ -2192,5 +2195,98 @@ class Table(TableTemplate):
     def _same(self, other, tolerance=1e-6):
         return self._jt.same(other._jt, tolerance)
 
+    def collect_by_key(self, name: str= 'values') -> 'Table':
+        """Collect values for each unique key into an array.
+
+        Examples
+        --------
+        >>> t1 = hl.Table.parallelize([
+        ...     {'t': 'foo', 'x': 4, 'y': 'A'},
+        ...     {'t': 'bar', 'x': 2, 'y': 'B'},
+        ...     {'t': 'bar', 'x': -3, 'y': 'C'},
+        ...     {'t': 'quam', 'x': 0, 'y': 'D'}],
+        ...     hl.tstruct(t=hl.tstr, x=hl.tint32, y=hl.tstr),
+        ...     key='t')
+
+        >>> t1.show()
+        +------+-------+-----+
+        | t    |     x | y   |
+        +------+-------+-----+
+        | str  | int32 | str |
+        +------+-------+-----+
+        | foo  |     4 | A   |
+        | bar  |     2 | B   |
+        | bar  |    -3 | C   |
+        | quam |     0 | D   |
+        +------+-------+-----+
+
+        >>> t1.collect_by_key().show()
+        +------+------------------------------------+
+        | t    | values                             |
+        +------+------------------------------------+
+        | str  | array<struct{x: int32, y: str}>    |
+        +------+------------------------------------+
+        | bar  | [{"x":2,"y":"B"},{"x":-3,"y":"C"}] |
+        | foo  | [{"x":4,"y":"A"}]                  |
+        | quam | [{"x":0,"y":"D"}]                  |
+        +------+------------------------------------+
+
+        Notes
+        -----
+        The order of the values array is not guaranteed.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Field name for all values per key.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return Table(self._jt.groupByKey(name))
+
+    def distinct(self) -> 'Table':
+        """Keep only one row for each unique key.
+
+        Examples
+        --------
+        >>> t1 = hl.Table.parallelize([
+        ...     {'a': 'foo', 'b': 1},
+        ...     {'a': 'bar', 'b': 5},
+        ...     {'a': 'bar', 'b': 2}],
+        ...     hl.tstruct(a=hl.tstr, b=hl.tint32),
+        ...     key='a')
+
+        >>> t1.show()
+        +-----+-------+
+        | a   |     b |
+        +-----+-------+
+        | str | int32 |
+        +-----+-------+
+        | foo |     1 |
+        | bar |     5 |
+        | bar |     2 |
+        +-----+-------+
+
+        >>> t1.distinct().show()
+        +-----+-------+
+        | a   |     b |
+        +-----+-------+
+        | str | int32 |
+        +-----+-------+
+        | bar |     5 |
+        | foo |     1 |
+        +-----+-------+
+
+        Notes
+        -----
+        The row chosen per distinct key is not guaranteed.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return Table(self._jt.distinctByKey())
 
 table_type.set(Table)

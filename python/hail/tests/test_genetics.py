@@ -1,8 +1,10 @@
 import unittest
 import hail as hl
 from hail.genetics import *
-from .utils import resource, setUpModule, tearDownModule
+from .utils import startTestHailContext, stopTestHailContext
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     def test_classes(self):
@@ -113,7 +115,7 @@ class Tests(unittest.TestCase):
                                Call,
                                [1, 1, 1, 1])
 
-        rg = ReferenceGenome.GRCh37()
+        rg = hl.get_reference('GRCh37')
         self.assertEqual(rg.name, "GRCh37")
         self.assertEqual(rg.contigs[0], "1")
         self.assertListEqual(rg.x_contigs, ["X"])

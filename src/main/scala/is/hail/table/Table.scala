@@ -744,6 +744,15 @@ class Table(val hc: HailContext, val ir: TableIR) {
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
   }
 
+  def distinctByKey(): Table = {
+    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.length).distinctByKey())
+  }
+
+  def groupByKey(name: String): Table = {
+    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.length).groupByKey(name),
+      signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
+  }
+
   def jToMatrixTable(rowKeys: java.util.ArrayList[String],
     colKeys: java.util.ArrayList[String],
     rowFields: java.util.ArrayList[String],
@@ -1401,7 +1410,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     ))
   }
 
-  def toOrderedRVD(hintPartitioner: Some[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
+  def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
     val localSignature = signature
 
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)

@@ -2,9 +2,10 @@ import unittest
 
 from hail.utils import *
 from hail.utils.linkedlist import LinkedList
-import hail as hl
-from .utils import resource, setUpModule, tearDownModule
+from .utils import resource, startTestHailContext, stopTestHailContext
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     def test_hadoop_methods(self):

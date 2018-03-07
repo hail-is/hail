@@ -7,10 +7,11 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.java import Env, scala_object
 from hail.utils.misc import new_temp_file
-import json
 import pyspark.sql
-from .utils import resource, setUpModule, tearDownModule
+from .utils import resource, startTestHailContext, stopTestHailContext
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 def schema_eq(x, y):
     x_fds = dict(x)
@@ -372,6 +373,24 @@ class TableTests(unittest.TestCase):
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
+    def test_index_maintains_count(self):
+        t1 = hl.Table.parallelize([
+            {'a': 'foo', 'b': 1},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 2}],
+            hl.tstruct(a=hl.tstr, b=hl.tint32),
+            key='a')
+        t2 = hl.Table.parallelize([
+            {'t': 'foo', 'x': 3.14},
+            {'t': 'bar', 'x': 2.78},
+            {'t': 'bar', 'x': -1},
+            {'t': 'quam', 'x': 0}],
+            hl.tstruct(t=hl.tstr, x=hl.tfloat64),
+            key='t')
+
+        j = t1.annotate(f = t2[t1.a].x)
+        self.assertEqual(j.count(), t1.count())
+
     def test_drop(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
@@ -438,6 +457,48 @@ class TableTests(unittest.TestCase):
         with self.assertRaises(LookupError):
             kt.rename({'hello': 'a'})
 
+    def test_distinct(self):
+        t1 = hl.Table.parallelize([
+            {'a': 'foo', 'b': 1},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 3},
+            {'a': 'bar', 'b': 3},
+            {'a': 'baz', 'b': 2},
+            {'a': 'baz', 'b': 0},
+            {'a': 'baz', 'b': 0},
+            {'a': 'foo', 'b': 0},
+            {'a': '1', 'b': 0},
+            {'a': '2', 'b': 0},
+            {'a': '3', 'b': 0}],
+            hl.tstruct(a=hl.tstr, b=hl.tint32),
+            key='a',
+            n_partitions=4)
+
+        dist = t1.distinct().collect_by_key()
+        self.assertTrue(dist.all(hl.len(dist.values) == 1))
+        self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
+
+    def test_group_by_key(self):
+        t1 = hl.Table.parallelize([
+            {'a': 'foo', 'b': 1},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 2},
+            {'a': 'bar', 'b': 3},
+            {'a': 'bar', 'b': 3},
+            {'a': 'baz', 'b': 2},
+            {'a': 'baz', 'b': 0},
+            {'a': 'baz', 'b': 0},
+            {'a': 'foo', 'b': 0},
+            {'a': '1', 'b': 0},
+            {'a': '2', 'b': 0},
+            {'a': '3', 'b': 0}],
+            hl.tstruct(a=hl.tstr, b=hl.tint32),
+            key='a',
+            n_partitions=4)
+        g = t1.collect_by_key().explode('values')
+        g = g.transmute(**g.values)
+        self.assertTrue(g._same(t1))
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
@@ -529,12 +590,14 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue('info' not in vds1.row)
         self.assertTrue('bar' not in vds1.col)
         self.assertTrue('GT' not in vds1.entry)
+        vds1._force_count_rows()
 
         vds2 = vds.drop(vds.GT, vds.info, vds.foo, vds.bar)
         self.assertTrue('foo' not in vds2.globals)
         self.assertTrue('info' not in vds2.row)
         self.assertTrue('bar' not in vds2.col)
         self.assertTrue('GT' not in vds2.entry)
+        vds2._force_count_rows()
 
     def test_drop_rows(self):
         vds = self.get_vds()
@@ -804,6 +867,15 @@ class MatrixTests(unittest.TestCase):
         et = ds.annotate_entries(entry_idx = 10 * ds.row_idx + ds.col_idx).entries().add_index()
         self.assertTrue(et.all(et.idx == et.entry_idx))
 
+    def test_filter_entries(self):
+        ds = hl.utils.range_matrix_table(100, 10)
+        ds = ds.annotate_rows(foo = 5) # triggered a RV bug
+        ds = ds.annotate_cols(bar = 5)
+        ds = ds.filter_entries((ds.col_idx * ds.row_idx) % 4 == 0)
+
+        entries = ds.entries()
+        self.assertTrue(entries.all((entries.col_idx * entries.row_idx) % 4 == 0))
+
 
 class GroupedMatrixTests(unittest.TestCase):
 
@@ -826,7 +898,7 @@ class GroupedMatrixTests(unittest.TestCase):
 
     def test_errors_caught_correctly(self):
 
-        from hail.expr.expression import ExpressionException
+        from hail.expr.expressions import ExpressionException
 
         mt = self.get_groupable_matrix()
         self.assertRaises(ExpressionException, mt.group_rows_by, mt['group1'] + 1)

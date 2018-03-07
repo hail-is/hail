@@ -24,12 +24,12 @@ class IntervalSuite extends TestNGSuite {
 
   val test_itrees: IndexedSeq[SetIntervalTree] =
     SetIntervalTree(Array[(SetInterval, Int)]()) +:
-    test_intervals.flatMap { i1 =>
-      SetIntervalTree(Array(i1).zipWithIndex) +:
-      test_intervals.map { i2 =>
-        SetIntervalTree(Array(i1, i2).zipWithIndex)
-      }
-    } :+ SetIntervalTree(test_intervals.toArray.zipWithIndex)
+      test_intervals.flatMap { i1 =>
+        SetIntervalTree(Array(i1).zipWithIndex) +:
+          test_intervals.map { i2 =>
+            SetIntervalTree(Array(i1, i2).zipWithIndex)
+          }
+      } :+ SetIntervalTree(test_intervals.toArray.zipWithIndex)
 
 
   @Test def interval_agrees_with_set_interval_definitely_empty() {
@@ -39,10 +39,32 @@ class IntervalSuite extends TestNGSuite {
     }
   }
 
+  @Test def interval_agrees_with_set_interval_greater_than_point() {
+    for (set_interval <- test_intervals; p <- points) {
+      val interval = set_interval.interval
+      assertEquals(interval.isAbovePosition(pord, p), set_interval.doubledPointSet.forall(dp => dp > 2 * p))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_less_than_point() {
+    for (set_interval <- test_intervals; p <- points) {
+      val interval = set_interval.interval
+      assertEquals(interval.isBelowPosition(pord, p), set_interval.doubledPointSet.forall(dp => dp < 2 * p))
+    }
+  }
+
   @Test def interval_agrees_with_set_interval_contains() {
     for (set_interval <- test_intervals; p <- points) {
       val interval = set_interval.interval
       assertEquals(interval.contains(pord, p), set_interval.contains(p))
+    }
+  }
+
+  @Test def interval_agrees_with_set_interval_includes() {
+    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+      val interval1 = set_interval1.interval
+      val interval2 = set_interval2.interval
+      assertEquals(interval1.includes(pord, interval2), set_interval1.includes(set_interval2))
     }
   }
 
@@ -67,7 +89,7 @@ class IntervalSuite extends TestNGSuite {
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.disjointAndGreaterThan(pord, interval2), set_interval1.disjointAndGreaterThan(set_interval2))
+      assertEquals(interval1.isAbove(pord, interval2), set_interval1.isAboveInterval(set_interval2))
     }
   }
 
@@ -76,7 +98,7 @@ class IntervalSuite extends TestNGSuite {
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.disjointAndLessThan(pord, interval2), set_interval1.disjointAndLessThan(set_interval2))
+      assertEquals(interval1.isBelow(pord, interval2), set_interval1.isBelowInterval(set_interval2))
     }
   }
 
@@ -85,7 +107,7 @@ class IntervalSuite extends TestNGSuite {
     set_interval2 <- test_intervals} {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.mergeable(pord, interval2), set_interval1.mergeable(set_interval2))
+      assertEquals(interval1.canMergeWith(pord, interval2), set_interval1.mergeable(set_interval2))
     }
   }
 
@@ -213,17 +235,20 @@ case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: 
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
+  def includes(other: SetInterval): Boolean =
+    (other.doubledPointSet -- this.doubledPointSet).isEmpty
+
   def probablyOverlaps(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).nonEmpty
 
   def definitelyEmpty(): Boolean = doubledPointSet.isEmpty
 
   def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
 
-  def disjointAndGreaterThan(other: SetInterval): Boolean =
-    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 > p2 ))
+  def isAboveInterval(other: SetInterval): Boolean =
+    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 > p2))
 
-  def disjointAndLessThan(other: SetInterval): Boolean =
-    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 < p2 ))
+  def isBelowInterval(other: SetInterval): Boolean =
+    doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 < p2))
 
   def mergeable(other: SetInterval): Boolean = {
     val combinedPoints = doubledPointSet.union(other.doubledPointSet)
@@ -271,7 +296,7 @@ case class SetIntervalTree(annotations: Array[(SetInterval, Int)]) {
 
   val (intervals, values) = annotations.unzip
 
-  val annotationTree: IntervalTree[Int] = IntervalTree.annotationTree(pord, annotations.map { case (i, a) => (i.interval, a) } )
+  val annotationTree: IntervalTree[Int] = IntervalTree.annotationTree(pord, annotations.map { case (i, a) => (i.interval, a) })
 
   val intervalTree: IntervalTree[Unit] = IntervalTree(pord, intervals.map(_.interval))
 

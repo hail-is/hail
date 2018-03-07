@@ -4,7 +4,7 @@ Expressions
 .. toctree::
     :maxdepth: 2
 
-.. currentmodule:: hail.expr.expression
+.. currentmodule:: hail.expr.expressions
 
 .. autosummary::
     :nosignatures:

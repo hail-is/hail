@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
-import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
+import breeze.linalg.{DenseVector => BDV}
 
 class LocalMatrixSuite extends SparkSuite {
   

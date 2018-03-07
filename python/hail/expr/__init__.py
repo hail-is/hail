@@ -1,8 +1,8 @@
 import hail.expr.functions
 from .types import *
-from .expression import eval_expr, eval_expr_typed
+from .expressions import eval_expr, eval_expr_typed
 from .functions import *
-__all__ = ['Type',
+__all__ = ['HailType',
            'dtype',
            'tint',
            'tint32',

@@ -622,7 +622,7 @@ object LoadVCF {
       case (VCFHeaderLineType.String, false) => TString()
       case (VCFHeaderLineType.Character, false) => TString()
       case (VCFHeaderLineType.Flag, false) => TBoolean()
-      case (_, true) => fatal(s"Can only convert a header line with type `String' to a Call Type. Found `${ line.getType }'.")
+      case (_, true) => fatal(s"Can only convert a header line with type `String' to a call type. Found `${ line.getType }'.")
     }
 
     val attrs = Map("Description" -> line.getDescription,
@@ -633,6 +633,8 @@ object LoadVCF {
       (line.getCount == 1 ||
         (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
       (Field(id, baseType, i), (id, attrs))
+    else if (baseType.isInstanceOf[TCall])
+      fatal("fields in 'call_fields' must have 'Number' equal to 1.")
     else
       (Field(id, TArray(baseType.setRequired(arrayElementsRequired)), i), (id, attrs))
   }
@@ -831,7 +833,7 @@ object LoadVCF {
       TStruct.empty(true),
       colType = TStruct("s" -> TString()),
       colKey = Array("s"),
-      rowType = TStruct("locus" -> TLocus.schemaFromGR(rg), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString())) ++ vaSignature,
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)

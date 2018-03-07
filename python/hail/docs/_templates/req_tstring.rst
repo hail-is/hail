@@ -1,1 +1,1 @@
-Requires the column key schema to be :py:class:`~hail.expr.types.TString`.
+Requires the column key to be one field of type :py:data:`.tstr`

@@ -126,6 +126,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 10000
     val vds: MatrixTable = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
+      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
     val pcs = samplePCA(vds, 2, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01)
@@ -172,11 +173,11 @@ class PCRelateSuite extends SparkSuite {
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
     val dmu = pcr.mu(g, pcs)
     // blockedG : variant x sample
-    val blockedG = BlockMatrix.from(g, blockSize)
+    val blockedG = BlockMatrix.fromIRM(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
-    val actual_g = blockedG.toLocalMatrix().t
-    val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toLocalMatrix()
-    val actual_mean = dmu.toLocalMatrix()
+    val actual_g = blockedG.toBreezeMatrix().t
+    val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toBreezeMatrix()
+    val actual_mean = dmu.toBreezeMatrix()
 
     compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
@@ -217,6 +218,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 1000
     val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
+      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
     val pcs = samplePCA(vds, 10, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .mapValues(quadMap(toBoxedD).tupled)

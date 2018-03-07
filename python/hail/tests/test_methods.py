@@ -8,8 +8,10 @@ from struct import unpack
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from math import sqrt
-from .utils import resource, doctest_resource, setUpModule, tearDownModule
+from .utils import resource, doctest_resource, startTestHailContext, stopTestHailContext
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     _dataset = None
@@ -264,14 +266,14 @@ class Tests(unittest.TestCase):
                                     load_bin(n_samples, grm_nbin_file),
                                     atol=tolerance))
 
-    def test_block_matrix_from_numpy_matrix(self):
-        numpy_matrix = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]])
+    def test_block_matrix_from_numpy(self):
+        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]])
 
         for block_size in [1, 2, 5, 1024]:
-            block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
+            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
             assert (block_matrix.n_rows == 3)
             assert (block_matrix.n_cols == 5)
-            assert (block_matrix.to_numpy_matrix() == numpy_matrix).all()
+            assert (block_matrix.to_numpy() == ndarray).all()
 
     def test_rrm(self):
         seed = 0
@@ -286,9 +288,10 @@ class Tests(unittest.TestCase):
                                            fst=(k * [fst]),
                                            seed=seed,
                                            n_partitions=4)
+        dataset = dataset.annotate_cols(s = hl.str(dataset.sample_idx)).key_cols_by('s')
 
         def direct_calculation(ds):
-            ds = BlockMatrix.from_matrix_table(ds['GT'].n_alt_alleles()).to_numpy_matrix()
+            ds = BlockMatrix.from_entry_expr(ds['GT'].n_alt_alleles()).to_numpy()
 
             # filter out constant rows
             isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])
@@ -304,7 +307,7 @@ class Tests(unittest.TestCase):
 
             mat = np.array([[(g - mean[i]) / stddev[i] for g in row] for i, row in enumerate(ds)])
 
-            rrm = mat.T.dot(mat) / nvariants
+            rrm = (mat.T @ mat) / nvariants
 
             return rrm
 
@@ -342,6 +345,7 @@ class Tests(unittest.TestCase):
 
     def test_pcrelate(self):
         dataset = hl.balding_nichols_model(3, 100, 100)
+        dataset = dataset.annotate_cols(sample_idx = hl.str(dataset.sample_idx))
         t = hl.pc_relate(dataset, 2, 0.05, block_size=64, statistics="phi")
 
         self.assertTrue(isinstance(t, hl.Table))
@@ -587,10 +591,10 @@ class Tests(unittest.TestCase):
         table = table.annotate(i=hl.int64(table.i),
                                j=hl.int64(table.j))
 
-        numpy_matrix = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
+        ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
 
         for block_size in [1, 2, 1024]:
-            block_matrix = BlockMatrix._from_numpy_matrix(numpy_matrix, block_size)
+            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
             entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), n_cols * n_rows)
             self.assertEqual(entries_table.n_fields, 3)
@@ -746,7 +750,7 @@ class Tests(unittest.TestCase):
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
-                          reference_genome=hl.ReferenceGenome.GRCh38(),
+                          reference_genome=hl.get_reference('GRCh38'),
                           contig_recoding={"22": "chr22"}))
 
         vcf_table = vcf.rows()
@@ -762,7 +766,7 @@ class Tests(unittest.TestCase):
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
-                          reference_genome=hl.ReferenceGenome.GRCh38(),
+                          reference_genome=hl.get_reference('GRCh38'),
                           contig_recoding={"22": "chr22"}))
 
         hl.export_plink(vcf, '/tmp/sample_plink')
@@ -791,3 +795,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt['Days']._indices, mt._row_indices)
         self.assertEqual(mt['col_id']._indices, mt._col_indices)
         self.assertEqual(mt['row_id']._indices, mt._row_indices)
+
+        mt.count()
+
+        row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
+        hl.import_matrix_table(doctest_resource('matrix2.tsv'),
+                               row_fields=row_fields, row_key=[]).count()
+        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
+                               row_fields=row_fields,
+                               no_header=True).count()
+        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
+                               row_fields=row_fields,
+                               no_header=True,
+                               row_key=[]).count()
+        self.assertRaises(hl.utils.FatalError,
+                     hl.import_matrix_table,
+                          doctest_resource('matrix3.tsv'),
+                     row_fields=row_fields,
+                     no_header=True,
+                     row_key=['foo'])

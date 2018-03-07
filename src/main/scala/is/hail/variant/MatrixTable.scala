@@ -597,7 +597,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def requireUniqueSamples(method: String) {
     val dups = stringSampleIds.counter().filter(_._2 > 1).toArray
     if (dups.nonEmpty)
-      fatal(s"Method '$method' does not support duplicate sample IDs. Duplicates:" +
+      fatal(s"Method '$method' does not support duplicate column keys. Duplicates:" +
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
@@ -1378,7 +1378,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       var i = 0
       while (i < localNCols) {
         val entry = entries(i)
-        ec.set(2, localColValuesBc)
+        ec.set(2, localColValuesBc.value(i))
         ec.set(3, entry)
         val results = f()
         var j = 0
@@ -1429,7 +1429,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           rvb.startStruct()
           var j = 0
           while (j < keepIndices.length) {
-            rvb.addField(localEntryType, rv.region, eltOffset, j)
+            rvb.addField(localEntryType, rv.region, eltOffset, keepIndices(j))
             j += 1
           }
           rvb.endStruct()
@@ -2633,53 +2633,48 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val localKeep = keep
-    val localRVRowType = rvRowType
+    val fullRowType = rvRowType
     val localNSamples = numCols
     val localEntryType = entryType
     val localColValuesBc = colValuesBc
     val localEntriesIndex = entriesIndex
+    val localEntriesType = matrixType.entryArrayType
 
-    copy2(
-      rvd = rvd.mapPartitionsPreservesPartitioning(rvd.typ) { it =>
-        val rvb = new RegionValueBuilder()
-        val rv2 = RegionValue()
-        val fullRow = new UnsafeRow(localRVRowType)
+    insertEntries(() => {
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
+      (fullRow, row)
+    })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
+      fullRow.set(rv)
+      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
-        it.map { rv =>
-          fullRow.set(rv)
-          val row = fullRow.deleteField(localEntriesIndex)
+      rvb.startArray(localNSamples)
 
-          rvb.set(rv.region)
-          rvb.start(localRVRowType)
-          rvb.startStruct()
-
-          var i = 0
-          while (i < localEntriesIndex) {
-            rvb.addField(localRVRowType, rv, i)
-            i += 1
+      var i = 0
+      while (i < localNSamples) {
+        val entry = entries(i)
+        ec.setAll(row,
+          localColValuesBc.value(i),
+          entry)
+        if (Filter.boxedKeepThis(f(), localKeep)) {
+          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
+          if (!isDefined)
+            rvb.setMissing()
+          else {
+            // can't use addElement because we could be losing requiredness
+            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
+            rvb.startStruct()
+            rvb.addAllFields(localEntryType, rv.region, elementOffset)
+            rvb.endStruct()
           }
+        } else
+          rvb.setMissing()
 
-          val gs = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
-
-          rvb.startArray(localNSamples)
-          i = 0
-          while (i < localNSamples) {
-            val sa = localColValuesBc.value(i)
-            val g = gs(i)
-            ec.setAll(row, sa, g)
-            if (Filter.boxedKeepThis(f(), localKeep))
-              rvb.addAnnotation(localEntryType, g)
-            else
-              rvb.setMissing()
-
-            i += 1
-          }
-          rvb.endArray()
-          rvb.endStruct()
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      })
+        i += 1
+      }
+      rvb.endArray()
+    })
   }
 
 
@@ -3075,17 +3070,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
   }
 
-  def writeBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
+  def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rvd.getNumPartitions + 1)
-
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rowType),
-      "sa" -> (2, colType),
-      "g" -> (3, entryType)))
-    val f = RegressionUtils.parseExprAsDouble(expr, ec)
-    ec.set(0, globals)
 
     val nRows = partStarts.last
     val localNCols = numCols
@@ -3105,8 +3092,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockCount =
-      new WriteBlocksRDD(dirname, rvd, sparkContext, matrixType,
-        sparkContext.broadcast(colValues), partStarts, f, ec, gp)
+      new WriteBlocksRDD(dirname, rvd, sparkContext, matrixType, partStarts, entryField, gp)
         .reduce(_ + _)
 
     assert(blockCount == gp.numPartitions)

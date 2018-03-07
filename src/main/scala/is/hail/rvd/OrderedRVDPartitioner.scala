@@ -43,8 +43,7 @@ class OrderedRVDPartitioner(
 
   def loadEnd(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
-  def minBound: Any = rangeBounds(0).asInstanceOf[Interval].start
-  def maxBound: Any = rangeBounds(numPartitions - 1).asInstanceOf[Interval].end
+  def range: Interval = rangeTree.root.get.range
 
   // if outside bounds, return min or max depending on location
   // pk: Annotation[pkType]
@@ -53,10 +52,10 @@ class OrderedRVDPartitioner(
     val part = rangeTree.queryValues(pkType.ordering, pk)
     part match {
       case Array() =>
-        if (pkType.ordering.lt(pk, minBound))
+        if (range.isAbovePosition(pkType.ordering, pk))
           0
         else {
-          assert(pkType.ordering.gt(pk, maxBound))
+          assert(range.isBelowPosition(pkType.ordering, pk))
           numPartitions - 1
         }
 
@@ -77,10 +76,10 @@ class OrderedRVDPartitioner(
 
     part match {
       case Array() =>
-        if (pkType.ordering.lt(pkUR, minBound))
+        if (range.isAbovePosition(pkType.ordering, pkUR))
           0
         else {
-          assert(pkType.ordering.gt(pkUR, maxBound))
+          assert(range.isBelowPosition(pkType.ordering, pkUR))
           numPartitions - 1
         }
       case Array(x) => x

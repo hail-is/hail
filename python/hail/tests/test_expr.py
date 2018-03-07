@@ -1,12 +1,12 @@
 import unittest
 
-import hail as hl
-from hail import Table, Locus
 import hail.expr.aggregators as agg
 from hail.expr.types import *
 from hail.expr import dtype
-from .utils import resource, setUpModule, tearDownModule
+from .utils import startTestHailContext, stopTestHailContext
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class TypeTests(unittest.TestCase):
     def types_to_test(self):
