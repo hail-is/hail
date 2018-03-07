@@ -2,7 +2,6 @@ import sys
 import inspect
 from typing import *
 import collections
-import itertools
 
 implicit_conversions: Dict[type, Set[type]] = {}
 
@@ -30,11 +29,11 @@ class TypeCheckFailure(Exception):
         self.msg = msg
 
 
-def get_spec(f) -> inspect.FullArgSpec:
+def get_signature(f) -> inspect.Signature:
     if hasattr(f, '__memo'):
         return f.__memo
     else:
-        signature = inspect.getfullargspec(f)
+        signature = inspect.signature(f)
         f.__memo = signature
         return signature
 
@@ -65,28 +64,30 @@ def typecheck(f: Callable):
     ------
     TypeError
     """
-    frame = inspect.currentframe().f_back
-    args = frame.f_locals
-    spec = get_spec(f)
-    for arg_name in itertools.chain(spec.args, spec.kwonlyargs):
-        t = spec.annotations.get(arg_name)
-        if t is not None:
-            check_t(args[arg_name], t, f"argument {repr(arg_name)} of {f.__qualname__}")
-    if spec.varargs:
-        t = spec.annotations.get(spec.varargs)
-        if t is not None:
-            varargs = args[spec.varargs]
-            assert isinstance(varargs, tuple)
-            for i, value in enumerate(varargs):
-                check_t(value, t, f"element {i} of argument {repr(spec.varargs)} of {f.__qualname__}")
-    if spec.varkw:
-        t = spec.annotations.get(spec.varkw)
-        if t is not None:
-            varkw = args[spec.varkw]
-            assert isinstance(varkw, collections.Mapping)
-            for name, value in varkw.items():
-                check_t(value, t, f"keyword argument {repr(name)} of {f.__qualname__}")
-
+    try:
+        frame = inspect.currentframe().f_back
+        args = frame.f_locals
+        spec = get_signature(f)
+        for arg_name, param in spec.parameters.items():
+            assert isinstance(param, inspect.Parameter)
+            t = param.annotation
+            if t:
+                if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+                    check_t(args[arg_name], t, f"argument {repr(arg_name)} of {f.__qualname__}")
+                elif param.kind == param.VAR_POSITIONAL:
+                    varargs = args[arg_name]
+                    assert isinstance(varargs, tuple)
+                    for i, value in enumerate(varargs):
+                        check_t(value, t, f"element {i} of argument {repr(arg_name)} of {f.__qualname__}")
+                else:
+                    assert param.kind == param.VAR_KEYWORD
+                    varkw = args[arg_name]
+                    assert isinstance(varkw, collections.Mapping)
+                    for name, value in varkw.items():
+                        check_t(value, t, f"keyword argument {repr(arg_name)} of {f.__qualname__}")
+    finally:
+        del frame
+        del args
 
 def register_conversion(from_type: type, to_type: type) -> None:
     """Register a recognized conversion from type to type.
