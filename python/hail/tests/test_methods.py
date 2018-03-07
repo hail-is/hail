@@ -8,10 +8,10 @@ from struct import unpack
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from math import sqrt
-from .utils import resource, doctest_resource, defaultSetUpModule, defaultTearDownModule
+from .utils import resource, doctest_resource, startTestHailContext, stopTestHailContext
 
-setUpModule = defaultSetUpModule
-tearDownModule = defaultTearDownModule
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     _dataset = None

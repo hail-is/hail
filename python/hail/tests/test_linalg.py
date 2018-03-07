@@ -2,11 +2,11 @@ import unittest
 
 import hail as hl
 from hail.linalg import BlockMatrix
-from .utils import resource, defaultSetUpModule, defaultTearDownModule
+from .utils import resource, startTestHailContext, stopTestHailContext
 import numpy as np
 
-setUpModule = defaultSetUpModule
-tearDownModule = defaultTearDownModule
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     _dataset = None

@@ -3,10 +3,10 @@ import unittest
 import hail.expr.aggregators as agg
 from hail.expr.types import *
 from hail.expr import dtype
-from .utils import defaultSetUpModule, defaultTearDownModule
+from .utils import startTestHailContext, stopTestHailContext
 
-setUpModule = defaultSetUpModule
-tearDownModule = defaultTearDownModule
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class TypeTests(unittest.TestCase):
     def types_to_test(self):

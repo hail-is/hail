@@ -1,10 +1,10 @@
 import unittest
 import hail as hl
 from hail.genetics import *
-from .utils import defaultSetUpModule, defaultTearDownModule
+from .utils import startTestHailContext, stopTestHailContext
 
-setUpModule = defaultSetUpModule
-tearDownModule = defaultTearDownModule
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     def test_classes(self):

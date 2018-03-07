@@ -3,11 +3,11 @@ import sys
 import hail
 
 
-def defaultSetUpModule():
+def startTestHailContext():
     hail.init(master='local[2]', min_block_size=0, quiet=True)
 
 
-def defaultTearDownModule():
+def stopTestHailContext():
     hail.stop()
 
 
