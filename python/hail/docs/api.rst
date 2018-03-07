@@ -24,7 +24,7 @@ Use ``import hail as hl`` to access this functionality.
 .. toctree::
     :maxdepth: 1
 
-    expression <expression>
+    expressions <expressions>
     types <types>
     functions <functions/index>
     aggregators <aggregators>
