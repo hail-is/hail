@@ -4,7 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
-import is.hail.linalg.{BlockMatrix, KeyedBlockMatrix, Keys}
+import is.hail.linalg.BlockMatrix
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -166,34 +166,5 @@ class VSMSuite extends SparkSuite {
       
       assert(BlockMatrix.read(hc, dirname).toBreezeMatrix() === lm)
     }
-  }
-  
-  @Test def testWriteKeyedBlockMatrix() {
-    val dirname = tmpDir.createTempFile()
-    val nSamples = 6
-    val nVariants = 9
-    val vsm = hc.baldingNicholsModel(1, nSamples, nVariants, Some(4))
-      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
-      .indexRows("rowIdx")
-      .indexCols("colIdx")
-
-    val data = vsm
-      .entriesTable()
-      .select("x = row.GT.unphasedDiploidGtIndex() + row.rowIdx + 1 + row.colIdx.toFloat64()")
-      .collect()
-      .map(_.getAs[Double](0))
-    val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
-    val rowKeys = new Keys(TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString())),
-      Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
-    val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
-    
-    vsm.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
-      .writeKeyedBlockMatrix(dirname, "x", blockSize = 3)
-    
-    val kbm = KeyedBlockMatrix.read(hc, dirname)
-    
-    assert(kbm.bm.toBreezeMatrix() === lm)
-    kbm.rowKeys.get.assertSame(rowKeys)
-    kbm.colKeys.get.assertSame(colKeys)    
   }
 }

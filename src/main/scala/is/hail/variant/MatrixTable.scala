@@ -2961,7 +2961,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-
   def toIndexedRowMatrix(expr: String): IndexedRowMatrix = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rvd.getNumPartitions + 1)
@@ -3029,19 +3028,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }.collect()
 
     new Keys(TStruct(rowKey.zip(rowKeyTypes): _*), values)
-  }
-
-  def writeKeyedBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize,
-    keepRowKeys: Boolean = true, keepColKeys: Boolean = true): Unit = {
-
-    sparkContext.hadoopConfiguration.mkDir(dirname)
-
-    if (keepRowKeys)
-      collectRowKeys().write(sparkContext, dirname + "/rowkeys")
-
-    if (keepColKeys)
-      new Keys(TStruct(colKey.zip(colKeyTypes): _*), colKeys.toArray).write(sparkContext, dirname + "/colkeys")
-    writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
   }
 
   def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
