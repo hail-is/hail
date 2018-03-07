@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 from hail.linalg import BlockMatrix
-from .utils import resource
+from .utils import resource, setUpModule, tearDownModule
 import numpy as np
 
 class Tests(unittest.TestCase):
