@@ -984,8 +984,8 @@ class tinterval(HailType):
     def _convert_to_json(self, x):
         return {'start': self.point_type._convert_to_json_na(x.start),
                 'end': self.point_type._convert_to_json_na(x.end),
-                'includeStart': x.include_start,
-                'includeEnd': x.include_end}
+                'includeStart': x.includes_start,
+                'includeEnd': x.includes_end}
 
 
 tint32 = _tint32()

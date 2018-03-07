@@ -218,20 +218,20 @@ class IntervalSuite extends TestNGSuite {
 
 object SetInterval {
   def from(i: Interval): SetInterval =
-    SetInterval(i.start.asInstanceOf[Int], i.end.asInstanceOf[Int], i.includeStart, i.includeEnd)
+    SetInterval(i.start.asInstanceOf[Int], i.end.asInstanceOf[Int], i.includesStart, i.includesEnd)
 }
 
-case class SetInterval(start: Int, end: Int, includeStart: Boolean, includeEnd: Boolean) {
+case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean) {
 
   val pord: ExtendedOrdering = TInt32().ordering
 
   val doubledPointSet: Set[Int] = {
-    val first = if (includeStart) 2 * start else 2 * start + 1
-    val last = if (includeEnd) 2 * end else 2 * end - 1
+    val first = if (includesStart) 2 * start else 2 * start + 1
+    val last = if (includesEnd) 2 * end else 2 * end - 1
     (first to last).toSet
   }
 
-  val interval: Interval = Interval(start, end, includeStart, includeEnd)
+  val interval: Interval = Interval(start, end, includesStart, includesEnd)
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 

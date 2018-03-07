@@ -66,9 +66,9 @@ object Locus {
 
   def parseIntervals(arr: java.util.ArrayList[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
 
-  def makeInterval(contig: String, start: Int, end: Int, includeStart: Boolean, includeEnd: Boolean, rg: RGBase): Interval = {
+  def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean, rg: RGBase): Interval = {
     rg.checkInterval(contig, start, end)
-    Interval(Locus(contig, start), Locus(contig, end), includeStart, includeEnd)
+    Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd)
   }
 }
 

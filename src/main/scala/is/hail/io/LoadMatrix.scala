@@ -230,11 +230,11 @@ object LoadMatrix {
   }
 
   def makePartitionerFromCounts(partitionCounts: Array[Long], pkType: TStruct): (OrderedRVDPartitioner, Array[Int]) = {
-    var includeStart = true
+    var includesStart = true
     val keepPartitions = new ArrayBuilder[Int]()
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
-      val interval = Interval(Row(if (includeStart) s else s - 1), Row(e - 1), includeStart, true)
-      includeStart = false
+      val interval = Interval(Row(if (includesStart) s else s - 1), Row(e - 1), includesStart, true)
+      includesStart = false
       if (interval.definitelyEmpty(pkType.ordering))
         None
       else {

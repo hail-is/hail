@@ -102,7 +102,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(rg.x_contigs, ["X"])
         self.assertListEqual(rg.y_contigs, ["Y"])
         self.assertListEqual(rg.mt_contigs, ["MT"])
-        self.assertEqual(rg.par[0], hl.Interval.parse_locus_interval("X:60001-2699521"))
+        self.assertEqual(rg.par[0], hl.parse_locus_interval("X:60001-2699521").value)
         self.assertEqual(rg.contig_length("1"), 249250621)
 
         name = "test"
@@ -119,7 +119,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(gr2.x_contigs, x_contigs)
         self.assertListEqual(gr2.y_contigs, y_contigs)
         self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, [hl.Interval.parse_locus_interval("X:5-1000", gr2)])
+        self.assertEqual(gr2.par, [hl.parse_locus_interval("X:5-1000", gr2).value])
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")

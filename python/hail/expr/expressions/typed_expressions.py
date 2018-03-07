@@ -2688,6 +2688,33 @@ class IntervalExpression(Expression):
             raise TypeError("expected '{}', found: '{}'".format(self.dtype.point_type, value.dtype))
         return self._method("contains", tbool, value)
 
+    @typecheck_method(interval=expr_interval(expr_any))
+    def overlaps(self, interval):
+        """True if the the supplied interval contains any value in common with this one.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(interval.overlaps(hl.interval(5, 9)))
+            True
+
+            >>> hl.eval_expr(interval.contains(hl.interval(11, 20)))
+            False
+
+        Parameters
+        ----------
+        interval : :class:`.Expression` with type :py:data:`.tinterval`
+            Interval object with the same point type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        if self.dtype.point_type != interval.dtype.point_type:
+            raise TypeError("expected '{}', found: '{}'".format(self.dtype.point_type, interval.dtype.point_type))
+        return self._method("overlaps", tbool, interval)
+
     @property
     def end(self):
         """Returns the end point.
@@ -2723,38 +2750,38 @@ class IntervalExpression(Expression):
         return self._field("start", self.dtype.point_type)
 
     @property
-    def include_start(self):
+    def includes_start(self):
         """True if the interval includes the start point.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(interval.include_start)
+            >>> hl.eval_expr(interval.includes_start)
             True
 
         Returns
         -------
         :class:`.BooleanExpression`
         """
-        return self._field("includeStart", tbool)
+        return self._field("includesStart", tbool)
 
     @property
-    def include_end(self):
+    def includes_end(self):
         """True if the interval includes the end point.
 
         Examples
         --------
         .. doctest::
 
-            >>> hl.eval_expr(interval.include_end)
+            >>> hl.eval_expr(interval.includes_end)
             False
 
         Returns
         -------
         :class:`.BooleanExpression`
         """
-        return self._field("includeEnd", tbool)
+        return self._field("includesEnd", tbool)
 
 scalars = {tbool: BooleanExpression,
            tint32: Int32Expression,

@@ -18,17 +18,17 @@ class Interval(object):
         Object with type `point_type`.
     end : any type
         Object with type `point_type`.
-    include_start : :obj:`bool`
+    includes_start : :obj:`bool`
         Interval includes start.
-    include_end : :obj:`bool`
+    includes_end : :obj:`bool`
         Interval includes end.
     """
 
     @typecheck_method(start=anytype,
                       end=anytype,
-                      include_start=bool,
-                      include_end=bool)
-    def __init__(self, start, end, include_start=True, include_end=False):
+                      includes_start=bool,
+                      includes_end=bool)
+    def __init__(self, start, end, includes_start=True, includes_end=False):
         from hail.expr.expressions import impute_type, unify_types_limited
         start_type = impute_type(start)
         end_type = impute_type(end)
@@ -40,21 +40,21 @@ class Interval(object):
         self._point_type = point_type
         self._start = start
         self._end = end
-        self._include_start = include_start
-        self._include_end = include_end
+        self._includes_start = includes_start
+        self._includes_end = includes_end
 
         self._jrep = scala_object(Env.hail().utils, 'Interval').apply(
             point_type._convert_to_j(start),
             point_type._convert_to_j(end),
-            include_start,
-            include_end)
+            includes_start,
+            includes_end)
 
     def __str__(self):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Interval(start={}, end={}, include_start={}, include_end={})'\
-            .format(repr(self.start), repr(self.end), repr(self.include_start), repr(self._include_end))
+        return 'Interval(start={}, end={}, includes_start={}, includes_end={})'\
+            .format(repr(self.start), repr(self.end), repr(self.includes_start), repr(self._includes_end))
 
     def __eq__(self, other):
         return isinstance(other, Interval) and self._point_type == other._point_type and self._jrep.equals(other._jrep)
@@ -69,8 +69,8 @@ class Interval(object):
         interval._point_type = point_type
         interval._start = None
         interval._end = None
-        interval._include_start = None
-        interval._include_end = None
+        interval._includes_start = None
+        interval._includes_end = None
         super(Interval, interval).__init__()
         return interval
 
@@ -117,7 +117,7 @@ class Interval(object):
         return self._end
 
     @property
-    def include_start(self):
+    def includes_start(self):
         """True if interval is inclusive of start.
 
         Examples
@@ -125,7 +125,7 @@ class Interval(object):
 
         .. doctest::
 
-            >>> interval.include_start
+            >>> interval.includes_start
             True
 
         Returns
@@ -133,12 +133,12 @@ class Interval(object):
         :obj:`bool`
         """
 
-        if self._include_start is None:
-            self._include_start = self._jrep.includeStart()
-        return self._include_start
+        if self._includes_start is None:
+            self._includes_start = self._jrep.includesStart()
+        return self._includes_start
 
     @property
-    def include_end(self):
+    def includes_end(self):
         """True if interval is inclusive of end.
 
         Examples
@@ -146,7 +146,7 @@ class Interval(object):
 
         .. doctest::
 
-            >>> interval.include_end
+            >>> interval.includes_end
             False
 
         Returns
@@ -154,9 +154,9 @@ class Interval(object):
         :obj:`bool`
         """
 
-        if self._include_end is None:
-            self._include_end = self._jrep.includeEnd()
-        return self._include_end
+        if self._includes_end is None:
+            self._includes_end = self._jrep.includesEnd()
+        return self._includes_end
 
     @property
     def point_type(self):
@@ -224,68 +224,5 @@ class Interval(object):
         if self.point_type != interval.point_type:
             raise TypeError("'interval' must have the point type '{}', but found '{}'".format(self.point_type, interval.point_type))
         return self._jrep.mayOverlap(self.point_type._jtype.ordering(), interval._jrep)
-
-    @classmethod
-    @typecheck_method(string=str,
-                      reference_genome=reference_genome_type)
-    def parse_locus_interval(cls, string, reference_genome='default'):
-        """Parses a genomic interval from string representation.
-
-        Examples
-        --------
-        
-        >>> interval_1 = hl.Interval.parse_locus_interval('X:100005-X:150020')
-        >>> interval_2 = hl.Interval.parse_locus_interval('16:29500000-30200000')
-        >>> interval_3 = hl.Interval.parse_locus_interval('16:29.5M-30.2M')  # same as interval_2
-        >>> interval_4 = hl.Interval.parse_locus_interval('16:30000000-END')
-        >>> interval_5 = hl.Interval.parse_locus_interval('16:30M-END')  # same as interval_4
-        >>> interval_6 = hl.Interval.parse_locus_interval('1-22')  # autosomes
-        >>> interval_7 = hl.Interval.parse_locus_interval('X')  # all of chromosome X
-
-        Notes
-        -----
-
-        The start locus must precede the end locus. The default bounds of the
-        interval are left-inclusive and right-exclusive. To change this, add
-        one of ``[`` or ``(`` at the beginning of the string for left-inclusive
-        or left-exclusive respectively. Likewise, add one of ``]`` or ``)`` at
-        the end of the string for right-inclusive or right-exclusive
-        respectively.
-
-        >>> interval_8 = hl.Interval.parse_locus_interval("[15:1-1000]")
-        >>> interval_9 = hl.Interval.parse_locus_interval("(15:1-1000]")
-
-        ``CHR1:POS1-CHR2:POS2`` is the fully specified representation, and
-        we use this to define the various shortcut representations.
-        
-        In a ``POS`` field, ``start`` (``Start``, ``START``) stands for 0.
-        
-        In a ``POS`` field, ``end`` (``End``, ``END``) stands for the maximum
-        contig length.
-        
-        In a ``POS`` field, the qualifiers ``m`` (``M``) and ``k`` (``K``)
-        multiply the given number by ``1,000,000`` and ``1,000``, respectively.
-        ``1.6K`` is short for 1600, and ``29M`` is short for 29000000.
-        
-        ``CHR:POS1-POS2`` stands for ``CHR:POS1-CHR:POS2``
-        
-        ``CHR1-CHR2`` stands for ``CHR1:START-CHR2:END``
-        
-        ``CHR`` stands for ``CHR:START-CHR:END``
-
-        Parameters
-        ----------
-        string : :obj:`str`
-           String to parse.
-        reference_genome : :obj:`str` or :class:`.ReferenceGenome`
-           Reference genome to use.
-        
-        Returns
-        -------
-        :class:`.Interval`
-        """
-
-        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, reference_genome._jrep)
-        return Interval._from_java(jrep, hl.tlocus(reference_genome))
 
 interval_type.set(Interval)

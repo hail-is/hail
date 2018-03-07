@@ -807,8 +807,8 @@ def pl_dosage(pl):
 
 
 @typecheck(start=expr_any, end=expr_any,
-           include_start=expr_bool, include_end=expr_bool)
-def interval(start, end, include_start=True, include_end=False):
+           includes_start=expr_bool, includes_end=expr_bool)
+def interval(start, end, includes_start=True, includes_end=False):
     """Construct an interval expression.
 
     Examples
@@ -826,9 +826,9 @@ def interval(start, end, include_start=True, include_end=False):
         Start point.
     end : :class:`.Expression`
         End point.
-    include_start : :class:`.BooleanExpression`
+    includes_start : :class:`.BooleanExpression`
         If ``True``, interval includes start point.
-    include_end : :class:`.BooleanExpression`
+    includes_end : :class:`.BooleanExpression`
         If ``True``, interval includes end point.
 
     Returns
@@ -838,17 +838,17 @@ def interval(start, end, include_start=True, include_end=False):
     if not start.dtype == end.dtype:
         raise TypeError("Type mismatch of start and end points: '{}', '{}'".format(start.dtype, end.dtype))
 
-    indices, aggregations, joins, refs = unify_all(start, end, include_start, include_end)
+    indices, aggregations, joins, refs = unify_all(start, end, includes_start, includes_end)
 
     return construct_expr(
-        ApplyMethod('Interval', start._ast, end._ast, include_start._ast, include_end._ast), tinterval(start.dtype),
+        ApplyMethod('Interval', start._ast, end._ast, includes_start._ast, includes_end._ast), tinterval(start.dtype),
         indices, aggregations, joins, refs)
 
 
 @typecheck(contig=expr_str, start=expr_int32,
-           end=expr_int32, include_start=expr_bool,
-           include_end=expr_bool, reference_genome=reference_genome_type)
-def locus_interval(contig, start, end, include_start=True, include_end=False, reference_genome='default'):
+           end=expr_int32, includes_start=expr_bool,
+           includes_end=expr_bool, reference_genome=reference_genome_type)
+def locus_interval(contig, start, end, includes_start=True, includes_end=False, reference_genome='default'):
     """Construct a locus interval expression.
 
     Examples
@@ -867,9 +867,9 @@ def locus_interval(contig, start, end, include_start=True, include_end=False, re
         Starting base position.
     end : :class:`.Int32Expression`
         End base position.
-    include_start : :class:`.BooleanExpression`
+    includes_start : :class:`.BooleanExpression`
         If ``True``, interval includes start point.
-    include_end : :class:`.BooleanExpression`
+    includes_end : :class:`.BooleanExpression`
         If ``True``, interval includes end point.
     reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
@@ -878,11 +878,11 @@ def locus_interval(contig, start, end, include_start=True, include_end=False, re
     -------
     :class:`.IntervalExpression`
     """
-    indices, aggregations, joins, refs = unify_all(contig, start, end, include_start, include_end)
+    indices, aggregations, joins, refs = unify_all(contig, start, end, includes_start, includes_end)
 
     return construct_expr(
         ApplyMethod('LocusInterval({})'.format(reference_genome.name),
-                    contig._ast, start._ast, end._ast, include_start._ast, include_end._ast),
+                    contig._ast, start._ast, end._ast, includes_start._ast, includes_end._ast),
         tinterval(tlocus(reference_genome)), indices, aggregations, joins, refs)
 
 

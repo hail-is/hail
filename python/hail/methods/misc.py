@@ -204,11 +204,11 @@ def filter_intervals(ds, intervals, keep=True):
 
     Filter to loci falling within one interval:
 
-    >>> ds_result = hl.filter_intervals(dataset, hl.Interval.parse_locus_interval('17:38449840-38530994'))
+    >>> ds_result = hl.filter_intervals(dataset, hl.parse_locus_interval('17:38449840-38530994'))
 
     Remove all loci within list of intervals:
 
-    >>> intervals = [hl.Interval.parse_locus_interval(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
+    >>> intervals = [hl.parse_locus_interval(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
     >>> ds_result = hl.filter_intervals(dataset, intervals)
 
     Notes
@@ -261,8 +261,8 @@ def filter_intervals(ds, intervals, keep=True):
         elif n_pk == 1 and interval.point_type == ds.partition_key[0].dtype:
             return Interval(Struct(foo=interval.start),
                             Struct(foo=interval.end),
-                            interval.include_start,
-                            interval.include_end)
+                            interval.includes_start,
+                            interval.includes_end)
         else:
             raise TypeError("The point type for interval %s does not match the row partition key type of the dataset (%s, %s)" %
                             (str(interval), repr(interval.point_type), repr(pk_type)))
