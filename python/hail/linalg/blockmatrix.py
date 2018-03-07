@@ -306,6 +306,7 @@ class BlockMatrix(object):
         """
         return numpy_from_breeze(self._jbm.toBreezeMatrix())
 
+    @property
     def T(self):
         """Matrix transpose.
 

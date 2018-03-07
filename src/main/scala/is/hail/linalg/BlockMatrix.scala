@@ -1049,7 +1049,6 @@ class WriteBlocksRDD(path: String,
   rvd: RVD,
   sc: SparkContext,
   matrixType: MatrixType,
-  sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]],
   parentPartStarts: Array[Long],
   entryField: String,
   gp: GridPartitioner) extends RDD[Int](sc, Nil) {
