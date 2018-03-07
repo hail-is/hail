@@ -7,10 +7,11 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.java import Env, scala_object
 from hail.utils.misc import new_temp_file
-import json
 import pyspark.sql
-from .utils import resource, setUpModule, tearDownModule
+from .utils import resource, startTestHailContext, stopTestHailContext
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 def schema_eq(x, y):
     x_fds = dict(x)
