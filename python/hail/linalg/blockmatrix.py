@@ -3,7 +3,7 @@ from hail.utils.java import Env, jarray, numpy_from_breeze, joption, FatalError
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.expr.expressions import expr_numeric, to_expr, analyze
+from hail.expr.expressions import expr_numeric
 import numpy as np
 
 block_matrix_type = lazy()
@@ -128,15 +128,23 @@ class BlockMatrix(object):
             path = new_temp_file(suffix="bm")
         if not block_size:
             block_size = cls.default_block_size()
+
         source = entry_expr._indices.source
         if not isinstance(source, MatrixTable):
             raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
                 "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-        mt = source
-        base, _ = mt._process_joins(entry_expr)
-        analyze('from_entry_expr', entry_expr, mt._entry_indices)
 
-        base._jvds.writeBlockMatrix(path, to_expr(entry_expr)._ast.to_hql(), block_size)
+        if entry_expr._indices != source._entry_indices:
+            from hail.expr.expressions import ExpressionException
+            raise ExpressionException("from_entry_expr: 'entry_expr' must be entry-indexed,"
+                                      " found indices {}".format(list(entry_expr._indices.axes)))
+
+        if entry_expr in source._fields_inverse:
+            source._jvds.writeBlockMatrix(path, source._fields_inverse[entry_expr], block_size)
+        else:
+            uid = Env._get_uid()
+            source.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
+
         return cls.read(path)
 
     @classmethod
