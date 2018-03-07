@@ -2699,7 +2699,7 @@ class IntervalExpression(Expression):
             >>> hl.eval_expr(interval.overlaps(hl.interval(5, 9)))
             True
 
-            >>> hl.eval_expr(interval.contains(hl.interval(11, 20)))
+            >>> hl.eval_expr(interval.overlaps(hl.interval(11, 20)))
             False
 
         Parameters
