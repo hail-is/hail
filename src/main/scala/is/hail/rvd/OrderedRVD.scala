@@ -95,6 +95,18 @@ class OrderedRVD private(
 
   override def unpersist(): OrderedRVD = this
 
+  def constrainToOrderedPartitioner(
+    ordType: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner): OrderedRVD = {
+
+    // FIXME relax this: new key could be any prefix of old key,
+    // new partition key could be anything
+    assert(ordType == typ)
+    copy(
+      orderedPartitioner = newPartitioner,
+      rdd = new RepartitionedOrderedRDD2(this, newPartitioner))
+  }
+
   private def checkJoinCompatability(right: OrderedRVD) {
     val lTyp = typ
     val rTyp = right.typ

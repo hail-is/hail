@@ -497,24 +497,35 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def join(other: Table, joinType: String): Table = {
-    if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
+    if ( key.length != other.key.length ||
+         !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)) )
       fatal(
-        s"""Both tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ keySignature.toString }
-           |  Right signature: ${ other.keySignature.toString }""".stripMargin)
+        "Both tables must have the same number of keys and the types of keys " +
+          "must be identical. Order matters.\n" +
+          s"""|  Left signature: ${ keySignature.toString }
+              |  Right signature: ${ other.keySignature.toString }
+           """.stripMargin)
 
-    val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
+    val joinedFields =
+      keySignature.fields ++
+        valueSignature.fields ++
+        other.valueSignature.fields
 
     val preNames = joinedFields.map(_.name).toArray
     val (finalColumnNames, remapped) = mangle(preNames)
     if (remapped.nonEmpty) {
-      warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
-        remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
+      warn(
+        s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } " +
+          "from right-hand table:\n  @1",
+        remapped.map { case (pre, post) =>
+          s""""$pre" => "$post""""
+        }.truncatable("\n  "))
     }
 
-    val newSignature = TStruct(joinedFields
-      .zipWithIndex
-      .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
+    val newSignature = TStruct(
+      joinedFields
+        .zipWithIndex
+        .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
     val localNKeys = nKeys
     val size1 = valueSignature.size
     val size2 = other.valueSignature.size
@@ -522,7 +533,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     assert(totalSize == localNKeys + size1 + size2)
 
-    def merger(rvb: RegionValueBuilder, rv: RegionValue)(joined: JoinedRegionValue) = {
+    val rvb = new RegionValueBuilder()
+    val rv = RegionValue()
+    def merger(joined: JoinedRegionValue) = {
       val lrv = joined._1
       val rrv = joined._2
       rvb.set(lrv.region)
@@ -551,17 +564,14 @@ class Table(val hc: HailContext, val tir: TableIR) {
       rv.set(rvb.region, rvb.end())
     }
 
-    val rvb = new RegionValueBuilder()
-    val rv = RegionValue()
-    orvd.orderedJoin(other.rvd, joinType).map(merger(rvb, rv) _)
-    // start here, and maybe move above merger method to JoinedRegionValue
-    val joinedRDD = joinType match {
-      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l, r.orNull) }
-      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r) }
-      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(k, l, r) }
-      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
-      case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
+    val (leftRVD, rightRVD) = (this.rvd, other.rvd) match {
+      case (left: OrderedRVD, right: OrderedRVD) => (left, right)
+      case (left: OrderedRVD, right: RVD) => {
+        val partitioner = left.partitioner
+        val orderedRight = right.filter()
+      }
     }
+    val joinedRDD = ???
 
     copy(rdd = joinedRDD, signature = newSignature, key = key)
   }
