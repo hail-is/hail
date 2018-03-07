@@ -3080,7 +3080,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val partStarts = partitionStarts()
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val localEntriesIndex = entriesIndex
     val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType) { case (i, it) =>
       val region2 = Region()
       val rv2 = RegionValue(region2)
