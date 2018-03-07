@@ -1129,6 +1129,13 @@ class WriteBlocksRDD(path: String,
     val entryType = matrixType.entryType
     val fieldType = entryType.field(entryField).typ
     
+    def loadAsDouble(region: Region, offset: Long): Double = fieldType match {
+      case _: TInt32 => region.loadInt(offset).toDouble
+      case _: TInt64 => region.loadLong(offset).toDouble
+      case _: TFloat32 => region.loadLong(offset).toDouble
+      case _: TFloat64 => region.loadDouble(offset)
+    }
+    
     val entryArrayIdx = matrixType.entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)
 
@@ -1155,21 +1162,25 @@ class WriteBlocksRDD(path: String,
         val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
 
         var blockCol = 0
-        var entryIdx = 0
+        var colIdx = 0
         while (blockCol < gp.nBlockCols) {
           val n = gp.blockColNCols(blockCol)
           var j = 0
           while (j < n) {
-            if (entryArrayType.isElementDefined(region, entryArrayOffset, entryIdx)) {
-              val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, entryIdx)
+            if (entryArrayType.isElementDefined(region, entryArrayOffset, colIdx)) {
+              val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
               if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
                 val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-                data(j) = region.loadDouble(fieldOffset) // FIXME: use fieldType to load right type
-              } else
-                fatal("Missing field")
-            } else
-              fatal("Missing entry")
-            entryIdx += 1
+                data(j) = loadAsDouble(region, fieldOffset)
+              } else {
+                val rowIdx = blockRow * blockSize + i
+                fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")
+              }
+            } else {
+              val rowIdx = blockRow * blockSize + i
+              fatal(s"Cannot create BlockMatrix: missing entry at row $rowIdx and col $colIdx")
+            }
+            colIdx += 1
             j += 1
           }
           outPerBlockCol(blockCol).writeDoubles(data, 0, n)          

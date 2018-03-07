@@ -154,7 +154,7 @@ class VSMSuite extends SparkSuite {
         .indexRows("rowIdx")
         .indexCols("colIdx")
       
-      mt.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1.0")
+      mt.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
         .writeBlockMatrix(dirname, "x", blockSize)
 
       val data = mt.entriesTable()
@@ -187,12 +187,13 @@ class VSMSuite extends SparkSuite {
       Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
     val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
     
-    vsm.writeKeyedBlockMatrix(dirname, "g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1", blockSize = 3)
+    vsm.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
+      .writeKeyedBlockMatrix(dirname, "x", blockSize = 3)
     
     val kbm = KeyedBlockMatrix.read(hc, dirname)
     
     assert(kbm.bm.toBreezeMatrix() === lm)
     kbm.rowKeys.get.assertSame(rowKeys)
     kbm.colKeys.get.assertSame(colKeys)    
-  }  
+  }
 }
