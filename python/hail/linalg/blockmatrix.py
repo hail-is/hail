@@ -306,13 +306,12 @@ class BlockMatrix(object):
         """
         return numpy_from_breeze(self._jbm.toBreezeMatrix())
 
-    @property
     def T(self):
         """Matrix transpose.
 
         Returns
         -------
-        :class:`.LocalMatrix`
+        :class:`.BlockMatrix`
         """
         return BlockMatrix(self._jbm.transpose())
 
@@ -397,7 +396,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        b: :class:`LocalMatrix` or :obj:`int` or :obj:`float`
+        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
 
         Returns
         -------
@@ -418,7 +417,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        b: :class:`LocalMatrix` or :obj:`int` or :obj:`float`
+        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
 
         Returns
         -------
@@ -439,7 +438,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        b: :class:`LocalMatrix` or :obj:`int` or :obj:`float`
+        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
 
         Returns
         -------
@@ -460,7 +459,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        b: :class:`LocalMatrix` or :obj:`int` or :obj:`float`
+        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
 
         Returns
         -------
