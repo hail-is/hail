@@ -1,6 +1,6 @@
 import Dependencies._
 
-lazy val spark = "2.0.2"
+lazy val spark = "2.2.0"
 lazy val si = spark match {
   case "2.2.0" => SparkInfo("0.10.4", "0.13.1")
   case "2.1.0" => SparkInfo("0.10.4", "0.12")
