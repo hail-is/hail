@@ -194,10 +194,10 @@ def rename_duplicates(dataset, name='unique_id'):
 
 
 @typecheck(ds=MatrixTable,
-           intervals=expr_any,
+           intervals=expr_array(expr_interval(expr_any)),
            keep=bool)
 def filter_intervals(ds, intervals, keep=True):
-    """Filter rows with an interval or list of intervals.
+    """Filter rows with a list of intervals.
 
     Examples
     --------
@@ -213,10 +213,6 @@ def filter_intervals(ds, intervals, keep=True):
 
     Notes
     -----
-    This method takes an argument of :class:`.Interval` or list of
-    :class:`.Interval` with a point type that is the same as the type of
-    the row partition key.
-
     Based on the ``keep`` argument, this method will either restrict to points
     in the supplied interval ranges, or remove all rows in those ranges.
 
@@ -229,8 +225,8 @@ def filter_intervals(ds, intervals, keep=True):
     ----------
     ds : :class:`.MatrixTable`
         Dataset.
-    intervals : :class:`.Interval` or :obj:`list` of :class:`.Interval`
-        Interval(s) to filter on. If there is only one row partition key, the
+    intervals : :class:`.ArrayExpression` of type :py:data:`.tinterval`
+        Intervals to filter on. If there is only one row partition key, the
         point type of the interval can be the type of the first partition key.
         Otherwise, the interval point type must be a :class:`.Struct` matching
         the row partition key schema.
@@ -244,29 +240,28 @@ def filter_intervals(ds, intervals, keep=True):
     :class:`.MatrixTable`
     """
 
-    intervals = eval_expr(intervals)
-    assert(intervals is not None)
-
     n_pk = len(ds.partition_key)
     pk_type = ds.partition_key.dtype
+    point_type = intervals.dtype.element_type.point_type
 
-    def check_input(interval):
+    if point_type == pk_type:
+        needs_wrapper = False
+    elif n_pk == 1 and point_type == ds.partition_key[0].dtype:
+        needs_wrapper = True
+    else:
+        raise TypeError("The point type does not match the row partition key type of the dataset ('{}', '{}')".format(repr(point_type), repr(pk_type)))
+
+    def wrap_input(interval):
         if interval is None:
             raise TypeError("'filter_intervals' does not allow missing values in 'intervals'.")
-        elif not isinstance(interval, Interval):
-            raise TypeError("'filter_intervals' requires hail.utils.Interval or IntervalExpression inputs for 'intervals'. Found input {} has type {}"
-                            .format(str(interval), type(interval)))
-        elif interval.point_type == pk_type:
-            return interval
-        elif n_pk == 1 and interval.point_type == ds.partition_key[0].dtype:
+        elif needs_wrapper:
             return Interval(Struct(foo=interval.start),
                             Struct(foo=interval.end),
                             interval.includes_start,
                             interval.includes_end)
         else:
-            raise TypeError("The point type for interval %s does not match the row partition key type of the dataset (%s, %s)" %
-                            (str(interval), repr(interval.point_type), repr(pk_type)))
+            return interval
 
-    intervals = [check_input(x)._jrep for x in wrap_to_list(intervals)]
+    intervals = [wrap_input(x)._jrep for x in intervals.value]
     jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, intervals, keep)
     return MatrixTable(jmt)

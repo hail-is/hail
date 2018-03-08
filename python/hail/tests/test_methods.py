@@ -609,10 +609,18 @@ class Tests(unittest.TestCase):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 
         self.assertEqual(
-            hl.filter_intervals(ds, hl.parse_locus_interval('20:10639222-10644705').value).count_rows(), 3)
+            hl.filter_intervals(ds, [hl.parse_locus_interval('20:10639222-10644705')]).count_rows(), 3)
 
-        intervals = [hl.parse_locus_interval('20:10639222-10644700').value,
-                     hl.parse_locus_interval('20:10644700-10644705').value]
+        intervals = [hl.parse_locus_interval('20:10639222-10644700'),
+                     hl.parse_locus_interval('20:10644700-10644705')]
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
+
+        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700'),
+                              hl.parse_locus_interval('20:10644700-10644705')])
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
+
+        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700').value,
+                              hl.parse_locus_interval('20:10644700-10644705')])
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
         intervals = [hl.parse_locus_interval('[20:10019093-10026348]').value,
@@ -627,25 +635,6 @@ class Tests(unittest.TestCase):
         intervals = [hl.Interval(hl.Struct(locus=hl.Locus('20', 10639222), alleles=['A', 'T']),
                                  hl.Struct(locus=hl.Locus('20', 10644700), alleles=['A', 'T']))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
-    def test_filter_intervals_expr_inputs(self):
-        ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
-
-        self.assertEqual(
-            hl.filter_intervals(ds, hl.parse_locus_interval('20:10639222-10644705')).count_rows(), 3)
-
-        intervals = [hl.parse_locus_interval('20:10639222-10644700'),
-                     hl.parse_locus_interval('20:10644700-10644705')]
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
-        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700'),
-                              hl.parse_locus_interval('20:10644700-10644705')])
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
-        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700').value,
-                              hl.parse_locus_interval('20:10644700-10644705').value])
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
 
     def test_balding_nichols_model(self):
         from hail.stats import TruncatedBetaDist
