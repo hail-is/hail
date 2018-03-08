@@ -1,7 +1,7 @@
 import unittest
 import hail as hl
 from hail.genetics import *
-from .utils import startTestHailContext, stopTestHailContext
+from .utils import resource, startTestHailContext, stopTestHailContext
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
