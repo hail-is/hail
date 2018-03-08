@@ -485,6 +485,8 @@ class ContextTests(unittest.TestCase):
 
         kt.to_dataframe().count()
 
+        self.assertTrue(set(KeyTable.from_pandas(KeyTable.range(10).to_pandas()).query('index.take(10)')) == set(range(0,10)))
+
         kt.show(10)
         kt.show(4, print_types=False, truncate_to=15)
 
@@ -543,6 +545,11 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
         self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
+
+        stuff = (KeyTable.range(10)
+              .annotate('foo = {i: index, other: "hi"}')
+              .maximal_independent_set('foo', '{ i: foo.i // 3, other: "hi"}'))
+        ids = [x.i for x in stuff]
 
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
@@ -960,3 +967,17 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(t1.is_complete(), False)
         self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_male, False)
+
+    def test_union(self):
+        vds = hc.import_vcf('src/test/resources/sample2.vcf')
+        vds_1 = vds.filter_variants_expr('v.start % 2 == 1')
+        vds_2 = vds.filter_variants_expr('v.start % 2 == 0')
+
+        vdses = [vds_1, vds_2]
+        r1 = vds_1.union(vds_2)
+        r2 = vdses[0].union(*vdses[1:])
+        r3 = VariantDataset.union(*vdses)
+
+        self.assertTrue(r1.same(r2))
+        self.assertTrue(r1.same(r3))
+        self.assertTrue(r1.same(vds))

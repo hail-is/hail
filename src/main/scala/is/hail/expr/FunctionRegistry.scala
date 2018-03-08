@@ -1196,6 +1196,24 @@ object FunctionRegistry {
     ``fet`` is identical to the version implemented in `R <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html>`_ with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
     """,
     "a" -> "value for cell 1", "b" -> "value for cell 2", "c" -> "value for cell 3", "d" -> "value for cell 4")
+
+  register("binomTest", { (x: Int, n: Int, p: Double, alternative: String) => binomTest(x, n, p, alternative)
+  },
+    """
+    Returns the p-value from the `exact binomial test <https://en.wikipedia.org/wiki/Binomial_test>`__ of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
+
+    **Examples**
+
+    Test each variant for allele balance across all heterozygous genotypes, under the null hypothesis that the two alleles are sampled with equal probability.
+
+    >>> (vds.split_multi()
+    ...   .annotate_variants_expr(
+    ...   'va.ab_binom_test = let all_samples_ad = gs.filter(g => g.isHet).map(g => g.ad).sum() in '
+    ...   'binomTest(all_samples_ad[1], all_samples_ad.sum(), 0.5, "two.sided")'))
+    """,
+    "x" -> "Number of successes", "n" -> "Number of trials", "p" -> "Probability of success under the null hypothesis",
+    "alternative" -> "Alternative hypothesis, must be \"two.sided\", \"greater\" or \"less\".")
+
   // NB: merge takes two structs, how do I deal with structs?
   register("exp", { (x: Double) => math.exp(x) },
     """
@@ -1242,7 +1260,8 @@ object FunctionRegistry {
     """,
     "s" -> "The string to parse."
   )
- def removedot(value: String, precision: Int) = {
+
+  def removedot(value: String, precision: Int) = {
     def truncateAt(n: Double, p: Int): Double = {
     //exponsive but the other way with bigdecimal causes an issue with spark sql
     val s = math pow(10, p);
@@ -1261,8 +1280,8 @@ object FunctionRegistry {
     "value" -> "Chromosome.",
     "precision" -> "Starting position.")
 
-  
-def truncateAt(n: Double, p: Int): Double = {
+
+  def truncateAt(n: Double, p: Int): Double = {
     //exponsive but the other way with bigdecimal causes an issue with spark sql
     val s = math pow (10, p); (math floor n * s) / s
   }
@@ -1272,6 +1291,7 @@ def truncateAt(n: Double, p: Int): Double = {
     round decimal dot
     """,
     "gt" -> "agt")  
+
 
   def ToGenotype(gt:Int)={
     gt match {
@@ -1286,8 +1306,6 @@ def truncateAt(n: Double, p: Int): Double = {
     remove dot
     """,
     "gt" -> "agt")
-
-
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
@@ -1549,6 +1567,13 @@ def truncateAt(n: Double, p: Int): Double = {
     "pattern1" -> "Substring to replace.",
     "pattern2" -> "Replacement string.")
 
+  registerMethod("entropy", { (x: String) => entropy(x)
+  },
+    """
+    Computes the `Shannon entropy <https://en.wikipedia.org/wiki/Entropy#Information_theory>`__ in bits of the
+    character frequency distribution.
+    """)
+
   registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus),
     """
     Returns true if the ``locus`` is in the interval.
@@ -1587,6 +1612,7 @@ def truncateAt(n: Double, p: Int): Double = {
   registerMethod("extend", (x: IndexedSeq[Any], a: IndexedSeq[Any]) => x ++ a, "Returns the concatenation of this Array followed by Array `a`.")(arrayHr(TTHr), arrayHr(TTHr), arrayHr(TTHr))
 
   registerMethod("add", (x: Set[Any], a: Any) => x + a, "Returns the result of adding the element `a` to this Set.")(setHr(TTHr), TTHr, setHr(TTHr))
+  registerMethod("remove", (x: Set[Any], a: Any) => x - a, "Returns the result of removing the element `a` from this Set.")(setHr(TTHr), TTHr, setHr(TTHr))
   registerMethod("union", (x: Set[Any], a: Set[Any]) => x ++ a, "Returns the union of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
   registerMethod("intersection", (x: Set[Any], a: Set[Any]) => x & a, "Returns the intersection of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
   registerMethod("difference", (x: Set[Any], a: Set[Any]) => x &~ a, "Returns the elements of this Set that are not in Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
@@ -2481,8 +2507,10 @@ def truncateAt(n: Double, p: Int): Double = {
             Code(stx, sty, b.update(i, z), i.store(i + 1))
           ),
           CompilationHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
-        Code._throw(Code.newInstance[is.hail.utils.HailException, String, Option[String]](
-          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin, Code.invokeStatic[scala.Option[String], scala.Option[String]]("empty"))))),
+        Code._throw(Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
+          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin,
+          Code.invokeStatic[scala.Option[String], scala.Option[String]]("empty"),
+          Code._null[Throwable])))),
       null)
   }
 

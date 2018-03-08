@@ -1,7 +1,10 @@
 package is.hail.utils.richUtils
 
+import java.io.OutputStream
+
 import is.hail.sparkextras.ReorderedPartitionsRDD
 import is.hail.utils._
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.{NarrowDependency, Partition, TaskContext}
@@ -26,32 +29,48 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }.fold(false)(_ || _)
 
   def writeTable(filename: String, tmpDir: String, header: Option[String] = None, parallelWrite: Boolean = false) {
+    val exportType =
+      if (parallelWrite)
+        ExportType.PARALLEL_HEADER_IN_SHARD
+      else
+        ExportType.CONCATENATED
+
+    writeTable(filename, tmpDir, header, exportType)
+  }
+
+  def writeTable(filename: String, tmpDir: String, header: Option[String], exportType: Int) {
     val hConf = r.sparkContext.hadoopConfiguration
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
-    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
     hConf.delete(filename, recursive = true) // overwriting by default
 
     val parallelOutputPath =
-      if (parallelWrite) {
-        filename
-      } else
+      if (exportType == ExportType.CONCATENATED)
         hConf.getTemporaryFile(tmpDir)
+      else
+        filename
 
     val rWithHeader = header.map { h =>
-      if (r.partitions.length == 0)
+      if (r.getNumPartitions == 0 && exportType != ExportType.PARALLEL_SEPARATE_HEADER)
         r.sparkContext.parallelize(List(h), numSlices = 1)
-      else if (parallelWrite)
-        r.mapPartitions { it => Iterator(h) ++ it }
-      else
-        r.mapPartitionsWithIndex { case (i, it) =>
-          if (i == 0)
-            Iterator(h) ++ it
-          else
-            it
+      else {
+        exportType match {
+          case ExportType.CONCATENATED =>
+            r.mapPartitionsWithIndex { case (i, it) =>
+              if (i == 0)
+                Iterator(h) ++ it
+              else
+                it
+            }
+          case ExportType.PARALLEL_SEPARATE_HEADER =>
+            r
+          case ExportType.PARALLEL_HEADER_IN_SHARD =>
+            r.mapPartitions { it => Iterator(h) ++ it }
+          case _ => fatal(s"Unknown export type: $exportType")
         }
+      }
     }.getOrElse(r)
 
     codec match {
@@ -59,11 +78,21 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case None => rWithHeader.saveAsTextFile(parallelOutputPath)
     }
 
+    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
+      val headerExt = hConf.getCodec(filename)
+      hConf.writeTextFile(parallelOutputPath + "/header" + headerExt) { out =>
+        header.foreach { h =>
+          out.write(h)
+          out.write('\n')
+        }
+      }
+    }
+
     if (!hConf.exists(parallelOutputPath + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
-    if (!parallelWrite) {
-      hConf.copyMerge(parallelOutputPath, filename, true, false)
+    if (exportType == ExportType.CONCATENATED) {
+      hConf.copyMerge(parallelOutputPath, filename, hasHeader = false)
     }
   }
 
@@ -98,5 +127,34 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
     }
+  }
+
+  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long): Long = {
+    val sc = r.sparkContext
+    val hadoopConf = sc.hadoopConfiguration
+    
+    hadoopConf.mkDir(path + "/parts")
+    
+    val sHadoopConf = new SerializableHadoopConfiguration(hadoopConf)
+    
+    val nPartitions = r.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val itemCount = r.mapPartitionsWithIndex { case (i, it) =>
+      val is = i.toString
+      assert(is.length <= d)
+      val pis = StringUtils.leftPad(is, d, "0")
+
+      val filename = path + "/parts/part-" + pis
+      
+      val os = sHadoopConf.value.unsafeWriter(filename)
+
+      Iterator.single(write(i, it, os))
+    }
+      .fold(0L)(_ + _)
+
+    info(s"wrote $itemCount items in $nPartitions partitions")
+    
+    itemCount
   }
 }

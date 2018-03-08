@@ -10,11 +10,11 @@ case class TextContext(line: String, file: String, position: Option[Int]) extend
       case _: HailException =>
         fatal(
           s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: ${ e.getMessage }
-             |  offending line: @1""".stripMargin, line)
+             |  offending line: @1""".stripMargin, line, e)
       case _ =>
         fatal(
           s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: caught ${ e.getClass.getName() }: ${ e.getMessage }
-             |  offending line: @1""".stripMargin, line)
+             |  offending line: @1""".stripMargin, line, e)
     }
   }
 }

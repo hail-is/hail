@@ -1413,8 +1413,9 @@ class VariantDataset(object):
     @handle_py4j
     @requireTGenotype
     @typecheck_method(output=strlike,
-                      fam_expr=strlike)
-    def export_plink(self, output, fam_expr='id = s'):
+                      fam_expr=strlike,
+                      parallel=bool)
+    def export_plink(self, output, fam_expr='id = s', parallel=False):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
         .. include:: requireTGenotype.rst
@@ -1470,9 +1471,11 @@ class VariantDataset(object):
         :param str output: Output file base.  Will write BED, BIM, and FAM files.
 
         :param str fam_expr: Expression for FAM file fields.
+
+        :param bool parallel: If true, return a set of BED and BIM files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportPlink(output, fam_expr)
+        self._jvdf.exportPlink(output, fam_expr, parallel)
 
     @handle_py4j
     @typecheck_method(output=strlike,
@@ -2536,6 +2539,59 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
+    @typecheck(datasets=tupleof(vds_type))
+    def union(*datasets):
+        """Take the union of datasets vertically (include all variants).
+
+        **Examples**
+
+        .. testsetup::
+
+            vds_autosomal = vds
+            vds_chromX = vds
+            vds_chromY = vds
+
+        Union two datasets:
+
+        >>> vds_union = vds_autosomal.union(vds_chromX)
+
+        Given a list of datasets, union them all:
+
+        >>> all_vds = [vds_autosomal, vds_chromX, vds_chromY]
+
+        The following three syntaxes are equivalent:
+
+        >>> vds_union1 = vds_autosomal.union(vds_chromX, vds_chromY)
+        >>> vds_union2 = all_vds[0].union(*all_vds[1:])
+        >>> vds_union3 = VariantDataset.union(*all_vds)
+
+        **Notes**
+
+        In order to combine two datasets, these requirements must be met:
+         - the samples must match
+         - the variant annotation schemas must match (field order within structs matters).
+         - the cell (genotype) schemas must match (field order within structs matters).
+
+        The column annotations in the resulting dataset are simply the column annotations
+        from the first dataset; the column annotation schemas do not need to match.
+
+        This method can trigger a shuffle, if partitions from two datasets overlap.
+
+        :param vds_type: Datasets to combine.
+        :type vds_type: tuple of :class:`.VariantDataset`
+
+        :return: Dataset with variants from all datasets.
+        :rtype: :class:`.VariantDataset`
+        """
+        if len(datasets) == 0:
+            raise ValueError('Expected at least one argument')
+        elif len(datasets) == 1:
+            return datasets[0]
+        else:
+            return VariantDataset(Env.hc(), Env.hail().variant.VariantSampleMatrix.union([d._jvds for d in datasets]))
+
+
+    @handle_py4j
     @requireTGenotype
     @typecheck_method(r2=numeric,
                       window=integral,
@@ -3210,7 +3266,7 @@ class VariantDataset(object):
 
         for which the covariance is diagonal (e.g., unmixed). That is, rotating the phenotype vector (:math:`y`) and covariate vectors (columns of :math:`X`) in :math:`\mathbb{R}^n` by :math:`U^T` transforms the model to one with independent residuals. For any particular value of :math:`\delta`, the restricted maximum likelihood (REML) solution for the latter model can be solved exactly in time complexity that is linear rather than cubic in :math:`n`.  In particular, having rotated, we can run a very efficient 1-dimensional optimization procedure over :math:`\delta` to find the REML estimate :math:`(\hat{\delta}, \\hat{\\beta}, \\hat{\sigma}_g^2)` of the triple :math:`(\delta, \\beta, \sigma_g^2)`, which in turn determines :math:`\\hat{\sigma}_e^2` and :math:`\\hat{h}^2`.
 
-        We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathrm{ln}(\delta)` running from -8 to 8 by 0.01, corresponding to :math:`h^2` decreasing from 0.9995 to 0.0005. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit, with the ``hail.log`` recording all values over the grid for further inspection.
+        We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathrm{ln}(\delta)` running from -8 to 8 by 0.01, corresponding to :math:`h^2` decreasing from 0.9995 to 0.0005. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit. In any case, the log file records the table of grid values for further inspection, beginning under the info line containing "lmmreg: table of delta".
 
         If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathrm{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than 0.01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid.
 
@@ -3845,8 +3901,9 @@ class VariantDataset(object):
     @typecheck_method(k=integral,
                       maf=numeric,
                       block_size=integral,
-                      min_kinship=numeric)
-    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf")):
+                      min_kinship=numeric,
+                      statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
@@ -4020,6 +4077,27 @@ class VariantDataset(object):
         the threshold, then the variant's contribution to relatedness estimates
         is zero.
 
+        Under the PC-Relate model, kinship, \[ \phi_{ij} \], ranges from 0 to
+        0.5, and is precisely half of the
+        fraction-of-genetic-material-shared. Listed below are the statistics for
+        a few pairings:
+
+         - Monozygotic twins share all their genetic material so their kinship
+           statistic is 0.5 in expection.
+
+         - Parent-child and sibling pairs both have kinship 0.25 in expectation
+           and are separated by the identity-by-descent-zero, \[ k^{(2)}_{ij} \],
+           statistic which is zero for parent-child pairs and 0.25 for sibling
+           pairs.
+
+         - Avuncular pairs and grand-parent/-child pairs both have kinship 0.125
+           in expectation and both have identity-by-descent-zero 0.5 in expectation
+
+         - "Third degree relatives" are those pairs sharing
+           \[ 2^{-3} = 12.5 % \] of their genetic material, the results of
+           PCRelate are often too noisy to reliably distinguish these pairs from
+           higher-degree-relative-pairs or unrelated pairs.
+
         The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
         j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
         list is: *i: String, j: String*.
@@ -4039,13 +4117,23 @@ class VariantDataset(object):
         :param float min_kinship: Pairs of samples with kinship lower than
                                   ``min_kinship`` are excluded from the results.
 
+        :param str statistics: the set of statistics to compute, 'phi' will only
+                               compute the kinship statistic, 'phik2' will
+                               compute the kinship and identity-by-descent two
+                               statistics, 'phik2k0' will compute the kinship
+                               statistics and both identity-by-descent two and
+                               zero, 'all' computes the kinship statistic and
+                               all three identity-by-descent statistics.
+
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
                  of their kinship and identity-by-descent zero, one, and two.
         :rtype: :py:class:`.KeyTable`
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship))
+        intstatistics = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[statistics]
+
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship, intstatistics))
 
     @handle_py4j
     @typecheck_method(storage_level=strlike)

@@ -7,7 +7,7 @@ Getting Started
 You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
-- `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
+- `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail is compatible with Spark 2.0.x and 2.1.x.
 - Python 2.7 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 
 --------------------
@@ -17,16 +17,16 @@ Running Hail locally
 .. include:: distLinks.rst
 
 Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
-environment variables. You may want to add these to your bash dot-file (``~/.bash_profile``, ``~/.bashrc``, etc)
+environment variables. You may want to add these to the appropriate dot-file (we recommend ``~/.profile``)
 so that you don't need to rerun these commands in each new session.
 
-Here, fill in the path to the un-tarred Spark package.
+Here, fill in the path to the **un-tarred** Spark package.
 
 .. code-block:: text
 
     export SPARK_HOME=???
 
-Here, fill in the path to the unzipped Hail distribution.
+Here, fill in the path to the **unzipped** Hail distribution.
 
 .. code-block:: text
 
@@ -196,22 +196,21 @@ Running in the cloud
 
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon
 <https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance
-and exceptional scalability to tens of thousands of cores without the overhead
+and exceptional scalability to many thousands of cores without the overhead
 of installing and managing an on-prem cluster.
 
 Hail publishes pre-built JARs for Google Cloud Platform's Dataproc Spark
 clusters. If you would prefer to avoid building Hail from source, learn how to
 get started on Google Cloud Platform by reading this `forum post
-<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__. To get
-started running Hail on GCP via an interactive Jupyter notebook, see this `forum post
-<http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__.
+<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__. You
+can use `cloudtools <https://github.com/Nealelab/cloudtools>`__ to simplify using
+Hail on GCP even further, including via interactive Jupyter notebooks (also discussed `here <http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__).
 
 Building with other versions of Spark 2
 =======================================
 
-Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.1.0, modify the above
-instructions as follows:
+Hail is compatible with Spark 2.0.x and 2.1.x.  To build against Spark 2.1.0,
+modify the above instructions as follows:
 
  - Set the Spark version in the gradle command
 

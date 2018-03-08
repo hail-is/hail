@@ -97,7 +97,7 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
 final class Bgen12GenotypeIterator(a: Array[Byte],
   val nAlleles: Int,
   val nBitsPerProb: Int,
-  nSamples: Int) extends Iterable[Genotype] {
+  nSamples: Int) extends Iterable[Genotype] with Serializable {
   private val nGenotypes = triangle(nAlleles)
 
   private val totalProb = ((1L << nBitsPerProb) - 1).toUInt

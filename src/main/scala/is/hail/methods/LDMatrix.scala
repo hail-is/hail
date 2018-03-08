@@ -1,12 +1,14 @@
 package is.hail.methods
 
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
-import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.hadoop.io._
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
 import org.json4s._
 
@@ -14,54 +16,48 @@ object LDMatrix {
   /**
     * Computes the LD matrix for the given VDS.
     * @param vds VDS on which to compute Pearson correlation between pairs of variants.
-    * @return An LDMatrix.
+    * @return LDMatrix.
     */
-  def apply(vds : VariantDataset, optComputeLocally: Option[Boolean]): LDMatrix = {
+  def apply(vds : VariantDataset, optForceLocal: Option[Boolean]): LDMatrix = {
+    val maxEntriesForLocalProduct = 25e6 // 5000 * 5000
+    
     val nSamples = vds.nSamples
-    val nVariants = vds.countVariants()
 
     val filteredNormalizedHardCalls = vds.rdd.flatMap { 
-      case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
+      case (v, (_, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
     }
+      .persist()
     
     val variantsKept = filteredNormalizedHardCalls.map(_._1).collect()
     assert(variantsKept.isSorted, "ld_matrix: Array of variants is not sorted. This is a bug")
+    val nVariantsKept = variantsKept.length
 
     val normalizedIndexedRows = filteredNormalizedHardCalls.map(_._2).zipWithIndex()
       .map{ case (values, idx) => IndexedRow(idx, Vectors.dense(values))}
-    val normalizedBlockMatrix = new IndexedRowMatrix(normalizedIndexedRows).toBlockMatrixDense()
 
-    val nVariantsKept = variantsKept.length
-    val nVariantsDropped = nVariants - nVariantsKept
+    val normalizedBlockMatrix = new IndexedRowMatrix(normalizedIndexedRows, nVariantsKept, nSamples).toHailBlockMatrix()
 
-    info(s"Computing LD matrix with ${variantsKept.length} variants using $nSamples samples. $nVariantsDropped variants were dropped.")
+    filteredNormalizedHardCalls.unpersist()
 
-    val localBound = 5000 * 5000
+    info(s"Computing LD matrix with ${variantsKept.length} variants using $nSamples samples.")
+
     val nEntries: Long = nVariantsKept * nVariantsKept
     val nSamplesInverse = 1.0 / nSamples
 
-    val computeLocally = optComputeLocally.getOrElse(nEntries <= localBound)
+    val computeProductLocally = optForceLocal.getOrElse(nEntries <= maxEntriesForLocalProduct)
 
-    var indexedRowMatrix: IndexedRowMatrix = null
+    val irm: IndexedRowMatrix =
+      if (computeProductLocally) {
+        val localMat = normalizedBlockMatrix.toLocalMatrix()
+        val product = localMat * localMat.t
+        BlockMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.blockSize).toIndexedRowMatrix()
+      } else
+        (normalizedBlockMatrix * normalizedBlockMatrix.t).toIndexedRowMatrix()
 
-    if (computeLocally) {
-      val localMat: DenseMatrix = normalizedBlockMatrix.toLocalMatrix().asInstanceOf[DenseMatrix]
-      val product = localMat multiply localMat.transpose
-      indexedRowMatrix =
-        BlockMatrixIsDistributedMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.rowsPerBlock,
-          normalizedBlockMatrix.colsPerBlock).toIndexedRowMatrix()
-    } else {
-      import is.hail.distributedmatrix.DistributedMatrix.implicits._
-      val dm = DistributedMatrix[BlockMatrix]
-      import dm.ops._
-      indexedRowMatrix = (normalizedBlockMatrix * normalizedBlockMatrix.t)
-        .toIndexedRowMatrix()
-    }
+    val scaledIRM = new IndexedRowMatrix(irm.rows
+      .map{case IndexedRow(idx, vec) => IndexedRow(idx, vec.map(d => d * nSamplesInverse))})
 
-    val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows
-      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
-
-    LDMatrix(scaledIndexedRowMatrix, variantsKept, nSamples)
+    LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples)
   }
 
   private val metadataRelativePath = "/metadata.json"
@@ -71,15 +67,15 @@ object LDMatrix {
     hadoop.mkDir(uri)
 
     val rdd = hc.sc.sequenceFile[LongWritable, ArrayPrimitiveWritable](uri+matrixRelativePath).map { case (lw, apw) =>
-      new IndexedRow(lw.get(), new DenseVector(apw.get().asInstanceOf[Array[Double]]))
+      IndexedRow(lw.get(), new DenseVector(apw.get().asInstanceOf[Array[Double]]))
     }
 
     val LDMatrixMetadata(variants, nSamples) =
-      hc.hadoopConf.readTextFile(uri+metadataRelativePath) { isr =>
+      hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
         jackson.Serialization.read[LDMatrixMetadata](isr)
       }
 
-    new LDMatrix(new IndexedRowMatrix(rdd), variants, nSamples)
+    new LDMatrix(hc, new IndexedRowMatrix(rdd), variants, nSamples)
   }
 }
 
@@ -89,11 +85,11 @@ object LDMatrix {
   * @param variants Array of variants indexing the rows and columns of the matrix.
   * @param nSamples Number of samples used to compute this matrix.
   */
-case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
+case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) extends ExportableMatrix {
   import LDMatrix._
 
-  def toLocalMatrix: Matrix = {
-    matrix.toBlockMatrixDense().toLocalMatrix()
+  def toLocalMatrix: BDM[Double] = {
+    matrix.toHailBlockMatrix().toLocalMatrix()
   }
 
   def write(uri: String) {
@@ -101,9 +97,9 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     hadoop.mkDir(uri)
 
     matrix.rows.map { case IndexedRow(i, v) => (new LongWritable(i), new ArrayPrimitiveWritable(v.toArray)) }
-      .saveAsSequenceFile(uri+matrixRelativePath)
+      .saveAsSequenceFile(uri + matrixRelativePath)
 
-    hadoop.writeTextFile(uri+metadataRelativePath) { os =>
+    hadoop.writeTextFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
         LDMatrixMetadata(variants, nSamples),
         os)

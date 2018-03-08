@@ -13,4 +13,5 @@ __all__ = ['typecheck',
            'integral',
            'numeric',
            'char',
-           'lazy']
+           'lazy',
+           'enumeration']

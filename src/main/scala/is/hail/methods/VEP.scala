@@ -270,7 +270,7 @@ object VEP {
       assembly = "GRCh37"
     }
     val plugin_cmd = "--plugin,"+ s"$plugin"
-
+    
     val cmd =
       Array(
         perl,
@@ -284,8 +284,6 @@ object VEP {
         "--dir", s"$cacheDir",
         "--fasta", s"$fasta",
         "--minimal",
-        "-i", 
-        "/home/production/dpiscia/annotated.vc",
         "--assembly", s"$assembly",
         if (plugin == "True") plugin_cmd else "",
         "-o", "STDOUT")
@@ -408,7 +406,7 @@ object VEP {
             assert(lv == rv)
             (lv, (insertVEP(va, vaVep), gs))
           }
-        }
+	}
       }.asOrderedRDD
 
     (csq, newVASignature) match {

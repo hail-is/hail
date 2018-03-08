@@ -92,4 +92,25 @@ class GraphSuite {
 
     assert(actual === Array[Int]())
   }
+
+  @Test def tieBreakingOfBipartiteGraphWorks() {
+    val g = mkGraph(for (i <- 0 until 10) yield (i, i + 10))
+    // prefer to remove big numbers
+    val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => l - r))
+
+    assert(isIndependentSet(actual, g))
+    assert(actual.length == 10)
+    assert(actual.forall(_ < 10))
+  }
+
+
+  @Test def tieBreakingInLongCycleWorks() {
+    val g = mkGraph(0 -> 1, 1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6, 6 -> 0)
+    // prefers to remove small numbers
+    val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => r - l))
+
+    assert(isIndependentSet(actual, g))
+    assert(actual.length == 3)
+    actual should contain theSameElementsAs Array[Int](1, 3, 6)
+  }
 }

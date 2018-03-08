@@ -320,7 +320,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.exportGenotypes(path, expr, typeFile, filterF, parallel)
   }
 
-  def exportPlink(path: String, famExpr: String = "id = s") {
+  def exportPlink(path: String, famExpr: String = "id = s", parallel: Boolean = false) {
     requireSplit("export plink")
     vds.requireSampleTString("export plink")
 
@@ -392,10 +392,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     plinkRDD.map { case (v, bed) => bed }
-      .saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader))
+      .saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader), parallelWrite = parallel)
 
     plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
-      .writeTable(path + ".bim", vds.hc.tmpDir)
+      .writeTable(path + ".bim", vds.hc.tmpDir, parallelWrite = parallel)
 
     plinkRDD.unpersist()
 
@@ -668,19 +668,20 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param k         the number of principal components to use to distinguish
-    *                  ancestries
-    * @param maf       the minimum individual-specific allele frequency for an
-    *                  allele used to measure relatedness
-    * @param blockSize the side length of the blocks of the block-distributed
-    *                  matrices; this should be set such that atleast three of
-    *                  these matrices fit in memory (in addition to all other
-    *                  objects necessary for Spark and Hail).
+    * @param k          the number of principal components to use to distinguish
+    *                   ancestries
+    * @param maf        the minimum individual-specific allele frequency for an
+    *                   allele used to measure relatedness
+    * @param blockSize  the side length of the blocks of the block-distributed
+    *                   matrices; this should be set such that atleast three of
+    *                   these matrices fit in memory (in addition to all other
+    *                   objects necessary for Spark and Hail).
+    * @param statistics which subset of the four statistics to compute
     */
-  def pcRelate(k: Int, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship): KeyTable = {
+  def pcRelate(k: Int, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
     requireSplit("PCRelate")
     val pcs = SamplePCA.justScores(vds, k)
-    PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship)
+    PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
   }
 
   def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds, root, keepStar)

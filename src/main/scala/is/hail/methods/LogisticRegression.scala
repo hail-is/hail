@@ -42,14 +42,18 @@ object LogisticRegression {
     info(s"Running $test logistic regression on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
-    val nullFit = nullModel.fit()
+    var nullFit = nullModel.fit()
 
     if (!nullFit.converged)
-      fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
-        if (nullFit.exploded)
-          s"exploded at Newton iteration ${ nullFit.nIter }"
-        else
-          "Newton iteration failed to converge"))
+      if (logRegTest == FirthTest)
+        nullFit = LogisticRegressionFit(nullModel.bInterceptOnly(),
+          None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
+      else
+        fatal("Failed to fit logistic regression null model (standard MLE with covariates only): " + (
+          if (nullFit.exploded)
+            s"exploded at Newton iteration ${ nullFit.nIter }"
+          else
+            "Newton iteration failed to converge"))
 
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
