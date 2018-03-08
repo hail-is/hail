@@ -2701,8 +2701,8 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
     @classmethod
-    @typecheck_method(table=Table)
-    def from_rows_table(cls, table: Table) -> 'MatrixTable':
+    @typecheck_method(table=Table, partition_key=nullable(oneof(str, listof(str))))
+    def from_rows_table(cls, table: Table, partition_key: Optional[Union[str, List[str]]]=None) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
 
         .. include:: _templates/experimental.rst
@@ -2725,12 +2725,21 @@ class MatrixTable(object):
         ----------
         table : :class:`.Table`
             The table to be converted.
+        partition_key : :obj:`str` or :obj:`list` of :obj:`str`
+            Partition key(s).
 
         Returns
         -------
         :class:`.MatrixTable`
         """
-        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
+        if partition_key is not None:
+            if isinstance(partition_key, str):
+                partition_key = [partition_key]
+            if len(partition_key) == 0:
+                raise ValueError('partition_key may not be empty')
+            elif list(table.key)[:len(partition_key)] != partition_key:
+                raise ValueError('partition_key must be a prefix of table key')
+        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt, partition_key)
         return MatrixTable(jmt)
 
     @typecheck_method(p=numeric,
