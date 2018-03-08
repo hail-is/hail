@@ -883,6 +883,9 @@ class MatrixTests(unittest.TestCase):
         mt.annotate_cols(foo=5).foo.take(1)
         mt.GQ.take(1)
 
+        mt.locus.contig.take(1)
+        mt.s[0].take(1)
+
 
 
 class GroupedMatrixTests(unittest.TestCase):

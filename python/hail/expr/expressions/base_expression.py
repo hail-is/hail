@@ -667,7 +667,7 @@ class Expression(object):
                             m = source.select_cols(*source.col_key, field_name)
                         m = m.rename({field_name: name})
                     else:
-                        return source.select_cols(*source.col_key, **{name: self})
+                        m = source.select_cols(*source.col_key, **{name: self})
                     return m.cols().select_globals()
         else:
             assert len(axes) == 2
