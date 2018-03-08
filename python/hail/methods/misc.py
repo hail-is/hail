@@ -204,7 +204,7 @@ def filter_intervals(ds, intervals, keep=True):
 
     Filter to loci falling within one interval:
 
-    >>> ds_result = hl.filter_intervals(dataset, hl.parse_locus_interval('17:38449840-38530994'))
+    >>> ds_result = hl.filter_intervals(dataset, [hl.parse_locus_interval('17:38449840-38530994')])
 
     Remove all loci within list of intervals:
 
