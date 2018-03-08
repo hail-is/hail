@@ -260,8 +260,7 @@ def check_collection(arg, t, context: str) -> None:
     if t is Collection:
         return
     else:
-        # can't type check the iterator currently
-        return
+        return _check_collection(arg, t.__args__[0], context, indexed=False)
 
 
 def check_t(arg, t, context: str) -> None:

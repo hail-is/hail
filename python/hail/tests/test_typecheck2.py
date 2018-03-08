@@ -7,7 +7,7 @@ class Tests(unittest.TestCase):
 
     def test_noargs(self):
         def f_noargs():
-            pass
+            typecheck(f_noargs)
 
         f_noargs()
 
@@ -172,13 +172,15 @@ class Tests(unittest.TestCase):
         f_collection({}.keys())
         f_collection({}.items())
 
-        f_collection_str([1, 2, 3])
-        f_collection_str(tuple(x for x in [1, 2, 3]))
+        f_collection_str(['1', '2', '3'])
+        f_collection_str(tuple(str(x) for x in [1, 2, 3]))
 
         with self.assertRaises(TypeError):
             f_collection(1)
         with self.assertRaises(TypeError):
             f_collection_str(1)
+        with self.assertRaises(TypeError):
+            f_collection_str([1, 2, 3])
 
     def test_tuple(self):
         def f_tuple(x: Tuple):
