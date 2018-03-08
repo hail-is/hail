@@ -783,11 +783,8 @@ class MatrixTests(unittest.TestCase):
     def test_from_rows_table(self):
         ds = hl.import_vcf(resource('sample.vcf'))
         rt = ds.rows()
-        rm = hl.MatrixTable.from_rows_table(rt)
-        # would be nice to compare rm to ds.drop_cols(), but the latter
-        # preserves the col, entry types
-        self.assertEqual(rm.count_cols(), 0)
-        self.assertTrue(rm.rows()._same(rt))
+        rm = hl.MatrixTable.from_rows_table(rt, partition_key='locus')
+        self.assertTrue(rm._same(ds.drop_cols().select_entries().select_cols()))
 
     def test_sample_rows(self):
         ds = self.get_vds()

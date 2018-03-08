@@ -2701,8 +2701,8 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
     @classmethod
-    @typecheck_method(table=Table)
-    def from_rows_table(cls, table: Table) -> 'MatrixTable':
+    @typecheck_method(table=Table, partition_key=nullable(oneof(str, listof(str))))
+    def from_rows_table(cls, table: Table, partition_key: Optional[Union[str, List[str]]]=None) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
 
         .. include:: _templates/experimental.rst
@@ -2711,13 +2711,12 @@ class MatrixTable(object):
         --------
         Import a text table and construct a rows-only matrix table:
 
-        >>> table = hl.import_table('data/variant-lof.tsv', key='v')
-        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
+        >>> table = hl.import_table('data/variant-lof.tsv')
+        >>> table = table.transmute(**hl.parse_variant(table['v'])).key_by('locus', 'alleles')
+        >>> sites_vds = hl.MatrixTable.from_rows_table(table, partition_key='locus')
 
         Notes
         -----
-        The table must be keyed by a single field.
-
         All fields in the table become row-indexed fields in the
         result.
 
@@ -2725,12 +2724,21 @@ class MatrixTable(object):
         ----------
         table : :class:`.Table`
             The table to be converted.
+        partition_key : :obj:`str` or :obj:`list` of :obj:`str`
+            Partition key field(s), must be a prefix of the table key.
 
         Returns
         -------
         :class:`.MatrixTable`
         """
-        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
+        if partition_key is not None:
+            if isinstance(partition_key, str):
+                partition_key = [partition_key]
+            if len(partition_key) == 0:
+                raise ValueError('partition_key must not be empty')
+            elif list(table.key)[:len(partition_key)] != partition_key:
+                raise ValueError('partition_key must be a prefix of table key')
+        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt, partition_key)
         return MatrixTable(jmt)
 
     @typecheck_method(p=numeric,

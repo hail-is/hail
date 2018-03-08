@@ -308,12 +308,12 @@ object MatrixTable {
         None, None))
   }
 
-  def fromRowsTable(kt: Table): MatrixTable = {
+  def fromRowsTable(kt: Table, partitionKey: java.util.ArrayList[String] = null): MatrixTable = {
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
       Array.empty[String],
       TStruct.empty(),
-      kt.key,
+      Option(partitionKey).map(_.asScala.toArray.toFastIndexedSeq).getOrElse(kt.key),
       kt.key,
       kt.signature,
       TStruct.empty()
