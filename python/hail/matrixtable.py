@@ -2725,7 +2725,7 @@ class MatrixTable(object):
         table : :class:`.Table`
             The table to be converted.
         partition_key : :obj:`str` or :obj:`list` of :obj:`str`
-            Partition key field(s).
+            Partition key field(s), must be a prefix of the table key.
 
         Returns
         -------
