@@ -648,12 +648,25 @@ class Expression(object):
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
-                    source = source.select_rows(*filter(lambda x: x != name, source.row_key), **{name: self})
-                    return source.rows().select_globals()
+                    if self in source._fields_inverse:
+                        assert source[name] is self
+                        if name in source.row_key:
+                            m = source.select_rows(*source.row_key)
+                        else:
+                            m = source.select_rows(*source.row_key, name)
+                    else:
+                        m = source.select_rows(*source.row_key, **{name: self})
+                    return m.rows().select_globals()
                 else:
-                    assert self._indices == source._col_indices
-                    source = source.select_cols(*filter(lambda f: f != name, source.col_key), **{name: self})
-                    return source.cols().select_globals()
+                    if self in source._fields_inverse:
+                        assert source[name] is self
+                        if name in source.col_key:
+                            m = source.select_cols(*source.col_key)
+                        else:
+                            return source.select_cols(*source.col_key, name)
+                    else:
+                        return source.select_cols(*source.col_key, **{name: self})
+                    return m.cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
