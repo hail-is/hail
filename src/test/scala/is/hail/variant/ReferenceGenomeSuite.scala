@@ -288,7 +288,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val table = hc.importTable("src/test/resources/fake_reference.tsv")
     assert(table.annotate("""baseComputed = getReferenceSequence(test)(row.contig, row.pos.toInt32(), 0, 0)""")
       .forall("row.base == row.baseComputed"))
-    
+
     ReferenceGenome.removeReference(rg.name)
 
     val rg2 = ReferenceGenome.fromFASTAFile(hc, "test2", fastaFileGzip, indexFile)
