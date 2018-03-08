@@ -1,5 +1,5 @@
 from hail.utils import new_temp_file, storage_level
-from hail.utils.java import Env, jarray, numpy_from_breeze, joption, FatalError
+from hail.utils.java import Env, jarray, numpy_from_breeze, breeze_from_numpy, joption
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -53,22 +53,29 @@ class BlockMatrix(object):
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,
-                      block_size=nullable(int))
-    def from_numpy(cls, ndarray, block_size=None):
+                      block_size=nullable(int),
+                      path=nullable(str))
+    def from_numpy(cls, ndarray, block_size=None, path=None):
         """Distribute a `NumPy ndarray
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html>`__
         as a block matrix.
 
-        Warning
-        -------
-        This method is not efficient for large matrices.
+        Notes
+        -----
+        This method passes data from Python to Java via a file on the driver's
+        local disk, created by default using Python's :class:`tempfile.mkstemp`
+        function. This function places the file in a system temp directory but
+        does not automatically delete the file at exit. Use `path` to manually
+        specify a file path.
 
         Parameters
         ----------
         ndarray: :class:`numpy.ndarray`
             ndarray with two dimensions, each of non-zero size.
-        block_size: :obj:`int`, optional.
+        block_size: :obj:`int`, optional
             Block size. Default given by :meth:`default_block_size`.
+        path: :obj:`str`, optional
+            Path to file used to pass data from Python to Java.
 
         Returns
         -------
@@ -77,22 +84,9 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        # convert to float64 to ensure that jarray method below works
-        ndarray = ndarray.astype(np.float64)
-        if ndarray.ndim != 2:
-            raise FatalError("from_numpy: ndarray must have two axes, found shape {}".format(ndarray.shape))
-        n_rows, n_cols = ndarray.shape[0:2]
-        if n_rows == 0 or n_cols == 0:
-            raise FatalError("from_numpy: ndarray dimensions must be non-zero, found shape {}".format(ndarray.shape))
+        bdm = breeze_from_numpy(ndarray, path)
 
-        # np.ravel() exports row major by default
-        data = jarray(Env.jvm().double, np.ravel(ndarray))
-        # breeze is column major
-        is_transpose = True
-
-        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.apply(n_rows, n_cols, data, is_transpose)
         hc = Env.hc()
-
         return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
 
     @classmethod
@@ -107,17 +101,18 @@ class BlockMatrix(object):
         For shuffle resiliency, this functions writes the resulting block matrix
         to disk and then reads the result. By specifying a path, this block
         matrix can be read again using :meth:`BlockMatrix.read`. Otherwise, a
-        temporary file is used and then deleted when :func:`hail.stop`
-        is called or the program terminates.
+        file is created in the temp directory given by :func:`hail.tmp_dir`
+        and then deleted when :func:`hail.stop` is called or the program
+        terminates.
 
         Parameters
         ----------
         entry_expr: :class:`.NumericExpression`
             Numeric entry expression for matrix entries.
-        path: :obj:`str`, optional.
+        path: :obj:`str`, optional
             Path used to write the resulting block matrix.
             If not specified, a temporary file is used.
-        block_size: :obj:`int`, optional.
+        block_size: :obj:`int`, optional
             Block size. Default given by :meth:`default_block_size`.
 
         Returns
@@ -162,7 +157,7 @@ class BlockMatrix(object):
             Number of rows.
         n_cols: :obj:`int`
             Number of columns.
-        block_size: :obj:`int`, optional.
+        block_size: :obj:`int`, optional
             Block size. Default given by :meth:`default_block_size`.
         seed: :obj:`int`
             Random seed.
@@ -181,6 +176,23 @@ class BlockMatrix(object):
         hc = Env.hc()
         return cls(Env.hail().linalg.BlockMatrix.random(
             hc._jhc, n_rows, n_cols, block_size, seed, uniform))
+
+    @classmethod
+    @typecheck_method(n_rows=int,
+                      n_cols=int,
+                      data=listof(float),
+                      row_major=bool,
+                      block_size=int)
+    def _create_block_matrix(cls, n_rows, n_cols, data, row_major, block_size):
+        """Private method for creating small test matrices."""
+
+        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.apply(n_rows,
+                                                                     n_cols,
+                                                                     jarray(Env.jvm().double, data),
+                                                                     row_major)
+        hc = Env.hc()
+        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
+
 
     @staticmethod
     def default_block_size():
@@ -288,23 +300,67 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
 
+    @typecheck_method(path=str)
+    def tofile(self, path):
+        """Collect and output float64 data to a file.
+
+        Notes
+        -----
+        Use :meth:`.BlockMatrix.write`.
+
+        Matrix must be small. Format is row major.
+
+        Not machine independent.
+
+        Use read or use to_numpy and save with numpy.save and numpy.load.
+
+        ``np.readfrom(path).reshape((n_rows, n_cols))``
+
+        Parameters
+        ----------
+        path: :obj:`str`, optional
+            Path for output.
+        """
+
+        bdm = self._jbm.toBreezeMatrix()
+        hc = Env.hc()
+        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.writeDoubles(hc._jhc, path, bdm, forceRowMajor=True)
+        assert row_major
+
+    @typecheck_method(path=nullable(str))
     def to_numpy(self):
         """Collect the block matrix into a `NumPy ndarray
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html>`__.
 
         Notes
         -----
+        Block matrix must be small.
         The resulting ndarray will have shape ``(n_rows, n_cols)``.
 
-        Warning
-        -------
-        This method is not efficient for large matrices.
+
+
+        ``bm.tofile(path)``
+
+        ``np.fromfile(path).reshape((bm.n_rows, bm.n_cols))``
+
+        This method passes data from Java to Python via a file on the driver's
+        local disk. The file is created via Python's :class:`tempfile.mkstemp`
+        function, which places the file in a system temp directory but
+        does not automatically delete the file at exit.
 
         Returns
         -------
         :class:`numpy.ndarray`
         """
-        return numpy_from_breeze(self._jbm.toBreezeMatrix())
+
+        import tempfile
+        import os
+
+        fd, path = tempfile.mkstemp()
+        self.tofile(path)
+        os.close(fd)
+
+        return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
     @property
     def T(self):

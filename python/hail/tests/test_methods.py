@@ -267,7 +267,7 @@ class Tests(unittest.TestCase):
                                     atol=tolerance))
 
     def test_block_matrix_from_numpy(self):
-        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]])
+        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]], dtype=np.float64)
 
         for block_size in [1, 2, 5, 1024]:
             block_matrix = BlockMatrix.from_numpy(ndarray, block_size)

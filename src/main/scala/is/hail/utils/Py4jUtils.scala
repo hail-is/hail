@@ -26,15 +26,6 @@ trait Py4jUtils {
     list
   }
 
-  def bdmGetBytes(bdm: BDM[Double], start: Int, n: Int): Array[Byte] = {
-    assert(8L * n < Integer.MAX_VALUE)
-    assert(bdm.offset == 0)
-    assert(bdm.majorStride == (if (bdm.isTranspose) bdm.cols else bdm.rows))
-    val buf = new Array[Byte](8 * n)
-    Memory.memcpy(buf, 0, bdm.data, start, n)
-    buf
-  }
-
   def getURI(uri: String): String = new URI(uri).getPath
 
   // we cannot construct an array because we don't have the class tag

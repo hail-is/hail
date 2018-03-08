@@ -51,6 +51,12 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new StreamBlockOutputBuffer(out)
 }
 
+final class StreamRawBlockBufferSpec(blockSize: Int) extends BlockBufferSpec {
+  def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamRawBlockInputBuffer(in, blockSize)
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new StreamRawBlockOutputBuffer(out)
+}
+
 object CodecSpec {
   val default: CodecSpec = new PackCodecSpec(
     new LEB128BufferSpec(
@@ -140,6 +146,26 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
     val len = Memory.loadInt(lenBuf, 0)
     in.readFully(buf, 0, len)
     len
+  }
+}
+
+final class StreamRawBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
+  def close() {
+    out.close()
+  }
+
+  def writeBlock(buf: Array[Byte], len: Int): Unit = {
+    out.write(buf, 0, len)
+  }
+}
+
+final class StreamRawBlockInputBuffer(in: InputStream, blockSize: Int) extends InputBlockBuffer {
+  def close() {
+    in.close()
+  }
+
+  def readBlock(buf: Array[Byte]): Int = {
+    in.readFullyOrUntilEOF(buf, 0, blockSize)
   }
 }
 

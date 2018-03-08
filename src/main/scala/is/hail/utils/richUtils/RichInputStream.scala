@@ -13,4 +13,21 @@ class RichInputStream(val in: InputStream) extends AnyVal {
       read += r
     }
   }
+
+  def readFullyOrUntilEOF(to: Array[Byte], toOff: Int, n: Int): Int = {
+    assert(toOff + n <= to.length)
+
+    var read = 0
+    while (read < n) {
+      val r = in.read(to, toOff + read, n - read)
+      if (r > 0)
+        read += r
+      else {
+        assert(r == -1)
+        return read
+      }
+    }
+
+    read
+  }
 }

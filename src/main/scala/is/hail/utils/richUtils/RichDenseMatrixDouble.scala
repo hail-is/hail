@@ -2,16 +2,32 @@ package is.hail.utils.richUtils
 
 import java.io.{InputStream, OutputStream}
 
-import breeze.linalg.DenseMatrix
+import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.HailContext
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
-import is.hail.io.BufferSpec
+import is.hail.io._
 import is.hail.utils._
 import org.json4s.jackson
 
 object RichDenseMatrixDouble {
+  private val rawBufferSpec: BufferSpec =
+    new BlockingBufferSpec(32 * 1024,
+      new StreamRawBlockBufferSpec(32 * 1024))
+
+  def apply(nRows: Int, nCols: Int, data: Array[Double], isTranspose: Boolean = false): BDM[Double] = {
+    require(data.length == nRows * nCols)
+    
+    new BDM[Double](
+      rows = nRows,
+      cols = nCols,
+      data = data,
+      offset = 0,
+      majorStride = if (isTranspose) nCols else nRows,
+      isTranspose = isTranspose)
+  }
+
   // assumes data isCompact, caller must close
-  def read(is: InputStream, bufferSpec: BufferSpec): DenseMatrix[Double] = {
+  def read(is: InputStream, bufferSpec: BufferSpec): BDM[Double] = {
     val in = bufferSpec.buildInputBuffer(is)
     
     val rows = in.readInt()
@@ -21,30 +37,43 @@ object RichDenseMatrixDouble {
     val data = new Array[Double](rows * cols)
     in.readDoubles(data)
 
-    new DenseMatrix[Double](rows, cols, data,
+    new BDM[Double](rows, cols, data,
       offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
   }
-  
-  def read(hc: HailContext, path: String, bufferSpec: BufferSpec): DenseMatrix[Double] = {
+
+  def read(hc: HailContext, path: String, bufferSpec: BufferSpec): BDM[Double] = {
     hc.hadoopConf.readDataFile(path)(is => read(is, bufferSpec))
   }
 
-  def apply(nRows: Int, nCols: Int, data: Array[Double], isTranspose: Boolean = false): DenseMatrix[Double] = {
-    require(data.length == nRows * nCols)
+  def readDoubles(hc: HailContext, path: String, nRows: Int, nCols: Int, rowMajor: Boolean): BDM[Double] = {
+    require(nRows * nCols.toLong <= Int.MaxValue)
+    val data = new Array[Double](nRows * nCols)
     
-    new DenseMatrix[Double](
-      rows = nRows,
-      cols = nCols,
-      data = data,
-      offset = 0,
-      majorStride = if (isTranspose) nCols else nRows,
-      isTranspose = isTranspose)
+    hc.hadoopConf.readFile(path) { is =>
+      val in = rawBufferSpec.buildInputBuffer(is)
+
+      in.readDoubles(data)
+    }
+
+    RichDenseMatrixDouble(nRows, nCols, data, rowMajor)
+  }
+
+  def writeDoubles(hc: HailContext, path: String, m: BDM[Double], forceRowMajor: Boolean): Boolean = {
+    val (data, rowMajor) = m.toCompactData(forceRowMajor)
+    assert(data.length == m.rows * m.cols)
+
+    hc.hadoopConf.writeFile(path) { os =>
+      val out = RichDenseMatrixDouble.rawBufferSpec.buildOutputBuffer(os)
+
+      out.writeDoubles(data)
+      out.flush()
+    }
+
+    rowMajor
   }
 }
 
-// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
-// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
-class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   def forceSymmetry() {
     require(m.rows == m.cols, "only square matrices can be made symmetric")
 
@@ -87,7 +116,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   def write(hc: HailContext, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
     hc.hadoopConf.writeFile(path)(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
-  
+
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false) {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(path)

@@ -26,3 +26,16 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(a1, a2))
         self.assertTrue(np.allclose(a1, a3))
+
+
+    def test_to_from_numpy(self):
+        data = np.random.rand(110)
+
+        a = data.reshape(10, 11)
+        bm = BlockMatrix._create_block_matrix(10, 11, data.tolist(), row_major=True, block_size=4)
+
+        self.assertTrue(np.allclose(bm.to_numpy(), a))
+        self.assertTrue(np.allclose(BlockMatrix.from_numpy(a, block_size=5).to_numpy(), a))
+
+        self.assertTrue(np.allclose(bm.T.to_numpy(), a.T))
+        self.assertTrue(np.allclose(BlockMatrix.from_numpy(a.T).to_numpy(), a.T))
