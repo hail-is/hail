@@ -873,6 +873,17 @@ class MatrixTests(unittest.TestCase):
         entries = ds.entries()
         self.assertTrue(entries.all((entries.col_idx * entries.row_idx) % 4 == 0))
 
+    def test_to_table_on_various_fields(self):
+        mt = self.get_vds()
+
+        mt.row.take(1)
+        mt.row_key.take(1)
+        mt['locus'].take(1)
+        mt['s'].take(1)
+        mt.annotate_cols(foo=5).foo.take(1)
+        mt.GQ.take(1)
+
+
 
 class GroupedMatrixTests(unittest.TestCase):
 
