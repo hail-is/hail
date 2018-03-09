@@ -175,8 +175,8 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    t = unify_types_limited(consequent._type, alternate._type)
-    if not t:
+    t = unify_types_limited(consequent.dtype, alternate.dtype)
+    if t is None:
         raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
                         "    consequent: type {}\n"
                         "    alternate:  type {}".format(consequent._type, alternate._type))

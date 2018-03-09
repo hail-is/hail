@@ -340,7 +340,7 @@ def unify_types_limited(*ts):
     type_set = set(ts)
     if len(type_set) == 1:
         # only one distinct class
-        return next(iter(ts))
+        return next(iter(type_set))
     elif all(is_numeric(t) for t in ts):
         # assert there are at least 2 numeric types
         assert len(type_set) > 1
@@ -357,11 +357,11 @@ def unify_types_limited(*ts):
 
 def unify_types(*ts):
     limited_unify = unify_types_limited(*ts)
-    if limited_unify:
+    if limited_unify is not None:
         return limited_unify
     elif all(isinstance(t, tarray) for t in ts):
         et = unify_types_limited(*(t.element_type for t in ts))
-        if et:
+        if et is not None:
             return tarray(et)
         else:
             return None
