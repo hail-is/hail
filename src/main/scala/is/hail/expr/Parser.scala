@@ -445,10 +445,10 @@ object Parser extends JavaTokenParsers {
       withPos(tupleDeclaration) ^^ (r => TupleConstructor(r.pos, r.x)) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
-      referenceGenomeDependentFunctions ~ ("(" ~> identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
+      referenceGenomeDependentFunction ~ ("(" ~> identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
         case fn ~ rg ~ lparen ~ args => ReferenceGenomeDependentFunction(lparen.pos, fn, rg, args)
       } |
-      referenceGenomeDependentFunctions ~ withPos("(") ~ (args <~ ")") ^^ {
+      referenceGenomeDependentFunction ~ withPos("(") ~ (args <~ ")") ^^ {
         case fn ~ lparen ~ args => ReferenceGenomeDependentFunction(lparen.pos, fn, ReferenceGenome.defaultReference.name, args)
       } |
       (guard(not("if" | "else")) ~> identifier) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -643,8 +643,8 @@ object Parser extends JavaTokenParsers {
       "-" ^^ { _ => Call0(phased = false) } |
       "|-" ^^ { _ => Call0(phased = true) }
   }
-
-  def referenceGenomeDependentFunctions: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus" | "getReferenceSequence"
+  
+  def referenceGenomeDependentFunction: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus" | "getReferenceSequence"
 
   def intervalWithEndpoints[T](bounds: Parser[(T, T)]): Parser[Interval] = {
     val start = ("[" ^^^ true) | ("(" ^^^ false)

@@ -335,8 +335,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!hConf.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val indexFilePath = new java.io.File(FASTAReader.getLocalIndexFileName(fastaFile)).toPath
-    val index = new FastaSequenceIndex(indexFilePath)
+    val localIndexFile = FASTAReader.getUriLocalIndexFile(hConf, indexFile)
+    val index = new FastaSequenceIndex(new java.io.File(localIndexFile))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
@@ -483,8 +483,9 @@ object ReferenceGenome {
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!hConf.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
-    
-    val index = new FastaSequenceIndex(new java.io.File(indexFile).toPath)
+
+    val localIndexFile = FASTAReader.getUriLocalIndexFile(hConf, indexFile)
+    val index = new FastaSequenceIndex(new java.io.File(localIndexFile))
 
     val contigs = new ArrayBuilder[String]
     val lengths = new ArrayBuilder[(String, Int)]

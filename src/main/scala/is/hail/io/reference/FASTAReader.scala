@@ -1,70 +1,57 @@
 package is.hail.io.reference
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
 import java.util
 import java.util.Map.Entry
 
-import htsjdk.samtools.reference.{FastaSequenceIndex, FastaSequenceIndexCreator, ReferenceSequenceFile, ReferenceSequenceFileFactory}
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import is.hail.HailContext
 import is.hail.utils._
-import is.hail.variant.{RGBase, ReferenceGenome, Locus}
-import org.apache.hadoop
+import is.hail.variant.{Locus, ReferenceGenome}
+import org.apache.commons.io.IOUtils
+import org.apache.hadoop.conf.Configuration
 
 import scala.language.postfixOps
-import scala.sys.process._
+import scala.collection.concurrent
 
 class SerializableReferenceSequenceFile(val hConf: SerializableHadoopConfiguration, val fastaFile: String, val indexFile: String) extends Serializable {
-  @transient var value_ : ReferenceSequenceFile = _
-
-  def value: ReferenceSequenceFile = {
-    if (value_ == null) {
-      val localFastaFile = FASTAReader.getLocalFastaFileName(hConf, fastaFile, indexFile)
-      value_ = ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(localFastaFile))
-    }
-    value_
+  @transient lazy val value = {
+    val localFastaFile = FASTAReader.getLocalFastaFileName(hConf.value, fastaFile, indexFile)
+    ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(localFastaFile))
   }
 }
 
 object FASTAReader {
-  @volatile var localFastaFiles = Map.empty[String, String]
+  private[this] val localFastaFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
 
   def getLocalIndexFileName(fastaFile: String): String =
     ReferenceSequenceFileFactory.getFastaIndexFileName(new java.io.File(fastaFile).toPath).toString
 
-  def getLocalFastaFileName(hConf: SerializableHadoopConfiguration, fastaFile: String, indexFile: String): String = {
-    synchronized {
-      if (!localFastaFiles.contains(fastaFile)) {
-        val localFile = FASTAReader.setup(hConf, fastaFile, indexFile)
-        localFastaFiles += fastaFile -> localFile
-      }
-      localFastaFiles(fastaFile)
-    }
+  def getLocalFastaFileName(hConf: Configuration, fastaFile: String, indexFile: String): String =
+    localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(hConf, fastaFile, indexFile))
+
+  def getUriLocalIndexFile(hConf: Configuration, indexFile: String): String = {
+    val tmpDir = TempDir(hConf)
+    val localIndexFile = tmpDir.createLocalTempFile(extension = "fai")
+    hConf.copy(indexFile, localIndexFile)
+    uriPath(localIndexFile)
   }
 
-  def setup(hConf: SerializableHadoopConfiguration, fastaFile: String, indexFile: String): String = {
-    val fastaPath = new hadoop.fs.Path(fastaFile)
-    var localFastaFile = hConf.value.getTemporaryFile("file:///tmp/", suffix = Some(fastaPath.getName))
-    var uriLocalFastaFile = uriPath(localFastaFile)
+  def setup(hConf: Configuration, fastaFile: String, indexFile: String): String = {
+    val tmpDir = TempDir(hConf)
+    val localFastaFile = tmpDir.createLocalTempFile(extension = "fasta")
+    val uriLocalFastaFile = uriPath(localFastaFile)
 
-    hConf.value.copy(fastaFile, localFastaFile)
-
-    val isCompressed = Set(".gz", ".bgz").contains(hConf.value.getCodec(fastaFile))
-    if (isCompressed) {
-      val ec = s"gunzip -f $uriLocalFastaFile" !
-
-      if (ec != 0)
-        fatal(s"Error decompressing FASTA file: `gunzip -f $uriLocalFastaFile'")
-
-      uriLocalFastaFile = hConf.value.stripCodec(uriLocalFastaFile)
-      localFastaFile = hConf.value.stripCodec(localFastaFile)
-    }
+    hConf.readFile(fastaFile) { in =>
+      hConf.writeFile(localFastaFile) { out =>
+        IOUtils.copy(in, out)
+      }}
 
     val localIndexFile = "file://" + getLocalIndexFileName(uriLocalFastaFile)
-    hConf.value.copy(indexFile, localIndexFile)
+    hConf.copy(indexFile, localIndexFile)
 
-    if (!hConf.value.exists(localFastaFile))
+    if (!hConf.exists(localFastaFile))
       fatal(s"Error while copying FASTA file to local file system. Did not find '$localFastaFile'.")
-    if (!hConf.value.exists(localIndexFile))
+    if (!hConf.exists(localIndexFile))
       fatal(s"Error while copying FASTA index file to local file system. Did not find '$localIndexFile'.")
 
     uriLocalFastaFile
@@ -89,7 +76,7 @@ class FASTAReader(hConf: SerializableHadoopConfiguration, rg: ReferenceGenome,
   val reader = new SerializableReferenceSequenceFile(hConf, fastaFile, indexFile)
   assert(reader.value.isIndexed)
 
-  @transient private lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {
+  @transient private[this] lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[Int, String]): Boolean = size() > capacity
   }
 
