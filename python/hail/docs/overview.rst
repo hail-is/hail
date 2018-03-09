@@ -11,18 +11,12 @@
 Overview
 ========
 
--------------
-Why use Hail?
--------------
-
 Hail is...
 
-  - a library for analyzing structured data, especially biological and genetic data
-
+  - a library for analyzing structured tabular and matrix data
+  - a collection of primitives for operating on data in parallel
+  - a suite of functionality for processing genetic data
   - *not* an acronym
-
-  - what problems can Hail solve
-  - what problems can't Hail solve
 
 -----
 Types
