@@ -532,6 +532,8 @@ object OrderedRVD {
   }
 
   def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
+    assert(nPartitions > 0)
+
     val pkOrd = typ.pkOrd
     var keys = pkis
       .flatMap(_.samples)
@@ -540,27 +542,24 @@ object OrderedRVD {
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
 
-    keys = min +: keys :+ max
-
     val ab = new ArrayBuilder[RegionValue]()
-    var i = 0
-    while (i < keys.length) {
-      if (i == 0
-        || pkOrd.compare(keys(i - 1), keys(i)) != 0)
-        ab += keys(i)
+    ab += min
+    var i = 1
+    var start = 0
+    while (i < nPartitions && start < keys.length) {
+      var end = ((i.toDouble * keys.length) / nPartitions).toInt
+      if (start > end)
+        start = end
+      while (end < keys.length - 1
+        && pkOrd.compare(keys(end), keys(end + 1)) == 0)
+        end += 1
+      ab += keys(end)
+      start = end + 1
       i += 1
     }
-    keys = ab.result()
-
-    // FIXME weighted
-    val partitionMaxes =
-      if (keys.length <= nPartitions + 1)
-        keys
-      else {
-        val k = keys.length / nPartitions
-        assert(k > 0)
-        Array.tabulate(nPartitions)(i => keys(i * k)) :+ max
-      }
+    ab += max
+    val partitionMaxes = ab.result()
+    assert(partitionMaxes.length <= nPartitions + 1)
 
     OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionMaxes)
   }
@@ -592,7 +591,6 @@ object OrderedRVD {
       partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
     shuffle(typ, newPartitioner, rdd)
-
   }
 
   def shuffle(typ: OrderedRVDType,
@@ -602,10 +600,12 @@ object OrderedRVD {
       partitioner,
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
         rdd.mapPartitions { it =>
+          val wrv = WritableRegionValue(typ.rowType)
           val wkrv = WritableRegionValue(typ.kType)
           it.map { rv =>
+            wrv.set(rv)
             wkrv.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
-            (wkrv.value, rv)
+            (wkrv.value, wrv.value)
           }
         },
         partitioner)
