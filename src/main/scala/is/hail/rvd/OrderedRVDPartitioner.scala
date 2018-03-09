@@ -68,9 +68,8 @@ class OrderedRVDPartitioner(
   // key: RegionValue[kType]
   def getPartition(key: Any): Int = {
     val keyrv = key.asInstanceOf[RegionValue]
-    val wpkrv = WritableRegionValue(pkType)
-    wpkrv.setSelect(kType, pkKFieldIdx, keyrv)
-    val pkUR = new UnsafeRow(pkType, wpkrv.value)
+    val kUR = new UnsafeRow(kType, keyrv)
+    val pkUR = new KeyedRow(kUR, pkKFieldIdx)
 
     val part = rangeTree.queryValues(pkType.ordering, pkUR)
 
