@@ -272,6 +272,23 @@ class ReferenceGenome(object):
         This method can only be run once per reference genome. Use
         :meth:`~has_sequence` to test whether a sequence is loaded.
 
+        FASTA and index files are hosted on google cloud for Hail's built-in
+        references:
+
+        **GRCh37**
+
+        - FASTA file: ``gs://hail-common/references/human_g1k_v37.fasta.gz``
+        - Index file: ``gs://hail-common/references/human_g1k_v37.fasta.fai``
+
+
+        **GRCh38**
+
+        - FASTA file: ``gs://hail-common/references/Homo_sapiens_assembly38.fasta.gz``
+        - Index file: ``gs://hail-common/references/Homo_sapiens_assembly38.fasta.fai``
+
+        Public download links are available
+        `here <https://console.cloud.google.com/storage/browser/hail-common/references/>`__.
+
         Parameters
         ----------
         fasta_file : :obj:`str`
