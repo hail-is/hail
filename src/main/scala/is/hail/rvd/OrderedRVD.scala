@@ -383,16 +383,6 @@ object OrderedRVD {
       sc.emptyRDD[RegionValue])
   }
 
-  def cast(typ: OrderedRVDType,
-    rdd: RDD[RegionValue]): OrderedRVD = {
-    if (rdd.partitions.isEmpty)
-      OrderedRVD.empty(rdd.sparkContext, typ)
-    else
-      (rdd.partitioner: @unchecked) match {
-        case Some(p: OrderedRVDPartitioner) => OrderedRVD(typ, p.asInstanceOf[OrderedRVDPartitioner], rdd)
-      }
-  }
-
   def apply(typ: OrderedRVDType,
     rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedRVDPartitioner]): OrderedRVD = {
     val (_, orderedRDD) = coerce(typ, rdd, fastKeys, hintPartitioner)
@@ -612,7 +602,7 @@ object OrderedRVD {
             (wkrv.value, wrv.value)
           }
         },
-        partitioner)
+        partitioner.sparkPartitioner(rdd.sparkContext))
         .setKeyOrdering(typ.kOrd)
         .mapPartitionsWithIndex { case (i, it) =>
           it.map { case (k, v) =>
@@ -695,6 +685,8 @@ object OrderedRVD {
     rdd: RDD[RegionValue]): OrderedRVD = {
     val sc = rdd.sparkContext
 
+    val partitionerBc = partitioner.broadcast(sc)
+
     new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
       val prevK = WritableRegionValue(typ.kType)
       val prevPK = WritableRegionValue(typ.pkType)
@@ -718,7 +710,7 @@ object OrderedRVD {
           prevPK.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
 
           pkUR.set(prevPK.value)
-          assert(partitioner.rangeBounds(i).asInstanceOf[Interval].contains(typ.pkType.ordering, pkUR))
+          assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(typ.pkType.ordering, pkUR))
 
           assert(typ.pkRowOrd.compare(prevPK.value, rv) == 0)
 
