@@ -1291,8 +1291,10 @@ def import_plink(bed, bim, fam,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)))
-def read_matrix_table(path):
+@typecheck(path=oneof(str, listof(str)),
+           _drop_cols=bool,
+           _drop_rows=bool)
+def read_matrix_table(path, _drop_cols=False, _drop_rows=False):
     """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
 
     Parameters
@@ -1304,7 +1306,7 @@ def read_matrix_table(path):
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(Env.hc()._jhc.read(path, False, False))
+    return MatrixTable(Env.hc()._jhc.read(path, _drop_cols, _drop_rows))
 
 
 @typecheck(path=str)
