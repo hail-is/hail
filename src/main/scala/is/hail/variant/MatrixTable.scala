@@ -309,12 +309,12 @@ object MatrixTable {
         None, None))
   }
 
-  def fromRowsTable(kt: Table): MatrixTable = {
+  def fromRowsTable(kt: Table, partitionKey: java.util.ArrayList[String] = null): MatrixTable = {
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
       Array.empty[String],
       TStruct.empty(),
-      kt.key,
+      Option(partitionKey).map(_.asScala.toArray.toFastIndexedSeq).getOrElse(kt.key),
       kt.key,
       kt.signature,
       TStruct.empty()
@@ -3106,7 +3106,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val partStarts = partitionStarts()
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val localEntriesIndex = entriesIndex
     val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType) { case (i, it) =>
       val region2 = Region()
       val rv2 = RegionValue(region2)

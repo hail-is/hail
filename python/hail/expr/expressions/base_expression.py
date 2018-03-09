@@ -542,6 +542,9 @@ class Expression(object):
     def __hash__(self):
         return super(Expression, self).__hash__()
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__} of type {self.dtype}>'
+
     def __eq__(self, other):
         """Returns ``True`` if the two expressions are equal.
 
