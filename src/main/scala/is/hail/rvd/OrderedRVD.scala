@@ -331,7 +331,7 @@ class OrderedRVD private(
     val newRVD = rdd.mapPartitions { it =>
       OrderedRVIterator(typ, it)
         .staircase
-        .map(_.head)
+        .map(_.value)
     }
     OrderedRVD(typ, partitioner, newRVD)
   }
