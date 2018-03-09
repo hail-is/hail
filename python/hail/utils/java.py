@@ -156,20 +156,6 @@ def escape_id(s):
 def jarray_to_list(a):
     return list(a) if a else None
 
-def breeze_from_numpy(ndarray, path):
-    if ndarray.ndim != 2:
-        raise FatalError("from_numpy: ndarray must have two axes, found shape {}".format(ndarray.shape))
-    n_rows, n_cols = ndarray.shape[0:2]
-    if n_rows == 0 or n_cols == 0:
-        raise FatalError("from_numpy: ndarray dimensions must be non-zero, found shape {}".format(ndarray.shape))
-    if ndarray.dtype != np.float64:
-        ndarray = ndarray.astype(np.float64)
-
-    ndarray.tofile(path)
-
-    hc = Env.hc()
-    return Env.hail().utils.richUtils.RichDenseMatrixDouble.readDoubles(hc._jhc, path, n_rows, n_cols, True)
-
 class Log4jLogger:
     log_pkg = None
 

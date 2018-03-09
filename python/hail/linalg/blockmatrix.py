@@ -1,5 +1,5 @@
 from hail.utils import new_temp_file, storage_level
-from hail.utils.java import Env, jarray, numpy_from_breeze, breeze_from_numpy, joption
+from hail.utils.java import Env, jarray, joption, FatalError
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -36,7 +36,7 @@ class BlockMatrix(object):
     @classmethod
     @typecheck_method(path=str)
     def read(cls, path):
-        """Read a block matrix.
+        """Reads a block matrix.
 
         Parameters
         ----------
@@ -52,21 +52,89 @@ class BlockMatrix(object):
             hc._jhc, path))
 
     @classmethod
-    @typecheck_method(ndarray=np.ndarray,
-                      block_size=nullable(int),
-                      path=nullable(str))
-    def from_numpy(cls, ndarray, block_size=None, path=None):
-        """Distribute a `NumPy ndarray
-        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html>`__
-        as a block matrix.
+    @typecheck_method(path=str,
+                      n_rows=int,
+                      n_cols=int,
+                      block_size=nullable(int))
+    def fromfile(cls, path, n_rows, n_cols, block_size=None):
+        """Creates a block matrix from a binary file.
+
+        Examples
+        --------
+
+        >>> import numpy as np
+        >>> a = np.random.rand(10, 20)
+        >>> a.tofile('output/binary')
+
+        To create a block matrix of the same dimensions:
+
+        >>> from hail.linalg import BlockMatrix
+        >>> bm = BlockMatrix.fromfile('output/binary', 10, 20)
 
         Notes
         -----
-        This method passes data from Python to Java via a file on the driver's
-        local disk, created by default using Python's :class:`tempfile.mkstemp`
+        This method, analogous to `numpy.fromfile
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__,
+        reads a binary file of float64 values in row-major order, as produced by
+        `numpy.fromfile
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__.
+
+        While :meth:`BlockMatrix.fromfile` can also read binary files produced
+        by :meth:`BlockMatrix.tofile`, it more efficient and scalable to use
+        :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and
+        restore block matrices.
+
+        See also :meth:`BlockMatrix.from_numpy`.
+
+        Parameters
+        ----------
+        path: :obj:`str`, optional
+            Path for output.
+        n_rows: :obj:`int`
+            Number of rows.
+        n_cols: :obj:`int`
+            Number of columns.
+        block_size: :obj:`int`, optional
+            Block size. Default given by :meth:`default_block_size`.
+        """
+        if not block_size:
+            block_size = BlockMatrix.default_block_size()
+
+        hc = Env.hc()
+        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.readDoubles(hc._jhc, path, n_rows, n_cols, True)
+
+        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
+
+    @classmethod
+    @typecheck_method(ndarray=np.ndarray,
+                      block_size=nullable(int))
+    def from_numpy(cls, ndarray, block_size=None):
+        """Distributes a `NumPy ndarray
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html>`__
+        as a block matrix.
+
+        Examples
+        --------
+
+        >>> import numpy as np
+        >>> a = np.random.rand(10, 20)
+        >>> bm = BlockMatrix.from_numpy(a)
+
+        Notes
+        -----
+        The ndarray must have two dimensions, each of non-zero size.
+
+        The example above is implemented as:
+
+        >>> a.tofile('output/binary')
+        >>> bm = BlockMatrix.fromfile('output/binary', 10, 20)
+
+        except that the file used to pass data from Python to Java is created
+        automatically on the driver's local disk using Python's
+        `tempfile.mkstemp
+        <https://docs.python.org/3/library/tempfile.html#tempfile.mkstemp>`__
         function. This function places the file in a system temp directory but
-        does not automatically delete the file at exit. Use `path` to manually
-        specify a file path.
+        does not automatically delete the file at exit.
 
         Parameters
         ----------
@@ -74,8 +142,6 @@ class BlockMatrix(object):
             ndarray with two dimensions, each of non-zero size.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`default_block_size`.
-        path: :obj:`str`, optional
-            Path to file used to pass data from Python to Java.
 
         Returns
         -------
@@ -84,26 +150,34 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        bdm = breeze_from_numpy(ndarray, path)
+        if ndarray.ndim != 2:
+            raise FatalError("from_numpy: ndarray must have two axes, found shape {}".format(ndarray.shape))
+        n_rows, n_cols = ndarray.shape[0:2]
+        if n_rows == 0 or n_cols == 0:
+            raise FatalError("from_numpy: ndarray dimensions must be non-zero, found shape {}".format(ndarray.shape))
+        if ndarray.dtype != np.float64:
+            ndarray = ndarray.astype(np.float64)
 
-        hc = Env.hc()
-        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            ndarray.tofile(f.name)
+
+        return cls.fromfile(f.name, n_rows, n_cols, block_size)
 
     @classmethod
     @typecheck_method(entry_expr=expr_numeric,
                       path=nullable(str),
                       block_size=nullable(int))
     def from_entry_expr(cls, entry_expr, path=None, block_size=None):
-        """Create a block matrix from a numeric matrix table entry expression.
+        """Creates a block matrix from a numeric matrix table entry expression.
 
         Notes
         -----
         For shuffle resiliency, this functions writes the resulting block matrix
         to disk and then reads the result. By specifying a path, this block
         matrix can be read again using :meth:`BlockMatrix.read`. Otherwise, a
-        file is created in the temp directory given by :func:`hail.tmp_dir`
-        and then deleted when :func:`hail.stop` is called or the program
-        terminates.
+        file is created in the temp directory given by :func:`hail.tmp_dir` and
+        then deleted when :func:`hail.stop` is called or the program terminates.
 
         Parameters
         ----------
@@ -149,7 +223,7 @@ class BlockMatrix(object):
                       seed=int,
                       uniform=bool)
     def random(cls, n_rows, n_cols, block_size=None, seed=0, uniform=True):
-        """Create a block matrix with uniform or normal random entries.
+        """Creates a block matrix with uniform or normal random entries.
 
         Parameters
         ----------
@@ -193,7 +267,6 @@ class BlockMatrix(object):
         hc = Env.hc()
         return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
 
-
     @staticmethod
     def default_block_size():
         """Default block side length."""
@@ -232,7 +305,7 @@ class BlockMatrix(object):
     @typecheck_method(path=str,
                       force_row_major=bool)
     def write(self, path, force_row_major=False):
-        """Write the block matrix.
+        """Writes the block matrix.
 
         Parameters
         ----------
@@ -247,7 +320,7 @@ class BlockMatrix(object):
 
     @typecheck_method(rows_to_keep=listof(int))
     def filter_rows(self, rows_to_keep):
-        """Filter matrix rows.
+        """Filters matrix rows.
 
         Parameters
         ----------
@@ -262,7 +335,7 @@ class BlockMatrix(object):
 
     @typecheck_method(cols_to_keep=listof(int))
     def filter_cols(self, cols_to_keep):
-        """Filter matrix columns.
+        """Filters matrix columns.
 
         Parameters
         ----------
@@ -278,7 +351,7 @@ class BlockMatrix(object):
     @typecheck_method(rows_to_keep=listof(int),
                       cols_to_keep=listof(int))
     def filter(self, rows_to_keep, cols_to_keep):
-        """Filter matrix rows and columns.
+        """Filters matrix rows and columns.
 
         Notes
         -----
@@ -302,65 +375,81 @@ class BlockMatrix(object):
 
     @typecheck_method(path=str)
     def tofile(self, path):
-        """Collect and output float64 data to a file.
+        """Collects and writes data to a binary file.
+
+        Examples
+        --------
+        
+        >>> from hail.linalg import BlockMatrix
+        >>> import numpy as np
+        >>> bm = BlockMatrix.random(10, 20)
+        >>> bm.tofile('output/binary')
+
+        To create a :class:`numpy.ndarray` of the same dimensions:
+
+        >>> a = np.fromfile('output/binary').reshape((10, 20))
 
         Notes
         -----
-        Use :meth:`.BlockMatrix.write`.
+        This method, analogous to `numpy.tofile
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.tofile.html>`__,
+        produces a binary file of float64 values in row-major order, which can
+        be read with `numpy.fromfile
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__
+        and then reshaped to the desired dimensions.
 
-        Matrix must be small. Format is row major.
+        While this file can also be read with :meth:`BlockMatrix.fromfile`, it
+        more efficient and scalable to use :meth:`BlockMatrix.write` and
+        :meth:`BlockMatrix.read` to save and restore block matrices.
 
-        Not machine independent.
-
-        Use read or use to_numpy and save with numpy.save and numpy.load.
-
-        ``np.readfrom(path).reshape((n_rows, n_cols))``
+        See also :meth:`.to_numpy`.
 
         Parameters
         ----------
         path: :obj:`str`, optional
-            Path for output.
+            Path for binary output file.
         """
-
         bdm = self._jbm.toBreezeMatrix()
         hc = Env.hc()
-        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.writeDoubles(hc._jhc, path, bdm, forceRowMajor=True)
+        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.writeDoubles(hc._jhc, path, bdm, True)
         assert row_major
 
-    @typecheck_method(path=nullable(str))
     def to_numpy(self):
-        """Collect the block matrix into a `NumPy ndarray
+        """Collects the block matrix into a `NumPy ndarray
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html>`__.
+
+        Examples
+        --------
+
+        >>> from hail.linalg import BlockMatrix
+        >>> bm = BlockMatrix.random(10, 20)
+        >>> a = bm.to_numpy()
 
         Notes
         -----
-        Block matrix must be small.
-        The resulting ndarray will have shape ``(n_rows, n_cols)``.
+        The resulting ndarray will have the same shape as the block matrix.
 
+        The example above is implemented as:
 
+        >>> bm.tofile('output/binary')
+        >>> a = np.fromfile('output/binary').reshape((10, 20))
 
-        ``bm.tofile(path)``
-
-        ``np.fromfile(path).reshape((bm.n_rows, bm.n_cols))``
-
-        This method passes data from Java to Python via a file on the driver's
-        local disk. The file is created via Python's :class:`tempfile.mkstemp`
-        function, which places the file in a system temp directory but
+        except that the file used to pass data from Java to Python is created
+        automatically on the driver's local disk using Python's
+        `tempfile.mkstemp
+        <https://docs.python.org/3/library/tempfile.html#tempfile.mkstemp>`__
+        function. This function places the file in a system temp directory but
         does not automatically delete the file at exit.
 
         Returns
         -------
         :class:`numpy.ndarray`
         """
-
         import tempfile
-        import os
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            self.tofile(f.name)
 
-        fd, path = tempfile.mkstemp()
-        self.tofile(path)
-        os.close(fd)
-
-        return np.fromfile(path).reshape((self.n_rows, self.n_cols))
+        return np.fromfile(f.name).reshape((self.n_rows, self.n_cols))
 
     @property
     def T(self):
@@ -388,7 +477,7 @@ class BlockMatrix(object):
 
     @typecheck_method(storage_level=storage_level)
     def persist(self, storage_level='MEMORY_AND_DISK'):
-        """Persist this block matrix in memory or on disk.
+        """Persists this block matrix in memory or on disk.
 
         Notes
         -----
@@ -419,7 +508,7 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.persist(storage_level))
 
     def unpersist(self):
-        """Unpersist this block matrix from memory/disk.
+        """Unpersists this block matrix from memory/disk.
 
         Notes
         -----
