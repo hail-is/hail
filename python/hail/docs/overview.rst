@@ -2,6 +2,11 @@
 
 .. py:currentmodule:: hail
 
+.. testsetup::
+
+    import hail as hl
+    ht = hl.import_table("data/kt_example1.tsv", impute=True)
+
 ========
 Overview
 ========
@@ -12,6 +17,10 @@ Why use Hail?
 
 Hail is...
 
+  - a library for analyzing structured data, especially biological and genetic data
+
+  - *not* an acronym
+
   - what problems can Hail solve
   - what problems can't Hail solve
 
@@ -19,55 +28,56 @@ Hail is...
 Types
 -----
 
-In Python, ``5`` is of type `int` while ``"hello"`` is of type `string`. Hail has
-basic types such as :class:`.TString`, :class:`.TBoolean`, :class:`.TInt32`,
-:class:`.TInt64`, :class:`.TFloat32`, :class:`.TFloat64`, as well
-as two genetics-specific types: :class:`.TCall` for the genotype call
-and :class:`.TLocus` for the genomic locus.
+In Python, ``5`` is of type :obj:`int` while ``"hello"`` is of type :obj:`str`.
+Python is a dynamically-typed language, meaning that a function like:
 
-Hail also has container types such as :class:`.TArray`, :class:`.TSet`, and
-:class:`.TDict`, which each have an element type as a parameter. For example, a
-list of integers in Python would have the type `TArray[TInt32]` where `TInt32` is
-the element type. Unlike dictionaries in Python, all keys in a Hail dictionary
-must have the same type and the same for values. A dictionary of ``{"a": 1, 2: "b"}`` would be an invalid
-dictionary in Hail, but ``{"a": 1, "b": 2}`` would be because the keys are all
-strings and the values are all ints. The type of this dictionary would be
-`TDict[TString, TInt32]`.
+.. doctest::
 
-One way to combine types together to form more complicated types is with the
-:class:`.TStruct` type. TStruct is a container with an ordered set of fields. A
-field has a name and a type. The field names in a TStruct
-must be unique. An example valid TStruct is
-TStruct["a": TString, "b": TBoolean, "c": TInt32].
+    >>> def add_x_and_y(x, y):
+    ...     return x + y
 
-More complex types can be created by nesting TStructs. For example, the type
-TStruct["a": TStruct["foo": TInt, "baz": TString], "b": TStruct["bar": TArray[TInt32]]] consists
-of two fields "a" and "b" each with the type TStruct, but with different fields.
-Hail uses TStructs to create complex schemas representing
-the structure of data.
+can be called on any two objects which can be added, like numbers, strings, or
+:mod:`numpy` arrays.
 
--------
-Structs
--------
+Types are very important in Hail, because the fields of :class:`.Table` and
+:class:`.MatrixTable` objects have data types.
 
-A :class:`.Struct` object corresponds to the type :class:`.TStruct`. It is a
-container object for named values, similar to Python's OrderedDict class.
-An example is a Struct with two fields `a` and
-`b` with the corresponding values 3 and "hello".
+Hail has basic data types for numeric and string objects:
 
-    >>> s = Struct(a=3, b="hello")
+ - :py:data:`.tstr` - Text string.
+ - :py:data:`.tbool` - Boolean (``True`` or ``False``) value.
+ - :py:data:`.tint32` - 32-bit integer.
+ - :py:data:`.tint64` - 64-bit integer.
+ - :py:data:`.tfloat32` - 32-bit floating point number.
+ - :py:data:`.tfloat64` - 64-bit floating point number.
 
-To access the value ``3``, you can either reference the field `a` as a method or
-as an attribute with bracket notation:
+Hail has genetics-specific types:
 
-    >>> s.a
-    3
+ - :py:data:`.tcall` - Genotype calls.
+ - :class:`.tlocus` - Genomic locus, parameterized by reference genome.
 
-    >>> s['a']
-    3
+Hail has container types:
 
-Be aware that accessing the field as a method will not work if the field name
-has periods or special characters in it.
+ - :class:`.tarray` - Ordered collection of homogenous objects.
+ - :class:`.tset` - Unordered collection of distinct homogenous objects.
+ - :class:`.tdict` - Key-value map. Keys and values are both homogenous.
+ - :class:`.ttuple` - Tuple of heterogeneous values.
+ - :class:`.tstruct` - Structure containing named fields, each with its own
+   type.
+
+Homogenous collections are a change from standard Python collections.
+While the list ``['1', 2, 3.0]`` is a perfectly valid Python list,
+a Hail array could not contain both :py:data:`.tstr` and :py:data:`.tint32`
+objects. Likewise, a the :obj:`dict` ``{'a': 1, 2: 'b'}`` is a valid Python
+dictionary, but a Hail dictionary cannot contain keys of different types.
+An example of a valid dictionary is ``{'a': 1, 'b': 2}``, where the keys are all
+strings and the values are all integers. The type of this dictionary would be
+``dict<str, int32>``.
+
+The :class:`.tstruct` type is used to compose types together to form nested
+structures. The :class:`.tstruct` is an ordered mapping from field name to field
+type. Each field name must be unique.
+
 
 -----------
 Expressions
@@ -78,120 +88,145 @@ For example, a simple expression is ``5 + 6``. This will be evaluated and return
 ``11``. You can also assign expressions to variables and then add variable expressions
 together such as ``x = 5; y = 6; x + y``.
 
-The equivalent of a Python expression in Hail is the :class:`.Expression` class.
-Hail expressions are used to specify what computations should be executed on a
-dataset such as :class:`.Table`s or :class:`.MatrixTable`s. An expression can represent a single value
-such as the int value ``5`` or they can represent the composition of multiple expressions
-together and function application. All expressions have a type. For example, an :class:`.StringExpression` would
-have the Hail type :class:`.TString`.
+Throughout Hail documentation and tutorials, you will see Python code like this:
+
+.. doctest::
+
+    >>> ht2 = ht.annotate(C4 = ht.C3 + 3 * ht.C2 ** 2)
+
+However, Hail is not running Python code on your data. Instead, Hail is keeping
+track of the computations applied to your data, then compiling these computations
+into native code and running them in parallel.
+
+This happens using the :class:`.Expression` class. Hail expressions operate much
+like Python objects of the same type: for example, an :class:`.Int32Expression`
+can be used in arithmetic with other integers or expressions in much the same
+way a Python :obj:`int` can. However, you will be unable to use these
+expressions with other modules, like :mod:`numpy` or :mod:`scipy`.
+
+:class:`.Expression` objects keep track of their data type. This can be accessed
+with :meth:`.Expression.dtype`:
+
+.. doctest::
+
+    >>> i = hl.int32(100)
+    >>> i.dtype
+    dtype('int32')
 
 The Hail equivalent of the Python example above would be as follows:
 
-    >>> x = hl.capture(5)
-    >>> y = hl.capture(6)
+.. doctest::
 
-The `capture` function is used to convert basic Python objects such as strings, ints,
-lists, and dictionaries into their corresponding Hail expression objects.
-`capture` also can be applied to Hail objects such as :class:`.Struct`, :class:`.Locus`,
-:class:`.Interval`, and :class:`.Call`. The `broadcast` function has the same
-functionality as `capture`, but should be used for larger objects such as
-a large list or dictionary.
+    >>> x = hl.int32(5)
+    >>> y = hl.int32(6)
 
-We can print ``x`` in a Python interpreter and see that ``x`` is an :class:`.Int32Expression`.
-This makes sense because ``5`` is a Python :obj:`int`.
+We can print `x` in a Python interpreter and see that `x` is an :class:`.Int32Expression`.
+This makes sense because `x`  is a Python :obj:`int`.
+
+.. doctest::
 
     >>> x
-    <hail.expr.expression.Int32Expression object at 0x10cb5fb50>
-      Type: Int32
-      Index: None
+    <Int32Expression of type int32>
 
 We can add two :class:`.Int32Expression` objects together just like with Python
-:obj:`int`s. Unlike Python, ``x + y`` returns another :class:`.Int32Expression` representing the computation
-of ``x + y`` and not an actual value.
+:obj:`int` objects. ``x + y`` returns another :class:`.Int32Expression` representing
+the computation of ``x + y`` and not an actual value.
 
-    >>> x + y
-    <hail.expr.expression.Int32Expression object at 0x10cb5b110>
-      Type: Int32
-      Index: None
+.. doctest::
 
-To obtain an actual value, Hail has the `eval_expr` function which will execute the
-expression on the input data and return a value. `eval_expr_typed` does the same thing
-but also returns the Hail type corresponding to the value.
+    >>> z = x + y
+    >>> z
+    <Int32Expression of type int32>
 
-    >>> hl.eval_expr(x + y)
+To peek at the value of this computation, there are two options:
+:meth:`.Expression.value`, which returns a Python value, and
+:meth:`.Expression.show`, which prints a human-readable representation of an
+expression.
+
+.. doctest::
+
+    >>> z.value
     11
-    >>> hl.eval_expr_typed(x + y)
-    (11, TInt32())
+    >>> z.show()
+    +--------+
+    | <expr> |
+    +--------+
+    |  int32 |
+    +--------+
+    |     11 |
+    +--------+
 
-We can also add Python :obj:`int` to an :class:`.Int32Expression`.
+Expressions like to bring Python objects into the world of expressions as well.
+For example, we can add a Python :obj:`int` to an :class:`.Int32Expression`.
+
+.. doctest::
 
     >>> x + 3
-    <hail.expr.expression.Int32Expression object at 0x10cb218d0>
-      Type: Int32
-      Index: None
+    <Int32Expression of type int32>
 
-Addition is cumutative, so we can also add an :class:`.Int32Expression` to an
+Addition is commutative, so we can also add an :class:`.Int32Expression` to an
 :obj:`int`.
 
+.. doctest::
+
     >>> 3 + x
-    <hail.expr.expression.Int32Expression object at 0x10cb4d8d0>
-      Type: Int32
-      Index: None
+    <Int32Expression of type int32>
 
 Hail has many subclasses of :class:`.Expression` -- one for each Hail type. Each
 subclass defines possible methods and operations that can be applied. For example,
-if we have a list of :obj:`int` in Python, we can convert this to a Hail :class:`.ArrayInt32Expression`.
+if we have a list of Python integers, we can convert this to a Hail
+:class:`.ArrayNumericExpression` with either :func:`.array` or :func:`.literal`:
 
-    >>> a = hl.capture([1, 2, -3, 0, 5])
+.. doctest::
+
+    >>> a = hl.array([1, 2, -3, 0, 5])
     >>> a
-    <hail.expr.expression.ArrayInt32Expression object at 0x10cb64390>
-      Type: Array[Int32]
-      Index: None
+    <ArrayNumericExpression of type array<int32>>
 
-:class:`.ArrayInt32Expression` has many methods that are documented `here`. We
-can obtain the ith element using Python's index notation with ``a[i]``. The resultant
-expression will be a :class:`.Int32Expression` because each element of the array is
-an integer.
+    >>> a.dtype
+    dtype('array<int32>')
+
+Hail arrays can be indexed and sliced like Python lists or :mod:`numpy` arrays:
+
+.. doctest::
 
     >>> a[1]
-    <hail.expr.expression.Int32Expression object at 0x10bbdd450>
-      Type: Int32
-      Index: None
-
-Likewise, if we `sort` the array, the resultant expression is a :class:`.ArrayInt32Expression`.
-
-    >>> a.sort()
-    <hail.expr.expression.ArrayInt32Expression object at 0x10bbddd50>
-      Type: Array[Int32]
-      Index: None
+    >>> a[1:-1]
 
 
 Boolean Logic
 =============
 
-Unlike Python, Hail :class:`.BooleanExpression`s cannot be combined with ``and``, ``or``,
-and ``not``. The equivalents are ``&``, ``|``, and ``~``.
+Unlike Python, Hail :class:`.BooleanExpression`s cannot be used with ``and``,
+``or``, and ``not``. The equivalents are ``&``, ``|``, and ``~``.
 
-    >>> s1 = hl.capture(x == 3)
-    >>> s2 = hl.capture(x != 4)
+.. doctest::
+
+    >>> s1 = x == 3
+    >>> s2 = x != 4
 
     >>> s1 & s2 # s1 and s2
     >>> s1 | s2 # s1 or s2
     >>> ~s1 # not s1
 
-In addition, parantheses are required if the boolean expression is not a single variable
-because the precedence of the ``&` and ``|`` operators are lower than ``and`` and ``or``
-in Python.
+.. caution::
 
-    >>> (x == 3) & (x != 4)
+    The operator precedence of ``&`` and ``|`` is different from ``and`` and
+    ``or``. You will need parentheses around expressions like this:
+
+    .. doctest::
+
+            >>> (x == 3) & (x != 4)
 
 Conditionals
 ============
 
-A conditional expression has three components: the condition to evaluate, the consequent
-value to return if the condition is ``True``, and the alternative to return if the
-condition is ``False``. The Python equivalent of this is `if-else` statements. For example,
-a trivial example is
+Python ``if`` / ``else`` do not work with Hail expressions. Instead, you must
+use the :func:`.cond`, :func:`.case`, and :func:`.switch` functions.
+
+A conditional expression has three components: the condition to evaluate, the
+consequent value to return if the condition is ``True``, and the alternate to
+return if the condition is ``False``. For example:
 
 .. code-block:: python
 
@@ -200,80 +235,84 @@ a trivial example is
     else:
         return 0
 
-where the condition is ``x > 0``, the consequent is ``1``, and the alternative is ``0``.
 
-The Hail equivalent of this is with the `cond` function.
+In the above conditional, the condition is ``x > 0``, the consequent is ``1``,
+and the alternate is ``0``.
+
+Here is the Hail expression equivalent with :func:`cond`:
+
+.. doctest::
 
     >>> hl.cond(x > 0, 1, 0)
-    <hail.expr.expression.Int32Expression object at 0x10cb630d0>
-      Type: Int32
-      Index: None
+     <Int32Expression of type int32>
 
-
-The condition statement must be a :obj:`boolean` or a :class:`.BooleanExpression`.
-The type of evaluating this function is an :class:`.Int32Expression` because both the
-consequent and alternative are :obj:`int`. **The types of the consequent and alternative
-must always be the same.** This conditional expression can be used in composing
-larger expressions where :class:`.Int32Expression`s can be used. For example, we
-can add the result of the conditional statement to ``a`` which was defined above.
+This example returns an :class:`.Int32Expression` which can be used in more
+computations:
 
     >>> a + hl.cond(x > 0, 1, 0)
-    <hail.expr.expression.ArrayInt32Expression object at 0x10cb668d0>
-      Type: Array[Int32]
-      Index: None
+    <ArrayNumericExpression of type array<int32>>
 
-More complicated conditional statements can be constructed with `case`. For example,
-we might want to emit ``1`` if ``x < -1``, ``2`` if ``-1 <= x <= 2`` and ``3`` if ``x > 2``.
+More complicated conditional statements can be constructed with :func:`.case`.
+For example, we might want to emit ``1`` if ``x < -1``, ``2`` if
+``-1 <= x <= 2`` and ``3`` if ``x > 2``.
 
-    >>> hl.case()
+.. doctest::
+
+    >>> (hl.case()
     ...   .when(x < -1, 1)
-    ...   .when(x >= -1 & x <= 2, 2)
+    ...   .when((x >= -1) & (x <= 2), 2)
     ...   .when(x > 2, 3)
+    ...   .or_missing())
+    <Int32Expression of type int32>
 
-Default values can also be specified if no match is made with ``.default(...)``.
+Finally, Hail has the :func:`.switch` function to build a conditional tree based
+on the value of an expression. In the example below, `csq` is a
+:class:`.StringExpression` representing the functional consequence of a
+mutation. If `csq` does not match one of the cases specified by
+:meth:`.SwitchBuilder.when`, it is set to missing with
+:meth:`.SwitchBuilder.or_missing`. Other switch statements are documented in the
+:class:`.SwitchBuilder` class.
 
-    >>> hl.case()
-    ...   .when(x >= -1 & x <= 2, 1)
-    ...   .when(x > 2 & x < 5, 2)
-    ...   .default(0)
+.. doctest::
 
+    >>> csq = hl.str('nonsense')
 
-Lastly, Hail has a `switch` function to build a conditional tree based on the
-value of an expression. In the example below, `csq` is a :class:`.StringExpression`
-representing the functional consequence of a mutation. If `csq` does not match
-one of the cases specified by `when`, it is set to missing with `or_missing`. Other
-switch statements are documented in the :class:`.SwitchBuilder` class.
-
-.. code-block:: python
-
-    is_damaging = (hl.switch(csq)
-                     .when("synonymous", False)
-                     .when("intron", False)
-                     .when("nonsense", True)
-                     .when("indel", True)
-                     .or_missing())
+    >>> (hl.switch(csq)
+    ...    .when("synonymous", False)
+    ...    .when("intron", False)
+    ...    .when("nonsense", True)
+    ...    .when("indel", True)
+    ...    .or_missing())
+    <BooleanExpression of type bool>
 
 
 Missingness
 ===========
 
+In Hail, all expressions can be missing.
 An expression representing a missing value of a given type can be generated with
-the `null` function which takes the type as its single argument. An example of
-generating a :class:`.Float64Expression` that is missing is
+the :func:`.null` function, which takes the type as its single argument. An
+example of generating a :class:`.Float64Expression` that is missing is:
 
-    >>> hl.null(TFloat64())
+.. doctest::
+
+    >>> hl.null('float64')
 
 These can be used with conditional statements to set values to missing if they
 don't satisfy a condition:
 
-    >>> hl.cond(x > 2.0, x, hl.null(TFloat64()))
+.. doctest::
+
+    >>> hl.cond(x > 2.0, x, hl.null(hl.tfloat))
 
 The result of method calls on a missing value is ``None``. For example, if
-we define ``cnull`` to be a missing value with type :class:`.TCall`, calling
+we define ``cnull`` to be a missing value with type :class:`.tcall`, calling
 the method `is_het` will return ``None`` and not ``False``.
 
-    >>> cnull = hl.null(TCall())
-    >>> cnull.is_het()
+.. doctest::
+
+    >>> cnull = hl.null('call')
+    >>> cnull.is_het().value
     None
 
 
@@ -281,22 +320,39 @@ Binding Variables
 =================
 
 Hail inlines function calls each time an expression appears. This can result
-in unexpected behavior when random values are used. For example, let ``x`` be
-a random number generated with the function `rand_unif`.
+in unexpected behavior when random values are used. For example, let `x` be
+a random number generated with the function :func:`.rand_unif`:
+
+.. doctest::
 
     >>> x = hl.rand_unif(0, 1)
+
+The value of `x` changes with each evaluation:
+
+.. doctest::
+
+    >>> x.value
+    0.4678132874101748
+
+    >>> x.value
+    0.9097632224065403
 
 If we create a list with x repeated 3 times, we'd expect to get an array with identical
 values. However, instead we see a list of 3 random numbers.
 
-    >>> hl.eval_expr([x, x, x])
+.. doctest::
+
+    >>> hl.array([x, x, x]).value
     [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
 
-To solve this problem, we can use the `bind` function to bind an expression to a
+To solve this problem, we can use the :func:`.bind` function to bind an expression to a
 value before applying it in a function.
 
+.. doctest::
+
     >>> expr = hl.bind(hl.rand_unif(0, 1), lambda x: [x, x, x])
-    >>> hl.eval_expr(expr)
+
+    >>> expr.value
     [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
 
 
@@ -305,438 +361,275 @@ Functions
 
 In addition to the methods exposed on each :class:`.Expression`, Hail also has
 numerous functions that can be applied to expressions, which also return an expression.
-We have already seen examples of the functions `capture`, `cond`, `switch`, `case`, `bind`,
-`rand_unif`, and `null`. Some examples of other commonly used functions are
 
-**Conditionals**
-
-- `cond`
-- `switch`
-- `case`
-- `or_else`
-- `or_missing`
-
-**Missingness**
-
-- `is_defined`
-- `is_missing`
-- `is_nan`
-
-**Mathematical Operations**
-
-- `exp`
-- `log`
-- `log10`
-
-**Manipulating Structs**
-
-- `select`
-- `merge`
-- `drop`
-
-**Constructors**
-
-Construct a missing value of a given type:
-
-- `null`
-
-Construct expressions from input arguments:
-
-- `Dict`
-- `locus`
-- `interval`
-- `call`
-
-Parse strings to construct expressions:
-
-- `parse_variant`
-- `parse_locus`
-- `parse_interval`
-- `parse_call`
-
-**Random Number Generators**
-
-- `rand_bool`
-- `rand_norm`
-- `rand_pois`
-- `rand_unif`
-
-**Statistical Tests**
-
-- `chisq`
-- `fisher_exact_test`
-- `hardy_weinberg_p`
-
-See the full `API` for a list of all functions and their documentation.
-
+Take a look at the :ref:`sec-functions` page for full documentation.
 
 -----
 Table
 -----
 
-A :class:`~hail.Table` is the Hail equivalent of a SQL table, a Pandas Dataframe, an R Dataframe,
-a dyplr Tibble, or a Spark Dataframe. It consists of rows of data conforming to
-a given schema where each column (row field) in the dataset is of a specific type.
-
-An example of a table is below:
-
-+---------+---------+-------+
-| Sample  | Status  | qPhen |
-+---------+---------+-------+
-| String  | String  | Int32 |
-+---------+---------+-------+
-| HG00096 | CASE    | 27704 |
-| HG00097 | CASE    | 16636 |
-| HG00099 | CASE    |  7256 |
-| HG00100 | CASE    | 28574 |
-| HG00101 | CASE    | 12088 |
-| HG00102 | CASE    | 19740 |
-| HG00103 | CASE    |  1861 |
-| HG00105 | CASE    | 22278 |
-| HG00106 | CASE    | 26484 |
-| HG00107 | CASE    | 29726 |
-+---------+---------+-------+
-
-It's schema is
-
-.. code-block::text
-
-    TStruct(Sample=TString, Status=TString, qPhen = TInt32)
-
-
-Global Fields
-=============
-
-In addition to row fields, Hail tables also have global fields. You can think of globals as
-extra fields in the table whose values are identical for every row. For example,
-the same table above with the global field ``X = 5`` can be thought of as
-
-+---------+---------+-------+-------+
-| Sample  | Status  | qPhen |     X |
-+---------+---------+-------+-------+
-| String  | String  | Int32 | Int32 |
-+---------+---------+-------+-------+
-| HG00096 | CASE    | 27704 |     5 |
-| HG00097 | CASE    | 16636 |     5 |
-| HG00099 | CASE    |  7256 |     5 |
-| HG00100 | CASE    | 28574 |     5 |
-| HG00101 | CASE    | 12088 |     5 |
-| HG00102 | CASE    | 19740 |     5 |
-| HG00103 | CASE    |  1861 |     5 |
-| HG00105 | CASE    | 22278 |     5 |
-| HG00106 | CASE    | 26484 |     5 |
-| HG00107 | CASE    | 29726 |     5 |
-+---------+---------+-------+-------+
-
-but the value ``5`` is only stored once for the entire dataset and NOT once per
-row of the table. The output of `describe` lists what all of the row
-fields and global fields are.
-
-.. code-block::text
-
-    Global fields:
-        'X': Int32
-
-    Row fields:
-        'Sample': String
-        'Status': String
-        'qPhen': Int32
-
-
-Keys
-====
-
-Row fields can be specified to be the keys of the table with the method `key_by`.
-Keys are important for joining tables together (discussed below).
-
-Referencing Fields
-==================
-
-Each :class:`.Table` object has all of its row fields and global fields as
-attributes in its namespace. This means that the row field `Sample` can be accessed
-from table `t` with ``t.Sample`` or ``t['Sample']``. If `t` also had a global field `X`,
-then it could be accessed by either ``t.X`` or ``t['X']``. Both row fields and global
-fields are top level fields. Be aware that accessing a field with the `dot` notation will not work
-if the field name has special characters or periods in it. The Python type of each
-attribute is an :class:`.Expression` that also contains context about its type and source,
-in this case a row field of table `t`.
-
-    >>> t
-
-.. code-block:: text
-
-    is.hail.table.Table@42dd544f
-
-    >>> t.Sample
-
-.. code-block:: text
-
-    <hail.expr.expression.StringExpression object at 0x10b498290>
-      Type: String
-      Index:
-        row of is.hail.table.Table@42dd544f
+A :class:`.Table` is the Hail equivalent of a SQL table, a Pandas Dataframe, an
+R Dataframe, a dyplr Tibble, or a Spark Dataframe. It consists of rows of data
+conforming to a given schema where each column (row field) in the dataset is of
+a specific type.
 
 Import
 ======
 
 Hail has functions to create tables from a variety of data sources.
 The most common use case is to load data from a TSV or CSV file, which can be
-done with the `import_table` function.
+done with the :func:`import_table` function.
 
 .. doctest::
 
-    t = methods.import_table("data/kt_example1.tsv", impute=True)
-
-A table can also be created from Python
-objects with `parallelize`. For example, a table with only the first two rows
-above could be created from Python objects.
-
-.. doctest::
-
-    rows = [{"Sample": "HG00096", "Status": "CASE", "qPhen": 27704},
-            {"Sample": "HG00097", "Status": "CASE", "qPhen": 16636}]
-
-    schema = TStruct(["Sample", "Status", "qPhen"], [TString(), TString(), TInt32()])
-
-    t_new = Table.parallelize(rows, schema)
+    ht = hl.import_table("data/kt_example1.tsv", impute=True)
 
 Examples of genetics-specific import methods are
-`import_interval_list`, `import_fam`, and `import_bed`. Many Hail methods also
-return tables.
+:func:`.import_locus_intervals`, :func:`.import_fam`, and :func:`.import_bed`.
+Many Hail methods also return tables.
+
+An example of a table is below. We recommend `ht` as a variable name for
+tables, referring to a "Hail table".
+
+.. doctest::
+
+    >>> ht.show()
+    +-------+-------+-----+-------+-------+-------+-------+-------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+    +-------+-------+-----+-------+-------+-------+-------+-------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+    +-------+-------+-----+-------+-------+-------+-------+-------+
+    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
+    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
+    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
+    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+    +-------+-------+-----+-------+-------+-------+-------+-------+
+
+
+Global Fields
+=============
+
+In addition to row fields, Hail tables also have global fields. You can think of
+globals as extra fields in the table whose values are identical for every row.
+For example, the same table above with the global field ``G = 5`` can be thought
+of as
+
+.. code-block:: text
+
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     G |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |     5 |
+    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |     5 |
+    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |     5 |
+    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |     5 |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+
+but the value ``5`` is only stored once for the entire dataset and NOT once per
+row of the table. The output of :meth:`.Table.describe` lists what all of the row
+fields and global fields are.
+
+.. doctest::
+
+    >>> ht.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Row fields:
+        'ID': int32
+        'HT': int32
+        'SEX': str
+        'X': int32
+        'Z': int32
+        'C1': int32
+        'C2': int32
+        'C3': int32
+    ----------------------------------------
+    Key:
+        None
+    ----------------------------------------
+
+Keys
+====
+
+Row fields can be specified to be the key of the table with the method
+:meth:`.Table.key_by`. Keys are important for joining tables together (discussed
+below).
+
+Referencing Fields
+==================
+
+Each :class:`.Table` object has all of its row fields and global fields as
+attributes in its namespace. This means that the row field `ID` can be accessed
+from table `ht` with ``ht.Sample`` or ``ht['Sample']``. If `ht` also had a
+global field `G`, then it could be accessed by either ``ht.G`` or ``ht['G']``.
+Both row fields and global fields are top level fields. Be aware that accessing
+a field with the dot notation will not work if the field name has spaces or
+special characters in it. The Python type of each attribute is an
+:class:`.Expression` that also contains context about its type and source, in
+this case a row field of table `ht`.
+
+.. doctest::
+
+    >>> ht
+    <hail.table.Table at 0x110791a20>
+
+    >>> ht.ID
+    <Int32Expression of type int32>
+
 
 Common Operations
 =================
 
-The main operations on a table are `select` and `drop` to add or remove row fields,
-`filter` to either keep or remove rows based on a condition, and `annotate` to add
-new row fields or update the values of existing row fields. For example, extending
-the example table above, we can filter the table to only contain rows where
-``qPhen < 15000``, add a new row field `SampleInt` which is the integer component of the row
-field `Sample`, add a new global field `foo`, and select only the row fields `SampleInt` and
-`qPhen` as well as define a new row field `bar` which is the product of `qPhen` and `SampleInt`.
-Lastly, we can use `show` to view the first 10 rows of the new table.
-
-
-# FIXME: add transmute and explode
+The main operations on a table are :meth:`.Table.select` and :meth:`.Table.drop` to add or remove row fields,
+:meth:`.Table.filter` to either keep or remove rows based on a condition, and :meth:`.Table.annotate` to add
+new row fields or update the values of existing row fields. For example:
 
 .. doctest::
 
-    t_new = t.filter(t['qPhen'] < 15000)
-    t_new = t_new.annotate(SampleInt = t.Sample.replace("HG", "").to_int32())
-    t_new = t_new.annotate_globals(foo = 131)
-    t_new = t_new.select(t['SampleInt'], t['qPhen'], bar = t['qPhen'] * t['SampleInt'])
-    t_new.show()
+    ht_new = ht.filter(ht['C1'] >= 10)
+    ht_new = ht_new.annotate(id_times_2 = ht_new.ID * 2)
 
-The final output is
 
-.. code-block:: text
-
-    +-----------+-------+---------+
-    | SampleInt | qPhen |     bar |
-    +-----------+-------+---------+
-    |     Int32 | Int32 |   Int32 |
-    +-----------+-------+---------+
-    |        99 |  7256 |  718344 |
-    |       101 | 12088 | 1220888 |
-    |       103 |  1861 |  191683 |
-    |       113 |  8845 |  999485 |
-    |       116 | 12742 | 1478072 |
-    |       121 |  4832 |  584672 |
-    |       124 |  2691 |  333684 |
-    |       125 | 14466 | 1808250 |
-    |       127 | 10224 | 1298448 |
-    |       128 |  2807 |  359296 |
-    +-----------+-------+---------+
-
-with the following schema:
-
-.. code-block:: text
-
-    Global fields:
-        'foo': Int32
-
-    Row fields:
-        'SampleInt': Int32
-        'qPhen': Int32
-        'bar': Int32
-
-Aggregations
-============
+Aggregation
+===========
 
 A commonly used operation is to compute an aggregate statistic over the rows of
-the dataset. Hail provides an `aggregate` method along with many
-`aggregator functions` to return the result of a query.
-For example, to compute the fraction of rows with ``Status == "CASE"`` and the
-mean value for `qPhen`, we can run the following command:
+the dataset. Hail provides an :meth:`.Table.aggregate` method along with many
+aggregator functions (see :ref:`sec-aggregators`) to return the result of a
+query:
 
 .. doctest::
 
-    t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
-                mean_qPhen = agg.mean(t.qPhen))
+    >>> ht.aggregate(agg.fraction(ht.SEX == 'F'))
+    0.5
 
-.. code-block:: text
-
-    Struct(frac_case=0.41, mean_qPhen=17594.625)
-
-We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
-To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
-will expose the method `aggregate` which can be used to compute new row fields
-over the grouped-by rows.
+We also might want to compute the mean value of `HT` for each sex. This is
+possible with a combination of :meth:`Table.group_by` and
+:meth:`.GroupedTable.aggregate`:
 
 .. doctest::
 
-    t_agg = (t.group_by('Status')
-              .aggregate(mean = agg.mean(t['qPhen'])))
-    t_agg.show()
+    >>> ht_agg = (ht.group_by(ht.SEX)
+    ...             .aggregate(mean = agg.mean(ht.HT)))
+    >>> ht_agg.show()
+    +-----+-------------+
+    | SEX |        mean |
+    +-----+-------------+
+    | str |     float64 |
+    +-----+-------------+
+    | M   | 6.85000e+01 |
+    | F   | 6.50000e+01 |
+    +-----+-------------+
 
 
-.. code-block:: text
-
-    +--------+-------------+
-    | Status |        mean |
-    +--------+-------------+
-    | String |     Float64 |
-    +--------+-------------+
-    | CASE   | 1.83183e+04 |
-    | CTRL   | 1.70995e+04 |
-    +--------+-------------+
-
-Note that the result of `t.group_by(...).aggregate(...)` is a new :class:`.Table`
-while the result of `t.aggregate(...)` is either a single value or a :class:`.Struct`.
+Note that the result of ``ht.group_by(...).aggregate(...)`` is a new
+:class:`.Table` while the result of ``ht.aggregate(...)`` is a Python value.
 
 Joins
 =====
 
-To join the row fields of two tables together, Hail provides a `join` method with
-options for how to join the rows together (left, right, inner, outer). The tables are
-joined by the row fields designated as keys. The number of keys and their types
-must be identical between the two tables. However, the names of the keys do not
-need to be identical. Use the `key` attribute to view the current
-table row keys and the `key_by` method to change the table keys. If top level
-row field names overlap between the two tables, the second table's field names
-will be appended with a unique identifier "_N".
+To join the row fields of two tables together, Hail provides a
+:meth:`.Table.join` method with options for how to join the rows together (left,
+right, inner, outer). The tables are joined by the row fields designated as
+keys. The number of keys and their types must be identical between the two
+tables. However, the names of the keys do not need to be identical. Use the
+:meth:`.Table.key` attribute to view the current table row keys and the
+:meth:`.Table.key_by` method to change the table keys. If top level row field
+names overlap between the two tables, the second table's field names will be
+appended with a unique identifier "_N".
 
 .. doctest::
 
-    t1 = t.key_by('Sample')
-    t2 = (functions.import_table("data/kt_example2.tsv", impute=True)
-                   .key_by('Sample'))
+    >>> ht = ht.key_by('ID')
+    >>> ht2 = hl.import_table("data/kt_example2.tsv", impute=True).key_by('ID')
 
-    t_join = t1.join(t2)
-    t_join.show()
+    >>> ht_join = ht.join(ht2)
+    >>> ht_join.show()
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     A | B      |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 | str    |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
+    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |    70 | mouse  |
+    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |    60 | rabbit |
+    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |    72 | dog    |
+    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |    65 | cat    |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
 
-.. code-block:: text
-
-    +---------+--------+-------+-------------+--------+
-    | Sample  | Status | qPhen |      qPhen2 | qPhen3 |
-    +---------+--------+-------+-------------+--------+
-    | String  | String | Int32 |     Float64 |  Int32 |
-    +---------+--------+-------+-------------+--------+
-    | HG00097 | CASE   | 16636 | 3.32720e+03 |  16626 |
-    | HG00128 | CASE   |  2807 | 5.61400e+02 |   2797 |
-    | HG00111 | CASE   | 30065 | 6.01300e+03 |  30055 |
-    | HG00122 | CASE   |    NA | 0.00000e+00 |    -10 |
-    | HG00107 | CASE   | 29726 | 5.94520e+03 |  29716 |
-    | HG00136 | CASE   | 12348 | 2.46960e+03 |  12338 |
-    | HG00113 | CASE   |  8845 | 1.76900e+03 |   8835 |
-    | HG00103 | CASE   |  1861 | 3.72200e+02 |   1851 |
-    | HG00120 | CASE   | 19599 | 3.91980e+03 |  19589 |
-    | HG00114 | CASE   | 31255 | 6.25100e+03 |  31245 |
-    +---------+--------+-------+-------------+--------+
-
-In addition to using the `join` method, Hail provides an additional join syntax
-using Python's bracket notation. For example, below we add the column `qPhen2` from table
-2 to table 1 by joining on the row field `Sample`:
+In addition to using the :meth:`.Table.join` method, Hail provides an additional
+join syntax using Python's bracket notation. This syntax does a left join, like
+looking up values in a dictionary. Instead of returning a :class:`.Table`, this
+syntax returns an :class:`.Expression` which can be used in expressions of the
+left table. For example, below we add the field 'B' from `ht2` to `ht`:
 
 .. doctest::
 
-    t1 = t1.annotate(qPhen2 = t2[t.Sample].qPhen2)
-    t1.show()
-
-.. code-block:: text
-
-    +---------+--------+-------+-------------+
-    | Sample  | Status | qPhen |      qPhen2 |
-    +---------+--------+-------+-------------+
-    | String  | String | Int32 |     Float64 |
-    +---------+--------+-------+-------------+
-    | HG00180 | CTRL   | 27337 |          NA |
-    | HG00160 | CTRL   | 29590 |          NA |
-    | HG00141 | CTRL   | 25689 |          NA |
-    | HG00097 | CASE   | 16636 | 3.32720e+03 |
-    | HG00145 | CTRL   |  7641 |          NA |
-    | HG00158 | CTRL   | 12369 |          NA |
-    | HG00243 | CTRL   | 18065 |          NA |
-    | HG00128 | CASE   |  2807 | 5.61400e+02 |
-    | HG00234 | CTRL   | 18268 |          NA |
-    | HG00111 | CASE   | 30065 | 6.01300e+03 |
-    +---------+--------+-------+-------------+
-
-The general format of the key word argument to `annotate` is
-
-.. code-block:: text
-
-    new_field_name = <other table> [<this table's keys >].<field to insert>
-
-Note that both `t1` and `t2` have been keyed by the column `Sample` with the same
-type TString. This syntax for joining can be extended to add new row fields
-from many tables simultaneously.
-
-If both `t1` and `t2` have the same schema, but different rows, the rows
-of the two tables can be combined with `union`.
-
+    >>> ht1 = ht.annotate(B = ht2[ht.ID].B)
+    >>> ht1.show()
+    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | B      |
+    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | str    |
+    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
+    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 | mouse  |
+    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 | rabbit |
+    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 | dog    |
+    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 | cat    |
+    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
 
 Interacting with Tables Locally
 ===============================
 
 Hail has many useful methods for interacting with tables locally such as in an
-iPython notebook. Use the `show` method to see the first 10 rows of a table.
+Jupyter notebook. Use the :meth:`.Table.show` method to see the first few rows
+of a table.
 
-`take` will collect the first `n` rows of a table into a local Python list
-
-.. doctest::
-
-    x = t.take(3)
-    x
-
-.. code-block:: text
-
-    [Struct(Sample=HG00096, Status=CASE, qPhen=27704),
-     Struct(Sample=HG00097, Status=CASE, qPhen=16636),
-     Struct(Sample=HG00099, Status=CASE, qPhen=7256)]
-
-Note that each element of the list is a Struct whose elements can be accessed using
-Python's get attribute notation
+:meth:`.Table.take` will collect the first `n` rows of a table into a local
+Python list:
 
 .. doctest::
 
-    x[0].qPhen
+    >>> first3 = ht.take(3)
+    >>> first3
+    [Struct(ID=3, HT=70, SEX=F, X=7, Z=3, C1=10, C2=81, C3=-5),
+     Struct(ID=4, HT=60, SEX=F, X=8, Z=2, C1=11, C2=90, C3=-10),
+     Struct(ID=2, HT=72, SEX=M, X=6, Z=3, C1=2, C2=61, C3=1)]
 
-.. code-block:: text
+Note that each element of the list is a :class:`.Struct` whose elements can be
+accessed using Python's get attribute or get item notation:
 
-    27704
+.. doctest::
 
-When testing pipelines, it is helpful to subset the dataset to the first `n` rows
-with the `head` method. The result of `head` is a new Table rather than a local
-list of Struct elements as with `take` or a printed representation with `show`.
-`sample` will return a randomly sampled fraction of the dataset. This is useful
-for having a smaller, but random subset of the data.
+    >>> first3[0].ID
+    3
 
-`describe` is a useful method for showing all of the fields of the table and their
-types. The complete table schemas can be accessed with `schema` and `global_schema`.
-The row fields that are keys can be accessed with `key`. Lastly, the `num_columns`
-attribute returns the number of row fields and the `count` method returns the
-number of rows in the table.
+    >>> first3[0]['ID']
+    3
+
+The :meth:`.Table.head` method is helpful for testing pipelines. It subsets a
+table to the first `n` rows, causing downstream operations to run much more
+quickly.
+
+:meth:`.Table.describe` is a useful method for showing all of the fields of the
+table and their types. The types themselves can be accessed using the fields
+(e.g. ``ht.ID.dtype``), and the full row and global types can be accessed with
+``ht.row.dtype`` and ``ht.globals.dtype``. The row fields that are part of the
+key can be accessed with :meth:`.Table.key`. The :meth:`.Table.count` method
+returns the number of rows.
 
 Export
 ======
 
-Hail provides multiple functions to export data to other formats. Tables
-can be exported to TSV files with the `export` method or written to disk in Hail's
-on-disk format with `write` and read back in with `read_table`. Tables can also be exported to Pandas tables with
-`to_pandas` or to Spark Dataframes with `to_spark`. Lastly, tables can be converted
-to a Hail :class:`.MatrixTable` with `to_matrix_table`, which is the subject of the next
-section.
+Hail provides multiple methods to export data to other formats. Tables can be
+exported to TSV files with the :meth:`.Table.export` method or written to disk
+in Hail's on-disk format with :meth:`.Table.write` (these files may be read in
+with :func:`.read_table`). Tables can also be exported to :mod:`pandas`
+DataFrames with :meth:`.Table.to_pandas` or to :mod:`.pyspark` Dataframes with
+:meth:`.Table.to_spark`.
 
 -----------
 MatrixTable
@@ -750,97 +643,107 @@ columns table that stores all of the column fields that are constant for every
 row in the dataset, and a set of global fields that are constant for every entry
 in the dataset.
 
-Unlike a :class:`.Table` which has two schemas, a matrix table has four schemas
-that define the structure of the dataset. The rows table has a `row_schema`, the
-columns table has a `col_schema`, each entry in the matrix follows the schema
-defined by `entry_schema`, and the global fields have a `global_schema`.
+Unlike a :class:`.Table` which has two field groups (row fields and global
+fields), a matrix table has four field groups: global fields, row fields, column
+fields, entry fields.
 
-In addition, there are different operations on the matrix for each dimension
-of the data. For example, instead of just `filter` for tables, matrix tables
-have `filter_rows`, `filter_cols`, and `filter_entries`.
+In addition, there are different operations on the matrix for each field group.
+For instance, :class:`.Table` has :meth:`.Table.select` and
+:meth:`.Table.select_globals`, and :class:`.MatrixTable` has
+:meth:`.MatrixTable.select_rows`, :meth:`.MatrixTable.select_cols`,
+:meth:`.MatrixTable.select_entries`, and :meth:`.MatrixTable.select_globals`.
 
-One equivalent way of representing this data is in one combined table encompassing
-all row, column, and global fields with one row in the table per entry in the matrix (coordinate form).
-Hail does not store the data in this format as it is inefficient when computing
-results and the on-disk representation would be massive as constant values are
-repeated per entry in the dataset.
+It is possible to represent matrix data by coordinate in a table , storing one
+record per entry of the matrix. However, the :class:`.MatrixTable` represents
+this data far more efficiently and exposes natural interfaces for computing on
+it.
+
+The :meth:`.MatrixTable.rows` and :meth:`.MatrixTable.cols` methods return the
+row and column fields as separate tables. The :meth:`.MatrixTable.entries`
+method returns the matrix as a table in coordinate form -- use this object with
+caution.
 
 Keys
 ====
 
-Analogous to tables, matrix tables also have keys. However, instead of one key, matrix
-tables have two keys: one for the rows table and the other for the columns table.  Entries
-are indexed by both the row keys and column keys. The keys
-can be accessed with the attributes `row_key` and `col_key` and set with the methods
-`key_rows_by` and `key_cols_by`. Keys are used for joining tables together (discussed below).
+Matrix tables have keys just as tables do. However, instead of one key, matrix
+tables have two keys: a row key and a column key. Row fields are indexed by the
+row key, column fields are indexed by the column key, and entry fields are
+indexed by the row key and the column key. The key structs can be accessed with
+:meth:`.MatrixTable.row_key` and :meth:`.MatrixTable.col_key`. It is possible to
+change the key with :meth:`.MatrixTable.key_rows_by` and
+:meth:`.MatrixTable.key_cols_by`.
 
-In addition, each matrix table has a `partition_key`. This key is used for specifying
-the ordering of the matrix table along the row dimension, which is important for
-performance.
+Note that changing the row key, however, may be an expensive operation.
 
+Hail matrix tables are natively distributed objects, and as such have another
+key: a partition key. This key is used for specifying the ordering of the matrix
+table along the row dimension, which is important for performance. Access this
+with :meth:`.MatrixTable.partition_key`
 
 Referencing Fields
 ==================
 
-All fields (row, column, global, entry)
-are top-level and exposed as attributes on the :class:`.MatrixTable` object.
-For example, if the matrix table `mt` had a row field `locus`, this field
-could be referenced with either ``mt.locus`` or ``mt['locus']``. The former
-access pattern does not work with field names with special characters or periods
-in it.
+All fields (row, column, global, entry) are top-level and exposed as attributes
+on the :class:`.MatrixTable` object. For example, if the matrix table `mt` had a
+row field `locus`, this field could be referenced with either ``mt.locus`` or
+``mt['locus']``. The former access pattern does not work with field names with
+spaces or punctuation.
 
-The result of referencing a field from a matrix table is an :class:`Expression` which knows its type
-and knows its source as well as whether it is a row field, column field, entry field, or global field.
-Hail uses this context to know which operations are allowed for a given expression.
+The result of referencing a field from a matrix table is an :class:`Expression`
+which knows its type and knows its source as well as whether it is a row field,
+column field, entry field, or global field. Hail uses this context to know which
+operations are allowed for a given expression.
 
-When evaluated in a Python interpreter, we can see ``mt.locus`` is a :class:`.LocusExpression`
-with type `Locus(GRCh37)` and it is a row field of the MatrixTable `mt`.
+When evaluated in a Python interpreter, we can see ``mt.locus`` is a
+:class:`.LocusExpression` with type ``locus<GRCh37>`` and it is a row field of
+the MatrixTable `mt`.
+
+.. testsetup::
+
+    mt = hl.import_vcf('data/sample.vcf.bgz')
+
+.. doctest::
 
     >>> mt
-
-.. code-block:: text
-
-    <hail.matrixtable.MatrixTable at 0x10a6a3e50>
+    <hail.matrixtable.MatrixTable at 0x1107e54a8>
 
     >>> mt.locus
+    <LocusExpression of type locus<GRCh37>>
 
-.. code-block:: text
+Likewise, ``mt.DP`` would be an :class:`.Int32Expression` with type ``int32``
+and is an entry field of `mt`. It is indexed by both rows and columns as denoted
+by its indices when describing the expression:
 
-    <hail.expr.expression.LocusExpression object at 0x10b17f790>
-      Type: Locus(GRCh37)
-      Index:
-        row of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
+.. doctest::
 
-Likewise, ``mt.DP`` would be an :class:`.Int32Expression` with type `Int32` and
-is an entry field of `mt`. It is indexed by both rows and columns as denoted
-by its indices when printing the expression.
-
-    >>> mt.DP
-
-.. code-block:: text
-
-    <hail.expr.expression.Int32Expression object at 0x10b2cec10>
-      Type: Int32
-      Indices:
-        column of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
-        row of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
-
+    >>> mt.DP.describe()
+    --------------------------------------------------------
+    Type:
+        int32
+    --------------------------------------------------------
+    Source:
+        <class 'hail.matrixtable.MatrixTable'>
+    Index:
+        ['row', 'column']
+    --------------------------------------------------------
 
 Import
 ======
 
-Hail provides four functions to import genetic datasets as matrix tables from a
-variety of file formats: `import_vcf`, `import_plink`, `import_bgen`, and
-`import_gen`. We will be adding a function to import a matrix table from a TSV
-file in the future.
+Text files may be imported with :func:`.import_matrix_table`. Additionally, Hail
+provides functions to import genetic datasets as matrix tables from a
+variety of file formats: :func:`.import_vcf`, :func:`.import_plink`,
+:func:`.import_bgen`, and :func:`.import_gen`.
 
-An example of importing data from a VCF file to a matrix table follows:
+.. doctest::
 
-    >>> mt = methods.import_vcf('data/example2.vcf.bgz')
+    >>> mt = hl.import_vcf('data/sample.vcf.bgz')
 
-The `describe` method shows the schemas for the global fields, column fields,
-row fields, entry fields, as well as the column key(s), the row key(s), and the
-partition key.
+The :meth:`.MatrixTable.describe` method prints all fields in the table and
+their types, as well as the keys.
+
+.. doctest::
 
     >>> mt.describe()
     ----------------------------------------
@@ -848,40 +751,36 @@ partition key.
         None
     ----------------------------------------
     Column fields:
-        's': String
+        's': str
     ----------------------------------------
     Row fields:
-        'locus': Locus(GRCh37)
-        'alleles': Array[String]
-        'rsid': String
-        'qual': Float64
-        'filters': Set[String]
-        'info': Struct {
-            NEGATIVE_TRAIN_SITE: Boolean,
-            HWP: Float64,
-            AC: Array[Int32],
-            culprit: String,
-            .
-            .
-            .
+        'locus': locus<GRCh37>
+        'alleles': array<str>
+        'rsid': str
+        'qual': float64
+        'filters': set<str>
+        'info': struct {
+            NEGATIVE_TRAIN_SITE: bool,
+            AC: array<int32>,
+            ...
+            DS: bool
         }
     ----------------------------------------
     Entry fields:
-        'GT': Call
-        'AD': Array[+Int32]
-        'DP': Int32
-        'GQ': Int32
-        'PL': Array[+Int32]
+        'GT': call
+        'AD': array<int32>
+        'DP': int32
+        'GQ': int32
+        'PL': array<int32>
     ----------------------------------------
     Column key:
-        's': String
+        's': str
     Row key:
-        'locus': Locus(GRCh37)
-        'alleles': Array[String]
+        'locus': locus<GRCh37>
+        'alleles': array<str>
     Partition key:
-        'locus': Locus(GRCh37)
+        'locus': locus<GRCh37>
     ----------------------------------------
-
 
 Common Operations
 =================
@@ -891,100 +790,65 @@ matrix table.
 
 **Filter**
 
-Hail has three methods to filter a matrix table based on a condition:
+:class:`.MatrixTable` has three methods to filter based on expressions:
 
-- `filter_rows`
-- `filter_cols`
-- `filter_entries`
+- :meth:`.MatrixTable.filter_rows`
+- :meth:`.MatrixTable.filter_cols`
+- :meth:`.MatrixTable.filter_entries`
 
-Filter methods take a `boolean expression` as its argument. The simplest boolean
-expression is ``False``, which will remove all rows, or ``True``, which will
-keep all rows.
+Filter methods take a :class:`.BooleanExpression` argument. These expressions
+are generated by applying computations to the fields of the matrix table:
 
-Just filtering out all rows, columns, or entries isn't particularly useful. Often,
-we want to filter parts of a dataset based on a condition the elements satisfy.
-A commonly used application in genetics is to only keep rows where the number of
-alleles is two (biallelic). This can be expressed as follows:
+.. doctest::
 
-    >>> mt_biallelic = mt.filter_rows(mt['alleles'].length() == 2)
+    >>> filt_mt = mt.filter_rows(hl.len(mt.alleles) == 2)
 
-So what is going on here? The reference to the row field `alleles` returns an
-expression of type `Array[String] :class:`.ArrayStringExpression`. Array expressions
-have multiple methods on them including `length` which returns the number of elements
-in the array. This expression representing the length of the row field `alleles`
-is compared to the number 2 with the `==` comparison operator to return a boolean expression.
-Note that the expression `mt['alleles'].length() == 2` is not actually a value
-in Python. Rather it represents a recipe for computation that is then used by
-Hail to evaluate each row in the matrix table for whether the condition is met.
+    >>> filt_mt = mt.filter_cols(hl.agg.mean(mt.GQ) < 20)
 
-More complicated expressions can be written with a combination of Hail's functions.
-An example of filtering columns where the fraction of non-missing elements for
-the entry field `GT` is greater than 0.95 utilizes the function `is_defined` and
-the aggregator function `fraction`.
+    >>> filt_mt = mt.filter_entries(mt.DP < 5)
 
-    >>> mt_new = mt.filter_cols(agg.fraction(functions.is_defined(mt.GT)) >= 0.95)
-    >>> mt.count_cols()
-    100
-    >>> mt_new.count_cols()
-    91
-
-In this case, the expression ``mt.GT`` is an aggregable because the function context
-is an operation on columns (`filter_cols`). This means for each column in the
-matrix table, we have N `GT` entries where N is the number of rows in the dataset.
-Aggregables cannot be realized as an actual value, so we must use an aggregator
-function to reduce the aggregable to an actual value.
-
-In the example above, `functions.is_defined` is applied to each element of the aggregable ``mt.GT``
-to transform it from an Aggregable[Call] to an Aggregable[Boolean] where ``True``
-means the value `GT` was defined or ``False`` for missing. `agg.fraction` requires
-an Aggregable[Boolean] for its input, which it then reduces to a single value by computing the
-number of ``True`` values divided by `N`, the length of the aggregable. The result
-of `fraction` is a single value per column, which can then be compared
-to the value `0.95` with the `>=` comparison operator.
-
-Hail also provides two methods to filter columns or rows based on an input list
-of values. This is useful if you have a known subset of the dataset you want to
-subset to.
-
-- `filter_rows_list`
-- `filter_cols_list`
-
+These expressions can compute arbitrarily over the data: the :meth:`.MatrixTable.filter_cols`
+example above aggregates entries per column of the matrix table to compute the
+mean of the `GQ` field, and removes columns where the result is smaller than 20.
 
 **Annotate**
 
-Hail provides four methods to add fields to a matrix table or update existing fields:
+:class:`.MatrixTable` has four methods to add new fields or update existing fields:
 
-- `annotate_rows`
-- `annotate_cols`
-- `annotate_entries`
-- `annotate_globals`
+- :meth:`.MatrixTable.annotate_rows`
+- :meth:`.MatrixTable.annotate_cols`
+- :meth:`.MatrixTable.annotate_entries`
+- :meth:`.MatrixTable.annotate_globals`
 
-Annotate methods take key-word arguments where the key is the name of the new
+Annotate methods take keyword arguments where the key is the name of the new
 field to add and the value is an expression specifying what should be added.
 
 The simplest example is adding a new global field `foo` that just contains the constant
 5.
 
+.. doctest::
+
     >>> mt_new = mt.annotate_globals(foo = 5)
-    >>> mt.global_schema.pretty()
-    Struct {
-        foo: Int32
+    >>> print(mt.globals.dtype.pretty())
+    struct {
+        foo: int32
     }
 
 Another example is adding a new row field `call_rate` which computes the fraction
-of non-missing entries `GT` per row. This is similar to the filter example described
-above, except the result of `agg.fraction(functions.is_defined(mt.GT))` is stored
-as a new row field in the matrix table and the operation is performed over rows
-rather than columns.
+of non-missing entries `GT` per row:
 
-    >>> mt_new = mt.annotate_rows(call_rate = agg.fraction(functions.is_defined(mt.GT)))
+.. doctest::
+
+    >>> mt_new = mt.annotate_rows(call_rate = hl.agg.fraction(hl.is_defined(mt.GT)))
 
 Annotate methods are also useful for updating values. For example, to update the
 GT entry field to be missing if `GQ` is less than 20, we can do the following:
 
-    >>> mt_new = mt.annotate_entries(GT = functions.cond(mt.GQ < 20,
-    ...                                                  functions.null(TCall()),
-    ...                                                  mt.GT))
+.. doctest::
+
+    >>> mt_new = mt.annotate_entries(GT = hl.case()
+    ...                                     .when(mt.GQ >= 20, mt.GT)
+    ...                                     .or_missing())
 
 **Select**
 
@@ -993,191 +857,175 @@ example, following the matrix table schemas from importing a VCF file (shown abo
 to create a hard calls dataset where each entry only contains the `GT` field
 one can do the following:
 
+.. doctest::
+
     >>> mt_new = mt.select_entries('GT')
-    >>> mt_new.entry_schema.pretty()
-    Struct {
-        GT: Call
+    >>> print(mt_new.entry.dtype.pretty())
+    struct {
+        GT: call
     }
 
-Hail has four select methods that correspond to modifying the schema of the row
-fields, the column fields, the entry fields, and the global fields.
+:class:`.MatrixTable` has four select methods that select and create new fields:
 
-- `select_rows`
-- `select_cols`
-- `select_entries`
-- `select_globals`
+- :meth:`.MatrixTable.select_rows`
+- :meth:`.MatrixTable.select_cols`
+- :meth:`.MatrixTable.select_entries`
+- :meth:`.MatrixTable.select_globals`
 
 Each method can take either strings referring to top-level fields, an attribute
-reference (useful for accessing nested fields), as well as key word arguments
-``KEY=VALUE`` to compute new fields. The Python unpack operator ``**`` can be used
-to specify that all fields of a Struct should become top level fields. However,
-be aware that all field names must be unique across rows, columns, entries, and globals.
-So in this example, `**mt['info']` would fail because `DP` already exists as an entry field.
+reference (useful for accessing nested fields), as well as keyword arguments
+``KEY=VALUE`` to compute new fields. The Python unpack operator ``**`` can be
+used to specify that all fields of a Struct should become top level fields.
+However, be aware that all top-level field names must be unique. In this
+example, `**mt['info']` would fail because `DP` already exists as an entry
+field.
 
-The example below will keep
-the row fields `locus` and `alleles` as well as add two new fields: `AC` is making
-the subfield `AC` into a top level field and `n_filters` is a new computed field.
+The example below will keep the row fields `locus` and `alleles` as well as add
+two new fields: `AC` is making the subfield `AC` into a top level field and
+`n_filters` is a new computed field.
 
 .. doctest::
 
-    mt_new = mt.select_rows('locus',
-                            'alleles',
-                            AC = mt['info']['AC'],
-                            n_filters = mt['filters'].length())
-
-    mt_new.row_schema.pretty()
-
-.. code-block:: text
-
-    Struct {
-        locus: Locus(GRCh37),
-        alleles: Array[String],
-        AC: Array[Int32],
-        n_filters: Int32
-    }
+    >>> mt_new = mt.select_rows('locus',
+    ...                         'alleles',
+    ...                         AC = mt.info.AC,
+    ...                         n_filters = hl.len(mt['filters']))
 
 The order of the fields entered as arguments will be maintained in the new
 matrix table.
 
 **Drop**
 
-Analogous to `select`, `drop` will remove any top level field. An example of
-removing the `GQ` entry field is
+The complement of `select` methods, :meth:`.MatrixTable.drop` can remove any top
+level field. An example of removing the `GQ` entry field is:
 
     >>> mt_new = mt.drop('GQ')
-    >>> mt_new.entry_schema.pretty()
-    Struct {
-        GT: Call,
-        AD: Array[+Int32],
-        DP: Int32,
-        PL: Array[+Int32]
-    }
-
-Hail also has two methods to drop all rows or all columns from the matrix table:
-`drop_rows` and `drop_cols`.
 
 **Explode**
 
-Explode is used to unpack a row or column field that is of type array or
+Explode operations can is used to unpack a row or column field that is of type array or
 set.
 
-- `explode_rows`
-- `explode_cols`
+- :meth:`.MatrixTable.explode_rows`
+- :meth:`.MatrixTable.explode_cols`
 
 One use case of explode is to duplicate rows:
+
+.. doctest::
 
     >>> mt_new = mt.annotate_rows(replicate_num = [1, 2])
     >>> mt_new = mt_new.explode_rows(mt_new['replicate_num'])
     >>> mt.count_rows()
-    7
+    346
     >>> mt_new.count_rows()
-    14
+    692
 
-    >>> mt_new.rows_table().select('locus', 'alleles', 'replicate_num').show()
+    >>> mt_new.replicate_num.show()
+    +---------------+------------+---------------+
+    | locus         | alleles    | replicate_num |
+    +---------------+------------+---------------+
+    | locus<GRCh37> | array<str> |         int32 |
+    +---------------+------------+---------------+
+    | 20:10019093   | ["A","G"]  |             1 |
+    | 20:10019093   | ["A","G"]  |             2 |
+    | 20:10026348   | ["A","G"]  |             1 |
+    | 20:10026348   | ["A","G"]  |             2 |
+    | 20:10026357   | ["T","C"]  |             1 |
+    | 20:10026357   | ["T","C"]  |             2 |
+    | 20:10030188   | ["T","A"]  |             1 |
+    | 20:10030188   | ["T","A"]  |             2 |
+    | 20:10030452   | ["G","A"]  |             1 |
+    | 20:10030452   | ["G","A"]  |             2 |
+    +---------------+------------+---------------+
 
-.. code-block:: text
+Aggregation
+===========
 
-    +---------------+-----------------+---------------+
-    | locus         | alleles         | replicate_num |
-    +---------------+-----------------+---------------+
-    | Locus(GRCh37) | Array[String]   |         Int32 |
-    +---------------+-----------------+---------------+
-    | 20:12990057   | ["T","A"]       |             1 |
-    | 20:12990057   | ["T","A"]       |             2 |
-    | 20:13090733   | ["A","AT"]      |             1 |
-    | 20:13090733   | ["A","AT"]      |             2 |
-    | 20:13695824   | ["CAA","C"]     |             1 |
-    | 20:13695824   | ["CAA","C"]     |             2 |
-    | 20:13839933   | ["T","C"]       |             1 |
-    | 20:13839933   | ["T","C"]       |             2 |
-    | 20:15948326   | ["GAAAAAA","G"] |             1 |
-    | 20:15948326   | ["GAAAAAA","G"] |             2 |
-    +---------------+-----------------+---------------+
+:class:`.MatrixTable` has three methods to compute aggregate statistics.
 
-Aggregations
-============
+- :class:`.MatrixTable.aggregate_rows`
+- :class:`.MatrixTable.aggregate_cols`
+- :class:`.MatrixTable.aggregate_entries`
 
-Like :class:`Table`, Hail provides three methods to compute aggregate statistics.
+These methods take an aggregated expression and evaluate it, returning
+a Python value.
 
-- `aggregate_rows`
-- `aggregate_cols`
-- `aggregate_entries`
+An example of querying entries is to compute the global mean of field `GQ`:
 
-These methods take key word arguments where the key is the name of the value to
-compute and the value is the expression for what to compute. The return value
-of aggregate is either a single value or a :class:`.Struct` depending
-on the number of values to compute.
+.. doctest::
 
-An example of querying entries is to compute the fraction of values where `GT`
-is defined across the entire dataset (call rate):
+    >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))
+    67.73196915777027
 
-    >>> mt.aggregate_entries(call_rate = agg.fraction(functions.is_defined(mt.GT)))
-    0.9871428571428571
+It is possible to compute multiple values simultaneously (and encouraged,
+because grouping two computations together will run twice as fast!) by
+creating a tuple or struct:
 
-We can also compute multiple global statistics simulatenously by supplying multiple
-key-word arguments:
+.. doctest::
 
-    >>> result = mt.aggregate_entries(dp_stats = agg.stats(mt.DP),
-    ...                               gq_stats = agg.stats(mt.GQ))
+    >>> mt.aggregate_entries((agg.stats(mt.DP), agg.stats(mt.GQ)))
+    (Struct(mean=41.83915800445897, stdev=41.93057654787303, min=0.0, max=450.0, n=34537, sum=1444998.9999999995),
+    Struct(mean=67.73196915777027, stdev=29.80840934057741, min=0.0, max=99.0, n=33720, sum=2283922.0000000135))
 
-    >>> result.dp_stats
-    Struct(min=5.0, max=161.0, sum=22587.0, stdev=17.7420068551, nNotMissing=699, mean=32.313304721)
-
-Hail provides many aggregator functions which are documented `here`.
+See the :ref:`sec-aggregators` page for the complete list of aggregator
+functions.
 
 Group-By
 ========
 
-Hail provides two methods to group data by either a row field or a column field
-and compute an aggregated statistic for each grouping which then becomes the
-entry fields of a new :class:`.MatrixTable`.
+Matrix tables can be aggregated along the row or column axis to produce a new
+matrix table.
 
-- `group_rows_by`
-- `group_cols_by`
+- :meth:`.MatrixTable.group_rows_by`
+- :meth:`.MatrixTable.group_cols_by`
 
-First let's add a random phenotype
-as a new column field `Status` and then compute statistics about the entry field `GQ`
-for each grouping of `Status`.
+First let's add a random phenotype as a new column field `case_status` and then
+compute statistics about the entry field `GQ` for each grouping of `case_status`.
 
-    >>> mt_ann = mt.annotate_cols(Status = functions.cond(functions.rand_bool(0.5),
-    ...                                                   "CASE",
-    ...                                                   "CONTROL"))
+.. doctest::
 
-Next we group the columns by `Status` and specify the new entry field will be
-stats on `GQ` that are computed for each grouping of `Status`:
+    >>> mt_ann = mt.annotate_cols(case_status = hl.cond(hl.rand_bool(0.5),
+    ...                                                 "CASE",
+    ...                                                 "CONTROL"))
 
-    >>> mt_grouped = (mt_ann.group_cols_by(mt_ann['Status'])
+Next we group the columns by `case_status` and aggregate:
+
+.. doctest::
+
+    >>> mt_grouped = (mt_ann.group_cols_by(mt_ann.case_status)
     ...                 .aggregate(gq_stats = agg.stats(mt_ann.GQ)))
 
-    >>> mt_grouped.entry_schema().pretty()
-    Struct {
-        gq_stats: Struct {
-            mean: Float64,
-            stdev: Float64,
-            min: Float64,
-            max: Float64,
-            nNotMissing: Int64,
-            sum: Float64
+    >>> print(mt_grouped.entry.dtype.pretty())
+    struct {
+        gq_stats: struct {
+            mean: float64,
+            stdev: float64,
+            min: float64,
+            max: float64,
+            n: int64,
+            sum: float64
         }
     }
 
-    >>> mt_grouped.col_schema().pretty()
-    Struct {
-        Status: String
-    }
+    >>> print(mt_grouped.col.dtype)
+    struct{status: str}
 
 Joins
 =====
 
-Hail provides two methods to join :class:`.MatrixTable`s together:
+Joins on two-dimensional data are significantly more complicated than joins
+in one dimension, and Hail does not yet support the full range of
+joins on both dimensions of a matrix table.
 
-- `union_join_cols`
-- `union_join_rows`
+:class:`.MatrixTable` has methods for concatenating rows or columns:
 
-`union_join_cols` joins matrix tables together by performing an inner join
-on rows while concatenating columns together (similar to `paste` in Unix).
-Likewise, `union_join_rows` performs an inner join on columns while concatenating
-rows together (similar to `cat` in Unix).
+- :meth:`.MatrixTable.union_cols`
+- :meth:`.MatrixTable.union_rows`
+
+:meth:`.MatrixTable.union_cols` joins matrix tables together by performing an
+inner join on rows while concatenating columns together (similar to `paste` in
+Unix). Likewise, :meth:`.MatrixTable.union_rows` performs an inner join on
+columns while concatenating rows together (similar to `cat` in Unix).
 
 In addition, Hail provides support for joining data from multiple sources together
 if the keys of each source are compatible (same order and type, but the names do
@@ -1185,114 +1033,74 @@ not need to be identical) using Python's bracket notation ``[]``. The arguments
 inside the brackets are the destination key as a single value or a tuple if there
 are multiple destination keys.
 
-For example, we can annotate rows with row fields from another matrix table or table.
-Let `gnomad_data` be a :class:`.Table` keyed by two row fields with type TLocus and
-TArray(TString), which matches the row keys of `mt`:
+For example, we can annotate rows with row fields from another matrix table or
+table. Let `gnomad_data` be a :class:`.Table` keyed by two row fields with type
+``locus`` and ``array<str>``, which matches the row keys of `mt`:
 
-    >>> mt_new = mt.annotate_rows(gnomad_ann = gnomad_data[(mt.locus, mt.alleles)])
+.. testsetup::
 
-This command will add a new field `gnomad_ann` which is the result of joining
-between the `locus` and `alleles` row fields of `gnomad_data` and the `locus`
-row field of the matrix table `mt`. For every row in which the keys intersect,
-a new row field `gnomad_ann` which is of type TStruct with fields equal to the
-row fields of `gnomad_data`. For rows where the keys do not intersect, a Struct is
-added with field names equal to the row fields of `gnomad_data`, but whose values
-are all set to missing.
+    gnomad_data = mt.rows()
+    gnomad_data = gnomad_data.select(*gnomad_data.key, gnomad_data.info.AF)
+
+.. doctest::
+
+    >>> mt_new = mt.annotate_rows(gnomad_ann = gnomad_data[mt.locus, mt.alleles])
+
 
 If we only cared about adding one new row field such as `AF` from `gnomad_data`,
 we could do the following:
 
-    >>> mt_new = mt.annotate_rows(gnomad_af = gnomad_data[(mt.locus, mt.alleles)]['AF'])
+.. doctest::
 
-Analogously, we can add new column fields from a table. In this example, `pheno_data`
-is a table with one key of type TString, which matches the column key of the matrix
-table `mt`. A new column field `phenotypes` will be added which is a Struct containing
-the row fields of the table `pheno_data`.
+    >>> mt_new = mt.annotate_rows(gnomad_af = gnomad_data[mt.locus, mt.alleles]['AF'])
 
-    >>> mt_new = mt.annotate_cols(phenotypes = pheno_data[mt.s])
+To add all fields as top-level row fields, the following syntax unpacks the gnomad_data
+row as keyword arguments to :meth:`.MatrixTable.annotate_rows`:
 
-This implicit join syntax can also be used to add fields from one matrix table
-to another matrix table.
+.. doctest::
 
-    >>> mt_new = mt.annotate_cols(phenotypes = mt1[mt.s]['SampleID2'])
+    >>> mt_new = mt.annotate_rows(**gnomad_data[mt.locus, mt.alleles])
 
 
-Interacting with MatrixTables Locally
-=====================================
+Interacting with Matrix Tables Locally
+======================================
 
-Some useful methods to interact with matrix tables locally are `describe`,
-`head`, and `sample`. `describe` prints out the schema for all row fields, column
-fields, entry fields, and global fields as well as the row keys, column keys, and
-the partition key. `head` returns a new matrix table with only the first N
-rows. `sample` returns a new matrix table where the rows are randomly sampled
-with frequency `p`.
+Some useful methods to interact with matrix tables locally are
+:meth:`.MatrixTable.describe`, :meth:`.MatrixTable.head`, and
+:meth:`.MatrixTable.sample`. `describe` prints out the schema for all row
+fields, column fields, entry fields, and global fields as well as the row keys,
+column keys, and the partition key. `head` returns a new matrix table with only
+the first N rows. `sample` returns a new matrix table where the rows are
+randomly sampled with frequency `p`.
 
-To get the dimensions of the matrix table, use `count_rows` and `count_cols`.
+
+To get the dimensions of the matrix table, use :meth:`.MatrixTable.count_rows`
+and :meth:`.MatrixTable.count_cols`.
+
 
 Export
 ======
 
-To save a matrix table to a file, use the `write` command and subsequently `read_matrix_table`
-to read the file again.
+To save a matrix table to a file, use the :meth:`.MatrixTable.write`. These
+files can be read with :func:`.read_matrix_table`.
 
-In addition, Hail provides three methods to convert matrix tables to tables, which can then
-be printed with :meth:`~hail.Table.show` or exported to a file:
+--------------
+Linear Algebra
+--------------
+This section coming soon!
 
-- `rows_table`
-- `cols_table`
-- `entries_table`
+--------
+Genetics
+--------
+This section coming soon!
 
-The rows table contains a :class:`.Table` with all row fields and the columns table
-contains a :class:`.Table` with all column fields. Likewise, the entries table is
-a :class:`.Table` that contains a row for every element in the matrix along with the row
-and column fields. The entries table is extremely big because it contains
-a row for every element in the matrix as well as the corresponding row and column fields.
-The entries table should never be saved to disk with `write`.
-
-    >>> mt.rows_table().select('locus', 'alleles', 'rsid').show()
-    >>> mt.cols_table().select('s').show()
-
-A common idiom is to compute ... 
-
-Methods
--------
-
-
-
---------------------------
-Other Hail Data Structures
---------------------------
-- linear algebra
-- block matrix
-
-
----------------------
-Where's the Genetics?
----------------------
-  - genetics specific
-    - import vcf, gen, bgen
-    - export vcf, gen, etc.
-    - call stats, inbreeding, hwe aggregators
-    - alternate alleles
-- tdt
-- genetics objects
-- genetics types
-
----------------------
-Python Considerations
----------------------
-  - chaining methods together => not referring to correct dataset in future operations
-  - varargs vs. keyword args
-  - how to access attributes (square brackets vs. method accessor)
-  - how to work with fields with special chars or periods in name **{'a.b': 5}
-
+-------------
+Common errors
+-------------
+This section coming soon!
 
 --------------------------
 Performance Considerations
 --------------------------
-
------
-Other
------
-  - hadoop_open, etc.
+This section coming soon!
 
