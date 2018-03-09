@@ -16,7 +16,7 @@ Hail is...
   - a library for analyzing structured tabular and matrix data
   - a collection of primitives for operating on data in parallel
   - a suite of functionality for processing genetic data
-  - *not* an acronym
+  - *not* an acronym, because "having acronyms is lame"
 
 -----
 Types
