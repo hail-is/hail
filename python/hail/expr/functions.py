@@ -3366,7 +3366,7 @@ def get_sequence(reference_genome, contig, position, before=0, after=0):
     Examples
     --------
 
-    Get reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
+    Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
 
     .. doctest::
         :options: +SKIP
@@ -3376,9 +3376,9 @@ def get_sequence(reference_genome, contig, position, before=0, after=0):
 
     Notes
     -----
-    This function requires the method
-    :meth:`~hail.genetics.ReferenceGenome.add_sequence` has been called on the
-    reference genome for `locus`.
+    This function requires `reference genome` has an attached
+    reference sequence. Use :meth:`.ReferenceGenome.add_sequence` to
+    load and attach a reference sequence to a reference genome.
 
     Returns ``None`` if `contig` and `position` are not valid coordinates in
     `reference_genome`.
@@ -3386,7 +3386,7 @@ def get_sequence(reference_genome, contig, position, before=0, after=0):
     Parameters
     ----------
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
-        Reference genome to use.
+        Reference genome to use. Must have a reference sequence available.
     contig : :class:`.Expression` of type :py:data:`.tstr`
         Locus contig.
     position : :class:`.Expression` of type :py:data:`.tint32`

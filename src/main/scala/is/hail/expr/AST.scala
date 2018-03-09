@@ -426,7 +426,7 @@ case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseSt
   } yield ir.MakeTuple(irElements)
 }
 
-case class ReferenceGenomeDependentFunctions(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
+case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
   val rg = ReferenceGenome.getReference(grName)
 
   val rTyp = fName match {
@@ -440,9 +440,8 @@ case class ReferenceGenomeDependentFunctions(posn: Position, fName: String, grNa
   override def typecheckThis(): Type = {
     fName match {
       case "getReferenceSequence" =>
-        args.map(_.`type`) match {
+        (args.map(_.`type`): @unchecked) match {
           case Array(TString(_), TInt32(_), TInt32(_), TInt32(_)) =>
-          case _ => fatal(s"invalid arguments to 'getReferenceSequence'.")
         }
       case _ =>
     }

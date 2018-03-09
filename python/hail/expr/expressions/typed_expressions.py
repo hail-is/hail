@@ -2677,9 +2677,9 @@ class LocusExpression(Expression):
 
         Notes
         -----
-        This function requires the method
-        :meth:`~hail.genetics.ReferenceGenome.add_sequence` has been called on
-        the reference genome for `locus`.
+        This function requires that this locus' reference genome has an attached
+        reference sequence. Use :meth:`.ReferenceGenome.add_sequence` to
+        load and attach a reference sequence to a reference genome.
 
         Parameters
         ----------

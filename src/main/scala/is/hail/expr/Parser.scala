@@ -446,10 +446,10 @@ object Parser extends JavaTokenParsers {
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
       referenceGenomeDependentFunctions ~ ("(" ~> identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
-        case fn ~ rg ~ lparen ~ args => ReferenceGenomeDependentFunctions(lparen.pos, fn, rg, args)
+        case fn ~ rg ~ lparen ~ args => ReferenceGenomeDependentFunction(lparen.pos, fn, rg, args)
       } |
       referenceGenomeDependentFunctions ~ withPos("(") ~ (args <~ ")") ^^ {
-        case fn ~ lparen ~ args => ReferenceGenomeDependentFunctions(lparen.pos, fn, ReferenceGenome.defaultReference.name, args)
+        case fn ~ lparen ~ args => ReferenceGenomeDependentFunction(lparen.pos, fn, ReferenceGenome.defaultReference.name, args)
       } |
       (guard(not("if" | "else")) ~> identifier) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
