@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, IRRegistry}
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
@@ -254,13 +255,14 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     val localA = ec.a
     localA += null
 
-    val f = (this.compileAggregator() { (me: Code[AnyRef]) => for (
-      vs <- CM.initialValueArray();
-      k = Code.checkcast[AnyRef => Unit](vs.invoke[Int, AnyRef]("apply", idx))
-    // This method returns `Void` which is only inhabited by `null`, we treat
-    // these calls as non-stack-modifying functions so we must include a pop
-    // to reset the stack.
-    ) yield Code.toUnit(k.invoke[AnyRef, AnyRef]("apply", me))
+    val f = (this.compileAggregator() { (me: Code[AnyRef]) =>
+      for (
+        vs <- CM.initialValueArray();
+        k = Code.checkcast[AnyRef => Unit](vs.invoke[Int, AnyRef]("apply", idx))
+        // This method returns `Void` which is only inhabited by `null`, we treat
+        // these calls as non-stack-modifying functions so we must include a pop
+        // to reset the stack.
+      ) yield Code.toUnit(k.invoke[AnyRef, AnyRef]("apply", me))
     }).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(typedNames, ec)
 
     { (k: (Any => Unit)) =>
@@ -340,8 +342,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
           case FunctionRegistry.NotFound(name, typ, _) =>
             ParserUtils.error(localPos,
               s"""`$t' has neither a field nor a method named `$name'
-               |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-               |    counts.sum""".stripMargin)
+                 |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                 |    counts.sum""".stripMargin)
           case otherwise => fatal(otherwise.message)
         }
   }
@@ -380,6 +382,9 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     convertedArray <- CompilationHelp.arrayOfWithConversion(`type`.asInstanceOf[TArray].elementType, celements))
     yield
       CompilationHelp.arrayToWrappedArray(convertedArray)
+
+  override def toString: String =
+    s"ArrayConstructor(Array(${ elements.mkString(", ") }))"
 
   def toIR(agg: Option[String] = None): Option[IR] = for {
     irElements <- anyFailAllFail(elements.map(_.toIR(agg))).filter(_ => elements.map(_.`type`).distinct.length == 1)
@@ -549,7 +554,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case SymRef(_, id) => id
         }
         assert(identifiers.duplicates().isEmpty)
-        `type` = struct.`type`.asInstanceOf[TStruct].filter(identifiers.toSet, include=false)._1
+        `type` = struct.`type`.asInstanceOf[TStruct].filter(identifiers.toSet, include = false)._1
 
       case "ungroup" =>
         if (args.length != 3)
@@ -575,10 +580,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                  |  Expected struct field identifier in the second position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
         }
         val mangle = m match {
-              case Const(_, v, TBoolean(_)) => v.asInstanceOf[Boolean]
-              case other =>
-                parseError(
-                  s"""invalid arguments for method `$fn'
+          case Const(_, v, TBoolean(_)) => v.asInstanceOf[Boolean]
+          case other =>
+            parseError(
+              s"""invalid arguments for method `$fn'
                  |  Expected boolean argument in the third position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
         }
 
@@ -697,7 +702,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       }
       val f = struct.ungroup(identifier, mangle)._2
       AST.evalComposeCodeM[AnyRef](s)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
-      
+
     case ("index", Array(structArray, k)) =>
       val key = (k: @unchecked) match {
         case SymRef(_, id) => id
@@ -718,22 +723,15 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = flatLift {
-    case IndexedSeq(x) => for {
-      op <- ir.UnaryOp.fromString.lift(fn)
-      t <- ir.UnaryOp.returnTypeOption(op, x.typ)
-    } yield ir.ApplyUnaryPrimOp(op, x, t)
-    case IndexedSeq(x, y) => for {
-      op <- ir.BinaryOp.fromString.lift(fn)
-      t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
-    } yield ir.ApplyBinaryPrimOp(op, x, y, t)
+  override def toString: String = s"Apply($fn, [${args.map{a => s"$a: ${a.`type`}"}.mkString(",")}])"
+
+  def toIR(agg: Option[String] = None): Option[IR] = {
+//    info(s"looking up $this")
+    for {
+      irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
+      ir <- IRRegistry.lookup(fn, irArgs, args.map(_.`type`))
+    } yield ir
   }
-
-
-  def toIR(agg: Option[String] = None): Option[IR] = for {
-    irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-    ir <- tryPrimOpConversion(irArgs)
-  } yield ir
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
@@ -823,33 +821,41 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = (lhs.`type`, method, args: IndexedSeq[AST]) match {
-    case (_: TArray, "[]", IndexedSeq(rhs)) =>
-      for {
-        a <- lhs.toIR(agg)
-        i <- rhs.toIR(agg)
-      } yield ir.ArrayRef(a, i, `type`)
-    case (_: TAggregable, "sum", IndexedSeq()) =>
-      for {
-        a <- lhs.toIR(agg)
-        elementType = a.typ.asInstanceOf[TAggregable].elementType
-      } yield ir.ApplyAggOp(a, ir.Sum(), Seq(), elementType)
-    case (_: TAggregable, m, IndexedSeq(Lambda(_, name, body))) =>
-      for {
-        a <- lhs.toIR(agg)
-        b <- body.toIR(agg)
-        result <- optMatch(m) {
-          case "map" => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
-          case "filter" => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
-          case "flatMap" => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
-        }
-      } yield result
-    case (_: TTuple, "[]", IndexedSeq(rhs)) =>
-      val idx = rhs.asInstanceOf[Const].value.asInstanceOf[Int]
-      for {
-        tup <- lhs.toIR(agg)
-      } yield ir.GetTupleElement(tup, idx, `type`)
-    case _ => None
+  def toIR(agg: Option[String] = None): Option[IR] = {
+    (lhs.`type`, method, args: IndexedSeq[AST]) match {
+      case (_: TArray, "[]", IndexedSeq(rhs)) =>
+        for {
+          a <- lhs.toIR(agg)
+          i <- rhs.toIR(agg)
+        } yield ir.ArrayRef(a, i, `type`)
+      case (_: TAggregable, "sum", IndexedSeq()) =>
+        for {
+          a <- lhs.toIR(agg)
+          elementType = a.typ.asInstanceOf[TAggregable].elementType
+        } yield ir.ApplyAggOp(a, ir.Sum(), Seq(), elementType)
+      case (_: TAggregable, m, IndexedSeq(Lambda(_, name, body))) =>
+        for {
+          a <- lhs.toIR(agg)
+          b <- body.toIR(agg)
+          result <- optMatch(m) {
+            case "map" => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
+            case "filter" => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
+            case "flatMap" => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
+          }
+        } yield result
+      case (_: TTuple, "[]", IndexedSeq(rhs)) =>
+        val idx = rhs.asInstanceOf[Const].value.asInstanceOf[Int]
+        for {
+          tup <- lhs.toIR(agg)
+        } yield ir.GetTupleElement(tup, idx, `type`)
+      case (_, _, IndexedSeq(l: Lambda)) =>
+        IRRegistry.convertLambda(method, lhs, l, agg)
+      case _ =>
+        for {
+          irs <- anyFailAllFail((lhs +: args).map(_.toIR(agg)))
+          ir <- IRRegistry.lookup(method, irs, (lhs +: args).map(_.`type`))
+        } yield ir
+    }
   }
 }
 
