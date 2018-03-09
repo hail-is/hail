@@ -937,9 +937,9 @@ Aggregation
 
 :class:`.MatrixTable` has three methods to compute aggregate statistics.
 
-- :class:`.MatrixTable.aggregate_rows`
-- :class:`.MatrixTable.aggregate_cols`
-- :class:`.MatrixTable.aggregate_entries`
+- :meth:`.MatrixTable.aggregate_rows`
+- :meth:`.MatrixTable.aggregate_cols`
+- :meth:`.MatrixTable.aggregate_entries`
 
 These methods take an aggregated expression and evaluate it, returning
 a Python value.
