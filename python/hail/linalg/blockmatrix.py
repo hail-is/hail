@@ -84,6 +84,8 @@ class BlockMatrix(object):
         :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and
         restore block matrices.
 
+        The number of entries must be less than :math:`2^{31}`.
+
         See also :meth:`BlockMatrix.from_numpy`.
 
         Parameters
@@ -99,6 +101,10 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
+
+        n_entries = n_rows * n_cols
+        if n_entries >= 2 << 31:
+            raise FatalError('Number of entries must be less than 2^31, found {}'.format(n_entries))
 
         hc = Env.hc()
         bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.readDoubles(hc._jhc, path, n_rows, n_cols, True)
@@ -135,6 +141,8 @@ class BlockMatrix(object):
         <https://docs.python.org/3/library/tempfile.html#tempfile.mkstemp>`__
         function. This function places the file in a system temp directory but
         does not automatically delete the file at exit.
+
+        The number of entries must be less than :math:`2^{31}`.
 
         Parameters
         ----------
@@ -391,6 +399,8 @@ class BlockMatrix(object):
 
         Notes
         -----
+        The number of entries must be less than :math:`2^{31}`.
+
         This method, analogous to `numpy.tofile
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.tofile.html>`__,
         produces a binary file of float64 values in row-major order, which can
@@ -409,6 +419,10 @@ class BlockMatrix(object):
         path: :obj:`str`, optional
             Path for binary output file.
         """
+        n_entries = self.n_rows * self.n_cols
+        if n_entries >= 2 << 31:
+            raise FatalError('Number of entries must be less than 2^31, found {}'.format(n_entries))
+        
         bdm = self._jbm.toBreezeMatrix()
         hc = Env.hc()
         row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.writeDoubles(hc._jhc, path, bdm, True)
@@ -427,6 +441,8 @@ class BlockMatrix(object):
 
         Notes
         -----
+        The number of entries must be less than :math:`2^{31}`.
+
         The resulting ndarray will have the same shape as the block matrix.
 
         The example above is implemented as:
