@@ -223,6 +223,7 @@ object Nirvana {
   }
 
   def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
+    assert(vds.rowKey == IndexedSeq("locus", "alleles"))
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
     val properties = try {
@@ -320,7 +321,7 @@ object Nirvana {
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
     val nirvanaORVDType = new OrderedRVDType(
-      Array("locus"), Array("locus", "alleles"),
+      vds.rowPartitionKey.toArray, vds.rowKey.toArray,
       TStruct(
         "locus" -> vds.rowKeyTypes(0),
         "alleles" -> vds.rowKeyTypes(1),
