@@ -1070,3 +1070,29 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.len(t0) == 0))
         self.assertTrue(hl.eval_expr(hl.len(t2) == 2))
         self.assertTrue(hl.eval_expr(hl.len(t)) == 5)
+
+    def test_interval_ops(self):
+        interval = hl.interval(3, 6)
+        self.assertTrue(hl.eval_expr_typed(interval.start) == (3, hl.tint))
+        self.assertTrue(hl.eval_expr_typed(interval.end) == (6, hl.tint))
+        self.assertTrue(hl.eval_expr_typed(interval.includes_start) == (True, hl.tbool))
+        self.assertTrue(hl.eval_expr_typed(interval.includes_end) == (False, hl.tbool))
+        self.assertTrue(hl.eval_expr_typed(interval.contains(5)) == (True, hl.tbool))
+        self.assertTrue(hl.eval_expr_typed(interval.overlaps(hl.interval(5, 9))) == (True, hl.tbool))
+
+        li = hl.parse_locus_interval('1:100-110')
+        self.assertEqual(li.value, Interval(Locus("1", 100), Locus("1", 110)))
+        self.assertTrue(li.dtype.point_type == hl.tlocus())
+        self.assertTrue(li.contains(hl.locus("1", 100)).value)
+        self.assertTrue(li.contains(hl.locus("1", 109)).value)
+        self.assertFalse(li.contains(hl.locus("1", 110)).value)
+    
+        li2 = hl.parse_locus_interval("1:109-200")
+        li3 = hl.parse_locus_interval("1:110-200")
+        li4 = hl.parse_locus_interval("1:90-101")
+        li5 = hl.parse_locus_interval("1:90-100")
+    
+        self.assertTrue(li.overlaps(li2).value)
+        self.assertTrue(li.overlaps(li4).value)
+        self.assertFalse(li.overlaps(li3).value)
+        self.assertFalse(li.overlaps(li5).value)

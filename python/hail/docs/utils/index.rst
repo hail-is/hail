@@ -5,6 +5,7 @@ utils
 
 .. autosummary::
 
+    Interval
     Struct
     hadoop_copy
     hadoop_read
@@ -12,6 +13,7 @@ utils
     range_table
     range_matrix_table
 
+.. autoclass:: Interval
 .. autoclass:: Struct
 .. autofunction:: hadoop_copy
 .. autofunction:: hadoop_read

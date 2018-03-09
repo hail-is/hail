@@ -2,8 +2,9 @@ import abc
 
 import hail as hl
 from hail.typecheck import *
-from hail.utils import Struct
+from hail.utils import Struct, Interval
 from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list, escape_parsable
+from hail.genetics import Locus, Call, ReferenceGenome
 from hail.genetics.reference_genome import reference_genome_type
 from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
@@ -919,10 +920,6 @@ class tinterval(HailType):
 
     In Python, these are represented by :class:`.Interval`.
 
-    Notes
-    -----
-    Intervals are inclusive of the start point, but exclusive of the end point.
-
     Parameters
     ----------
     point_type: :class:`.HailType`
@@ -947,25 +944,25 @@ class tinterval(HailType):
         return self._point_type
 
     def _convert_to_py(self, annotation):
-        assert (isinstance(self._point_type, tlocus))
         if annotation is not None:
-            return genetics.Interval._from_java(annotation, self._point_type.reference_genome)
+            return Interval._from_java(annotation, self._point_type)
         else:
             return None
 
-    @typecheck_method(annotation=nullable(genetics.Interval))
     def _convert_to_j(self, annotation):
-        assert (isinstance(self._point_type, tlocus))
         if annotation is not None:
             return annotation._jrep
         else:
             return None
 
     def _typecheck(self, annotation):
-        assert (isinstance(self._point_type, tlocus))
-        if annotation is not None and not isinstance(annotation, genetics.Interval):
-            raise TypeError("type 'interval' expected Python hail.genetics.Interval, but found %s'" %
-                            type(annotation))
+        if annotation is not None:
+            if not isinstance(annotation, Interval):
+                raise TypeError("type '{}' expected Python hail.utils.Interval, but found {}"
+                                .format(self, type(annotation)))
+            if annotation.point_type != self.point_type:
+                raise TypeError("type '{}' encountered Interval with point type {}"
+                                .format(self, repr(annotation.point_type)))
 
     def __str__(self):
         return "interval<{}>".format(str(self.point_type))
@@ -979,18 +976,16 @@ class tinterval(HailType):
         l.append('>')
 
     def _convert_from_json(self, x):
-        if not isinstance(self.point_type, tlocus):
-            raise NotImplementedError(self.point_type)
-        return genetics.Interval(self.point_type._convert_from_json_na(x['start']),
-                                 self.point_type._convert_from_json_na(x['end']))
+        return Interval(self.point_type._convert_from_json_na(x['start']),
+                        self.point_type._convert_from_json_na(x['end']),
+                        x['includeStart'],
+                        x['includeEnd'])
 
     def _convert_to_json(self, x):
-        if not isinstance(self.point_type, tlocus):
-            raise NotImplementedError(self.point_type)
         return {'start': self.point_type._convert_to_json_na(x.start),
                 'end': self.point_type._convert_to_json_na(x.end),
-                'includeStart': True,
-                'includeEnd': False}
+                'includeStart': x.includes_start,
+                'includeEnd': x.includes_end}
 
 
 tint32 = _tint32()

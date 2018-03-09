@@ -27,7 +27,7 @@ from .expr import *
 from .genetics import *
 from .methods import *
 from hail.expr import aggregators as agg
-from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
+from hail.utils import Struct, Interval, hadoop_write, hadoop_read, hadoop_copy
 
 
 __all__ = ['init',
@@ -45,6 +45,7 @@ __all__ = ['init',
            'hadoop_write',
            'hadoop_copy',
            'Struct',
+           'Interval',
            'agg']
 
 

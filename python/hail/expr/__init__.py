@@ -1,4 +1,3 @@
-import hail.expr.functions
 from .types import *
 from .expressions import eval_expr, eval_expr_typed
 from .functions import *
@@ -42,7 +41,8 @@ __all__ = ['HailType',
            'parse_variant',
            'locus',
            'interval',
-           'parse_interval',
+           'locus_interval',
+           'parse_locus_interval',
            'call',
            'is_defined',
            'is_missing',
