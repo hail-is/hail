@@ -97,9 +97,6 @@ class TableTemplate(object):
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
-    def __repr__(self):
-        return self._jt.toString()
-
     @property
     def key(self):
         """Row key struct.
