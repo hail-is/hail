@@ -544,8 +544,11 @@ object OrderedRVD {
 
     val ab = new ArrayBuilder[RegionValue]()
     ab += min
-    var i = 1
     var start = 0
+    while (start < keys.length
+      && pkOrd.compare(min, keys(start)) == 0)
+      start += 1
+    var i = 1
     while (i < nPartitions && start < keys.length) {
       var end = ((i.toDouble * keys.length) / nPartitions).toInt
       if (start > end)
@@ -557,7 +560,8 @@ object OrderedRVD {
       start = end + 1
       i += 1
     }
-    ab += max
+    if (pkOrd.compare(ab.last, max) != 0)
+      ab += max
     val partitionMaxes = ab.result()
     assert(partitionMaxes.length <= nPartitions + 1)
 
