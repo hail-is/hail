@@ -86,6 +86,8 @@ class Tests(unittest.TestCase):
     def test_cond(self):
         self.assertEqual(hl.eval_expr('A' + hl.cond(True, 'A', 'B')), 'AA')
 
+        self.assertEqual(hl.cond(True, hl.struct(), hl.null(hl.tstruct())).value, hl.utils.Struct())
+
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
