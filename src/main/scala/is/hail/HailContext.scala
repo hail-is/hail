@@ -161,7 +161,8 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    ProgressBarBuilder.build(sparkContext)
+    if (!quiet)
+      ProgressBarBuilder.build(sparkContext)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
