@@ -12,26 +12,30 @@ import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 import scala.language.postfixOps
 
-class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type, var region: Code[Region], val pOffset: Code[Long]) {
+class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var region: Code[Region], val pOffset: Code[Long]) {
 
-  private def this(fb: FunctionBuilder[_], typ: Type, parent: StagedRegionValueBuilder) = {
-    this(fb, typ, parent.region, parent.currentOffset)
+  private def this(mb: MethodBuilder, typ: Type, parent: StagedRegionValueBuilder) = {
+    this(mb, typ, parent.region, parent.currentOffset)
   }
 
   def this(fb: FunctionBuilder[_], rowType: Type) = {
-    this(fb, rowType, fb.getArg[Region](1), null)
+    this(fb.apply_method, rowType, fb.apply_method.getArg[Region](1), null)
+  }
+
+  def this(mb: MethodBuilder, rowType: Type) = {
+    this(mb, rowType, mb.getArg[Region](1), null)
   }
 
   private var staticIdx: Int = 0
   private var idx: LocalRef[Int] = _
   private var elementsOffset: LocalRef[Long] = _
-  private val startOffset: LocalRef[Long] = fb.newLocal[Long]
+  private val startOffset: LocalRef[Long] = mb.newLocal[Long]
 
   typ match {
-    case t: TBaseStruct => elementsOffset = fb.newLocal[Long]
+    case t: TBaseStruct => elementsOffset = mb.newLocal[Long]
     case t: TArray =>
-      elementsOffset = fb.newLocal[Long]
-      idx = fb.newLocal[Int]
+      elementsOffset = mb.newLocal[Long]
+      idx = mb.newLocal[Int]
     case _ =>
   }
 
@@ -105,7 +109,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
-    val boff = fb.newLocal[Long]
+    val boff = mb.newLocal[Long]
     Code(
       boff := region.appendInt(bytes.length()),
       toUnit(region.appendBytes(bytes)),
@@ -120,9 +124,9 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
-  def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
+  def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
-  def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
+  def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
   
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
