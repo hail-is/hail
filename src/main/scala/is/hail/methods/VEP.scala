@@ -217,6 +217,7 @@ object VEP {
 
   def annotate(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean,
     blockSize: Int): MatrixTable = {
+    assert(vsm.rowKey == IndexedSeq("locus", "alleles"))
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
@@ -396,7 +397,7 @@ object VEP {
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
     val vepORVDType = new OrderedRVDType(
-      Array("locus"), Array("locus", "alleles"),
+      vsm.rowPartitionKey.toArray, vsm.rowKey.toArray,
       TStruct(
         "locus" -> vsm.rowKeyTypes(0),
         "alleles" -> vsm.rowKeyTypes(1),
