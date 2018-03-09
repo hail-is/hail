@@ -370,6 +370,8 @@ class Tests(unittest.TestCase):
         with self.assertRaises(utils.FatalError):
             hl.split_multi_hts(ds)
 
+        ds1._force_count_rows()
+
     def test_mendel_errors(self):
         dataset = self.get_dataset()
         men, fam, ind, var = hl.mendel_errors(dataset, hl.Pedigree.read(resource('sample.fam')))
