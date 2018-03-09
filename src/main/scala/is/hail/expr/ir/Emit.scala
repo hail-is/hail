@@ -3,10 +3,12 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
+import is.hail.expr.ir.functions.IRFunction
 import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
 
+import scala.collection.mutable
 import scala.language.existentials
 import scala.language.postfixOps
 
@@ -54,6 +56,10 @@ private class Emit(
   mb: StagedBitSet,
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
+
+  val methods: mutable.Map[IRFunction[_], MethodBuilder] = mutable.Map()
+
+  val irmethods: mutable.Map[String, MethodBuilder] = mutable.Map()
 
   import Emit.E
 
@@ -252,6 +258,37 @@ private class Emit(
       case ArrayLen(a) =>
         val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
+      case x@ArrayRange(startir, stopir, stepir) =>
+        val rangem = irmethods.getOrElseUpdate("ArrayRange", {
+          val methodbuilder = fb.newMethod[Region, Int, Int, Int, Long]
+          val srvb = new StagedRegionValueBuilder(methodbuilder, x.typ)
+          val start = methodbuilder.getArg[Int](2)
+          val stop = methodbuilder.getArg[Int](3)
+          val step = methodbuilder.getArg[Int](4)
+          val len = methodbuilder.newLocal[Int]("ar_len")
+          val c = Code(
+            len := ((stop - start - 1) / step) + 1,
+            srvb.start(len, init=true),
+            Code.whileLoop(start < stop,
+              srvb.addInt(start),
+              srvb.advance(),
+              start := start + step
+            ),
+            srvb.offset
+          )
+          methodbuilder.emit(c)
+          methodbuilder
+        })
+        val (d, m, v) = Array(emit(startir), emit(stopir), emit(stepir)).unzip3
+        val start = fb.newLocal[Int]("ar_start")
+        val stop = fb.newLocal[Int]("ar_stop")
+        val step = fb.newLocal[Int]("ar_step")
+
+        (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
+          start := coerce[Int](v(0)),
+          stop := coerce[Int](v(1)),
+          step := coerce[Int](v(2)),
+          rangem.invoke(fb.getArg[Region](1), start, stop, step)))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = coerce[TArray](a.typ)
         val tout = x.typ
@@ -287,6 +324,54 @@ private class Emit(
             mbody.mux(srvb.setMissing(), addElement(vbody)),
             srvb.advance(),
             i := i + 1),
+          srvb.offset))
+      case x@ArrayFilter(a, name, body) =>
+        val t = x.typ
+        val keept = TArray(TBoolean())
+        val srvbkeep = new StagedRegionValueBuilder(fb, keept)
+        val srvb = new StagedRegionValueBuilder(fb, t)
+        val etiin = coerce[Any](typeToTypeInfo(t.elementType))
+        val xa = fb.newLocal[Long]("af_a")
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name)(etiin)
+        val i = fb.newLocal[Int]("af_i")
+        val lenout = fb.newLocal[Int]("af_lenout")
+        val len = fb.newLocal[Int]("af_len")
+        val keep = fb.newLocal[Long]("af_keep")
+        val bodyenv = env.bind(name -> (etiin, xmv, xvv))
+        val (doa, ma, va) = emit(a)
+        val (docond, mcond, vcond) = emit(body, env = bodyenv)
+
+        (doa, ma, Code(
+          xa := coerce[Long](va),
+          len := TContainer.loadLength(region, xa),
+          i := 0,
+          lenout := 0,
+          srvbkeep.start(len, init = true),
+          Code.whileLoop(i < len,
+            xmv := !t.isElementDefined(region, xa, i),
+            xvv := xmv.mux(
+              defaultValue(t.elementType),
+              region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+            docond,
+            (xmv || mcond || !coerce[Boolean](vcond)).mux(
+              srvbkeep.addBoolean(false),
+              Code(lenout := lenout + 1,
+                srvbkeep.addBoolean(true))),
+            srvbkeep.advance(),
+            i := i + 1
+          ),
+          keep := srvbkeep.offset,
+          i := 0,
+          srvb.start(lenout, init = true),
+          Code.whileLoop(i < len,
+            region.loadBoolean(keept.loadElement(region, keep, i)).mux(
+              Code(srvb.addIRIntermediate(t.elementType)(region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+                srvb.advance()),
+              Code._empty[Unit]
+            ),
+            i := i + 1
+          ),
           srvb.offset))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = coerce[TArray](a.typ)
@@ -448,6 +533,20 @@ private class Emit(
         present(fb.getArg[Boolean](i*2 + 3))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
+      case ApplyFunction(impl, args) =>
+        val meth = methods.getOrElseUpdate(impl, {
+          val args = impl.types.init.map { t => TypeToIRIntermediateTypeInfo(t) }
+          val methodbuilder = fb.newMethod(typeInfo[Region] +: args, TypeToIRIntermediateTypeInfo(impl.types.last))
+          methodbuilder.emit(impl.implementation(methodbuilder, args.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() } ))
+          methodbuilder
+        })
+        val (s, m, v) = args.map(emit(_)).unzip3
+        val vars = args.map { a => coerce[Any](fb.newLocal()(TypeToIRIntermediateTypeInfo(a.typ))) }
+        val ins = vars.zip(v).map { case (l, i) => l := i }
+        val setup = coerce[Unit](Code(s:_*))
+        val missing = m.reduce(_ || _)
+        val value = Code(ins :+ meth.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
+        (setup, missing, value)
     }
   }
 

@@ -144,4 +144,15 @@ class ASTToIRSuite extends TestNGSuite {
     assert(toIR(in).isEmpty, s"expected $in to not parse, but was ${toIR(in)}")
   }
   }
+
+  @Test
+  def applyFunction() { for { (in, out) <- Array(
+    "triangle(3)" ->
+      ir.ApplyFunction(new ir.functions.UtilFunctions().triangle, Seq(I32(3)))
+  )
+  } {
+    assert(toIR(in).contains(out),
+      s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
+  }
+  }
 }
