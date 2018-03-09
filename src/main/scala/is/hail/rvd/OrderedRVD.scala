@@ -552,7 +552,7 @@ object OrderedRVD {
     while (i < nPartitions && start < keys.length) {
       var end = ((i.toDouble * keys.length) / nPartitions).toInt
       if (start > end)
-        start = end
+        end = start
       while (end < keys.length - 1
         && pkOrd.compare(keys(end), keys(end + 1)) == 0)
         end += 1
