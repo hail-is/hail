@@ -191,7 +191,7 @@ Hail arrays can be indexed and sliced like Python lists or :mod:`numpy` arrays:
 Boolean Logic
 =============
 
-Unlike Python, Hail :class:`.BooleanExpression`s cannot be used with ``and``,
+Unlike Python, a Hail :class:`.BooleanExpression` cannot be used with ``and``,
 ``or``, and ``not``. The equivalents are ``&``, ``|``, and ``~``.
 
 .. doctest::
@@ -233,7 +233,7 @@ return if the condition is ``False``. For example:
 In the above conditional, the condition is ``x > 0``, the consequent is ``1``,
 and the alternate is ``0``.
 
-Here is the Hail expression equivalent with :func:`cond`:
+Here is the Hail expression equivalent with :func:`.cond`:
 
 .. doctest::
 
@@ -684,7 +684,7 @@ row field `locus`, this field could be referenced with either ``mt.locus`` or
 ``mt['locus']``. The former access pattern does not work with field names with
 spaces or punctuation.
 
-The result of referencing a field from a matrix table is an :class:`Expression`
+The result of referencing a field from a matrix table is an :class:`.Expression`
 which knows its type and knows its source as well as whether it is a row field,
 column field, entry field, or global field. Hail uses this context to know which
 operations are allowed for a given expression.
