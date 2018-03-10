@@ -164,12 +164,12 @@ class ExprSuite extends SparkSuite {
       (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
-    assert(D_==(eval[Double]("gamma(5)").get, 24))
+    assert(D_==(eval[Double]("gamma(5.0)").get, 24))
     assert(D_==(eval[Double]("gamma(0.5)").get, 1.7724538509055159)) // python: math.gamma(0.5)
 
     // uniroot (default) tolerance is ~1.22e-4
-    assert(D_==(eval[Double]("uniroot(x => x*x + 3*x - 4, 0, 2)").get, 1, tolerance = 1e-4))
-    assert(D_==(eval[Double]("uniroot(x => x*x + 3*x - 4, -5, -1)").get, -4, tolerance = 1e-4))
+    assert(D_==(eval[Double]("uniroot(x => x*x + 3.0*x - 4.0, 0.0, 2.0)").get, 1, tolerance = 1e-4))
+    assert(D_==(eval[Double]("uniroot(x => x*x + 3.0*x - 4.0, -5.0, -1.0)").get, -4, tolerance = 1e-4))
 
     assert(eval[Int]("is.toInt32()").contains(-37))
 
@@ -182,10 +182,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("gs.het.isHomRef()").contains(false))
     assert(eval[Boolean]("!gs.het.isHomRef()").contains(true))
 
-    assert(eval[Boolean]("1 / 2 == 0.5").contains(true))
     assert(eval[Boolean]("1.0 / 2.0 == 0.5").contains(true))
-    assert(eval[Boolean]("1 / 2.0 == 0.5").contains(true))
-    assert(eval[Boolean]("1.0 / 2 == 0.5").contains(true))
 
     assert(eval[Boolean]("0 % 1 == 0").contains(true))
     assert(eval[Boolean]("0 % -1 == 0").contains(true))
@@ -223,10 +220,10 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Float]("0 / 0").forall(_.isNaN))
     assert(eval[Double]("0.0 / 0.0").forall(_.isNaN))
-    assert(eval[Float]("0 / 0 + 1").forall(_.isNaN))
-    assert(eval[Double]("0.0 / 0.0 + 1").forall(_.isNaN))
-    assert(eval[Float]("0 / 0 * 1").forall(_.isNaN))
-    assert(eval[Double]("0.0 / 0.0 * 1").forall(_.isNaN))
+    assert(eval[Float]("0 / 0 + 1f").forall(_.isNaN))
+    assert(eval[Double]("0.0 / 0.0 + 1d").forall(_.isNaN))
+    assert(eval[Float]("0 / 0 * 1f").forall(_.isNaN))
+    assert(eval[Double]("0.0 / 0.0 * 1d").forall(_.isNaN))
     assert(eval[Float]("1 / 0").contains(Float.PositiveInfinity))
     assert(eval[Double]("1.0 / 0.0").contains(Double.PositiveInfinity))
     assert(eval[Float]("-1 / 0").contains(Float.NegativeInfinity))
@@ -234,8 +231,8 @@ class ExprSuite extends SparkSuite {
     // NB: the -0 is parsed as the zero integer, which is converted to +0.0
     assert(eval[Float]("1 / -0").contains(Float.PositiveInfinity))
     assert(eval[Double]("1.0 / -0.0").contains(Double.NegativeInfinity))
-    assert(eval[Float]("0/0 * 1/0").forall(_.isNaN))
-    assert(eval[Double]("0.0/0.0 * 1.0/0.0").forall(_.isNaN))
+    assert(eval[Float]("(0/0) * (1/0)").forall(_.isNaN))
+    assert(eval[Double]("(0.0/0.0) * (1.0/0.0)").forall(_.isNaN))
     for {x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0")} {
       assert(eval[Boolean](s"0.0/0.0 < $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 <= $x").contains(false))
@@ -674,38 +671,33 @@ class ExprSuite extends SparkSuite {
     TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
     TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
 
-    assert(D_==(eval[Double]("log(56.toInt64())").get, math.log(56)))
+    assert(D_==(eval[Double]("log(56.toFloat64)").get, math.log(56)))
     assert(D_==(eval[Double]("exp(5.6)").get, math.exp(5.6)))
     assert(D_==(eval[Double]("log10(5.6)").get, math.log10(5.6)))
-    assert(D_==(eval[Double]("log10(5.6)").get, eval[Double]("log(5.6, 10)").get))
+    assert(D_==(eval[Double]("log10(5.6)").get, eval[Double]("log(5.6, 10.0)").get))
     assert(D_==(eval[Double]("log(5.6, 3.2)").get, 1.481120576298196))
     assert(D_==(eval[Double]("sqrt(5.6)").get, math.sqrt(5.6)))
-    assert(D_==(eval[Double]("pow(2, 3)").get, 8.0))
+    assert(D_==(eval[Double]("pow(2.0, 3.0)").get, 8.0))
 
     assert(eval[IndexedSeq[_]]("""[1,2,3] + [2,3,4] """).contains(IndexedSeq(3, 5, 7)))
     assert(eval[IndexedSeq[_]]("""[1,2,3] - [2,3,4] """).contains(IndexedSeq(-1, -1, -1)))
     assert(eval[IndexedSeq[_]]("""[1,2,3] / [2,3,4] """).contains(IndexedSeq(.5, 2f / 3f, .75)))
     assert(eval[IndexedSeq[_]]("""1 / [2,3,4] """).contains(IndexedSeq(1f / 2f, 1f / 3f, 1.0 / 4.0)))
     assert(eval[IndexedSeq[_]]("""[2,3,4] / 2""").contains(IndexedSeq(1.0, 1.5, 2.0)))
-    assert(eval[IndexedSeq[_]]("""[2,3,4] * 2.0""").contains(IndexedSeq(4.0, 6.0, 8.0)))
-    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] * 2.0""").contains(IndexedSeq(4.0, null, 8.0)))
+    assert(eval[IndexedSeq[_]]("""[2.0,3.0,4.0] * 2.0""").contains(IndexedSeq(4.0, 6.0, 8.0)))
+    assert(eval[IndexedSeq[_]]("""[2.0,NA: Float64,4.0] * 2.0""").contains(IndexedSeq(4.0, null, 8.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] * [2,NA: Int,4]""").contains(IndexedSeq(4.0, null, 16.0)))
-    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] + 2.0""").contains(IndexedSeq(4.0, null, 6.0)))
+    assert(eval[IndexedSeq[_]]("""[2.0,NA: Float64,4.0] + 2.0""").contains(IndexedSeq(4.0, null, 6.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] + [2,NA: Int,4]""").contains(IndexedSeq(4.0, null, 8.0)))
-    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] - 2.0""").contains(IndexedSeq(0.0, null, 2.0)))
+    assert(eval[IndexedSeq[_]]("""[2.0,NA: Float64,4.0] - 2.0""").contains(IndexedSeq(0.0, null, 2.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] - [2,NA: Int,4]""").contains(IndexedSeq(0.0, null, 0.0)))
-    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / 2.0""").contains(IndexedSeq(1.0, null, 2.0)))
+    assert(eval[IndexedSeq[_]]("""[2.0,NA: Float64,4.0] / 2.0""").contains(IndexedSeq(1.0, null, 2.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / [2,NA: Int,4]""").contains(IndexedSeq(1.0, null, 1.0)))
 
     // tests for issue #1204
-    assert(eval[IndexedSeq[_]]("""([2,3,4] / 2) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2,3,4] / 2L) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2,3,4] / 2.0) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2L,3L,4L] / 2) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2L,3L,4L] / 2L) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2L,3L,4L] / 2.0) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2.0,3.0,4.0] / 2) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
-    assert(eval[IndexedSeq[_]]("""([2.0,3.0,4.0] / 2.0) / 2""").contains(IndexedSeq(0.5, 0.75, 1.0)))
+    assert(eval[IndexedSeq[_]]("""([2,3,4] / 2) / 2f""").contains(IndexedSeq(0.5, 0.75, 1.0)))
+    assert(eval[IndexedSeq[_]]("""([2L,3L,4L] / 2L) / 2f""").contains(IndexedSeq(0.5, 0.75, 1.0)))
+    assert(eval[IndexedSeq[_]]("""([2.0,3.0,4.0] / 2.0) / 2.0""").contains(IndexedSeq(0.5, 0.75, 1.0)))
 
     TestUtils.interceptFatal("""Cannot apply operation \+ to arrays of unequal length""") {
       eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
@@ -736,12 +728,9 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("pcoin(2.0)").contains(true))
     assert(eval[Boolean]("pcoin(-1.0)").contains(false))
-    assert(eval[Boolean]("pcoin(2.0.toFloat32())").contains(true))
-    assert(eval[Boolean]("pcoin(-1.0.toFloat32())").contains(false))
 
     assert(eval[Boolean]("runif(2.0, 3.0) > -1.0").contains(true))
     assert(eval[Boolean]("runif(2.0, 3.0) < 3.0").contains(true))
-    assert(eval[Boolean]("runif(2, 3) < 3.0").contains(true))
 
     assert(eval[Boolean]("rnorm(2.0, 4.0).abs() > -1.0").contains(true))
 
@@ -749,19 +738,19 @@ class ExprSuite extends SparkSuite {
     assert(D_==(eval[Double]("qnorm(pnorm(0.5))").get, 0.5))
     assert(D_==(eval[Double]("qnorm(pnorm(-0.5))").get, -0.5))
 
-    assert(D_==(eval[Double]("qchisqtail(pchisqtail(0.5,1),1)").get, 0.5))
-    assert(D_==(eval[Double]("pchisqtail(qchisqtail(0.5,1),1)").get, 0.5))
+    assert(D_==(eval[Double]("qchisqtail(pchisqtail(0.5,1.0),1.0)").get, 0.5))
+    assert(D_==(eval[Double]("pchisqtail(qchisqtail(0.5,1.0),1.0)").get, 0.5))
 
-    assert(eval[Boolean]("rpois(5) >= 0").contains(true))
-    assert(eval[Boolean]("rpois(5, 5).length == 5").contains(true))
-    assert(D_==(eval[Double]("dpois(5, 5)").get, 0.1754674))
-    assert(D_==(eval[Double]("dpois(5, 5, true)").get, -1.740302))
-    assert(D_==(eval[Double]("ppois(5, 5)").get, 0.6159607))
-    assert(D_==(eval[Double]("ppois(5, 5, true, true)").get, -0.4845722))
-    assert(D_==(eval[Double]("ppois(5, 5, false, false)").get, 0.3840393))
-    assert(D_==(eval[Int]("qpois(0.4, 5)").get, 4))
-    assert(D_==(eval[Int]("qpois(log(0.4), 5, true, true)").get, 4))
-    assert(D_==(eval[Int]("qpois(0.4, 5, false, false)").get, 5))
+    assert(eval[Boolean]("rpois(5.0) >= 0d").contains(true))
+    assert(eval[Boolean]("rpois(5, 5.0).length == 5").contains(true))
+    assert(D_==(eval[Double]("dpois(5.0, 5.0)").get, 0.1754674))
+    assert(D_==(eval[Double]("dpois(5.0, 5.0, true)").get, -1.740302))
+    assert(D_==(eval[Double]("ppois(5.0, 5.0)").get, 0.6159607))
+    assert(D_==(eval[Double]("ppois(5.0, 5.0, true, true)").get, -0.4845722))
+    assert(D_==(eval[Double]("ppois(5.0, 5.0, false, false)").get, 0.3840393))
+    assert(D_==(eval[Int]("qpois(0.4, 5.0)").get, 4))
+    assert(D_==(eval[Int]("qpois(log(0.4), 5.0, true, true)").get, 4))
+    assert(D_==(eval[Int]("qpois(0.4, 5.0, false, false)").get, 5))
 
     assert(eval[Any]("if (true) NA: Float64 else 0.0").isEmpty)
 
@@ -898,14 +887,14 @@ class ExprSuite extends SparkSuite {
       assert(t.isOfType(TFloat64()))
       assert(r.contains(4))
 
-      val (t2, r2) = evalWithType("2 ** 3.0")
+      val (t2, r2) = evalWithType("2d ** 3.0")
       assert(t2.isOfType(TFloat64()))
       assert(r2.contains(8.0))
 
       assert(eval("3.123 ** 5.123") == eval("pow(3.123, 5.123)"))
-      assert(eval("5 * 2 ** 2").contains(20))
+      assert(eval("5d * 2 ** 2").contains(20))
       assert(eval("-2**2").contains(-4))
-      assert(eval("2**3**2").contains(64))
+      assert(eval("2**3**2d").contains(64))
       assert(eval("(-2)**2").contains(4))
       assert(eval("-2 ** -2").contains(-0.25))
     }
@@ -927,32 +916,8 @@ class ExprSuite extends SparkSuite {
     assert(eval("""Dict(["foo", "bar"], [1,2])""").contains(Map("foo" -> 1, "bar" -> 2)))
 
     assert(eval("isnan(0/0)").contains(true))
-    assert(eval("isnan(0)").contains(false))
-    assert(eval("isnan(NA: Int)").isEmpty)
-
-    // Test numeric promotion rules
-    assert(evalWithType[Any]("1.toFloat32() + 1.toInt32()") == TFloat32Optional -> Some(2.0f))
-    assert(evalWithType[Any]("1.toFloat32() * 1.toInt32()") == TFloat32Optional -> Some(1.0f))
-    assert(evalWithType[Any]("1.toFloat32() - 1.toInt32()") == TFloat32Optional -> Some(0.0f))
-    assert(evalWithType[Any]("1.toFloat32() / 1.toInt32()") == TFloat32Optional -> Some(1.0f))
-
-    assert(evalWithType[Any]("1.toFloat32() + 1.toInt64()") == TFloat32Optional -> Some(2.0f))
-    assert(evalWithType[Any]("1.toFloat32() * 1.toInt64()") == TFloat32Optional -> Some(1.0f))
-    assert(evalWithType[Any]("1.toFloat32() - 1.toInt64()") == TFloat32Optional -> Some(0.0f))
-    assert(evalWithType[Any]("1.toFloat32() / 1.toInt64()") == TFloat32Optional -> Some(1.0f))
-
-    assert(evalWithType[Any]("[1.toFloat32()] + [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(2.0f)))
-    assert(evalWithType[Any]("[1.toFloat32()] * [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
-    assert(evalWithType[Any]("[1.toFloat32()] - [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(0.0f)))
-    assert(evalWithType[Any]("[1.toFloat32()] / [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
-
-    assert(evalWithType[Any]("[1.toFloat32()] + [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(2.0f)))
-    assert(evalWithType[Any]("[1.toFloat32()] * [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
-    assert(evalWithType[Any]("[1.toFloat32()] - [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(0.0f)))
-    assert(evalWithType[Any]("[1.toFloat32()] / [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
-
-    assert(evalWithType[Any]("1.toInt64() / 1.toInt64()") == TFloat32Optional -> Some(1.0f))
-    assert(evalWithType[Any]("[1.toInt64()] / [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
+    assert(eval("isnan(0d)").contains(false))
+    assert(eval("isnan(NA: Float32)").isEmpty)
   }
 
   @Test def testParseTypes() {

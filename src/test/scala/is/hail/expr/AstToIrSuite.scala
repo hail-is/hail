@@ -8,68 +8,71 @@ import org.scalatest.testng.TestNGSuite
 class ASTToIRSuite extends TestNGSuite {
   private def toIR[T](s: String): Option[IR] = {
     val ast = Parser.parseToAST(s, EvalContext(Map(
-      "aggregable"-> (0, TAggregable(TInt32(),
+      "aggregable" -> (0, TAggregable(TInt32(),
         Map("agg" -> (0, TInt32()),
           "something" -> (1, TInt32())))))))
     ast.toIR(Some("aggregable"))
   }
 
   @Test
-  def constants() { for { (in, out) <- Array(
-    "3" -> I32(3),
-    Int.MaxValue.toString -> I32(Int.MaxValue),
-    "3.0" -> F64(3.0),
-    "true" -> True(),
-    "false" -> False(),
-    "{}" -> MakeStruct(Seq()),
-    "{a : 1}" -> MakeStruct(Seq(("a", I32(1)))),
-    "{a: 1, b: 2}" -> MakeStruct(Seq(
-      ("a", I32(1)), ("b", I32(2)))),
-    "[1, 2]" -> MakeArray(Seq(I32(1), I32(2)), TArray(TInt32())),
-    "[42.0]" -> MakeArray(Seq(F64(42.0)), TArray(TFloat64()))
-  )
-  } {
-    assert(toIR(in).contains(out),
-      s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
-  }
-  }
-
-  @Test
-  def getField() { for { (in, out) <- Array(
-    "{a: 1, b: 2}.a" ->
-      GetField(
-        MakeStruct(Seq(
-          ("a", I32(1)), ("b", I32(2)))),
-        "a",
-        TInt32()),
-    "{a: 1, b: 2}.b" ->
-      GetField(
-        MakeStruct(Seq(
-          ("a", I32(1)), ("b", I32(2)))),
-        "b",
-        TInt32())
-  )
-  } {
-    assert(toIR(in).contains(out),
-      s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
-  }
+  def constants() {
+    for {(in, out) <- Array(
+      "3" -> I32(3),
+      Int.MaxValue.toString -> I32(Int.MaxValue),
+      "3.0" -> F64(3.0),
+      "true" -> True(),
+      "false" -> False(),
+      "{}" -> MakeStruct(Seq()),
+      "{a : 1}" -> MakeStruct(Seq(("a", I32(1)))),
+      "{a: 1, b: 2}" -> MakeStruct(Seq(
+        ("a", I32(1)), ("b", I32(2)))),
+      "[1, 2]" -> MakeArray(Seq(I32(1), I32(2)), TArray(TInt32())),
+      "[42.0]" -> MakeArray(Seq(F64(42.0)), TArray(TFloat64()))
+    )
+    } {
+      assert(toIR(in).contains(out),
+        s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
+    }
   }
 
   @Test
-  def let() { for { (in, out) <- Array(
-    "let a = 0 and b = 3 in b" ->
-      ir.Let("a", I32(0), ir.Let("b", I32(3), Ref("b", TInt32()), TInt32()), TInt32()),
-    "let a = 0 and b = a in b" ->
-      ir.Let("a", I32(0), ir.Let("b", Ref("a", TInt32()), Ref("b", TInt32()), TInt32()), TInt32()),
-    "let i = 7 in i" ->
-      ir.Let("i", I32(7), Ref("i", TInt32()), TInt32()),
-    "let a = let b = 3 in b in a" ->
-      ir.Let("a", ir.Let("b", I32(3), Ref("b", TInt32()), TInt32()), Ref("a", TInt32()), TInt32())
-  )
-  } {
-    assert(toIR(in).contains(out),
-      s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
+  def getField() {
+    for {(in, out) <- Array(
+      "{a: 1, b: 2}.a" ->
+        GetField(
+          MakeStruct(Seq(
+            ("a", I32(1)), ("b", I32(2)))),
+          "a",
+          TInt32()),
+      "{a: 1, b: 2}.b" ->
+        GetField(
+          MakeStruct(Seq(
+            ("a", I32(1)), ("b", I32(2)))),
+          "b",
+          TInt32())
+    )
+    } {
+      assert(toIR(in).contains(out),
+        s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
+    }
   }
+
+  @Test
+  def let() {
+    for {(in, out) <- Array(
+      "let a = 0 and b = 3 in b" ->
+        ir.Let("a", I32(0), ir.Let("b", I32(3), Ref("b", TInt32()), TInt32()), TInt32()),
+      "let a = 0 and b = a in b" ->
+        ir.Let("a", I32(0), ir.Let("b", Ref("a", TInt32()), Ref("b", TInt32()), TInt32()), TInt32()),
+      "let i = 7 in i" ->
+        ir.Let("i", I32(7), Ref("i", TInt32()), TInt32()),
+      "let a = let b = 3 in b in a" ->
+        ir.Let("a", ir.Let("b", I32(3), Ref("b", TInt32()), TInt32()), Ref("a", TInt32()), TInt32())
+    )
+    } {
+      assert(toIR(in).contains(out),
+        s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
+    }
   }
 
   @Test
@@ -135,15 +138,34 @@ class ASTToIRSuite extends TestNGSuite {
   }
 
   @Test
-  def needsCastFails() { for { in <- Array(
-    "1 / 2.0",
-    "1.0 / 2",
-    "0 / 0 * 1.0",
-    "0 / 0.0 * 1",
-    "0.0 / 0 * 1"
-  )
-  } {
-    assert(toIR(in).isEmpty, s"expected $in to not parse, but was ${toIR(in)}")
-  }
+  def aggs() {
+    for {(in, out) <- Array(
+      "aggregable.sum()" ->
+        ApplyAggOp(AggIn(), Sum(), Seq()),
+      "aggregable.map(x => x * 5).sum()" ->
+        ApplyAggOp(
+          AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))),
+          Sum(), Seq(), TInt32()),
+      "aggregable.map(x => x * something).sum()" ->
+        ApplyAggOp(
+          AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), Ref("something"))),
+          Sum(), Seq()),
+      "aggregable.filter(x => x > 2).sum()" ->
+        ApplyAggOp(
+          AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x"), I32(2))),
+          Sum(), Seq()),
+      "aggregable.flatMap(x => [x * 5]).sum()" ->
+        ApplyAggOp(
+          AggFlatMap(AggIn(), "x",
+            MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))))),
+          Sum(), Seq())
+    )
+    } {
+      val tAgg = TAggregable(TInt32())
+      tAgg.symTab = Map("something" -> (0, TInt32(): Type))
+      Infer(out, Some(tAgg))
+      assert(toIR(in).contains(out),
+        s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
+    }
   }
 }

@@ -93,7 +93,7 @@ class GroupBySuite extends SparkSuite {
 
     val vdsGrouped = vds.explodeRows("va.genes")
       .keyRowsBy(Array("genes"), Array("genes"))
-      .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles()).sum()")
+      .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum()")
       .annotateColsExpr("pheno = sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))

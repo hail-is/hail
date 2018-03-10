@@ -2121,7 +2121,8 @@ object FunctionRegistry {
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
 
   register("isnan", (d: Double) => d.isNaN)
-
+  register("isnan", (f: Float) => f.isNaN)
+  
   registerSpecial("isMissing", (g: () => Any) => g() == null)(TTHr, boolHr)
   registerSpecial("isDefined", (g: () => Any) => g() != null)(TTHr, boolHr)
 
