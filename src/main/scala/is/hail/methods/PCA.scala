@@ -2,7 +2,6 @@ package is.hail.methods
 
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
@@ -74,10 +73,24 @@ object PCA {
         s"Found only ${ svd.s.size } non-zero (or nearly zero) eigenvalues, " +
           s"but user requested ${ k } principal components.")
 
+    def collectRowKeys(): Array[Annotation] = {
+      val fullRowType = vsm.rvRowType
+      val localRKF = vsm.rowKeysF
+      val localKeyStruct = vsm.rowKeyStruct
+      
+      vsm.rvd.mapPartitions { it =>
+        val ur = new UnsafeRow(fullRowType)
+        it.map { rv =>
+          ur.set(rv)
+          Annotation.copy(localKeyStruct, localRKF(ur))
+        }
+      }.collect()
+    }
+
     val optionLoadings = someIf(computeLoadings, {
       val rowType = TStruct(vsm.rowKey.zip(vsm.rowKeyTypes): _*) ++ (if (asArray) TStruct("loadings" -> TArray(TFloat64())) else pcSchema(k))
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
-      val variantsBc = vsm.sparkContext.broadcast(vsm.collectRowKeys().values)
+      val rowKeysBc = vsm.sparkContext.broadcast(collectRowKeys())
       val localRowKeySignature = vsm.rowKeyTypes
 
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
@@ -89,7 +102,7 @@ object PCA {
           rvb.start(rowTypeBc.value)
           rvb.startStruct()
 
-          val rowKeys = variantsBc.value(ir.index.toInt).asInstanceOf[Row]
+          val rowKeys = rowKeysBc.value(ir.index.toInt).asInstanceOf[Row]
           var j = 0
           while (j < localRowKeySignature.length) {
             rvb.addAnnotation(localRowKeySignature(j), rowKeys.get(j))

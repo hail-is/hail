@@ -2969,7 +2969,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val fullRowType = rvRowType
     val localColValuesBc = colValuesBc
     val localEntriesIndex = entriesIndex
-    val rowKeyQuerier = colKeys
     val localRKF = rowKeysF
 
     val ec = EvalContext(Map(
@@ -3013,21 +3012,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     // caching is critical before use in computeSVD in PCA
     new IndexedRowMatrix(indexedRows.cache(), partStarts.last, numCols)
-  }
-
-  def collectRowKeys(): Keys = {
-    val fullRowType = rvRowType
-    val localRKF = rowKeysF
-    val localKeyStruct = rowKeyStruct
-    val values = rvd.mapPartitions { it =>
-      val ur = new UnsafeRow(fullRowType)
-      it.map { rv =>
-        ur.set(rv)
-        Annotation.copy(localKeyStruct, localRKF(ur))
-      }
-    }.collect()
-
-    new Keys(TStruct(rowKey.zip(rowKeyTypes): _*), values)
   }
 
   def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
