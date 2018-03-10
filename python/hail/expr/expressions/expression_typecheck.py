@@ -132,10 +132,8 @@ class Float64Checker(ExpressionTypechecker):
         return dtype == hl.tfloat64
 
     def cast_from(self, dtype: HailType) -> Callable[[Expression], Expression]:
-        if dtype == hl.tint32 or dtype == hl.tint64 or dtype == hl.tfloat64 or dtype == hl.tbool:
-            return hl.float64
-        else:
-            raise AssertionError
+        assert dtype == hl.tbool or dtype == hl.tint32 or dtype == hl.tint64 or dtype == hl.tfloat32
+        return hl.float64
 
 
 class BoolChecker(ExpressionTypechecker):

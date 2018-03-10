@@ -39,33 +39,17 @@ object FunctionRegistry {
     }
   }
 
-  sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
+  sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(TypeTag, Fun)]) extends LookupError {
     def message =
       s"""found ${ alternates.size } ambiguous matches for $typ:
-         |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
+         |  ${ alternates.map(_._1).mkString("\n  ") }""".stripMargin
   }
 
   type Err[T] = Either[LookupError, T]
 
   private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun)]]().withDefaultValue(Seq.empty)
 
-  private val conversions = new mutable.HashMap[(Type, Type), (Int, Transformation[Any, Any])]
-
-  private def lookupConversion(from: Type, to: Type): Option[(Int, Transformation[Any, Any])] = conversions.get(from -> to)
-
   private val chisq = new ChiSquareTest()
-
-  private def registerConversion[T, U](how: T => U, codeHow: Code[T] => CM[Code[U]], priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
-    val from = hrt.typ
-    val to = hru.typ
-    require(priority >= 1)
-    lookupConversion(from, to) match {
-      case Some(_) =>
-        throw new RuntimeException(s"The conversion between $from and $to is already bound")
-      case None =>
-        conversions.put(from -> to, priority -> Transformation[Any, Any](x => how(x.asInstanceOf[T]), x => codeHow(x.asInstanceOf[Code[T]])))
-    }
-  }
 
   private def lookup(name: String, typ: TypeTag, rtTypConcrete: Option[Type] = None): Err[Fun] = {
 
@@ -73,44 +57,21 @@ object FunctionRegistry {
       tt.clear()
       f.retType.clear()
 
-      if (tt.xs.size == typ.xs.size && rtTypConcrete.forall(f.retType.unify(_))) { // FIXME: add check for  to enforce field vs method
-        val conversions = (tt.xs, typ.xs).zipped.map { case (l, r) =>
-          if (l.isBound) {
-            if (l.unify(r))
-              Some(None)
-            else {
-              val conv = lookupConversion(r, l).map(c => Some(c))
-              conv
-            }
-          } else if (l.unify(r)) {
-            Some(None)
-          } else
-            None
-        }
-
-        anyFailAllFail[Array](conversions)
-          .map { arr =>
-            if (arr.forall(_.isEmpty))
-              0 -> (tt.subst(), f.captureType().subst())
-            else {
-              val arr2 = arr.map(_.getOrElse(0 -> Transformation[Any, Any]((a: Any) => a, (a: Code[Any]) => CM.ret(a))))
-              arr2.map(_._1).max -> (tt.subst(), f.captureType().subst().convertArgs(arr2.map(_._2)))
-            }
-          }
-      } else
+      if (tt.xs.size == typ.xs.size
+        && (tt.xs, typ.xs).zipped.forall { (l, r) => l.unify(r) }
+        && rtTypConcrete.forall(f.retType.unify(_)))
+        Some((tt.subst(), f.captureType().subst()))
+      else
         None
-    }.groupBy(_._1).toArray.sortBy(_._1)
+    }
 
     matches.headOption
       .toRight[LookupError](NotFound(name, typ, rtTypConcrete))
-      .flatMap { case (priority, it) =>
-        assert(it.nonEmpty)
-        if (it.size == 1)
-          Right(it.head._2._2)
-        else {
-          assert(priority != 0, s"when it is non-singular, I expect non-zero priority, but priority was $priority and it was $it. name was $name, typ was $typ")
-          Left(Ambiguous(name, typ, it))
-        }
+      .flatMap { it =>
+        if (matches.size == 1)
+          Right(it._2)
+        else
+          Left(Ambiguous(name, typ, matches))
       }
   }
 
@@ -1057,99 +1018,6 @@ object FunctionRegistry {
   def fToD(x: Code[java.lang.Float]): Code[java.lang.Double] =
     Code.boxDouble(Code.floatValue(x).toD)
 
-  registerConversion((x: java.lang.Integer) => x.toFloat: java.lang.Float, (iToF _).andThen(CM.ret _), priority = 2)
-  registerConversion((x: java.lang.Integer) => x.toDouble: java.lang.Double, (iToD _).andThen(CM.ret _), priority = 3)
-  registerConversion((x: java.lang.Long) => x.toFloat: java.lang.Float, (lToF _).andThen(CM.ret _))
-  registerConversion((x: java.lang.Long) => x.toDouble: java.lang.Double, (lToD _).andThen(CM.ret _), priority = 2)
-  registerConversion((x: java.lang.Integer) => x.toLong: java.lang.Long, (iToL _).andThen(CM.ret _))
-  registerConversion((x: java.lang.Float) => x.toDouble: java.lang.Double, (fToD _).andThen(CM.ret _))
-
-  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.asInstanceOf[Int].toLong)
-  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToL _))
-  })(arrayHr(boxedInt32Hr), arrayHr(boxedInt64Hr))
-
-  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toFloat)
-  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToF _))
-  }, priority = 2)(arrayHr(boxedInt32Hr), arrayHr(boxedFloat32Hr))
-
-  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toDouble)
-  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToD _))
-  }, priority = 3)(arrayHr(boxedInt32Hr), arrayHr(boxedFloat64Hr))
-
-  registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toFloat)
-  }, { (x: Code[IndexedSeq[java.lang.Long]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Long]) => xi.mapNull(lToF _))
-  })(arrayHr(boxedInt64Hr), arrayHr(boxedFloat32Hr))
-
-  registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toDouble)
-  }, { (x: Code[IndexedSeq[java.lang.Long]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Long]) => xi.mapNull(lToD _))
-  }, priority = 2)(arrayHr(boxedInt64Hr), arrayHr(boxedFloat64Hr))
-
-  registerConversion((x: IndexedSeq[java.lang.Float]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toDouble)
-  }, { (x: Code[IndexedSeq[java.lang.Float]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Float]) => xi.mapNull(fToD _))
-  })(arrayHr(boxedFloat32Hr), arrayHr(boxedFloat64Hr))
-
-  registerConversion({ (x: java.lang.Integer) =>
-    if (x != null)
-      box(x.toDouble)
-    else
-      null
-  }, { (x: Code[java.lang.Integer]) => x.mapNull(iToD _)
-  }, priority = 2)(aggregableHr(boxedInt32Hr), aggregableHr(boxedFloat64Hr))
-
-  registerConversion({ (x: java.lang.Long) =>
-    if (x != null)
-      box(x.toDouble)
-    else
-      null
-  }, { (x: Code[java.lang.Long]) => x.mapNull(lToD _)
-  })(aggregableHr(boxedInt64Hr), aggregableHr(boxedFloat64Hr))
-
-  registerConversion({ (x: java.lang.Integer) =>
-    if (x != null)
-      box(x.toLong)
-    else
-      null
-  }, { (x: Code[java.lang.Integer]) => x.mapNull(iToL _)
-  })(aggregableHr(boxedInt32Hr), aggregableHr(boxedInt64Hr))
-
-  registerConversion({ (x: java.lang.Float) =>
-    if (x != null)
-      box(x.toDouble)
-    else
-      null
-  }, { (x: Code[java.lang.Float]) => x.mapNull(fToD _)
-  })(aggregableHr(boxedFloat32Hr), aggregableHr(boxedFloat64Hr))
-
   registerMethod("split", (s: String, p: String) => s.split(p): IndexedSeq[String])
 
   registerMethod("split", (s: String, p: String, n: Int) => s.split(p, n): IndexedSeq[String])
@@ -1690,6 +1558,9 @@ object FunctionRegistry {
     registerMethod("toFloat64", ev.toDouble _)
   }
 
+  registerNumeric("**", (x: Int, y: Int) => math.pow(x, y))
+  registerNumeric("**", (x: Long, y: Long) => math.pow(x, y))
+  registerNumeric("**", (x: Float, y: Float) => math.pow(x, y))
   registerNumeric("**", (x: Double, y: Double) => math.pow(x, y))
 
   registerNumericCode("/", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxFloat(Code.intValue(x).toF / Code.intValue(y).toF))

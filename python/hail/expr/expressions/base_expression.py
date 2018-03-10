@@ -399,6 +399,63 @@ class Expression(object):
     def __iter__(self):
         raise TypeError("'Expression' object is not iterable")
 
+    @staticmethod
+    def _promote_numeric(expr, typ):
+        def promote_scalar(expr, typ):
+            if typ == tint32:
+                return hail.int32(expr)
+            elif typ == tint64:
+                return hail.int64(expr)
+            elif typ == tfloat32:
+                return hail.float32(expr)
+            else:
+                assert typ == tfloat64
+                return hail.float64(expr)
+
+        if isinstance(typ, tarray):
+            if isinstance(expr.dtype, tarray):
+                expr = hail.map(lambda x: promote_scalar(x, typ.element_type), expr)
+            else:
+                expr = promote_scalar(expr, typ.element_type)
+        else:
+            expr = promote_scalar(expr, typ)
+        return expr
+
+    @classmethod
+    def _scalar_type(cls, typ):
+        if isinstance(typ, tarray):
+            return typ.element_type
+        else:
+            return typ
+
+    @classmethod
+    def _unify_numeric_arg_types(cls, self, name, other):
+        t = unify_types(cls._scalar_type(self.dtype), cls._scalar_type(other.dtype))
+        if t is None:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self.dtype, name, other.dtype))
+        if isinstance(self.dtype, tarray) or isinstance(other.dtype, tarray):
+            t = tarray(t)
+        return t
+
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        unified_type = self._unify_numeric_arg_types(self, name, other)
+        me = self._promote_numeric(self, unified_type)
+        other = self._promote_numeric(other, unified_type)
+        if ret_type_f:
+            if isinstance(unified_type, tarray):
+                ret_type = tarray(ret_type_f(unified_type.element_type))
+            else:
+                ret_type = ret_type_f(unified_type)
+        else:
+            ret_type = unified_type
+        return me._bin_op(name, other, ret_type)
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        return other._bin_op_numeric(name, self, ret_type_f)
+
     def _unary_op(self, name):
         return expressions.construct_expr(UnaryOperation(self._ast, name),
                                           self._type, self._indices, self._aggregations, self._joins)

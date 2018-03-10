@@ -1117,8 +1117,6 @@ class ColumnTests(unittest.TestCase):
                     'x30': False, 'x31': True, 'x32': False,
                     'x33': False, 'x34': False, 'x35': False, 'x36': True}
 
-        self.maxDiff = 2000
-
         for k, v in expected.items():
             if isinstance(v, float):
                 self.assertAlmostEqual(v, result[k], msg=k)

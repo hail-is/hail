@@ -453,7 +453,7 @@ def dict(collection: Union[Mapping, DictExpression, SetExpression, ArrayExpressi
         return collection
 
 
-@typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
+@typecheck(x=expr_float64, a=expr_float64, b=expr_float64)
 def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> Float64Expression:
     """
     Returns the probability density at `x` of a `beta distribution
@@ -482,7 +482,7 @@ def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> F
     return _func("dbeta", tfloat64, x, a, b)
 
 
-@typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
+@typecheck(x=expr_float64, lamb=expr_float64, log_p=expr_bool)
 def dpois(x: Float64Expression, lamb: Float64Expression, log_p: BooleanExpression = False) -> Float64Expression:
     """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
 
@@ -510,7 +510,7 @@ def dpois(x: Float64Expression, lamb: Float64Expression, log_p: BooleanExpressio
     return _func("dpois", tfloat64, x, lamb, log_p)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=expr_float64)
 def exp(x: Float64Expression) -> Float64Expression:
     """Computes `e` raised to the power `x`.
 
@@ -585,7 +585,7 @@ def fisher_exact_test(c1: Int32Expression,
     return _func("fet", ret_type, c1, c2, c3, c4)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=oneof(expr_float32, expr_float64))
 def floor(x: NumericExpression) -> NumericExpression:
     """The largest integral value that is less than or equal to `x`.
 
@@ -600,10 +600,10 @@ def floor(x: NumericExpression) -> NumericExpression:
     -------
     :obj:`.Float64Expression`
     """
-    return _func("floor", unify_types(x.dtype, tfloat32), x)
+    return _func("floor", x.dtype, x)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=oneof(expr_float32, expr_float64))
 def ceil(x: NumericExpression) -> NumericExpression:
     """The smallest integral value that is greater than or equal to `x`.
 
@@ -618,7 +618,7 @@ def ceil(x: NumericExpression) -> NumericExpression:
     -------
     :obj:`.Float64Expression`
     """
-    return _func("ceil", unify_types(x.dtype, tfloat32), x)
+    return _func("ceil", x.dtype, x)
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
@@ -1154,7 +1154,7 @@ def is_missing(expression: Expression) -> BooleanExpression:
     return _func("isMissing", tbool, expression)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=oneof(expr_float32, expr_float64))
 def is_nan(x: NumericExpression) -> BooleanExpression:
     """Returns ``True`` if the argument is ``NaN`` (not a number).
 
@@ -1217,7 +1217,7 @@ def json(x: Expression) -> StringExpression:
     return _func("json", tstr, x)
 
 
-@typecheck(x=expr_numeric, base=nullable(expr_numeric))
+@typecheck(x=expr_float64, base=nullable(expr_float64))
 def log(x: Float64Expression, base: Optional[Float64Expression] = None) -> Float64Expression:
     """Take the logarithm of the `x` with base `base`.
 
@@ -1254,7 +1254,7 @@ def log(x: Float64Expression, base: Optional[Float64Expression] = None) -> Float
         return _func("log", tfloat64, x)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=expr_float64)
 def log10(x: Float64Expression) -> Float64Expression:
     """Take the logarithm of the `x` with base 10.
 
@@ -1338,7 +1338,7 @@ def or_missing(predicate: BooleanExpression, value: Expression):
     return _func("orMissing", value._type, predicate, value)
 
 
-@typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
+@typecheck(x=expr_int32, n=expr_int32, p=expr_float64,
            alternative=enumeration("two.sided", "greater", "less"))
 def binom_test(x: Int32Expression, n: Int32Expression, p: Float64Expression, alternative: str) -> Float64Expression:
     """Performs a binomial test on `p` given `x` successes in `n` trials.
@@ -1379,7 +1379,7 @@ def binom_test(x: Int32Expression, n: Int32Expression, p: Float64Expression, alt
     return _func("binomTest", tfloat64, x, n, p, to_expr(alternative))
 
 
-@typecheck(x=expr_numeric, df=expr_numeric)
+@typecheck(x=expr_float64, df=expr_float64)
 def pchisqtail(x: Float64Expression, df: Float64Expression) -> Float64Expression:
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
@@ -1404,7 +1404,7 @@ def pchisqtail(x: Float64Expression, df: Float64Expression) -> Float64Expression
     return _func("pchisqtail", tfloat64, x, df)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=expr_float64)
 def pnorm(x: Float64Expression) -> Float64Expression:
     """The cumulative probability function of a standard normal distribution.
 
@@ -1436,7 +1436,7 @@ def pnorm(x: Float64Expression) -> Float64Expression:
     return _func("pnorm", tfloat64, x)
 
 
-@typecheck(x=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
+@typecheck(x=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def ppois(x: Float64Expression,
           lamb: Float64Expression,
           lower_tail: BooleanExpression = True,
@@ -1474,7 +1474,7 @@ def ppois(x: Float64Expression,
     return _func("ppois", tfloat64, x, lamb, lower_tail, log_p)
 
 
-@typecheck(p=expr_numeric, df=expr_numeric)
+@typecheck(p=expr_float64, df=expr_float64)
 def qchisqtail(p: Float64Expression, df: Float64Expression) -> Float64Expression:
     """Inverts :meth:`.pchisqtail`.
 
@@ -1504,7 +1504,7 @@ def qchisqtail(p: Float64Expression, df: Float64Expression) -> Float64Expression
     return _func("qchisqtail", tfloat64, p, df)
 
 
-@typecheck(p=expr_numeric)
+@typecheck(p=expr_float64)
 def qnorm(p: Float64Expression) -> Float64Expression:
     """Inverts :meth:`.pnorm`.
 
@@ -1532,7 +1532,7 @@ def qnorm(p: Float64Expression) -> Float64Expression:
     return _func("qnorm", tfloat64, p)
 
 
-@typecheck(p=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
+@typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p: Float64Expression,
           lamb: Float64Expression,
           lower_tail: BooleanExpression = True,
@@ -1602,7 +1602,7 @@ def range(start: Int32Expression, stop: Int32Expression, step: Int32Expression =
     return _func("range", tarray(tint32), start, stop, step)
 
 
-@typecheck(p=expr_numeric)
+@typecheck(p=expr_float64)
 def rand_bool(p: Float64Expression) -> BooleanExpression:
     """Returns ``True`` with probability `p` (RNG).
 
@@ -1633,7 +1633,7 @@ def rand_bool(p: Float64Expression) -> BooleanExpression:
     return _func("pcoin", tbool, p)
 
 
-@typecheck(mean=expr_numeric, sd=expr_numeric)
+@typecheck(mean=expr_float64, sd=expr_float64)
 def rand_norm(mean: Float64Expression = 0, sd: Float64Expression = 1) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
@@ -1667,7 +1667,7 @@ def rand_norm(mean: Float64Expression = 0, sd: Float64Expression = 1) -> Float64
     return _func("rnorm", tfloat64, mean, sd)
 
 
-@typecheck(lamb=expr_numeric)
+@typecheck(lamb=expr_float64)
 def rand_pois(lamb: Float64Expression) -> Float64Expression:
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
 
@@ -1699,7 +1699,7 @@ def rand_pois(lamb: Float64Expression) -> Float64Expression:
     return _func("rpois", tfloat64, lamb)
 
 
-@typecheck(min=expr_numeric, max=expr_numeric)
+@typecheck(min=expr_float64, max=expr_float64)
 def rand_unif(min: Float64Expression, max: Float64Expression) -> Float64Expression:
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
 
@@ -1733,7 +1733,7 @@ def rand_unif(min: Float64Expression, max: Float64Expression) -> Float64Expressi
     return _func("runif", tfloat64, min, max)
 
 
-@typecheck(x=expr_numeric)
+@typecheck(x=expr_float64)
 def sqrt(x: Float64Expression) -> Float64Expression:
     """Returns the square root of `x`.
 
@@ -2589,6 +2589,7 @@ def max(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
+        exprs = tuple(e._promote_numeric(e, ret_t) for e in exprs)
         if builtins.len(exprs) == 2:
             return exprs[0]._method('max', ret_t, exprs[1])
         else:
@@ -2642,6 +2643,7 @@ def min(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
+        exprs = tuple(e._promote_numeric(e, ret_t) for e in exprs)
         if builtins.len(exprs) == 2:
             return exprs[0]._method('min', ret_t, exprs[1])
         else:
