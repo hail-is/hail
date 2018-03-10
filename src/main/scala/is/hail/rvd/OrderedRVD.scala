@@ -562,10 +562,10 @@ object OrderedRVD {
     }
     if (pkOrd.compare(ab.last, max) != 0)
       ab += max
-    val partitionMaxes = ab.result()
-    assert(partitionMaxes.length <= nPartitions + 1)
+    val partitionEdges = ab.result()
+    assert(partitionEdges.length <= nPartitions + 1)
 
-    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionMaxes)
+    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionEdges)
   }
 
   def adjustBoundsAndShuffle(typ: OrderedRVDType,
