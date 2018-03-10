@@ -4,11 +4,10 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, 
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, RGBase, Locus}
+import is.hail.variant.{RGBase, Locus}
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {

@@ -116,7 +116,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       ArrayType(StructType(Array(
         StructField("key", keyType.schema, nullable = !keyType.required),
         StructField("value", valueType.schema, nullable = !valueType.required))), containsNull = false)
-    case _: TAltAllele => AltAllele.sparkSchema
     case _: TLocus => Locus.sparkSchema
     case _: TInterval => StructType(Array(
       StructField("start", Locus.sparkSchema, nullable = false),
@@ -156,9 +155,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             }.toIndexedSeq
         case TCall(_) =>
           Call.toString(a.asInstanceOf[Call])
-        case TAltAllele(_) =>
-          val aa = a.asInstanceOf[AltAllele]
-          Row(aa.ref, aa.alt)
         case TLocus(rg, _) =>
           val l = a.asInstanceOf[Locus]
           Row(l.contig, l.position)
@@ -234,7 +230,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             "value" -> exportAnnotation(v, valueType))
           }.toList)
         case _: TCall => JString(Call.toString(a.asInstanceOf[Call]))
-        case _: TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TLocus(_, _) => a.asInstanceOf[Locus].toJSON
         case TInterval(pointType, _) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
         case TStruct(fields, _) =>
@@ -335,8 +330,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 
           Annotation(a: _*)
         }
-      case (_, _: TAltAllele) =>
-        jv.extract[AltAllele]
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]
       case (_, TInterval(pointType, _)) =>
@@ -408,9 +401,6 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       // FIXME legacy
       case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case _: TAltAllele => a.split("/") match {
-        case Array(ref, alt) => AltAllele(ref, alt)
-      }
       case _: TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
