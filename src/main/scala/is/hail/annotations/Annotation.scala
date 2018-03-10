@@ -56,7 +56,6 @@ object Annotation {
       null
     else
       t match {
-        case _: TVariant => a.asInstanceOf[Variant].toRow
         case _: TLocus => a.asInstanceOf[Locus].toRow
 
         case TArray(elementType, _) =>
@@ -77,8 +76,6 @@ object Annotation {
 
             .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])
             .map { case (k, v) => Annotation(expandAnnotation(k, keyType), expandAnnotation(v, valueType)) }
-
-        case _: TAltAllele => a.asInstanceOf[AltAllele].toRow
 
         case TInterval(pointType, _) =>
           val i = a.asInstanceOf[Interval]

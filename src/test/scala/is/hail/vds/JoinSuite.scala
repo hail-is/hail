@@ -2,9 +2,9 @@ package is.hail.vds
 
 import is.hail.SparkSuite
 import is.hail.annotations.UnsafeRow
-import is.hail.expr.types.{TStruct, TVariant}
+import is.hail.expr.types.{TLocus, TStruct}
 import is.hail.table.Table
-import is.hail.variant.{ReferenceGenome, Variant, MatrixTable}
+import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}
 import is.hail.utils._
 import is.hail.testUtils._
 
@@ -29,33 +29,33 @@ class JoinSuite extends SparkSuite {
 
   @Test def testIterator() {
     val leftVariants = Array(
-      Variant("1", 1, "A", "T"),
-      Variant("1", 2, "A", "T"),
-      Variant("1", 4, "A", "T"),
-      Variant("1", 4, "A", "T"),
-      Variant("1", 5, "A", "T"),
-      Variant("1", 5, "A", "T"),
-      Variant("1", 9, "A", "T"),
-      Variant("1", 13, "A", "T"),
-      Variant("1", 13, "A", "T"),
-      Variant("1", 14, "A", "T"),
-      Variant("1", 15, "A", "T"))
+      Locus("1", 1),
+      Locus("1", 2),
+      Locus("1", 4),
+      Locus("1", 4),
+      Locus("1", 5),
+      Locus("1", 5),
+      Locus("1", 9),
+      Locus("1", 13),
+      Locus("1", 13),
+      Locus("1", 14),
+      Locus("1", 15))
 
     val rightVariants = Array(
-      Variant("1", 1, "A", "T"),
-      Variant("1", 1, "A", "T"),
-      Variant("1", 1, "A", "T"),
-      Variant("1", 3, "A", "T"),
-      Variant("1", 4, "A", "T"),
-      Variant("1", 4, "A", "T"),
-      Variant("1", 6, "A", "T"),
-      Variant("1", 6, "A", "T"),
-      Variant("1", 8, "A", "T"),
-      Variant("1", 9, "A", "T"),
-      Variant("1", 13, "A", "T"),
-      Variant("1", 15, "A", "T"))
+      Locus("1", 1),
+      Locus("1", 1),
+      Locus("1", 1),
+      Locus("1", 3),
+      Locus("1", 4),
+      Locus("1", 4),
+      Locus("1", 6),
+      Locus("1", 6),
+      Locus("1", 8),
+      Locus("1", 9),
+      Locus("1", 13),
+      Locus("1", 15))
 
-    val vType = TVariant(ReferenceGenome.GRCh37)
+    val vType = TLocus(ReferenceGenome.GRCh37)
     val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
     leftKt.typeCheck()
     val left = MatrixTable.fromRowsTable(leftKt)
@@ -74,7 +74,7 @@ class JoinSuite extends SparkSuite {
     assert(jInner.forall(jrv => jrv.rvLeft != null && jrv.rvRight != null))
     assert(jInner.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
-      ur.getAs[Variant](0)
+      ur.getAs[Locus](0)
     }.collect() sameElements jInnerOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
 
     // Left distinct ordered join
@@ -85,7 +85,7 @@ class JoinSuite extends SparkSuite {
     assert(jLeft.forall(jrv => jrv.rvLeft != null))
     assert(jLeft.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
-      ur.getAs[Variant](0)
+      ur.getAs[Locus](0)
     }.collect() sameElements jLeftOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
   }
 }

@@ -2,7 +2,7 @@ package is.hail.io.gen
 
 import is.hail.annotations.{Querier, UnsafeRow}
 import is.hail.expr.types.TString
-import is.hail.variant.{ArrayGenotypeView, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{ArrayGenotypeView, MatrixTable, RegionValueVariant}
 import is.hail.utils._
 
 object ExportGen {

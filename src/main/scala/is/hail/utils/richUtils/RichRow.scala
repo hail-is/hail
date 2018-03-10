@@ -1,7 +1,6 @@
 package is.hail.utils.richUtils
 
 import is.hail.utils.ArrayBuilder
-import is.hail.variant.Variant
 import org.apache.spark.sql.Row
 
 class RichRow(r: Row) {

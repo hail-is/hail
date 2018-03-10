@@ -5,11 +5,8 @@ import java.util
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Locus, Variant}
-import org.apache.spark.sql.Row
 
 object Region {
   def apply(sizeHint: Long = 128): Region = {

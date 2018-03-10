@@ -10,22 +10,20 @@ import org.apache.spark.sql.types.DataType
 import org.json4s.JValue
 
 import scala.reflect.ClassTag
-import scala.reflect.classTag
 
 object Type {
   def genScalar(required: Boolean): Gen[Type] =
     Gen.oneOf(TBoolean(required), TInt32(required), TInt64(required), TFloat32(required),
-      TFloat64(required), TString(required), TAltAllele(required), TCall(required))
+      TFloat64(required), TString(required), TCall(required))
 
   val genOptionalScalar: Gen[Type] = genScalar(false)
 
   val genRequiredScalar: Gen[Type] = genScalar(true)
 
-  def genComplexType(required: Boolean) = {
-    val rgDependents = ReferenceGenome.references.values.toArray.flatMap(rg =>
-      Array(TVariant(rg, required), TLocus(rg, required)))
-    val others = Array(
-      TAltAllele(required), TCall(required))
+  def genComplexType(required: Boolean): Gen[ComplexType] = {
+    val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
+      TLocus(rg, required))
+    val others = Array(TCall(required))
     Gen.oneOfSeq(rgDependents ++ others)
   }
 

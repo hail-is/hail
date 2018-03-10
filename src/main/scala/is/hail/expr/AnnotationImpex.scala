@@ -32,7 +32,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType, _) => requiresConversion(elementType)
-    case TSet(_, _) | TDict(_, _, _) | TAltAllele(_) | TVariant(_, _) |
+    case TSet(_, _) | TDict(_, _, _) |
          TLocus(_, _) | TInterval(_, _) | TCall(_) => true
     case tbs: TBaseStruct =>
       tbs.types.isEmpty || tbs.types.exists(typ => requiresConversion(typ))
@@ -78,14 +78,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             .toMap
         case TCall(_) =>
           Call.parse(a.asInstanceOf[String])
-        case TAltAllele(_) =>
-          val r = a.asInstanceOf[Row]
-          AltAllele(r.getAs[String](0), r.getAs[String](1))
-        case _: TVariant =>
-          val r = a.asInstanceOf[Row]
-          Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
-            r.getAs[Seq[Row]](3).map(aa =>
-              importAnnotation(aa, TAltAllele()).asInstanceOf[AltAllele]).toArray)
         case _: TLocus =>
           val r = a.asInstanceOf[Row]
           Locus(r.getAs[String](0), r.getAs[Int](1))
@@ -125,7 +117,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         StructField("key", keyType.schema, nullable = !keyType.required),
         StructField("value", valueType.schema, nullable = !valueType.required))), containsNull = false)
     case _: TAltAllele => AltAllele.sparkSchema
-    case _: TVariant => Variant.sparkSchema
     case _: TLocus => Locus.sparkSchema
     case _: TInterval => StructType(Array(
       StructField("start", Locus.sparkSchema, nullable = false),
@@ -168,9 +159,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TAltAllele(_) =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
-        case TVariant(rg, _) =>
-          val v = a.asInstanceOf[Variant]
-          Row(v.contig, v.start, v.ref, v.altAlleles.map(aa => Row(aa.ref, aa.alt)))
         case TLocus(rg, _) =>
           val l = a.asInstanceOf[Locus]
           Row(l.contig, l.position)
@@ -194,14 +182,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
   }
 }
 
-case class JSONExtractVariant(contig: String,
-  start: Int,
-  ref: String,
-  altAlleles: List[AltAllele]) {
-  def toVariant =
-    Variant(contig, start, ref, altAlleles.toArray)
-}
-
 case class JSONExtractIntervalLocus(start: Locus, end: Locus) {
   def toLocusTuple: (Locus, Locus) = (start, end)
 }
@@ -216,44 +196,6 @@ case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractCo
 }
 
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
-  def jsonExtractVariant(t: Type, variantFields: String): Any => Variant = {
-    val ec = EvalContext(Map(
-      "root" -> (0, t)))
-
-    val (types, f) = Parser.parseExprs(variantFields, ec)
-
-    if (types.length != 4)
-      fatal(s"wrong number of variant field expressions: expected 4, got ${ types.length }")
-
-    if (!types(0).isInstanceOf[TString])
-      fatal(s"wrong type for chromosome field: expected String, got ${ types(0) }")
-    if (types(1).isInstanceOf[TInt32])
-      fatal(s"wrong type for pos field: expected Int, got ${ types(1) }")
-    if (types(2).isInstanceOf[TString])
-      fatal(s"wrong type for ref field: expected String, got ${ types(2) }")
-    if (types(3) != TArray(TString()) && types(3) != TArray(+TString()))
-      fatal(s"wrong type for alt field: expected Array[String], got ${ types(3) }")
-
-    (root: Annotation) => {
-      ec.setAll(root)
-
-      val vfs = f()
-
-      val chr = vfs(0)
-      val pos = vfs(1)
-      val ref = vfs(2)
-      val alt = vfs(3)
-
-      if (chr != null && pos != null && ref != null && alt != null)
-        Variant(chr.asInstanceOf[String],
-          pos.asInstanceOf[Int],
-          ref.asInstanceOf[String],
-          alt.asInstanceOf[IndexedSeq[String]].toArray)
-      else
-        null
-    }
-  }
-
   def jsonExtractSample(t: Type, sampleExpr: String): Any => String = {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
@@ -293,7 +235,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
           }.toList)
         case _: TCall => JString(Call.toString(a.asInstanceOf[Call]))
         case _: TAltAllele => a.asInstanceOf[AltAllele].toJSON
-        case TVariant(_, _) => a.asInstanceOf[Variant].toJSON
         case TLocus(_, _) => a.asInstanceOf[Locus].toJSON
         case TInterval(pointType, _) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
         case TStruct(fields, _) =>
@@ -396,8 +337,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         }
       case (_, _: TAltAllele) =>
         jv.extract[AltAllele]
-      case (_, TVariant(_, _)) =>
-        jv.extract[JSONExtractVariant].toVariant
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]
       case (_, TInterval(pointType, _)) =>
@@ -469,7 +408,6 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       // FIXME legacy
       case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case tv: TVariant => Variant.parse(a, tv.rg)
       case _: TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }
