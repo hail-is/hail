@@ -547,10 +547,10 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     return MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
 
 
-@typecheck_method(dataset=MatrixTable,
-                  config=str,
-                  block_size=int,
-                  name=str)
+@typecheck(dataset=MatrixTable,
+           config=str,
+           block_size=int,
+           name=str)
 def nirvana(dataset, config, block_size=500000, name='nirvana'):
     """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
