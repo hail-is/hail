@@ -297,7 +297,7 @@ object Nirvana {
               val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
               val locus = Locus(contigQuery(a).asInstanceOf[String],
                 startQuery(a).asInstanceOf[Int])
-              val alleles = refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[Seq[String]].toArray
+              val alleles = refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[IndexedSeq[String]]
               (Annotation(locus, alleles), a)
             }
 
@@ -312,7 +312,6 @@ object Nirvana {
           }
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
-
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
