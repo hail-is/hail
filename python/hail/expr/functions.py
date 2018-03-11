@@ -2517,7 +2517,7 @@ def max(*exprs):
 
     Parameters
     ----------
-    exprs : :class:`.ArrayExpression` or class:`.SetExpression` or varargs of :class:`.NumericExpression`
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
 
     Returns
@@ -2570,7 +2570,7 @@ def min(*exprs):
 
     Parameters
     ----------
-    exprs : :class:`.ArrayExpression` or class:`.SetExpression` or varargs of :class:`.NumericExpression`
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
 
     Returns

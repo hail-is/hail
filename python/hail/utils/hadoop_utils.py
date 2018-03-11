@@ -9,7 +9,8 @@ def hadoop_read(path, buffer_size=8192):
     """Open a readable file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    **Examples**
+    Examples
+    --------
 
     .. doctest::
         :options: +SKIP
@@ -18,8 +19,8 @@ def hadoop_read(path, buffer_size=8192):
         ...     for line in f:
         ...         print(line.strip())
 
-    **Notes**
-
+    Notes
+    -----
     The provided source file path must be a URI (uniform resource identifier).
 
     .. caution::
@@ -29,12 +30,18 @@ def hadoop_read(path, buffer_size=8192):
         use :meth:`~hail.hadoop_copy` to copy the file locally, then read it
         with standard Python I/O tools.
 
-    :param str path: Source file URI.
+    Parameters
+    ----------
+    path: :obj:`str`
+        Source file URI.
+    buffer_size: :obj:`int`
+        Size of internal buffer.
 
-    :param int buffer_size: Size of internal buffer.
-
-    :return: Iterable file reader.
-    :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
+    Returns
+    -------
+    :class:`io.BufferedReader`
+        Iterable file reader,
+        `io.BufferedReader <https://docs.python.org/3/library/io.html#io.BufferedReader>`__.
     """
     return io.TextIOWrapper(io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size),
                             encoding='iso-8859-1')
@@ -46,7 +53,7 @@ def hadoop_read_binary(path, buffer_size=8192):
     """Open a readable binary file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    calling :meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
+    Calling :meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
     Python bytearray. If no argument is provided, the entire file will be read.
 
     Examples
@@ -61,7 +68,6 @@ def hadoop_read_binary(path, buffer_size=8192):
 
     Notes
     -----
-
     The provided source file path must be a URI (uniform resource identifier).
 
     .. caution::
@@ -73,15 +79,16 @@ def hadoop_read_binary(path, buffer_size=8192):
 
     Parameters
     ----------
-    path : :obj:`str`
+    path: :obj:`str`
         Source file URI.
-    buffer_size : :obj:`int`
+    buffer_size: :obj:`int`
         Size of internal buffer.
 
     Returns
     -------
-    :class:`.io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
-        Binary file reader.
+    `io.BufferedReader`
+        Binary file reader,
+        `io.BufferedReader <https://docs.python.org/3/library/io.html#io.BufferedReader>`__.
     """
     return io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
 
@@ -92,7 +99,8 @@ def hadoop_write(path, buffer_size=8192):
     """Open a writable file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    **Examples**
+    Examples
+    --------
 
     .. doctest::
         :options: +SKIP
@@ -101,8 +109,8 @@ def hadoop_write(path, buffer_size=8192):
         ...     f.write('result1: %s\\n' % result1)
         ...     f.write('result2: %s\\n' % result2)
 
-    **Notes**
-
+    Notes
+    -----
     The provided destination file path must be a URI (uniform resource identifier).
 
     .. caution::
@@ -112,10 +120,16 @@ def hadoop_write(path, buffer_size=8192):
         to a local file using standard Python I/O and use :meth:`~hail.hadoop_copy`
         to move your file to a distributed file system.
 
-    :param str path: Destination file URI.
+    Parameters
+    ----------
+    path: :obj:`str`
+        Destination file URI.
 
-    :return: File writer object.
-    :rtype: `io.BufferedWriter <https://docs.python.org/2/library/io.html#io.BufferedWriter>`_
+    Returns
+    -------
+    :class:`io.BufferedWriter`
+        File writer object,
+        `io.BufferedWriter <https://docs.python.org/3/library/io.html#io.BufferedWriter>`__.
     """
     return io.TextIOWrapper(io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size), encoding='iso-8859-1')
 
@@ -126,17 +140,22 @@ def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    **Examples**
+    Examples
+    --------
 
     >>> hadoop_copy('gs://hail-common/LCR.interval_list', 'file:///mnt/data/LCR.interval_list') # doctest: +SKIP
 
-    **Notes**
-
+    Notes
+    -----
     The provided source and destination file paths must be URIs
     (uniform resource identifiers).
 
-    :param str src: Source file URI.
-    :param str dest: Destination file URI.
+    Parameters
+    ----------
+    src: :obj:`str`
+        Source file URI.
+    dest: :obj:`str`
+        Destination file URI.
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
