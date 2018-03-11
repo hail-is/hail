@@ -3,8 +3,8 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
-import org.apache.spark.Partitioner
-import org.apache.spark.sql.Row
+import org.apache.spark.{Partitioner, SparkContext}
+import org.apache.spark.broadcast.Broadcast
 
 class OrderedRVDPartitioner(
   val partitionKey: Array[String], val kType: TStruct,
@@ -23,7 +23,7 @@ class OrderedRVDPartitioner(
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
   } && rangeBounds.forall { case i: Interval =>
     pkType.ordering.lteq(i.start, i.end) && !i.definitelyEmpty(pkType.ordering)
-  } ))
+  }))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     pkType.ordering.equiv(left.end, right.start) && (left.includesEnd || right.includesStart) } )
@@ -108,6 +108,29 @@ class OrderedRVDPartitioner(
         Interval(i1.start, i2.end, i1.includesStart, i2.includesEnd)
       })
     copy(numPartitions = newPartEnd.length, rangeBounds = newRangeBounds)
+  }
+
+  @transient
+  @volatile var partitionerBc: Broadcast[OrderedRVDPartitioner] = _
+
+  def broadcast(sc: SparkContext): Broadcast[OrderedRVDPartitioner] = {
+    if (partitionerBc == null) {
+      synchronized {
+        if (partitionerBc == null)
+          partitionerBc = sc.broadcast(this)
+      }
+    }
+    partitionerBc
+  }
+
+  def sparkPartitioner(sc: SparkContext): Partitioner = {
+    val selfBc = broadcast(sc)
+
+    new Partitioner {
+      def numPartitions: Int = selfBc.value.numPartitions
+
+      def getPartition(key: Any): Int = selfBc.value.getPartition(key)
+    }
   }
 }
 
