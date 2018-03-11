@@ -532,7 +532,6 @@ object Parser extends JavaTokenParsers {
       "Float64" ^^ { _ => TFloat64() } |
       "Float" ^^ { _ => TFloat64() } |
       "String" ^^ { _ => TString() } |
-      "AltAllele" ^^ { _ => TAltAllele() } |
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       ("LocusAlleles" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       "Call" ^^ { _ => TCall() } |

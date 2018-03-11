@@ -8,17 +8,6 @@ import is.hail.variant._
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
-object TVariant {
-  def representation(required: Boolean = false): TStruct = {
-  	val rep = TStruct(
-    "contig" -> +TString(),
-    "start" -> +TInt32(),
-    "ref" -> +TString(),
-    "altAlleles" -> +TArray(+TAltAllele()))
-    rep.setRequired(required).asInstanceOf[TStruct]
-  }
-}
-
 case class TVariant(rg: RGBase, override val required: Boolean = false) extends ComplexType {
   def _toPretty = s"""Variant($rg)"""
 
@@ -75,7 +64,7 @@ case class TVariant(rg: RGBase, override val required: Boolean = false) extends 
     }
   }
 
-  val representation: TStruct = TVariant.representation(required)
+  val representation: TStruct = null
 
   override def unify(concrete: Type): Boolean = ???
 

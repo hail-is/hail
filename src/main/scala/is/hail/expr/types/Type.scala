@@ -278,7 +278,6 @@ abstract class Type extends BaseType with Serializable {
       case TFloat64(_) => TFloat64(required)
       case TString(_) => TString(required)
       case TCall(_) => TCall(required)
-      case TAltAllele(_) => TAltAllele(required)
       case t: TArray => t.copy(required = required)
       case t: TSet => t.copy(required = required)
       case t: TDict => t.copy(required = required)
@@ -303,7 +302,6 @@ abstract class Type extends BaseType with Serializable {
       case TFloat64(_) => t == TFloat64Optional || t == TFloat64Required
       case TString(_) => t == TStringOptional || t == TStringRequired
       case TCall(_) => t == TCallOptional || t == TCallRequired
-      case TAltAllele(_) => t == TAltAlleleOptional || t == TAltAlleleRequired
       case t2: TLocus => t == t2 || t == +t2
       case t2: TVariant => t == t2 || t == +t2
       case t2: TInterval => t == t2 || t == +t2

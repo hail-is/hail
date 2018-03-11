@@ -78,8 +78,6 @@ object Variant {
     s"$contig:$start:${alleles(0)}:${alleles.tail.mkString(",")}"
   }
 
-  def variantID(view: RegionValueVariant): String = variantID(view.contig(), view.position(), view.alleles())
-
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
     nAlleles * (nAlleles + 1) / 2
@@ -88,22 +86,6 @@ object Variant {
   def gen: Gen[Variant] = VariantSubgen.random.gen
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
-
-  def sparkSchema: StructType =
-    StructType(Array(
-      StructField("contig", StringType, nullable = false),
-      StructField("start", IntegerType, nullable = false),
-      StructField("ref", StringType, nullable = false),
-      StructField("altAlleles", ArrayType(AltAllele.sparkSchema, containsNull = false),
-        nullable = false)))
-
-  def fromRow(r: Row) =
-    Variant(r.getAs[String](0),
-      r.getAs[Int](1),
-      r.getAs[String](2),
-      r.getSeq[Row](3)
-        .map(s => AltAllele.fromRow(s))
-        .toArray)
 
   def fromLocusAlleles(a: Annotation): Variant = {
     val r = a.asInstanceOf[Row]
@@ -114,21 +96,6 @@ object Variant {
     else
       Variant(l.contig, l.position, alleles(0), alleles.tail.map(x => AltAllele(alleles(0), x)))
   }
-
-  def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
-    sc.textFileLines(input)
-      .map {
-        _.map { line =>
-          val fields = line.split(":")
-          if (fields.length != 4)
-            fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
-          val ref = fields(2)
-          (Variant(fields(0),
-            fields(1).toInt,
-            ref,
-            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
-        }.value
-      }
 
   def locusAllelesToString(locus: Locus, alleles: Array[String]): String =
     s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
