@@ -8,7 +8,8 @@ import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{Locus, MatrixTable, RegionValueVariant}
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
@@ -204,22 +205,20 @@ object Nirvana {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(vaSignature: Type)(w: (String) => Unit, v: Variant) {
+  def printElement(vaSignature: Type)(w: (String) => Unit, v: (Locus, Array[String])) {
+    val (locus, alleles) = v
+
     val sb = new StringBuilder()
-    sb.append(v.contig)
+    sb.append(locus.contig)
     sb += '\t'
-    sb.append(v.start)
+    sb.append(locus.position)
     sb.append("\t.\t")
-    sb.append(v.ref)
+    sb.append(alleles(0))
     sb += '\t'
-    sb.append(v.altAlleles.iterator.map(_.alt).mkString(","))
+    sb.append(alleles.tail.mkString(","))
     sb += '\t'
     sb.append("\t.\t.\tGT")
     w(sb.result())
-  }
-
-  def variantFromInput(contig: String, start: Int, ref: String, altAlleles: Array[String]): Variant = {
-    Variant(contig, start, ref, altAlleles)
   }
 
   def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
@@ -249,7 +248,7 @@ object Nirvana {
 
 
     val supplementaryAnnotationDirectoryOpt = Option(properties.getProperty("hail.nirvana.supplementaryAnnotationDirectory"))
-    val supplementaryAnnotationDirectory = if(supplementaryAnnotationDirectoryOpt.isEmpty) List[String]() else List("--sd", supplementaryAnnotationDirectoryOpt.get)
+    val supplementaryAnnotationDirectory = if (supplementaryAnnotationDirectoryOpt.isEmpty) List[String]() else List("--sd", supplementaryAnnotationDirectoryOpt.get)
 
     val reference = properties.getProperty("hail.nirvana.reference")
 
@@ -257,8 +256,8 @@ object Nirvana {
       List("-c", cache) ++
       supplementaryAnnotationDirectory ++
       List("-r", reference,
-      "-i", "-",
-      "-o", "-")
+        "-i", "-",
+        "-o", "-")
 
     println(cmd.mkString(" "))
 
@@ -269,10 +268,9 @@ object Nirvana {
     val oldSignature = vds.rowType
     val localBlockSize = blockSize
 
-    implicit val variantOrd = vds.referenceGenome.variantOrdering
+    val rowKeyOrd = vds.matrixType.rowKeyStruct.ordering
 
     info("Running Nirvana")
-
 
     val localRowType = vds.rvRowType
     val annotations = vds.rvd
@@ -286,7 +284,7 @@ object Nirvana {
 
         it.map { rv =>
           rvv.setRegion(rv)
-          rvv.variantObject()
+          (rvv.locus(), rvv.alleles())
         }
           .grouped(localBlockSize)
           .flatMap { block =>
@@ -296,17 +294,15 @@ object Nirvana {
               _ => ())
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
-                val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
-                val v = variantFromInput(contigQuery(a).asInstanceOf[String],
-                  startQuery(a).asInstanceOf[Int],
-                  refQuery(a).asInstanceOf[String],
-                  altsQuery(a).asInstanceOf[Seq[String]].toArray
-                )
-                (v, a)
-              }
+              val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
+              val locus = Locus(contigQuery(a).asInstanceOf[String],
+                startQuery(a).asInstanceOf[Int])
+              val alleles = refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[Seq[String]].toArray
+              (Annotation(locus, alleles), a)
+            }
 
             val r = kt.toArray
-              .sortBy(_._1)
+              .sortBy(_._1)(rowKeyOrd.toOrdering)
 
             val rc = proc.waitFor()
             if (rc != 0)
@@ -341,14 +337,15 @@ object Nirvana {
           rvb.start(nirvanaRowType)
           rvb.startStruct()
           rvb.startStruct()
-          rvb.addAnnotation(nirvanaRowType.types(0), v.locus)
-          rvb.addAnnotation(nirvanaRowType.types(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
+          rvb.addAnnotation(nirvanaRowType.types(0), v.asInstanceOf[Row].get(0))
+          rvb.addAnnotation(nirvanaRowType.types(1), v.asInstanceOf[Row].get(1))
           rvb.addAnnotation(nirvanaRowType.types(2), nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 
           rv
-        }})
+        }
+      })
 
     vds.orderedRVDLeftJoinDistinctAndInsert(nirvanaRVD, "nirvana", product = false)
       .annotateRowsExpr("nirvana = va.nirvana.nirvana")
