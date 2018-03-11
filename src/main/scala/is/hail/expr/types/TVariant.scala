@@ -75,16 +75,11 @@ case class TVariant(rg: RGBase, override val required: Boolean = false) extends 
     }
   }
 
-  def variantOrdering: Ordering[Variant] = rg.variantOrdering
-
   val representation: TStruct = TVariant.representation(required)
 
-  override def unify(concrete: Type): Boolean = concrete match {
-    case TVariant(crg, _) => rg.unify(crg)
-    case _ => false
-  }
+  override def unify(concrete: Type): Boolean = ???
 
-  override def clear(): Unit = rg.clear()
+  override def clear(): Unit = ???
 
-  override def subst() = rg.subst().variantType
+  override def subst(): TVariant = ???
 }

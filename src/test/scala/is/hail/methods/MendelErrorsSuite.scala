@@ -1,8 +1,7 @@
 package is.hail.methods
 
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations.Annotation
-import is.hail.variant.{Locus, Variant}
+import is.hail.SparkSuite
+import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

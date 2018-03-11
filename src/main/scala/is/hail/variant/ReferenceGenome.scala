@@ -19,7 +19,6 @@ import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
 
 abstract class RGBase extends Serializable {
-  val variantType: TVariant
   val locusType: TLocus
   val intervalType: TInterval
 
@@ -147,7 +146,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   // must be constructed after orderings
-  val variantType: TVariant = TVariant(this)
   val locusType: TLocus = TLocus(this)
   val intervalType: TInterval = TInterval(locusType)
 
@@ -412,7 +410,6 @@ object ReferenceGenome {
         exportReferences(hc, path, keyType)
         exportReferences(hc, path, valueType)
       case TStruct(fields, _) => fields.foreach(fd => exportReferences(hc, path, fd.typ))
-      case TVariant(rg, _) => writeReference(hc, path, rg)
       case TLocus(rg, _) => writeReference(hc, path, rg)
       case TInterval(TLocus(rg, _), _) => writeReference(hc, path, rg)
       case _ =>
@@ -490,7 +487,6 @@ object ReferenceGenome {
 }
 
 case class RGVariable(var rg: RGBase = null) extends RGBase {
-  val variantType: TVariant = TVariant(this)
   val locusType: TLocus = TLocus(this)
   val intervalType: TInterval = TInterval(locusType)
 

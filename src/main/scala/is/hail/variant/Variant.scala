@@ -73,29 +73,6 @@ object Variant {
     Variant(contig, elts(size - 3).toInt, elts(size - 2), elts(size - 1).split(","), rg)
   }
 
-  def fromRegionValue(r: Region, offset: Long): Variant = {
-    val t = TVariant.representation()
-    val altsType = t.types(3).asInstanceOf[TArray]
-
-    val contig = TString.loadString(r, t.loadField(r, offset, 0))
-    val pos = r.loadInt(t.loadField(r, offset, 1))
-    val ref = TString.loadString(r, t.loadField(r, offset, 2))
-
-    val altsOffset = t.loadField(r, offset, 3)
-    val nAlts = altsType.loadLength(r, altsOffset)
-    val altArray = new Array[AltAllele](nAlts)
-    var i = 0
-    while (i < nAlts) {
-      val o = altsType.loadElement(r, altsOffset, nAlts, i)
-      altArray(i) = AltAllele.fromRegionValue(r, o)
-      i += 1
-    }
-    Variant(contig, pos, ref, altArray)
-  }
-
-  def fromRegionValue(rv: RegionValue): Variant =
-    fromRegionValue(rv.region, rv.offset)
-
   def variantID(contig: String, start: Int, alleles: IndexedSeq[String]): String = {
     require(alleles.length >= 2)
     s"$contig:$start:${alleles(0)}:${alleles.tail.mkString(",")}"
@@ -152,6 +129,9 @@ object Variant {
             fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
         }.value
       }
+
+  def locusAllelesToString(locus: Locus, alleles: Array[String]): String =
+    s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
 }
 
 object VariantSubgen {

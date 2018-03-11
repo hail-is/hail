@@ -35,18 +35,8 @@ object Locus {
     Locus(r.getAs[String](0), r.getInt(1))
   }
 
-  def gen(contigs: Seq[String]): Gen[Locus] =
-    Gen.zip(Gen.oneOfSeq(contigs), Gen.posInt)
-      .map { case (contig, pos) => Locus(contig, pos) }
-
-  def gen: Gen[Locus] = gen(simpleContigs)
-
   def gen(rg: ReferenceGenome): Gen[Locus] = for {
     (contig, length) <- Contig.gen(rg)
-    pos <- Gen.choose(1, length)
-  } yield Locus(contig, pos)
-
-  def gen(contig: String, length: Int): Gen[Locus] = for {
     pos <- Gen.choose(1, length)
   } yield Locus(contig, pos)
 

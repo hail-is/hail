@@ -213,8 +213,7 @@ object Genotype {
       diploidGtIndex(i, j)
   }
 
-  def genExtremeNonmissing(v: Variant): Gen[Annotation] = {
-    val nAlleles = v.nAlleles
+  def genExtremeNonmissing(nAlleles: Int): Gen[Annotation] = {
     val m = Int.MaxValue / (nAlleles + 1)
     val nGenotypes = triangle(nAlleles)
     val gg = for (c: Option[Call] <- Gen.option(Call.genUnphasedDiploid(nAlleles));
@@ -245,14 +244,13 @@ object Genotype {
     gg
   }
 
-  def genExtreme(v: Variant): Gen[Annotation] = {
+  def genExtreme(nAlleles: Int): Gen[Annotation] = {
     Gen.frequency(
-      (100, genExtremeNonmissing(v)),
+      (100, genExtremeNonmissing(nAlleles)),
       (1, Gen.const(null)))
   }
 
-  def genRealisticNonmissing(v: Variant): Gen[Annotation] = {
-    val nAlleles = v.nAlleles
+  def genRealisticNonmissing(nAlleles: Int): Gen[Annotation] = {
     val nGenotypes = triangle(nAlleles)
     val gg = for (callRate <- Gen.choose(0d, 1d);
       alleleFrequencies <- Gen.buildableOfN[Array](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
@@ -281,15 +279,14 @@ object Genotype {
     gg
   }
 
-  def genRealistic(v: Variant): Gen[Annotation] = {
+  def genRealistic(nAlleles: Int): Gen[Annotation] = {
     Gen.frequency(
-      (100, genRealisticNonmissing(v)),
+      (100, genRealisticNonmissing(nAlleles)),
       (1, Gen.const(null)))
   }
 
 
-  def genGenericCallAndProbabilitiesGenotype(v: Variant): Gen[Annotation] = {
-    val nAlleles = v.nAlleles
+  def genGenericCallAndProbabilitiesGenotype(nAlleles: Int): Gen[Annotation] = {
     val nGenotypes = triangle(nAlleles)
     val gg = for (gp <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
       val c = gp.flatMap(a => Option(uniqueMaxIndex(a))).map(Call2.fromUnphasedDiploidGtIndex(_))
@@ -304,12 +301,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Annotation)] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
+      g <- Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles)))
       yield (v, g)
 
-  def genNonmissingValue: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtremeNonmissing(v), genRealisticNonmissing(v)))
+  def genNonmissingValue: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtremeNonmissing(v.nAlleles), genRealisticNonmissing(v.nAlleles)))
 
-  def genArb: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtreme(v), genRealistic(v)))
+  def genArb: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles)))
 
   implicit def arbGenotype = Arbitrary(genArb)
 }
