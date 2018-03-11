@@ -336,7 +336,6 @@ object Nirvana {
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
           rvb.startStruct()
-          rvb.startStruct()
           rvb.addAnnotation(nirvanaRowType.types(0), v.asInstanceOf[Row].get(0))
           rvb.addAnnotation(nirvanaRowType.types(1), v.asInstanceOf[Row].get(1))
           rvb.addAnnotation(nirvanaRowType.types(2), nirvana)
