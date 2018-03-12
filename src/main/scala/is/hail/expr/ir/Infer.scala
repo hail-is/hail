@@ -33,13 +33,12 @@ object Infer {
         infer(cnsq)
         infer(altr)
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"${cnsq.typ}, ${altr.typ}")
+        assert(cnsq.typ.isOfType(altr.typ), s"${cnsq.typ}, ${altr.typ}")
         x.typ = cnsq.typ
 
       case x@Let(name, value, body, _) =>
         infer(value)
         infer(body, env = env.bind(name, value.typ))
-        println("let body: " + body.typ)
         x.typ = body.typ
       case x@Ref(_, _) =>
         x.typ = env.lookup(x)
@@ -56,7 +55,7 @@ object Infer {
         else {
           args.foreach(infer(_))
           val t = args.head.typ
-          args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
+          args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x.isOfType(t), s"at position $i type mismatch: $t $x") }
           x.typ = TArray(t)
         }
       case MakeArrayN(len, typ) =>
@@ -75,17 +74,29 @@ object Infer {
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
+      case x@ArrayRange(a, b, c) =>
+        infer(a)
+        infer(b)
+        infer(c)
+        assert(a.typ.isOfType(TInt32()))
+        assert(b.typ.isOfType(TInt32()))
+        assert(c.typ.isOfType(TInt32()))
       case x@ArrayMap(a, name, body, _) =>
         infer(a)
         val tarray = coerce[TArray](a.typ)
         infer(body, env = env.bind(name, tarray.elementType))
         x.elementTyp = body.typ
+      case x@ArrayFilter(a, name, cond) =>
+        infer(a)
+        val tarray = coerce[TArray](a.typ)
+        infer(cond, env = env.bind(name, tarray.elementType))
+        assert(cond.typ.isOfType(TBoolean()))
       case x@ArrayFold(a, zero, accumName, valueName, body, _) =>
         infer(a)
         val tarray = coerce[TArray](a.typ)
         infer(zero)
         infer(body, env = env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
-        assert(body.typ == zero.typ)
+        assert(body.typ.isOfType(zero.typ))
         x.typ = zero.typ
       case x@AggIn(typ) =>
         (tAgg, typ) match {

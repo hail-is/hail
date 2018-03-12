@@ -222,6 +222,8 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   def newMethod[A: TypeInfo, R: TypeInfo] = {
     val mb = new Method1Builder[A, R](this, s"method${ methods.size }")
+    methods.append(mb)
+    mb
   }
 
   def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo] = {
@@ -292,7 +294,6 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
       val tcv = new TraceClassVisitor(null, new Textifier, pw)
       cr.accept(tcv, 0)
     }
-
     bytes
   }
 
