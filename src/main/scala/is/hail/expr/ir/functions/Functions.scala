@@ -84,7 +84,6 @@ object IRFromAST {
 
   def lookup(name: String, args: IndexedSeq[IR], types: IndexedSeq[Type]): Option[IR] = {
     (name, args) match {
-      case ("range", IndexedSeq(a, b, c)) => Some(ArrayRange(a, b, c))
       case ("isDefined", IndexedSeq(x)) => Some(ApplyUnaryPrimOp(Bang(), IsNA(x)))
       case ("orMissing", IndexedSeq(cond, x)) => Some(If(cond, x, NA(x.typ)))
       case ("size", IndexedSeq(x)) if x.typ.isInstanceOf[TArray] => Some(ArrayLen(x))
@@ -104,13 +103,6 @@ object IRFromAST {
           body <- lambda.body.toIR(agg)
         } yield {
           ArrayMap(ir, lambda.param, body, t.elementType)
-        }
-      case (t: TArray, "filter") =>
-        for {
-          ir <- lhs.toIR(agg)
-          body <- lambda.body.toIR(agg)
-        } yield {
-          ArrayFilter(ir, lambda.param, body)
         }
     }
   }

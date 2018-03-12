@@ -11,8 +11,6 @@ object UtilFunctions extends RegistryFunctions {
 
   registerIR("size", TArray(TInt64()), TInt32()) { case Seq(a) => ArrayLen(a) }
 
-  registerIR("range", TInt32(), TInt32(), TInt32(), TArray(TInt32())) { case Seq(a, b, c) => ArrayRange(a, b, c) }
-
   for (zero <- Seq(I32(0), I64(0), F32(0), F64(0))) {
     registerIR("sum", TArray(zero.typ), zero.typ) {
       case Seq(a) =>
