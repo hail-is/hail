@@ -39,9 +39,9 @@ class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[
   }
 }
 
-class SplitMultiRowIR(rowIRs: Array[(String, IR)], entryIR: Array[(String, IR)], oldMatrixType: MatrixType) {
+class SplitMultiRowIR(rowIRs: Array[(String, IR)], entryIRs: Array[(String, IR)], oldMatrixType: MatrixType) {
   val oldRowIR = Ref("va")
-  val newEntries = ArrayMap(GetField(In(3, oldMatrixType.rvRowType), MatrixType.entriesIdentifier), "g", InsertFields(Ref("g"), entryIR))
+  val newEntries = ArrayMap(GetField(In(3, oldMatrixType.rvRowType), MatrixType.entriesIdentifier), "g", InsertFields(Ref("g"), entryIRs))
   val changedFields: Seq[(String, IR)] =
     (rowIRs
       :+ ("locus", Ref("newLocus"))
@@ -249,7 +249,6 @@ object SplitMulti {
 }
 
 class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
-  warn(s"splitting")
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalType),
     "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
@@ -269,28 +268,26 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     "g" -> (6, vsm.entryType)))
   val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
 
-  val vASTs = Parser.parseAnnotationExprsToAST(variantExpr, vEC, Some("va"))
-  val gASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
+  val rowASTs = Parser.parseAnnotationExprsToAST(variantExpr, vEC, Some("va"))
+  val entryASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
 
-  val rowIRs = vASTs.flatMap { case (name, ast) =>
+  val rowIRs = rowASTs.flatMap { case (name, ast) =>
     for (ir <- ast.toIR()) yield {
       (name, ir)
     }
   }
-  val gIRs = gASTs.flatMap { case (name, ast) =>
+  val entryIRs = entryASTs.flatMap { case (name, ast) =>
     for (ir <- ast.toIR()) yield {
       (name, ir)
     }
   }
 
   val (newMatrixType, useAST, rowF): (MatrixType, Boolean, () => AsmFunction13[Region, Long, Boolean, Long, Boolean, Long, Boolean, Long, Boolean, Int, Boolean, Boolean, Boolean, Long]) =
-    if (vASTs.length == rowIRs.length && gASTs.length == gIRs.length) {
-      val ir = new SplitMultiRowIR(rowIRs, gIRs, vsm.matrixType)
-      warn("Using IR for SplitMulti")
+    if (rowASTs.length == rowIRs.length && entryASTs.length == entryIRs.length) {
+      val ir = new SplitMultiRowIR(rowIRs, entryIRs, vsm.matrixType)
       (ir.newMatrixType, false, ir.splitRow)
     } else {
       val t = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = gAnnotator.newT)
-      warn("Falling back to AST for SplitMulti")
       (t, true, null)
     }
 

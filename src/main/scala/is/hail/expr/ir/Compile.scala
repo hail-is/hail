@@ -15,8 +15,6 @@ case class RegionValueRep[RVT: ClassTag](typ: Type) {
 
 object Compile {
 
-  var i: Int = 0
-
   def apply[T0: TypeInfo, T1: TypeInfo, R: TypeInfo](
     name0: String,
     rep0: RegionValueRep[T0],
@@ -104,11 +102,9 @@ object Compile {
     val env = args.zipWithIndex.foldLeft(new Env[IR]()) {
       case (newEnv, ((name, rvr), i)) => newEnv.bind(name, In(i, rvr.typ))
     }
-    e = Optimize(Subst(e, env))
     Infer(e)
     assert(typeToTypeInfo(e.typ) == typeInfo[R])
     Emit(e, fb)
-    i += 1
     (e.typ, fb.result())
   }
 }
