@@ -3,7 +3,6 @@ import unittest
 import hail as hl
 from hail.linalg import BlockMatrix
 from .utils import resource, startTestHailContext, stopTestHailContext
-
 import numpy as np
 
 setUpModule = startTestHailContext

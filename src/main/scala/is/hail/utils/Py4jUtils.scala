@@ -1,11 +1,8 @@
 package is.hail.utils
 
 import java.io.{InputStream, OutputStream}
-import java.net.URI
 
-import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
-import is.hail.annotations.Memory
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
 
@@ -25,8 +22,6 @@ trait Py4jUtils {
       list.add(elem)
     list
   }
-
-  def getURI(uri: String): String = new URI(uri).getPath
 
   // we cannot construct an array because we don't have the class tag
   def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq
