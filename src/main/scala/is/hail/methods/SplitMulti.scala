@@ -49,7 +49,6 @@ class SplitMultiPartitionContext(
   val splitrv = RegionValue()
   val variantOrdering = matrixType.rowType
     .fieldByName("locus")
-
     .typ
     .asInstanceOf[TLocus]
     .rg
