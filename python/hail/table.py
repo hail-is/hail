@@ -1,5 +1,5 @@
 from pyspark.sql import DataFrame
-import hail as hl
+import hail
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *
 from hail.expr.types import *
@@ -42,53 +42,37 @@ def desc(col):
 
     return Descending(col)
 
-
-class TableTemplate(object):
-    """
-    .. testsetup ::
-
-        table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
-    """
-    def __init__(self, jt):
-        self._jt = jt
-
-        self._globals = None
-        self._global_type = HailType._from_java(self._jt.globalSignature())
-        assert (isinstance(self._global_type, tstruct))
-        self._row_type = HailType._from_java(self._jt.signature())
-        assert (isinstance(self._row_type, tstruct))
-        self._num_fields = None
-        self._key = None
-        self._field_names = None
-        self._fields = {}
-        self._fields_inverse = {}
-        super(TableTemplate, self).__init__()
+class ExprContainer(object):
+    def __init__(self):
+        self._fields: Dict[str, Expression] = {}
+        self._fields_inverse: Dict[Expression, str] = {}
+        super(ExprContainer, self).__init__()
 
     def _set_field(self, key, value):
         self._fields[key] = value
         self._fields_inverse[value] = key
         if key in dir(self):
-            warn("Name collision: field '{}' already in object dict. "
-                 "This field must be referenced with indexing syntax".format(key))
+            warn(f"Name collision: field {repr(key)} already in object dict. "
+                 "This field must be referenced with indexing syntax")
         else:
             self.__dict__[key] = value
 
-    def _get_field(self, item):
+    def _get_field(self, item) -> Expression:
         if item in self._fields:
             return self._fields[item]
         else:
             raise LookupError(get_nice_field_error(self, item))
 
-    def __getitem__(self, item):
-        return self._get_field(item)
+    def __iter__(self):
+        raise TypeError(f"'{self.__class__.__name__}' object is not iterable")
 
     def __delattr__(self, item):
         if not item[0] == '_':
-            raise NotImplementedError('Table objects are not mutable')
+            raise NotImplementedError(f"'{self.__class__.__name__}' object is not mutable")
 
     def __setattr__(self, key, value):
         if not key[0] == '_':
-            raise NotImplementedError('Table objects are not mutable')
+            raise NotImplementedError(f"'{self.__class__.__name__}' object is mutable")
         self.__dict__[key] = value
 
     def __getattr__(self, item):
@@ -97,30 +81,11 @@ class TableTemplate(object):
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
-    @property
-    def key(self):
-        """Row key struct.
+    def _copy_fields_from(self, other: 'ExprContainer'):
+        self._fields = other._fields
+        self._fields_inverse = other._fields_inverse
 
-        Examples
-        --------
-
-        Get the row key field names:
-
-        .. doctest::
-
-            >>> list(table1.key)
-            ['ID']
-
-        Returns
-        -------
-        :class:`.StructExpression`
-        """
-        if self._key is None:
-            self._key = jiterable_to_list(self._jt.key())
-        return hl.struct(**{k: self[k] for k in self._key})
-
-
-class GroupedTable(TableTemplate):
+class GroupedTable(ExprContainer):
     """Table that has been grouped.
 
     There are only two operations on a grouped table, :meth:`.GroupedTable.partition_hint`
@@ -132,17 +97,14 @@ class GroupedTable(TableTemplate):
 
     """
 
-    def __init__(self, parent, groups):
-        super(GroupedTable, self).__init__(parent._jt)
+    def __init__(self, parent: 'Table', groups):
+        super(GroupedTable, self).__init__()
         self._groups = groups
         self._parent = parent
         self._npartitions = None
 
-        for fd in parent._fields:
-            self._set_field(fd, parent._fields[fd])
+        self._copy_fields_from(parent)
 
-    def __iter__(self):
-        raise TypeError("'GroupedTable' object is not iterable")
 
     @typecheck_method(n=int)
     def partition_hint(self, n):
@@ -221,7 +183,7 @@ class GroupedTable(TableTemplate):
             Table(base._jt.aggregate(group_strs, ",\n".join(strs), joption(self._npartitions))))
 
 
-class Table(TableTemplate):
+class Table(ExprContainer):
     """Hail's distributed implementation of a dataframe or SQL table.
     
     Use :func:`.read_table` to read a table that was written with
@@ -305,16 +267,33 @@ class Table(TableTemplate):
     """
 
     def __init__(self, jt):
-        super(Table, self).__init__(jt)
-        self._global_indices = Indices(axes=set(), source=self)
+        super(Table, self).__init__()
+
+        self._jt = jt
+
         self._row_axis = 'row'
+
+        self._global_indices = Indices(axes=set(), source=self)
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        for f, t in self._global_type.items():
-            self._set_field(f, construct_reference(f, t, self._global_indices, prefix='global'))
+        self._global_type = HailType._from_java(jt.globalSignature())
+        self._row_type = HailType._from_java(jt.signature())
 
-        for f, t in self._row_type.items():
-            self._set_field(f, construct_reference(f, t, self._row_indices, prefix='row'))
+        assert isinstance(self._global_type, tstruct)
+        assert isinstance(self._row_type, tstruct)
+
+        self._globals = construct_expr(TopLevelReference('global', self._global_indices), self._global_type,
+                                       indices=self._global_indices)
+        self._row = construct_expr(TopLevelReference('row', self._row_indices), self._row_type,
+                                   indices=self._row_indices)
+
+        self._key = hail.struct(
+            **{k: self._row[k] for k in jiterable_to_list(jt.key())})
+
+        for k, v in itertools.chain(self._globals.items(),
+                                    self._row.items()):
+            self._set_field(k, v)
+
 
     @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
@@ -336,27 +315,29 @@ class Table(TableTemplate):
             exprs = item if isinstance(item, tuple) else (item,)
             return self.index(*exprs)
 
-    def __iter__(self):
-        raise TypeError("'Table' object is not iterable")
-
     @property
-    def schema(self):
-        if self._schema is None:
-            self._schema = HailType._from_java(self._jt.signature())
-            assert (isinstance(self._schema, tstruct))
-        return self._schema
+    def key(self):
+        """Row key struct.
+
+        Examples
+        --------
+
+        Get the row key field names:
+
+        .. doctest::
+
+            >>> list(table1.key)
+            ['ID']
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
+        return self._key
 
     @property
     def fields(self):
-        if self._field_names is None:
-            self._field_names = list(self._jt.fieldNames())
-        return self._field_names
-
-    @property
-    def n_fields(self):
-        if self._num_fields is None:
-            self._num_fields = self._jt.nColumns()
-        return self._num_fields
+        return list(self.row)
 
     def n_partitions(self):
         """Returns the number of partitions in the table.
@@ -519,7 +500,7 @@ class Table(TableTemplate):
         for e in exprs:
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
             ids.append(e._ast.expand()[0].name)
@@ -607,7 +588,7 @@ class Table(TableTemplate):
             analyze('Table.transmute', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-            for name, inds in v._refs:
+            for name, inds in get_refs(v):
                 if inds == self._row_indices:
                     fields_referenced.add(name)
         fields_referenced = fields_referenced - set(named_exprs.keys())
@@ -796,7 +777,7 @@ class Table(TableTemplate):
         for e in exprs:
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
             ids.append(e._ast.expand()[0].name)
@@ -1009,7 +990,7 @@ class Table(TableTemplate):
                 e = to_expr(e)
             analyze('Table.group_by', e, self._row_indices)
             ast = e._ast.expand()
-            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
+            if any(not isinstance(a, TopLevelReference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
             key = ast[0].name
             groups.append((key, e))
@@ -1129,7 +1110,7 @@ class Table(TableTemplate):
             raise ExpressionException('Key mismatch: table has {} keys, found {} index expressions'.format(
                 len(self.key), len(exprs)))
 
-        indices, aggregations, joins, refs = unify_all(*exprs)
+        indices, aggregations, joins = unify_all(*exprs)
 
         from hail.matrixtable import MatrixTable
         uid = Env._get_uid()
@@ -1167,8 +1148,8 @@ class Table(TableTemplate):
 
             all_uids = uids[:]
             all_uids.append(uid)
-            return construct_expr(Select(Reference('row', top_level=True), uid), new_schema, indices, aggregations,
-                                  joins.push(Join(joiner, all_uids, uid)), refs)
+            return construct_expr(Select(TopLevelReference('row', src._row_indices), uid), new_schema, indices, aggregations,
+                                  joins.push(Join(joiner, all_uids, uid, exprs)))
         elif isinstance(src, MatrixTable):
             if len(exprs) == 1:
                 key_type = self.key[0].dtype
@@ -1206,8 +1187,8 @@ class Table(TableTemplate):
                         return MatrixTable(left._jvds.annotateRowsTable(
                             right._jt, uid, False))
 
-                    return construct_expr(Select(Reference('va', top_level=True), uid), new_schema,
-                                          indices, aggregations, joins.push(Join(joiner, [uid], uid)))
+                    return construct_expr(Select(TopLevelReference('va', src._row_indices), uid), new_schema,
+                                          indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
                 else:
                     # use vds_key
                     uids = [Env._get_uid() for _ in range(len(exprs))]
@@ -1241,8 +1222,8 @@ class Table(TableTemplate):
                         jl = jl.annotateRowsExpr(key_expr)
                         return MatrixTable(jl)
 
-                    return construct_expr(Select(Reference('va', top_level=True), uid),
-                                          new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid)))
+                    return construct_expr(Select(TopLevelReference('va', src._row_indices), uid),
+                                          new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
 
             elif indices == src._col_indices:
                 if len(exprs) == len(src.col_key) and all([
@@ -1254,8 +1235,8 @@ class Table(TableTemplate):
                     # use vds_key
                     joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
                         right._jt, [e._ast.to_hql() for e in exprs], uid, False))
-                return construct_expr(Select(Reference('sa', top_level=True), uid), new_schema,
-                                      indices, aggregations, joins.push(Join(joiner, [uid], uid)))
+                return construct_expr(Select(TopLevelReference('sa', src._col_indices), uid), new_schema,
+                                      indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
             else:
                 raise NotImplementedError()
         else:
@@ -1272,8 +1253,8 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(Select(Reference('global', top_level=True), uid), self.globals.dtype,
-                              joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
+        return construct_expr(Select(TopLevelReference('global', indices=Indices()), uid), self.globals.dtype,
+                              joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
     def _process_joins(self, *exprs):
         # ordered to support nested joins
@@ -2075,10 +2056,7 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all global fields.
         """
-        return construct_expr(Reference('global', top_level=True), self._global_type,
-                              indices=self._global_indices,
-                              refs=LinkedList(tuple).push(
-                                  *[(f, self._global_indices) for f in self._global_type]))
+        return self._globals
 
     @property
     def row(self) -> 'StructExpression':
@@ -2089,10 +2067,7 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return construct_expr(Reference('row', top_level=True), self._row_type,
-                              indices=self._row_indices,
-                              refs=LinkedList(tuple).push(
-                                  *[(f, self._row_indices) for f in self._row_type]))
+        return self._row
 
     @staticmethod
     @typecheck(df=DataFrame,

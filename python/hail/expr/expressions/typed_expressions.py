@@ -926,10 +926,6 @@ class DictExpression(Expression):
     >>> d = hl.literal({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
 
-    def _init(self):
-        self._key_typ = self._type.key_type
-        self._value_typ = self._type.value_type
-
     @typecheck_method(item=expr_any)
     def __getitem__(self, item):
         """Get the value associated with key `item`.
@@ -960,7 +956,7 @@ class DictExpression(Expression):
             raise TypeError("dict encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
                             "    type of 'item': '{}'".format(self._type.key_type, item._type))
-        return self._index(self._value_typ, item)
+        return self._index(self.dtype.value_type, item)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -1030,9 +1026,9 @@ class DictExpression(Expression):
                 raise TypeError("'get' expects parameter 'default' to have the "
                                 "same type as the dictionary value type, found '{}' and '{}'"
                                 .format(self.dtype, default.dtype))
-            return self._method("get", self._value_typ, item, default)
+            return self._method("get", self.dtype.value_type, item, default)
         else:
-            return self._method("get", self._value_typ, item)
+            return self._method("get", self.dtype.value_type, item)
 
     def key_set(self):
         """Returns the set of keys in the dictionary.
@@ -1049,7 +1045,7 @@ class DictExpression(Expression):
         :class:`.SetExpression`
             Set of all keys.
         """
-        return self._method("keySet", tset(self._key_typ))
+        return self._method("keySet", tset(self.dtype.key_type))
 
     def keys(self):
         """Returns an array with all keys in the dictionary.
@@ -1066,7 +1062,7 @@ class DictExpression(Expression):
         :class:`.ArrayExpression`
             Array of all keys.
         """
-        return self._method("keys", tarray(self._key_typ))
+        return self._method("keys", tarray(self.dtype.key_type))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map_values(self, f):
@@ -1089,7 +1085,7 @@ class DictExpression(Expression):
         :class:`.DictExpression`
             Dictionary with transformed values.
         """
-        return self._bin_lambda_method("mapValues", f, self._value_typ, lambda t: tdict(self._key_typ, t))
+        return self._bin_lambda_method("mapValues", f, self.dtype.value_type, lambda t: tdict(self.dtype.key_type, t))
 
     def size(self):
         """Returns the size of the dictionary.
@@ -1123,37 +1119,7 @@ class DictExpression(Expression):
         :class:`.ArrayExpression`
             All values in the dictionary.
         """
-        return self._method("values", tarray(self._value_typ))
-
-
-class Aggregable(object):
-    """Expression that can only be aggregated.
-
-    An :class:`.Aggregable` is produced by the :meth:`.explode` or :meth:`.filter`
-    methods. These objects can be aggregated using aggregator functions, but
-    cannot otherwise be used in expressions.
-    """
-
-    def __init__(self, ast, type, indices, aggregations, joins, refs):
-        self._ast = ast
-        self._type = type
-        self._indices = indices
-        self._aggregations = aggregations
-        self._joins = joins
-        self._refs = refs
-
-    def __nonzero__(self):
-        raise NotImplementedError('Truth value of an aggregable collection is undefined')
-
-    def __eq__(self, other):
-        raise NotImplementedError('Comparison of aggregable collections is undefined')
-
-    def __ne__(self, other):
-        raise NotImplementedError('Comparison of aggregable collections is undefined')
-
-    @property
-    def dtype(self):
-        return self._type
+        return self._method("values", tarray(self.dtype.value_type))
 
 
 class StructExpression(Mapping, Expression):
@@ -1184,16 +1150,18 @@ class StructExpression(Mapping, Expression):
     spaces or symbols.
     """
 
-    def _init(self):
-        self._fields = {}
+    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
+    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
+        super(StructExpression, self).__init__(ast, type, indices, aggregations, joins)
+        self._fields: Dict[str, Expression] = {}
 
         for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ast, StructDeclaration):
                 expr = construct_expr(self._ast.values[i], t, self._indices,
-                                      self._aggregations, self._joins, self._refs)
+                                      self._aggregations, self._joins)
             else:
                 expr = construct_expr(Select(self._ast, f), t, self._indices,
-                                      self._aggregations, self._joins, self._refs)
+                                      self._aggregations, self._joins)
             self._set_field(f, expr)
 
     def _set_field(self, key, value):
@@ -1300,10 +1268,10 @@ class StructExpression(Mapping, Expression):
                 types.append(t)
 
         result_type = tstruct(**dict(zip(names, types)))
-        indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
+        indices, aggregations, joins = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
-                              indices, aggregations, joins, refs)
+                              indices, aggregations, joins)
 
     @typecheck_method(fields=str, named_exprs=expr_any)
     def select(self, *fields, **named_exprs):
@@ -1360,10 +1328,10 @@ class StructExpression(Mapping, Expression):
             types.append(t)
         result_type = tstruct(**dict(zip(names, types)))
 
-        indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
+        indices, aggregations, joins = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('merge', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
-                              result_type, indices, aggregations, joins, refs)
+                              result_type, indices, aggregations, joins)
 
     @typecheck_method(fields=str)
     def drop(self, *fields):
@@ -1403,7 +1371,7 @@ class StructExpression(Mapping, Expression):
                 types.append(t)
         result_type = tstruct(**dict(zip(names, types)))
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
-                              self._indices, self._aggregations, self._joins, self._refs)
+                              self._indices, self._aggregations, self._joins)
 
 
 class TupleExpression(Expression, Sequence):
@@ -2176,7 +2144,7 @@ class StringExpression(Expression):
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
         return construct_expr(RegexMatch(self._ast, regex), tbool,
-                              self._indices, self._aggregations, self._joins, self._refs)
+                              self._indices, self._aggregations, self._joins)
 
     def to_boolean(self):
         """Parse the string to a Boolean.
@@ -2783,6 +2751,7 @@ class IntervalExpression(Expression):
         """
         return self._field("includesEnd", tbool)
 
+
 scalars = {tbool: BooleanExpression,
            tint32: Int32Expression,
            tint64: Int64Expression,
@@ -2802,15 +2771,19 @@ typ_to_expr = {
     ttuple: TupleExpression
 }
 
-@typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
-def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join),
-                   refs=LinkedList(tuple)):
+
+@typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
+def construct_expr(ast: AST,
+                   type: HailType,
+                   indices: Indices=Indices(),
+                   aggregations:LinkedList=LinkedList(Aggregation),
+                   joins:LinkedList=LinkedList(Join)):
     if isinstance(type, tarray) and is_numeric(type.element_type):
-        return ArrayNumericExpression(ast, type, indices, aggregations, joins, refs)
+        return ArrayNumericExpression(ast, type, indices, aggregations, joins)
     elif type in scalars:
-        return scalars[type](ast, type, indices, aggregations, joins, refs)
+        return scalars[type](ast, type, indices, aggregations, joins)
     elif type.__class__ in typ_to_expr:
-        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins, refs)
+        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins)
     else:
         raise NotImplementedError(type)
 
@@ -2818,7 +2791,7 @@ def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggrega
 @typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(str))
 def construct_reference(name, type, indices, prefix=None):
     if prefix is not None:
-        ast = Select(Reference(prefix, True), name)
+        ast = Select(TopLevelReference(prefix, indices), name)
     else:
-        ast = Reference(name, True)
-    return construct_expr(ast, type, indices, refs=LinkedList(tuple).push((name, indices)))
+        ast = TopLevelReference(name, indices)
+    return construct_expr(ast, type, indices)
