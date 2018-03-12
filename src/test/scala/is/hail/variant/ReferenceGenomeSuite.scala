@@ -234,7 +234,7 @@ class ReferenceGenomeSuite extends SparkSuite {
   @Test def testFasta() {
     val fastaFile = "src/test/resources/fake_reference.fasta"
     val fastaFileGzip = "src/test/resources/fake_reference.fasta.gz"
-    val indexFile = "file:///Users/jigold/hail/src/test/resources/fake_reference.fasta.fai"
+    val indexFile = "src/test/resources/fake_reference.fasta.fai"
 
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
     ReferenceGenome.addReference(rg)
