@@ -26,9 +26,9 @@ class ScalaTestCompanion {
 
 object TestRegisterFunctions extends RegistryFunctions {
 
-  registerJavaStaticFunction[java.lang.Integer, Int]("compare", "compare", TInt32(), TInt32(), TInt32())
-  registerScalaFunction[Int]("foobar1", ScalaTestObject, "testFunction", TInt32())
-  registerScalaFunction[Int]("foobar2", ScalaTestCompanion, "testFunction", TInt32())
+  registerJavaStaticFunction[java.lang.Integer, Int]("compare", TInt32(), TInt32(), TInt32())("compare")
+  registerScalaFunction[Int]("foobar1", TInt32())(ScalaTestObject, "testFunction")
+  registerScalaFunction[Int]("foobar2", TInt32())(ScalaTestCompanion, "testFunction")
 
 }
 

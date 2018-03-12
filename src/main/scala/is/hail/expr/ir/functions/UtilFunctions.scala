@@ -5,7 +5,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 
 object UtilFunctions extends RegistryFunctions {
-  registerCode[Int]("triangle", TInt32(), TInt32()) { case (_, Array(n: Code[Int])) => n * (n + 1) / 2 }
+  registerCode[Int]("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
 
   registerIR("size", TArray(TInt32()), TInt32()) { case Seq(a) => ArrayLen(a) }
 

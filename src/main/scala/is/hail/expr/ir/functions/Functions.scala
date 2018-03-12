@@ -35,36 +35,48 @@ abstract class RegistryFunctions {
     registry.put((name, types), f)
   }
 
-  def registerCode[R](mname: String, mtypes: Type*)(impl: (MethodBuilder, Array[Code[_]]) => Code[R]) {
+  def registerCode[R](mname: String, mtypes: Array[Type])(impl: (MethodBuilder, Array[Code[_]]) => Code[R]) {
     addIRFunction(new IRFunction {
       override val name: String = mname
 
-      override val types: Array[Type] = mtypes.toArray
+      override val types: Array[Type] = mtypes
 
       override def apply(mb: MethodBuilder, args: Code[_]*): Code[R] = impl(mb, args.toArray)
     })
   }
 
-  def registerScalaFunction[R: ClassTag](mname: String, obj: Any, method: String, types: Type*)
+  def registerScalaFunction[R: ClassTag](mname: String, types: Type*)(obj: Any, method: String)
   {
-    registerCode[R](mname, types: _*)
+    registerCode[R](mname, types.toArray)
       { (mb, args) =>
         val cts = types.init.map(TypeToIRIntermediateClassTag(_).runtimeClass).toArray
         Code.invokeScalaObject[R](obj, method, cts, args)
       }
   }
 
-  def registerJavaStaticFunction[C: ClassTag, R: ClassTag](mname: String, method: String, types: Type*) {
-    registerCode[R](mname, types: _*)
+  def registerJavaStaticFunction[C: ClassTag, R: ClassTag](mname: String, types: Type*)(method: String) {
+    registerCode[R](mname, types.toArray)
       { (mb, args) =>
-        val cts = types.init.map(TypeToIRIntermediateClassTag(_).runtimeClass).toArray
-        Code.invokeStatic[C, R](method, cts, args)
+        val cts = types.init.map(TypeToIRIntermediateClassTag(_).runtimeClass)
+        Code.invokeStatic[C, R](method, cts.toArray, args)
       }
   }
 
   def registerIR(mname: String, types: Type*)(f: Seq[IR] => IR) {
     addIR(mname, types, f)
   }
+
+  def registerCode[R](mname: String, rt: Type)(impl: MethodBuilder => Code[R]): Unit =
+    registerCode[R](mname, Array(rt)) { case (mb, Array()) => impl(mb) }
+
+  def registerCode[R](mname: String, mt1: Type, rt: Type)(impl: (MethodBuilder, Code[_]) => Code[R]): Unit =
+    registerCode[R](mname, Array(mt1, rt)) { case (mb, Array(a1)) => impl(mb, a1) }
+
+  def registerCode[R](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (MethodBuilder, Code[_], Code[_]) => Code[R]): Unit =
+    registerCode[R](mname, Array(mt1, mt2, rt)) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
+
+  def registerCode[R](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)(impl: (MethodBuilder, Code[_], Code[_], Code[_]) => Code[R]): Unit =
+    registerCode[R](mname, Array(mt1, mt2, mt3, rt)) { case (mb, Array(a1, a2, a3)) => impl(mb, a1, a2, a3) }
 
 }
 
