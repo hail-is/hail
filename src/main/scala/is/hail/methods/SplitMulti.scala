@@ -188,7 +188,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     "va" -> (3, vsm.rowType),
     "aIndex" -> (4, TInt32()),
     "wasSplit" -> (5, TBoolean())))
-  val vAnnotator = new ExprAnnotator(vEC, vsm.rowType, variantExpr, Some(Annotation.VARIANT_HEAD))
+  val vAnnotator = new ExprAnnotator(vEC, vsm.rowType, variantExpr, Some(Annotation.ROW_HEAD))
 
   val gEC = EvalContext(Map(
     "global" -> (0, vsm.globalType),
@@ -198,7 +198,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     "aIndex" -> (4, TInt32()),
     "wasSplit" -> (5, TBoolean()),
     "g" -> (6, vsm.entryType)))
-  val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
+  val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
 
   val newMatrixType = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = gAnnotator.newT)
 

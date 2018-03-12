@@ -25,7 +25,7 @@ Methods
     import_bgen
     import_fam
     import_gen
-    import_interval_list
+    import_locus_intervals
     import_matrix_table
     import_plink
     import_table

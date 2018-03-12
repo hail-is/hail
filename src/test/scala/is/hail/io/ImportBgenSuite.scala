@@ -245,10 +245,10 @@ class ImportBgenSuite extends SparkSuite {
       val vds = hc.importBgen(bgen, includeGT = false, includeGP = true, includeDosage = true, contigRecoding = contigRecoding)
         .filterRowsExpr("va.locus.position == 2000")
 
-      val dosages = vds.queryGenotypes("AGG.map(g => g.dosage).collect()")._1
+      val dosages = vds.queryEntries("AGG.map(g => g.dosage).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
 
-      val dosagesFromGP = vds.queryGenotypes("AGG.map(g => dosage(g.GP)).collect()")._1
+      val dosagesFromGP = vds.queryEntries("AGG.map(g => dosage(g.GP)).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
       
       assert(dosages.length == 500 && dosagesFromGP.length == 500)

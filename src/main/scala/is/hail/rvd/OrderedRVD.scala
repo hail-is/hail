@@ -121,9 +121,9 @@ class OrderedRVD private(
       val newStart = pkOrd.min(this.partitioner.range.start, right.partitioner.range.start)
       val newEnd = pkOrd.max(this.partitioner.range.end, right.partitioner.range.end)
       newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-        .copy(start = newStart, includeStart = true)
+        .copy(start = newStart, includesStart = true)
       newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-        .copy(end = newEnd, includeEnd = true)
+        .copy(end = newEnd, includesEnd = true)
 
       val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
         partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
@@ -331,7 +331,7 @@ class OrderedRVD private(
     val newRVD = rdd.mapPartitions { it =>
       OrderedRVIterator(typ, it)
         .staircase
-        .map(_.head)
+        .map(_.value)
     }
     OrderedRVD(typ, partitioner, newRVD)
   }
@@ -381,16 +381,6 @@ object OrderedRVD {
     OrderedRVD(typ,
       OrderedRVDPartitioner.empty(typ),
       sc.emptyRDD[RegionValue])
-  }
-
-  def cast(typ: OrderedRVDType,
-    rdd: RDD[RegionValue]): OrderedRVD = {
-    if (rdd.partitions.isEmpty)
-      OrderedRVD.empty(rdd.sparkContext, typ)
-    else
-      (rdd.partitioner: @unchecked) match {
-        case Some(p: OrderedRVDPartitioner) => OrderedRVD(typ, p.asInstanceOf[OrderedRVDPartitioner], rdd)
-      }
   }
 
   def apply(typ: OrderedRVDType,
@@ -532,6 +522,8 @@ object OrderedRVD {
   }
 
   def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
+    assert(nPartitions > 0)
+
     val pkOrd = typ.pkOrd
     var keys = pkis
       .flatMap(_.samples)
@@ -540,29 +532,30 @@ object OrderedRVD {
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
 
-    keys = min +: keys :+ max
-
     val ab = new ArrayBuilder[RegionValue]()
-    var i = 0
-    while (i < keys.length) {
-      if (i == 0
-        || pkOrd.compare(keys(i - 1), keys(i)) != 0)
-        ab += keys(i)
+    ab += min
+    var start = 0
+    while (start < keys.length
+      && pkOrd.compare(min, keys(start)) == 0)
+      start += 1
+    var i = 1
+    while (i < nPartitions && start < keys.length) {
+      var end = ((i.toDouble * keys.length) / nPartitions).toInt
+      if (start > end)
+        end = start
+      while (end < keys.length - 1
+        && pkOrd.compare(keys(end), keys(end + 1)) == 0)
+        end += 1
+      ab += keys(end)
+      start = end + 1
       i += 1
     }
-    keys = ab.result()
+    if (pkOrd.compare(ab.last, max) != 0)
+      ab += max
+    val partitionEdges = ab.result()
+    assert(partitionEdges.length <= nPartitions + 1)
 
-    // FIXME weighted
-    val partitionMaxes =
-      if (keys.length <= nPartitions + 1)
-        keys
-      else {
-        val k = keys.length / nPartitions
-        assert(k > 0)
-        Array.tabulate(nPartitions)(i => keys(i * k)) :+ max
-      }
-
-    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionMaxes)
+    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionEdges)
   }
 
   def adjustBoundsAndShuffle(typ: OrderedRVDType,
@@ -592,7 +585,6 @@ object OrderedRVD {
       partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
     shuffle(typ, newPartitioner, rdd)
-
   }
 
   def shuffle(typ: OrderedRVDType,
@@ -602,13 +594,15 @@ object OrderedRVD {
       partitioner,
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
         rdd.mapPartitions { it =>
+          val wrv = WritableRegionValue(typ.rowType)
           val wkrv = WritableRegionValue(typ.kType)
           it.map { rv =>
+            wrv.set(rv)
             wkrv.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
-            (wkrv.value, rv)
+            (wkrv.value, wrv.value)
           }
         },
-        partitioner)
+        partitioner.sparkPartitioner(rdd.sparkContext))
         .setKeyOrdering(typ.kOrd)
         .mapPartitionsWithIndex { case (i, it) =>
           it.map { case (k, v) =>
@@ -691,6 +685,8 @@ object OrderedRVD {
     rdd: RDD[RegionValue]): OrderedRVD = {
     val sc = rdd.sparkContext
 
+    val partitionerBc = partitioner.broadcast(sc)
+
     new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
       val prevK = WritableRegionValue(typ.kType)
       val prevPK = WritableRegionValue(typ.pkType)
@@ -714,7 +710,7 @@ object OrderedRVD {
           prevPK.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
 
           pkUR.set(prevPK.value)
-          assert(partitioner.rangeBounds(i).asInstanceOf[Interval].contains(typ.pkType.ordering, pkUR))
+          assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(typ.pkType.ordering, pkUR))
 
           assert(typ.pkRowOrd.compare(prevPK.value, rv) == 0)
 

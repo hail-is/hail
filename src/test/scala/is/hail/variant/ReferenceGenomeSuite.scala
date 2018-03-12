@@ -120,7 +120,7 @@ class ReferenceGenomeSuite extends SparkSuite {
   @Test def testConstructors() {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
     val ktann = kt.annotate("""l1 = Locus(GRCh38)("chr1", 100), l2 = Locus(GRCh37)("1:100"),
-    |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
+    |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895, true, false)""".stripMargin)
 
     assert(ktann.signature.field("l1").typ == ReferenceGenome.GRCh38.locusType &&
     ktann.signature.field("l2").typ == ReferenceGenome.GRCh37.locusType &&
@@ -133,7 +133,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rg = ReferenceGenome("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     ReferenceGenome.addReference(rg)
     ReferenceGenome.setDefaultReference(rg)
-    assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == TInterval(rg.locusType))
+    assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"), true, false)""").signature.field("i1").typ == TInterval(rg.locusType))
 
     // check for invalid contig names or positions
     intercept[SparkException](kt.annotate("""l1bad = Locus("MT:17000") """).collect())
@@ -142,10 +142,10 @@ class ReferenceGenomeSuite extends SparkSuite {
 
     intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT:4789-17000") """).collect())
     intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo:4789-17000") """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo", 1, 10) """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT", 5, 17000) """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo", 1, 10, true, false) """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT", 5, 17000, true, false) """).collect())
 
-    intercept[HailException](kt.annotate("""i1bad = Interval(Locus(foo2)("1:100"), Locus(GRCh37)("1:104"))""").collect())
+    intercept[HailException](kt.annotate("""i1bad = Interval(Locus(foo2)("1:100"), Locus(GRCh37)("1:104"), true, false)""").collect())
 
     ReferenceGenome.setDefaultReference(ReferenceGenome.GRCh37)
     ReferenceGenome.removeReference("foo2")

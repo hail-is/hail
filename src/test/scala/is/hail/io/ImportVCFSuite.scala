@@ -201,11 +201,11 @@ class ImportVCFSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val sampleIds = vds.stringSampleIds
-    ExportVCF(vds.filterSamplesList(Set(Annotation(sampleIds(0)))), tmp1)
-    ExportVCF(vds.filterSamplesList(Set(Annotation(sampleIds(1)))), tmp2)
+    ExportVCF(vds.filterColsList(Set(Annotation(sampleIds(0)))), tmp1)
+    ExportVCF(vds.filterColsList(Set(Annotation(sampleIds(1)))), tmp2)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2))).getMessage.contains("invalid sample ids"))
 
-    ExportVCF(vds.filterSamplesList(Set(sampleIds(0),sampleIds(1)).map(Annotation(_))), tmp3)
+    ExportVCF(vds.filterColsList(Set(sampleIds(0),sampleIds(1)).map(Annotation(_))), tmp3)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp3))).getMessage.contains("invalid sample ids"))
 
     // no error thrown if user provides own header

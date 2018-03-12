@@ -7,7 +7,6 @@ import is.hail.check.Prop._
 import is.hail.expr.types._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
-import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, VSMSubgen, Variant}
 import org.testng.annotations.Test
 
@@ -211,13 +210,13 @@ class ExportVCFSuite extends SparkSuite {
 
     TestUtils.interceptFatal("Invalid type for format field 'BOOL'. Found 'bool'.") {
       ExportVCF(vds
-        .annotateGenotypesExpr("g = {BOOL: true}"),
+        .annotateEntriesExpr("g = {BOOL: true}"),
         out)
     }
 
     TestUtils.interceptFatal("Invalid type for format field 'AA'.") {
       ExportVCF(vds
-        .annotateGenotypesExpr("g = {AA: [[0]]}"),
+        .annotateEntriesExpr("g = {AA: [[0]]}"),
         out)
     }
   }
@@ -290,7 +289,7 @@ class ExportVCFSuite extends SparkSuite {
 
       val annots = callAnnots ++ callContainerAnnots
 
-      val vsmAnn = if (annots.nonEmpty) vsm.annotateGenotypesExpr(annots.mkString(",")) else vsm
+      val vsmAnn = if (annots.nonEmpty) vsm.annotateEntriesExpr(annots.mkString(",")) else vsm
 
       hadoopConf.delete(out, recursive = true)
       ExportVCF(vsmAnn, out)

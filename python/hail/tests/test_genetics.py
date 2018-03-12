@@ -14,25 +14,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(l, Locus(1, 100))
         self.assertEqual(l.reference_genome, hl.default_reference())
 
-        interval = Interval.parse('1:100-110')
-
-        self.assertEqual(interval, Interval.parse('1:100-1:110'))
-        self.assertEqual(interval, Interval(Locus("1", 100), Locus("1", 110)))
-        self.assertTrue(interval.contains(Locus("1", 100)))
-        self.assertTrue(interval.contains(Locus("1", 109)))
-        self.assertFalse(interval.contains(Locus("1", 110)))
-        self.assertEqual(interval.reference_genome, hl.default_reference())
-
-        interval2 = Interval.parse("1:109-200")
-        interval3 = Interval.parse("1:110-200")
-        interval4 = Interval.parse("1:90-101")
-        interval5 = Interval.parse("1:90-100")
-
-        self.assertTrue(interval.overlaps(interval2))
-        self.assertTrue(interval.overlaps(interval4))
-        self.assertFalse(interval.overlaps(interval3))
-        self.assertFalse(interval.overlaps(interval5))
-
         c_hom_ref = Call([0, 0])
         self.assertEqual(c_hom_ref.alleles, [0, 0])
         self.assertEqual(c_hom_ref.ploidy, 2)
@@ -121,7 +102,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(rg.x_contigs, ["X"])
         self.assertListEqual(rg.y_contigs, ["Y"])
         self.assertListEqual(rg.mt_contigs, ["MT"])
-        self.assertEqual(rg.par[0], Interval.parse("X:60001-2699521"))
+        self.assertEqual(rg.par[0], hl.parse_locus_interval("X:60001-2699521").value)
         self.assertEqual(rg.contig_length("1"), 249250621)
 
         name = "test"
@@ -138,7 +119,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(gr2.x_contigs, x_contigs)
         self.assertListEqual(gr2.y_contigs, y_contigs)
         self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, [Interval.parse("X:5-1000", gr2)])
+        self.assertEqual(gr2.par, [hl.parse_locus_interval("X:5-1000", gr2).value])
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")

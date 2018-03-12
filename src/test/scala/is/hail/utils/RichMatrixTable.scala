@@ -40,11 +40,11 @@ class RichMatrixTable(vsm: MatrixTable) {
   def annotateSamplesF(signature: Type, path: List[String], annotation: (Annotation) => Annotation): MatrixTable = {
     val (t, i) = vsm.insertSA(signature, path)
     val sampleIds = vsm.stringSampleIds
-    vsm.annotateSamples(t, i) { case (_, i) => annotation(sampleIds(i)) }
+    vsm.annotateCols(t, i) { case (_, i) => annotation(sampleIds(i)) }
   }
 
   def querySA(code: String): (Type, Querier) = {
-    val st = Map(Annotation.SAMPLE_HEAD -> (0, vsm.colType))
+    val st = Map(Annotation.COL_HEAD -> (0, vsm.colType))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -59,7 +59,7 @@ class RichMatrixTable(vsm: MatrixTable) {
   }
 
   def queryGA(code: String): (Type, Querier) = {
-    val st = Map(Annotation.GENOTYPE_HEAD -> (0, vsm.entryType))
+    val st = Map(Annotation.ENTRY_HEAD -> (0, vsm.entryType))
     val ec = EvalContext(st)
     val a = ec.a
 

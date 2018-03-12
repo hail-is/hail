@@ -19,6 +19,10 @@ Expressions
     IntervalExpression
     LocusExpression
     NumericExpression
+    Int32Expression
+    Int64Expression
+    Float32Expression
+    Float64Expression
     SetExpression
     StringExpression
     StructExpression
@@ -59,6 +63,18 @@ Expressions
 .. autoclass:: NumericExpression
     :show-inheritance:
     :special-members: __lt__, __le__, __gt__, __ge__, __neg__, __add__, __sub__, __mul__, __div__, __floordiv__, __mod__, __pow__
+
+.. autoclass:: Int32Expression
+    :show-inheritance:
+
+.. autoclass:: Int64Expression
+    :show-inheritance:
+
+.. autoclass:: Float32Expression
+    :show-inheritance:
+
+.. autoclass:: Float64Expression
+    :show-inheritance:
 
 .. autoclass:: SetExpression
     :show-inheritance:

@@ -18,7 +18,7 @@ Import / Export
     import_bgen
     import_fam
     import_gen
-    import_interval_list
+    import_locus_intervals
     import_matrix_table
     import_plink
     import_table
@@ -36,7 +36,7 @@ Import / Export
 .. autofunction:: import_bgen
 .. autofunction:: import_fam
 .. autofunction:: import_gen
-.. autofunction:: import_interval_list
+.. autofunction:: import_locus_intervals
 .. autofunction:: import_matrix_table
 .. autofunction:: import_plink
 .. autofunction:: import_table

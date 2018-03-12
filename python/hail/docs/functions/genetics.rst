@@ -6,10 +6,10 @@ Genetics functions
 .. autosummary::
 
     locus
+    locus_interval
     parse_locus
     parse_variant
-    interval
-    parse_interval
+    parse_locus_interval
     call
     unphased_diploid_gt_index_call
     parse_call
@@ -30,10 +30,10 @@ Genetics functions
     gp_dosage
 
 .. autofunction:: locus
+.. autofunction:: locus_interval
 .. autofunction:: parse_locus
 .. autofunction:: parse_variant
-.. autofunction:: interval
-.. autofunction:: parse_interval
+.. autofunction:: parse_locus_interval
 .. autofunction:: call
 .. autofunction:: unphased_diploid_gt_index_call
 .. autofunction:: parse_call
