@@ -5,14 +5,11 @@ import java.io.PrintWriter
 import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
-import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
-import is.hail.expr.ReferenceGenomeDependentConstructor
-import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
 class CompileSuite {
