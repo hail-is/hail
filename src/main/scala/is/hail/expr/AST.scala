@@ -348,11 +348,20 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         }
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
+  def toIR_raw(agg: Option[String] = None): Option[IR] = for {
     s <- lhs.toIR(agg)
     t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct]) 
     f <- t.selfField(rhs)
   } yield ir.GetField(s, rhs, f.typ)
+
+  def toIR(agg: Option[String] = None): Option[IR] = {
+    val ret = toIR_raw(agg)
+    ret match {
+      case None => info("Select.toIR fail")
+      case _ =>
+    }
+    ret
+  }
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -731,10 +740,33 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     } yield ir.ApplyBinaryPrimOp(op, x, y, t)
   }
   
-  def toIR(agg: Option[String] = None): Option[IR] = for {
+  def toIR_raw(agg: Option[String] = None): Option[IR] = for {
     irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
     ir <- tryPrimOpConversion(irArgs)
   } yield ir
+  
+  def toIR(agg: Option[String] = None): Option[IR] = {
+    val ret = toIR_raw(agg)
+    val aggStr: String = agg match {
+      case Some(val) => val
+      case None => "None"
+    }
+    ret match {
+      case None => 
+        info(s"Apply(${fn}).toIR(${aggStr}) fail")
+        var argIdx = 0
+        for (arg <- args) {
+          val irArg = arg.toIR(agg)
+          irArg match {
+            case None => info(s"args[${argIdx}].toIR(${aggStr}) fail")
+            case _    => info(s"args[${argIdx}] pass")
+          }
+          argIdx = argIdx + 1
+        }
+      case _ =>
+    }
+    ret
+  }
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
