@@ -392,11 +392,13 @@ case class FilterColsIR(
 	rvb.addAnnotation(typ.globalType, localGlobals)
 	val vaStartOffset = colRegion.size
 
+    info("FilterColsIR() compiling predicate ...")
+
     val predCompiledFunc = ir.Compile(
       "global", ir.RegionValueRep[Long](typ.globalType),
       "sa",     ir.RegionValueRep[Long](typ.colType),
-	  ir.RegionValueRep[Boolean](TBoolean()),
-	  pred
+      ir.RegionValueRep[Boolean](TBoolean()),
+      pred
     )
 	//
 	// Hmm ... is this going to do a separate reduction for each column/sample ?
@@ -485,12 +487,14 @@ case class FilterRowsIR(
 
     val localGlobals = prev.globals
     val ec = prev.typ.rowEC
+
+    info("FilterRowsIR.execute() compiling predicate ...")
     
     val predCompiledFunc = ir.Compile(
-        "va",     ir.RegionValueRep[Long](child.typ.rowType),
-		"global", ir.RegionValueRep[Long](child.typ.globalType),
-		ir.RegionValueRep[Boolean](TBoolean()),
-		pred
+      "va",     ir.RegionValueRep[Long](child.typ.rowType),
+      "global", ir.RegionValueRep[Long](child.typ.globalType),
+      ir.RegionValueRep[Boolean](TBoolean()),
+      pred
     )
 
     val aggregatorOption = Aggregators.buildRowAggregations(

@@ -18,10 +18,12 @@ object BinaryOp {
     case (GT() | GTEQ() | LTEQ() | LT(), _: TInt64, _: TInt64) => TBoolean()
     case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat32, _: TFloat32) => TBoolean()
     case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat64, _: TFloat64) => TBoolean()
+    case (GT() | GTEQ() | LTEQ() | LT(), _: TString,  _: TString) => TBoolean()
     case (EQ() | NEQ(), _: TInt32, _: TInt32) => TBoolean()
     case (EQ() | NEQ(), _: TInt64, _: TInt64) => TBoolean()
     case (EQ() | NEQ(), _: TFloat32, _: TFloat32) => TBoolean()
     case (EQ() | NEQ(), _: TFloat64, _: TFloat64) => TBoolean()
+    case (EQ() | NEQ(), _: TString,  _: TString) => TBoolean()
     case (EQ() | NEQ(), _: TBoolean, _: TBoolean) => TBoolean()
     case (DoubleAmpersand() | DoublePipe(), _: TBoolean, _: TBoolean) => TBoolean()
   }
@@ -112,6 +114,16 @@ object BinaryOp {
         case DoublePipe() => ll || rr
         case EQ() => ll.toI.ceq(rr.toI)
         case NEQ() => ll.toI ^ rr.toI
+        case _ => incompatible(lt, rt, op)
+      }
+    case (_: TString, _: TString) =>
+      val ll = coerce[String](l)
+      val rr = coerce[String](r)
+      op match {
+        case EQ() =>
+          ll.invoke[Object, Boolean]("equals", rr)
+        case NEQ() =>
+          ! ll.invoke[Object, Boolean]("equals", rr)
         case _ => incompatible(lt, rt, op)
       }
 

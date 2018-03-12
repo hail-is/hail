@@ -297,7 +297,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
     case (t: TFloat32, x: Float) => Some(ir.F32(x))
     case (t: TFloat64, x: Double) => Some(ir.F64(x))
     case (t: TBoolean, x: Boolean) => Some(if (x) ir.True() else ir.False())
-    case (t: TString, x: String) => None
+    case (t: TString, x: String) => Some(ir.StringConst(x))
     case (t, null) => Some(ir.NA(t))
     case _ => throw new RuntimeException(s"Unrecognized constant of type $t: $value")
   }
@@ -355,10 +355,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   } yield ir.GetField(s, rhs, f.typ)
 
   def toIR(agg: Option[String] = None): Option[IR] = {
+    info(s"Select.toIR(agg ${agg}).${rhs} ...")
     val ret = toIR_raw(agg)
     ret match {
-      case None => info("Select.toIR fail")
-      case _ =>
+      case None => info(s"Select.toIR(agg ${agg}).${rhs} fail")
+      case _    => info(s"Select.toIR(agg ${agg}).${rhs} pass")
     }
     ret
   }
@@ -746,6 +747,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   } yield ir
   
   def toIR(agg: Option[String] = None): Option[IR] = {
+    info(s"Apply(${fn}).toIR(agg ${agg}) ...")
     val ret = toIR_raw(agg)
     val aggStr = agg match {
       case Some(str) => str
@@ -764,6 +766,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           argIdx = argIdx + 1
         }
       case _ =>
+        info(s"Apply(${fn}).toIR(${aggStr}) pass")
     }
     ret
   }

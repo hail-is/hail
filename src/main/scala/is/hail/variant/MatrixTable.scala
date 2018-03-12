@@ -1619,10 +1619,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     var filterAST = Parser.expr.parse(filterExpr)
     filterAST.typecheck(matrixType.colEC)
     val tmp = new ASTShow(filterAST)
-    info(s"filterSamplesExpr filterAST ${tmp.toString()}")
+    info(s"filterColsExpr filterAST ${tmp.toString()}")
     val pred = filterAST.toIR()
     pred match {
 		case Some(irPred) =>
+      info("filterColsExpr using FilterColsIR ...")
 			new MatrixTable(hc,
 				FilterColsIR(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
 			)
@@ -1646,11 +1647,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     var filterAST = Parser.expr.parse(filterExpr)
     filterAST.typecheck(matrixType.rowEC)
     val tmp = new ASTShow(filterAST)
-    info(s"filterVariantsExpr filterAST ${tmp.toString()}")
+    info(s"filterRowsExpr filterAST ${tmp.toString()}")
     val pred = filterAST.toIR()
     pred match {
 		case Some(irPred) =>
-		    info("using FilterRowsIR ...")
+		    info("filterRowsExpr using FilterRowsIR ...")
 			new MatrixTable(hc,
 				FilterRowsIR(ast, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred))
 			)

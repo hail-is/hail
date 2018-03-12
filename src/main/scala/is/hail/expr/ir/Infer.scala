@@ -14,6 +14,7 @@ object Infer {
       case F64(x) =>
       case True() =>
       case False() =>
+      case StringConst(x) =>
 
       case Cast(v, typ) =>
         infer(v)

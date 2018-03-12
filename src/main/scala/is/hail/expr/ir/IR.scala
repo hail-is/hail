@@ -20,6 +20,7 @@ final case class F32(x: Float) extends IR { val typ = TFloat32() }
 final case class F64(x: Double) extends IR { val typ = TFloat64() }
 final case class True() extends IR { val typ = TBoolean() }
 final case class False() extends IR { val typ = TBoolean() }
+final case class StringConst(x: String) extends IR { val typ = TString() }
 
 final case class Cast(v: IR, typ: Type) extends IR
 
