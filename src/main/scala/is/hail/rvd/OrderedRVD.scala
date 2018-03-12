@@ -159,21 +159,22 @@ class OrderedRVD private(
 
   def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] = {
     val pkOrd = this.partitioner.pkType.ordering
-    if (this.partitioner.range.includes(pkOrd, right.partitioner.range))
-      new OrderedZipJoinRDD(this, right)
-    else {
-      val newRangeBounds = partitioner.rangeBounds.toArray
-      val newStart = pkOrd.min(this.partitioner.range.start, right.partitioner.range.start)
-      val newEnd = pkOrd.max(this.partitioner.range.end, right.partitioner.range.end)
-      newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-        .copy(start = newStart, includesStart = true)
-      newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-        .copy(end = newEnd, includesEnd = true)
+    val newRangeBounds = partitioner.rangeBounds.toArray
+    val newStart = pkOrd.min(this.partitioner.range.start, right.partitioner.range.start)
+    val newEnd = pkOrd.max(this.partitioner.range.end, right.partitioner.range.end)
+    newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
+      .copy(start = newStart, includesStart = true)
+    newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
+      .copy(end = newEnd, includesEnd = true)
 
-      val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
-        partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+    val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
+      partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
-      new OrderedZipJoinRDD(OrderedRVD(this.typ, newPartitioner, this.rdd), right)
+    val repartitionedLeft = new RepartitionedOrderedRDD2(this, newPartitioner)
+    val repartitionedRight = new RepartitionedOrderedRDD2(right, newPartitioner)
+
+    repartitionedLeft.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
+      OrderedRVIterator(this.typ, leftIt).zipJoin(OrderedRVIterator(right.typ, rightIt))
     }
   }
 

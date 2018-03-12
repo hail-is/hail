@@ -533,9 +533,47 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     assert(totalSize == localNKeys + size1 + size2)
 
+    val merger = (k: Row, r1: Row, r2: Row) => {
+      val result = Array.fill[Any](totalSize)(null)
+      var i = 0
+      while (i < localNKeys) {
+        result(i) = k.get(i)
+        i += 1
+      }
+      if (r1 != null) {
+        i = 0
+        while (i < size1) {
+          result(localNKeys + i) = r1.get(i)
+          i += 1
+        }
+      }
+      if (r2 != null) {
+        i = 0
+        while (i < size2) {
+          result(localNKeys + size1 + i) = r2.get(i)
+          i += 1
+        }
+      }
+      Row.fromSeq(result)
+    }
+
+    val rddLeft = keyedRDD()
+    val rddRight = other.keyedRDD()
+    val joinedRDD = joinType match {
+      case "left" => rddLeft.leftOuterJoin(rddRight)
+        .map { case (k, (l, r)) => merger(k, l, r.orNull) }
+      case "right" => rddLeft.rightOuterJoin(rddRight)
+        .map { case (k, (l, r)) => merger(k, l.orNull, r) }
+      case "inner" => rddLeft.join(rddRight)
+        .map { case (k, (l, r)) => merger(k, l, r) }
+      case "outer" => rddLeft.fullOuterJoin(rddRight)
+        .map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
+      case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
+    }
+
     val rvb = new RegionValueBuilder()
     val rv = RegionValue()
-    def merger(joined: JoinedRegionValue) = {
+    def rvMerger(joined: JoinedRegionValue) = {
       val lrv = joined._1
       val rrv = joined._2
       rvb.set(lrv.region)
@@ -563,15 +601,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
       rv.set(rvb.region, rvb.end())
     }
-
-    val (leftRVD, rightRVD) = (this.rvd, other.rvd) match {
-      case (left: OrderedRVD, right: OrderedRVD) => (left, right)
-      case (left: OrderedRVD, right: RVD) => {
-        val partitioner = left.partitioner
-        val orderedRight = right.filter()
-      }
-    }
-    val joinedRDD = ???
 
     copy(rdd = joinedRDD, signature = newSignature, key = key)
   }

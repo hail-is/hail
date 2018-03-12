@@ -151,8 +151,6 @@ trait RVD {
     ordType: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner): OrderedRVD
 
-  def join(right: RVD, joinType: String): OrderedRVD
-
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
