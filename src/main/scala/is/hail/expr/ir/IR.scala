@@ -2,7 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.expr.BaseIR
+import is.hail.expr.ir.functions.IRFunction
 import is.hail.utils._
+
 import scala.util.hashing.MurmurHash3
 
 sealed trait IR extends BaseIR {
@@ -40,7 +42,9 @@ final case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TA
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 final case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean() }
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
+final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
 final case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
+final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
 final case class AggIn(var typ: TAggregable = null) extends IR
@@ -65,3 +69,5 @@ final case class In(i: Int, var typ: Type) extends IR
 final case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
+
+final case class ApplyFunction(implementation: IRFunction[_], args: Seq[IR]) extends IR { val typ = implementation.returnType }

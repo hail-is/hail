@@ -11,6 +11,8 @@ import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.expr.ReferenceGenomeDependentConstructor
+import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
 class CompileSuite {
@@ -408,4 +410,59 @@ class CompileSuite {
     assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
   }
+  @Test
+  def testCodeFunctionTriangle() {
+    val t = TStruct("x"->TInt32())
+    val region = Region()
+    val rvb = new RegionValueBuilder(region)
+    val ir = ApplyFunction(new functions.UtilFunctions().triangle, Array(GetField(In(0, t), "x")))
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Int]
+    doit(ir, fb)
+    val f = fb.result()()
+
+    rvb.start(t)
+    rvb.startStruct()
+    rvb.addInt(1)
+    rvb.endStruct()
+    assert(f(region, rvb.end(), false) == 1)
+  }
+//  @Test
+//  def testInsertFields() {
+//    val tlocus = TLocus(ReferenceGenome.defaultReference)
+//    val talleles = TArray(TString())
+//    val t = TStruct("locus" -> tlocus, "alleles" -> talleles, "entries" -> TArray(TInt32()))
+//    val ir = InsertFields(In(0, t), Seq(("locus", In(1, tlocus)), ("alleles", In(2, talleles)), ("entries", In(3, TString()))))
+//
+//    val region = Region()
+//    val rvb = new RegionValueBuilder(region)
+//    rvb.start(t)
+//    rvb.addAnnotation(tlocus, Locus("22", 1, ReferenceGenome.defaultReference))
+//    rvb.addAnnotation(talleles, IndexedSeq("A", "T"))
+//    rvb.addAnnotation(TArray(TInt32()), IndexedSeq(0,1,2))
+//    val roff = rvb.end()
+//
+//    rvb.start(tlocus)
+//    rvb.addAnnotation(tlocus, Locus("22", 1122, ReferenceGenome.defaultReference))
+//    val loff = rvb.end()
+//
+//    rvb.start(talleles)
+//    rvb.addAnnotation(talleles, IndexedSeq("AAA", "AAAAT", "CGA"))
+//    val aoff = rvb.end()
+//
+//    rvb.start(TString())
+//    rvb.addString("hello")
+//    val soff = rvb.end()
+//
+//    val (returnt, f) = Compile[Long, Long, Long, Long, Int, Int, Long](
+//      "row", RegionValueRep[Long](t),
+//      "locus", RegionValueRep[Long](tlocus),
+//      "alleles", RegionValueRep[Long](talleles),
+//      "newe", RegionValueRep[Long](TString()),
+//      "i1", RegionValueRep[Int](TInt32()),
+//      "i2", RegionValueRep[Int](TInt32()),
+//      ir)
+//
+//    val off = f()(region, roff, true, loff, true, aoff, soff, )
+//
+//  }
 }

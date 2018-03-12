@@ -13,6 +13,8 @@ object Subst {
         MapNA(name, subst(v), subst(body, env.delete(name)))
       case ArrayMap(a, name, body, _) =>
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
+      case ArrayFilter(a, name, cond) =>
+        ArrayFilter(subst(a), name, subst(cond, env.delete(name)))
       case ArrayFold(a, zero, accumName, valueName, body, _) =>
         ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case _ =>
