@@ -158,6 +158,9 @@ object Infer {
         assert(typ != null)
       case InMissingness(i) =>
       case Die(msg) =>
+      case ApplyFunction(impl, args) =>
+        args.foreach(infer(_))
+        assert(args.map(_.typ).zip(impl.types).forall {case (i, j) => i.isOfType(j)})
     }
   }
 

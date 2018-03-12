@@ -11,6 +11,8 @@ import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.expr.ReferenceGenomeDependentConstructor
+import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
 class CompileSuite {

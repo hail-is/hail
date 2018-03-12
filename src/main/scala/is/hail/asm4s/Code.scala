@@ -166,6 +166,13 @@ object Code {
     }
   }
 
+  def invokeScalaObject[S](obj: Any, method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
+    val cls = Class.forName(obj.getClass().getCanonicalName())
+    val m = Invokeable.lookupMethod(method, parameterTypes)(ClassTag(cls), sct)
+    val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
+    m.invoke(staticObj.get(), args)
+  }
+
   def invokeStatic[T, S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod[T, S](method, parameterTypes)
     assert(m.isStatic)
@@ -663,6 +670,8 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
   def getOp = if (isStatic) GETSTATIC else GETFIELD
 
   def putOp = if (isStatic) PUTSTATIC else PUTFIELD
+
+  def get(): Code[S] = get(Code._empty)
 
   def get(lhs: Code[T]): Code[S] =
     new Code[S] {

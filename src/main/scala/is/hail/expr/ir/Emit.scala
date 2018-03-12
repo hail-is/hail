@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
+import is.hail.expr.ir.functions.IRFunction
 import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
@@ -54,6 +55,8 @@ private class Emit(
   mb: StagedBitSet,
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
+
+  val methods: mutable.Map[IRFunction, MethodBuilder] = mutable.Map()
 
   import Emit.E
 
@@ -448,6 +451,20 @@ private class Emit(
         present(fb.getArg[Boolean](i*2 + 3))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
+      case ApplyFunction(impl, args) =>
+        val meth = methods.getOrElseUpdate(impl, {
+          val args = impl.types.init.map { t => typeToTypeInfo(t) }
+          val methodbuilder = fb.newMethod(typeInfo[Region] +: args, typeToTypeInfo(impl.types.last))
+          methodbuilder.emit(impl.apply(methodbuilder, args.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
+          methodbuilder
+        })
+        val (s, m, v) = args.map(emit(_)).unzip3
+        val vars = args.map { a => coerce[Any](fb.newLocal()(typeToTypeInfo(a.typ))) }
+        val ins = vars.zip(v).map { case (l, i) => l := i }
+        val setup = coerce[Unit](Code(s:_*))
+        val missing = if (m.isEmpty) const(false) else m.reduce(_ || _)
+        val value = Code(ins :+ meth.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
+        (setup, missing, value)
     }
   }
 
