@@ -327,15 +327,11 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($path, dropSamples = $dropCols, dropVariants = $dropRows)"
 }
 
-<<<<<<< HEAD
 /*
  * FilterSamples is only used for a predicate which fails toIR()
  * This should go away when everything is IR-compatible
  */
-case class FilterSamples(
-=======
 case class FilterCols(
->>>>>>> master
   child: MatrixIR,
   pred: AST) extends MatrixIR {
 
@@ -406,10 +402,10 @@ case class FilterColsIR(
 	// Hmm ... is this going to do a separate reduction for each column/sample ?
 	// Won't that be slow in the distributed case ?
 	//
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, prev, ec)
+    val colAggregationOption = Aggregators.buildColAggregations(hc, prev, ec)
 
     val p = (sa: Annotation, i: Int) => {
-      sampleAggregationOption.foreach(f => f.apply(i))
+      colAggregationOption.foreach(f => f.apply(i))
       ec.setAll(localGlobals, sa)
       colRegion.truncate(vaStartOffset)
       val colRVb = new RegionValueBuilder(colRegion)
@@ -418,7 +414,7 @@ case class FilterColsIR(
       colRVb.addAnnotation(typ.colType, sa)
       predCompiledFunc()(colRegion, 0, false, vaStartOffset, false) == true
     }
-    prev.filterSamples(p)
+    prev.filterCols(p)
   }
 }
 
@@ -497,7 +493,7 @@ case class FilterRowsIR(
 		pred
     )
 
-    val aggregatorOption = Aggregators.buildVariantAggregations(
+    val aggregatorOption = Aggregators.buildRowAggregations(
       prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
 
     val fullRowType = prev.typ.rvRowType

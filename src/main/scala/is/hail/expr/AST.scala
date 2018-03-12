@@ -747,8 +747,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   
   def toIR(agg: Option[String] = None): Option[IR] = {
     val ret = toIR_raw(agg)
-    val aggStr: String = agg match {
-      case Some(val) => val
+    val aggStr = agg match {
+      case Some(str) => str
       case None => "None"
     }
     ret match {

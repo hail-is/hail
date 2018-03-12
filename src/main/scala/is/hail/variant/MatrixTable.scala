@@ -1630,7 +1630,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 			info("No AST to IR conversion. Fallback to AST predicate for MatrixTable.filterCols")
     		if (!keep)
       			filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    		copyAST(ast = FilterSamples(ast, filterAST))
+    		copyAST(ast = FilterCols(ast, filterAST))
     }
   }
 
