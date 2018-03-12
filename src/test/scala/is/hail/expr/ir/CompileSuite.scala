@@ -407,4 +407,46 @@ class CompileSuite {
     assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
   }
+
+
+  @Test
+  def testRange() {
+    val tRange = TArray(TInt32())
+    val ir = ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32()))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Int, Boolean, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    for {
+      start <- 0 to 2
+      stop <- start to 10
+      step <- 1 to 3
+    } {
+      val aoff = f(region, start, false, stop, false, step, false)
+      val expected = Array.range(start, stop, step)
+      val actual = new UnsafeIndexedSeq(tRange, region, aoff)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+    }
+  }
+
+  @Test
+  def testFilter() {
+    val t = TArray(TInt32())
+    val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x"), In(1, TInt32())))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    for {
+      range <- 0 to 10
+      cutoff <- 0 to range
+    } {
+      val aoff = f(region, range, false, cutoff, false)
+      val expected = Array.range(0, cutoff)
+      val actual = new UnsafeIndexedSeq(t, region, aoff)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+    }
+  }
 }

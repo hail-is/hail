@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
-import is.hail.expr.FunType
 import is.hail.expr.ir.functions.IRFunction
 import is.hail.expr.types._
 import is.hail.utils._
@@ -57,7 +56,7 @@ private class Emit(
   mb: StagedBitSet,
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
-
+  
   val methods: mutable.Map[IRFunction, MethodBuilder] = mutable.Map()
 
   import Emit.E
@@ -266,7 +265,11 @@ private class Emit(
           val step = methodbuilder.getArg[Int](4)
           val len = methodbuilder.newLocal[Int]("ar_len")
           val c = Code(
-            len := ((stop - start - 1) / step) + 1,
+            step.ceq(0).mux(
+              Code._fatal("Array range cannot have step size 0."),
+              Code._empty[Unit]),
+            len := start.ceq(stop).mux(0, (stop - start - 1) / step + 1),
+            len := (len < 0).mux(0, len),
             srvb.start(len, init=true),
             Code.whileLoop(start < stop,
               srvb.addInt(start),
