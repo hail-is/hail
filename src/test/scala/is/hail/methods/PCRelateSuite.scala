@@ -7,7 +7,7 @@ import is.hail.expr.types._
 import is.hail.io.plink.ExportPlink
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
-import is.hail.variant.{Call2, MatrixTable}
+import is.hail.variant.MatrixTable
 import is.hail.methods.PCASuite.samplePCA
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -188,7 +188,7 @@ class PCRelateSuite extends SparkSuite {
 
   @Test(enabled = false)
   def sampleVcfReferenceMatchesR() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz"))
 
     val pcs = samplePCA(vds.coalesce(10), 2, false)._2
 
@@ -200,7 +200,7 @@ class PCRelateSuite extends SparkSuite {
 
   @Test
   def kinshipFiltering() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz"))
 
     val pcs = samplePCA(vds.coalesce(10), 2, false)._2
 

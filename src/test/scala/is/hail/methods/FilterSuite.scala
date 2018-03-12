@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
   @Test def filterTest() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
 
     assert(vds.filterColsExpr("\"^HG\" ~ sa.s").numCols == 63)
 
@@ -59,7 +59,7 @@ class FilterSuite extends SparkSuite {
       .expand()
       .collect()
 
-    val vds2 = SplitMulti(hc.importVCF("src/test/resources/filter.vcf"))
+    val vds2 = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/filter.vcf"))
       .cache()
 
     assert(vds2.filterEntries("g.AD[0] < 30").entriesTable().count() == 3)
@@ -87,13 +87,13 @@ class FilterSuite extends SparkSuite {
   }
 
   @Test def filterRegexTest() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/multipleChromosomes.vcf"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/multipleChromosomes.vcf"))
     val vds2 = vds.filterRowsExpr(""" "^\\d+$" ~ va.locus.contig """)
     assert(vds.countRows() == vds2.countRows())
   }
 
   @Test def MissingTest() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
     val keepOneSample = VariantQC(vds.filterColsExpr("sa.s == \"C1046::HG02024\""))
 
     val q = keepOneSample.queryVA("va.qc.r_het_hom_var")._2

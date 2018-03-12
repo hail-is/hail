@@ -1,8 +1,8 @@
 package is.hail.stats
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.check._
-import is.hail.methods.{SplitMulti, VariantQC}
+import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -31,7 +31,7 @@ class HWESuite extends SparkSuite {
 
   @Test def testExpr() {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds: MatrixTable =>
-      var vds2 = SplitMulti(vds)
+      var vds2 = TestUtils.splitMultiHTS(vds)
       vds2 = VariantQC(vds2)
       vds2 = vds2
         .annotateRowsExpr("hweExpr = hwe(va.qc.n_hom_ref, va.qc.n_het, va.qc.n_hom_var)")
