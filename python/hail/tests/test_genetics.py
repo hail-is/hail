@@ -128,8 +128,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(gr3.name, "my_reference_genome")
         self.assertFalse(gr3.has_sequence())
 
-        gr4 = ReferenceGenome.from_fasta_file("test_rg", resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
+        gr4 = ReferenceGenome.from_fasta_file("test_rg", resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"),
+                                              mt_contigs=["b", "c"], x_contigs=["a"])
         self.assertTrue(gr4.has_sequence())
+        self.assertTrue(gr4.x_contigs == ["a"])
 
         t = hl.import_table(resource("fake_reference.tsv"), impute=True)
         self.assertTrue(t.all(hl.get_sequence(gr4, t.contig, t.pos) == t.base))

@@ -477,7 +477,9 @@ object ReferenceGenome {
     rg
   }
 
-  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String): ReferenceGenome = {
+  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
+    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
+    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome = {
     val hConf = hc.hadoopConf
     if (!hConf.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
@@ -497,8 +499,8 @@ object ReferenceGenome {
       lengths += (contig, length.toInt)
     }
 
-    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap)
-    addReference(rg)
+    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
+      mtContigs.asScala.toArray, parInput.asScala.toArray)
     rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
     rg
   }
@@ -593,21 +595,25 @@ object ReferenceGenome {
       (Locus(yContig, math.min(parYA, parYB)),
         Locus(yContig, math.max(parYA, parYB)))))
 
-  def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
-    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome = {
+  def apply(name: String, contigs: Array[String], lengths: Map[String, Int], xContigs: Array[String], yContigs: Array[String],
+    mtContigs: Array[String], parInput: Array[String]): ReferenceGenome = {
     val parRegex = """(\w+):(\d+)-(\d+)""".r
 
-    val par = parInput.asScala.toArray.map {
+    val par = parInput.map {
       case parRegex(contig, start, end) => (Locus(contig.toString, start.toInt), Locus(contig.toString, end.toInt))
       case _ => fatal("expected PAR input of form contig:start-end")
     }
 
-    val rg = ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet,
-      yContigs.asScala.toSet, mtContigs.asScala.toSet, par)
+    val rg = ReferenceGenome(name, contigs, lengths, xContigs.toSet, yContigs.toSet, mtContigs.toSet, par)
     addReference(rg)
     rg
   }
+
+  def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
+    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
+    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome =
+    ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
+      mtContigs.asScala.toArray, parInput.asScala.toArray)
 }
 
 case class RGVariable(var rg: RGBase = null) extends RGBase {

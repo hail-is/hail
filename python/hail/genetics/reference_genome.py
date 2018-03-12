@@ -310,8 +310,13 @@ class ReferenceGenome(object):
     @classmethod
     @typecheck_method(name=str,
                       fasta_file=str,
-                      index_file=str)
-    def from_fasta_file(cls, name, fasta_file, index_file):
+                      index_file=str,
+                      x_contigs=oneof(str, listof(str)),
+                      y_contigs=oneof(str, listof(str)),
+                      mt_contigs=oneof(str, listof(str)),
+                      par=listof(sized_tupleof(str, int, int)))
+    def from_fasta_file(cls, name, fasta_file, index_file,
+                        x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         """Create reference genome from a FASTA file.
 
         Notes
@@ -327,12 +332,21 @@ class ReferenceGenome(object):
             Path to FASTA file. Can be compressed (GZIP) or uncompressed.
         index_file : :obj:`str`
             Path to FASTA index file. Must be uncompressed.
+        x_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+            Contigs to be treated as X chromosomes.
+        y_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+            Contigs to be treated as Y chromosomes.
+        mt_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+            Contigs to be treated as mitochondrial DNA.
+        par : :obj:`list` of :obj:`tuple` of (str, int, int)
+            List of tuples with (contig, start, end)
 
         Returns
         -------
         :class:`.ReferenceGenome`
         """
-        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFASTAFile(Env.hc()._jhc, name, fasta_file, index_file))
+        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFASTAFile(Env.hc()._jhc, name, fasta_file, index_file,
+                                                                                           x_contigs, y_contigs, mt_contigs, par))
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
