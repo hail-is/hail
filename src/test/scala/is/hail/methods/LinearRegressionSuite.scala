@@ -36,8 +36,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(phenotypes, root = "pheno")
       .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
     
     val a = vds.variantsAndAnnotations.collect().toMap
@@ -100,8 +100,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(phenotypes, root = "pheno")
       .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
@@ -157,8 +157,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(phenotypes, root = "pheno")
       .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
@@ -212,7 +212,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(phenotypes, root = "pheno")
+      .annotateColsTable(phenotypes, root = "pheno")
       .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array.empty[String])
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
@@ -258,8 +258,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(Table.importFam(hc, "src/test/resources/regressionLinear.fam"), root = "fam")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(Table.importFam(hc, "src/test/resources/regressionLinear.fam"), root = "fam")
       .linreg(Array("sa.fam.is_case"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
@@ -308,8 +308,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(Table.importFam(hc, "src/test/resources/regressionLinear.fam", isQuantPheno = true, missingValue = "0"), root = "fam")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(Table.importFam(hc, "src/test/resources/regressionLinear.fam", isQuantPheno = true, missingValue = "0"), root = "fam")
       .linreg(Array("sa.fam.quant_pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
@@ -360,8 +360,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val inputVDS = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(phenotypes, root = "pheno")
 
     for (i <- Seq(0, 1);
       d <- Seq(false, true)) {

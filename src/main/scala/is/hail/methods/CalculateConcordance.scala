@@ -79,8 +79,8 @@ object CalculateConcordance {
 
     val leftPreIds = left.stringSampleIds
     val rightPreIds = right.stringSampleIds
-    val leftFiltered = left.filterSamples { case (_, i) => overlap(leftPreIds(i)) }
-    val rightFiltered = right.filterSamples { case (_, i) => overlap(rightPreIds(i)) }
+    val leftFiltered = left.filterCols { case (_, i) => overlap(leftPreIds(i)) }
+    val rightFiltered = right.filterCols { case (_, i) => overlap(rightPreIds(i)) }
 
     val sampleSchema = TStruct(
       left.colKey.zip(left.colKeyTypes) ++

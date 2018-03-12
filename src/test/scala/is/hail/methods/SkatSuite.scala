@@ -137,9 +137,9 @@ class SkatSuite extends SparkSuite {
       .annotateRowsTable(intervalsSkat, "gene")
       .annotateRowsTable(weightsSkat, "weight")
       .annotateRowsExpr("gene = va.gene.target, weight = va.weight.weight")
-      .annotateSamplesTable(covSkat, root = "cov")
-      .annotateSamplesTable(phenoSkat, root = "pheno")
-      .annotateSamplesExpr("pheno = if (sa.pheno.Pheno == 1.0) false else if (sa.pheno.Pheno == 2.0) true else NA: Boolean")
+      .annotateColsTable(covSkat, root = "cov")
+      .annotateColsTable(phenoSkat, root = "pheno")
+      .annotateColsExpr("pheno = if (sa.pheno.Pheno == 1.0) false else if (sa.pheno.Pheno == 2.0) true else NA: Boolean")
   }
 
   // A larger deterministic example using the Balding-Nichols model (only hardcalls)
@@ -155,7 +155,7 @@ class SkatSuite extends SparkSuite {
     val cov2Array: Array[Double] = Array.fill[Double](nSamples)(rand.nextGaussian())
 
     val vdsBN0 = hc.baldingNicholsModel(1, nSamples, nVariants, seed = seed)
-      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
+      .annotateColsExpr("s = str(sa.sample_idx)").keyColsBy("s")
 
     val G: DenseMatrix[Double] = TestUtils.vdsToMatrixDouble(vdsBN0)
     val pi: DenseVector[Double] = sigmoid(sum(G(*, ::)) - nVariants.toDouble)

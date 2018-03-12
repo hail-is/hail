@@ -38,7 +38,7 @@ class AnnotateSuite extends SparkSuite {
     }
 
     val table = hc.importTable("src/test/resources/sampleAnnotations.tsv", types = Map("qPhen" -> TInt32())).keyBy("Sample")
-    val anno1 = vds.annotateSamplesTable(table, root = "my phenotype")
+    val anno1 = vds.annotateColsTable(table, root = "my phenotype")
 
     val q1 = anno1.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.querySA("sa.`my phenotype`.qPhen")._2
@@ -51,7 +51,7 @@ class AnnotateSuite extends SparkSuite {
         }
       })
 
-    vds.annotateSamplesTable(table, root = "my phenotype", product = true).dropRows().typecheck()
+    vds.annotateColsTable(table, root = "my phenotype", product = true).dropRows().typecheck()
   }
 
   @Test def testSampleFamAnnotator() {
@@ -72,7 +72,7 @@ class AnnotateSuite extends SparkSuite {
 
     var vds = hc.importVCF("src/test/resources/importFam.vcf")
 
-    vds = vds.annotateSamplesTable(
+    vds = vds.annotateColsTable(
       Table.importFam(hc, "src/test/resources/importFamCaseControl.fam"), root = "fam")
     val m = qMap("sa.fam", vds)
 
@@ -87,7 +87,7 @@ class AnnotateSuite extends SparkSuite {
       Table.importFam(hc, "src/test/resources/importFamCaseControlNumericException.fam")
     }
 
-    vds = vds.annotateSamplesTable(
+    vds = vds.annotateColsTable(
       Table.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantPheno = true), root = "fam")
     val m1 = qMap("sa.fam", vds)
 
@@ -99,7 +99,7 @@ class AnnotateSuite extends SparkSuite {
     assert(m1("F").isEmpty)
 
 
-    vds = vds.annotateSamplesTable(
+    vds = vds.annotateColsTable(
       Table.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantPheno = true,
         delimiter = "\\\\s+", missingValue = "-9"), root = "ped")
 

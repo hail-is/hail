@@ -97,8 +97,8 @@ class FisherExactTestSuite extends SparkSuite {
           phenotypes.foreach { case (sample, p) => w.write(s"$sample\t$p\n") }
         }
 
-        val vds2 = vds.annotateSamplesTable(hc.importTable(phenotypeFile).keyBy("Sample"), root = "pheno")
-          .annotateSamplesExpr("pheno = sa.pheno.Pheno1")
+        val vds2 = vds.annotateColsTable(hc.importTable(phenotypeFile).keyBy("Sample"), root = "pheno")
+          .annotateColsExpr("pheno = sa.pheno.Pheno1")
           .annotateRowsExpr(
             """macCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
               |2 * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)

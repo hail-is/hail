@@ -219,7 +219,7 @@ object VEP {
     blockSize: Int): MatrixTable = {
     assert(vsm.rowKey == IndexedSeq("locus", "alleles"))
 
-    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
 
     val properties = try {
       val p = new Properties()
