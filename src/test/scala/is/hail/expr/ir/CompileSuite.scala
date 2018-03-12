@@ -410,7 +410,7 @@ class CompileSuite {
 
 
   @Test
-  def testRange() {
+  def testArrayRange() {
     val tRange = TArray(TInt32())
     val ir = ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32()))
     val region = Region()
@@ -431,7 +431,7 @@ class CompileSuite {
   }
 
   @Test
-  def testFilter() {
+  def testArrayFilter() {
     val t = TArray(TInt32())
     val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x"), In(1, TInt32())))
     val region = Region()
