@@ -318,7 +318,7 @@ class ReferenceGenome(object):
     def from_fasta_file(cls, name, fasta_file, index_file,
                         x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         """Create reference genome from a FASTA file.
-\
+        
         Parameters
         ----------
         name: :obj:`str`
