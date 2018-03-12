@@ -4,6 +4,7 @@ import java.net.URI
 import java.nio.file.{Files, Paths}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import is.hail.methods.SplitMulti
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -20,30 +21,30 @@ object TestUtils {
     if (!p)
       println(
         s"""expected fatal exception with pattern `$regex'
-           |  Found: ${thrown.getMessage} """.stripMargin)
+           |  Found: ${ thrown.getMessage } """.stripMargin)
     assert(p)
   }
-  
+
   def interceptSpark(regex: String)(f: => Any) {
     val thrown = intercept[SparkException](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     if (!p)
       println(
         s"""expected fatal exception with pattern `$regex'
-           |  Found: ${thrown.getMessage} """.stripMargin)
+           |  Found: ${ thrown.getMessage } """.stripMargin)
     assert(p)
   }
-  
+
   def interceptAssertion(regex: String)(f: => Any) {
     val thrown = intercept[AssertionError](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     if (!p)
       println(
         s"""expected assertion error with pattern `$regex'
-           |  Found: ${thrown.getMessage} """.stripMargin)
+           |  Found: ${ thrown.getMessage } """.stripMargin)
     assert(p)
   }
-  
+
   def assertVectorEqualityDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = utils.defaultTolerance) {
     assert(A.size == B.size)
     assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
@@ -78,7 +79,7 @@ object TestUtils {
     new DenseMatrix[Int](
       vds.numCols,
       vds.countRows().toInt,
-      vds.typedRDD[Locus].map(_._2._2.map{ g =>
+      vds.typedRDD[Locus].map(_._2._2.map { g =>
         Genotype.call(g)
           .map(Call.nNonRefAlleles)
           .getOrElse(-1)
@@ -89,7 +90,7 @@ object TestUtils {
     new DenseMatrix[Double](
       vds.numCols,
       vds.countRows().toInt,
-      vds.rdd.map(_._2._2.map{ g =>
+      vds.rdd.map(_._2._2.map { g =>
         Genotype.call(g)
           .map(Call.nNonRefAlleles)
           .map(_.toDouble)
@@ -114,7 +115,7 @@ object TestUtils {
       val s = r.toSeq
       s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
     }.toMap
-  
+
   def matrixToString(A: DenseMatrix[Double], separator: String): String = {
     val sb = new StringBuilder
     for (i <- 0 until A.rows) {
@@ -130,7 +131,26 @@ object TestUtils {
     }
     sb.result()
   }
-  
+
   def fileHaveSameBytes(file1: String, file2: String): Boolean =
     Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
+
+  def splitMultiHTS(mt: MatrixTable): MatrixTable = {
+    if (!mt.entryType.isOfType(Genotype.htsGenotypeType))
+      fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ mt.entryType }")
+    SplitMulti(mt, "va.aIndex = aIndex, va.wasSplit = wasSplit",
+      s"""g =
+    let
+      newc = downcode(g.GT, aIndex) and
+      newad = if (isDefined(g.AD))
+          let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+        else
+          NA: Array[Int] and
+      newpl = if (isDefined(g.PL))
+          range(3).map(i => range(g.PL.length).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
+        else
+          NA: Array[Int] and
+      newgq = gqFromPL(newpl)
+    in { GT: newc, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }""")
+  }
 }

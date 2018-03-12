@@ -2,12 +2,10 @@ package is.hail.io
 
 import is.hail.check.Gen._
 import is.hail.check.Prop._
-import is.hail.check.{Gen, Properties}
+import is.hail.check.Properties
 import is.hail.io.plink.{ExportPlink, LoadPlink}
-import is.hail.methods.{SplitMulti, VariantQC}
-import is.hail.expr.types.Type
+import is.hail.methods.VariantQC
 import is.hail.utils._
-import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
@@ -19,7 +17,7 @@ class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
-      vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => SplitMulti(vds).cache())
+      vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => TestUtils.splitMultiHTS(vds).cache())
       nPartitions <- choose(1, LoadPlink.expectedBedSize(vds.numCols, vds.countRows()).toInt.min(10))
     } yield (vds, nPartitions)
 

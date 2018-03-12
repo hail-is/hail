@@ -16,7 +16,7 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testRows() {
     var vds = hc.importVCF("src/test/resources/sample2.vcf")
-    vds = SplitMulti(vds)
+    vds = TestUtils.splitMultiHTS(vds)
     vds = VariantQC(vds, "qc")
     vds = vds
       .annotateRowsExpr(
@@ -112,7 +112,7 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testSum() {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      var vds2 = SplitMulti(vds)
+      var vds2 = TestUtils.splitMultiHTS(vds)
       vds2 = VariantQC(vds2, "qc")
       vds2 = vds2
         .annotateRowsExpr("oneHotAC = AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum()")

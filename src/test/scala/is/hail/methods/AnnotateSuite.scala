@@ -1,17 +1,15 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.TestUtils._
 import is.hail.annotations._
-import is.hail.check.Prop
 import is.hail.expr.types._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
-import is.hail.io.plink.{FamFileConfig, LoadPlink}
+import is.hail.io.plink.LoadPlink
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -115,7 +113,7 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testBedIntervalAnnotator() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
       .cache()
 
     val bed1r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "test").annotateRowsExpr("test = isDefined(va.test)")
@@ -280,7 +278,7 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testPositions() {
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample2.vcf"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample2.vcf"))
 
     val kt = hc.importTable("src/test/resources/sample2_va_positions.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))
