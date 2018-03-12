@@ -191,7 +191,7 @@ Hail arrays can be indexed and sliced like Python lists or :mod:`numpy` arrays:
 Boolean Logic
 =============
 
-Unlike Python, Hail :class:`.BooleanExpression`s cannot be used with ``and``,
+Unlike Python, a Hail :class:`.BooleanExpression` cannot be used with ``and``,
 ``or``, and ``not``. The equivalents are ``&``, ``|``, and ``~``.
 
 .. doctest::
@@ -233,7 +233,7 @@ return if the condition is ``False``. For example:
 In the above conditional, the condition is ``x > 0``, the consequent is ``1``,
 and the alternate is ``0``.
 
-Here is the Hail expression equivalent with :func:`cond`:
+Here is the Hail expression equivalent with :func:`.cond`:
 
 .. doctest::
 
@@ -484,8 +484,8 @@ new row fields or update the values of existing row fields. For example:
 
 .. doctest::
 
-    ht_new = ht.filter(ht['C1'] >= 10)
-    ht_new = ht_new.annotate(id_times_2 = ht_new.ID * 2)
+    >>> ht_new = ht.filter(ht['C1'] >= 10)
+    >>> ht_new = ht_new.annotate(id_times_2 = ht_new.ID * 2)
 
 
 Aggregation
@@ -531,7 +531,7 @@ To join the row fields of two tables together, Hail provides a
 right, inner, outer). The tables are joined by the row fields designated as
 keys. The number of keys and their types must be identical between the two
 tables. However, the names of the keys do not need to be identical. Use the
-:meth:`.Table.key` attribute to view the current table row keys and the
+:attr:`.Table.key` attribute to view the current table row keys and the
 :meth:`.Table.key_by` method to change the table keys. If top level row field
 names overlap between the two tables, the second table's field names will be
 appended with a unique identifier "_N".
@@ -612,7 +612,7 @@ quickly.
 table and their types. The types themselves can be accessed using the fields
 (e.g. ``ht.ID.dtype``), and the full row and global types can be accessed with
 ``ht.row.dtype`` and ``ht.globals.dtype``. The row fields that are part of the
-key can be accessed with :meth:`.Table.key`. The :meth:`.Table.count` method
+key can be accessed with :attr:`.Table.key`. The :meth:`.Table.count` method
 returns the number of rows.
 
 Export
@@ -664,7 +664,7 @@ Matrix tables have keys just as tables do. However, instead of one key, matrix
 tables have two keys: a row key and a column key. Row fields are indexed by the
 row key, column fields are indexed by the column key, and entry fields are
 indexed by the row key and the column key. The key structs can be accessed with
-:meth:`.MatrixTable.row_key` and :meth:`.MatrixTable.col_key`. It is possible to
+:attr:`.MatrixTable.row_key` and :attr:`.MatrixTable.col_key`. It is possible to
 change the key with :meth:`.MatrixTable.key_rows_by` and
 :meth:`.MatrixTable.key_cols_by`.
 
@@ -673,7 +673,7 @@ Note that changing the row key, however, may be an expensive operation.
 Hail matrix tables are natively distributed objects, and as such have another
 key: a partition key. This key is used for specifying the ordering of the matrix
 table along the row dimension, which is important for performance. Access this
-with :meth:`.MatrixTable.partition_key`
+with :attr:`.MatrixTable.partition_key`
 
 Referencing Fields
 ==================
@@ -684,7 +684,7 @@ row field `locus`, this field could be referenced with either ``mt.locus`` or
 ``mt['locus']``. The former access pattern does not work with field names with
 spaces or punctuation.
 
-The result of referencing a field from a matrix table is an :class:`Expression`
+The result of referencing a field from a matrix table is an :class:`.Expression`
 which knows its type and knows its source as well as whether it is a row field,
 column field, entry field, or global field. Hail uses this context to know which
 operations are allowed for a given expression.
@@ -937,9 +937,9 @@ Aggregation
 
 :class:`.MatrixTable` has three methods to compute aggregate statistics.
 
-- :class:`.MatrixTable.aggregate_rows`
-- :class:`.MatrixTable.aggregate_cols`
-- :class:`.MatrixTable.aggregate_entries`
+- :meth:`.MatrixTable.aggregate_rows`
+- :meth:`.MatrixTable.aggregate_cols`
+- :meth:`.MatrixTable.aggregate_entries`
 
 These methods take an aggregated expression and evaluate it, returning
 a Python value.

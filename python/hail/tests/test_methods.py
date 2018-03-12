@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from subprocess import call as syscall
+from subprocess import DEVNULL, call as syscall
 import numpy as np
 from struct import unpack
 import hail.utils as utils
@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
                         threshold_string)
             result_file = utils.get_URI(plinkpath + ".genome")
 
-            syscall(plink_command, shell=True)
+            syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
             ### format of .genome file is:
             # _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe,
@@ -226,7 +226,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-rel --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
         self.assertEqual(load_id_file(p_file + ".rel.id"), sample_ids)
 
         grm.export_rel(rel_file)
@@ -240,7 +240,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-gz --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
         self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
         grm.export_gcta_grm(grm_file)
@@ -253,7 +253,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-bin --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
         self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
@@ -414,9 +414,9 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
-    def test_import_interval_list(self):
+    def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
-        intervals = hl.import_interval_list(interval_file, reference_genome='GRCh37')
+        intervals = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
         nint = intervals.count()
 
         i = 0
@@ -428,9 +428,9 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(intervals.interval.dtype.point_type, hl.tlocus('GRCh37'))
 
-    def test_import_interval_list_no_reference_specified(self):
+    def test_import_locus_intervals_no_reference_specified(self):
         interval_file = resource('annotinterall.interval_list')
-        t = hl.import_interval_list(interval_file, reference_genome=None)
+        t = hl.import_locus_intervals(interval_file, reference_genome=None)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_bed(self):
@@ -607,17 +607,34 @@ class Tests(unittest.TestCase):
 
     def test_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
-        print(ds.n_partitions())
-        self.assertEqual(
-            hl.filter_intervals(ds, hl.Interval.parse('20:10639222-10644705')).count_rows(), 3)
 
-        intervals = [hl.Interval.parse('20:10639222-10644700'),
-                     hl.Interval.parse('20:10644700-10644705')]
+        self.assertEqual(
+            hl.filter_intervals(ds, [hl.parse_locus_interval('20:10639222-10644705')]).count_rows(), 3)
+
+        intervals = [hl.parse_locus_interval('20:10639222-10644700'),
+                     hl.parse_locus_interval('20:10644700-10644705')]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
-        intervals = [hl.Interval.parse('[20:10019093-10026348]'),
-                     hl.Interval.parse('[20:17705793-17716416]')]
+        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700'),
+                              hl.parse_locus_interval('20:10644700-10644705')])
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
+
+        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700').value,
+                              hl.parse_locus_interval('20:10644700-10644705')])
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
+
+        intervals = [hl.parse_locus_interval('[20:10019093-10026348]').value,
+                     hl.parse_locus_interval('[20:17705793-17716416]').value]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
+
+    def test_filter_intervals_compound_partition_key(self):
+        ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
+        ds = (ds.annotate_rows(variant=hl.struct(locus=ds.locus, alleles=ds.alleles))
+              .key_rows_by('locus', 'alleles'))
+
+        intervals = [hl.Interval(hl.Struct(locus=hl.Locus('20', 10639222), alleles=['A', 'T']),
+                                 hl.Struct(locus=hl.Locus('20', 10644700), alleles=['A', 'T']))]
+        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
     def test_balding_nichols_model(self):
         from hail.stats import TruncatedBetaDist
@@ -653,7 +670,7 @@ class Tests(unittest.TestCase):
                                           missing="0")
             .key_by("Sample"))
 
-        intervalsSkat = (hl.import_interval_list(resource("skat.interval_list")))
+        intervalsSkat = (hl.import_locus_intervals(resource("skat.interval_list")))
 
         weightsSkat = (hl.import_table(resource("skat.weights"),
                                        types={"locus": hl.tlocus(),

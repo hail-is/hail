@@ -219,6 +219,6 @@ object SampleQC {
   def apply(vsm: MatrixTable, root: String = "qc"): MatrixTable = {
     vsm.requireRowKeyVariant("sample_qc")
     val r = results(vsm).map(_.asAnnotation)
-    vsm.annotateSamples(SampleQCCombiner.signature, List(root), r)
+    vsm.annotateCols(SampleQCCombiner.signature, List(root), r)
   }
 }

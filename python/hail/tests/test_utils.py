@@ -3,6 +3,8 @@ import unittest
 from hail.utils import *
 from hail.utils.linkedlist import LinkedList
 from .utils import resource, startTestHailContext, stopTestHailContext
+from hail.genetics import Locus
+import hail as hl
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -91,3 +93,18 @@ class Tests(unittest.TestCase):
         df = df.annotate(x=[1,2])
         with self.assertRaises(FatalError):
             df.filter(df.x[5] == 0).count()
+
+    def test_interval_ops(self):
+        interval1 = Interval(3, 22)
+        interval2 = Interval(10, 20)
+
+        self.assertTrue(interval1.start == 3)
+        self.assertTrue(interval1.end == 22)
+        self.assertTrue(interval1.includes_start)
+        self.assertFalse(interval1.includes_end)
+        self.assertTrue(interval1.point_type == hl.tint)
+
+        self.assertTrue(interval1.contains(3))
+        self.assertTrue(interval1.contains(13))
+        self.assertFalse(interval1.contains(22))
+        self.assertTrue(interval1.overlaps(interval2))

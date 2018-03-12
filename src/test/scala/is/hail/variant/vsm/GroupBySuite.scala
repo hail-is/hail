@@ -15,13 +15,13 @@ import org.apache.spark.sql.Row
 class GroupBySuite extends SparkSuite {
 
   @Test def testGroupSamplesBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    vds.groupSamplesBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    vds.groupColsBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupSamplesStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("foo = {str1: 1, str2: \"bar\"}")
-    vds.groupSamplesBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("foo = {str1: 1, str2: \"bar\"}")
+    vds.groupColsBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupVariantsBy() {
@@ -59,13 +59,13 @@ class GroupBySuite extends SparkSuite {
       val uniqueSamples = vsm.stringSampleIds.toSet
       if (vsm.stringSampleIds.size != uniqueSamples.size) {
         sSkipped += 1
-        val grouped = vsm.groupSamplesBy("s = sa.s", "first = AGG.collect()[0]")
+        val grouped = vsm.groupColsBy("s = sa.s", "first = AGG.collect()[0]")
         grouped.numCols == uniqueSamples.size
       } else {
-        val grouped = vsm.groupSamplesBy("s = sa.s", "GT = AGG.collect()[0].GT, AD = AGG.collect()[0].AD, DP = AGG.collect()[0].DP, GQ = AGG.collect()[0].GQ, PL = AGG.collect()[0].PL")
+        val grouped = vsm.groupColsBy("s = sa.s", "GT = AGG.collect()[0].GT, AD = AGG.collect()[0].AD, DP = AGG.collect()[0].DP, GQ = AGG.collect()[0].GQ, PL = AGG.collect()[0].PL")
         assert(vsm.selectCols("sa.s")
           .same(grouped
-            .reorderSamples(vsm.stringSampleIds.toArray.map(Annotation(_)))
+            .reorderCols(vsm.stringSampleIds.toArray.map(Annotation(_)))
           ))
       }
       true
@@ -88,13 +88,13 @@ class GroupBySuite extends SparkSuite {
       .annotateRowsTable(intervals, root = "genes", product = true)
       .annotateRowsExpr("genes = va.genes.map(x => x.target)")
       .annotateRowsExpr("weight = va.locus.position.toFloat64")
-      .annotateSamplesTable(covariates, root = "cov")
-      .annotateSamplesTable(phenotypes, root = "pheno")
+      .annotateColsTable(covariates, root = "cov")
+      .annotateColsTable(phenotypes, root = "pheno")
 
     val vdsGrouped = vds.explodeRows("va.genes")
       .keyRowsBy(Array("genes"), Array("genes"))
       .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles()).sum()")
-      .annotateSamplesExpr("pheno = sa.pheno.Pheno")
+      .annotateColsExpr("pheno = sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select("row.genes", "row.linreg.beta",

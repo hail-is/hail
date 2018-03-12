@@ -4,7 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
-import is.hail.linalg.{BlockMatrix, KeyedBlockMatrix, Keys}
+import is.hail.linalg.BlockMatrix
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -49,7 +49,7 @@ class VSMSuite extends SparkSuite {
       .write(f)
 
     assert(hc.readVDS(f, dropSamples = true)
-      .same(hc.readVDS(f).dropSamples()))
+      .same(hc.readVDS(f).dropCols()))
   }
 
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
@@ -125,7 +125,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryGenotypes("AGG.map(g => g.GQ).hist(0, 100, 100)")
+    vds.queryEntries("AGG.map(g => g.GQ).hist(0, 100, 100)")
   }
 
   @Test def testReorderSamples() {
@@ -133,14 +133,14 @@ class VSMSuite extends SparkSuite {
     val origOrder = Array[Annotation]("C1046::HG02024", "C1046::HG02025", "C1046::HG02026", "C1047::HG00731", "C1047::HG00732")
     val newOrder = Array[Annotation]("C1046::HG02026", "C1046::HG02024", "C1047::HG00732", "C1046::HG02025", "C1047::HG00731")
 
-    val filteredVds = vds.filterSamplesList(origOrder.map(Annotation(_)).toSet)
+    val filteredVds = vds.filterColsList(origOrder.map(Annotation(_)).toSet)
       .indexCols("colIdx")
       .annotateRowsExpr("origGenos = AGG.take(5)")
-    val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
+    val reorderedVds = filteredVds.reorderCols(newOrder.map(Annotation(_)))
       .annotateRowsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
-    assert(vds.reorderSamples(vds.colKeys).same(vds))
+    assert(vds.reorderCols(vds.colKeys).same(vds))
   }
   
   @Test def testWriteBlockMatrix() {
@@ -166,34 +166,5 @@ class VSMSuite extends SparkSuite {
       
       assert(BlockMatrix.read(hc, dirname).toBreezeMatrix() === lm)
     }
-  }
-  
-  @Test def testWriteKeyedBlockMatrix() {
-    val dirname = tmpDir.createTempFile()
-    val nSamples = 6
-    val nVariants = 9
-    val vsm = hc.baldingNicholsModel(1, nSamples, nVariants, Some(4))
-      .annotateSamplesExpr("s = str(sa.sample_idx)").keyColsBy("s")
-      .indexRows("rowIdx")
-      .indexCols("colIdx")
-
-    val data = vsm
-      .entriesTable()
-      .select("x = row.GT.unphasedDiploidGtIndex() + row.rowIdx + 1 + row.colIdx.toFloat64()")
-      .collect()
-      .map(_.getAs[Double](0))
-    val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
-    val rowKeys = new Keys(TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString())),
-      Array.tabulate(nVariants)(i => Row(Locus("1", i + 1), IndexedSeq("A", "C"))))
-    val colKeys = new Keys(TStruct("s" -> TString()), Array.tabulate(nSamples)(s => Annotation(s.toString)))
-    
-    vsm.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
-      .writeKeyedBlockMatrix(dirname, "x", blockSize = 3)
-    
-    val kbm = KeyedBlockMatrix.read(hc, dirname)
-    
-    assert(kbm.bm.toBreezeMatrix() === lm)
-    kbm.rowKeys.get.assertSame(rowKeys)
-    kbm.colKeys.get.assertSame(colKeys)    
   }
 }

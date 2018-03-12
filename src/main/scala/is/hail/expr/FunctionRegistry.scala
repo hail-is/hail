@@ -728,6 +728,8 @@ object FunctionRegistry {
   registerField("position", { (x: Locus) => x.position })(locusHr(RG), int32Hr)
   registerField("start", { (x: Interval) => x.start })(intervalHr(TTHr), TTHr)
   registerField("end", { (x: Interval) => x.end })(intervalHr(TTHr), TTHr)
+  registerField("includesStart", { (x: Interval) => x.includesStart })(intervalHr(TTHr), boolHr)
+  registerField("includesEnd", { (x: Interval) => x.includesEnd })(intervalHr(TTHr), boolHr)
 
   register("is_snp", { (ref: String, alt: String) => AltAlleleMethods.isSNP(ref, alt) })
   register("is_mnp", { (ref: String, alt: String) => AltAlleleMethods.isMNP(ref, alt) })
@@ -919,10 +921,11 @@ object FunctionRegistry {
     val rg = RG.rg
     (contig: String, pos: Int) => Locus(contig, pos, rg)
     })(stringHr, int32Hr, locusHr(RG))
+
   registerDependent("Interval", () => {
     val t = TT.t
-    (x: Annotation, y: Annotation) => Interval(x, y, true, false)
-  })(TTHr, TTHr, intervalHr(TTHr))
+    (x: Annotation, y: Annotation, includesStart: Boolean, includesEnd: Boolean) => Interval(x, y, includesStart, includesEnd)
+  })(TTHr, TTHr, boolHr, boolHr, intervalHr(TTHr))
 
   val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
 
@@ -1009,8 +1012,8 @@ object FunctionRegistry {
 
   registerDependent("LocusInterval", () => {
     val rg = RG.rg
-    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, rg)
-  })(stringHr, int32Hr, int32Hr, intervalHr(locusHr(RG)))
+    (chr: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean) => Locus.makeInterval(chr, start, end, includesStart, includesEnd, rg)
+  })(stringHr, int32Hr, int32Hr, boolHr, boolHr, intervalHr(locusHr(RG)))
 
   register("pcoin", { (p: Double) => math.random < p })
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
@@ -1161,6 +1164,11 @@ object FunctionRegistry {
     val pord = TT.t.ordering
     (interval: Interval, point: Annotation) => interval.contains(pord, point)
   })(intervalHr(TTHr), TTHr, boolHr)
+
+  registerMethodDependent("overlaps", () => {
+    val pord = TT.t.ordering
+    (interval1: Interval, interval2: Interval) => interval1.mayOverlap(pord, interval2)
+  })(intervalHr(TTHr), intervalHr(TTHr), boolHr)
 
   registerMethod("length", (a: IndexedSeq[Any]) => a.length)(arrayHr(TTHr), int32Hr)
   registerMethod("size", (a: IndexedSeq[Any]) => a.size)(arrayHr(TTHr), int32Hr)

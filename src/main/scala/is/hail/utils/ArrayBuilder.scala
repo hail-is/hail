@@ -65,4 +65,9 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
   }
 
   def underlying(): Array[T] = b
+
+  def last: T = {
+    assert(size_ > 0)
+    b(size_ - 1)
+  }
 }

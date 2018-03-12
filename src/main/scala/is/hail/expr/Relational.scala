@@ -89,7 +89,7 @@ case class MatrixValue(
 
   def nPartitions: Int = rvd.partitions.length
 
-  def nSamples: Int = colValues.length
+  def nCols: Int = colValues.length
 
   def sampleIds: IndexedSeq[Row] = {
     val queriers = typ.colKey.map(field => typ.colType.query(field))
@@ -125,8 +125,8 @@ case class MatrixValue(
       })
   }
 
-  def filterSamples(p: (Annotation, Int) => Boolean): MatrixValue = {
-    val keep = (0 until nSamples)
+  def filterCols(p: (Annotation, Int) => Boolean): MatrixValue = {
+    val keep = (0 until nCols)
       .view
       .filter { i => p(colValues(i), i) }
       .toArray
@@ -142,25 +142,25 @@ object MatrixIR {
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropSamples, dropRows = true)
 
-      case FilterSamples(
+      case FilterCols(
       MatrixRead(path, spec, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropCols = true, dropVariants)
     
       case FilterRows(m, Const(_, true, TBoolean(_))) =>
         m
-      case FilterSamples(m, Const(_, true, TBoolean(_))) =>
+      case FilterCols(m, Const(_, true, TBoolean(_))) =>
         m
 
       // minor, but push FilterVariants into FilterSamples
-      case FilterRows(FilterSamples(m, spred), vpred) =>
-        FilterSamples(FilterRows(m, vpred), spred)
+      case FilterRows(FilterCols(m, spred), vpred) =>
+        FilterCols(FilterRows(m, vpred), spred)
 
       case FilterRows(FilterRows(m, pred1), pred2) =>
         FilterRows(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
 
-      case FilterSamples(FilterSamples(m, pred1), pred2) =>
-        FilterSamples(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
+      case FilterCols(FilterCols(m, pred1), pred2) =>
+        FilterCols(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
       case FilterRowsIR(MatrixRead(path, spec, dropSamples, _), False()) =>
@@ -327,19 +327,23 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($path, dropSamples = $dropCols, dropVariants = $dropRows)"
 }
 
+<<<<<<< HEAD
 /*
  * FilterSamples is only used for a predicate which fails toIR()
  * This should go away when everything is IR-compatible
  */
 case class FilterSamples(
+=======
+case class FilterCols(
+>>>>>>> master
   child: MatrixIR,
   pred: AST) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterSamples = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterCols = {
     assert(newChildren.length == 1)
-    FilterSamples(newChildren(0).asInstanceOf[MatrixIR], pred)
+    FilterCols(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
@@ -353,14 +357,14 @@ case class FilterSamples(
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, prev, ec)
+    val sampleAggregationOption = Aggregators.buildColAggregations(hc, prev, ec)
 
     val p = (sa: Annotation, i: Int) => {
       sampleAggregationOption.foreach(f => f.apply(i))
       ec.setAll(localGlobals, sa)
       f() == true
     }
-    prev.filterSamples(p)
+    prev.filterCols(p)
   }
 }
 
@@ -443,7 +447,7 @@ case class FilterRows(
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
-    val aggregatorOption = Aggregators.buildVariantAggregations(
+    val aggregatorOption = Aggregators.buildRowAggregations(
       prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
 
     val fullRowType = prev.typ.rvRowType

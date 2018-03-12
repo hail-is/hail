@@ -4,10 +4,11 @@ import hail
 from hail.expr import expressions
 from hail.expr.expr_ast import *
 from hail.expr.types import *
-from hail.genetics import Locus, Interval, Call
+from hail.genetics import Locus, Call
 from hail.typecheck import *
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
+from hail.utils.interval import Interval
 from hail.utils.misc import plural
 from typing import *
 
@@ -94,7 +95,7 @@ def impute_type(x):
     elif isinstance(x, Locus):
         return tlocus(x.reference_genome)
     elif isinstance(x, Interval):
-        return tinterval(tlocus(x.reference_genome))
+        return tinterval(x.point_type)
     elif isinstance(x, Call):
         return tcall
     elif isinstance(x, Struct):
@@ -339,7 +340,7 @@ def unify_types_limited(*ts):
     type_set = set(ts)
     if len(type_set) == 1:
         # only one distinct class
-        return next(iter(ts))
+        return next(iter(type_set))
     elif all(is_numeric(t) for t in ts):
         # assert there are at least 2 numeric types
         assert len(type_set) > 1
@@ -356,11 +357,11 @@ def unify_types_limited(*ts):
 
 def unify_types(*ts):
     limited_unify = unify_types_limited(*ts)
-    if limited_unify:
+    if limited_unify is not None:
         return limited_unify
     elif all(isinstance(t, tarray) for t in ts):
         et = unify_types_limited(*(t.element_type for t in ts))
-        if et:
+        if et is not None:
             return tarray(et)
         else:
             return None
@@ -651,12 +652,27 @@ class Expression(object):
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
-                    source = source.select_rows(*filter(lambda x: x != name, source.row_key), **{name: self})
-                    return source.rows().select_globals()
+                    field_name = source._fields_inverse.get(self)
+                    if field_name is not None:
+                        if field_name in source.row_key:
+                            m = source.select_rows(*source.row_key)
+                        else:
+                            m = source.select_rows(*source.row_key, field_name)
+                        m = m.rename({field_name: name})
+                    else:
+                        m = source.select_rows(*source.row_key, **{name: self})
+                    return m.rows().select_globals()
                 else:
-                    assert self._indices == source._col_indices
-                    source = source.select_cols(*filter(lambda f: f != name, source.col_key), **{name: self})
-                    return source.cols().select_globals()
+                    field_name = source._fields_inverse.get(self)
+                    if field_name is not None:
+                        if field_name in source.col_key:
+                            m = source.select_cols(*source.col_key)
+                        else:
+                            m = source.select_cols(*source.col_key, field_name)
+                        m = m.rename({field_name: name})
+                    else:
+                        m = source.select_cols(*source.col_key, **{name: self})
+                    return m.cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)

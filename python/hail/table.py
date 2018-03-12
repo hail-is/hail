@@ -1248,11 +1248,11 @@ class Table(TableTemplate):
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src[list(src.col_key)[i]] for i in range(len(exprs))]):
                     # no vds_key (faster)
-                    joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
+                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
                         right._jt, None, uid, False))
                 else:
                     # use vds_key
-                    joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
+                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
                         right._jt, [e._ast.to_hql() for e in exprs], uid, False))
                 return construct_expr(Select(Reference('sa', top_level=True), uid), new_schema,
                                       indices, aggregations, joins.push(Join(joiner, [uid], uid)))
