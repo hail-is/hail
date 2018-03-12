@@ -178,8 +178,8 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           val i = a.asInstanceOf[Interval]
           Row(exportAnnotation(i.start, pointType),
             exportAnnotation(i.end, pointType),
-            exportAnnotation(i.includeStart, TBooleanRequired),
-            exportAnnotation(i.includeEnd, TBooleanRequired))
+            exportAnnotation(i.includesStart, TBooleanRequired),
+            exportAnnotation(i.includesEnd, TBooleanRequired))
         case t: TBaseStruct =>
           if (t.size == 0)
             a != null
@@ -448,7 +448,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
           else
             s"${ i.start }-${ i.end }"
-          s"${ if (i.includeStart) "[" else "(" }$bounds${ if (i.includeEnd) "]" else ")" }"
+          s"${ if (i.includesStart) "[" else "(" }$bounds${ if (i.includesEnd) "]" else ")" }"
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
         case _: TCall => Call.toString(a.asInstanceOf[Call])

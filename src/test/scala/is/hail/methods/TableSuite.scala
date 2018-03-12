@@ -80,7 +80,7 @@ class TableSuite extends SparkSuite {
 
     assert(reVDS.rowsTable().same(vds.rowsTable()))
     assert(reVDS.colsTable().same(vds.colsTable()))
-    assert(reVDS.reorderSamples(sampleOrder).same(vds))
+    assert(reVDS.reorderCols(sampleOrder).same(vds))
   }
 
   @Test def testAnnotate() {

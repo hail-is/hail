@@ -15,7 +15,6 @@ genetics
     :template: class.rst
 
     Call
-    Interval
     KinshipMatrix
     Locus
     Pedigree

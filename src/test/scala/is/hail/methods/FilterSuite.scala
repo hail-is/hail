@@ -13,7 +13,7 @@ class FilterSuite extends SparkSuite {
   @Test def filterTest() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
-    assert(vds.filterSamplesExpr("\"^HG\" ~ sa.s").numCols == 63)
+    assert(vds.filterColsExpr("\"^HG\" ~ sa.s").numCols == 63)
 
     assert(vds.filterRowsExpr("va.locus.position >= 14066228", keep = false).countRows() == 173)
 
@@ -30,11 +30,11 @@ class FilterSuite extends SparkSuite {
 
     val sQcVds = SampleQC(vds)
 
-    assert(sQcVds.filterSamplesExpr("sa.qc.n_called == 337").numCols == 17)
+    assert(sQcVds.filterColsExpr("sa.qc.n_called == 337").numCols == 17)
 
-    assert(sQcVds.filterSamplesExpr("sa.qc.dp_mean > 60").numCols == 6)
+    assert(sQcVds.filterColsExpr("sa.qc.dp_mean > 60").numCols == 6)
 
-    assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ sa.s) {sa.qc.r_ti_tv > 3.5 && sa.qc.n_singleton < 10000000} else sa.qc.r_ti_tv > 3")
+    assert(sQcVds.filterColsExpr("if (\"^C1048\" ~ sa.s) {sa.qc.r_ti_tv > 3.5 && sa.qc.n_singleton < 10000000} else sa.qc.r_ti_tv > 3")
       .numCols == 16)
 
     val vQcVds = VariantQC(vds)
@@ -51,37 +51,37 @@ class FilterSuite extends SparkSuite {
 
     assert(vQcVds.filterRowsExpr("isDefined(va.qc.r_het_hom_var)").countRows() == 117)
 
-    val highGQ = vds.filterGenotypes("g.GQ < 20", keep = false)
+    val highGQ = vds.filterEntries("g.GQ < 20", keep = false)
     assert(!highGQ.entriesTable().exists("row.GQ < 20"))
     assert(highGQ.entriesTable().count() == 30889)
 
-    val highGQorMidQGAndLowFS = vds.filterGenotypes("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30)", keep = false)
+    val highGQorMidQGAndLowFS = vds.filterEntries("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30)", keep = false)
       .expand()
       .collect()
 
     val vds2 = SplitMulti(hc.importVCF("src/test/resources/filter.vcf"))
       .cache()
 
-    assert(vds2.filterGenotypes("g.AD[0] < 30").entriesTable().count() == 3)
+    assert(vds2.filterEntries("g.AD[0] < 30").entriesTable().count() == 3)
 
-    assert(vds2.filterGenotypes("g.AD[1].toFloat64() / g.DP > 0.05")
+    assert(vds2.filterEntries("g.AD[1].toFloat64() / g.DP > 0.05")
         .entriesTable()
         .count() == 3)
 
-    val highGQ2 = vds2.filterGenotypes("g.GQ < 20", keep = false)
+    val highGQ2 = vds2.filterEntries("g.GQ < 20", keep = false)
 
     assert(!highGQ2.entriesTable().exists("row.GQ < 20"))
 
     val chr1 = vds2.filterRowsExpr("va.locus.contig == \"1\"")
 
     assert(chr1.countRows() == 9)
-    assert(chr1.filterGenotypes("isDefined(g.GT)").entriesTable().count() == 9 * 11 - 2)
+    assert(chr1.filterEntries("isDefined(g.GT)").entriesTable().count() == 9 * 11 - 2)
 
-    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.GT.isHomRef()", keep = false)
+    val hetOrHomVarOnChr1 = chr1.filterEntries("g.GT.isHomRef()", keep = false)
 
-    assert(hetOrHomVarOnChr1.filterGenotypes("isDefined(g.GT)").entriesTable().count() == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
+    assert(hetOrHomVarOnChr1.filterEntries("isDefined(g.GT)").entriesTable().count() == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
 
-    val homRefOnChr1 = chr1.filterGenotypes("g.GT.isHomRef()")
+    val homRefOnChr1 = chr1.filterEntries("g.GT.isHomRef()")
 
     assert(homRefOnChr1.entriesTable().count() == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
   }
@@ -94,7 +94,7 @@ class FilterSuite extends SparkSuite {
 
   @Test def MissingTest() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
-    val keepOneSample = VariantQC(vds.filterSamplesExpr("sa.s == \"C1046::HG02024\""))
+    val keepOneSample = VariantQC(vds.filterColsExpr("sa.s == \"C1046::HG02024\""))
 
     val q = keepOneSample.queryVA("va.qc.r_het_hom_var")._2
     val missingVariants = keepOneSample.variantsAndAnnotations

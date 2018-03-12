@@ -48,7 +48,7 @@ class ExportSuite extends SparkSuite {
     sb.tsvAppend(5.124)
     assert(sb.result() == "5.12400e+00")
 
-    val readBackAnnotated = vds.annotateSamplesTable(hc.importTable(out, types = Map(
+    val readBackAnnotated = vds.annotateColsTable(hc.importTable(out, types = Map(
       "call_rate" -> TFloat64(),
       "n_called" -> TInt64(),
       "n_not_called" -> TInt64(),
@@ -82,7 +82,7 @@ class ExportSuite extends SparkSuite {
 
   @Test def testExportSamples() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf")
-      .filterSamplesExpr("""sa.s == "C469::HG02026""""))
+      .filterColsExpr("""sa.s == "C469::HG02026""""))
     assert(vds.numCols == 1)
 
     // verify exports localSamples

@@ -8,13 +8,13 @@ import org.apache.spark.sql.Row
 
 object Annotation {
 
-  final val SAMPLE_HEAD = "sa"
+  final val COL_HEAD = "sa"
 
-  final val VARIANT_HEAD = "va"
+  final val ROW_HEAD = "va"
 
   final val GLOBAL_HEAD = "global"
 
-  final val GENOTYPE_HEAD = "g"
+  final val ENTRY_HEAD = "g"
 
   val empty: Annotation = Row()
 
@@ -181,4 +181,3 @@ object Annotation {
     }
   }
 }
-

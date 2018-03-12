@@ -13,6 +13,7 @@ Contents
 
     Getting Started <getting_started>
     Tutorials <tutorials-landing>
+    Hail Overview <overview>
     Python API <api>
     Getting Started Developing <getting_started_developing>
     Other Resources <other_resources>

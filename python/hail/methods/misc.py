@@ -1,8 +1,7 @@
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.utils.java import Env, jarray_to_list, joption
-from hail.utils import wrap_to_list
-from hail.genetics import Interval
+from hail.utils import wrap_to_list, Interval
 from hail.typecheck import *
 from hail.expr.expressions import *
 from hail.expr.expr_ast import Reference
@@ -195,52 +194,45 @@ def rename_duplicates(dataset, name='unique_id'):
 
 
 @typecheck(ds=MatrixTable,
-           intervals=oneof(Interval, listof(Interval)),
+           intervals=expr_array(expr_interval(expr_any)),
            keep=bool)
 def filter_intervals(ds, intervals, keep=True):
-    """Filter rows with an interval or list of intervals.
-
-    .. note::
-
-        Requires the dataset to have a single partition key of type
-        :class:`.tlocus`.
+    """Filter rows with a list of intervals.
 
     Examples
     --------
 
     Filter to loci falling within one interval:
 
-    >>> ds_result = hl.filter_intervals(dataset, hl.Interval.parse('17:38449840-38530994'))
+    >>> ds_result = hl.filter_intervals(dataset, [hl.parse_locus_interval('17:38449840-38530994')])
 
     Remove all loci within list of intervals:
 
-    >>> intervals = [hl.Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
+    >>> intervals = [hl.parse_locus_interval(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
     >>> ds_result = hl.filter_intervals(dataset, intervals)
 
     Notes
     -----
-    This method takes an argument of :class:`.Interval` or list of
-    :class:`.Interval`.
-
-    Based on the ``keep`` argument, this method will either restrict to loci in
-    the supplied interval ranges, or remove all loci in those ranges.  Note that
-    intervals are left-inclusive, and right-exclusive; the below interval
-    includes the locus ``15:100000`` but not ``15:101000``.
-
-    >>> interval = hl.Interval.parse('15:100000-101000')
+    Based on the ``keep`` argument, this method will either restrict to points
+    in the supplied interval ranges, or remove all rows in those ranges.
 
     When ``keep=True``, partitions that don't overlap any supplied interval
     will not be loaded at all.  This enables :func:`.filter_intervals` to be
-    used for reasonably low-latency queries of small ranges of the genome, even
+    used for reasonably low-latency queries of small ranges of the dataset, even
     on large datasets.
 
     Parameters
     ----------
-    intervals : :class:`.Interval` or :obj:`list` of :class:`.Interval`
-        Interval(s) to filter on.
+    ds : :class:`.MatrixTable`
+        Dataset.
+    intervals : :class:`.ArrayExpression` of type :py:data:`.tinterval`
+        Intervals to filter on. If there is only one row partition key, the
+        point type of the interval can be the type of the first partition key.
+        Otherwise, the interval point type must be a :class:`.Struct` matching
+        the row partition key schema.
     keep : :obj:`bool`
-        If ``True``, keep only loci fall within any interval in `intervals`. If
-        ``False``, keep only loci that fall outside all intervals in
+        If ``True``, keep only rows that fall within any interval in `intervals`.
+        If ``False``, keep only rows that fall outside all intervals in
         `intervals`.
 
     Returns
@@ -248,8 +240,28 @@ def filter_intervals(ds, intervals, keep=True):
     :class:`.MatrixTable`
     """
 
-    require_partition_key_locus(ds, 'filter_intervals')
+    n_pk = len(ds.partition_key)
+    pk_type = ds.partition_key.dtype
+    point_type = intervals.dtype.element_type.point_type
 
-    intervals = wrap_to_list(intervals)
-    jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)
+    if point_type == pk_type:
+        needs_wrapper = False
+    elif n_pk == 1 and point_type == ds.partition_key[0].dtype:
+        needs_wrapper = True
+    else:
+        raise TypeError("The point type does not match the row partition key type of the dataset ('{}', '{}')".format(repr(point_type), repr(pk_type)))
+
+    def wrap_input(interval):
+        if interval is None:
+            raise TypeError("'filter_intervals' does not allow missing values in 'intervals'.")
+        elif needs_wrapper:
+            return Interval(Struct(foo=interval.start),
+                            Struct(foo=interval.end),
+                            interval.includes_start,
+                            interval.includes_end)
+        else:
+            return interval
+
+    intervals = [wrap_input(x)._jrep for x in intervals.value]
+    jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, intervals, keep)
     return MatrixTable(jmt)

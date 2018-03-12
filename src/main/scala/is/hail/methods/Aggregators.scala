@@ -10,7 +10,6 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
@@ -20,10 +19,9 @@ import scala.reflect.ClassTag
 object Aggregators {
 
   def buildRowAggregationsByKey(vsm: MatrixTable, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
-    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, nKeys, keyMap, ec)
+    buildRowAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, nKeys, keyMap, ec)
 
-  // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
-  def buildVariantAggregationsByKey(sc: SparkContext,
+  def buildRowAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
     globals: Annotation,
     colValues: IndexedSeq[Annotation],
@@ -36,7 +34,7 @@ object Aggregators {
       return { rv => Array.fill[() => Unit](nKeys) { () => Unit } }
 
     val localA = ec.a
-    val localNSamples = colValues.length
+    val localNCols = colValues.length
     val localAnnotationsBc = sc.broadcast(colValues)
     val localGlobals = globals
 
@@ -62,7 +60,7 @@ object Aggregators {
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
       var i = 0
-      while (i < localNSamples) {
+      while (i < localNCols) {
         localA(2) = is(i)
         if (keyMap(i) != -1) {
           localA(3) = localAnnotationsBc.value(i)
@@ -86,9 +84,9 @@ object Aggregators {
   }
 
   def buildRowAggregations(vsm: MatrixTable, ec: EvalContext): Option[(RegionValue) => Unit] =
-    buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, ec)
+    buildRowAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.globals, vsm.value.colValues, ec)
 
-  def buildVariantAggregations(sc: SparkContext,
+  def buildRowAggregations(sc: SparkContext,
     typ: MatrixType,
     globals: Annotation,
     colValues: IndexedSeq[Annotation],
@@ -99,7 +97,7 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localNSamples = colValues.length
+    val localNCols = colValues.length
     val colValuesBc = sc.broadcast(colValues)
     val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
@@ -116,7 +114,7 @@ object Aggregators {
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
       var i = 0
 
-      while (i < localNSamples) {
+      while (i < localNCols) {
         ec.set(2, is(i))
         ec.set(3, colValuesBc.value(i))
 
@@ -137,7 +135,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations(hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Int) => Unit] = {
+  def buildColAggregations(hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Int) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -145,17 +143,17 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localNSamples = value.nSamples
+    val localNCols = value.nCols
     val localGlobals = value.globals
     val localColValuesBc = value.colValuesBc
     localA(0) = localGlobals
 
     val nAggregations = aggregations.length
-    val nSamples = value.nSamples
+    val nCols = value.nCols
     val depth = treeAggDepth(hc, value.nPartitions)
 
-    val baseArray = MultiArray2.fill[Aggregator](nSamples, nAggregations)(null)
-    for (i <- 0 until nSamples; j <- 0 until nAggregations) {
+    val baseArray = MultiArray2.fill[Aggregator](nCols, nAggregations)(null)
+    for (i <- 0 until nCols; j <- 0 until nAggregations) {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
@@ -171,7 +169,7 @@ object Aggregators {
       val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
       var i = 0
-      while (i < localNSamples) {
+      while (i < localNCols) {
         localA(1) = localColValuesBc.value(i)
         localA(2) = gs(i)
 
@@ -190,7 +188,7 @@ object Aggregators {
 
       arr
     }, { case (arr1, arr2) =>
-      for (i <- 0 until nSamples; j <- 0 until nAggregations) {
+      for (i <- 0 until nCols; j <- 0 until nAggregations) {
         val a1 = arr1(i, j)
         a1.combOp(arr2(i, j).asInstanceOf[a1.type])
       }
@@ -204,23 +202,23 @@ object Aggregators {
     })
   }
 
-  def makeSampleFunctions(vsm: MatrixTable, aggExpr: String): SampleFunctions = {
-    val ec = vsm.sampleEC
+  def makeColFunctions(vsm: MatrixTable, aggExpr: String): ColFunctions = {
+    val ec = vsm.colEC
 
     val (resultNames, resultTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
 
     val newType = TStruct(resultNames.zip(resultTypes): _*)
 
-    val localNSamples = vsm.numCols
+    val localNCols = vsm.numCols
     val localGlobals = vsm.globals
     val localColValuesBc = vsm.colValuesBc
 
     val aggregations = ec.aggregations
     val nAggregations = aggregations.size
 
-    val ma = MultiArray2.fill[Aggregator](localNSamples, nAggregations)(null)
+    val ma = MultiArray2.fill[Aggregator](localNCols, nAggregations)(null)
     val zVal = { () =>
-      for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
+      for (i <- 0 until localNCols; j <- 0 until nAggregations) {
         ma.update(i, j, aggregations(j)._3.copy())
       }
       ma
@@ -237,7 +235,7 @@ object Aggregators {
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
       var i = 0
-      while (i < localNSamples) {
+      while (i < localNCols) {
         ec.setAll(localGlobals,
           localColValuesBc.value(i),
           is(i),
@@ -255,10 +253,10 @@ object Aggregators {
 
     val resultOp = (ma: MultiArray2[Aggregator], rvb: RegionValueBuilder) => {
       ec.set(0, localGlobals)
-      rvb.startArray(localNSamples)
+      rvb.startArray(localNCols)
 
       var i = 0
-      while (i < localNSamples) {
+      while (i < localNCols) {
         ec.set(2, localColValuesBc.value(i))
         var j = 0
         while (j < nAggregations) {
@@ -278,10 +276,10 @@ object Aggregators {
       rvb.endArray()
     }
 
-    SampleFunctions(zVal, seqOp, resultOp, newType)
+    ColFunctions(zVal, seqOp, resultOp, newType)
   }
 
-  case class SampleFunctions(
+  case class ColFunctions(
     zero: () => MultiArray2[Aggregator],
     seqOp: (MultiArray2[Aggregator], RegionValue) => MultiArray2[Aggregator],
     resultOp: (MultiArray2[Aggregator], RegionValueBuilder) => Unit,

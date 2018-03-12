@@ -175,8 +175,8 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    t = unify_types_limited(consequent._type, alternate._type)
-    if not t:
+    t = unify_types_limited(consequent.dtype, alternate.dtype)
+    if t is None:
         raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
                         "    consequent: type {}\n"
                         "    alternate:  type {}".format(consequent._type, alternate._type))
@@ -676,9 +676,6 @@ def locus(contig, pos, reference_genome='default'):
     -------
     :class:`.LocusExpression`
     """
-    contig = to_expr(contig)
-    pos = to_expr(pos)
-
     indices, aggregations, joins, refs = unify_all(contig, pos)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
                           tlocus(reference_genome), indices, aggregations, joins, refs)
@@ -712,7 +709,6 @@ def parse_locus(s, reference_genome='default'):
     -------
     :class:`.LocusExpression`
     """
-    s = to_expr(s)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
@@ -749,7 +745,6 @@ def parse_variant(s, reference_genome='default'):
     :class:`.StructExpression`
         Struct with fields `locus` and `alleles`.
     """
-    s = to_expr(s)
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
     return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
@@ -811,61 +806,138 @@ def pl_dosage(pl):
     return _func("plDosage", tfloat64, pl)
 
 
-@typecheck(start=expr_locus, end=expr_locus)
-def interval(start, end):
-    """Construct an interval expression from two loci.
+@typecheck(start=expr_any, end=expr_any,
+           includes_start=expr_bool, includes_end=expr_bool)
+def interval(start, end, includes_start=True, includes_end=False):
+    """Construct an interval expression.
 
     Examples
     --------
     .. doctest::
+
+        >>> hl.eval_expr(hl.interval(5, 100))
+        Interval(start=5, end=100)
 
         >>> hl.eval_expr(hl.interval(hl.locus("1", 100),
         ...                          hl.locus("1", 1000)))
         Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
                  end=Locus(contig=1, position=1000, reference_genome=GRCh37))
+
+    Notes
+    -----
+    `start` and `end` must have the same type.
+
     Parameters
     ----------
-    start : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
-        Starting locus (inclusive).
-    end : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
-        End locus (exclusive).
+    start : :class:`.Expression`
+        Start point.
+    end : :class:`.Expression`
+        End point.
+    includes_start : :class:`.BooleanExpression`
+        If ``True``, interval includes start point.
+    includes_end : :class:`.BooleanExpression`
+        If ``True``, interval includes end point.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
-    start = to_expr(start)
-    end = to_expr(end)
+    if not start.dtype == end.dtype:
+        raise TypeError("Type mismatch of start and end points: '{}', '{}'".format(start.dtype, end.dtype))
 
-    indices, aggregations, joins, refs = unify_all(start, end)
-    if not start._type._rg == end._type._rg:
-        raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
+    indices, aggregations, joins, refs = unify_all(start, end, includes_start, includes_end)
+
     return construct_expr(
-        ApplyMethod('Interval', start._ast, end._ast), tinterval(tlocus(start._type._rg)),
+        ApplyMethod('Interval', start._ast, end._ast, includes_start._ast, includes_end._ast), tinterval(start.dtype),
         indices, aggregations, joins, refs)
 
 
-@typecheck(s=expr_str,
-           reference_genome=reference_genome_type)
-def parse_interval(s, reference_genome='default'):
-    """Construct an interval expression by parsing a string or string expression.
+@typecheck(contig=expr_str, start=expr_int32,
+           end=expr_int32, includes_start=expr_bool,
+           includes_end=expr_bool, reference_genome=reference_genome_type)
+def locus_interval(contig, start, end, includes_start=True, includes_end=False, reference_genome='default'):
+    """Construct a locus interval expression.
 
     Examples
     --------
     .. doctest::
 
-        >>> hl.eval_expr(hl.parse_interval('1:1000-2000'))
+        >>> hl.eval_expr(hl.locus_interval("1", 100, 1000))
+        Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
+                 end=Locus(contig=1, position=1000, reference_genome=GRCh37))
+
+    Parameters
+    ----------
+    contig : :class:`.StringExpression`
+        Contig name.
+    start : :class:`.Int32Expression`
+        Starting base position.
+    end : :class:`.Int32Expression`
+        End base position.
+    includes_start : :class:`.BooleanExpression`
+        If ``True``, interval includes start point.
+    includes_end : :class:`.BooleanExpression`
+        If ``True``, interval includes end point.
+    reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
+        Reference genome to use.
+
+    Returns
+    -------
+    :class:`.IntervalExpression`
+    """
+    indices, aggregations, joins, refs = unify_all(contig, start, end, includes_start, includes_end)
+
+    return construct_expr(
+        ApplyMethod('LocusInterval({})'.format(reference_genome.name),
+                    contig._ast, start._ast, end._ast, includes_start._ast, includes_end._ast),
+        tinterval(tlocus(reference_genome)), indices, aggregations, joins, refs)
+
+
+@typecheck(s=expr_str,
+           reference_genome=reference_genome_type)
+def parse_locus_interval(s, reference_genome='default'):
+    """Construct a locus interval expression by parsing a string or string
+    expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.parse_locus_interval('1:1000-2000'))
         Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
                  end=Locus(contig=1, position=2000, reference_genome=GRCh37))
 
-        >>> hl.eval_expr(hl.parse_interval('1:start-10M'))
+        >>> hl.eval_expr(hl.parse_locus_interval('1:start-10M'))
         Interval(start=Locus(contig=1, position=0, reference_genome=GRCh37),
                  end=Locus(contig=1, position=10000000, reference_genome=GRCh37))
 
     Notes
     -----
-    This method expects strings of the form ``contig:start-end``, e.g. ``16:29500000-30200000``,
-    ``8:start-end``, or ``X:10M-20M``.
+    The start locus must precede the end locus. The default bounds of the
+    interval are left-inclusive and right-exclusive. To change this, add
+    one of ``[`` or ``(`` at the beginning of the string for left-inclusive
+    or left-exclusive respectively. Likewise, add one of ``]`` or ``)`` at
+    the end of the string for right-inclusive or right-exclusive
+    respectively.
+
+    There are several acceptable representations for `s`.
+
+    ``CHR1:POS1-CHR2:POS2`` is the fully specified representation, and
+    we use this to define the various shortcut representations.
+
+    In a ``POS`` field, ``start`` (``Start``, ``START``) stands for 1.
+
+    In a ``POS`` field, ``end`` (``End``, ``END``) stands for the contig length.
+
+    In a ``POS`` field, the qualifiers ``m`` (``M``) and ``k`` (``K``) multiply
+    the given number by ``1,000,000`` and ``1,000``, respectively.  ``1.6K`` is
+    short for 1600, and ``29M`` is short for 29000000.
+
+    ``CHR:POS1-POS2`` stands for ``CHR:POS1-CHR:POS2``
+
+    ``CHR1-CHR2`` stands for ``CHR1:START-CHR2:END``
+
+    ``CHR`` stands for ``CHR:START-CHR:END``
 
     Parameters
     ----------
@@ -878,9 +950,9 @@ def parse_interval(s, reference_genome='default'):
     -------
     :class:`.IntervalExpression`
     """
-    s = to_expr(s)
     return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), tinterval(tlocus(reference_genome)),
+        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast),
+        tinterval(tlocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)
 
 
@@ -2445,7 +2517,7 @@ def max(*exprs):
 
     Parameters
     ----------
-    exprs : :class:`.ArrayExpression` or class:`.SetExpression` or varargs of :class:`.NumericExpression`
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
 
     Returns
@@ -2498,7 +2570,7 @@ def min(*exprs):
 
     Parameters
     ----------
-    exprs : :class:`.ArrayExpression` or class:`.SetExpression` or varargs of :class:`.NumericExpression`
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
 
     Returns
@@ -2778,7 +2850,7 @@ def empty_set(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(empty_set(hl.tstr))
+        >>> hl.eval_expr(hl.empty_set(hl.tstr))
         set()
 
     Parameters
@@ -2831,7 +2903,7 @@ def empty_array(t):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(empty_array(hl.tint32))
+        >>> hl.eval_expr(hl.empty_array(hl.tint32))
         []
 
     Parameters
@@ -2854,7 +2926,7 @@ def empty_dict(key_type, value_type):
     --------
     .. doctest::
 
-        >>> hl.eval_expr(empty_dict(hl.tstr, hl.tint32))
+        >>> hl.eval_expr(hl.empty_dict(hl.tstr, hl.tint32))
         {}
 
     Parameters

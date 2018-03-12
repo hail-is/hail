@@ -29,10 +29,6 @@ Collection functions
     group_by
     index
 
-
-.. autofunction:: dict
-.. autofunction:: array
-.. autofunction:: set
 .. autofunction:: len
 .. autofunction:: map
 .. autofunction:: flatmap
