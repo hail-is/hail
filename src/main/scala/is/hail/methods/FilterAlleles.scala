@@ -40,8 +40,8 @@ object FilterAlleles {
       "sa" -> (6, vsm.colType),
       "g" -> (7, vsm.entryType)))
 
-    val vAnnotator = new ExprAnnotator(vEC, vsm.rowType, variantExpr, Some(Annotation.VARIANT_HEAD))
-    val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
+    val vAnnotator = new ExprAnnotator(vEC, vsm.rowType, variantExpr, Some(Annotation.ROW_HEAD))
+    val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
 
     val (t1, insertLocus) = vAnnotator.newT.insert(locusType, "locus")
     assert(t1 == vAnnotator.newT, s"\n$t1\n${vAnnotator.newT}")

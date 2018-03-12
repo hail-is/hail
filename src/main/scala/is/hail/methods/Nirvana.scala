@@ -223,7 +223,7 @@ object Nirvana {
 
   def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
     assert(vds.rowKey == IndexedSeq("locus", "alleles"))
-    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
 
     val properties = try {
       val p = new Properties()

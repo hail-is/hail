@@ -49,7 +49,7 @@ class VSMSuite extends SparkSuite {
       .write(f)
 
     assert(hc.readVDS(f, dropSamples = true)
-      .same(hc.readVDS(f).dropSamples()))
+      .same(hc.readVDS(f).dropCols()))
   }
 
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
@@ -125,7 +125,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryGenotypes("AGG.map(g => g.GQ).hist(0, 100, 100)")
+    vds.queryEntries("AGG.map(g => g.GQ).hist(0, 100, 100)")
   }
 
   @Test def testReorderSamples() {
@@ -133,14 +133,14 @@ class VSMSuite extends SparkSuite {
     val origOrder = Array[Annotation]("C1046::HG02024", "C1046::HG02025", "C1046::HG02026", "C1047::HG00731", "C1047::HG00732")
     val newOrder = Array[Annotation]("C1046::HG02026", "C1046::HG02024", "C1047::HG00732", "C1046::HG02025", "C1047::HG00731")
 
-    val filteredVds = vds.filterSamplesList(origOrder.map(Annotation(_)).toSet)
+    val filteredVds = vds.filterColsList(origOrder.map(Annotation(_)).toSet)
       .indexCols("colIdx")
       .annotateRowsExpr("origGenos = AGG.take(5)")
-    val reorderedVds = filteredVds.reorderSamples(newOrder.map(Annotation(_)))
+    val reorderedVds = filteredVds.reorderCols(newOrder.map(Annotation(_)))
       .annotateRowsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
-    assert(vds.reorderSamples(vds.colKeys).same(vds))
+    assert(vds.reorderCols(vds.colKeys).same(vds))
   }
   
   @Test def testWriteBlockMatrix() {

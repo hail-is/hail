@@ -363,7 +363,7 @@ class GroupedMatrixTable(object):
         if self._col_keys is not None:
             assert self._new_col_keys is not None
             base = MatrixTable(base.key_cols_by(*self._new_col_keys)._jvds
-                               .groupSamplesBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]), ',\n'.join(strs)))
+                               .groupColsBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]), ',\n'.join(strs)))
         elif self._row_keys is not None:
             base = MatrixTable(base.key_rows_by(*self._new_row_keys, partition_key=self._partition_key)._jvds.aggregateRowsByKey(',\n'.join(strs)))
         else:
@@ -952,7 +952,7 @@ class MatrixTable(object):
             analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
             exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._col_indices)
-        m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateColsExpr(",\n".join(exprs)))
         return cleanup(m)
 
     def annotate_entries(self, **named_exprs: NamedExprs) -> 'MatrixTable':
@@ -1008,7 +1008,7 @@ class MatrixTable(object):
             analyze('MatrixTable.annotate_entries', v, self._entry_indices)
             exprs.append('g.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._entry_indices)
-        m = MatrixTable(base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateEntriesExpr(",\n".join(exprs)))
         return cleanup(m)
 
     def select_globals(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
@@ -1385,7 +1385,7 @@ class MatrixTable(object):
             Matrix table with no columns.
         """
         warn("deprecation: 'drop_cols' will be removed before 0.2 release")
-        return MatrixTable(self._jvds.dropSamples())
+        return MatrixTable(self._jvds.dropCols())
 
     @typecheck_method(expr=expr_any, keep=bool)
     def filter_rows(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
@@ -1500,7 +1500,7 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_cols', expr, self._col_indices, {self._row_axis})
 
-        m = MatrixTable(base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
+        m = MatrixTable(base._jvds.filterColsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
     @typecheck_method(expr=expr_bool, keep=bool)
@@ -1556,7 +1556,7 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_entries', expr, self._entry_indices)
 
-        m = MatrixTable(base._jvds.filterGenotypes(expr._ast.to_hql(), keep))
+        m = MatrixTable(base._jvds.filterEntries(expr._ast.to_hql(), keep))
         return cleanup(m)
 
     def transmute_globals(self, **named_exprs: NamedExprs) -> 'MatrixTable':
@@ -1870,7 +1870,7 @@ class MatrixTable(object):
                 raise ExpressionException(
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
             s = field_expr._ast.to_hql()
-        return MatrixTable(self._jvds.explodeSamples(s))
+        return MatrixTable(self._jvds.explodeCols(s))
 
     @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
     def group_rows_by(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
@@ -2308,7 +2308,7 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Matrix table with columns reordered.
         """
-        jvds = self._jvds.reorderSamples(order)
+        jvds = self._jvds.reorderCols(order)
         return MatrixTable(jvds)
 
     def n_partitions(self) -> int:

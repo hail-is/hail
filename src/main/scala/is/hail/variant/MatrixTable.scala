@@ -7,7 +7,7 @@ import is.hail.expr._
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
-import is.hail.methods.Aggregators.SampleFunctions
+import is.hail.methods.Aggregators.ColFunctions
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
@@ -134,7 +134,7 @@ object MatrixTable {
     val localGType = matrixType.entryType
     val localRVRowType = matrixType.rvRowType
 
-    val localNSamples = colValues.length
+    val localNCols = colValues.length
 
     var ds = new MatrixTable(hc, matrixType, globals, colValues,
       OrderedRVD(matrixType.orvdType,
@@ -155,7 +155,7 @@ object MatrixTable {
               rvb.addAnnotation(localRVRowType.types(i), vaRow.get(i))
               i += 1
             }
-            rvb.startArray(localNSamples) // gs
+            rvb.startArray(localNCols) // gs
             gs.foreach { g => rvb.addAnnotation(localGType, g) }
             rvb.endArray() // gs
             rvb.endStruct()
@@ -458,11 +458,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     matrixType: MatrixType,
     globals: Annotation,
     colValues: IndexedSeq[Annotation],
-    rdd2: OrderedRVD) =
+    rvd: OrderedRVD) =
     this(hc,
       MatrixLiteral(
         matrixType,
-        MatrixValue(matrixType, globals, colValues, rdd2)))
+        MatrixValue(matrixType, globals, colValues, rvd)))
 
   def requireRowKeyVariant(method: String) {
     rowKey.zip(rowKeyTypes) match {
@@ -541,7 +541,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  // length nPartitions + 1, first element 0, last element rdd2 count
+  // length nPartitions + 1, first element 0, last element rvd count
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
 
   def colKeys: IndexedSeq[Annotation] = {
@@ -611,9 +611,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
 
-  def groupSamplesBy(keyExpr: String, aggExpr: String): MatrixTable = {
+  def groupColsBy(keyExpr: String, aggExpr: String): MatrixTable = {
     val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
-      Annotation.SAMPLE_HEAD -> (1, colType)))
+      Annotation.COL_HEAD -> (1, colType)))
     val (keyNames, keyTypes, keyFs) = Parser.parseNamedExprs(keyExpr, sEC)
     sEC.set(0, globals)
 
@@ -627,7 +627,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val nKeys = newKeys.size
 
-    val ec = variantEC
+    val ec = rowEC
     val (newEntryNames, newEntryTypes, entryF) = Parser.parseNamedExprs(aggExpr, ec)
     val newEntryType = TStruct(newEntryNames.zip(newEntryTypes): _*)
 
@@ -663,7 +663,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def aggregateRowsByKey(aggExpr: String): MatrixTable = {
 
-    val SampleFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeSampleFunctions(this, aggExpr)
+    val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, aggExpr)
     val newRowType = matrixType.orvdType.kType
     val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
       rowPartitionKey, rowKey, newRowType, newEntryType)
@@ -767,7 +767,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     globalType.structInsert(sig, path)
   }
 
-  def annotateSamples(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
+  def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
     val (t, ins) = insertSA(signature, path)
 
     val newAnnotations = new Array[Annotation](numCols)
@@ -780,8 +780,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = matrixType.copy(colType = t), colValues = newAnnotations)
   }
 
-  def annotateSamplesExpr(expr: String): MatrixTable = {
-    val ec = sampleEC
+  def annotateColsExpr(expr: String): MatrixTable = {
+    val ec = colEC
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
 
@@ -793,7 +793,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
     val inserters = inserterBuilder.result()
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
+    val colAggregationOption = Aggregators.buildColAggregations(hc, value, ec)
 
     ec.set(0, globals)
 
@@ -801,7 +801,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     var i = 0
     while (i < numCols) {
-      sampleAggregationOption.foreach(_.apply(i))
+      colAggregationOption.foreach(_.apply(i))
       val sa = colValues(i)
       ec.set(1, sa)
 
@@ -817,16 +817,16 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       matrixType = matrixType.copy(colKey = colKey.filter(saFields.contains), colType = finalType))
   }
 
-  def annotateSamples(annotations: Map[Annotation, Annotation], signature: Type, root: String): MatrixTable = {
+  def annotateCols(annotations: Map[Annotation, Annotation], signature: Type, root: String): MatrixTable = {
     val (t, i) = insertSA(signature, List(root))
-    annotateSamples(t, i) { case (s, _) => annotations.getOrElse(s, null) }
+    annotateCols(t, i) { case (s, _) => annotations.getOrElse(s, null) }
   }
 
-  def annotateSamplesTable(kt: Table, vdsKey: java.util.ArrayList[String],
+  def annotateColsTable(kt: Table, vdsKey: java.util.ArrayList[String],
     root: String, product: Boolean): MatrixTable =
-    annotateSamplesTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, product)
+    annotateColsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, product)
 
-  def annotateSamplesTable(kt: Table, vdsKey: Seq[String] = null,
+  def annotateColsTable(kt: Table, vdsKey: Seq[String] = null,
     root: String = null, product: Boolean = false): MatrixTable = {
 
     val (finalType, inserter) = colType.structInsert(
@@ -844,11 +844,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val keyEC = EvalContext(Map("sa" -> (0, colType)))
       val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
 
-      if (keyTypes != vdsKeyType)
-        fatal(
-          s"""method `annotateSamplesTable' encountered a mismatch between table keys and computed keys.
-             |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
-             |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+      assert(keyTypes == vdsKeyType)
 
       val keyFuncArray = vdsKeyFs.toArray
 
@@ -864,7 +860,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
       val m = r.collectAsMap()
 
-      annotateSamples(finalType, inserter) { case (_, i) => m.getOrElse(vdsKeys(i)._1, nullValue) }
+      annotateCols(finalType, inserter) { case (_, i) => m.getOrElse(vdsKeys(i)._1, nullValue) }
     } else {
       val ssig = colKeyTypes.toSeq
       keyTypes match {
@@ -877,16 +873,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
           val m = r.collectAsMap()
 
-          annotateSamples(finalType, inserter) { case (ck, _) => m.getOrElse(ck, nullValue) }
-        case other =>
-          fatal(
-            s"""method 'annotate_samples_table' expects a key table keyed by [ ${ colKeyTypes.mkString(",") } ]
-               |  Found key [ ${ other.mkString(", ") } ] instead.""".stripMargin)
+          annotateCols(finalType, inserter) { case (ck, _) => m.getOrElse(ck, nullValue) }
       }
     }
   }
 
-  def annotateSamples(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
+  def annotateCols(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
     val newAnnotations = colKeys.zip(colValues)
       .zipWithIndex
       .map { case ((ck, sa), i) =>
@@ -902,7 +894,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def annotateRowsExpr(expr: String): MatrixTable = {
     val localGlobals = globals
 
-    val ec = variantEC
+    val ec = rowEC
     ec.set(0, globals)
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
 
@@ -1149,7 +1141,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       annotateRowsIntervalTable(kt, root, product)
     } else {
       fatal(
-        s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
+        s"""method 'annotate_rows_table' expects a key table keyed by one of the following:
            |  [ ${ rowKeyTypes.mkString(", ") } ]
            |  [ ${ rowPartitionKeyTypes.mkString(", ") } ]
            |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
@@ -1181,7 +1173,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def selectCols(selectExprs: java.util.ArrayList[String]): MatrixTable = selectCols(selectExprs.asScala.toArray: _*)
 
   def selectCols(exprs: String*): MatrixTable = {
-    val ec = sampleEC
+    val ec = colEC
     val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
     val topLevelFields = mutable.Set.empty[String]
 
@@ -1189,9 +1181,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       // assignment
       case Left(name) => name
       case Right(path) =>
-        assert(path.head == Annotation.SAMPLE_HEAD)
+        assert(path.head == Annotation.COL_HEAD)
         path match {
-          case List(Annotation.SAMPLE_HEAD, name) => topLevelFields += name
+          case List(Annotation.COL_HEAD, name) => topLevelFields += name
           case _ =>
         }
         path.last
@@ -1203,7 +1195,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newColKey = colKey.filter(finalNameSet.contains)
 
     val newMatrixType = matrixType.copy(colType = newColType, colKey = newColKey)
-    val aggOption = Aggregators.buildSampleAggregations(hc, value, ec)
+    val aggOption = Aggregators.buildColAggregations(hc, value, ec)
 
     ec.set(0, globals)
     val newColValues = Array.tabulate(numCols) { i =>
@@ -1218,7 +1210,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def selectRows(selectExprs: java.util.ArrayList[String]): MatrixTable = selectRows(selectExprs.asScala.toArray: _*)
 
   def selectRows(exprs: String*): MatrixTable = {
-    val ec = variantEC
+    val ec = rowEC
     val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
     val topLevelFields = mutable.Set.empty[String]
 
@@ -1226,9 +1218,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       // assignment
       case Left(name) => name
       case Right(path) =>
-        assert(path.head == Annotation.VARIANT_HEAD)
+        assert(path.head == Annotation.ROW_HEAD)
         path match {
-          case List(Annotation.VARIANT_HEAD, name) => topLevelFields += name
+          case List(Annotation.ROW_HEAD, name) => topLevelFields += name
           case _ =>
         }
         path.last
@@ -1351,9 +1343,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       // assignment
       case Left(name) => name
       case Right(path) =>
-        assert(path.head == Annotation.GENOTYPE_HEAD)
+        assert(path.head == Annotation.ENTRY_HEAD)
         path match {
-          case List(Annotation.GENOTYPE_HEAD, name) => topLevelFields += name
+          case List(Annotation.ENTRY_HEAD, name) => topLevelFields += name
         }
         path.last
     }
@@ -1463,13 +1455,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def deleteVA(path: List[String]): (Type, Deleter) = rowType.delete(path)
 
-  def dropSamples(): MatrixTable =
-    copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean())))
+  def dropCols(): MatrixTable =
+    copyAST(ast = FilterCols(ast, Const(null, false, TBoolean())))
 
   def dropRows(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orvdType))
 
   def explodeRows(root: String): MatrixTable = {
-    val path = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+    val path = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
     val (keysType, querier) = rvRowType.queryTyped(path)
     val keyType = keysType match {
       case TArray(e, _) => e
@@ -1507,8 +1499,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = newMatrixType, rvd = explodedRDD)
   }
 
-  def explodeSamples(code: String): MatrixTable = {
-    val path = Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD)
+  def explodeCols(code: String): MatrixTable = {
+    val path = Parser.parseAnnotationRoot(code, Annotation.COL_HEAD)
     val (keysType, querier) = colType.queryTyped(path)
     val keyType = keysType match {
       case TArray(e, _) => e
@@ -1564,7 +1556,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def annotateGenotypesExpr(expr: String): MatrixTable = {
+  def annotateEntriesExpr(expr: String): MatrixTable = {
     val symTab = Map(
       "va" -> (0, rowType),
       "sa" -> (1, colType),
@@ -1574,7 +1566,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     ec.set(3, globals)
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.GENOTYPE_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.ENTRY_HEAD))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
     val newEntryType = (paths, types).zipped.foldLeft(entryType) { case (gsig, (ids, signature)) =>
@@ -1618,44 +1610,25 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def filterSamples(p: (Annotation, Int) => Boolean): MatrixTable = {
-    copyAST(ast = MatrixLiteral(matrixType, value.filterSamples(p)))
+  def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
+    copyAST(ast = MatrixLiteral(matrixType, value.filterCols(p)))
   }
 
-  /**
-    * Filter samples using the Hail expression language.
-    *
-    * @param filterExpr Filter expression involving `s' (sample) and `sa' (sample annotations)
-    * @param keep       keep where filterExpr evaluates to true
-    */
-  def filterSamplesExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
+  def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
     if (!keep)
       filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    copyAST(ast = FilterSamples(ast, filterAST))
+    copyAST(ast = FilterCols(ast, filterAST))
   }
 
-  def filterSamplesList(samples: java.util.ArrayList[Annotation], keep: Boolean): MatrixTable =
-    filterSamplesList(samples.asScala.toSet, keep)
+  def filterColsList(samples: java.util.ArrayList[Annotation], keep: Boolean): MatrixTable =
+    filterColsList(samples.asScala.toSet, keep)
 
-  /**
-    * Filter samples using a text file containing sample IDs
-    *
-    * @param samples Set of samples to keep or remove
-    * @param keep    Keep listed samples.
-    */
-  def filterSamplesList(samples: Set[Annotation], keep: Boolean = true): MatrixTable = {
+  def filterColsList(samples: Set[Annotation], keep: Boolean = true): MatrixTable = {
     val p = (s: Annotation, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
-    filterSamples(p)
+    filterCols(p)
   }
 
-  /**
-    * Filter variants using the Hail expression language.
-    *
-    * @param filterExpr filter expression
-    * @param keep       keep variants where filterExpr evaluates to true
-    * @return
-    */
   def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
     if (!keep)
@@ -1828,7 +1801,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd = OrderedRVD(rvd.typ, rvd.partitioner, joined))
   }
 
-  def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {
+  def makeKT(rowExpr: String, entryExpr: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {
     requireColKeyString("make table")
 
     val vSymTab = Map(
@@ -1837,7 +1810,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
-    val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantCondition, vEC)
+    val (vNames, vTypes, vf) = Parser.parseNamedExprs(rowExpr, vEC)
 
     val gSymTab = Map(
       "global" -> (0, globalType),
@@ -1847,7 +1820,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val (gNames, gTypes, gf) = Parser.parseNamedExprs(genotypeCondition, gEC)
+    val (gNames, gTypes, gf) = Parser.parseNamedExprs(entryExpr, gEC)
 
     val sig = TStruct(((vNames, vTypes).zipped ++
       stringSampleIds.flatMap { s =>
@@ -1920,24 +1893,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def aggregateColsJSON(expr: String): String = {
-    val (a, t) = querySamples(expr)
+    val (a, t) = queryCols(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
 
   def aggregateEntriesJSON(expr: String): String = {
-    val (a, t) = queryGenotypes(expr)
+    val (a, t) = queryEntries(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
 
-  def queryGenotypes(expr: String): (Annotation, Type) = {
-    val qv = queryGenotypes(Array(expr))
+  def queryEntries(expr: String): (Annotation, Type) = {
+    val qv = queryEntries(Array(expr))
     assert(qv.length == 1)
     qv.head
   }
 
-  def queryGenotypes(exprs: Array[String]): Array[(Annotation, Type)] = {
+  def queryEntries(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "g" -> (1, entryType),
@@ -2002,13 +1975,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (t, f2(globals))
   }
 
-  def querySamples(expr: String): (Annotation, Type) = {
-    val qs = querySamples(Array(expr))
+  def queryCols(expr: String): (Annotation, Type) = {
+    val qs = queryCols(Array(expr))
     assert(qs.length == 1)
     qs.head
   }
 
-  def querySamples(exprs: Array[String]): Array[(Annotation, Type)] = {
+  def queryCols(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType))
@@ -2033,7 +2006,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def queryVA(code: String): (Type, Querier) = {
 
-    val st = Map(Annotation.VARIANT_HEAD -> (0, rowType))
+    val st = Map(Annotation.ROW_HEAD -> (0, rowType))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -2081,12 +2054,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def reorderSamples(newIds: java.util.ArrayList[String]): MatrixTable =
-    reorderSamples(newIds.asScala.toArray.map(Annotation(_)))
+  def reorderCols(newIds: java.util.ArrayList[String]): MatrixTable =
+    reorderCols(newIds.asScala.toArray.map(Annotation(_)))
 
-  def reorderSamples(newIds: IndexedSeq[Annotation]): MatrixTable = {
+  def reorderCols(newIds: IndexedSeq[Annotation]): MatrixTable = {
     require(newIds.length == numCols)
-    requireUniqueSamples("reorder_samples")
+    requireUniqueSamples("reorder_columns")
     require(newIds.areDistinct())
 
     val sampleSet = colKeys.toSet[Annotation]
@@ -2320,7 +2293,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }.forall(t => t)
   }
 
-  def sampleEC: EvalContext = {
+  def colEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
@@ -2433,7 +2406,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     "sa" -> (2, colType),
     "g" -> (3, entryType)))
 
-  def variantEC: EvalContext = {
+  def rowEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "va" -> (1, rowType),
@@ -2590,12 +2563,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  /**
-    * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
-    *                   sa (sample annotations), and g (genotype annotation), which returns a boolean value
-    * @param keep       keep genotypes where filterExpr evaluates to true
-    */
-  def filterGenotypes(filterExpr: String, keep: Boolean = true): MatrixTable = {
+  def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
     val symTab = Map(
       "va" -> (0, rowType),
       "sa" -> (1, colType),
@@ -2756,8 +2724,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", variantBlockSize: Int = 16): MatrixTable = {
-    LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
+  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
+    LinearRegression(this, ysExpr, xExpr, covExpr, root, rowBlockSize)
   }
 
   def logreg(test: String,
@@ -2838,7 +2806,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
     }
 
-    val newRDD2 =
+    val newRVD =
       if (leftAligned)
         OrderedRVD(rvd.typ,
           rvd.partitioner,
@@ -2850,7 +2818,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             minRep1(removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
-    copy2(rvd = newRDD2)
+    copy2(rvd = newRVD)
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {
