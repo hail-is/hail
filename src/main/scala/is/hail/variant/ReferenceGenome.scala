@@ -19,7 +19,6 @@ import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
 
 abstract class RGBase extends Serializable {
-  val variantType: TVariant
   val locusType: TLocus
   val intervalType: TInterval
 
@@ -33,11 +32,7 @@ abstract class RGBase extends Serializable {
 
   def isValidContig(contig: String): Boolean
 
-  def checkVariant(v: Variant): Unit
-
   def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit
-
-  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit
 
   def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit
 
@@ -151,7 +146,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   // must be constructed after orderings
-  val variantType: TVariant = TVariant(this)
   val locusType: TLocus = TLocus(this)
   val intervalType: TInterval = TInterval(locusType)
 
@@ -191,13 +185,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
   }
 
-  def checkVariant(v: Variant): Unit = {
-    if (!isValidContig(v.contig))
-      fatal(s"Invalid variant `$v' found. Contig `${ v.contig }' is not in the reference genome `$name'.")
-    if (!isValidPosition(v.contig, v.start))
-      fatal(s"Invalid variant `$v' found. Start `${ v.start }' is not within the range [1-${ contigLength(v.contig) }] for reference genome `$name'.")
-  }
-
   def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
     val v = s"$contig:$start:$ref:$alt"
     if (!isValidContig(contig))
@@ -207,8 +194,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
-
-  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit = checkVariant(contig, start, ref, alts.asScala.toArray)
 
   def checkInterval(i: Interval): Unit = {
     val start = i.start.asInstanceOf[Locus]
@@ -425,7 +410,6 @@ object ReferenceGenome {
         exportReferences(hc, path, keyType)
         exportReferences(hc, path, valueType)
       case TStruct(fields, _) => fields.foreach(fd => exportReferences(hc, path, fd.typ))
-      case TVariant(rg, _) => writeReference(hc, path, rg)
       case TLocus(rg, _) => writeReference(hc, path, rg)
       case TInterval(TLocus(rg, _), _) => writeReference(hc, path, rg)
       case _ =>
@@ -503,7 +487,6 @@ object ReferenceGenome {
 }
 
 case class RGVariable(var rg: RGBase = null) extends RGBase {
-  val variantType: TVariant = TVariant(this)
   val locusType: TLocus = TLocus(this)
   val intervalType: TInterval = TInterval(locusType)
 
@@ -544,13 +527,9 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
 
   def isValidContig(contig: String): Boolean = ???
 
-  def checkVariant(v: Variant): Unit = ???
-
   def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit = ???
 
   def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit = ???
-
-  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit = ???
 
   def checkLocus(l: Locus): Unit = ???
 

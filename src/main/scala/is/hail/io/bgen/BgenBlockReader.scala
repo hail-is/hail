@@ -2,7 +2,6 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.io._
-import is.hail.variant.Variant
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit

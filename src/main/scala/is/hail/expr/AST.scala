@@ -429,7 +429,6 @@ case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseSt
 case class ReferenceGenomeDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
   val rg = ReferenceGenome.getReference(grName)
   val rTyp = fName match {
-    case "Variant" => rg.variantType
     case "Locus" => rg.locusType
     case "LocusInterval" => rg.intervalType
     case "LocusAlleles" => TStruct("locus" -> rg.locusType, "alleles" -> TArray(TString()))

@@ -551,8 +551,6 @@ object Parser extends JavaTokenParsers {
       "Float64" ^^ { _ => TFloat64() } |
       "Float" ^^ { _ => TFloat64() } |
       "String" ^^ { _ => TString() } |
-      "AltAllele" ^^ { _ => TAltAllele() } |
-      ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).variantType } |
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       ("LocusAlleles" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       "Call" ^^ { _ => TCall() } |
@@ -646,7 +644,7 @@ object Parser extends JavaTokenParsers {
       "|-" ^^ { _ => Call0(phased = true) }
   }
 
-  def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "LocusAlleles" | "Locus"
+  def genomeReferenceDependentTypes: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus"
 
   def intervalWithEndpoints[T](bounds: Parser[(T, T)]): Parser[Interval] = {
     val start = ("[" ^^^ true) | ("(" ^^^ false)

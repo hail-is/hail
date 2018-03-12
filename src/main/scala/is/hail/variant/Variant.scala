@@ -73,35 +73,10 @@ object Variant {
     Variant(contig, elts(size - 3).toInt, elts(size - 2), elts(size - 1).split(","), rg)
   }
 
-  def fromRegionValue(r: Region, offset: Long): Variant = {
-    val t = TVariant.representation()
-    val altsType = t.types(3).asInstanceOf[TArray]
-
-    val contig = TString.loadString(r, t.loadField(r, offset, 0))
-    val pos = r.loadInt(t.loadField(r, offset, 1))
-    val ref = TString.loadString(r, t.loadField(r, offset, 2))
-
-    val altsOffset = t.loadField(r, offset, 3)
-    val nAlts = altsType.loadLength(r, altsOffset)
-    val altArray = new Array[AltAllele](nAlts)
-    var i = 0
-    while (i < nAlts) {
-      val o = altsType.loadElement(r, altsOffset, nAlts, i)
-      altArray(i) = AltAllele.fromRegionValue(r, o)
-      i += 1
-    }
-    Variant(contig, pos, ref, altArray)
-  }
-
-  def fromRegionValue(rv: RegionValue): Variant =
-    fromRegionValue(rv.region, rv.offset)
-
   def variantID(contig: String, start: Int, alleles: IndexedSeq[String]): String = {
     require(alleles.length >= 2)
     s"$contig:$start:${alleles(0)}:${alleles.tail.mkString(",")}"
   }
-
-  def variantID(view: RegionValueVariant): String = variantID(view.contig(), view.position(), view.alleles())
 
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
@@ -111,22 +86,6 @@ object Variant {
   def gen: Gen[Variant] = VariantSubgen.random.gen
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
-
-  def sparkSchema: StructType =
-    StructType(Array(
-      StructField("contig", StringType, nullable = false),
-      StructField("start", IntegerType, nullable = false),
-      StructField("ref", StringType, nullable = false),
-      StructField("altAlleles", ArrayType(AltAllele.sparkSchema, containsNull = false),
-        nullable = false)))
-
-  def fromRow(r: Row) =
-    Variant(r.getAs[String](0),
-      r.getAs[Int](1),
-      r.getAs[String](2),
-      r.getSeq[Row](3)
-        .map(s => AltAllele.fromRow(s))
-        .toArray)
 
   def fromLocusAlleles(a: Annotation): Variant = {
     val r = a.asInstanceOf[Row]
@@ -138,20 +97,8 @@ object Variant {
       Variant(l.contig, l.position, alleles(0), alleles.tail.map(x => AltAllele(alleles(0), x)))
   }
 
-  def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
-    sc.textFileLines(input)
-      .map {
-        _.map { line =>
-          val fields = line.split(":")
-          if (fields.length != 4)
-            fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
-          val ref = fields(2)
-          (Variant(fields(0),
-            fields(1).toInt,
-            ref,
-            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
-        }.value
-      }
+  def locusAllelesToString(locus: Locus, alleles: Array[String]): String =
+    s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
 }
 
 object VariantSubgen {
