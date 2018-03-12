@@ -184,7 +184,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def getGlobalPosTree = IntervalTree.annotationTree[String](globalPosOrd, {
     var pos = 0L
     contigs.map { c =>
-      val x = Interval(pos, pos + contigLength(c), includeStart = true, includeEnd = false)
+      val x = Interval(pos, pos + contigLength(c), includesStart = true, includesEnd = false)
       pos += contigLength(c)
       (x, c)
     }
@@ -479,7 +479,13 @@ object ReferenceGenome {
 
   def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome = {
+    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome =
+    fromFASTAFile(hc, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
+      mtContigs.asScala.toArray, parInput.asScala.toArray)
+
+  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
+    xContigs: Array[String] = Array.empty[String], yContigs: Array[String] = Array.empty[String],
+    mtContigs: Array[String] = Array.empty[String], parInput: Array[String] = Array.empty[String]): ReferenceGenome = {
     val hConf = hc.hadoopConf
     if (!hConf.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
@@ -499,8 +505,7 @@ object ReferenceGenome {
       lengths += (contig, length.toInt)
     }
 
-    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
-      mtContigs.asScala.toArray, parInput.asScala.toArray)
+    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
     rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
     rg
   }

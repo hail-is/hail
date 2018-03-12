@@ -137,9 +137,9 @@ class FASTAReader(hConf: SerializableHadoopConfiguration, rg: ReferenceGenome,
     var startGlobalPos = rg.locusToGlobalPos(start)
     var endGlobalPos = rg.locusToGlobalPos(end)
 
-    if (!interval.includeStart)
+    if (!interval.includesStart)
       startGlobalPos += 1
-    if (!interval.includeEnd)
+    if (!interval.includesEnd)
       endGlobalPos -= 1
 
     assert(startGlobalPos >= 0 && endGlobalPos < rg.nBases)

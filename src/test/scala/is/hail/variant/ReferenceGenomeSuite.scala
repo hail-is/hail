@@ -270,7 +270,7 @@ class ReferenceGenomeSuite extends SparkSuite {
           sb.result()
         }
 
-        fr.lookup(Interval(start, end, includeStart = true, includeEnd = true)) == getHtsjdkIntervalSequence
+        fr.lookup(Interval(start, end, includesStart = true, includesEnd = true)) == getHtsjdkIntervalSequence
       }
     }
 
@@ -279,9 +279,9 @@ class ReferenceGenomeSuite extends SparkSuite {
     assert(fr.lookup("a", 25, 0, 5) == "A")
     assert(fr.lookup("b", 1, 5, 0) == "T")
     assert(fr.lookup("c", 5, 10, 10) == "GGATCCGTGC")
-    assert(fr.lookup(Interval(Locus("a", 1), Locus("a", 5), includeStart = true, includeEnd = false)) == "AGGT")
-    assert(fr.lookup(Interval(Locus("a", 20), Locus("b", 5), includeStart = false, includeEnd = false)) == "ACGTATAAT")
-    assert(fr.lookup(Interval(Locus("a", 20), Locus("c", 5), includeStart = false, includeEnd = false)) == "ACGTATAATTAAATTAGCCAGGAT")
+    assert(fr.lookup(Interval(Locus("a", 1), Locus("a", 5), includesStart = true, includesEnd = false)) == "AGGT")
+    assert(fr.lookup(Interval(Locus("a", 20), Locus("b", 5), includesStart = false, includesEnd = false)) == "ACGTATAAT")
+    assert(fr.lookup(Interval(Locus("a", 20), Locus("c", 5), includesStart = false, includesEnd = false)) == "ACGTATAATTAAATTAGCCAGGAT")
 
     rg.addSequence(hc, fastaFile, indexFile)
     val table = hc.importTable("src/test/resources/fake_reference.tsv")
