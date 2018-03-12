@@ -90,6 +90,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     case _ => false
   }
 
+  def isPrefixOf(other: TStruct): Boolean =
+    size <= other.size && fields.zip(other.fields).forall{ case (l, r) => l.typ == r.typ }
+
   override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
   def index(str: String): Option[Int] = fieldIdx.get(str)

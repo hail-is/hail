@@ -7,27 +7,18 @@ import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-class OrderedDependency(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner)
-  extends NarrowDependency[RegionValue](prev.rdd) {
-
-  override def getParents(partitionId: Int): Seq[Int] = {
-    val partBounds =
-      newPartitioner.rangeBounds(partitionId).asInstanceOf[Interval]
-    prev.partitioner.getPartitionRangePK(partBounds)
-  }
-}
-
-case class RepartitionedOrderedRDD2Partition(
-    index: Int,
-    parents: Seq[Partition],
-    range: Interval)
-  extends Partition
-
-// TODO: should this be implemented in terms of AdjustedPartitionsRDD?
+/**
+  * Repartition prev to comply with newPartitioner, using narrow dependencies.
+  *  Assumes new key type is a prefix of old key type, so no reordering is
+  *  needed. No assumtion is made about partition keys.
+  */
 class RepartitionedOrderedRDD2(
     prev: OrderedRVD,
     newPartitioner: OrderedRVDPartitioner)
   extends RDD[RegionValue](prev.sparkContext, Nil) { // Nil since we implement getDependencies
+
+  // no precondition on partition keys
+  require(newPartitioner.kType isPrefixOf prev.typ.kType)
 
   def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](newPartitioner.numPartitions) { i =>
@@ -51,3 +42,22 @@ class RepartitionedOrderedRDD2(
 
   override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
 }
+
+class OrderedDependency(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner)
+  extends NarrowDependency[RegionValue](prev.rdd) {
+
+  // no precondition on partition keys
+  require(newPartitioner.kType isPrefixOf prev.typ.kType)
+
+  override def getParents(partitionId: Int): Seq[Int] = {
+    val partBounds =
+      newPartitioner.rangeBounds(partitionId).asInstanceOf[Interval]
+    prev.partitioner.getPartitionRangePK(partBounds)
+  }
+}
+
+case class RepartitionedOrderedRDD2Partition(
+    index: Int,
+    parents: Seq[Partition],
+    range: Interval)
+  extends Partition

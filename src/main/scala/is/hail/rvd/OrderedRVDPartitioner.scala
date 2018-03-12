@@ -47,8 +47,10 @@ class OrderedRVDPartitioner(
 
   // if outside bounds, return min or max depending on location
   // pk: Annotation[pkType]
-  def getPartitionPK(pk: Any): Int = {
-    assert(pkType.typeCheck(pk))
+  def getPartitionPK(
+    pk: Any,
+    resolveAmbiguity: Int = OrderedRVDPartitioner.UNAMBIGUOUS
+  ): Int = {
     val part = rangeTree.queryValues(pkType.ordering, pk)
     part match {
       case Array() =>
@@ -60,6 +62,14 @@ class OrderedRVDPartitioner(
         }
 
       case Array(x) => x
+
+      case parts => {
+        assert(resolveAmbiguity != OrderedRVDPartitioner.UNAMBIGUOUS)
+        if (resolveAmbiguity == OrderedRVDPartitioner.SMALLEST)
+          parts.min
+        else
+          parts.max
+      }
     }
   }
 
@@ -69,8 +79,8 @@ class OrderedRVDPartitioner(
     if (!rangeTree.probablyOverlaps(pkType.ordering, pkInterval))
       Seq.empty[Int]
     else {
-      val start = getPartitionPK(pkInterval.start)
-      val end = getPartitionPK(pkInterval.end)
+      val start = getPartitionPK(pkInterval.start, OrderedRVDPartitioner.SMALLEST)
+      val end = getPartitionPK(pkInterval.end, OrderedRVDPartitioner.LARGEST)
       start to end
     }
   }
@@ -146,6 +156,10 @@ class OrderedRVDPartitioner(
 }
 
 object OrderedRVDPartitioner {
+  val UNAMBIGUOUS: Int = 0
+  val SMALLEST: Int = -1
+  val LARGEST: Int = 1
+
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
     new OrderedRVDPartitioner(typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(TInterval(typ.pkType))))
   }

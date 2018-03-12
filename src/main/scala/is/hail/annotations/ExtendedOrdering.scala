@@ -103,9 +103,10 @@ object ExtendedOrdering {
       def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
         val rx = x.asInstanceOf[Row]
         val ry = y.asInstanceOf[Row]
-        
+
+        val commonPrefix = math.min(fieldOrd.length, math.min(rx.length, ry.length))
         var i = 0
-        while (i < fieldOrd.length) {
+        while (i < commonPrefix) {
           val c = fieldOrd(i).compare(rx.get(i), ry.get(i), missingGreatest)
           if (c != 0)
             return c

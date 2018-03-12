@@ -149,7 +149,8 @@ trait RVD {
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner): OrderedRVD
+    newPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD
 
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,

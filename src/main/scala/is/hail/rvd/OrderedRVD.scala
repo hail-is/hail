@@ -97,13 +97,16 @@ class OrderedRVD private(
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner): OrderedRVD = {
+    newPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD = {
 
-    // FIXME relax this: new key could be any prefix of old key,
-    // new partition key could be anything
-    assert(ordType == typ)
-    copy(
-      orderedPartitioner = newPartitioner,
+    require(ordType.rowType == typ.rowType)
+    require(ordType.kType isPrefixOf typ.kType)
+    require(newPartitioner.kType == ordType.kType)
+
+    new OrderedRVD(
+      typ = ordType,
+      partitioner = newPartitioner,
       rdd = new RepartitionedOrderedRDD2(this, newPartitioner))
   }
 
