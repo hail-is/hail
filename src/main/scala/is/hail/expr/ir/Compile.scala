@@ -106,9 +106,9 @@ object Compile {
     }
     e = Optimize(Subst(e, env))
     Infer(e)
-    assert(TypeToIRIntermediateTypeInfo(e.typ) == typeInfo[R])
+    assert(typeToTypeInfo(e.typ) == typeInfo[R])
     Emit(e, fb)
     i += 1
-    (e.typ, fb.result(Some(new java.io.PrintWriter(new FileOutputStream(s"/Users/wang/data/compileout-$i.txt")))))
+    (e.typ, fb.result())
   }
 }

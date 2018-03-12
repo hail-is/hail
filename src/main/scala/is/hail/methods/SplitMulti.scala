@@ -39,11 +39,11 @@ class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[
   }
 }
 
-class SplitMultiRowIR(vIR: Array[(String, IR)], entryIR: Array[(String, IR)], oldMatrixType: MatrixType) {
+class SplitMultiRowIR(rowIRs: Array[(String, IR)], entryIR: Array[(String, IR)], oldMatrixType: MatrixType) {
   val oldRowIR = Ref("va")
   val newEntries = ArrayMap(GetField(In(3, oldMatrixType.rvRowType), MatrixType.entriesIdentifier), "g", InsertFields(Ref("g"), entryIR))
   val changedFields: Seq[(String, IR)] =
-    (vIR
+    (rowIRs
       :+ ("locus", Ref("newLocus"))
       :+ ("alleles", Ref("newAlleles"))
       :+ (MatrixType.entriesIdentifier, newEntries))
@@ -233,18 +233,6 @@ abstract class SplitMultiPartitionContext(
 }
 
 object SplitMulti {
-  def apply(vsm: MatrixTable): MatrixTable = {
-    if (!vsm.entryType.isOfType(Genotype.htsGenotypeType))
-      fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ vsm.entryType }")
-    apply(vsm, "va.aIndex = aIndex, va.wasSplit = wasSplit",
-      s"""g.`GT` = downcode(g.GT, aIndex),
-         g.`AD` = orMissing(isDefined(g.AD), [ (g.AD.sum() - g.AD[aIndex]), g.AD[aIndex] ]),
-         g.`DP` = g.DP,
-         g.`PL` = orMissing(isDefined(g.PL), range((0), (3), (1))
-         	.map(__uid_1 => range((0), triangle(va.alleles.size()), (1))
-         	.filter(__uid_2 => (downcode(UnphasedDiploidGtIndexCall(__uid_2), aIndex) == UnphasedDiploidGtIndexCall(__uid_1))).map(__uid_3 => g.PL[__uid_3]).min())),
-         g.`GQ` = gqFromPL(orMissing(isDefined(g.PL), range((0), (3), (1)).map(__uid_1 => range((0), triangle(va.alleles.size()), (1)).filter(__uid_2 => (downcode(UnphasedDiploidGtIndexCall(__uid_2), aIndex) == UnphasedDiploidGtIndexCall(__uid_1))).map(__uid_3 => g.PL[__uid_3]).min())))""")
-  }
 
   def apply(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
     val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
@@ -283,24 +271,21 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
 
   val vASTs = Parser.parseAnnotationExprsToAST(variantExpr, vEC, Some("va"))
   val gASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
-  warn(s"getting IRs")
 
-  val vIRs = vASTs.flatMap { case (name, ast) => for (ir <- ast.toIR()) yield {
-    (name, ir)
+  val rowIRs = vASTs.flatMap { case (name, ast) =>
+    for (ir <- ast.toIR()) yield {
+      (name, ir)
+    }
   }
+  val gIRs = gASTs.flatMap { case (name, ast) =>
+    for (ir <- ast.toIR()) yield {
+      (name, ir)
+    }
   }
-  val gIRs = gASTs.flatMap { case (name, ast) => for (ir <- ast.toIR()) yield {
-    (name, ir)
-  }
-  }
-//
-//    info(s"vIRs: \n ${ vIRs.map{ case (n, ir) => n ++ ": " ++ ir.toString }.mkString("\n") }")
-//    info(s"gIRs: \n ${ gIRs.map{ case (n, ir) => n ++ ": " ++ ir.toString }.mkString("\n") }")
 
   val (newMatrixType, useAST, rowF): (MatrixType, Boolean, () => AsmFunction13[Region, Long, Boolean, Long, Boolean, Long, Boolean, Long, Boolean, Int, Boolean, Boolean, Boolean, Long]) =
-    if (vASTs.length == vIRs.length && gASTs.length == gIRs.length) {
-//    if (false) {
-      val ir = new SplitMultiRowIR(vIRs, gIRs, vsm.matrixType)
+    if (vASTs.length == rowIRs.length && gASTs.length == gIRs.length) {
+      val ir = new SplitMultiRowIR(rowIRs, gIRs, vsm.matrixType)
       warn("Using IR for SplitMulti")
       (ir.newMatrixType, false, ir.splitRow)
     } else {
