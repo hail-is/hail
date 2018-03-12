@@ -33,7 +33,7 @@ object Infer {
         infer(cnsq)
         infer(altr)
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ.isOfType(altr.typ), s"${cnsq.typ}, ${altr.typ}")
+        assert(cnsq.typ == altr.typ, s"${cnsq.typ}, ${altr.typ}")
         x.typ = cnsq.typ
 
       case x@Let(name, value, body, _) =>
@@ -96,7 +96,7 @@ object Infer {
         val tarray = coerce[TArray](a.typ)
         infer(zero)
         infer(body, env = env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
-        assert(body.typ.isOfType(zero.typ))
+        assert(body.typ == zero.typ)
         x.typ = zero.typ
       case x@AggIn(typ) =>
         (tAgg, typ) match {
