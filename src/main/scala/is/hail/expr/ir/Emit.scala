@@ -257,40 +257,29 @@ private class Emit(
         val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
       case x@ArrayRange(startir, stopir, stepir) =>
-        val rangem = irmethods.getOrElseUpdate("ArrayRange", {
-          val methodbuilder = fb.newMethod[Region, Int, Int, Int, Long]
-          val srvb = new StagedRegionValueBuilder(methodbuilder, x.typ)
-          val start = methodbuilder.getArg[Int](2)
-          val stop = methodbuilder.getArg[Int](3)
-          val step = methodbuilder.getArg[Int](4)
-          val len = methodbuilder.newLocal[Int]("ar_len")
-          val c = Code(
-            step.ceq(0).mux(
-              Code._fatal("Array range cannot have step size 0."),
-              Code._empty[Unit]),
-            len := start.ceq(stop).mux(0, (stop - start - 1) / step + 1),
-            len := (len < 0).mux(0, len),
-            srvb.start(len, init=true),
-            Code.whileLoop(start < stop,
-              srvb.addInt(start),
-              srvb.advance(),
-              start := start + step
-            ),
-            srvb.offset
-          )
-          methodbuilder.emit(c)
-          methodbuilder
-        })
         val (d, m, v) = Array(emit(startir), emit(stopir), emit(stepir)).unzip3
         val start = fb.newLocal[Int]("ar_start")
         val stop = fb.newLocal[Int]("ar_stop")
         val step = fb.newLocal[Int]("ar_step")
-
+        val len = fb.newLocal[Int]("ar_len")
+        val srvb = new StagedRegionValueBuilder(fb, x.typ)
         (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
           start := coerce[Int](v(0)),
           stop := coerce[Int](v(1)),
           step := coerce[Int](v(2)),
-          rangem.invoke(fb.getArg[Region](1), start, stop, step)))
+          step.ceq(0).mux(
+            Code._fatal("Array range cannot have step size 0."),
+            Code._empty[Unit]),
+          len := start.ceq(stop).mux(0, (stop - start - 1) / step + 1),
+          len := (len < 0).mux(0, len),
+          srvb.start(len, init=true),
+          Code.whileLoop(start < stop,
+            srvb.addInt(start),
+            srvb.advance(),
+            start := start + step
+          ),
+          srvb.offset
+        ))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = coerce[TArray](a.typ)
         val tout = x.typ
