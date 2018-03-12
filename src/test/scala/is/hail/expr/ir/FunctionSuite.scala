@@ -30,15 +30,14 @@ object TestRegisterFunctions extends RegistryFunctions {
   registerScalaFunction[Int]("foobar1", ScalaTestObject, "testFunction", TInt32())
   registerScalaFunction[Int]("foobar2", ScalaTestCompanion, "testFunction", TInt32())
 
-
 }
 
 class FunctionSuite {
 
-  TestRegisterFunctions.registerAll()
-
   val ec = EvalContext()
   val region = Region()
+
+  TestRegisterFunctions.registerAll(IRFunctionRegistry.registry)
 
   def fromHailString(hql: String): IR = Parser.parseToAST(hql, ec).toIR().get
 
@@ -58,7 +57,6 @@ class FunctionSuite {
 
   @Test
   def testCodeFunction() {
-    UtilFunctions.registerAll()
     val ir = MakeStruct(Seq(("x", IRFunctionRegistry.lookupFunction("triangle", Seq(TInt32(), TInt32())).get(Seq(In(0, TInt32()))))))
     val f = toF[Int, Long](ir)
     val off = f(region, 5, false)

@@ -13,6 +13,20 @@ object IRFunctionRegistry {
 
   val registry: mutable.Map[(String, Seq[Type]), Seq[IR] => IR] = mutable.Map()
 
+  def lookupFunction(name: String, args: Seq[Type]): Option[Seq[IR] => IR] =
+    registry.get((name, args))
+
+  UtilFunctions.registerAll(registry)
+}
+
+abstract class RegistryFunctions {
+
+  def registerAll(r: mutable.Map[(String, Seq[Type]), Seq[IR] => IR]) {
+    registry.foreach { case (k, v) => r.put(k, v) }
+  }
+
+  val registry: mutable.Map[(String, Seq[Type]), Seq[IR] => IR] = mutable.Map()
+
   def addIRFunction(f: IRFunction) {
     registry.put((f.name, f.types.toSeq), ApplyFunction(f, _))
   }
@@ -21,18 +35,8 @@ object IRFunctionRegistry {
     registry.put((name, types), f)
   }
 
-  def lookupFunction(name: String, args: Seq[Type]): Option[Seq[IR] => IR] =
-    registry.get((name, args))
-}
-
-abstract class RegistryFunctions {
-
-  def registerAll() {
-    ()
-  }
-
   def registerCode[R](mname: String, mtypes: Type*)(impl: (MethodBuilder, Array[Code[_]]) => Code[R]) {
-    IRFunctionRegistry.addIRFunction(new IRFunction {
+    addIRFunction(new IRFunction {
       override val name: String = mname
 
       override val types: Array[Type] = mtypes.toArray
@@ -59,14 +63,12 @@ abstract class RegistryFunctions {
   }
 
   def registerIR(mname: String, types: Type*)(f: Seq[IR] => IR) {
-    IRFunctionRegistry.addIR(mname, types, f)
+    addIR(mname, types, f)
   }
 
 }
 
 object IRFromAST {
-
-  UtilFunctions.registerAll()
 
   private def tryPrimOpConversion(fn: String): IndexedSeq[IR] => Option[IR] =
     flatLift {
