@@ -81,6 +81,8 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                         if bad_axes:
                             bad_refs.append((name, inds))
 
+                    assert len(bad_refs) > 0
+
                     errors.append(ExpressionException(
                         "scope violation: '{caller}' supports aggregation over indices {expected}"
                         "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}".format(

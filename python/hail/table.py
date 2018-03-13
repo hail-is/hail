@@ -72,7 +72,7 @@ class ExprContainer(object):
 
     def __setattr__(self, key, value):
         if not key[0] == '_':
-            raise NotImplementedError(f"'{self.__class__.__name__}' object is mutable")
+            raise NotImplementedError(f"'{self.__class__.__name__}' object is not mutable")
         self.__dict__[key] = value
 
     def __getattr__(self, item):
@@ -322,12 +322,16 @@ class Table(ExprContainer):
         Examples
         --------
 
-        Get the row key field names:
+        List of key field names:
 
-        .. doctest::
+        >>> list(table1.key)
+        ['ID']
 
-            >>> list(table1.key)
-            ['ID']
+        Number of key fields:
+
+        >>> len(table1.key)
+        1
+
 
         Returns
         -------
@@ -2051,6 +2055,18 @@ class Table(ExprContainer):
     def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.
 
+        Examples
+        --------
+        The data type of the globals struct:
+
+        >>> table1.globals.dtype
+        dtype('struct{}')
+
+        The number of global fields:
+
+        >>> len(table1.globals)
+        0
+
         Returns
         -------
         :class:`.StructExpression`
@@ -2061,6 +2077,18 @@ class Table(ExprContainer):
     @property
     def row(self) -> 'StructExpression':
         """Returns a struct expression including all row-indexed fields.
+
+        Examples
+        --------
+        The data type of the row struct:
+
+        >>> table1.row.dtype
+        dtype('struct{ID: int32, HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
+
+        The number of row fields:
+
+        >>> len(table1.row)
+        8
 
         Returns
         -------

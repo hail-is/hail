@@ -2775,9 +2775,9 @@ typ_to_expr = {
 @typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
 def construct_expr(ast: AST,
                    type: HailType,
-                   indices: Indices=Indices(),
-                   aggregations:LinkedList=LinkedList(Aggregation),
-                   joins:LinkedList=LinkedList(Join)):
+                   indices: Indices = Indices(),
+                   aggregations: LinkedList = LinkedList(Aggregation),
+                   joins: LinkedList = LinkedList(Join)):
     if isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ast, type, indices, aggregations, joins)
     elif type in scalars:
