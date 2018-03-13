@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
+import is.hail.expr.FunType
 import is.hail.expr.ir.functions.IRFunction
 import is.hail.expr.types._
 import is.hail.utils._
@@ -454,9 +455,11 @@ private class Emit(
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case ApplyFunction(impl, args) =>
         val meth = methods.getOrElseUpdate(impl, {
-          val args = impl.types.init.map { t => typeToTypeInfo(t) }
-          val methodbuilder = fb.newMethod(typeInfo[Region] +: args, typeToTypeInfo(impl.types.last))
-          methodbuilder.emit(impl.apply(methodbuilder, args.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
+          impl.types.clear()
+          impl.types.unify(FunType(args.map(a => a.typ): _*))
+          val argTypes = impl.types.xs.map { t => typeToTypeInfo(t.subst()) }
+          val methodbuilder = fb.newMethod((typeInfo[Region] +: argTypes).toArray, typeToTypeInfo(impl.returnType))
+          methodbuilder.emit(impl.apply(methodbuilder, argTypes.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
           methodbuilder
         })
         val (s, m, v) = args.map(emit(_)).unzip3
