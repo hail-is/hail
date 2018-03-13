@@ -3092,7 +3092,7 @@ def argmin(array, unique=False):
     Parameters
     ----------
     array : :class:`.ArrayNumericExpression`
-        Numeric array.
+    unique : bool
 
     Returns
     -------
@@ -3135,7 +3135,7 @@ def argmax(array, unique=False):
     Parameters
     ----------
     array : :class:`.ArrayNumericExpression`
-        Numeric array.
+    unique: bool
 
     Returns
     -------
