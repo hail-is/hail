@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.functions.{IRFromAST, IRFunctionRegistry}
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
@@ -733,9 +733,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   def toIR(agg: Option[String] = None): Option[IR] = {
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- tryPrimOpConversion(fn)(args).orElse(
-        IRFunctionRegistry.lookupFunction(fn, FunType(args.map(_.`type`): _*))
-          .map { irf => irf(args) })
+      ir <- tryPrimOpConversion(irArgs).orElse(
+        IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
+          .map { irf => irf(irArgs) })
     } yield ir
   }
 }
@@ -843,8 +843,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       case _ =>
         for {
           irs <- anyFailAllFail((lhs +: args).map(_.toIR(agg)))
-          ir <- IRFunctionRegistry.lookupFunction(method, FunType((lhs +: args).map(_.`type`): _*))
-              .map { irf => irf(lhs +: args) }
+          ir <- IRFunctionRegistry.lookupFunction(method, (lhs +: args).map(_.`type`))
+              .map { irf => irf(irs) }
         } yield ir
     }
   }

@@ -29,6 +29,8 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerJavaStaticFunction[java.lang.Integer, Int]("compare", TInt32(), TInt32(), TInt32())("compare")
     registerScalaFunction[Int]("foobar1", TInt32())(ScalaTestObject, "testFunction")
     registerScalaFunction[Int]("foobar2", TInt32())(ScalaTestCompanion, "testFunction")
+    registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ (_, a: Code[Int], b: Code[Int]) => a + b }
+    registerCode("testCodeUnification2", tv("x"), tv("x")){ (_, a: Code[Long]) => a }
   }
 }
 
@@ -56,7 +58,7 @@ class FunctionSuite {
   }
 
   def lookup(meth: String, types: Type*)(irs: IR*): IR = {
-    IRFunctionRegistry.lookupFunction(meth, FunType(types: _*)).get(irs)
+    IRFunctionRegistry.lookupFunction(meth, types).get(irs)
   }
 
   @Test
@@ -103,5 +105,13 @@ class FunctionSuite {
     rvb.addAnnotation(TArray(TInt32()), IndexedSeq(0, 1, 2, 3))
     val actual = f(region, rvb.end(), false)
     assert(actual == 4)
+  }
+
+  @Test
+  def testVariableUnification() {
+    assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt32(), TInt32())).isDefined)
+    assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt64(), TInt32())).isEmpty)
+    assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt64(), TInt64())).isEmpty)
+    assert(IRFunctionRegistry.lookupFunction("testCodeUnification2", Seq(TArray(TInt32()))).isDefined)
   }
 }
