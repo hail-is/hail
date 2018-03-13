@@ -211,7 +211,7 @@ def case(missing_false=False):
     Parameters
     ----------
     missing_false : :obj:`bool`
-        Treat missing
+        Treat missing predicates as ``False``.
 
     See Also
     --------
