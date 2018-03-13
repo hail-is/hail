@@ -188,7 +188,7 @@ object LoadGDB {
     queryFile.delete()
 
     new MatrixTable(hc, matrixType,
-      Annotation.empty,
+      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
       sampleIds.map(x => Annotation(x)),
       OrderedRVD(matrixType.orvdType, hc.sc.parallelize(records), None, None))
   }

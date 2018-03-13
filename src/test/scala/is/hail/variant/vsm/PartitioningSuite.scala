@@ -1,12 +1,13 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
+import is.hail.annotations.{Annotation, BroadcastValue}
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
 import is.hail.table.Table
-import is.hail.variant.{ReferenceGenome, MatrixTable, VSMSubgen}
+import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
 import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -65,7 +66,7 @@ class PartitioningSuite extends SparkSuite {
     val t = new Table(hc,
       TableLiteral(TableValue(
         TableType(TStruct("tidx"->TInt32()), Array("tidx"), TStruct.empty()),
-        Row(),
+        BroadcastValue(Annotation.empty, TStruct.empty(), sc),
         UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32())))))
     mt.annotateRowsTable(t, "foo").forceCountRows()
   }

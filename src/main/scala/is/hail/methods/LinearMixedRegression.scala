@@ -154,7 +154,7 @@ object LinearMixedRegression {
     if (runAssoc) {
       val sc = assocVSM.sparkContext
 
-      val localGlobalAnnotationBc = sc.broadcast(assocVSM.globals)
+      val globalsBc = assocVSM.globals.broadcast
       val sampleAnnotationsBc = assocVSM.colValuesBc
 
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
@@ -185,7 +185,7 @@ object LinearMixedRegression {
         val missingSamples = new ArrayBuilder[Int]()
 
         RegressionUtils.inputVector(x,
-          localGlobalAnnotationBc.value,
+          globalsBc.value,
           sampleAnnotationsBc.value,
           row,
           fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex),

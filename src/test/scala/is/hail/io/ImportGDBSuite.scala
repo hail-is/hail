@@ -26,8 +26,8 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, Some(vcf), Array(vcf))
 
-    val vcfGA = vcfVariantSampleMatrix.globals
-    val gdbGA = gdbVariantSampleMatrix.globals
+    val vcfGA = vcfVariantSampleMatrix.globals.value
+    val gdbGA = gdbVariantSampleMatrix.globals.value
 
     assert(vcfGA == gdbGA)
   }

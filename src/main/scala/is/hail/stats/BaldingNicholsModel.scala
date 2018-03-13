@@ -195,7 +195,8 @@ object BaldingNicholsModel {
 
     new MatrixTable(hc,
       matrixType,
-      globalAnnotation, sampleAnnotations,
+      BroadcastValue(globalAnnotation, matrixType.globalType, hc.sc),
+      sampleAnnotations,
       ordrdd)
   }
 }

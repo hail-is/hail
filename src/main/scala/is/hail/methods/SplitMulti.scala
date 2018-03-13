@@ -293,7 +293,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
 
   def split(sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
     val localKeepStar = keepStar
-    val localGlobalAnnotation = vsm.globals
+    val globalsBc = vsm.globals.broadcast
     val localNSamples = vsm.numCols
     val localRowType = vsm.rvRowType
     val localMatrixType = vsm.matrixType
@@ -307,7 +307,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
 
     if (useAST) {
       vsm.rvd.mapPartitions { it =>
-        val context = new SplitMultiPartitionContextAST(localKeepStar, localNSamples, localGlobalAnnotation,
+        val context = new SplitMultiPartitionContextAST(localKeepStar, localNSamples, globalsBc.value,
           localMatrixType, localVAnnotator, localGAnnotator, newRowType)
         it.flatMap { rv =>
           val splitit = context.splitRow(rv, sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)
@@ -317,7 +317,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
       }
     } else {
       vsm.rvd.mapPartitions { it =>
-        val context = new SplitMultiPartitionContextIR(localKeepStar, localNSamples, localGlobalAnnotation,
+        val context = new SplitMultiPartitionContextIR(localKeepStar, localNSamples, globalsBc.value,
           localMatrixType, localSplitRow, newRowType)
         it.flatMap { rv =>
           val splitit = context.splitRow(rv, sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)

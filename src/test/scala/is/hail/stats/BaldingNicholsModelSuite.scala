@@ -24,7 +24,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val bnm2 = BaldingNicholsModel(hc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9))
 
     assert(bnm1.rdd.collect().toSeq == bnm2.rdd.collect().toSeq)
-    assert(bnm1.globals == bnm2.globals)
+    assert(bnm1.globals.value == bnm2.globals.value)
     assert(bnm1.colValues == bnm2.colValues)
 
     bnm1.typecheck()

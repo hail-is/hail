@@ -878,7 +878,7 @@ object LoadVCF {
 
     new MatrixTable(hc,
       matrixType,
-      Annotation.empty,
+      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
       sampleIds.map(x => Annotation(x)),
       rdd)
   }

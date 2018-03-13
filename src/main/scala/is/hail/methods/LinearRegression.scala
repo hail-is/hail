@@ -44,7 +44,7 @@ object LinearRegression {
 
     val sc = vsm.sparkContext
 
-    val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
+    val localGlobalAnnotationBc = vsm.globals.broadcast
     val sampleAnnotationsBc = vsm.colValuesBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
