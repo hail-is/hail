@@ -549,7 +549,7 @@ class tdict(HailType):
 
     See Also
     --------
-    :class:`.DictExpression` :func:`.dict`, :ref:`sec-collection-functions`
+    :class:`.DictExpression`, :func:`.dict`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(key_type=hail_type, value_type=hail_type)
