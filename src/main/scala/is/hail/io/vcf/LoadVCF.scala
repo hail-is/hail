@@ -209,6 +209,8 @@ final class VCFLine(val line: String) {
 
     // REF
     val ref = parseString()
+    if (!htsjdk.variant.variantcontext.Allele.acceptableAlleleBases(ref, true))
+      return false
     nextField()
 
     // ALT
