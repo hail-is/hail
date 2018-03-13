@@ -148,9 +148,28 @@ object Parser extends JavaTokenParsers {
       }
     }, ts, f)
   }
+  
+  def parseAnnotationExprsToAST(code: String, ec: EvalContext): Array[(String, AST)] = {
+    val as = named_exprs(identifier).parse(code)
+    as.foreach { case (_, ast) => ast.typecheck(ec) }
+    as
+  }
 
-  def parseAnnotationExprsToAST(code: String, ec: EvalContext): (Array[(String, AST)]) =
-    named_exprs(identifier).parse(code)
+  def parseAnnotationExprsToAST(code: String, ec: EvalContext, expectedHead: Option[String]): Array[(String, AST)] = {
+    named_exprs(annotationIdentifier)
+      .parse(code).map { case (p, ast) =>
+      ast.typecheck(ec)
+      val n = expectedHead match {
+        case Some(h) =>
+          require(p.head == h && p.length == 2)
+          p.last
+        case None =>
+          require(p.length == 1)
+          p.head
+      }
+      (n, ast)
+    }
+  }
 
   def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Any]) = {
     val (names, types, f) = parseNamedExprs[String](code, identifier, ec)
@@ -532,8 +551,6 @@ object Parser extends JavaTokenParsers {
       "Float64" ^^ { _ => TFloat64() } |
       "Float" ^^ { _ => TFloat64() } |
       "String" ^^ { _ => TString() } |
-      "AltAllele" ^^ { _ => TAltAllele() } |
-      ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).variantType } |
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       ("LocusAlleles" ~ "(") ~> identifier <~ ")" ^^ { id => ReferenceGenome.getReference(id).locusType } |
       "Call" ^^ { _ => TCall() } |
@@ -627,7 +644,7 @@ object Parser extends JavaTokenParsers {
       "|-" ^^ { _ => Call0(phased = true) }
   }
 
-  def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "LocusAlleles" | "Locus"
+  def genomeReferenceDependentTypes: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus"
 
   def intervalWithEndpoints[T](bounds: Parser[(T, T)]): Parser[Interval] = {
     val start = ("[" ^^^ true) | ("(" ^^^ false)

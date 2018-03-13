@@ -507,28 +507,6 @@ class RegionValueBuilder(var region: Region) {
           }
           endArray()
 
-        case t: TVariant =>
-          val v = a.asInstanceOf[Variant]
-          startStruct()
-          addString(v.contig)
-          addInt(v.start)
-          addString(v.ref)
-          startArray(v.altAlleles.length)
-          var i = 0
-          while (i < v.altAlleles.length) {
-            addAnnotation(TAltAllele(), v.altAlleles(i))
-            i += 1
-          }
-          endArray()
-          endStruct()
-
-        case _: TAltAllele =>
-          val aa = a.asInstanceOf[AltAllele]
-          startStruct()
-          addString(aa.ref)
-          addString(aa.alt)
-          endStruct()
-
         case _: TCall =>
           addInt(a.asInstanceOf[Int])
 

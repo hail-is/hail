@@ -4,11 +4,10 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, 
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, RGBase, Locus, Variant}
+import is.hail.variant.{RGBase, Locus}
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
@@ -144,43 +143,6 @@ object UnsafeRow {
       region.loadInt(ft.loadField(region, offset, 1)))
   }
 
-  def readAltAllele(region: Region, offset: Long): AltAllele = {
-    val ft = TAltAllele().fundamentalType.asInstanceOf[TStruct]
-    AltAllele(
-      readString(region, ft.loadField(region, offset, 0)),
-      readString(region, ft.loadField(region, offset, 1)))
-  }
-
-  private val tArrayAltAllele = TArray(+TAltAllele())
-
-  def readArrayAltAllele(region: Region, aoff: Long): Array[AltAllele] = {
-    val t = tArrayAltAllele
-
-    val length = region.loadInt(aoff)
-    val a = new Array[AltAllele](length)
-    var i = 0
-    while (i < length) {
-      a(i) = readAltAllele(region, t.loadElement(region, aoff, length, i))
-      i += 1
-    }
-    a
-  }
-
-  private val tArrayInt32 = TArray(+TInt32())
-
-  def readArrayInt(region: Region, aoff: Long): Array[Int] = {
-    val t = tArrayInt32
-
-    val length = region.loadInt(aoff)
-    val a = new Array[Int](length)
-    var i = 0
-    while (i < length) {
-      a(i) = region.loadInt(t.loadElement(region, aoff, length, i))
-      i += 1
-    }
-    a
-  }
-
   def read(t: Type, region: Region, offset: Long): Any = {
     t match {
       case _: TBoolean =>
@@ -199,15 +161,7 @@ object UnsafeRow {
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: TBaseStruct => readBaseStruct(t, region, offset)
-      case x: TVariant =>
-        val ft = x.fundamentalType.asInstanceOf[TStruct]
-        Variant(
-          readString(region, ft.loadField(region, offset, 0)),
-          region.loadInt(ft.loadField(region, offset, 1)),
-          readString(region, ft.loadField(region, offset, 2)),
-          readArrayAltAllele(region, ft.loadField(region, offset, 3)))
       case x: TLocus => readLocus(region, offset, x.rg)
-      case _: TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         val start: Annotation =

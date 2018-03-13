@@ -56,7 +56,7 @@ object ExportGen {
           sb.clear()
           sb.append(rvv.contig())
           sb += ' '
-          sb.append(Option(varidQuery(row)).getOrElse(rvv.variantObject().toString))
+          sb.append(Option(varidQuery(row)).getOrElse(Variant.locusAllelesToString(rvv.locus(), rvv.alleles())))
           sb += ' '
           sb.append(Option(rsidQuery(row)).getOrElse("."))
           sb += ' '

@@ -1,5 +1,9 @@
 from hail.typecheck import *
 from hail.utils.java import Env, escape_str, escape_id
+from .expressions.indices import Indices
+from typing import *
+import abc
+
 asttype = lazy()
 
 
@@ -14,7 +18,7 @@ class AST(object):
     def expand(self):
         return self.search(lambda _: True)
 
-    def search(self, f, l=None):
+    def search(self, f, l=None) -> Tuple['AST']:
         """
         Recursively searches the AST for nodes matching some pattern.
         """
@@ -27,18 +31,31 @@ class AST(object):
             c.search(f, l)
         return tuple(l)
 
+
 asttype.set(AST)
 
 
-class Reference(AST):
-    @typecheck_method(name=str, top_level=bool)
-    def __init__(self, name, top_level=False):
+class _Reference(AST):
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, name):
         self.name = name
-        self.top_level = top_level
-        super(Reference, self).__init__()
+        super(_Reference, self).__init__()
 
     def to_hql(self):
         return escape_id(self.name)
+
+
+class VariableReference(_Reference):
+    @typecheck_method(name=str)
+    def __init__(self, name: str):
+        super(VariableReference, self).__init__(name)
+
+
+class TopLevelReference(_Reference):
+    def __init__(self, name: str, indices: Indices):
+        self.indices = indices
+        super(TopLevelReference, self).__init__(name)
 
 
 class UnaryOperation(AST):
@@ -180,8 +197,8 @@ class StructOp(AST):
 
     def to_hql(self):
         return '{}({}{})'.format(self.operation,
-                                   self.parent.to_hql(),
-                                   ''.join(', {}'.format(escape_id(x)) for x in self.keys))
+                                 self.parent.to_hql(),
+                                 ''.join(', {}'.format(escape_id(x)) for x in self.keys))
 
 
 class Condition(AST):
@@ -194,8 +211,8 @@ class Condition(AST):
 
     def to_hql(self):
         return '(if ({p}) {b1} else {b2})'.format(p=self.predicate.to_hql(),
-                                                b1=self.branch1.to_hql(),
-                                                b2=self.branch2.to_hql())
+                                                  b1=self.branch1.to_hql(),
+                                                  b2=self.branch2.to_hql())
 
 
 class Slice(AST):
@@ -208,6 +225,7 @@ class Slice(AST):
     def to_hql(self):
         return "{start}:{end}".format(start=self.start.to_hql() if self.start else '',
                                       end=self.stop.to_hql() if self.stop else '')
+
 
 class Bind(AST):
     @typecheck_method(uid=str, definition=AST, expression=AST)
@@ -242,6 +260,7 @@ class AggregableReference(AST):
 
     def to_hql(self):
         return 'AGG'
+
 
 class GlobalJoinReference(AST):
     def __init__(self, uid):

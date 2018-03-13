@@ -257,7 +257,7 @@ class TableTests(unittest.TestCase):
         df = df.transmute(h=df.a + df.b + df.c + df.g.y)
         r = df.select('h').collect()
 
-        self.assertEqual(df.fields, ['d', 'e', 'f', 'h'])
+        self.assertEqual(list(df.row), ['d', 'e', 'f', 'h'])
         self.assertEqual(r, [hl.Struct(h=x) for x in [10, 20, None]])
 
     def test_select(self):
@@ -270,10 +270,10 @@ class TableTests(unittest.TestCase):
 
         kt = hl.Table.parallelize(rows, schema)
 
-        self.assertEqual(kt.select(kt.a, kt.e).fields, ['a', 'e'])
-        self.assertEqual(kt.select(*[kt.a, kt.e]).fields, ['a', 'e'])
-        self.assertEqual(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).fields, ['a', 'foo'])
-        self.assertEqual(set(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).fields), {'a', 'foo', 'x', 'y'})
+        self.assertEqual(list(kt.select(kt.a, kt.e).row), ['a', 'e'])
+        self.assertEqual(list(kt.select(*[kt.a, kt.e]).row), ['a', 'e'])
+        self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ['a', 'foo'])
+        self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).row), ['a', 'foo', 'x', 'y'])
 
     def test_aggregate(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
@@ -395,8 +395,8 @@ class TableTests(unittest.TestCase):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
 
-        self.assertEqual(kt.drop('idx', 'foo').fields, ['sq', 'bar'])
-        self.assertEqual(kt.drop(kt['idx'], kt['foo']).fields, ['sq', 'bar'])
+        self.assertEqual(list(kt.drop('idx', 'foo').row), ['sq', 'bar'])
+        self.assertEqual(list(kt.drop(kt['idx'], kt['foo']).row), ['sq', 'bar'])
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)

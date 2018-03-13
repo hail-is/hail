@@ -1,17 +1,18 @@
 from hail.typecheck import *
-from hail.expr.expressions import Expression, Indices, ExpressionException, expr_any
 from hail.utils import warn, error
+from .indices import *
+from ..expressions import Expression, Aggregable, ExpressionException, expr_any
+from typing import *
 
 
 @typecheck(caller=str, expr=Expression,
            expected_indices=Indices,
            aggregation_axes=setof(str))
-def analyze(caller, expr, expected_indices, aggregation_axes=set()):
+def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregation_axes: Set = set()):
     indices = expr._indices
     source = indices.source
     axes = indices.axes
     aggregations = expr._aggregations
-    refs = expr._refs
 
     warnings = []
     errors = []
@@ -30,7 +31,7 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
 
     if unexpected_axes:
         # one or more out-of-scope fields
-        assert not refs.empty()
+        refs = get_refs(expr)
         bad_refs = []
         for name, inds in refs:
             bad_axes = inds.axes.intersection(unexpected_axes)
@@ -58,6 +59,8 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
             expected_agg_axes = expected_axes.union(aggregation_axes)
 
             for agg in aggregations:
+                assert isinstance(agg, Aggregation)
+                refs = get_refs(*agg.exprs)
                 agg_indices = agg.indices
                 agg_axes = agg_indices.axes
                 if agg_indices.source is not None and agg_indices.source is not expected_source:
@@ -65,7 +68,7 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
                         ExpressionException(
                             'Expected an expression from source {}, found expression derived from {}'
                             '\n    Invalid fields: [{}]'.format(
-                                expected_source, source, ', '.join("'{}'".format(name) for name, _ in agg.refs)
+                                expected_source, source, ', '.join("'{}'".format(name) for name, _ in refs)
                             )))
 
                 # check for stray indices
@@ -73,10 +76,12 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
                 if unexpected_agg_axes:
                     # one or more out-of-scope fields
                     bad_refs = []
-                    for name, inds in agg.refs:
+                    for name, inds in refs:
                         bad_axes = inds.axes.intersection(unexpected_agg_axes)
                         if bad_axes:
                             bad_refs.append((name, inds))
+
+                    assert len(bad_refs) > 0
 
                     errors.append(ExpressionException(
                         "scope violation: '{caller}' supports aggregation over indices {expected}"
@@ -167,3 +172,24 @@ def eval_expr_typed(expression):
     analyze('eval_expr_typed', expression, Indices(expression._indices.source))
 
     return expression.collect()[0], expression.dtype
+
+
+def _get_refs(expr: Union[Expression, Aggregable], builder: List) -> None:
+    from ..expr_ast import Select, TopLevelReference
+
+    second_level_refs: Tuple[Select] = expr._ast.search(lambda a: isinstance(a, Select)
+                                                                  and not a.name.startswith('__uid')
+                                                                  and isinstance(a.parent, TopLevelReference))
+    for ast in second_level_refs:
+        builder.append((ast.name, ast.parent.indices))
+
+    for join in expr._joins:
+        for e in join.exprs:
+            _get_refs(e, builder)
+
+
+def get_refs(*exprs: Union[Expression, Aggregable]) -> List[Tuple[str, Indices]]:
+    builder = []
+    for e in exprs:
+        _get_refs(e, builder)
+    return builder

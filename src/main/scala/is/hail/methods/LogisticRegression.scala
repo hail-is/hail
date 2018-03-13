@@ -106,5 +106,3 @@ object LogisticRegression {
       rvd = newRVD)
   }
 }
-
-case class LogisticRegression(rdd: RDD[(Variant, Annotation)], schema: Type)

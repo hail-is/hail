@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
-import is.hail.variant.{Call2, Genotype, Variant}
+import is.hail.variant.{Call2, Genotype}
 
 abstract class BgenRecord extends KeySerializedValueRecord[(String, Int, Array[String])] {
   var ann: Annotation = _
