@@ -8,13 +8,12 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
-import is.hail.variant.{MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 object VEP {
 
@@ -147,72 +146,29 @@ object VEP {
       "variant_allele" -> TString())),
     "variant_class" -> TString())
 
-  val consequenceIndices = Set(8, 10, 11, 15)
-
   def printContext(w: (String) => Unit) {
     w("##fileformat=VCFv4.1")
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(w: (String) => Unit, v: Variant) {
+  def printElement(w: (String) => Unit, v: (Locus, IndexedSeq[String])) {
+    val (locus, alleles) = v
+
     val sb = new StringBuilder()
-    sb.append(v.contig)
+    sb.append(locus.contig)
     sb += '\t'
-    sb.append(v.start)
+    sb.append(locus.position)
     sb.append("\t.\t")
-    sb.append(v.ref)
+    sb.append(alleles(0))
     sb += '\t'
-    sb.append(v.altAlleles.iterator.map(_.alt).filter(_ != "*").mkString(","))
+    sb.append(alleles.tail.filter(_ != "*").mkString(","))
     sb.append("\t.\t.\tGT")
     w(sb.result())
   }
 
-  def variantFromInput(input: String): Variant = {
+  def variantFromInput(input: String): (Locus, IndexedSeq[String]) = {
     val a = input.split("\t")
-    Variant(a(0),
-      a(1).toInt,
-      a(3),
-      a(4).split(","))
-  }
-
-  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String): Option[String] = {
-    val csqHeaderRegex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
-    val pb = new ProcessBuilder(cmd.toList.asJava)
-    val env = pb.environment()
-    if (perl5lib != null)
-      env.put("PERL5LIB", perl5lib)
-    if (path != null)
-      env.put("PATH", path)
-    val (jt, proc) = List(Variant("1", 13372, "G", "C")).iterator.pipe(pb,
-      printContext,
-      printElement,
-      _ => ())
-
-    val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
-    val rc = proc.waitFor()
-    if (rc != 0)
-      fatal(s"vep command failed with non-zero exit status $rc")
-
-    if (csqHeader.hasNext)
-      Some(csqHeader.next())
-    else {
-      warn("Could not get VEP CSQ header")
-      None
-    }
-  }
-
-  def getNonStarToOriginalAlleleIdxMap(v: Variant): mutable.Map[Int, Int] = {
-    val alleleMap = mutable.Map[Int, Int]()
-    (0 until v.nAltAlleles).foldLeft(0) {
-      case (nStar, aai) =>
-        if (v.altAlleles(aai).alt == "*")
-          nStar + 1
-        else {
-          alleleMap(aai - nStar + 1) = aai + 1
-          nStar
-        }
-    }
-    alleleMap
+    (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
 
   def annotate(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean,
@@ -295,11 +251,8 @@ object VEP {
 
     val localBlockSize = blockSize
 
-    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
-    val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
-
     val localRowType = vsm.rvRowType
-    val localRG = vsm.referenceGenome
+    val rowKeyOrd = vsm.matrixType.rowKeyStruct.ordering
     val annotations = vsm.rvd
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
@@ -313,7 +266,7 @@ object VEP {
         it
           .map { rv =>
             rvv.setRegion(rv)
-            rvv.variantObject()
+            (rvv.locus(), rvv.alleles(): IndexedSeq[String])
           }
           .grouped(localBlockSize)
           .flatMap { block =>
@@ -322,69 +275,44 @@ object VEP {
               printElement,
               _ => ())
 
-            val nonStarToOriginalVariant = block.map { v =>
-              (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
+            val nonStarToOriginalVariant = block.map { case v@(locus, alleles) =>
+              (locus, alleles.filter(_ != "*")) -> v
             }.toMap
 
             val kt = jt
               .filter(s => !s.isEmpty && s(0) != '#')
               .map { s =>
                 if (csq) {
-                  val vvep = variantFromInput(s)
-                  if (!nonStarToOriginalVariant.contains(vvep))
-                    fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
-
-                  val v = nonStarToOriginalVariant(vvep)
-                  val x = csqRegex.findFirstIn(s)
-                  x match {
-                    case Some(value) =>
-                      val tr_aa = value.substring(4).split(",")
-                      if (vvep != v && alleleNumIndex > -1) {
-                        val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
-                        (v, tr_aa.map {
-                          x =>
-                            val xsplit = x.split("\\|")
-                            val allele_num = xsplit(alleleNumIndex)
-                            if (allele_num.isEmpty)
-                              x
-                            else
-                              xsplit
-                                .updated(alleleNumIndex, alleleMap.getOrElse(xsplit(alleleNumIndex).toInt, "").toString)
-                                .mkString("|")
-                        }: IndexedSeq[Annotation])
-                      } else
-                        (v, tr_aa: IndexedSeq[Annotation])
+                  val vepv@(vepLocus, vepAlleles) = variantFromInput(s)
+                  nonStarToOriginalVariant.get(vepv) match {
+                    case Some(v@(locus, alleles)) =>
+                      val x = csqRegex.findFirstIn(s)
+                      val a = x match {
+                        case Some(value) =>
+                          value.substring(4).split(",")
+                        case None =>
+                          warn(s"No CSQ INFO field for VEP output variant ${ Variant.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
+                          Annotation.empty
+                      }
+                      (Annotation(locus, alleles), a)
                     case None =>
-                      warn(s"No VEP annotation found for variant $v. VEP returned $s.")
-                      (v, IndexedSeq.empty[Annotation])
+                      fatal(s"VEP output variant ${ Variant.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
                   val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
-                  val vvep = variantFromInput(inputQuery(a).asInstanceOf[String])
+                  val vepv@(vepLocus, vepAlleles) = variantFromInput(inputQuery(a).asInstanceOf[String])
 
-                  if (!nonStarToOriginalVariant.contains(vvep))
-                    fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
-
-                  val v = nonStarToOriginalVariant(vvep)
-                  if (vvep != v) {
-                    val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
-                    (v, consequenceIndices.foldLeft(a.asInstanceOf[Row]) {
-                      case (r, i) =>
-                        if (r(i) == null)
-                          r
-                        else {
-                          r.update(i, r(i).asInstanceOf[IndexedSeq[Row]].map {
-                            x => x.update(0, alleleMap.getOrElse(x.getInt(0), null))
-                          })
-                        }
-                    })
-                  } else
-                    (v, a)
+                  nonStarToOriginalVariant.get(vepv) match {
+                    case Some(v@(locus, alleles)) =>
+                      (Annotation(locus, alleles), a)
+                    case None =>
+                      fatal(s"VEP output variant ${ Variant.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                  }
                 }
               }
 
             val r = kt.toArray
-              .sortBy(_._1)(localRG.variantOrdering)
+              .sortBy(_._1)(rowKeyOrd.toOrdering)
 
             val rc = proc.waitFor()
             if (rc != 0)
@@ -416,8 +344,8 @@ object VEP {
         it.map { case (v, vep) =>
           rvb.start(vepRowType)
           rvb.startStruct()
-          rvb.addAnnotation(vepRowType.types(0), v.locus)
-          rvb.addAnnotation(vepRowType.types(1), IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
+          rvb.addAnnotation(vepRowType.types(0), v.asInstanceOf[Row].get(0))
+          rvb.addAnnotation(vepRowType.types(1), v.asInstanceOf[Row].get(1))
           rvb.addAnnotation(vepRowType.types(2), vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())

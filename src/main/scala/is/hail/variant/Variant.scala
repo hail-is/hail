@@ -97,7 +97,7 @@ object Variant {
       Variant(l.contig, l.position, alleles(0), alleles.tail.map(x => AltAllele(alleles(0), x)))
   }
 
-  def locusAllelesToString(locus: Locus, alleles: Array[String]): String =
+  def locusAllelesToString(locus: Locus, alleles: IndexedSeq[String]): String =
     s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
 }
 
