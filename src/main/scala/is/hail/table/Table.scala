@@ -526,83 +526,71 @@ class Table(val hc: HailContext, val tir: TableIR) {
       joinedFields
         .zipWithIndex
         .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
-    val localNKeys = nKeys
-    val size1 = valueSignature.size
-    val size2 = other.valueSignature.size
-    val totalSize = newSignature.size
 
-    assert(totalSize == localNKeys + size1 + size2)
-
-    val merger = (k: Row, r1: Row, r2: Row) => {
-      val result = Array.fill[Any](totalSize)(null)
-      var i = 0
-      while (i < localNKeys) {
-        result(i) = k.get(i)
-        i += 1
-      }
-      if (r1 != null) {
-        i = 0
-        while (i < size1) {
-          result(localNKeys + i) = r1.get(i)
-          i += 1
-        }
-      }
-      if (r2 != null) {
-        i = 0
-        while (i < size2) {
-          result(localNKeys + size1 + i) = r2.get(i)
-          i += 1
-        }
-      }
-      Row.fromSeq(result)
-    }
-
-    val rddLeft = keyedRDD()
-    val rddRight = other.keyedRDD()
-    val joinedRDD = joinType match {
-      case "left" => rddLeft.leftOuterJoin(rddRight)
-        .map { case (k, (l, r)) => merger(k, l, r.orNull) }
-      case "right" => rddLeft.rightOuterJoin(rddRight)
-        .map { case (k, (l, r)) => merger(k, l.orNull, r) }
-      case "inner" => rddLeft.join(rddRight)
-        .map { case (k, (l, r)) => merger(k, l, r) }
-      case "outer" => rddLeft.fullOuterJoin(rddRight)
-        .map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
-      case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
-    }
-
-    val rvb = new RegionValueBuilder()
-    val rv = RegionValue()
-    def rvMerger(joined: JoinedRegionValue) = {
-      val lrv = joined._1
-      val rrv = joined._2
-      rvb.set(lrv.region)
-      rvb.start(newSignature)
-      var i = 0
-      while (i < localNKeys) {
+    val leftSignature = signature
+    val rightSignature = other.signature
+    val leftKeyFieldIdx = keyFieldIdx
+    val rightKeyFieldIdx = other.keyFieldIdx
+    val leftValueFieldIdx = valueFieldIdx
+    val rightValueFieldIdx = other.valueFieldIdx
+    val rvMerger: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
+      val rvb = new RegionValueBuilder()
+      val rv = RegionValue()
+      it.map { joined =>
+        val lrv = joined._1
+        val rrv = joined._2
         if (lrv != null)
-          rvb.addField(signature, lrv, keyFieldIdx(i))
-        else
-          rvb.addField(other.signature, rrv, other.keyFieldIdx(i))
-      }
-      i = 0
-      while (i < valueSignature.size) {
+          rvb.set(lrv.region)
+        else {
+          assert(rrv != null)
+          rvb.set(rrv.region)
+        }
+        rvb.start(newSignature)
+        rvb.startStruct()
         if (lrv != null)
-          rvb.addField(signature, lrv, valueFieldIdx(i))
+          rvb.addFields(leftSignature, lrv, leftKeyFieldIdx)
+        else {
+          assert(rrv != null)
+          rvb.addFields(rightSignature, rrv, rightKeyFieldIdx)
+        }
+        if (lrv != null)
+          rvb.addFields(leftSignature, lrv, leftValueFieldIdx)
         else
-          rvb.setMissing()
-      }
-      i = 0
-      while (i < other.valueSignature.size) {
+          rvb.skipFields(leftValueFieldIdx.length)
         if (rrv != null)
-          rvb.addField(other.signature, rrv, other.valueFieldIdx(i))
+          rvb.addFields(rightSignature, rrv, rightValueFieldIdx)
         else
-          rvb.setMissing()
+          rvb.skipFields(rightValueFieldIdx.length)
+        rvb.endStruct()
+        rv.set(rvb.region, rvb.end())
+        rv
       }
-      rv.set(rvb.region, rvb.end())
     }
 
-    copy(rdd = joinedRDD, signature = newSignature, key = key)
+    val left = this.rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        OrderedRVD(
+          new OrderedRVDType(this.key.toArray, this.key.toArray, this.signature),
+          unordered.rdd,
+          None,
+          None)
+    }
+    val right = other.rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        OrderedRVD(
+          new OrderedRVDType(other.key.toArray, other.key.toArray, other.signature),
+          unordered.rdd,
+          None,
+          None)
+    }
+    val joinedRVD = left.orderedJoin(
+      right,
+      joinType,
+      rvMerger,
+      new OrderedRVDType(left.typ.partitionKey, left.typ.key, newSignature))
+    copy2(rvd = joinedRVD, signature = newSignature, key = key)
   }
 
   def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {

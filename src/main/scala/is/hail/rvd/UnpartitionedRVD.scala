@@ -57,11 +57,16 @@ class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends 
 
     assert(ordType.rowType == rowType)
 
-    val ur = new UnsafeRow(rowType, null, 0)
-    val key = new KeyedRow(ur, ordType.pkRowFieldIdx)
-    val filtered = filter { rv =>
-      ur.set(rv)
-      newPartitioner.rangeTree.contains(ordType.pkType.ordering, ur)
+    val localRowType = rowType
+    val pkOrdering = ordType.pkType.ordering
+    val rangeTree = newPartitioner.rangeTree
+    val filtered = rdd.mapPartitions { it =>
+      val ur = new UnsafeRow(localRowType, null, 0)
+      val key = new KeyedRow(ur, ordType.pkRowFieldIdx)
+      it.filter { rv =>
+        ur.set(rv)
+        rangeTree.contains(pkOrdering, ur)
+      }
     }
 
     OrderedRVD.shuffle(ordType, newPartitioner, filtered)

@@ -120,6 +120,17 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
+  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner = {
+    val newStart = pkType.ordering.min(range.start, newRange.start)
+    val newEnd = pkType.ordering.max(range.end, newRange.end)
+    val newRangeBounds = rangeBounds.toArray
+    newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
+      .copy(start = newStart, includeStart = true)
+    newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1)
+      .asInstanceOf[Interval].copy(end = newEnd, includeEnd = true)
+    copy(rangeBounds = UnsafeIndexedSeq(rangeBoundsType, newRangeBounds))
+  }
+
   def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
     val newRangeBounds = UnsafeIndexedSeq(
       rangeBoundsType,

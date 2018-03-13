@@ -90,8 +90,13 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     case _ => false
   }
 
+  // FIXME: make this recursive
+  def isIsomorphicTo(other: TStruct): Boolean =
+    size == other.size && isPrefixOf(other)
+
   def isPrefixOf(other: TStruct): Boolean =
-    size <= other.size && fields.zip(other.fields).forall{ case (l, r) => l.typ == r.typ }
+    size <= other.size &&
+      fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
   override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
