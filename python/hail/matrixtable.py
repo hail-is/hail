@@ -1,17 +1,18 @@
 import hail
 from hail.expr.expressions import *
 from hail.typecheck import *
-from hail.expr.expr_ast import Select, Reference
+from hail.expr.expr_ast import Select, TopLevelReference
 from hail.expr.types import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, info, jiterable_to_list
-from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
-from hail.table import Table
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple, check_collisions, \
+    check_field_uniqueness
+from hail.table import Table, ExprContainer
 import itertools
 from typing import *
 
 
-class GroupedMatrixTable(object):
+class GroupedMatrixTable(ExprContainer):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
 
     There are only two operations on a grouped matrix table, :meth:`.GroupedMatrixTable.partition_hint`
@@ -29,15 +30,14 @@ class GroupedMatrixTable(object):
 
     """
 
-    def __init__(self, parent, row_keys=None, col_keys=None):
+    def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None):
+        super(GroupedMatrixTable, self).__init__()
         self._parent = parent
+        self._copy_fields_from(parent)
         self._row_keys = row_keys
         self._col_keys = col_keys
         self._partitions = None
         self._partition_key = None
-
-    def _get_field(self, item):
-        return self._parent._get_field(item)
 
     def _fixed_indices(self):
         if self._row_keys is None and self._col_keys is None:
@@ -52,12 +52,6 @@ class GroupedMatrixTable(object):
     @typecheck_method(item=str)
     def __getitem__(self, item):
         return self._get_field(item)
-
-    def __getattr__(self, item):
-        if item in self._parent.__dict__:
-            return self._parent.__dict__[item]
-        else:
-            raise AttributeError(get_nice_attr_error(self._parent, item))
 
     def _process_keys(self, left):
         row_keys = []
@@ -94,6 +88,7 @@ class GroupedMatrixTable(object):
 
         def cleanup(mt):
             return mt.rename(renamed)
+
         return left, cleanup
 
     def describe(self):
@@ -112,16 +107,15 @@ class GroupedMatrixTable(object):
             colstr = "\nColumns: \n" + "\n    ".join(["{}: {}".format(k, v) for k, v in self._col_keys.items()])
 
         s = '----------------------------------------\n' \
-        'GroupedMatrixTable grouped by {}\n' \
-        '----------------------------------------\n' \
-        'Parent MatrixTable:\n'.format(
+            'GroupedMatrixTable grouped by {}\n' \
+            '----------------------------------------\n' \
+            'Parent MatrixTable:\n'.format(
             rowstr,
             colstr,
             self._partition_key)
 
         print(s)
         self._parent.describe()
-
 
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
@@ -170,7 +164,7 @@ class GroupedMatrixTable(object):
                 e = to_expr(e)
             analyze('MatrixTable.group_rows_by', e, self._parent._row_indices)
             ast = e._ast.expand()
-            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
+            if any(not isinstance(a, TopLevelReference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
             key = ast[0].name
 
@@ -236,7 +230,7 @@ class GroupedMatrixTable(object):
                 e = to_expr(e)
             analyze('MatrixTable.group_cols_by', e, self._parent._col_indices)
             ast = e._ast.expand()
-            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
+            if any(not isinstance(a, TopLevelReference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
             key = ast[0].name
             if key in new_keys or key in kept_fields:
@@ -359,25 +353,25 @@ class GroupedMatrixTable(object):
 
         base, rename = self._process_keys(base)
 
-
         if self._col_keys is not None:
             assert self._new_col_keys is not None
             base = MatrixTable(base.key_cols_by(*self._new_col_keys)._jvds
-                               .groupColsBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]), ',\n'.join(strs)))
+                               .groupColsBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]),
+                                            ',\n'.join(strs)))
         elif self._row_keys is not None:
-            base = MatrixTable(base.key_rows_by(*self._new_row_keys, partition_key=self._partition_key)._jvds.aggregateRowsByKey(',\n'.join(strs)))
+            base = MatrixTable(
+                base.key_rows_by(*self._new_row_keys, partition_key=self._partition_key)._jvds.aggregateRowsByKey(
+                    ',\n'.join(strs)))
         else:
             raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
 
         return rename(base)
 
-    def __iter__(self):
-        raise TypeError("'GroupedMatrixTable' object is not iterable")
 
 matrix_table_type = lazy()
 
 
-class MatrixTable(object):
+class MatrixTable(ExprContainer):
     """Hail's distributed implementation of a structured matrix.
 
     Use :func:`.read_matrix_table` to read a matrix table that was written with
@@ -436,78 +430,53 @@ class MatrixTable(object):
     """
 
     def __init__(self, jvds):
+        super(MatrixTable, self).__init__()
         self._jvds = jvds
 
         self._globals = None
         self._col_values = None
-        self._col_key = None
-        self._row_key = None
-        self._row_partition_key = None
-        self._global_type = HailType._from_java(self._jvds.globalType())
-        self._col_type = HailType._from_java(self._jvds.colType())
-        self._row_type = HailType._from_java(self._jvds.rowType())
-        self._entry_type = HailType._from_java(self._jvds.entryType())
-        self._num_samples = None
+
         self._row_axis = 'row'
         self._col_axis = 'column'
+
         self._global_indices = Indices(self, set())
         self._row_indices = Indices(self, {self._row_axis})
         self._col_indices = Indices(self, {self._col_axis})
         self._entry_indices = Indices(self, {self._row_axis, self._col_axis})
-        self._fields = {}
-        self._fields_inverse = {}
+
+        self._global_type = HailType._from_java(jvds.globalType())
+        self._col_type = HailType._from_java(jvds.colType())
+        self._row_type = HailType._from_java(jvds.rowType())
+        self._entry_type = HailType._from_java(jvds.entryType())
 
         assert isinstance(self._global_type, tstruct), self._global_type
         assert isinstance(self._col_type, tstruct), self._col_type
         assert isinstance(self._row_type, tstruct), self._row_type
         assert isinstance(self._entry_type, tstruct), self._entry_type
 
-        for f, t in self.globals.dtype.items():
-            self._set_field(f, construct_reference(f, t, self._global_indices, prefix='global'))
+        self._globals = construct_expr(TopLevelReference('global', self._global_indices), self._global_type,
+                                       indices=self._global_indices)
+        self._row = construct_expr(TopLevelReference('va', self._row_indices), self._row_type,
+                                   indices=self._row_indices)
+        self._col = construct_expr(TopLevelReference('sa', self._col_indices), self._col_type,
+                                   indices=self._col_indices)
+        self._entry = construct_expr(TopLevelReference('g', self._entry_indices), self._entry_type,
+                                     indices=self._entry_indices)
 
-        for f, t in self.col.dtype.items():
-            self._set_field(f, construct_reference(f, t, self._col_indices, prefix='sa'))
+        self._partition_key = hail.struct(
+            **{k: self._row[k] for k in jiterable_to_list(jvds.rowPartitionKey())})
+        self._row_key = hail.struct(
+            **{k: self._row[k] for k in jiterable_to_list(jvds.rowKey())})
+        self._col_key = hail.struct(
+            **{k: self._col[k] for k in jiterable_to_list(jvds.colKey())})
 
-        for f, t in self.row.dtype.items():
-            self._set_field(f, construct_reference(f, t, self._row_indices, prefix='va'))
+        self._num_samples = None
 
-        for f, t in self.entry.dtype.items():
-            self._set_field(f, construct_reference(f, t, self._entry_indices, prefix='g'))
-
-    def _set_field(self, key, value):
-        assert key not in self._fields, key
-        self._fields[key] = value
-        self._fields_inverse[value] = key
-        if key in self.__dict__:
-            warn("Name collision: field '{}' already in object dict."
-                 " This field must be referenced with indexing syntax".format(key))
-        else:
-            self.__dict__[key] = value
-
-    @typecheck_method(item=str)
-    def _get_field(self, item):
-        if item in self._fields:
-            return self._fields[item]
-        else:
-            raise LookupError(get_nice_field_error(self, item))
-
-    def __delattr__(self, item):
-        if not item[0] == '_':
-            raise NotImplementedError('MatrixTable objects are not mutable')
-
-    def __setattr__(self, key, value):
-        if not key[0] == '_':
-            raise NotImplementedError('MatrixTable objects are not mutable')
-        self.__dict__[key] = value
-
-    def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
-        else:
-            raise AttributeError(get_nice_attr_error(self, item))
-
-    def __iter__(self):
-        raise TypeError("'MatrixTable' object is not iterable")
+        for k, v in itertools.chain(self._globals.items(),
+                                    self._row.items(),
+                                    self._col.items(),
+                                    self._entry.items()):
+            self._set_field(k, v)
 
     @typecheck_method(item=oneof(str, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
                                                     oneof(slice, Expression, tupleof(Expression)))))
@@ -584,9 +553,7 @@ class MatrixTable(object):
         -------
         :class:`.StructExpression`
         """
-        if self._col_key is None:
-            self._col_key = jiterable_to_list(self._jvds.colKey())
-        return hail.struct(**{k: self[k] for k in self._col_key})
+        return self._col_key
 
     @property
     def row_key(self) -> StructExpression:
@@ -606,9 +573,7 @@ class MatrixTable(object):
         -------
         :class:`.StructExpression`
         """
-        if self._row_key is None:
-            self._row_key = jiterable_to_list(self._jvds.rowKey())
-        return hail.struct(**{k: self[k] for k in self._row_key})
+        return self._row_key
 
     @property
     def partition_key(self) -> StructExpression:
@@ -628,10 +593,7 @@ class MatrixTable(object):
         -------
         :class:`.StructExpression`
         """
-        if self._row_partition_key is None:
-            self._row_partition_key = jiterable_to_list(self._jvds.rowPartitionKey())
-        pk = hail.struct(**{k: self[k] for k in self._row_partition_key})
-        return pk
+        return self._partition_key
 
     @property
     def globals(self) -> StructExpression:
@@ -641,10 +603,7 @@ class MatrixTable(object):
         -------
         :class:`.StructExpression`
         """
-        return construct_expr(Reference('global', True), self._global_type,
-                              indices=self._global_indices,
-                              refs=LinkedList(tuple).push(
-                                  *[(f, self._global_indices) for f in self._global_type]))
+        return self._globals
 
     @property
     def row(self) -> StructExpression:
@@ -665,10 +624,7 @@ class MatrixTable(object):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return construct_expr(Reference('va', True), self._row_type,
-                              indices=self._row_indices,
-                              refs=LinkedList(tuple).push(
-                                  *[(f, self._row_indices) for f in self._row_type]))
+        return self._row
 
     @property
     def col(self) -> StructExpression:
@@ -689,10 +645,7 @@ class MatrixTable(object):
         :class:`.StructExpression`
             Struct of all column fields.
         """
-        return construct_expr(Reference('sa', True), self._col_type,
-                              indices=self._col_indices,
-                              refs=LinkedList(tuple).push(
-                                  *[(f, self._col_indices) for f in self._col_type]))
+        return self._col
 
     @property
     def entry(self) -> StructExpression:
@@ -714,10 +667,7 @@ class MatrixTable(object):
         :class:`.StructExpression`
             Struct of all entry fields.
         """
-        return construct_expr(Reference('g', True), self._entry_type,
-                              indices=self._entry_indices,
-                              refs=LinkedList(tuple).push(
-                                  *[(f, self._entry_indices) for f in self._entry_type]))
+        return self._entry
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_cols_by(self, *keys: FieldRefArgs) -> 'MatrixTable':
@@ -752,7 +702,7 @@ class MatrixTable(object):
                       partition_key=nullable(oneof(oneof(str, Expression), listof(oneof(str, Expression)))))
     def key_rows_by(self,
                     *keys: FieldRefArgs,
-                    partition_key: Optional[Union[FieldRef, Sequence[FieldRef]]]=None
+                    partition_key: Optional[Union[FieldRef, Sequence[FieldRef]]] = None
                     ) -> 'MatrixTable':
         """Key rows by a new set of fields.
 
@@ -780,6 +730,7 @@ class MatrixTable(object):
                 if not self._get_field(k)._indices == self._row_indices:
                     raise ValueError("'{}' is not a row field".format(k))
                 return key
+
         str_keys = []
 
         for k in keys:
@@ -1061,7 +1012,7 @@ class MatrixTable(object):
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append('{}: {}'.format(escape_id(e._ast.name), e._ast.to_hql()))
             ids.append(e._ast.name)
@@ -1130,7 +1081,7 @@ class MatrixTable(object):
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
             ids.append(e._ast.name)
@@ -1197,7 +1148,7 @@ class MatrixTable(object):
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
             ids.append(e._ast.name)
@@ -1260,7 +1211,7 @@ class MatrixTable(object):
                 # detect row or col fields here
                 raise ExpressionException("method 'select_entries' parameter 'exprs' expects entry-indexed fields,"
                                           " found indices {}".format(list(e._indices.axes)))
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
             ids.append(e._ast.name)
@@ -1388,7 +1339,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.dropCols())
 
     @typecheck_method(expr=expr_any, keep=bool)
-    def filter_rows(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
+    def filter_rows(self, expr: BooleanExpression, keep: bool = True) -> 'MatrixTable':
         """Filter rows of the matrix.
 
         Examples
@@ -1442,7 +1393,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @typecheck_method(expr=expr_bool, keep=bool)
-    def filter_cols(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
+    def filter_cols(self, expr: BooleanExpression, keep: bool = True) -> 'MatrixTable':
         """Filter columns of the matrix.
 
         Examples
@@ -1504,7 +1455,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @typecheck_method(expr=expr_bool, keep=bool)
-    def filter_entries(self, expr: BooleanExpression, keep: bool=True) -> 'MatrixTable':
+    def filter_entries(self, expr: BooleanExpression, keep: bool = True) -> 'MatrixTable':
         """Filter entries of the matrix.
 
         Examples
@@ -1819,7 +1770,8 @@ class MatrixTable(object):
             s = 'va.{}'.format(escape_id(field_expr))
         else:
             analyze('MatrixTable.explode_rows', field_expr, self._row_indices, set(self._fields.keys()))
-            if field_expr._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if field_expr._ast.search(
+                    lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException(
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
             s = field_expr._ast.to_hql()
@@ -1866,7 +1818,8 @@ class MatrixTable(object):
             s = 'sa.{}'.format(escape_id(field_expr))
         else:
             analyze('MatrixTable.explode_cols', field_expr, self._col_indices)
-            if field_expr._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+            if field_expr._ast.search(
+                    lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException(
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
             s = field_expr._ast.to_hql()
@@ -1943,7 +1896,7 @@ class MatrixTable(object):
                 e = to_expr(e)
             analyze('MatrixTable.group_cols_by', e, self._col_indices)
             ast = e._ast.expand()
-            if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
+            if any(not isinstance(a, TopLevelReference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
             key = ast[0].name
             if key in new_keys:
@@ -2015,7 +1968,7 @@ class MatrixTable(object):
     @typecheck_method(output=str,
                       overwrite=bool,
                       _codec_spec=nullable(str))
-    def write(self, output: str, overwrite: bool=False, _codec_spec: Optional[str]=None):
+    def write(self, output: str, overwrite: bool = False, _codec_spec: Optional[str] = None):
         """Write to disk.
 
         Examples
@@ -2123,12 +2076,12 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        return construct_expr(Select(Reference('global', top_level=True), uid), self.globals.dtype,
-                              joins=LinkedList(Join).push(Join(joiner, [uid], uid)))
+        return construct_expr(Select(TopLevelReference('global', Indices()), uid), self.globals.dtype,
+                              joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
     def index_rows(self, *exprs: Tuple[Expression]) -> StructExpression:
         exprs = [to_expr(e) for e in exprs]
-        indices, aggregations, joins, refs = unify_all(*exprs)
+        indices, aggregations, joins = unify_all(*exprs)
         src = indices.source
 
         if aggregations:
@@ -2157,17 +2110,16 @@ class MatrixTable(object):
                 prefix = 'va'
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid)))
+                schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
+                return construct_expr(Select(TopLevelReference(prefix, src._row_indices), uid),
+                                      schema, indices, aggregations,
+                                      joins.push(Join(joiner, uids_to_delete, uid, exprs)))
             else:
                 return self.rows().index(*exprs)
 
-            schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-            return construct_expr(Select(Reference(prefix, top_level=True), uid),
-                                  schema, indices, aggregations,
-                                  joins.push(Join(joiner, uids_to_delete, uid)), refs)
-
     def index_cols(self, *exprs: Tuple[Expression]) -> StructExpression:
         exprs = [to_expr(e) for e in exprs]
-        indices, aggregations, joins, refs = unify_all(*exprs)
+        indices, aggregations, joins = unify_all(*exprs)
         src = indices.source
 
         if aggregations:
@@ -2183,7 +2135,7 @@ class MatrixTable(object):
         row_exprs = [to_expr(e) for e in row_exprs]
         col_exprs = [to_expr(e) for e in col_exprs]
 
-        indices, aggregations, joins, refs = unify_all(*(row_exprs + col_exprs))
+        indices, aggregations, joins = unify_all(*(row_exprs + col_exprs))
         src = indices.source
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
@@ -2230,7 +2182,7 @@ class MatrixTable(object):
             row_fields = '\n    None'
         else:
             row_fields = ''.join("\n    '{name}': {type} ".format(
-            name=f, type=format_type(t)) for f, t in self.row.dtype.items())
+                name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.row_key) if self.row_key else '\n    None'
@@ -2241,7 +2193,7 @@ class MatrixTable(object):
             col_fields = '\n    None'
         else:
             col_fields = ''.join("\n    '{name}': {type} ".format(
-            name=f, type=format_type(t)) for f, t in self.col.dtype.items())
+                name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
         col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
                           for f in self.col_key) if self.col_key else '\n    None'
@@ -2333,7 +2285,7 @@ class MatrixTable(object):
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
-    def repartition(self, n_partitions: int, shuffle: bool=True) -> 'MatrixTable':
+    def repartition(self, n_partitions: int, shuffle: bool = True) -> 'MatrixTable':
         """Increase or decrease the number of partitions.
 
         Examples
@@ -2439,7 +2391,7 @@ class MatrixTable(object):
         return self.persist('MEMORY_ONLY')
 
     @typecheck_method(storage_level=storage_level)
-    def persist(self, storage_level: str='MEMORY_AND_DISK') -> 'MatrixTable':
+    def persist(self, storage_level: str = 'MEMORY_AND_DISK') -> 'MatrixTable':
         """Persist this table in memory or on disk.
 
         Examples
@@ -2494,7 +2446,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unpersist())
 
     @typecheck_method(name=str)
-    def add_row_index(self, name: str='row_idx') -> 'MatrixTable':
+    def add_row_index(self, name: str = 'row_idx') -> 'MatrixTable':
         """Add the integer index of each row as a new row field.
 
         Examples
@@ -2522,7 +2474,7 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.indexRows(name))
 
     @typecheck_method(name=str)
-    def add_col_index(self, name: str='col_idx') -> 'MatrixTable':
+    def add_col_index(self, name: str = 'col_idx') -> 'MatrixTable':
         """Add the integer index of each column as a new column field.
 
         Examples
@@ -2702,7 +2654,7 @@ class MatrixTable(object):
 
     @classmethod
     @typecheck_method(table=Table, partition_key=nullable(oneof(str, listof(str))))
-    def from_rows_table(cls, table: Table, partition_key: Optional[Union[str, List[str]]]=None) -> 'MatrixTable':
+    def from_rows_table(cls, table: Table, partition_key: Optional[Union[str, List[str]]] = None) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
 
         .. include:: _templates/experimental.rst
@@ -2743,7 +2695,7 @@ class MatrixTable(object):
 
     @typecheck_method(p=numeric,
                       seed=int)
-    def sample_rows(self, p: float, seed: int=0) -> 'MatrixTable':
+    def sample_rows(self, p: float, seed: int = 0) -> 'MatrixTable':
         """Downsample the matrix table by keeping each row with probability ``p``.
 
         Examples
