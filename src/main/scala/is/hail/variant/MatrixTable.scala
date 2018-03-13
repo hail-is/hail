@@ -2434,7 +2434,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def globalsTable(): Table = {
     Table(hc,
-      sparkContext.parallelize[Row](Array(globals.asInstanceOf[Row])),
+      sparkContext.parallelize[Row](Array(globals.value.asInstanceOf[Row])),
       globalType,
       Array.empty[String])
   }
