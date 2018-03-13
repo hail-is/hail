@@ -117,11 +117,13 @@ object BinaryOp {
         case _ => incompatible(lt, rt, op)
       }
     case (_: TString, _: TString) =>
+      // RegionValue stores length and encoded bytes from String.getBytes
+
       val ll = coerce[String](l)
       val rr = coerce[String](r)
       op match {
         case EQ() =>
-          ll.invoke[Object, Boolean]("equals", rr)
+          ll.invoke[Object, Boolean]("equals", Code.checkcast[Object](rr))
         case NEQ() =>
           ! ll.invoke[Object, Boolean]("equals", rr)
         case _ => incompatible(lt, rt, op)
