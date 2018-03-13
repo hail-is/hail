@@ -435,7 +435,7 @@ class CompileSuite {
       assert(actual2.sameElements(expected2))
     }
 
-    val (start, stop, step) = (0, Int.MinValue, 1e8.toInt)
+    val (start, stop, step) = (Int.MinValue, Int.MaxValue, Int.MaxValue / 5)
     val aoff = f(region, start, false, stop, false, step, false)
     val expected = Array.range(start, stop, step)
     val actual = new UnsafeIndexedSeq(tRange, region, aoff)
