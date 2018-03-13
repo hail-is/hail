@@ -2161,9 +2161,9 @@ class MatrixTable(ExprContainer):
 
                 return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
-            return construct_expr(Select(Reference('g', top_level=True), uid),
+            return construct_expr(Select(TopLevelReference('g', self._entry_indices), uid),
                                   self.entry.dtype, indices, aggregations,
-                                  joins.push(Join(joiner, uids, uid)), refs)
+                                  joins.push(Join(joiner, uids, uid, [*row_exprs, *col_exprs])))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
