@@ -151,7 +151,7 @@ object VEP {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(w: (String) => Unit, v: (Locus, Array[String])) {
+  def printElement(w: (String) => Unit, v: (Locus, IndexedSeq[String])) {
     val (locus, alleles) = v
 
     val sb = new StringBuilder()
@@ -166,7 +166,7 @@ object VEP {
     w(sb.result())
   }
 
-  def variantFromInput(input: String): (Locus, Array[String]) = {
+  def variantFromInput(input: String): (Locus, IndexedSeq[String]) = {
     val a = input.split("\t")
     (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
@@ -266,7 +266,7 @@ object VEP {
         it
           .map { rv =>
             rvv.setRegion(rv)
-            (rvv.locus(), rvv.alleles())
+            (rvv.locus(), rvv.alleles(): IndexedSeq[String])
           }
           .grouped(localBlockSize)
           .flatMap { block =>
