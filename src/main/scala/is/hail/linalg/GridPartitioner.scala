@@ -1,6 +1,5 @@
 package is.hail.linalg
 
-import is.hail.utils.ArrayBuilder
 import org.apache.spark.Partitioner
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Partitioner {
