@@ -1148,9 +1148,7 @@ class Table(ExprContainer):
 
             right = self
             right_keys = [right[k] for k in right.key]
-            select_struct = Struct(**{k: right[k] for k in right.fields})
             right = right.select(*right_keys, **{uid: right.row})
-            right = right.select(*right_keys, **{uid: select_struct})
             uids = [Env.get_uid() for i in range(len(exprs))]
             full_key_strs = ',\n'.join('{}={}'.format(uids[i], exprs[i]._ast.to_hql()) for i in range(len(exprs)))
 
