@@ -1,3 +1,5 @@
+.. _sec-collection-functions:
+
 Collection functions
 --------------------
 .. currentmodule:: hail.expr.functions

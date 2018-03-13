@@ -389,6 +389,11 @@ class tarray(HailType):
     ----------
     element_type : :class:`.HailType`
         Element type of array.
+
+    See Also
+    --------
+    :class:`.ArrayExpression`, :class:`.CollectionExpression`,
+    :func:`.array`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(element_type=hail_type)
@@ -462,6 +467,11 @@ class tset(HailType):
     ----------
     element_type : :class:`.HailType`
         Element type of set.
+
+    See Also
+    --------
+    :class:`.SetExpression`, :class:`.CollectionExpression`,
+    :func:`.set`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(element_type=hail_type)
@@ -536,6 +546,10 @@ class tdict(HailType):
         Key type.
     value_type: :class:`.HailType`
         Value type.
+
+    See Also
+    --------
+    :class:`.DictExpression` :func:`.dict`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(key_type=hail_type, value_type=hail_type)
@@ -625,6 +639,10 @@ class tstruct(HailType, Mapping):
     ----------
     field_types : keyword args of :class:`.HailType`
         Fields.
+
+    See Also
+    --------
+    :class:`.StructExpression`, :class:`.Struct`
     """
 
     @typecheck_method(field_types=hail_type)
@@ -733,6 +751,10 @@ class ttuple(HailType):
     ----------
     types: varargs of :class:`.HailType`
         Element types.
+
+    See Also
+    --------
+    :class:`.TupleExpression`
     """
 
     @typecheck_method(types=hail_type)
@@ -856,6 +878,11 @@ class tlocus(HailType):
     ----------
     reference_genome: :class:`.ReferenceGenome` or :obj:`str`
         Reference genome to use.
+
+    See Also
+    --------
+    :class:`.LocusExpression`, :func:`.locus`, :func:`.parse_locus`,
+    :class:`.Locus`
     """
 
     @typecheck_method(reference_genome=reference_genome_type)
@@ -924,6 +951,11 @@ class tinterval(HailType):
     ----------
     point_type: :class:`.HailType`
         Interval point type.
+
+    See Also
+    --------
+    :class:`.IntervalExpression`, :class:`.Interval`, :func:`.interval`,
+    :func:`.parse_locus_interval`
     """
 
     @typecheck_method(point_type=hail_type)
@@ -995,6 +1027,10 @@ Their values can range from :math:`-2^{31}` to :math:`2^{31} - 1`
 (approximately 2.15 billion).
 
 In Python, these are represented as :obj:`int`.
+
+See Also
+--------
+:class:`.Int32Expression`, :func:`.int`, :func:`.int32`
 """
 
 
@@ -1004,6 +1040,10 @@ tint64 = _tint64()
 Their values can range from :math:`-2^{63}` to :math:`2^{63} - 1`.
 
 In Python, these are represented as :obj:`int`.
+
+See Also
+--------
+:class:`.Int64Expression`, :func:`.int64`
 """
 
 tint = tint32
@@ -1013,12 +1053,20 @@ tfloat32 = _tfloat32()
 """Hail type for 32-bit floating point numbers.
 
 In Python, these are represented as :obj:`float`.
+
+See Also
+--------
+:class:`.Float32Expression`, :func:`.float64`
 """
 
 tfloat64 = _tfloat64()
 """Hail type for 64-bit floating point numbers.
 
 In Python, these are represented as :obj:`float`.
+
+See Also
+--------
+:class:`.Float64Expression`, :func:`.float`, :func:`.float64`
 """
 
 tfloat = tfloat64
@@ -1028,18 +1076,31 @@ tstr = _tstr()
 """Hail type for text strings.
 
 In Python, these are represented as strings.
+
+See Also
+--------
+:class:`.StringExpression`, :func:`.str`
 """
 
 tbool = _tbool()
 """Hail type for Boolean (``True`` or ``False``) values.
 
 In Python, these are represented as :obj:`bool`.
+
+See Also
+--------
+:class:`.BooleanExpression`, :func:`.bool`
 """
 
 tcall = _tcall()
 """Hail type for a diploid genotype.
 
 In Python, these are represented by :class:`.Call`.
+
+See Also
+--------
+:class:`.CallExpression`, :class:`.Call`, :func:`.call`, :func:`.parse_call`,
+:func:`.unphased_diploid_gt_index_call`
 """
 
 hts_entry_schema = tstruct(GT=tcall, AD=tarray(tint32), DP=tint32, GQ=tint32, PL=tarray(tint32))
