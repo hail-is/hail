@@ -339,10 +339,6 @@ class Table(ExprContainer):
         """
         return self._key
 
-    @property
-    def fields(self):
-        return list(self.row)
-
     def n_partitions(self):
         """Returns the number of partitions in the table.
 
@@ -1140,8 +1136,7 @@ class Table(ExprContainer):
 
             right = self
             right_keys = [right[k] for k in right.key]
-            select_struct = Struct(**{k: right[k] for k in right.fields})
-            right = right.select(*right_keys, **{uid: select_struct})
+            right = right.select(*right_keys, **{uid: right.row})
             uids = [Env._get_uid() for i in range(len(exprs))]
             full_key_strs = ',\n'.join('{}={}'.format(uids[i], exprs[i]._ast.to_hql()) for i in range(len(exprs)))
 
@@ -1216,7 +1211,7 @@ class Table(ExprContainer):
                         # group by v and index by the key exprs
                         vt = (vt.group_by(*rk_uids)
                             .aggregate(values=agg.collect(
-                            Struct(**{c: vt[c] for c in vt.fields if c not in rk_uids}))))
+                            Struct(**{c: vt[c] for c in vt.row if c not in rk_uids}))))
                         vt = vt.annotate(values=hl.index(vt.values, k_uid))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
