@@ -8,7 +8,6 @@ import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
 
-import scala.collection.mutable
 import scala.language.existentials
 import scala.language.postfixOps
 
@@ -69,10 +68,10 @@ private class Emit(
     *
     *  1. evaluate each returned Code[_] at most once
     *  2. evaluate precompute *on all static code-paths* leading to missingness or value
-    *  3. gaurd the the evaluation of value by missingness
+    *  3. guard the the evaluation of value by missingness
     *
     * JVM gotcha:
-    *  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
+    *  a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
     *
     * Argument Convention
     * -------------------
@@ -81,7 +80,7 @@ private class Emit(
     * missing bit. The value for {@code In(0)} is passed as argument
     * {@code nSpecialArguments + 1}. The missingness bit is the subsequent
     * argument. In general, the value for {@code In(i)} appears at
-    * {@code nSpecialArguments + 1 + i*2}.
+    * {@code nSpecialArguments + 1 + 2 * i}.
     *
     * There must always be at least one special argument: a {@code Region} in
     * which the IR can allocate memory.
@@ -96,7 +95,7 @@ private class Emit(
     * An aggregating expression additionally has an element argument and a
     * number of "scope" argmuents following the special arguments. The type of
     * the element is {@code tAggIn.elementType}. The number and types of the
-    * scope arguments is defined by the symbol table of {@code tAggIn}. The
+    * scope arguments are defined by the symbol table of {@code tAggIn}. The
     * element argument and the scope arguments, unlike special arguments, appear
     * in pairs of a value and a missingness bit. Moreover, the element argument
     * must appear first.
@@ -273,11 +272,17 @@ private class Emit(
           len := start.ceq(stop).mux(0, (stop - start - 1) / step + 1),
           len := (len < 0).mux(0, len),
           srvb.start(len, init=true),
-          Code.whileLoop(start < stop,
-            srvb.addInt(start),
-            srvb.advance(),
-            start := start + step
-          ),
+          (step < 0).mux(
+            Code.whileLoop(start < stop,
+              srvb.addInt(start),
+              srvb.advance(),
+              start := start + step
+            ),
+            Code.whileLoop(start > stop,
+              srvb.addInt(start),
+              srvb.advance(),
+              start := start + step
+            )),
           srvb.offset
         ))
       case x@ArrayMap(a, name, body, elementTyp) =>
@@ -321,15 +326,17 @@ private class Emit(
         val keept = TArray(TBoolean())
         val srvbkeep = new StagedRegionValueBuilder(fb, keept)
         val srvb = new StagedRegionValueBuilder(fb, t)
-        val etiin = coerce[Any](typeToTypeInfo(t.elementType))
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(t.elementType))
+
         val xa = fb.newLocal[Long]("af_a")
         val xmv = mb.newBit()
-        val xvv = fb.newLocal(name)(etiin)
+        val xvv = fb.newLocal(name)(elementTypeInfoA)
         val i = fb.newLocal[Int]("af_i")
+
         val lenout = fb.newLocal[Int]("af_lenout")
         val len = fb.newLocal[Int]("af_len")
         val keep = fb.newLocal[Long]("af_keep")
-        val bodyenv = env.bind(name -> (etiin, xmv, xvv))
+        val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
         val (doa, ma, va) = emit(a)
         val (docond, mcond, vcond) = emit(body, env = bodyenv)
 

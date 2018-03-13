@@ -427,6 +427,12 @@ class CompileSuite {
       val actual = new UnsafeIndexedSeq(tRange, region, aoff)
       assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
+
+      val expected2 = Array.range(stop, start, -step)
+      val aoff2 = f(region, stop, false, start, false, -step, false)
+      val actual2 = new UnsafeIndexedSeq(tRange, region, aoff2)
+      assert(expected2.length == actual2.length)
+      assert(actual2.sameElements(expected2))
     }
   }
 
