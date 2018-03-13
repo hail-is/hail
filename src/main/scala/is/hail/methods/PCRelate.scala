@@ -253,7 +253,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         g - mu * 2.0
     } (g, mu)
 
-    val stddev = variance.map(math.sqrt)
+    val stddev = variance.sqrt()
 
     (gram(centeredG) /:/ gram(stddev)) / 4.0
   }
