@@ -65,7 +65,7 @@ class GroupedMatrixTable(ExprContainer):
                 if v in self._parent._fields_inverse:
                     f = self._parent._fields_inverse[v]
                 else:
-                    f = Env._get_uid()
+                    f = Env.get_uid()
                     new_row_fields[f] = v
                 row_keys.append(f)
                 if k != f:
@@ -76,7 +76,7 @@ class GroupedMatrixTable(ExprContainer):
                 if v in self._parent._fields_inverse:
                     f = self._parent._fields_inverse[v]
                 else:
-                    f = Env._get_uid()
+                    f = Env.get_uid()
                 new_col_fields[f] = v
                 col_keys.append(f)
                 if k != f:
@@ -2067,7 +2067,7 @@ class MatrixTable(ExprContainer):
         return Table(self._jvds.entriesTable())
 
     def index_globals(self) -> Expression:
-        uid = Env._get_uid()
+        uid = Env.get_uid()
 
         def joiner(obj):
             if isinstance(obj, MatrixTable):
@@ -2086,7 +2086,7 @@ class MatrixTable(ExprContainer):
 
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
-        uid = Env._get_uid()
+        uid = Env.get_uid()
         uids_to_delete = [uid]
 
         if src is None:
@@ -2104,7 +2104,7 @@ class MatrixTable(ExprContainer):
             is_row_key = len(exprs) == len(src.row_key) and all(
                 exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
             is_partition_key = len(exprs) == len(src.partition_key) and all(
-                exprs[i] is src._fields[src.partition_key[i]] for i in range(len(exprs)))
+                exprs[i] is src.partition_key[i] for i in range(len(exprs)))
 
             if is_row_key or is_partition_key:
                 prefix = 'va'
@@ -2124,7 +2124,7 @@ class MatrixTable(ExprContainer):
 
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
-        uid = Env._get_uid()
+        uid = Env.get_uid()
 
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
@@ -2139,13 +2139,79 @@ class MatrixTable(ExprContainer):
         src = indices.source
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
-        uid = Env._get_uid()
+        uid = Env.get_uid()
+        uids = [uid]
 
         if isinstance(src, Table):
             # join table with matrix.entries_table()
             return self.entries().index(*(row_exprs + col_exprs))
         else:
-            raise NotImplementedError('matrix.index_entries with {}'.format(src.__class__))
+            assert isinstance(src, MatrixTable)
+            row_uid = Env.get_uid()
+            uids.append(row_uid)
+            col_uid = Env.get_uid()
+            uids.append(col_uid)
+
+            def joiner(left: MatrixTable):
+                localized = Table(self._jvds.localizeEntries(row_uid))
+                src_cols_indexed = self.cols().add_index(col_uid)
+                src_cols_indexed = src_cols_indexed.annotate(**{col_uid: hl.int32(src_cols_indexed[col_uid])})
+                left = left._annotate_all(row_exprs = {row_uid: localized.index(*row_exprs)[row_uid]},
+                                          col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
+
+                return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
+
+            return construct_expr(Select(TopLevelReference('g', self._entry_indices), uid),
+                                  self.entry.dtype, indices, aggregations,
+                                  joins.push(Join(joiner, uids, uid, [*row_exprs, *col_exprs])))
+
+    @typecheck_method(row_exprs=dictof(str, expr_any),
+                      col_exprs=dictof(str, expr_any),
+                      entry_exprs=dictof(str, expr_any),
+                      global_exprs=dictof(str, expr_any))
+    def _annotate_all(self,
+                      row_exprs: Optional[Dict[str, Expression]] = {},
+                      col_exprs: Optional[Dict[str, Expression]] = {},
+                      entry_exprs: Optional[Dict[str, Expression]] = {},
+                      global_exprs: Optional[Dict[str, Expression]] = {},
+                      ) -> 'MatrixTable':
+        all_exprs = list(itertools.chain(row_exprs.values(),
+                                         col_exprs.values(),
+                                         entry_exprs.values(),
+                                         global_exprs.values()))
+
+        base, cleanup = self._process_joins(*all_exprs)
+        jmt = base._jvds
+        if row_exprs:
+            row_strs = []
+            for k, v in row_exprs.items():
+                analyze('MatrixTable.annotate_rows', v, self._row_indices, {self._col_axis})
+                row_strs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
+                check_collisions(self._fields, k, self._row_indices)
+                jmt = jmt.annotateRowsExpr(",\n".join(row_strs))
+        if col_exprs:
+            col_strs = []
+            for k, v in col_exprs.items():
+                analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
+                col_strs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
+                check_collisions(self._fields, k, self._col_indices)
+                jmt = jmt.annotateColsExpr(",\n".join(col_strs))
+        if entry_exprs:
+            entry_strs = []
+            for k, v in entry_exprs.items():
+                analyze('MatrixTable.annotate_entries', v, self._entry_indices)
+                entry_strs.append('g.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
+                check_collisions(self._fields, k, self._entry_indices)
+                jmt = jmt.annotateEntriesExpr(",\n".join(entry_strs))
+        if global_exprs:
+            global_strs = []
+            for k, v in global_exprs.items():
+                analyze('MatrixTable.annotate_globals', v, self._global_indices)
+                global_strs.append('global.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
+                check_collisions(self._fields, k, self._global_indices)
+                jmt = jmt.annotateGlobalsExpr(",\n".join(global_strs))
+
+        return cleanup(MatrixTable(jmt))
 
     def _process_joins(self, *exprs):
 

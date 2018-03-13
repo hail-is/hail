@@ -142,7 +142,7 @@ class BlockMatrix(object):
         if entry_expr in source._fields_inverse:
             source._jvds.writeBlockMatrix(path, source._fields_inverse[entry_expr], block_size)
         else:
-            uid = Env._get_uid()
+            uid = Env.get_uid()
             source.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
 
         return cls.read(path)

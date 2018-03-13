@@ -118,7 +118,7 @@ def literal(x, dtype=None):
             assert isinstance(x, builtins.str)
             return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
     else:
-        uid = Env._get_uid()
+        uid = Env.get_uid()
 
         def joiner(obj):
             json = dtype._to_json(x)
@@ -313,7 +313,7 @@ def bind(expr, f):
     :class:`.Expression`
         Result of evaluating `f` with `expr` as an argument.
     """
-    uid = Env._get_uid()
+    uid = Env.get_uid()
     expr = to_expr(expr)
 
     f_input = construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins)
