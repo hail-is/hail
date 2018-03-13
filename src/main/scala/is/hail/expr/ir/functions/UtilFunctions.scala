@@ -3,6 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.coerce
 
 object UtilFunctions extends RegistryFunctions {
   registerCode[Int]("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
@@ -10,7 +11,7 @@ object UtilFunctions extends RegistryFunctions {
   registerIR("size", TArray(tv("T")), TInt32())(ArrayLen)
 
   registerIR("sum", TArray(tv("T")), tv("T")) { a =>
-    val zero = a.typ match {
+    val zero = coerce[TArray](a.typ).elementType match {
       case _: TInt32 => I32(0)
       case _: TInt64 => I64(0)
       case _: TFloat32 => F32(0)
@@ -20,7 +21,7 @@ object UtilFunctions extends RegistryFunctions {
   }
 
   registerIR("min", TArray(tv("T")), tv("T")) { a =>
-    val na = NA(a.typ)
+    val na = NA(coerce[TArray](a.typ).elementType)
     val min = Ref("min")
     val value = Ref("v")
     val body = If(IsNA(min), value, If(IsNA(value), min, If(ApplyBinaryPrimOp(LT(), min, value), min, value)))

@@ -16,7 +16,6 @@ object IRFunctionRegistry {
   UtilFunctions.registerAll(registry)
 
   def lookupFunction(name: String, args: TypeTag): Option[Seq[IR] => IR] = {
-    println(s"${registry(name)}")
     val validMethods = registry(name).flatMap { case (tt, f) =>
       if (tt.xs.length == args.xs.length) {
         tt.clear()
