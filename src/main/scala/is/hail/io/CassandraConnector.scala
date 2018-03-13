@@ -60,8 +60,6 @@ object CassandraImpex {
     case TDict(keyType, valueType, _) =>
       DataType.map(exportType(keyType, depth + 1),
         exportType(valueType, depth + 1), depth == 1)
-    case _: TAltAllele => DataType.text()
-    case TVariant(_, _) => DataType.text()
     case TLocus(_, _) => DataType.text()
     case TInterval(_, _) => DataType.text()
     case s: TStruct => DataType.text()
@@ -126,7 +124,7 @@ object CassandraImpex {
           (exportAnnotation(k, keyType),
             exportAnnotation(v, valueType))
         }.asJava
-    case _: TAltAllele | TVariant(_, _) | TLocus(_, _) | TInterval(_, _) =>
+    case TLocus(_, _) | TInterval(_, _) =>
       JsonMethods.compact(t.toJSON(a))
     case s: TStruct => DataType.text()
       JsonMethods.compact(t.toJSON(a))

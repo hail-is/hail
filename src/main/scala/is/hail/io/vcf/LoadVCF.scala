@@ -590,11 +590,6 @@ object LoadVCF {
     s.substring(start, end)
   }
 
-  def lineVariant(s: String): Variant = {
-    val Array(contig, start, id, ref, alts, rest) = s.split("\t", 6)
-    Variant(contig, start.toInt, ref, alts.split(","))
-  }
-
   def headerNumberToString(line: VCFCompoundHeaderLine): String = line.getCountType match {
     case VCFHeaderLineCount.A => "A"
     case VCFHeaderLineCount.G => "G"

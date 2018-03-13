@@ -2,9 +2,8 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.io.plink.ExportPlink
-import is.hail.methods.SplitMulti
-import is.hail.table.Table
 import is.hail.utils._
+import is.hail.TestUtils
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -30,7 +29,7 @@ class ExportPlinkSuite extends SparkSuite {
 
     val hailFile = tmpDir.createTempFile("hail")
 
-    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
     ExportPlink(vds, hailFile)
 
     rewriteBimIDs(hailFile + ".bim")

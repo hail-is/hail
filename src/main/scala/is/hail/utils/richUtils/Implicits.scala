@@ -7,7 +7,6 @@ import is.hail.annotations.{Region, RegionValue, JoinedRegionValue}
 import is.hail.asm4s.Code
 import is.hail.io.RichRDDRegionValue
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
-import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}

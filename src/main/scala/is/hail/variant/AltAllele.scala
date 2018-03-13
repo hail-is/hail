@@ -1,12 +1,9 @@
 package is.hail.variant
 
-import is.hail.annotations._
 import is.hail.check._
-import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.AltAlleleType.AltAlleleType
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types._
 import org.json4s._
 
 import scala.util.matching.Regex
@@ -22,20 +19,6 @@ object CopyState extends Enumeration {
 }
 
 object AltAllele {
-
-  def fromRegionValue(m: Region, offset: Long): AltAllele = {
-    val t = TAltAllele.representation()
-    val ref = TString.loadString(m, t.loadField(m, offset, 0))
-    val alt = TString.loadString(m, t.loadField(m, offset, 1))
-    AltAllele(ref, alt)
-  }
-
-  def sparkSchema: StructType = StructType(Array(
-    StructField("ref", StringType, nullable = false),
-    StructField("alt", StringType, nullable = false)))
-
-  def fromRow(r: Row): AltAllele =
-    AltAllele(r.getString(0), r.getString(1))
 
   def gen(ref: String): Gen[AltAllele] =
     for (alt <- Gen.frequency((10, genDNAString),
@@ -235,4 +218,3 @@ case class AltAllele(ref: String, alt: String) extends IAltAllele {
 
   override def reify(): AltAllele = this
 }
-

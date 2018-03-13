@@ -4,7 +4,7 @@ from hail.utils.java import Env, jarray_to_list, joption
 from hail.utils import wrap_to_list, Interval
 from hail.typecheck import *
 from hail.expr.expressions import *
-from hail.expr.expr_ast import Reference
+from hail.expr.expr_ast import VariableReference
 from hail.expr.types import *
 
 
@@ -111,8 +111,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None):
             "Found\n{}\n{}".format(i, j))
 
     node_t = i.dtype
-    l = construct_expr(Reference('l'), node_t)
-    r = construct_expr(Reference('r'), node_t)
+    l = construct_expr(VariableReference('l'), node_t)
+    r = construct_expr(VariableReference('r'), node_t)
     if tie_breaker:
         tie_breaker_expr = hl.int64(tie_breaker(l, r))
         edges, _ = source._process_joins(i, j, tie_breaker_expr)

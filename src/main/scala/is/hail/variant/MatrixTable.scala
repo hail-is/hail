@@ -425,7 +425,7 @@ object VSMSubgen {
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genNonmissingValue,
     vGen = (t: Type) => t.genNonmissingValue,
-    tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant]))
+    tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant].nAlleles))
 
   val plinkSafeBiallelic = random.copy(
     vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37)),
@@ -447,10 +447,10 @@ object VSMSubgen {
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genValue,
     vGen = (t: Type) => t.genNonmissingValue,
-    tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(v.asInstanceOf[Variant]))
+    tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(v.asInstanceOf[Variant].nAlleles))
 
   val realistic = random.copy(
-    tGen = (t: Type, v: Annotation) => Genotype.genRealistic(v.asInstanceOf[Variant]))
+    tGen = (t: Type, v: Annotation) => Genotype.genRealistic(v.asInstanceOf[Variant].nAlleles))
 }
 
 class MatrixTable(val hc: HailContext, val ast: MatrixIR) {

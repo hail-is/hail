@@ -39,4 +39,41 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
   }
   
   def transpose: GridPartitioner = GridPartitioner(this.blockSize, this.nCols, this.nRows)
+  
+  // returns increasing array of all blocks intersecting the diagonal band consisting of
+  //   all entries with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth
+  def bandedBlocks(lowerBandwidth: Long, upperBandwidth: Long): Array[Int] = {
+    require(lowerBandwidth >= 0 && upperBandwidth >= 0)
+    
+    val lowerBlockBandwidth = blockIndex(lowerBandwidth + blockSize - 1)
+    val upperBlockBandwidth = blockIndex(upperBandwidth + blockSize - 1)
+
+    (for { j <- 0 until nBlockCols
+           i <- ((j - upperBlockBandwidth) max 0) to
+                ((j + lowerBlockBandwidth) min (nBlockRows - 1))
+    } yield (j * nBlockRows) + i ).toArray
+  }
+
+  // returns increasing array of all blocks intersecting the rectangle [firstRow, lastRow] x [firstCol, lastCol]
+  def rectangularBlocks(firstRow: Long, lastRow: Long, firstCol: Long, lastCol: Long): Array[Int] = {
+    require(firstRow >= 0 && firstRow <= lastRow && lastRow <= nRows)
+    require(firstCol >= 0 && firstCol <= lastCol && lastCol <= nCols)
+    
+    val firstBlockRow = blockIndex(firstRow)
+    val lastBlockRow = blockIndex(lastRow)
+    val firstBlockCol = blockIndex(firstCol)
+    val lastBlockCol = blockIndex(lastCol)
+    
+    (for { j <- firstBlockCol to lastBlockCol
+           i <- firstBlockRow to lastBlockRow
+    } yield (j * nBlockRows) + i ).toArray
+  }
+
+  // returns increasing array of all blocks intersecting the union of rectangles
+  def rectangularBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
+    require(rectangles.forall(r => r.length == 4))
+    val rects = rectangles.foldLeft(Set[Int]())((s, r) => s ++ rectangularBlocks(r(0), r(1), r(2), r(3))).toArray    
+    scala.util.Sorting.quickSort(rects)
+    rects
+  }
 }

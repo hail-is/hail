@@ -1,8 +1,7 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -13,7 +12,7 @@ class AnnotateGlobalSuite extends SparkSuite {
   @Test def test() {
 
     var vds = hc.importVCF("src/test/resources/sample2.vcf")
-    vds = SplitMulti(vds)
+    vds = TestUtils.splitMultiHTS(vds)
     vds = VariantQC(vds)
     vds = SampleQC(vds)
 
