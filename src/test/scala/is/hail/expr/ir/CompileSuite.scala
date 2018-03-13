@@ -12,6 +12,8 @@ import org.scalatest._
 import Matchers._
 import org.apache.spark.sql.Row
 
+import scala.collection.{immutable, mutable}
+
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
@@ -436,8 +438,9 @@ class CompileSuite {
     }
 
     val (start, stop, step) = (Int.MinValue, Int.MaxValue, Int.MaxValue / 5)
+    val len = Range.count(start, stop, step, isInclusive = false)
+    val expected = Array.tabulate(len)(start + _ * step)
     val aoff = f(region, start, false, stop, false, step, false)
-    val expected = Array.range(start, stop, step)
     val actual = new UnsafeIndexedSeq(tRange, region, aoff)
     assert(expected.length == actual.length)
     assert(actual.sameElements(expected))

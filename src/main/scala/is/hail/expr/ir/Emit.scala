@@ -260,6 +260,8 @@ private class Emit(
         val start = fb.newLocal[Int]("ar_start")
         val stop = fb.newLocal[Int]("ar_stop")
         val step = fb.newLocal[Int]("ar_step")
+
+        val i = fb.newLocal[Int]("ar_i")
         val len = fb.newLocal[Int]("ar_len")
         val llen = fb.newLocal[Long]("ar_llen")
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
@@ -277,16 +279,13 @@ private class Emit(
           (llen > const(Int.MaxValue.toLong)).mux(
             Code._fatal("Array range cannot have more than MAXINT elements."),
             len := (llen < 0L).mux(0L, llen).toI),
+          i := 0,
           srvb.start(len, init=true),
-          (step < 0).mux(
-            Code.whileLoop(start > stop,
-              srvb.addInt(start),
-              srvb.advance(),
-              start := start + step),
-            Code.whileLoop(start < stop,
-              srvb.addInt(start),
-              srvb.advance(),
-              start := start + step)),
+          Code.whileLoop(i < len,
+            srvb.addInt(start),
+            srvb.advance(),
+            i := i + 1,
+            start := start + step),
           srvb.offset))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = coerce[TArray](a.typ)
