@@ -55,7 +55,7 @@ abstract class RegistryFunctions {
 
   private val tvBoxes = {
     val boxes = mutable.Map[String, Box[Type]]()
-      boxes.withDefault(boxes.getOrElseUpdate(_, Box[Type]()))
+    boxes.withDefault(boxes.getOrElseUpdate(_, Box[Type]()))
   }
 
   def tv(name: String): TVariable =

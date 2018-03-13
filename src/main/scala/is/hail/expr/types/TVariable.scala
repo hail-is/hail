@@ -17,12 +17,8 @@ final case class TVariable(name: String, cond: (Type) => Boolean = { _ => true }
   def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TVariable is not realizable")
 
-  override def unify(concrete: Type): Boolean = {
-    if ((b.isDefined || concrete.isRealizable) && cond(concrete))
-      b.unify(concrete)
-    else
-      false
-  }
+  override def unify(concrete: Type): Boolean =
+    concrete.isRealizable && cond(concrete) && b.unify(concrete)
 
   override def isBound: Boolean = b.isEmpty
 
