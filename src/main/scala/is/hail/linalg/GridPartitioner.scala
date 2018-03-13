@@ -41,31 +41,21 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
   
   def transpose: GridPartitioner = GridPartitioner(this.blockSize, this.nCols, this.nRows)
   
-  // returns all blocks intersecting the diagonal band consisting of all entries
-  //   with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth
+  // returns increasing array of all blocks intersecting the diagonal band consisting of
+  //   all entries with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth
   def bandedBlocks(lowerBandwidth: Long, upperBandwidth: Long): Array[Int] = {
     require(lowerBandwidth >= 0 && upperBandwidth >= 0)
     
     val lowerBlockBandwidth = blockIndex(lowerBandwidth + blockSize - 1)
     val upperBlockBandwidth = blockIndex(upperBandwidth + blockSize - 1)
 
-    val blocks = new ArrayBuilder[Int]
-    
-    var j = 0
-    while (j < nBlockCols) {
-      val offset = j * nBlockRows
-      var i = (j - upperBlockBandwidth) max 0
-      while (i <= ((j + lowerBlockBandwidth) min (nBlockRows - 1))) {
-        blocks += offset + i
-        i += 1
-      }
-      j += 1
-    }
-    
-    blocks.result()
+    (for { j <- 0 until nBlockCols
+           i <- ((j - upperBlockBandwidth) max 0) to
+                ((j + lowerBlockBandwidth) min (nBlockRows - 1))
+    } yield (j * nBlockRows) + i ).toArray
   }
-  
-  // returns all blocks intersecting the rectangle [firstRow, lastRow] x [firstCol, lastCol]
+
+  // returns increasing array of all blocks intersecting the rectangle [firstRow, lastRow] x [firstCol, lastCol]
   def rectangularBlocks(firstRow: Long, lastRow: Long, firstCol: Long, lastCol: Long): Array[Int] = {
     require(firstRow >= 0 && firstRow <= lastRow && lastRow <= nRows)
     require(firstCol >= 0 && firstCol <= lastCol && lastCol <= nCols)
@@ -74,47 +64,17 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     val lastBlockRow = blockIndex(lastRow)
     val firstBlockCol = blockIndex(firstCol)
     val lastBlockCol = blockIndex(lastCol)
-
-    val blocks = new Array[Int]((lastBlockRow - firstBlockRow + 1) * (lastBlockCol - firstBlockCol + 1))
     
-    var k = 0
-    var j = firstBlockCol
-    while (j <= lastBlockCol) {
-      val offset = j * nBlockRows
-      var i = firstBlockRow
-      while (i <= lastBlockRow) {
-        blocks(k) = offset + i
-        k += 1
-        i += 1
-      }
-      j += 1
-    }
-    
-    blocks
+    (for { j <- firstBlockCol to lastBlockCol
+           i <- firstBlockRow to lastBlockRow
+    } yield (j * nBlockRows) + i ).toArray
   }
 
-  // returns all blocks intersecting the union of rectangles
+  // returns increasing array of all blocks intersecting the union of rectangles
   def rectangularBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
-    val keep = new Array[Boolean](numPartitions)
-    
-    rectangles.foreach { r =>
-      assert(r.length == 4)
-      val rBlocks = rectangularBlocks(r(0), r(1), r(2), r(3))
-      var i = 0
-      while (i < rBlocks.length) {
-        keep(rBlocks(i)) = true
-        i += 1
-      }
-    }
-    
-    val blocks = new ArrayBuilder[Int]()
-    var block = 0
-    while (block < numPartitions) {
-      if (keep(block))
-        blocks += block
-      block += 1
-    }
-    
-    blocks.result()
+    require(rectangles.forall(r => r.length == 4))
+    val rects = rectangles.foldLeft(Set[Int]())((s, r) => s ++ rectangularBlocks(r(0), r(1), r(2), r(3))).toArray    
+    scala.util.Sorting.quickSort(rects)
+    rects
   }
 }

@@ -2,6 +2,7 @@ package is.hail.linalg
 
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+import is.hail.utils._
 
 class GridPartitionerSuite extends TestNGSuite {
 
@@ -100,7 +101,7 @@ class GridPartitionerSuite extends TestNGSuite {
       assert(gp.rectangularBlocks(Array(
         Array(9, 10, 9, 10), Array(10, 19, 10, 29), Array(0, 0, 20, 20), Array(20, 20, 20, 30)))
         sameElements Array(0, 1, 3, 4, 6, 7, 8, 11))
-      
+
       assert(gp.rectangularBlocks(0, 20, 0, 30) sameElements (0 until 12))
     }
   }
