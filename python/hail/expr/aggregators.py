@@ -778,15 +778,9 @@ def explode(expr):
     agg = _to_agg(expr)
     if not (isinstance(agg._type, tset) or isinstance(agg._type, tarray)):
         raise  TypeError("'explode' expects a 'Set' or 'Array' argument, found '{}'".format(agg._type))
-<<<<<<< ed06a522d53ae58e31fa9e1c8b6d10649b59eaa9
-    uid = Env._get_uid()
+    uid = Env.get_uid()
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, VariableReference(uid)),
                       agg._type.element_type, agg._indices, agg._aggregations, agg._joins)
-=======
-    uid = Env.get_uid()
-    return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, Reference(uid)),
-                      agg._type.element_type, agg._indices, agg._aggregations, agg._joins, agg._refs)
->>>>>>> Added entry matrix table join
 
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=oneof(Aggregable, expr_any))
 def filter(condition, expr):
