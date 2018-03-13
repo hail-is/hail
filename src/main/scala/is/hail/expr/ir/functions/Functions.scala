@@ -17,7 +17,7 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction) {
     val l = registry(f.name)
     registry.put(f.name,
-      l :+ (f.types, { args: Seq[IR] =>
+      l :+ (f.argsTypeTag, { args: Seq[IR] =>
         ApplyFunction(f, args)
       }))
   }
@@ -68,7 +68,7 @@ abstract class RegistryFunctions {
     IRFunctionRegistry.addIRFunction(new IRFunction {
       override val name: String = mname
 
-      override val types: TypeTag = FunType(argTypes: _*)
+      override val argsTypeTag: TypeTag = FunType(argTypes: _*)
 
       override val returnType: Type = rType
 
@@ -139,7 +139,7 @@ abstract class RegistryFunctions {
 abstract class IRFunction {
   def name: String
 
-  def types: TypeTag
+  def argsTypeTag: TypeTag
 
   def apply(mb: MethodBuilder, args: Code[_]*): Code[_]
 

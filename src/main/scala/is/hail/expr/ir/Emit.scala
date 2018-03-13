@@ -455,9 +455,9 @@ private class Emit(
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case ApplyFunction(impl, args) =>
         val meth = methods.getOrElseUpdate(impl, {
-          impl.types.clear()
-          impl.types.unify(FunType(args.map(a => a.typ): _*))
-          val argTypes = impl.types.xs.map { t => typeToTypeInfo(t.subst()) }
+          impl.argsTypeTag.clear()
+          impl.argsTypeTag.unify(FunType(args.map(a => a.typ): _*))
+          val argTypes = impl.argsTypeTag.xs.map { t => typeToTypeInfo(t.subst()) }
           val methodbuilder = fb.newMethod((typeInfo[Region] +: argTypes).toArray, typeToTypeInfo(impl.returnType))
           methodbuilder.emit(impl.apply(methodbuilder, argTypes.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
           methodbuilder

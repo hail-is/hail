@@ -160,7 +160,7 @@ object Infer {
       case Die(msg) =>
       case ApplyFunction(impl, args) =>
         args.foreach(infer(_))
-        assert(args.map(_.typ).zip(impl.types.xs).forall {case (i, j) => j.unify(i)})
+        assert(args.map(_.typ).zip(impl.argsTypeTag.xs).forall {case (i, j) => j.unify(i)})
     }
   }
 
