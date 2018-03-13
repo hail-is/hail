@@ -16,20 +16,20 @@ object ScalaTestObject {
 }
 
 object ScalaTestCompanion {
-  def testFunction(): Int = 1
+  def testFunction(): Int = 2
 }
 
 class ScalaTestCompanion {
-  def testFunction(): Int = 1
+  def testFunction(): Int = 3
 }
 
 
 object TestRegisterFunctions extends RegistryFunctions {
-
-  registerJavaStaticFunction[java.lang.Integer, Int]("compare", TInt32(), TInt32(), TInt32())("compare")
-  registerScalaFunction[Int]("foobar1", TInt32())(ScalaTestObject, "testFunction")
-  registerScalaFunction[Int]("foobar2", TInt32())(ScalaTestCompanion, "testFunction")
-
+  def registerAll() {
+    registerJavaStaticFunction[java.lang.Integer, Int]("compare", TInt32(), TInt32(), TInt32())("compare")
+    registerScalaFunction[Int]("foobar1", TInt32())(ScalaTestObject, "testFunction")
+    registerScalaFunction[Int]("foobar2", TInt32())(ScalaTestCompanion, "testFunction")
+  }
 }
 
 class FunctionSuite {
@@ -37,7 +37,7 @@ class FunctionSuite {
   val ec = EvalContext()
   val region = Region()
 
-  TestRegisterFunctions.registerAll(IRFunctionRegistry.registry)
+  TestRegisterFunctions.registerAll()
 
   def fromHailString(hql: String): IR = Parser.parseToAST(hql, ec).toIR().get
 
@@ -90,7 +90,7 @@ class FunctionSuite {
     val ir = lookup("foobar2")()
     val f = toF[Int](ir)
     val actual = f(region)
-    assert(actual == 1)
+    assert(actual == 2)
   }
 
 

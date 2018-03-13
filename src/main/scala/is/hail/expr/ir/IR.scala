@@ -13,6 +13,22 @@ sealed trait IR extends BaseIR {
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
     Copy(this, newChildren)
 }
+
+object Literal {
+  def apply(x: Any, t: Type): IR = {
+    if (x == null)
+      return NA(t)
+    t match {
+      case _: TInt32 => I32(x.asInstanceOf[Int])
+      case _: TInt64 => I64(x.asInstanceOf[Long])
+      case _: TFloat32 => F32(x.asInstanceOf[Float])
+      case _: TFloat64 => F64(x.asInstanceOf[Double])
+      case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
+      case _ => throw new RuntimeException("Unsupported literal type")
+    }
+  }
+}
+
 final case class I32(x: Int) extends IR { val typ = TInt32() }
 final case class I64(x: Long) extends IR { val typ = TInt64() }
 final case class F32(x: Float) extends IR { val typ = TFloat32() }

@@ -6,25 +6,34 @@ import is.hail.expr.types._
 import is.hail.expr.types.coerce
 
 object UtilFunctions extends RegistryFunctions {
-  registerCode[Int]("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
 
-  registerIR("size", TArray(tv("T")), TInt32())(ArrayLen)
+  def registerAll() {
+    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => n * (n + 1) / 2 }
 
-  registerIR("sum", TArray(tv("T")), tv("T")) { a =>
-    val zero = coerce[TArray](a.typ).elementType match {
-      case _: TInt32 => I32(0)
-      case _: TInt64 => I64(0)
-      case _: TFloat32 => F32(0)
-      case _: TFloat64 => F64(0)
+    registerIR("size", TArray(tv("T")), TInt32())(ArrayLen)
+
+    registerIR("sum", TArray(tnum("T")), tnum("T")) { a =>
+      val zero = Literal(0, coerce[TArray](a.typ).elementType)
+      ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
     }
-    ArrayFold(a, zero, "sum", "v", ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), zero, Ref("v"))), typ = zero.typ)
-  }
 
-  registerIR("min", TArray(tv("T")), tv("T")) { a =>
-    val na = NA(coerce[TArray](a.typ).elementType)
-    val min = Ref("min")
-    val value = Ref("v")
-    val body = If(IsNA(min), value, If(IsNA(value), min, If(ApplyBinaryPrimOp(LT(), min, value), min, value)))
-    ArrayFold(a, na, "min", "v", body)
+    registerIR("sum", TAggregable(tv("T")), tv("T"))(ApplyAggOp(_, Sum(), Seq()))
+
+    registerIR("min", TArray(tnum("T")), tnum("T")) { a =>
+      val body = If(IsNA(Ref("min")),
+        Ref("value"),
+        If(IsNA(Ref("value")),
+          Ref("min"),
+          If(ApplyBinaryPrimOp(LT(), Ref("min"), Ref("value")), Ref("min"), Ref("value"))))
+      ArrayFold(a, NA(coerce[TArray](a.typ).elementType), "min", "v", body)
+    }
+
+    registerIR("isDefined", tv("T"), TBoolean()) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
+
+    registerIR("orMissing", TBoolean(), tv("T"), tv("T")) { (cond, a) => If(cond, a, NA(a.typ)) }
+
+    registerIR("[]", TArray(tv("T")), TInt32(), tv("T")) { (a, i) => ArrayRef(a, i) }
+
+    registerIR("[]", tvar(_.isInstanceOf[TTuple]), TInt32(), tv("T")) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
   }
 }

@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFromAST}
+import is.hail.expr.ir.functions.{IRFromAST, IRFunctionRegistry}
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
@@ -719,11 +719,24 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
+  private def tryPrimOpConversion(fn: String): IndexedSeq[IR] => Option[IR] =
+    flatLift {
+      case IndexedSeq(x) => for {
+        op <- ir.UnaryOp.fromString.lift(fn)
+        t <- ir.UnaryOp.returnTypeOption(op, x.typ)
+      } yield ir.ApplyUnaryPrimOp(op, x, t)
+      case IndexedSeq(x, y) => for {
+        op <- ir.BinaryOp.fromString.lift(fn)
+        t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
+      } yield ir.ApplyBinaryPrimOp(op, x, y, t)
+    }
+
   def toIR(agg: Option[String] = None): Option[IR] = {
-//    info(s"looking up $this")
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- IRFromAST.lookup(fn, irArgs, args.map(_.`type`))
+      ir <- tryPrimOpConversion(fn)(args).orElse(
+        IRFunctionRegistry.lookupFunction(fn, FunType(args.map(_.`type`): _*))
+          .map { irf => irf(args) })
     } yield ir
   }
 }
@@ -817,37 +830,22 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
   def toIR(agg: Option[String] = None): Option[IR] = {
     (lhs.`type`, method, args: IndexedSeq[AST]) match {
-      case (_: TArray, "[]", IndexedSeq(rhs)) =>
-        for {
-          a <- lhs.toIR(agg)
-          i <- rhs.toIR(agg)
-        } yield ir.ArrayRef(a, i, `type`)
-      case (_: TAggregable, "sum", IndexedSeq()) =>
-        for {
-          a <- lhs.toIR(agg)
-          elementType = a.typ.asInstanceOf[TAggregable].elementType
-        } yield ir.ApplyAggOp(a, ir.Sum(), Seq(), elementType)
-      case (_: TAggregable, m, IndexedSeq(Lambda(_, name, body))) =>
+      case (t, m, IndexedSeq(Lambda(_, name, body))) =>
         for {
           a <- lhs.toIR(agg)
           b <- body.toIR(agg)
-          result <- optMatch(m) {
-            case "map" => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
-            case "filter" => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
-            case "flatMap" => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
+          result <- optMatch((t, m)) {
+            case (_: TAggregable, "map") => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
+            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
+            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
+            case (_, "map") => ir.ArrayMap(a, name, b)
           }
         } yield result
-      case (_: TTuple, "[]", IndexedSeq(rhs)) =>
-        val idx = rhs.asInstanceOf[Const].value.asInstanceOf[Int]
-        for {
-          tup <- lhs.toIR(agg)
-        } yield ir.GetTupleElement(tup, idx, `type`)
-      case (_, _, IndexedSeq(l: Lambda)) =>
-        IRFromAST.convertLambda(method, lhs, l, agg)
       case _ =>
         for {
           irs <- anyFailAllFail((lhs +: args).map(_.toIR(agg)))
-          ir <- IRFromAST.lookup(method, irs, (lhs +: args).map(_.`type`))
+          ir <- IRFunctionRegistry.lookupFunction(method, FunType((lhs +: args).map(_.`type`): _*))
+              .map { irf => irf(lhs +: args) }
         } yield ir
     }
   }

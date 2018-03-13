@@ -4,7 +4,7 @@ import is.hail.annotations._
 
 import scala.reflect.ClassTag
 
-final case class TVariable(name: String, var t: Type = null) extends Type {
+final case class TVariable(name: String, cond: (Type) => Boolean = { _ => true }, var t: Type = null) extends Type {
   override val required = true
 
   override def _toPretty: String = s"?$name"
@@ -16,7 +16,7 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 
   override def unify(concrete: Type): Boolean = {
     if (t == null) {
-      if (concrete.isRealizable) {
+      if (concrete.isRealizable && cond(concrete)) {
         t = concrete
         true
       } else
