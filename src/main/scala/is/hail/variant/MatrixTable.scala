@@ -1556,6 +1556,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
+  def localizeEntries(entriesFieldName: String): Table = {
+    new Table(hc, TableLiteral(TableValue(TableType(rvRowType, rowKey, globalType), globals.asInstanceOf[Row], rvd)))
+      .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName), Map.empty[String, String])
+  }
+
   def annotateEntriesExpr(expr: String): MatrixTable = {
     val symTab = Map(
       "va" -> (0, rowType),

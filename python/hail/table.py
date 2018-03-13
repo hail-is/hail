@@ -1125,7 +1125,7 @@ class Table(ExprContainer):
         indices, aggregations, joins = unify_all(*exprs)
 
         from hail.matrixtable import MatrixTable
-        uid = Env._get_uid()
+        uid = Env.get_uid()
 
         src = indices.source
 
@@ -1148,8 +1148,10 @@ class Table(ExprContainer):
 
             right = self
             right_keys = [right[k] for k in right.key]
+            select_struct = Struct(**{k: right[k] for k in right.fields})
             right = right.select(*right_keys, **{uid: right.row})
-            uids = [Env._get_uid() for i in range(len(exprs))]
+            right = right.select(*right_keys, **{uid: select_struct})
+            uids = [Env.get_uid() for i in range(len(exprs))]
             full_key_strs = ',\n'.join('{}={}'.format(uids[i], exprs[i]._ast.to_hql()) for i in range(len(exprs)))
 
             def joiner(left):
@@ -1202,13 +1204,13 @@ class Table(ExprContainer):
                                           indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
                 else:
                     # use vds_key
-                    uids = [Env._get_uid() for _ in range(len(exprs))]
+                    uids = [Env.get_uid() for _ in range(len(exprs))]
 
                     def joiner(left):
                         from hail.expr import functions, aggregators as agg
 
-                        rk_uids = [Env._get_uid() for _ in left.row_key]
-                        k_uid = Env._get_uid()
+                        rk_uids = [Env.get_uid() for _ in left.row_key]
+                        k_uid = Env.get_uid()
 
                         # extract v, key exprs
                         left2 = left.select_rows(*list(left.row_key), **{uid: e for uid, e in zip(uids, exprs)})
@@ -1254,7 +1256,7 @@ class Table(ExprContainer):
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
     def index_globals(self):
-        uid = Env._get_uid()
+        uid = Env.get_uid()
 
         def joiner(obj):
             from hail.matrixtable import MatrixTable

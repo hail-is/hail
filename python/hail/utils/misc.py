@@ -1,4 +1,4 @@
-import hail as hl
+import hail
 from hail.utils.java import Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
@@ -6,7 +6,7 @@ from collections import defaultdict, Counter
 import os
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
-def range_matrix_table(n_rows, n_cols, n_partitions=None):
+def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
 
     Examples
@@ -46,10 +46,10 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None):
     -------
     :class:`.MatrixTable`
     """
-    return hl.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
+    return hail.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
-def range_table(n, n_partitions=None):
+def range_table(n, n_partitions=None) -> 'hail.Table':
     """Construct a table with the row index and no other fields.
 
     Examples
@@ -81,7 +81,7 @@ def range_table(n, n_partitions=None):
     -------
     :class:`.Table`
     """
-    return hl.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(n_partitions)))
+    return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(n_partitions)))
 
 def wrap_to_list(s):
     if isinstance(s, list):
