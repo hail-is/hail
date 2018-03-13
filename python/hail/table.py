@@ -353,6 +353,18 @@ class Table(ExprContainer):
         return self._jt.nPartitions()
 
     def count(self):
+        """Count the number of rows in the table.
+
+        Examples
+        --------
+
+        >>> table1.count()
+        4
+
+        Returns
+        -------
+        :obj:`int`
+        """
         return self._jt.count()
 
     def _force_count(self):
