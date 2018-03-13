@@ -269,16 +269,18 @@ private class Emit(
           step.ceq(0).mux(
             Code._fatal("Array range cannot have step size 0."),
             Code._empty[Unit]),
-          len := start.ceq(stop).mux(0, (stop - start - 1) / step + 1),
+          len := start.ceq(stop).mux(0,
+            (step < 0).mux((start - stop - 1) / (const(0) - step) + 1,
+              (stop - start - 1) / step + 1)),
           len := (len < 0).mux(0, len),
           srvb.start(len, init=true),
           (step < 0).mux(
-            Code.whileLoop(start < stop,
+            Code.whileLoop(start > stop,
               srvb.addInt(start),
               srvb.advance(),
               start := start + step
             ),
-            Code.whileLoop(start > stop,
+            Code.whileLoop(start < stop,
               srvb.addInt(start),
               srvb.advance(),
               start := start + step
@@ -321,10 +323,8 @@ private class Emit(
             srvb.advance(),
             i := i + 1),
           srvb.offset))
-      case x@ArrayFilter(a, name, body) =>
+      case x@ArrayFilter(a, name, condition) =>
         val t = x.typ
-        val keept = TArray(TBoolean())
-        val srvbkeep = new StagedRegionValueBuilder(fb, keept)
         val srvb = new StagedRegionValueBuilder(fb, t)
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(t.elementType))
 
@@ -335,17 +335,17 @@ private class Emit(
 
         val lenout = fb.newLocal[Int]("af_lenout")
         val len = fb.newLocal[Int]("af_len")
-        val keep = fb.newLocal[Long]("af_keep")
-        val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
+        val off = fb.newLocal[Long]("af_off")
+        val condenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
         val (doa, ma, va) = emit(a)
-        val (docond, mcond, vcond) = emit(body, env = bodyenv)
+        val (docond, mcond, vcond) = emit(condition, env = condenv)
 
         (doa, ma, Code(
           xa := coerce[Long](va),
           len := TContainer.loadLength(region, xa),
           i := 0,
           lenout := 0,
-          srvbkeep.start(len, init = true),
+          srvb.start(len, init = true),
           Code.whileLoop(i < len,
             xmv := !t.isElementDefined(region, xa, i),
             xvv := xmv.mux(
@@ -353,24 +353,20 @@ private class Emit(
               region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
             docond,
             (xmv || mcond || !coerce[Boolean](vcond)).mux(
-              srvbkeep.addBoolean(false),
+              Code._empty,
               Code(lenout := lenout + 1,
-                srvbkeep.addBoolean(true))),
-            srvbkeep.advance(),
-            i := i + 1
-          ),
-          keep := srvbkeep.offset,
-          i := 0,
-          srvb.start(lenout, init = true),
-          Code.whileLoop(i < len,
-            region.loadBoolean(keept.loadElement(region, keep, i)).mux(
-              Code(srvb.addIRIntermediate(t.elementType)(region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
-                srvb.advance()),
-              Code._empty[Unit]
+                xmv.mux(srvb.setMissing(),
+                  srvb.addIRIntermediate(t.elementType)(xvv)
+                )
+              )
             ),
+            srvb.advance(),
             i := i + 1
           ),
-          srvb.offset))
+          off := srvb.offset,
+          region.storeInt(off, lenout),
+          off
+          ))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
