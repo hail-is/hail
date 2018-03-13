@@ -632,7 +632,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val nKeys = newKeys.size
 
-    val localGlobalsBc = globals.broadcast
     val ec = rowEC
     val (newEntryNames, newEntryTypes, entryF) = Parser.parseNamedExprs(aggExpr, ec)
     val newEntryType = TStruct(newEntryNames.zip(newEntryTypes): _*)

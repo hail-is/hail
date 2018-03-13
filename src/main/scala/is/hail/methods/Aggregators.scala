@@ -295,8 +295,6 @@ object Aggregators {
 
     val aggregations = ec.aggregations
 
-    val localA = ec.a
-
     val zVal = aggregations.map { case (_, _, agg0) => agg0.copy() }.toArray
 
     val seqOp = (array: Array[Aggregator], t: T) => {

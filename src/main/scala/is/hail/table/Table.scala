@@ -926,10 +926,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
     val globalsBc = globals.broadcast
 
+    // FIXME: delete this when we understand what it's doing
+    ec.set(0, globals.value)
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
-      case (ec, r) =>
-        ec.set(0, globalsBc.value)
-        ec.set(1, r)
+      case (ec_, r) =>
+        ec_.set(0, globalsBc.value)
+        ec_.set(1, r)
     })
 
     val newRDD = rdd.mapPartitions {
@@ -944,6 +946,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
       .map {
         case (k, agg) =>
+          ec.set(0, globalsBc.value)
           resultOp(agg)
           Row.fromSeq(k.toSeq ++ aggF())
       }
