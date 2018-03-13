@@ -2447,7 +2447,7 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.tlocus`.
 
-    >>> locus = hl.locus('1', 100)
+    >>> locus = hl.locus('1', 100000)
     """
 
     @property
@@ -2477,7 +2477,7 @@ class LocusExpression(Expression):
         .. doctest::
 
             >>> hl.eval_expr(locus.position)
-            100
+            100000
 
         Returns
         -------
@@ -2619,6 +2619,54 @@ class LocusExpression(Expression):
         :class:`.BooleanExpression`
         """
         return self._method("isMitochondrial", tbool)
+
+    @typecheck_method(before=expr_int32, after=expr_int32)
+    def sequence_context(self, before=0, after=0):
+        """Return the reference genome sequence at the locus.
+
+        Examples
+        --------
+
+        Get the reference allele at a locus:
+
+        .. doctest::
+            :options: +SKIP
+
+            >>> hl.eval_expr(locus.sequence_context())
+            "C"
+
+        Get the reference sequence at a locus including the previous 5 bases:
+
+        .. doctest::
+            :options: +SKIP
+
+            >>> hl.eval_expr(locus.sequence_context(before=5))
+            "ACACTC"
+
+        Notes
+        -----
+        This function requires that this locus' reference genome has an attached
+        reference sequence. Use :meth:`.ReferenceGenome.add_sequence` to
+        load and attach a reference sequence to a reference genome.
+
+        Parameters
+        ----------
+        before : :class:`.Expression` of type :py:data:`.tint32`, optional
+            Number of bases to include before the locus. Truncates at
+            contig boundary.
+        after : :class:`.Expression` of type :py:data:`.tint32`, optional
+            Number of bases to include after the locus. Truncates at
+            contig boundary.
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+
+        rg = self.dtype.reference_genome
+        if not rg.has_sequence():
+            raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(rg.name))
+        return hl.get_sequence(rg, self.contig, self.position, before, after)
 
 
 class IntervalExpression(Expression):

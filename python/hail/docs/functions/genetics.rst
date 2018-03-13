@@ -28,6 +28,7 @@ Genetics functions
     allele_type
     pl_dosage
     gp_dosage
+    get_sequence
 
 .. autofunction:: locus
 .. autofunction:: locus_interval
@@ -52,3 +53,4 @@ Genetics functions
 .. autofunction:: allele_type
 .. autofunction:: pl_dosage
 .. autofunction:: gp_dosage
+.. autofunction:: get_sequence

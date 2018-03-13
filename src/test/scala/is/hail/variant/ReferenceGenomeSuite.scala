@@ -2,9 +2,12 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
+import is.hail.check.Prop._
+import is.hail.check.Properties
 import is.hail.expr.types.{TInterval, TLocus, TStruct}
+import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
-import is.hail.utils.HailException
+import is.hail.utils.{HailException, Interval}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
@@ -226,5 +229,70 @@ class ReferenceGenomeSuite extends SparkSuite {
     assert(hc.read(outVDS).rowType.fieldOption("l2").get.typ == TLocus(rg))
     TestUtils.interceptFatal("`foo' already exists and is not identical to the imported reference from")(hc.readTable(outKT2))
     ReferenceGenome.removeReference("foo")
+  }
+
+  @Test def testFasta() {
+    val fastaFile = "src/test/resources/fake_reference.fasta"
+    val fastaFileGzip = "src/test/resources/fake_reference.fasta.gz"
+    val indexFile = "src/test/resources/fake_reference.fasta.fai"
+
+    val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    ReferenceGenome.addReference(rg)
+
+    val fr = FASTAReader(hc, rg, fastaFile, indexFile, 3, 5)
+    val frGzip = FASTAReader(hc, rg, fastaFileGzip, indexFile, 3, 5)
+
+    object Spec extends Properties("Fasta Random") {
+      property("cache gives same base as from file") = forAll(Locus.gen(rg)) { l =>
+        val contig = l.contig
+        val pos = l.position
+        val expected = fr.reader.value.getSubsequenceAt(contig, pos, pos).getBaseString
+        fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expected
+      }
+
+      val ordering = TLocus(rg).ordering
+      property("interval test") = forAll(Interval.gen(ordering, Locus.gen(rg))) { i =>
+        val start = i.start.asInstanceOf[Locus]
+        val end = i.end.asInstanceOf[Locus]
+
+        def getHtsjdkIntervalSequence: String = {
+          val sb = new StringBuilder
+          var pos = start
+          while (ordering.lteq(pos, end) && pos != null) {
+            val endPos = if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
+            sb ++= fr.reader.value.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
+            pos =
+              if (rg.contigsIndex(pos.contig) == rg.contigs.length - 1)
+                null
+              else
+                Locus(rg.contigs(rg.contigsIndex(pos.contig) + 1), 1)
+          }
+          sb.result()
+        }
+
+        fr.lookup(Interval(start, end, includesStart = true, includesEnd = true)) == getHtsjdkIntervalSequence
+      }
+    }
+
+    Spec.check()
+
+    assert(fr.lookup("a", 25, 0, 5) == "A")
+    assert(fr.lookup("b", 1, 5, 0) == "T")
+    assert(fr.lookup("c", 5, 10, 10) == "GGATCCGTGC")
+    assert(fr.lookup(Interval(Locus("a", 1), Locus("a", 5), includesStart = true, includesEnd = false)) == "AGGT")
+    assert(fr.lookup(Interval(Locus("a", 20), Locus("b", 5), includesStart = false, includesEnd = false)) == "ACGTATAAT")
+    assert(fr.lookup(Interval(Locus("a", 20), Locus("c", 5), includesStart = false, includesEnd = false)) == "ACGTATAATTAAATTAGCCAGGAT")
+
+    rg.addSequence(hc, fastaFile, indexFile)
+    val table = hc.importTable("src/test/resources/fake_reference.tsv")
+    assert(table.annotate("""baseComputed = getReferenceSequence(test)(row.contig, row.pos.toInt32(), 0, 0)""")
+      .forall("row.base == row.baseComputed"))
+    
+    ReferenceGenome.removeReference(rg.name)
+
+    val rg2 = ReferenceGenome.fromFASTAFile(hc, "test2", fastaFileGzip, indexFile)
+    assert(table.annotate("""baseComputed = getReferenceSequence(test2)(row.contig, row.pos.toInt32(), 0, 0)""")
+      .forall("row.base == row.baseComputed"))
+    ReferenceGenome.removeReference(rg2.name)
   }
 }

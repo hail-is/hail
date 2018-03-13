@@ -1,6 +1,6 @@
 from hail.typecheck import *
 from hail.utils import wrap_to_list
-from hail.utils.java import jiterable_to_list, Env
+from hail.utils.java import jiterable_to_list, Env, joption
 from hail.typecheck import oneof, transformed
 import hail as hl
 
@@ -261,6 +261,87 @@ class ReferenceGenome(object):
         """
 
         self._jrep.write(Env.hc()._jhc, output)
+
+    @typecheck_method(fasta_file=str,
+                      index_file=str)
+    def add_sequence(self, fasta_file, index_file):
+        """Load the reference sequence from a FASTA file.
+
+        Notes
+        -----
+        This method can only be run once per reference genome. Use
+        :meth:`~has_sequence` to test whether a sequence is loaded.
+
+        FASTA and index files are hosted on google cloud for Hail's built-in
+        references:
+
+        **GRCh37**
+
+        - FASTA file: ``gs://hail-common/references/human_g1k_v37.fasta.gz``
+        - Index file: ``gs://hail-common/references/human_g1k_v37.fasta.fai``
+
+
+        **GRCh38**
+
+        - FASTA file: ``gs://hail-common/references/Homo_sapiens_assembly38.fasta.gz``
+        - Index file: ``gs://hail-common/references/Homo_sapiens_assembly38.fasta.fai``
+
+        Public download links are available
+        `here <https://console.cloud.google.com/storage/browser/hail-common/references/>`__.
+
+        Parameters
+        ----------
+        fasta_file : :obj:`str`
+            Path to FASTA file. Can be compressed (GZIP) or uncompressed.
+        index_file : :obj:`str`
+            Path to FASTA index file. Must be uncompressed.
+        """
+        self._jrep.addSequence(Env.hc()._jhc, fasta_file, index_file)
+
+    def has_sequence(self):
+        """True if the reference sequence has been loaded.
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        return self._jrep.hasSequence()
+
+    @classmethod
+    @typecheck_method(name=str,
+                      fasta_file=str,
+                      index_file=str,
+                      x_contigs=oneof(str, listof(str)),
+                      y_contigs=oneof(str, listof(str)),
+                      mt_contigs=oneof(str, listof(str)),
+                      par=listof(sized_tupleof(str, int, int)))
+    def from_fasta_file(cls, name, fasta_file, index_file,
+                        x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
+        """Create reference genome from a FASTA file.
+        
+        Parameters
+        ----------
+        name: :obj:`str`
+            Name for new reference genome.
+        fasta_file : :obj:`str`
+            Path to FASTA file. Can be compressed (GZIP) or uncompressed.
+        index_file : :obj:`str`
+            Path to FASTA index file. Must be uncompressed.
+        x_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+            Contigs to be treated as X chromosomes.
+        y_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+            Contigs to be treated as Y chromosomes.
+        mt_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+            Contigs to be treated as mitochondrial DNA.
+        par : :obj:`list` of :obj:`tuple` of (str, int, int)
+            List of tuples with (contig, start, end)
+
+        Returns
+        -------
+        :class:`.ReferenceGenome`
+        """
+        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFASTAFile(Env.hc()._jhc, name, fasta_file, index_file,
+                                                                                           x_contigs, y_contigs, mt_contigs, par))
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
