@@ -719,8 +719,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private def tryPrimOpConversion(fn: String): IndexedSeq[IR] => Option[IR] =
-    flatLift {
+  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = flatLift {
       case IndexedSeq(x) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
         t <- ir.UnaryOp.returnTypeOption(op, x.typ)
