@@ -72,6 +72,8 @@ class HailContext(object):
 
             connect_logger('localhost', 12888)
 
+            self._hail.HailContext.startProgressBar(self._jsc)
+
             sys.stderr.write(
                 'Welcome to\n'
                 '     __  __     <>__\n'
