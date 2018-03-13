@@ -20,7 +20,7 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .context import init, stop, spark_context, default_reference, get_reference, tmp_dir
+from .context import init, stop, spark_context, default_reference, get_reference
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -35,7 +35,6 @@ __all__ = ['init',
            'spark_context',
            'default_reference',
            'get_reference',
-           'tmp_dir',
            'Table',
            'GroupedTable',
            'MatrixTable',

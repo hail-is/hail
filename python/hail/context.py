@@ -209,8 +209,3 @@ def get_reference(name):
             name,
             ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
         )
-
-def tmp_dir():
-    """Returns the path of the temporary directory."""
-
-    return Env.hc()._jhc.tmpDir()

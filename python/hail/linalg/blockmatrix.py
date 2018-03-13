@@ -71,8 +71,6 @@ class BlockMatrix(object):
         >>> from hail.linalg import BlockMatrix
         >>> bm = BlockMatrix.fromfile('file:///local/file', 10, 20) # doctest: +SKIP
 
-        See also :meth:`BlockMatrix.from_numpy`.
-
         Notes
         -----
         This method, analogous to `numpy.fromfile
@@ -82,10 +80,11 @@ class BlockMatrix(object):
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__
         or :meth:`BlockMatrix.tofile`.
 
-        The number of entries must be less than :math:`2^{31}`.
-
         Use :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and
-        restore block matrices.
+        load block matrices when not inter-operating with NumPy, since these
+        methods write and read blocks in parallel.
+
+        The number of entries must be less than :math:`2^{31}`.
 
         Parameters
         ----------
@@ -97,6 +96,10 @@ class BlockMatrix(object):
             Number of columns.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`default_block_size`.
+
+        See Also
+        --------
+        :meth:`.from_numpy`
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
@@ -129,15 +132,6 @@ class BlockMatrix(object):
         -----
         The ndarray must have two dimensions, each of non-zero size.
 
-        The example above is implemented as:
-
-        >>> a.tofile('local/temp/file') # doctest: +SKIP
-        >>> bm = BlockMatrix.fromfile('file:///local/temp/file', 10, 20) # doctest: +SKIP
-
-        where the local temp file is created on the driver using Python's
-        `tempfile <https://docs.python.org/3/library/tempfile.html>`__
-        library and deleted at exit.
-
         The number of entries must be less than :math:`2^{31}`.
 
         Parameters
@@ -156,7 +150,7 @@ class BlockMatrix(object):
 
         if ndarray.ndim != 2:
             raise FatalError("from_numpy: ndarray must have two axes, found shape {}".format(ndarray.shape))
-        n_rows, n_cols = ndarray.shape[0:2]
+        n_rows, n_cols = ndarray.shape
         if n_rows == 0 or n_cols == 0:
             raise FatalError("from_numpy: ndarray dimensions must be non-zero, found shape {}".format(ndarray.shape))
         if ndarray.dtype != np.float64:
@@ -178,18 +172,15 @@ class BlockMatrix(object):
 
         Notes
         -----
-        For shuffle resiliency, this functions writes the resulting block matrix
-        to disk and then reads the result. By specifying a path, this block
-        matrix can be read again using :meth:`BlockMatrix.read`. Otherwise, a
-        file is created in the temp directory given by :func:`hail.tmp_dir` and
-        then deleted when :func:`hail.stop` is called or the program terminates.
+        By specifying a path, the resulting block matrix can be re-loaded with
+        :meth:`BlockMatrix.read`.
 
         Parameters
         ----------
         entry_expr: :class:`.NumericExpression`
             Numeric entry expression for matrix entries.
         path: :obj:`str`, optional
-            Path used to write the resulting block matrix.
+            Path to the resulting block matrix on disk.
             If not specified, a temporary file is used.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`default_block_size`.
@@ -394,27 +385,30 @@ class BlockMatrix(object):
 
         >>> a = np.fromfile('/local/file').reshape((10, 20)) # doctest: +SKIP
 
-        See also :meth:`.to_numpy`.
-
         Notes
         -----
-        The number of entries must be less than :math:`2^{31}`.
-
         This method, analogous to `numpy.tofile
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.tofile.html>`__,
         produces a binary file of float64 values in row-major order, which can
         be read by functions such as `numpy.fromfile
-        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__ (if a local file)
-        and :meth:`BlockMatrix.fromfile`.
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__
+        (if a local file) and :meth:`BlockMatrix.fromfile`.
 
-        Use :meth:`.utils.hadoop_copy` to copy files between local and non-local
-        storage. Use :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to
-        save and restore block matrices.
+        Use :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and
+        load block matrices when not inter-operating with NumPy, since these
+        methods write and read blocks in parallel.
+
+        The number of entries must be less than :math:`2^{31}`.
 
         Parameters
         ----------
         uri: :obj:`str`, optional
             URI of binary output file.
+
+        See Also
+        --------
+        :meth:`.to_numpy`
+
         """
         n_entries = self.n_rows * self.n_cols
         if n_entries >= 2 << 31:
@@ -441,15 +435,6 @@ class BlockMatrix(object):
         The number of entries must be less than :math:`2^{31}`.
 
         The resulting ndarray will have the same shape as the block matrix.
-
-        The example above is implemented as:
-
-        >>> bm.tofile('file:///local/temp/file') # doctest: +SKIP
-        >>> a = np.fromfile('/local/temp/file').reshape((10, 20)) # doctest: +SKIP
-
-        where the local temp file is created on the driver using Python's
-        `tempfile <https://docs.python.org/3/library/tempfile.html>`__
-        library and deleted at exit.
 
         Returns
         -------
