@@ -45,7 +45,7 @@ class SwitchBuilder(ConditionalBuilder):
 
     See Also
     --------
-    :func:`.switch`
+    :func:`.case`, :func:`.cond`, :func:`.switch`
 
     Parameters
     ----------
@@ -193,13 +193,19 @@ class CaseBuilder(ConditionalBuilder):
     :meth:`~.CaseBuilder.when` or :meth:`~.CaseBuilder.default` method calls
     must be the same type.
 
+    Parameters
+    ----------
+    missing_false: :obj:`.bool`
+        Treat missing predicates as ``False``.
+
     See Also
     --------
-    :func:`.case`
+    :func:`.case`, :func:`.cond`, :func:`.switch`
     """
 
-    def __init__(self):
+    def __init__(self, missing_false=False):
         super(CaseBuilder, self).__init__()
+        self._missing_false = missing_false
 
     def _finish(self, default):
         assert len(self._cases) > 0
@@ -208,7 +214,7 @@ class CaseBuilder(ConditionalBuilder):
 
         expr = default
         for conditional, then in self._cases[::-1]:
-            expr = cond(conditional, then, expr)
+            expr = cond(conditional, then, expr, missing_false=self._missing_false)
         return expr
 
     @typecheck_method(condition=expr_bool, then=expr_any)

@@ -131,8 +131,8 @@ def literal(x, dtype=None):
                               dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
 
-@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
-def cond(condition, consequent, alternate):
+@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
+def cond(condition, consequent, alternate, *, missing_false=False):
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
@@ -168,12 +168,20 @@ def cond(condition, consequent, alternate):
         Branch to return if the condition is ``True``.
     alternate : :class:`.Expression`
         Branch to return if the condition is ``False``.
+    missing_false : :obj:`.bool`
+        If ``True``, treat missing `condition` as ``False``.
+
+    See Also
+    --------
+    :func:`.case`, :func:`.switch`
 
     Returns
     -------
     :class:`.Expression`
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
+    if missing_false:
+        condition = hl.bind(condition, lambda x: hl.is_defined(x) & x)
     indices, aggregations, joins = unify_all(condition, consequent, alternate)
     t = unify_types_limited(consequent.dtype, alternate.dtype)
     if t is None:
@@ -184,7 +192,7 @@ def cond(condition, consequent, alternate):
                           t, indices, aggregations, joins)
 
 
-def case():
+def case(missing_false=False):
     """Chain multiple if-else statements with a :class:`.CaseBuilder`.
 
     Examples
@@ -200,16 +208,21 @@ def case():
         >>> hl.eval_expr(expr)
         2
 
+    Parameters
+    ----------
+    missing_false : :obj:`bool`
+        Treat missing
+
     See Also
     --------
-    :class:`.CaseBuilder`
+    :class:`.CaseBuilder`, :func:`.switch`, :func:`.cond`
 
     Returns
     -------
     :class:`.CaseBuilder`.
     """
     from hail.expr.utils import CaseBuilder
-    return CaseBuilder()
+    return CaseBuilder(missing_false=missing_false)
 
 
 @typecheck(expr=expr_any)
@@ -234,7 +247,7 @@ def switch(expr):
 
     See Also
     --------
-    :class:`.SwitchBuilder`
+    :class:`.SwitchBuilder`, :func:`.case`, :func:`.cond`
 
     Parameters
     ----------

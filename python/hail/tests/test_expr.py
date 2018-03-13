@@ -88,6 +88,9 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.cond(True, hl.struct(), hl.null(hl.tstruct())).value, hl.utils.Struct())
 
+        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2).value, None)
+        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True).value, 2)
+
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
@@ -171,6 +174,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(make_case(5)), 'C')
         self.assertEqual(hl.eval_expr(make_case(-1)), 'D')
         self.assertEqual(hl.eval_expr(make_case(2)), None)
+
+        self.assertEqual(hl.case().when(hl.null(hl.tbool), 1).default(2).value, None)
+        self.assertEqual(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2).value, 2)
 
     def test_struct_ops(self):
         s = hl.struct(f1=1, f2=2, f3=3)
