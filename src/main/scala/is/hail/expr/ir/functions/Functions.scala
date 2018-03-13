@@ -53,10 +53,9 @@ abstract class RegistryFunctions {
 
   def registerAll(): Unit
 
-  private val tvBoxes = {
-    val boxes = mutable.Map[String, Box[Type]]()
-    boxes.withDefault(boxes.getOrElseUpdate(_, Box[Type]()))
-  }
+  private val boxes = mutable.Map[String, Box[Type]]()
+
+  private def tvBoxes(name: String) = boxes.getOrElseUpdate(name, Box[Type]())
 
   def tv(name: String): TVariable =
     TVariable(name, b = tvBoxes(name))
