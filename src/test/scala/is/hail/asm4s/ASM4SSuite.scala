@@ -319,17 +319,17 @@ class ASM4SSuite extends TestNGSuite {
     val fb = FunctionBuilder.functionBuilder[Int, Int, Int, Int]
     val add = fb.newMethod[Int, Int, Int]
     val sub = fb.newMethod[Int, Int, Int]
-    val mult = fb.newMethod[Int, Int, Int]
+    val mul = fb.newMethod[Int, Int, Int]
 
     add.emit(add.getArg[Int](1) + add.getArg[Int](2))
     sub.emit(sub.getArg[Int](1) - sub.getArg[Int](2))
-    mult.emit(mult.getArg[Int](1) * mult.getArg[Int](2))
+    mul.emit(mul.getArg[Int](1) * mul.getArg[Int](2))
 
     fb.emit(fb.getArg[Int](1).ceq(0).mux(
-      add(fb.getArg[Int](2),fb.getArg[Int](3)),
+      add(fb.getArg[Int](2), fb.getArg[Int](3)),
       fb.getArg[Int](1).ceq(1).mux(
-        sub(fb.getArg[Int](2),fb.getArg[Int](3)),
-        mult(fb.getArg[Int](2),fb.getArg[Int](3))
+        sub(fb.getArg[Int](2), fb.getArg[Int](3)),
+        mul(fb.getArg[Int](2), fb.getArg[Int](3))
       )))
     val f = fb.result(Some(new PrintWriter(System.out)))()
     assert(f(0,1,1) == 2)
@@ -339,10 +339,8 @@ class ASM4SSuite extends TestNGSuite {
 
 
   @Test def checkLocalVarsOnMethods(): Unit = {
-    val fb = FunctionBuilder.functionBuilder[Int, Int, Int, Int]
+    val fb = FunctionBuilder.functionBuilder[Int, Int, Int]
     val add = fb.newMethod[Int, Int, Int]
-    val sub = fb.newMethod[Int, Int, Int]
-    val mult = fb.newMethod[Int, Int, Int]
 
     val v1 = add.newLocal[Int]
     val v2 = add.newLocal[Int]
@@ -350,19 +348,10 @@ class ASM4SSuite extends TestNGSuite {
     add.emit(Code(v1 := add.getArg[Int](1),
       v2 := add.getArg[Int](2),
       v1 + v2))
-    sub.emit(sub.getArg[Int](1) - sub.getArg[Int](2))
-    mult.emit(mult.getArg[Int](1) * mult.getArg[Int](2))
 
-    fb.emit(fb.getArg[Int](1).ceq(0).mux(
-      add(fb.getArg[Int](2),fb.getArg[Int](3)),
-      fb.getArg[Int](1).ceq(1).mux(
-        sub(fb.getArg[Int](2),fb.getArg[Int](3)),
-        mult(fb.getArg[Int](2),fb.getArg[Int](3))
-      )))
+    fb.emit(add(fb.getArg[Int](1), fb.getArg[Int](2)))
     val f = fb.result()()
-    assert(f(0,1,1) == 2)
-    assert(f(1,5,1) == 4)
-    assert(f(2,2,8) == 16)
+    assert(f(1,1) == 2)
   }
 
 }

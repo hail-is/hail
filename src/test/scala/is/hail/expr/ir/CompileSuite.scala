@@ -434,6 +434,15 @@ class CompileSuite {
       assert(expected2.length == actual2.length)
       assert(actual2.sameElements(expected2))
     }
+
+    val (start, stop, step) = (0, Int.MinValue, 500000)
+    val aoff = f(region, start, false, stop, false, step, false)
+    val expected = Array.range(start, stop, step)
+    val actual = new UnsafeIndexedSeq(tRange, region, aoff)
+    assert(expected.length == actual.length)
+    assert(actual.sameElements(expected))
+
+
   }
 
   @Test
@@ -445,10 +454,10 @@ class CompileSuite {
     doit(ir, fb)
     val f = fb.result()()
     for {
-      range <- 0 to 10
-      cutoff <- 0 to range
+      stop <- 0 to 10
+      cutoff <- 0 to stop
     } {
-      val aoff = f(region, range, false, cutoff, false)
+      val aoff = f(region, stop, false, cutoff, false)
       val expected = Array.range(0, cutoff)
       val actual = new UnsafeIndexedSeq(t, region, aoff)
       assert(expected.length == actual.length)

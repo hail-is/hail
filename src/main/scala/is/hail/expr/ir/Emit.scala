@@ -261,6 +261,7 @@ private class Emit(
         val stop = fb.newLocal[Int]("ar_stop")
         val step = fb.newLocal[Int]("ar_step")
         val len = fb.newLocal[Int]("ar_len")
+        val llen = fb.newLocal[Long]("ar_llen")
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
         (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
           start := coerce[Int](v(0)),
@@ -269,24 +270,25 @@ private class Emit(
           step.ceq(0).mux(
             Code._fatal("Array range cannot have step size 0."),
             Code._empty[Unit]),
-          len := start.ceq(stop).mux(0,
-            (step < 0).mux((start - stop - 1) / (const(0) - step) + 1,
-              (stop - start - 1) / step + 1)),
-          len := (len < 0).mux(0, len),
+          llen := start.ceq(stop).mux(0L,
+            (step < 0).mux(
+              (start.toL - stop.toL - 1L) / (-step).toL + 1L,
+              (stop.toL - start.toL - 1L) / step.toL + 1L)),
+          (llen > const(Int.MaxValue.toLong)).mux(
+            Code._fatal("Array range cannot have more than MAXINT elements."),
+            len := (llen < 0L).mux(0L, llen).toI
+          ),
           srvb.start(len, init=true),
           (step < 0).mux(
             Code.whileLoop(start > stop,
               srvb.addInt(start),
               srvb.advance(),
-              start := start + step
-            ),
+              start := start + step),
             Code.whileLoop(start < stop,
               srvb.addInt(start),
               srvb.advance(),
-              start := start + step
-            )),
-          srvb.offset
-        ))
+              start := start + step)),
+          srvb.offset))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = coerce[TArray](a.typ)
         val tout = x.typ
