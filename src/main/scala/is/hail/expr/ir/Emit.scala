@@ -276,8 +276,7 @@ private class Emit(
               (stop.toL - start.toL - 1L) / step.toL + 1L)),
           (llen > const(Int.MaxValue.toLong)).mux(
             Code._fatal("Array range cannot have more than MAXINT elements."),
-            len := (llen < 0L).mux(0L, llen).toI
-          ),
+            len := (llen < 0L).mux(0L, llen).toI),
           srvb.start(len, init=true),
           (step < 0).mux(
             Code.whileLoop(start > stop,

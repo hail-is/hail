@@ -332,9 +332,9 @@ class ASM4SSuite extends TestNGSuite {
         mul(fb.getArg[Int](2), fb.getArg[Int](3))
       )))
     val f = fb.result(Some(new PrintWriter(System.out)))()
-    assert(f(0,1,1) == 2)
-    assert(f(1,5,1) == 4)
-    assert(f(2,2,8) == 16)
+    assert(f(0, 1, 1) == 2)
+    assert(f(1, 5, 1) == 4)
+    assert(f(2, 2, 8) == 16)
   }
 
 
@@ -351,7 +351,7 @@ class ASM4SSuite extends TestNGSuite {
 
     fb.emit(add(fb.getArg[Int](1), fb.getArg[Int](2)))
     val f = fb.result()()
-    assert(f(1,1) == 2)
+    assert(f(1, 1) == 2)
   }
 
 }
