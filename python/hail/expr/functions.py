@@ -201,7 +201,7 @@ def cond(condition: BooleanExpression,
                           t, indices, aggregations, joins)
 
 
-def case(missing_false: bool=False) -> 'hail.expr.utils.CaseBuilder':
+def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
     """Chain multiple if-else statements with a :class:`.CaseBuilder`.
 
     Examples
@@ -230,12 +230,12 @@ def case(missing_false: bool=False) -> 'hail.expr.utils.CaseBuilder':
     -------
     :class:`.CaseBuilder`.
     """
-    from hail.expr.utils import CaseBuilder
+    from .builders import CaseBuilder
     return CaseBuilder(missing_false=missing_false)
 
 
 @typecheck(expr=expr_any)
-def switch(expr: Expression) -> 'hail.expr.utils.SwitchBuilder':
+def switch(expr: Expression) -> 'hail.expr.builders.SwitchBuilder':
     """Build a conditional tree on the value of an expression.
 
     Examples
@@ -267,7 +267,7 @@ def switch(expr: Expression) -> 'hail.expr.utils.SwitchBuilder':
     -------
     :class:`.SwitchBuilder`
     """
-    from hail.expr.utils import SwitchBuilder
+    from .builders import SwitchBuilder
     return SwitchBuilder(expr)
 
 
@@ -2677,7 +2677,7 @@ def abs(x: Num_T) -> Num_T:
 
 
 @typecheck(x=oneof(expr_numeric, expr_array(expr_numeric)))
-def signum(x: Num_T) -> Num_T:
+def signum(x: NumericExpression) -> Int32Expression:
     """Returns the sign (1, 0, or -1) of a numeric value or array.
 
     Examples

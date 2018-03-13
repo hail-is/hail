@@ -122,5 +122,5 @@ __all__ = ['HailType',
            'int64',
            'bool',
            'get_sequence',
-           'utils',
+           'builders',
            ]

@@ -1,7 +1,7 @@
 from .base_expression import *
 from .typed_expressions import *
 from .expression_typecheck import *
-from .utils import *
+from .expression_utils import *
 
 __all__ = ['Indices',
            'Join',
