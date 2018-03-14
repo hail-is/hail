@@ -136,36 +136,4 @@ class ASTToIRSuite extends TestNGSuite {
       s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
   }
   }
-
-  @Test
-  def aggs() {
-    for {(in, out) <- Array(
-      "aggregable.sum()" ->
-        ApplyAggOp(AggIn(), Sum(), Seq()),
-      "aggregable.map(x => x * 5).sum()" ->
-        ApplyAggOp(
-          AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))),
-          Sum(), Seq(), TInt32()),
-      "aggregable.map(x => x * something).sum()" ->
-        ApplyAggOp(
-          AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), Ref("something"))),
-          Sum(), Seq()),
-      "aggregable.filter(x => x > 2).sum()" ->
-        ApplyAggOp(
-          AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x"), I32(2))),
-          Sum(), Seq()),
-      "aggregable.flatMap(x => [x * 5]).sum()" ->
-        ApplyAggOp(
-          AggFlatMap(AggIn(), "x",
-            MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))))),
-          Sum(), Seq())
-    )
-    } {
-      val tAgg = TAggregable(TInt32())
-      tAgg.symTab = Map("something" -> (0, TInt32(): Type))
-      Infer(out, Some(tAgg))
-      assert(toIR(in).contains(out),
-        s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
-    }
-  }
 }

@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.testUtils._
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
