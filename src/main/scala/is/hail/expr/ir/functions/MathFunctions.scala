@@ -9,9 +9,9 @@ object MathFunctions extends RegistryFunctions {
   // FIXME can't figure out how to get the instance of a package object
   def exp(x: Double): Double = math.exp(x)
 
-  def log10(x: Double): Double = math.exp(x)
+  def log10(x: Double): Double = math.log10(x)
 
-  def sqrt(x: Double): Double = math.exp(x)
+  def sqrt(x: Double): Double = math.sqrt(x)
 
   def log(x: Double): Double = math.log(x)
 

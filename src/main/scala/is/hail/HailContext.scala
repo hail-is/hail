@@ -613,7 +613,6 @@ class HailContext private(val sc: SparkContext,
     val ast = Parser.parseToAST(expr, ec)
     ast.toIR() match {
       case Some(body) =>
-        // println("convert IR", body)
         val region = Region()
         val t = ast.`type`
         t match {
@@ -640,7 +639,6 @@ class HailContext private(val sc: SparkContext,
             (v3, t)
         }
       case None =>
-        // println("could no convert IR")
         val (t, f) = Parser.eval(ast, ec)
         (f(), t)
     }
