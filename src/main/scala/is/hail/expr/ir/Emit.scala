@@ -224,7 +224,6 @@ private class Emit(
           Code(srvb.start(coerce[Int](vlen), init = true),
             srvb.offset))
       case ArrayRef(a, i, typ) =>
-        println(s"ArrayRef $a $i: ${a.typ.pretty()}, ${typ.pretty()}")
         val ti = typeToTypeInfo(typ)
         val tarray = coerce[TArray](a.typ)
         val ati = coerce[Long](typeToTypeInfo(tarray))

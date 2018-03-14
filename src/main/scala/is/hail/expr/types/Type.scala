@@ -206,12 +206,6 @@ abstract class Type extends BaseType with Serializable {
     _pretty(sb, indent, compact)
   }
 
-  final def pretty(): String = {
-    val sb = new StringBuilder()
-    pretty(sb, 0, true)
-    sb.result()
-  }
-
   def _toPretty: String
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {

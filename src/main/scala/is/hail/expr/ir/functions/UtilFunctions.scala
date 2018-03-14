@@ -41,8 +41,5 @@ object UtilFunctions extends RegistryFunctions {
     registerIR("range", TInt32(), TInt32())(ArrayRange(_, _, I32(1)))
 
     registerIR("range", TInt32())(ArrayRange(I32(0), _, I32(1)))
-
-
-
   }
 }

@@ -753,15 +753,12 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
-    val res = for {
+    for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
       ir <- tryPrimOpConversion(args.map(_.`type`))(irArgs).orElse(
         IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
           .map { irf => irf(irArgs) })
     } yield ir
-    if (res.isEmpty)
-      println(s"couldn't convert '$fn'")
-    res
   }
 }
 
@@ -853,7 +850,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
-    val res = (lhs.`type`, method, args: IndexedSeq[AST]) match {
+    (lhs.`type`, method, args: IndexedSeq[AST]) match {
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>
         for {
           a <- lhs.toIR(agg)
@@ -873,9 +870,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               .map { irf => irf(irs) }
         } yield ir
     }
-    if (res.isEmpty)
-      println(s"applymethod couldn't find $method")
-    res
   }
 }
 

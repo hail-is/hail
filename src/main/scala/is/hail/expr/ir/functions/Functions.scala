@@ -39,9 +39,7 @@ object IRFunctionRegistry {
       }
     }
     validMethods match {
-      case Seq() =>
-        println(s"couldn't find $name with args ${ args.mkString(",") }")
-        None
+      case Seq() => None
       case Seq(x) => Some(x)
       case _ => fatal(s"Multiple methods found that satisfy $name$args.")
     }

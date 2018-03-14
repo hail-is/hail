@@ -26,10 +26,8 @@ object BinaryOp {
     case (DoubleAmpersand() | DoublePipe(), _: TBoolean, _: TBoolean) => TBoolean()
   }
 
-  def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] = {
-    println(s"getting returnTypeOption for `$op`, `$l`, `$r`")
+  def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
     returnType(op, l, r)
-  }
 
   def getReturnType(op: BinaryOp, l: Type, r: Type): Type =
     returnType(op, l, r).getOrElse(incompatible(l, r, op))

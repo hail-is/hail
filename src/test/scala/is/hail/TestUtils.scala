@@ -138,25 +138,18 @@ object TestUtils {
   def splitMultiHTS(mt: MatrixTable): MatrixTable = {
     if (!mt.entryType.isOfType(Genotype.htsGenotypeType))
       fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ mt.entryType }")
-//    val pl = """if (isDefined(g.PL))
-//    range(3).map(i => range(g.PL.size()).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
-//    else
-//    NA: Array[Int]"""
-//    SplitMulti(mt, "va.aIndex = aIndex, va.wasSplit = wasSplit",
-//      s"""g.GT = downcode(g.GT, aIndex),
-//      g.AD = if (isDefined(g.AD))
-//          let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
-//        else
-//          NA: Array[Int],
-//          g.DP = g.DP,
-//      g.PL = $pl,
-//      g.GQ = gqFromPL($pl)""")
-  val pl = """if (isDefined(g.PL))
+    val pl = """if (isDefined(g.PL))
     range(3).map(i => range(g.PL.size()).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
     else
     NA: Array[Int]"""
     SplitMulti(mt, "va.aIndex = aIndex, va.wasSplit = wasSplit",
-      s"""g.PL = $pl""")
-
+      s"""g.GT = downcode(g.GT, aIndex),
+      g.AD = if (isDefined(g.AD))
+          let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+        else
+          NA: Array[Int],
+          g.DP = g.DP,
+      g.PL = $pl,
+      g.GQ = gqFromPL($pl)""")
   }
 }
