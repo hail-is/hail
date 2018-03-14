@@ -66,5 +66,7 @@ object Children {
       none
     case Die(message) =>
       none
+    case ApplyFunction(impl, args) =>
+      args.toIndexedSeq
   }
 }
