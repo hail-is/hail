@@ -1,7 +1,7 @@
 from .base_expression import *
 from .typed_expressions import *
 from .expression_typecheck import *
-from .utils import *
+from .expression_utils import *
 
 __all__ = ['Indices',
            'Join',
@@ -27,9 +27,14 @@ __all__ = ['Indices',
            'IntervalExpression',
            'LocusExpression',
            'NumericExpression',
+           'Int32Expression',
+           'Int64Expression',
+           'Float32Expression',
+           'Float64Expression',
            'SetExpression',
            'StringExpression',
            'StructExpression',
+           'TupleExpression',
            'analyze',
            'get_refs',
            'eval_expr',

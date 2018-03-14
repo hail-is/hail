@@ -31,7 +31,7 @@ Core language functions
 .. autofunction:: or_missing
 .. autofunction:: range
 
-.. currentmodule:: hail.expr.utils
+.. currentmodule:: hail.expr.builders
 
 .. autoclass:: CaseBuilder
 .. autoclass:: SwitchBuilder
