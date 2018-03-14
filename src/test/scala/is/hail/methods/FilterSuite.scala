@@ -59,7 +59,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds2.filterEntries("g.AD[0] < 30").entriesTable().count() == 3)
 
-    assert(vds2.filterEntries("g.AD[1].toFloat64() / g.DP > 0.05f")
+    assert(vds2.filterEntries("g.AD[1] / g.DP > 0.05f")
         .entriesTable()
         .count() == 3)
 
