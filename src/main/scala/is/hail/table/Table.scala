@@ -11,7 +11,7 @@ import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
-import is.hail.variant.{ComponentSpec, FileFormat, MatrixTable, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome, RelationalSpec}
+import is.hail.variant._
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -69,11 +69,15 @@ object Table {
   }
 
   def read(hc: HailContext, path: String): Table = {
+
+    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
+      case ts: TableSpec => ts
+      case _: MatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
+    }
+
     val successFile = path + "/_SUCCESS"
     if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
-
-    val spec = RelationalSpec.read(hc, path).asInstanceOf[TableSpec]
     new Table(hc, TableRead(path, spec, dropRows = false))
   }
 
