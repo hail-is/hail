@@ -11,6 +11,7 @@ package object ir {
     case _: TFloat32 => typeInfo[Float]
     case _: TFloat64 => typeInfo[Double]
     case _: TBoolean => typeInfo[Boolean]
+    case _: TBinary => typeInfo[Long]
     case _: TArray => typeInfo[Long]
     case _: TBaseStruct => typeInfo[Long]
     case _ => throw new RuntimeException(s"unsupported type found, $t")
