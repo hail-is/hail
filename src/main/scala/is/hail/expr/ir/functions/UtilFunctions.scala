@@ -35,5 +35,10 @@ object UtilFunctions extends RegistryFunctions {
     registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
 
     registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
+
+    registerIR("range", TInt32(), TInt32(), TInt32()) { (start, stop, step) => ArrayRange(start, stop, step) }
+
+
+
   }
 }
