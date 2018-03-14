@@ -102,6 +102,7 @@ object Compile {
     val env = args.zipWithIndex.foldLeft(new Env[IR]()) {
       case (newEnv, ((name, rvr), i)) => newEnv.bind(name, In(i, rvr.typ))
     }
+    e = Subst(e, env)
     Infer(e)
     assert(typeToTypeInfo(e.typ) == typeInfo[R])
     Emit(e, fb)

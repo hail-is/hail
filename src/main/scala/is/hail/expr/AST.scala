@@ -741,24 +741,27 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = flatLift {
+  private def tryPrimOpConversion(types: IndexedSeq[Type]): IndexedSeq[IR] => Option[IR] = flatLift {
       case IndexedSeq(x) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
-        t <- ir.UnaryOp.returnTypeOption(op, x.typ)
+        t <- ir.UnaryOp.returnTypeOption(op, types(0))
       } yield ir.ApplyUnaryPrimOp(op, x, t)
       case IndexedSeq(x, y) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
-        t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
+        t <- ir.BinaryOp.returnTypeOption(op, types(0), types(1))
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
-    for {
+    val res = for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- tryPrimOpConversion(irArgs).orElse(
+      ir <- tryPrimOpConversion(args.map(_.`type`))(irArgs).orElse(
         IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
           .map { irf => irf(irArgs) })
     } yield ir
+    if (res.isEmpty)
+      println(s"couldn't convert '$fn'")
+    res
   }
 }
 
@@ -850,7 +853,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
-    (lhs.`type`, method, args: IndexedSeq[AST]) match {
+    val res = (lhs.`type`, method, args: IndexedSeq[AST]) match {
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>
         for {
           a <- lhs.toIR(agg)
@@ -860,6 +863,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             case (_: TAggregable, "filter") => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
             case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
             case (_, "map") => ir.ArrayMap(a, name, b)
+            case (_, "filter") => ir.ArrayFilter(a, name, b)
           }
         } yield result
       case _ =>
@@ -869,6 +873,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               .map { irf => irf(irs) }
         } yield ir
     }
+    if (res.isEmpty)
+      println(s"applymethod couldn't find $method")
+    res
   }
 }
 
