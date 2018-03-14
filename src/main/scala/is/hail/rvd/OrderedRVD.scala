@@ -612,7 +612,6 @@ object OrderedRVD {
 
     val pkType = partitioner.pkType
     val pkOrdUnsafe = pkType.unsafeOrdering(true)
-    val pkOrd = pkType.ordering.toOrdering
     val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
 
     if (pkis.isEmpty)
@@ -621,18 +620,7 @@ object OrderedRVD {
     val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
     val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
 
-    val newRangeBounds = partitioner.rangeBounds.toArray
-
-    newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-      .copy(start = pkOrd.min(newRangeBounds(0).asInstanceOf[Interval].start, min))
-
-    newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-      .copy(end = pkOrd.max(newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval].end, max))
-
-    val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
-      partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
-
-    shuffle(typ, newPartitioner, rdd)
+    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
   }
 
   def shuffle(typ: OrderedRVDType,

@@ -9,8 +9,8 @@ import org.apache.spark.sql.Row
 
 /**
   * Repartition prev to comply with newPartitioner, using narrow dependencies.
-  *  Assumes new key type is a prefix of old key type, so no reordering is
-  *  needed. No assumtion is made about partition keys.
+  * Assumes new key type is a prefix of old key type, so no reordering is
+  * needed. No assumption is made about partition keys.
   */
 class RepartitionedOrderedRDD2(
     prev: OrderedRVD,

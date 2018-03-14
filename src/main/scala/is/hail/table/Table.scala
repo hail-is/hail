@@ -497,8 +497,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def join(other: Table, joinType: String): Table = {
-    if ( key.length != other.key.length ||
-         !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)) )
+    if (!keySignature.isIsomorphicTo(other.keySignature))
       fatal(
         "Both tables must have the same number of keys and the types of keys " +
           "must be identical. Order matters.\n" +
@@ -506,10 +505,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
               |  Right signature: ${ other.keySignature.toString }
            """.stripMargin)
 
-    val joinedFields =
-      keySignature.fields ++
-        valueSignature.fields ++
-        other.valueSignature.fields
+    val joinedFields = keySignature.fields ++
+                       valueSignature.fields ++
+                       other.valueSignature.fields
 
     val preNames = joinedFields.map(_.name).toArray
     val (finalColumnNames, remapped) = mangle(preNames)
@@ -522,10 +520,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
         }.truncatable("\n  "))
     }
 
-    val newSignature = TStruct(
-      joinedFields
-        .zipWithIndex
-        .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
+    val newSignature = TStruct(joinedFields.zipWithIndex.map {
+      case (fd, i) => (finalColumnNames(i), fd.typ)
+    }: _*)
 
     val leftSignature = signature
     val rightSignature = other.signature
@@ -539,28 +536,34 @@ class Table(val hc: HailContext, val tir: TableIR) {
       it.map { joined =>
         val lrv = joined._1
         val rrv = joined._2
+
         if (lrv != null)
           rvb.set(lrv.region)
         else {
           assert(rrv != null)
           rvb.set(rrv.region)
         }
+
         rvb.start(newSignature)
         rvb.startStruct()
+
         if (lrv != null)
           rvb.addFields(leftSignature, lrv, leftKeyFieldIdx)
         else {
           assert(rrv != null)
           rvb.addFields(rightSignature, rrv, rightKeyFieldIdx)
         }
+
         if (lrv != null)
           rvb.addFields(leftSignature, lrv, leftValueFieldIdx)
         else
           rvb.skipFields(leftValueFieldIdx.length)
+
         if (rrv != null)
           rvb.addFields(rightSignature, rrv, rightValueFieldIdx)
         else
           rvb.skipFields(rightValueFieldIdx.length)
+
         rvb.endStruct()
         rv.set(rvb.region, rvb.end())
         rv
@@ -579,11 +582,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val right = other.rvd match {
       case ordered: OrderedRVD => ordered
       case unordered =>
-        OrderedRVD(
-          new OrderedRVDType(other.key.toArray, other.key.toArray, other.signature),
-          unordered.rdd,
-          None,
-          None)
+        val ordType =
+          new OrderedRVDType(other.key.toArray, other.key.toArray, other.signature)
+        if (joinType == "left" || joinType == "inner")
+          unordered.constrainToOrderedPartitioner(ordType, left.partitioner)
+        else
+          OrderedRVD(ordType, unordered.rdd, None, Some(left.partitioner))
     }
     val joinedRVD = left.orderedJoin(
       right,

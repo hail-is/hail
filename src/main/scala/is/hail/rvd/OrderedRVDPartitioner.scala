@@ -45,31 +45,42 @@ class OrderedRVDPartitioner(
 
   def range: Interval = rangeTree.root.get.range
 
-  // if outside bounds, return min or max depending on location
-  // pk: Annotation[pkType]
+  /**
+    * Find the partition containing the given Row.
+    *
+    * If pkType is a prefix of the type of row, the prefix of row is used to
+    * find the partition.
+    *
+    * If the type of row is a prefix of pkType, keys compatible with row could
+    * span multiple partitions. In this case, depending on the value of
+    * resolveAmbiguity, either throw an exception or return the min or max
+    * partition in the span.
+    *
+    * If row falls outside the bounds of the partitioner, return the min or max
+    * partition.
+    */
   def getPartitionPK(
-    pk: Any,
+    row: Any,
     resolveAmbiguity: Int = OrderedRVDPartitioner.UNAMBIGUOUS
   ): Int = {
-    val part = rangeTree.queryValues(pkType.ordering, pk)
+    val part = rangeTree.queryValues(pkType.ordering, row)
     part match {
       case Array() =>
-        if (range.isAbovePosition(pkType.ordering, pk))
+        if (range.isAbovePosition(pkType.ordering, row))
           0
         else {
-          assert(range.isBelowPosition(pkType.ordering, pk))
+          assert(range.isBelowPosition(pkType.ordering, row))
           numPartitions - 1
         }
 
       case Array(x) => x
 
-      case parts => {
+      case parts =>
         assert(resolveAmbiguity != OrderedRVDPartitioner.UNAMBIGUOUS)
         if (resolveAmbiguity == OrderedRVDPartitioner.SMALLEST)
           parts.min
         else
           parts.max
-      }
     }
   }
 
@@ -88,24 +99,9 @@ class OrderedRVDPartitioner(
   // return the partition containing key
   // if outside bounds, return min or max depending on location
   // key: RegionValue[kType]
-  def getPartition(key: Any): Int = {
-    val keyrv = key.asInstanceOf[RegionValue]
-    val kUR = new UnsafeRow(kType, keyrv)
-    val pkUR = new KeyedRow(kUR, pkKFieldIdx)
+  def getPartition(key: Any): Int =
+    getPartitionPK(new UnsafeRow(kType, key.asInstanceOf[RegionValue]))
 
-    val part = rangeTree.queryValues(pkType.ordering, pkUR)
-
-    part match {
-      case Array() =>
-        if (range.isAbovePosition(pkType.ordering, pkUR))
-          0
-        else {
-          assert(range.isBelowPosition(pkType.ordering, pkUR))
-          numPartitions - 1
-        }
-      case Array(x) => x
-    }
-  }
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
     val (newPKType, _) = newKType.select(newPartitionKey)
@@ -120,14 +116,15 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
+  // FIXME Make work if newRange has different point type than pkType
   def enlargeToRange(newRange: Interval): OrderedRVDPartitioner = {
     val newStart = pkType.ordering.min(range.start, newRange.start)
     val newEnd = pkType.ordering.max(range.end, newRange.end)
     val newRangeBounds = rangeBounds.toArray
     newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-      .copy(start = newStart, includeStart = true)
+      .copy(start = newStart, includesStart = true)
     newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1)
-      .asInstanceOf[Interval].copy(end = newEnd, includeEnd = true)
+      .asInstanceOf[Interval].copy(end = newEnd, includesEnd = true)
     copy(rangeBounds = UnsafeIndexedSeq(rangeBoundsType, newRangeBounds))
   }
 

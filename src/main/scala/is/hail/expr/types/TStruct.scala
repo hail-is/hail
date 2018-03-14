@@ -90,7 +90,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     case _ => false
   }
 
-  // FIXME: make this recursive
   def isIsomorphicTo(other: TStruct): Boolean =
     size == other.size && isPrefixOf(other)
 

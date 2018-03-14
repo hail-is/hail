@@ -65,7 +65,7 @@ class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends 
       val key = new KeyedRow(ur, ordType.pkRowFieldIdx)
       it.filter { rv =>
         ur.set(rv)
-        rangeTree.contains(pkOrdering, ur)
+        rangeTree.contains(pkOrdering, key)
       }
     }
 
