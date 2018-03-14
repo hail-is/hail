@@ -116,7 +116,7 @@ class BlockMatrix(object):
             raise FatalError('Number of entries must be less than 2^31, found {}'.format(n_entries))
 
         hc = Env.hc()
-        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.readDoubles(hc._jhc, uri, n_rows, n_cols, True)
+        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(hc._jhc, uri, n_rows, n_cols, True)
 
         return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
 
@@ -172,51 +172,23 @@ class BlockMatrix(object):
 
     @classmethod
     @typecheck_method(entry_expr=expr_numeric,
-                      path=nullable(str),
                       block_size=nullable(int))
-    def from_entry_expr(cls, entry_expr, path=None, block_size=None):
-        """Creates a block matrix from a numeric matrix table entry expression.
-
-        Notes
-        -----
-        By specifying a path, the resulting block matrix can be re-loaded with
-        :meth:`BlockMatrix.read`.
+    def from_entry_expr(cls, entry_expr, block_size=None):
+        """Create a block matrix using a numeric matrix table entry expression.
 
         Parameters
         ----------
         entry_expr: :class:`.NumericExpression`
             Numeric entry expression for matrix entries.
-        path: :obj:`str`, optional
-            Path to the resulting block matrix on disk.
-            If not specified, a temporary file is used.
         block_size: :obj:`int`, optional
-            Block size. Default given by :meth:`default_block_size`.
+            Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
         Returns
         -------
         :class:`.BlockMatrix`
         """
-        if not path:
-            path = new_temp_file(suffix="bm")
-        if not block_size:
-            block_size = cls.default_block_size()
-
-        source = entry_expr._indices.source
-        if not isinstance(source, MatrixTable):
-            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-
-        if entry_expr._indices != source._entry_indices:
-            from hail.expr.expressions import ExpressionException
-            raise ExpressionException("from_entry_expr: 'entry_expr' must be entry-indexed,"
-                                      " found indices {}".format(list(entry_expr._indices.axes)))
-
-        if entry_expr in source._fields_inverse:
-            source._jvds.writeBlockMatrix(path, source._fields_inverse[entry_expr], block_size)
-        else:
-            uid = Env.get_uid()
-            source.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
-
+        path = new_temp_file()
+        cls.write_from_entry_expr(entry_expr, path, block_size)
         return cls.read(path)
 
     @classmethod
@@ -321,6 +293,45 @@ class BlockMatrix(object):
         """
         self._jbm.write(path, force_row_major, joption(None))
 
+    @staticmethod
+    @typecheck(entry_expr=expr_numeric,
+               path=str,
+               block_size=nullable(int))
+    def write_from_entry_expr(entry_expr, path, block_size=None):
+        """Writes a block matrix from a numeric matrix table entry expression.
+
+        Notes
+        -----
+        The resulting file can be loaded with :meth:`BlockMatrix.read`.
+
+        Parameters
+        ----------
+        entry_expr: :class:`.NumericExpression`
+            Numeric entry expression for matrix entries.
+        path: :obj:`str`
+            Path for output.
+        block_size: :obj:`int`, optional
+            Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
+        """
+        if not block_size:
+            block_size = BlockMatrix.default_block_size()
+
+        source = entry_expr._indices.source
+        if not isinstance(source, MatrixTable):
+            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+
+        if entry_expr._indices != source._entry_indices:
+            from hail.expr.expressions import ExpressionException
+            raise ExpressionException("from_entry_expr: 'entry_expr' must be entry-indexed,"
+                                      " found indices {}".format(list(entry_expr._indices.axes)))
+
+        if entry_expr in source._fields_inverse:
+            source._jvds.writeBlockMatrix(path, source._fields_inverse[entry_expr], block_size)
+        else:
+            uid = Env.get_uid()
+            source.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
+
     @typecheck_method(rows_to_keep=listof(int))
     def filter_rows(self, rows_to_keep):
         """Filters matrix rows.
@@ -418,7 +429,6 @@ class BlockMatrix(object):
         See Also
         --------
         :meth:`.to_numpy`
-
         """
         n_entries = self.n_rows * self.n_cols
         if n_entries >= 2 << 31:
@@ -426,7 +436,7 @@ class BlockMatrix(object):
 
         bdm = self._jbm.toBreezeMatrix()
         hc = Env.hc()
-        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.writeDoubles(hc._jhc, uri, bdm, True)
+        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.exportToDoubles(hc._jhc, uri, bdm, True)
         assert row_major
 
     def to_numpy(self):

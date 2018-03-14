@@ -2,8 +2,10 @@ import unittest
 
 import hail as hl
 from hail.linalg import BlockMatrix
+from hail.utils import new_temp_file
 from .utils import resource, startTestHailContext, stopTestHailContext
 import numpy as np
+import tempfile
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -25,12 +27,15 @@ class Tests(unittest.TestCase):
         a2 = BlockMatrix.from_entry_expr(mt.x, block_size=32).to_numpy()
         a3 = BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_numpy()
 
-        self.assertTrue(np.allclose(a1, a2))
-        self.assertTrue(np.allclose(a1, a3))
+        self.assertTrue(np.array_equal(a1, a2))
+        self.assertTrue(np.array_equal(a1, a3))
+
+        path = new_temp_file()
+        BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
+        a4 = BlockMatrix.read(path)
+        self.assertTrue(np.array_equal(a1, a4))
 
     def test_to_from_numpy(self):
-        import tempfile
-
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
