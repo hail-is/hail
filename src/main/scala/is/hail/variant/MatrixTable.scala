@@ -41,6 +41,8 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def read(hc: HailContext, path: String): RelationalSpec = {
+    if (!hc.hadoopConf.isDir(path))
+      fatal(s"a MatrixTable or Table file is a directory; path '$path' is not")
     val metadataFile = path + "/metadata.json.gz"
     val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
 
@@ -120,7 +122,10 @@ object FileFormat {
 object MatrixTable {
   def read(hc: HailContext, path: String,
     dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
-    val spec = RelationalSpec.read(hc, path).asInstanceOf[MatrixTableSpec]
+    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
+      case mts: MatrixTableSpec => mts
+      case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+    }
     new MatrixTable(hc,
       MatrixRead(path, spec, dropCols, dropRows))
   }
