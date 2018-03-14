@@ -74,15 +74,22 @@ class BlockMatrix(object):
         Notes
         -----
         This method, analogous to `numpy.fromfile
-        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__,
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.fromfile.html>`__,
         reads a binary file of float64 values in row-major order, such as that
         produced by `numpy.tofile
-        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.tofile.html>`__
         or :meth:`BlockMatrix.tofile`.
 
-        Use :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and
-        load block matrices when not inter-operating with NumPy, since these
-        methods write and read blocks in parallel.
+        Binary files produced and consumed by :meth:`.tofile` and
+        :meth:`.fromfile` are not platform independent, so should only be used
+        for inter-operating with NumPy, not storage. Use
+        :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and load
+        block matrices, since these methods write and read blocks in parallel
+        and are platform independent.
+
+        A NumPy ndarray must have type float64 for the output of
+        func:`numpy.tofile` to be a valid binary input to :meth:`.fromfile`.
+        This is not checked.
 
         The number of entries must be less than :math:`2^{31}`.
 
@@ -391,12 +398,15 @@ class BlockMatrix(object):
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.tofile.html>`__,
         produces a binary file of float64 values in row-major order, which can
         be read by functions such as `numpy.fromfile
-        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.fromfile.html>`__
+        <https://docs.scipy.org/doc/numpy/reference/generated/numpy.fromfile.html>`__
         (if a local file) and :meth:`BlockMatrix.fromfile`.
 
-        Use :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and
-        load block matrices when not inter-operating with NumPy, since these
-        methods write and read blocks in parallel.
+        Binary files produced and consumed by :meth:`.tofile` and
+        :meth:`.fromfile` are not platform independent, so should only be used
+        for inter-operating with NumPy, not storage. Use
+        :meth:`BlockMatrix.write` and :meth:`BlockMatrix.read` to save and load
+        block matrices, since these methods write and read blocks in parallel
+        and are platform independent.
 
         The number of entries must be less than :math:`2^{31}`.
 
