@@ -10,8 +10,7 @@ import is.hail.utils._
 import org.json4s.jackson
 
 object RichDenseMatrixDouble {
-  // assumes zero offset and minimal majorStride
-  // caller must close
+  // assumes data isCompact, caller must close
   def read(is: InputStream, bufferSpec: BufferSpec): DenseMatrix[Double] = {
     val in = bufferSpec.buildInputBuffer(is)
     
