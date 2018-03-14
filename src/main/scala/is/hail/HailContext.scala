@@ -173,6 +173,10 @@ object HailContext {
     hc
   }
 
+  def startProgressBar(sc: SparkContext): Unit = {
+    ProgressBarBuilder.build(sc)
+  }
+
   def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       private val region = Region()
