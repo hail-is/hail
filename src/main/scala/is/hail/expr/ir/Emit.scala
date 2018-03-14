@@ -336,7 +336,11 @@ private class Emit(
 
         val lenout = fb.newLocal[Int]("af_lenout")
         val len = fb.newLocal[Int]("af_len")
-        val off = fb.newLocal[Long]("af_off")
+
+        val tKeep = TArray(+TBoolean())
+        val srvbKeep = new StagedRegionValueBuilder(fb, tKeep)
+        val offKeep = fb.newLocal[Long]("af_off")
+
         val condenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
         val (doa, ma, va) = emit(a)
         val (docond, mcond, vcond) = emit(condition, env = condenv)
@@ -346,28 +350,27 @@ private class Emit(
           len := TContainer.loadLength(region, xa),
           i := 0,
           lenout := 0,
-          srvb.start(len, init = true),
+          srvbKeep.start(len, init = true),
           Code.whileLoop(i < len,
             xmv := !t.isElementDefined(region, xa, i),
-            xvv := xmv.mux(
-              defaultValue(t.elementType),
-              region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+            xvv := xmv.mux(defaultValue(t.elementType), region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
             docond,
             (xmv || mcond || !coerce[Boolean](vcond)).mux(
-              Code._empty,
-              Code(lenout := lenout + 1,
-                xmv.mux(srvb.setMissing(),
-                  srvb.addIRIntermediate(t.elementType)(xvv)
-                )
-              )
-            ),
-            srvb.advance(),
-            i := i + 1
-          ),
-          off := srvb.offset,
-          region.storeInt(off, lenout),
-          off
-          ))
+              srvbKeep.addBoolean(false),
+              Code(srvbKeep.addBoolean(true), lenout := lenout + 1)),
+            srvbKeep.advance(),
+            i := i + 1),
+          offKeep := srvbKeep.offset,
+          i := 0,
+          srvb.start(lenout, init = true),
+          Code.whileLoop(i < len,
+            region.loadBoolean(tKeep.loadElement(region, offKeep, i)).mux(
+              Code(
+                srvb.addIRIntermediate(t.elementType)(region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+                srvb.advance()),
+              Code._empty),
+            i := i + 1),
+          srvb.offset))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
