@@ -2589,7 +2589,7 @@ def max(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
-        exprs = tuple(e._promote_numeric(e, ret_t) for e in exprs)
+        exprs = tuple(e._promote_numeric(ret_t) for e in exprs)
         if builtins.len(exprs) == 2:
             return exprs[0]._method('max', ret_t, exprs[1])
         else:
@@ -2643,7 +2643,7 @@ def min(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
         ret_t = unify_types(*(e.dtype for e in exprs))
-        exprs = tuple(e._promote_numeric(e, ret_t) for e in exprs)
+        exprs = tuple(e._promote_numeric(ret_t) for e in exprs)
         if builtins.len(exprs) == 2:
             return exprs[0]._method('min', ret_t, exprs[1])
         else:

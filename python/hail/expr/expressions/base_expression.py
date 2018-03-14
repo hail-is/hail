@@ -399,44 +399,30 @@ class Expression(object):
     def __iter__(self):
         raise TypeError("'Expression' object is not iterable")
 
-    @staticmethod
-    def _promote_numeric(expr, typ):
-        def promote_scalar(expr, typ):
-            if typ == tint32:
-                return hail.int32(expr)
-            elif typ == tint64:
-                return hail.int64(expr)
-            elif typ == tfloat32:
-                return hail.float32(expr)
-            else:
-                assert typ == tfloat64
-                return hail.float64(expr)
-
-        if isinstance(typ, tarray):
-            if isinstance(expr.dtype, tarray):
-                expr = hail.map(lambda x: promote_scalar(x, typ.element_type), expr)
-            else:
-                expr = promote_scalar(expr, typ.element_type)
-        elif isinstance(expr, expressions.Aggregable):
-            uid = Env.get_uid()
-            ref = expressions.construct_expr(TopLevelReference(uid, expr._indices), expr._type, expr._indices, expr._aggregations, expr._joins)
-            promoted = promote_scalar(ref, typ)
-            ast = LambdaClassMethod('map', uid, expr._ast, promoted._ast)
-            expr = expressions.Aggregable(ast, promoted.dtype, expr._indices, expr._aggregations, expr._joins)
+    def _promote_scalar(self, typ):
+        if typ == tint32:
+            return hail.int32(self)
+        elif typ == tint64:
+            return hail.int64(self)
+        elif typ == tfloat32:
+            return hail.float32(self)
         else:
-            expr = promote_scalar(expr, typ)
-        return expr
+            assert typ == tfloat64
+            return hail.float64(self)
 
-    @classmethod
-    def _scalar_type(cls, typ):
+    def _promote_numeric(self, typ):
         if isinstance(typ, tarray):
-            return typ.element_type
+            if isinstance(self.dtype, tarray):
+                return hail.map(lambda x: x._promote_scalar(typ.element_type), self)
+            else:
+                return self._promote_scalar(typ.element_type)
+        elif isinstance(self, expressions.Aggregable):
+            return self._map(lambda x: x._promote_scalar(typ))
         else:
-            return typ
+            return self._promote_scalar(typ)
 
-    @classmethod
-    def _unify_numeric_arg_types(cls, self, name, other):
-        t = unify_types(cls._scalar_type(self.dtype), cls._scalar_type(other.dtype))
+    def _bin_op_numeric_unify_types(self, name, other):
+        t = unify_types(self.dtype._scalar_type(), other.dtype._scalar_type())
         if t is None:
             raise NotImplementedError("'{}' {} '{}'".format(
                 self.dtype, name, other.dtype))
@@ -446,9 +432,9 @@ class Expression(object):
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         other = to_expr(other)
-        unified_type = self._unify_numeric_arg_types(self, name, other)
-        me = self._promote_numeric(self, unified_type)
-        other = self._promote_numeric(other, unified_type)
+        unified_type = self._bin_op_numeric_unify_types(name, other)
+        me = self._promote_numeric(unified_type)
+        other = other._promote_numeric(unified_type)
         if ret_type_f:
             if isinstance(unified_type, tarray):
                 ret_type = tarray(ret_type_f(unified_type.element_type))
@@ -831,6 +817,16 @@ class Aggregable(object):
 
     def __ne__(self, other):
         raise NotImplementedError('Comparison of aggregable collections is undefined')
+
+    def _map(self, f):
+        uid = Env.get_uid()
+        ref = expressions.construct_expr(
+            VariableReference(uid), self._type, self._indices, self._aggregations, self._joins)
+        mapped = f(ref)
+        indices, aggregations, joins = unify_all(ref, mapped)
+        return expressions.Aggregable(
+            LambdaClassMethod('map', uid, self._ast, mapped._ast), mapped.dtype,
+            indices, aggregations, joins)
 
     @property
     def dtype(self) -> HailType:
