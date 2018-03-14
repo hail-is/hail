@@ -418,7 +418,7 @@ class Expression(object):
             else:
                 expr = promote_scalar(expr, typ.element_type)
         elif isinstance(expr, expressions.Aggregable):
-            uid = Env._get_uid()
+            uid = Env.get_uid()
             ref = expressions.construct_expr(Reference(uid), expr._type, expr._indices, expr._aggregations, expr._joins, expr._refs)
             promoted = promote_scalar(ref, typ)
             ast = LambdaClassMethod('map', uid, expr._ast, promoted._ast)
