@@ -500,6 +500,13 @@ class TableTests(unittest.TestCase):
         g = g.transmute(**g.values)
         self.assertTrue(g._same(t1))
 
+    def test_str_annotation_regression(self):
+        t = hl.Table.parallelize([{'alleles': ['A', 'T']}],
+                                 hl.tstruct(alleles=hl.tarray(hl.tstr)))
+        t = t.annotate(ref = t.alleles[0])
+        t._force_count()
+
+
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
         return hl.import_vcf(resource("sample.vcf"), min_partitions=min_partitions)
@@ -920,7 +927,6 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.GQ.take(1), [mt.entries().select('GQ').take(1)[0]['GQ']])
         self.assertEqual(mt.locus.contig.take(1), [mt.rows().select('locus').take(1)[0].locus.contig])
         self.assertEqual(mt['s'][0].take(1), [mt.cols().select('s').take(1)[0].s[0]])
-
 
 
 class GroupedMatrixTests(unittest.TestCase):
