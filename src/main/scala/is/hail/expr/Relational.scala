@@ -44,10 +44,10 @@ object BaseIR {
 
       // only recons if necessary
       val rewritten =
-        if ((ast.children, newChildren).zipped.forall(_ eq _))
-          ast
-        else
-          ast.copy(newChildren)
+      if ((ast.children, newChildren).zipped.forall(_ eq _))
+        ast
+      else
+        ast.copy(newChildren)
 
       rule.lift(rewritten) match {
         case Some(newAST) if newAST != rewritten =>
@@ -419,7 +419,7 @@ abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
   def partitionCounts: Option[Array[Long]] = None
-  
+
   def execute(hc: HailContext): TableValue
 }
 
@@ -456,6 +456,22 @@ case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends T
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
         spec.rowsComponent.read(hc, path))
+  }
+}
+
+case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: Option[Int] = None) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
+    assert(newChildren.isEmpty)
+    this
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val rowTyp = typ.rowType
+    val rvd = hc.sc.parallelize(rows, nPartitions.getOrElse(hc.sc.defaultParallelism))
+      .mapPartitions(_.toRegionValueIterator(rowTyp))
+    TableValue(typ, Row(), new UnpartitionedRVD(rowTyp, rvd))
   }
 }
 

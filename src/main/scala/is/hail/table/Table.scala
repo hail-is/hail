@@ -88,13 +88,8 @@ object Table {
 
   def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
     key: IndexedSeq[String], nPartitions: Option[Int] = None): Table = {
-    Table(hc,
-      nPartitions match {
-        case Some(n) =>
-          hc.sc.parallelize(rows, n)
-        case None =>
-          hc.sc.parallelize(rows)
-      }, signature, key.toArray.toFastIndexedSeq)
+    val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
+    new Table(hc, TableParallelize(typ, rows, nPartitions))
   }
 
   def importIntervalList(hc: HailContext, filename: String,
@@ -122,19 +117,7 @@ object Table {
 
   def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): Table = {
-    val rdd2 = rdd.mapPartitions { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-      it.map { row =>
-        region.clear()
-        rvb.start(signature)
-        rvb.addAnnotation(signature, row)
-        rv.setOffset(rvb.end())
-        rv
-      }
-    }
-
+    val rdd2 = rdd.mapPartitions(_.toRegionValueIterator(signature))
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
         globals,

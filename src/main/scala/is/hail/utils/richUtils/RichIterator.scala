@@ -2,10 +2,13 @@ package is.hail.utils.richUtils
 
 import java.io.PrintWriter
 
+import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
+import is.hail.expr.types.TStruct
+
 import scala.collection.JavaConverters._
 import scala.io.Source
-
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
+import org.apache.spark.sql.Row
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def toStagingIterator: StagingIterator[T] = {
@@ -93,5 +96,19 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         prev
       }
     }
+}
 
+class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
+  def toRegionValueIterator(rowTyp: TStruct): Iterator[RegionValue] = {
+    val region = Region()
+    val rvb = new RegionValueBuilder(region)
+    val rv = RegionValue(region)
+    it.map { row =>
+      region.clear()
+      rvb.start(rowTyp)
+      rvb.addAnnotation(rowTyp, row)
+      rv.setOffset(rvb.end())
+      rv
+    }
+  }
 }
