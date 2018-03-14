@@ -37,10 +37,10 @@ object RegressionUtils {
       val g = git.next()
       ec.set(2, sampleAnnotations(i))
       ec.set(3, g)
-      val dosage = xf()
-      if (dosage != null) {
-        sum += dosage
-        x(j) = dosage
+      val e = xf()
+      if (e != null) {
+        sum += e
+        x(j) = e
       } else
         missingSamples += j
       i += 1

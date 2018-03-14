@@ -3,7 +3,6 @@ package is.hail.methods
 import breeze.linalg._
 import breeze.numerics.sqrt
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._

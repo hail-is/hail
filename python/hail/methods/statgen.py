@@ -227,8 +227,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 
 @typecheck(dataset=MatrixTable,
-           ys=oneof(expr_numeric, listof(expr_numeric)),
-           x=expr_numeric,
+           ys=oneof(expr_numeric, expr_bool, listof(oneof(expr_numeric, expr_bool))),
+           x=oneof(expr_numeric, expr_bool),
            covariates=listof(oneof(expr_numeric, expr_bool)),
            root=str,
            block_size=int)
@@ -294,12 +294,12 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
     Parameters
     ----------
-    ys : :class:`.NumericExpression` or (:obj:`list` of :class:`.NumericExpression`)
-        One or more response expressions.
-    x : :class:`.NumericExpression`
-        Input variable.
-    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`
-        Covariate expressions.
+    y : :class:`.NumericExpression` or :class:`.BooleanExpression` or (:obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`))
+        One or more column-indexed response expressions.
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Row- and column-indexed expression for input variable.
+    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+        List of column-indexed covariate expressions.
     root : :obj:`str`
         Name of resulting row-indexed field.
     block_size : :obj:`int`
@@ -344,7 +344,7 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 @typecheck(dataset=MatrixTable,
            test=str,
            y=oneof(expr_bool, expr_numeric),
-           x=expr_numeric,
+           x=oneof(expr_bool, expr_numeric),
            covariates=listof(oneof(expr_numeric, expr_bool)),
            root=str)
 def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
@@ -530,13 +530,12 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : numeric or Boolean expression
-        Response expression. Must evaluate to Boolean or numeric with all values
-        0 or 1.
-    x : numeric expression
-        Expression for input variable.
-    covariates : :obj:`list` of :class:`.NumericExpression`, optional
-        Covariate expressions.
+    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Column-indexed response expression. If numeric, must evaluate to 0 or 1.
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Row- and column-indexed expression for input variable.
+    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+        List of column-indexed covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
 
@@ -572,8 +571,8 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
 
 @typecheck(ds=MatrixTable,
            kinship_matrix=KinshipMatrix,
-           y=expr_numeric,
-           x=expr_numeric,
+           y=oneof(expr_numeric, expr_bool),
+           x=oneof(expr_numeric, expr_bool),
            covariates=listof(oneof(expr_numeric, expr_bool)),
            global_root=str,
            row_root=str,
@@ -1015,12 +1014,12 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     ----------
     kinship_matrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
-    y : :class:`.NumericExpression`
-        Response sample expression.
-    x : :class:`.NumericExpression`
-        Input variable.
-    covariates : :obj:`list` of :class:`.NumericExpression`
-        List of covariate sample expressions.
+    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Column-indexed response expression.
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Row- and column-indexed expression for input variable.
+    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+        List of column-indexed covariate expressions.
     global_root : :obj:`str`
         Global field root.
     row_root : :obj:`str`
@@ -1080,7 +1079,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
            key_expr=expr_any,
            weight_expr=expr_numeric,
            y=oneof(expr_numeric, expr_bool),
-           x=expr_numeric,
+           x=oneof(expr_numeric, expr_bool),
            covariates=listof(oneof(expr_numeric, expr_bool)),
            logistic=bool,
            max_size=int,
@@ -1219,7 +1218,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
         Row-indexed expression of numeric type for row weights.
     y : :class:`.NumericExpression` or :class:`.BooleanExpression`
         Column-indexed response expression.
-    x : :class:`.NumericExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
         Row- and column-indexed expression for input variable.
     covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
         List of column-indexed covariate expressions.
