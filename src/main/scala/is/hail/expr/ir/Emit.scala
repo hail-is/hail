@@ -8,6 +8,7 @@ import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
 
+import scala.collection.mutable
 import scala.language.existentials
 import scala.language.postfixOps
 
