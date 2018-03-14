@@ -285,6 +285,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
   val (newMatrixType, useAST, rowF): (MatrixType, Boolean, () => AsmFunction13[Region, Long, Boolean, Long, Boolean, Long, Boolean, Long, Boolean, Int, Boolean, Boolean, Boolean, Long]) =
     if (rowASTs.length == rowIRs.length && entryASTs.length == entryIRs.length) {
       println("using IR")
+      println(entryIRs.mkString("\n"))
       val ir = new SplitMultiRowIR(rowIRs, entryIRs, vsm.matrixType)
       (ir.newMatrixType, false, ir.splitRow)
     } else {

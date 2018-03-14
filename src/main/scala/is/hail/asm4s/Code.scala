@@ -425,6 +425,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   // on the JVM Booleans are represented as Ints
   def toZ: Code[Boolean] = lhs.asInstanceOf[Code[Boolean]]
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Integer, Int, String]("toString", lhs)
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {

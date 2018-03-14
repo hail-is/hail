@@ -447,7 +447,7 @@ class CompileSuite {
   }
 
   @Test
-  def testArrayFilter() {
+  def testArrayFilterCutoff() {
     val t = TArray(TInt32())
     val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x"), In(1, TInt32())))
     val region = Region()
@@ -465,7 +465,7 @@ class CompileSuite {
       assert(actual.sameElements(expected))
     }
   }
-
+  
   @Test
   def testArrayFilterElement() {
     val t = TArray(TInt32())
