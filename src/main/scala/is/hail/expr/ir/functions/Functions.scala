@@ -45,9 +45,10 @@ object IRFunctionRegistry {
     }
   }
 
-  UtilFunctions.registerAll()
   CallFunctions.registerAll()
   GenotypeFunctions.registerAll()
+  MathFunctions.registerAll()
+  UtilFunctions.registerAll()
 }
 
 abstract class RegistryFunctions {
@@ -79,14 +80,14 @@ abstract class RegistryFunctions {
     })
   }
 
-  def registerScalaFunction[R: ClassTag](mname: String, argTypes: Array[Type], rType: Type)(obj: Any, method: String) {
+  def registerScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(obj: Any, method: String) {
     registerCode(mname, argTypes, rType) { (mb, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
-      Code.invokeScalaObject[R](obj, method, cts, args)
+      Code.invokeScalaObject(obj.getClass, method, cts, args)(TypeToIRIntermediateClassTag(rType))
     }
   }
 
-  def registerScalaFunction[R: ClassTag](mname: String, types: Type*)(obj: Any, method: String): Unit =
+  def registerScalaFunction(mname: String, types: Type*)(obj: Any, method: String): Unit =
     registerScalaFunction(mname: String, types.init.toArray, types.last)(obj, method)
 
   def registerJavaStaticFunction[C: ClassTag, R: ClassTag](mname: String, argTypes: Array[Type], rType: Type)(method: String) {

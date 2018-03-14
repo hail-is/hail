@@ -166,8 +166,7 @@ object Code {
     }
   }
 
-  def invokeScalaObject[S](obj: Any, method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
-    val cls = Class.forName(obj.getClass().getCanonicalName())
+  def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(method, parameterTypes)(ClassTag(cls), sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
     m.invoke(staticObj.get(), args)
