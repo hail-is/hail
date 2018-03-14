@@ -8,7 +8,6 @@ import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.table.Table
-import is.hail.expr.EvalContext
 import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
 import is.hail.rvd.RVD
@@ -16,7 +15,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark._
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -136,8 +134,7 @@ object BlockMatrix {
   }
 
   private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
-    assert(lm.offset == 0, s"${ lm.offset }")
-    assert(lm.majorStride == (if (lm.isTranspose) lm.cols else lm.rows), s"${ lm.majorStride } ${ lm.isTranspose } ${ lm.rows } ${ lm.cols }}")
+    assert(lm.isCompact)
   }
 
   private[linalg] def block(dm: BlockMatrix, partitions: Array[Partition], partitioner: GridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
@@ -413,7 +410,28 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def blockMap2(that: M, op: (BDM[Double], BDM[Double]) => BDM[Double]): M = {
     requireZippable(that)
-    new BlockMatrix(blocks.join(that.blocks).mapValues(op.tupled), blockSize, nRows, nCols)
+    val blocks = this.blocks.zipPartitions(that.blocks, preservesPartitioning = true) { (thisIter, thatIter) =>
+      new Iterator[((Int, Int), BDM[Double])] {
+        def hasNext: Boolean = {
+          assert(thisIter.hasNext == thatIter.hasNext)
+          thisIter.hasNext
+        }
+
+        def next(): ((Int, Int), BDM[Double]) = {
+          val ((i1, j1), lm1) = thisIter.next()
+          val ((i2, j2), lm2) = thatIter.next()
+          assertCompatibleLocalMatrix(lm1)
+          assertCompatibleLocalMatrix(lm2)
+          assert(i1 == i2, s"$i1 $i2")
+          assert(j1 == j2, s"$j1 $j2")
+          val lm = op(lm1, lm2)
+          assert(lm.rows == lm1.rows)
+          assert(lm.cols == lm1.cols)
+          ((i1, j1), lm)
+        }
+      }
+    }
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def map(op: Double => Double): M = {

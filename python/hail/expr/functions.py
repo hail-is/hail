@@ -118,7 +118,7 @@ def literal(x, dtype=None):
             assert isinstance(x, builtins.str)
             return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
     else:
-        uid = Env._get_uid()
+        uid = Env.get_uid()
 
         def joiner(obj):
             json = dtype._to_json(x)
@@ -131,8 +131,8 @@ def literal(x, dtype=None):
                               dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
 
-@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
-def cond(condition, consequent, alternate):
+@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
+def cond(condition, consequent, alternate, *, missing_false=False):
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
@@ -168,12 +168,20 @@ def cond(condition, consequent, alternate):
         Branch to return if the condition is ``True``.
     alternate : :class:`.Expression`
         Branch to return if the condition is ``False``.
+    missing_false : :obj:`.bool`
+        If ``True``, treat missing `condition` as ``False``.
+
+    See Also
+    --------
+    :func:`.case`, :func:`.switch`
 
     Returns
     -------
     :class:`.Expression`
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
+    if missing_false:
+        condition = hl.bind(condition, lambda x: hl.is_defined(x) & x)
     indices, aggregations, joins = unify_all(condition, consequent, alternate)
     t = unify_types_limited(consequent.dtype, alternate.dtype)
     if t is None:
@@ -184,7 +192,7 @@ def cond(condition, consequent, alternate):
                           t, indices, aggregations, joins)
 
 
-def case():
+def case(missing_false=False):
     """Chain multiple if-else statements with a :class:`.CaseBuilder`.
 
     Examples
@@ -200,16 +208,21 @@ def case():
         >>> hl.eval_expr(expr)
         2
 
+    Parameters
+    ----------
+    missing_false : :obj:`bool`
+        Treat missing predicates as ``False``.
+
     See Also
     --------
-    :class:`.CaseBuilder`
+    :class:`.CaseBuilder`, :func:`.switch`, :func:`.cond`
 
     Returns
     -------
     :class:`.CaseBuilder`.
     """
     from hail.expr.utils import CaseBuilder
-    return CaseBuilder()
+    return CaseBuilder(missing_false=missing_false)
 
 
 @typecheck(expr=expr_any)
@@ -234,7 +247,7 @@ def switch(expr):
 
     See Also
     --------
-    :class:`.SwitchBuilder`
+    :class:`.SwitchBuilder`, :func:`.case`, :func:`.cond`
 
     Parameters
     ----------
@@ -300,7 +313,7 @@ def bind(expr, f):
     :class:`.Expression`
         Result of evaluating `f` with `expr` as an argument.
     """
-    uid = Env._get_uid()
+    uid = Env.get_uid()
     expr = to_expr(expr)
 
     f_input = construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins)
@@ -3092,7 +3105,7 @@ def argmin(array, unique=False):
     Parameters
     ----------
     array : :class:`.ArrayNumericExpression`
-        Numeric array.
+    unique : bool
 
     Returns
     -------
@@ -3135,7 +3148,7 @@ def argmax(array, unique=False):
     Parameters
     ----------
     array : :class:`.ArrayNumericExpression`
-        Numeric array.
+    unique: bool
 
     Returns
     -------
@@ -3353,3 +3366,57 @@ def bool(expr):
         return expr != 0
     else:
         return expr._method("toBoolean", tbool)
+
+
+@typecheck(reference_genome=reference_genome_type,
+           contig=expr_str,
+           position=expr_int32,
+           before=expr_int32,
+           after=expr_int32)
+def get_sequence(reference_genome, contig, position, before=0, after=0):
+    """Return the reference sequence at a given locus.
+
+    Examples
+    --------
+
+    Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> hl.get_sequence('GRCh37', '1', 45323)
+        "T"
+
+    Notes
+    -----
+    This function requires `reference genome` has an attached
+    reference sequence. Use :meth:`.ReferenceGenome.add_sequence` to
+    load and attach a reference sequence to a reference genome.
+
+    Returns ``None`` if `contig` and `position` are not valid coordinates in
+    `reference_genome`.
+
+    Parameters
+    ----------
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use. Must have a reference sequence available.
+    contig : :class:`.Expression` of type :py:data:`.tstr`
+        Locus contig.
+    position : :class:`.Expression` of type :py:data:`.tint32`
+        Locus position.
+    before : :class:`.Expression` of type :py:data:`.tint32`, optional
+        Number of bases to include before the locus of interest. Truncates at
+        contig boundary.
+    after : :class:`.Expression` of type :py:data:`.tint32`, optional
+        Number of bases to include after the locus of interest. Truncates at
+        contig boundary.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tstr`
+    """
+
+    if not reference_genome.has_sequence():
+        raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(reference_genome.name))
+    return _func("getReferenceSequence({})".format(reference_genome.name), tstr,
+                 contig, position, before, after)

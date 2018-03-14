@@ -5,13 +5,14 @@ import java.io.PrintWriter
 import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
-import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
 import org.apache.spark.sql.Row
+
+import scala.collection.{immutable, mutable}
 
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
@@ -407,5 +408,63 @@ class CompileSuite {
     val outOff = f(region, loff, false, roff, false)
     assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
+  }
+
+
+  @Test
+  def testArrayRange() {
+    val tRange = TArray(TInt32())
+    val ir = ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32()))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Int, Boolean, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    for {
+      start <- 0 to 2
+      stop <- start to 10
+      step <- 1 to 3
+    } {
+      val aoff = f(region, start, false, stop, false, step, false)
+      val expected = Array.range(start, stop, step)
+      val actual = new UnsafeIndexedSeq(tRange, region, aoff)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+
+      val expected2 = Array.range(stop, start, -step)
+      val aoff2 = f(region, stop, false, start, false, -step, false)
+      val actual2 = new UnsafeIndexedSeq(tRange, region, aoff2)
+      assert(expected2.length == actual2.length)
+      assert(actual2.sameElements(expected2))
+    }
+
+    val (start, stop, step) = (Int.MinValue, Int.MaxValue, Int.MaxValue / 5)
+    val len = Range.count(start, stop, step, isInclusive = false)
+    val expected = Array.tabulate(len)(start + _ * step)
+    val aoff = f(region, start, false, stop, false, step, false)
+    val actual = new UnsafeIndexedSeq(tRange, region, aoff)
+    assert(expected.length == actual.length)
+    assert(actual.sameElements(expected))
+
+
+  }
+
+  @Test
+  def testArrayFilter() {
+    val t = TArray(TInt32())
+    val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x"), In(1, TInt32())))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    for {
+      stop <- 0 to 10
+      cutoff <- 0 to stop
+    } {
+      val aoff = f(region, stop, false, cutoff, false)
+      val expected = Array.range(0, cutoff)
+      val actual = new UnsafeIndexedSeq(t, region, aoff)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+    }
   }
 }

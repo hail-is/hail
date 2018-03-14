@@ -168,3 +168,4 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     allele_type
     pl_dosage
     gp_dosage
+    get_sequence

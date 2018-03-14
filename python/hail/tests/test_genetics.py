@@ -1,7 +1,7 @@
 import unittest
 import hail as hl
 from hail.genetics import *
-from .utils import startTestHailContext, stopTestHailContext
+from .utils import resource, startTestHailContext, stopTestHailContext
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -124,13 +124,24 @@ class Tests(unittest.TestCase):
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
 
-        gr3 = ReferenceGenome.read("src/test/resources/fake_ref_genome.json")
+        gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
         self.assertEqual(gr3.name, "my_reference_genome")
+        self.assertFalse(gr3.has_sequence())
 
+        gr4 = ReferenceGenome.from_fasta_file("test_rg", resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"),
+                                              mt_contigs=["b", "c"], x_contigs=["a"])
+        self.assertTrue(gr4.has_sequence())
+        self.assertTrue(gr4.x_contigs == ["a"])
+
+        t = hl.import_table(resource("fake_reference.tsv"), impute=True)
+        self.assertTrue(t.all(hl.get_sequence(gr4, t.contig, t.pos) == t.base))
+
+        l = hl.locus("a", 7, gr4)
+        self.assertTrue(l.sequence_context(before=3, after=3).value == "TTTCGAA")
 
     def test_pedigree(self):
 
-        ped = Pedigree.read('src/test/resources/sample.fam')
+        ped = Pedigree.read(resource('sample.fam'))
         ped.write('/tmp/sample_out.fam')
         ped2 = Pedigree.read('/tmp/sample_out.fam')
         self.assertEqual(ped, ped2)

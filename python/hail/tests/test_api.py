@@ -749,6 +749,42 @@ class MatrixTests(unittest.TestCase):
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
+    def test_entry_join_self(self):
+        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt1 = mt1.annotate_entries(x = mt1.row_idx + mt1.col_idx)
+
+        self.assertEqual(mt1[mt1.row_idx, mt1.col_idx].dtype, mt1.entry.dtype)
+
+        mt_join = mt1.annotate_entries(x2 = mt1[mt1.row_idx, mt1.col_idx].x)
+        mt_join_entries = mt_join.entries()
+        self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
+
+    def test_entry_join_const(self):
+        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt1 = mt1.annotate_entries(x = mt1.row_idx + mt1.col_idx)
+
+        mt2 = hl.utils.range_matrix_table(1, 1, n_partitions=1)
+        mt2 = mt2.annotate_entries(foo = 10101)
+
+        mt_join = mt1.annotate_entries(**mt2[mt1.row_idx // 100, mt1.col_idx // 100])
+        mt_join_entries = mt_join.entries()
+        self.assertTrue(mt_join_entries.all(mt_join_entries['foo'] == 10101))
+
+    def test_entry_join_missingness(self):
+        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt1 = mt1.annotate_entries(x = mt1.row_idx + mt1.col_idx)
+
+        mt2 = mt1.filter_cols(mt1.col_idx % 2 == 0)
+        mt2 = mt2.filter_rows(mt2.row_idx % 2 == 0)
+        mt_join = mt1.annotate_entries(x2 = mt2[mt1.row_idx, mt1.col_idx].x * 10)
+        mt_join_entries = mt_join.entries()
+
+        kept = mt_join_entries.filter((mt_join_entries.row_idx % 2 == 0) & (mt_join_entries.col_idx % 2 == 0))
+        removed = mt_join_entries.filter(~((mt_join_entries.row_idx % 2 == 0) & (mt_join_entries.col_idx % 2 == 0)))
+
+        self.assertTrue(kept.all(hl.is_defined(kept.x2) & (kept.x2 == kept.x * 10)))
+        self.assertTrue(removed.all(hl.is_missing(removed.x2)))
+
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
         self.assertEqual(

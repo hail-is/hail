@@ -3,10 +3,12 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
+import is.hail.expr.ir.functions.IRFunction
 import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
 
+import scala.collection.mutable
 import scala.language.existentials
 import scala.language.postfixOps
 
@@ -54,6 +56,8 @@ private class Emit(
   mb: StagedBitSet,
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
+  
+  val methods: mutable.Map[IRFunction, MethodBuilder] = mutable.Map()
 
   import Emit.E
 
@@ -65,10 +69,10 @@ private class Emit(
     *
     *  1. evaluate each returned Code[_] at most once
     *  2. evaluate precompute *on all static code-paths* leading to missingness or value
-    *  3. gaurd the the evaluation of value by missingness
+    *  3. guard the the evaluation of value by missingness
     *
     * JVM gotcha:
-    *  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
+    *  a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
     *
     * Argument Convention
     * -------------------
@@ -77,7 +81,7 @@ private class Emit(
     * missing bit. The value for {@code In(0)} is passed as argument
     * {@code nSpecialArguments + 1}. The missingness bit is the subsequent
     * argument. In general, the value for {@code In(i)} appears at
-    * {@code nSpecialArguments + 1 + i*2}.
+    * {@code nSpecialArguments + 1 + 2 * i}.
     *
     * There must always be at least one special argument: a {@code Region} in
     * which the IR can allocate memory.
@@ -92,7 +96,7 @@ private class Emit(
     * An aggregating expression additionally has an element argument and a
     * number of "scope" argmuents following the special arguments. The type of
     * the element is {@code tAggIn.elementType}. The number and types of the
-    * scope arguments is defined by the symbol table of {@code tAggIn}. The
+    * scope arguments are defined by the symbol table of {@code tAggIn}. The
     * element argument and the scope arguments, unlike special arguments, appear
     * in pairs of a value and a missingness bit. Moreover, the element argument
     * must appear first.
@@ -252,6 +256,38 @@ private class Emit(
       case ArrayLen(a) =>
         val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
+      case x@ArrayRange(startir, stopir, stepir) =>
+        val (d, m, v) = Array(emit(startir), emit(stopir), emit(stepir)).unzip3
+        val start = fb.newLocal[Int]("ar_start")
+        val stop = fb.newLocal[Int]("ar_stop")
+        val step = fb.newLocal[Int]("ar_step")
+
+        val i = fb.newLocal[Int]("ar_i")
+        val len = fb.newLocal[Int]("ar_len")
+        val llen = fb.newLocal[Long]("ar_llen")
+        val srvb = new StagedRegionValueBuilder(fb, x.typ)
+        (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
+          start := coerce[Int](v(0)),
+          stop := coerce[Int](v(1)),
+          step := coerce[Int](v(2)),
+          step.ceq(0).mux(
+            Code._fatal("Array range cannot have step size 0."),
+            Code._empty[Unit]),
+          llen := start.ceq(stop).mux(0L,
+            (step < 0).mux(
+              (start.toL - stop.toL - 1L) / (-step).toL + 1L,
+              (stop.toL - start.toL - 1L) / step.toL + 1L)),
+          (llen > const(Int.MaxValue.toLong)).mux(
+            Code._fatal("Array range cannot have more than MAXINT elements."),
+            len := (llen < 0L).mux(0L, llen).toI),
+          i := 0,
+          srvb.start(len, init=true),
+          Code.whileLoop(i < len,
+            srvb.addInt(start),
+            srvb.advance(),
+            i := i + 1,
+            start := start + step),
+          srvb.offset))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = coerce[TArray](a.typ)
         val tout = x.typ
@@ -288,6 +324,50 @@ private class Emit(
             srvb.advance(),
             i := i + 1),
           srvb.offset))
+      case x@ArrayFilter(a, name, condition) =>
+        val t = x.typ
+        val srvb = new StagedRegionValueBuilder(fb, t)
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(t.elementType))
+
+        val xa = fb.newLocal[Long]("af_a")
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name)(elementTypeInfoA)
+        val i = fb.newLocal[Int]("af_i")
+
+        val lenout = fb.newLocal[Int]("af_lenout")
+        val len = fb.newLocal[Int]("af_len")
+        val off = fb.newLocal[Long]("af_off")
+        val condenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
+        val (doa, ma, va) = emit(a)
+        val (docond, mcond, vcond) = emit(condition, env = condenv)
+
+        (doa, ma, Code(
+          xa := coerce[Long](va),
+          len := TContainer.loadLength(region, xa),
+          i := 0,
+          lenout := 0,
+          srvb.start(len, init = true),
+          Code.whileLoop(i < len,
+            xmv := !t.isElementDefined(region, xa, i),
+            xvv := xmv.mux(
+              defaultValue(t.elementType),
+              region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+            docond,
+            (xmv || mcond || !coerce[Boolean](vcond)).mux(
+              Code._empty,
+              Code(lenout := lenout + 1,
+                xmv.mux(srvb.setMissing(),
+                  srvb.addIRIntermediate(t.elementType)(xvv)
+                )
+              )
+            ),
+            srvb.advance(),
+            i := i + 1
+          ),
+          off := srvb.offset,
+          region.storeInt(off, lenout),
+          off
+          ))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
@@ -448,6 +528,22 @@ private class Emit(
         present(fb.getArg[Boolean](i*2 + 3))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
+      case ApplyFunction(impl, args) =>
+        val meth = methods.getOrElseUpdate(impl, {
+          impl.argTypes.foreach(_.clear())
+          (impl.argTypes, args.map(a => a.typ)).zipped.foreach(_.unify(_))
+          val argTypes = impl.argTypes.map { t => typeToTypeInfo(t.subst()) }
+          val methodbuilder = fb.newMethod((typeInfo[Region] +: argTypes).toArray, typeToTypeInfo(impl.returnType))
+          methodbuilder.emit(impl.apply(methodbuilder, argTypes.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
+          methodbuilder
+        })
+        val (s, m, v) = args.map(emit(_)).unzip3
+        val vars = args.map { a => coerce[Any](fb.newLocal()(typeToTypeInfo(a.typ))) }
+        val ins = vars.zip(v).map { case (l, i) => l := i }
+        val setup = coerce[Unit](Code(s:_*))
+        val missing = if (m.isEmpty) const(false) else m.reduce(_ || _)
+        val value = Code(ins :+ meth.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
+        (setup, missing, value)
     }
   }
 

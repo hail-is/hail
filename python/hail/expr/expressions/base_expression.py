@@ -452,7 +452,7 @@ class Expression(object):
 
     def _bin_lambda_method(self, name, f, input_type, ret_type_f, *args):
         args = (to_expr(arg) for arg in args)
-        new_id = Env._get_uid()
+        new_id = Env.get_uid()
         lambda_result = to_expr(
             f(expressions.construct_expr(VariableReference(new_id), input_type, self._indices, self._aggregations,
                                          self._joins)))
@@ -574,7 +574,7 @@ class Expression(object):
             df = df.select(**{name: self})
             return df
         elif len(axes) == 0:
-            uid = Env._get_uid()
+            uid = Env.get_uid()
             source = source.select_globals(**{uid: self})
             df = Env.dummy_table()
             df = df.select(**{name: source.index_globals()[uid]})
@@ -696,7 +696,7 @@ class Expression(object):
         -------
         :obj:`list`
         """
-        uid = Env._get_uid()
+        uid = Env.get_uid()
         return [r[uid] for r in self._to_table(uid).take(n)]
 
     def collect(self):
@@ -723,7 +723,7 @@ class Expression(object):
         -------
         :obj:`list`
         """
-        uid = Env._get_uid()
+        uid = Env.get_uid()
         t = self._to_table(uid)
         return [r[uid] for r in t.select(uid).collect()]
 

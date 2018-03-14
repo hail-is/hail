@@ -120,4 +120,5 @@ __all__ = ['HailType',
            'int',
            'int32',
            'int64',
-           'bool']
+           'bool',
+           'get_sequence']

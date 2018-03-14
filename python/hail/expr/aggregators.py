@@ -9,7 +9,7 @@ def _to_agg(x):
         return x
     else:
         x = to_expr(x)
-        uid = Env._get_uid()
+        uid = Env.get_uid()
         ast = LambdaClassMethod('map', uid, AggregableReference(), x._ast)
         return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins)
 
@@ -357,7 +357,7 @@ def take(expr, n, ordering=None):
     if ordering is None:
         return _agg_func('take', agg, tarray(agg.dtype), n)
     else:
-        uid = Env._get_uid()
+        uid = Env.get_uid()
         if callable(ordering):
             lambda_result = to_expr(
                 ordering(construct_expr(VariableReference(uid), agg._type, agg._indices,
@@ -666,7 +666,7 @@ def fraction(predicate):
     if agg._aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    uid = Env._get_uid()
+    uid = Env.get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, VariableReference(uid))
     return construct_expr(ast, tfloat64, Indices(source=agg._indices.source),
                           agg._aggregations.push(Aggregation(agg)), agg._joins)
@@ -778,7 +778,7 @@ def explode(expr):
     agg = _to_agg(expr)
     if not (isinstance(agg._type, tset) or isinstance(agg._type, tarray)):
         raise  TypeError("'explode' expects a 'Set' or 'Array' argument, found '{}'".format(agg._type))
-    uid = Env._get_uid()
+    uid = Env.get_uid()
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, VariableReference(uid)),
                       agg._type.element_type, agg._indices, agg._aggregations, agg._joins)
 
@@ -818,7 +818,7 @@ def filter(condition, expr):
     """
 
     agg = _to_agg(expr)
-    uid = Env._get_uid()
+    uid = Env.get_uid()
 
     if callable(condition):
         lambda_result = to_expr(
@@ -908,7 +908,7 @@ def inbreeding(expr, prior):
     if not prior.dtype == tfloat64:
         raise TypeError("'inbreeding' expects 'prior' to be type 'float32' or 'float64', found '{}'".format(prior._type))
 
-    uid = Env._get_uid()
+    uid = Env.get_uid()
     ast = LambdaClassMethod('inbreeding', uid, agg._ast, prior._ast)
 
     indices, aggregations, joins = unify_all(agg, prior)
@@ -983,7 +983,7 @@ def call_stats(expr, alleles):
     agg = _to_agg(expr)
     alleles = to_expr(alleles)
 
-    uid = Env._get_uid()
+    uid = Env.get_uid()
 
     if agg.dtype != tcall:
         raise TypeError("aggregator 'call_stats' requires an expression of type 'TCall', found '{}'".format(

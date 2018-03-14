@@ -127,7 +127,9 @@ class ASTToIRSuite extends TestNGSuite {
     val tAgg = TAggregable(TInt32())
     tAgg.symTab = Map("something" -> (0, TInt32(): Type))
     Infer(out, Some(tAgg))
-    assert(toIR(in).contains(out),
+    val converted = toIR(in)
+    converted.foreach(Infer(_, Some(tAgg)))
+    assert(converted.contains(out),
       s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
   }
   }

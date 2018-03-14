@@ -780,6 +780,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(vcf.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(vcf.count_rows(), 735)
 
+    def test_import_vcf_bad_reference_allele(self):
+        vcf = hl.import_vcf(resource('invalid_base.vcf'))
+        self.assertEqual(vcf.count_rows(), 1)
+
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),

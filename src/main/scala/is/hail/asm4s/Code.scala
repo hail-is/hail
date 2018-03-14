@@ -166,6 +166,13 @@ object Code {
     }
   }
 
+  def invokeScalaObject[S](obj: Any, method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
+    val cls = Class.forName(obj.getClass().getCanonicalName())
+    val m = Invokeable.lookupMethod(method, parameterTypes)(ClassTag(cls), sct)
+    val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
+    m.invoke(staticObj.get(), args)
+  }
+
   def invokeStatic[T, S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod[T, S](method, parameterTypes)
     assert(m.isStatic)
@@ -196,8 +203,8 @@ object Code {
     }
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
-          c.emit(il)
-          il += new InsnNode(op)
+        c.emit(il)
+        il += new InsnNode(op)
       }
     }
   }
@@ -210,6 +217,12 @@ object Code {
   }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T]): Code[U] = Code(cerr, new InsnNode(ATHROW))
+
+  def _fatal[U](msg: Code[String]): Code[U] =
+    Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
+      msg,
+      Code.invokeStatic[scala.Option[String], scala.Option[String]]("empty"),
+      Code._null[Throwable]))
 
   def _return[T](c: Code[T])(implicit tti: TypeInfo[T]): Code[Unit] =
     Code(c, Code(new InsnNode(tti.returnOp)))
@@ -238,13 +251,13 @@ object Code {
 
   def doubleValue(x: Code[java.lang.Number]): Code[Double] = x.invoke[Double]("doubleValue")
 
-  def getStatic[T : ClassTag, S : ClassTag : TypeInfo](field: String): Code[S] = {
+  def getStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String): Code[S] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
     f.get(null)
   }
 
-  def putStatic[T : ClassTag, S : ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
+  def putStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
     f.put(null, rhs)
@@ -622,7 +635,9 @@ object FieldRef {
 
 trait Settable[T] {
   def load(): Code[T]
+
   def store(rhs: Code[T]): Code[Unit]
+
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 }
 
@@ -663,6 +678,8 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
   def getOp = if (isStatic) GETSTATIC else GETFIELD
 
   def putOp = if (isStatic) PUTSTATIC else PUTFIELD
+
+  def get(): Code[S] = get(Code._empty)
 
   def get(lhs: Code[T]): Code[S] =
     new Code[S] {

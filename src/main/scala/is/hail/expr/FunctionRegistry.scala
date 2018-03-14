@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, AltAlleleMethods, Call, Call0, Call1, Call2, CallN, RGVariable, Genotype, Locus, Variant}
+import is.hail.variant._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 

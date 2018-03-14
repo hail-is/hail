@@ -22,7 +22,7 @@ class Env:
     _counter = 0
 
     @staticmethod
-    def _get_uid():
+    def get_uid():
         Env._counter += 1
         return "__uid_{}".format(Env._counter)
 

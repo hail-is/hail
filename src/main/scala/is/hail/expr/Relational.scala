@@ -327,15 +327,11 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($path, dropSamples = $dropCols, dropVariants = $dropRows)"
 }
 
-<<<<<<< HEAD
 /*
- * FilterSamples is only used for a predicate which fails toIR()
+ * FilterCols is only used for a predicate which fails toIR()
  * This should go away when everything is IR-compatible
  */
-case class FilterSamples(
-=======
 case class FilterCols(
->>>>>>> master
   child: MatrixIR,
   pred: AST) extends MatrixIR {
 
