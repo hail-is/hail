@@ -436,7 +436,6 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
 
     if (irs.length != asts.length || globalSignature.size != 0) {
-      info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
       val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
 
       val inserterBuilder = new ArrayBuilder[Inserter]()
@@ -472,7 +471,6 @@ class Table(val hc: HailContext, val ir: TableIR) {
       case Some(irPred) =>
         new Table(hc, TableFilter(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
       case None =>
-        info("No AST to IR conversion found. Falling back to AST predicate for Table.filter.")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val ec = rowEvalContext()
