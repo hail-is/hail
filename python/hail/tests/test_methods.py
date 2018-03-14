@@ -139,13 +139,11 @@ class Tests(unittest.TestCase):
 
     def test_trio_matrix(self):
         """
-        This test depends on certain properties of the trio matrix VCF
-        and pedigree structure.
-
-        This test is NOT a valid test if the pedigree includes quads:
-        the trio_matrix method will duplicate the parents appropriately,
-        but the genotypes_table and samples_table orthogonal paths would
-        require another duplication/explode that we haven't written.
+        This test depends on certain properties of the trio matrix VCF and
+        pedigree structure. This test is NOT a valid test if the pedigree
+        includes quads: the trio_matrix method will duplicate the parents
+        appropriately, but the genotypes_table and samples_table orthogonal
+        paths would require another duplication/explode that we haven't written.
         """
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
         ht = hl.import_fam(resource('triomatrix.fam'))
@@ -170,8 +168,8 @@ class Tests(unittest.TestCase):
             .group_by(et.locus, et.alleles, fam=et.fam.fam_id)
             .aggregate(data=hl.agg.collect(hl.struct(
             role=hl.case().when(et.is_dad, 1).when(et.is_mom, 2).default(0),
-            g=hl.struct(GT=et.GT, AD=et.AD, DP=et.DP, GQ=et.GQ, PL=et.PL)
-        ))))
+            g=hl.struct(GT=et.GT, AD=et.AD, DP=et.DP, GQ=et.GQ, PL=et.PL)))))
+
         et = et.filter(hl.len(et.data) == 3)
         et = et.select('locus', 'alleles', 'fam', 'data').explode('data')
 
