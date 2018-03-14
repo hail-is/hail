@@ -893,7 +893,7 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
   def toIR(agg: Option[String] = None): Option[IR] = for {
     irBindings <- anyFailAllFail(bindings.map { case (x, y) => y.toIR(agg).map(irY => (x, irY)) })
     irBody <- body.toIR(agg)
-  } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x, x.typ) }
+  } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x) }
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
