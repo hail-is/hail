@@ -42,7 +42,7 @@ object RelationalSpec {
 
   def read(hc: HailContext, path: String): RelationalSpec = {
     if (!hc.hadoopConf.isDir(path))
-      fatal(s"a MatrixTable or Table file is a directory; path '$path' is not")
+      fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
     val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
 
