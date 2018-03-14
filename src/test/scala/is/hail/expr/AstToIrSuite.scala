@@ -70,7 +70,10 @@ class ASTToIRSuite extends TestNGSuite {
         ir.Let("a", ir.Let("b", I32(3), Ref("b", TInt32()), TInt32()), Ref("a", TInt32()), TInt32())
     )
     } {
-      assert(toIR(in).contains(out),
+      val r = toIR(in)
+      Infer(r.get)
+      Infer(out)
+      assert(r.contains(out),
         s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
     }
   }
