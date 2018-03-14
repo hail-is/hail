@@ -120,6 +120,13 @@ def new_local_temp_dir(suffix=None, prefix=None, dir=None):
     atexit.register(shutil.rmtree, local_temp_dir)
     return local_temp_dir
 
+
+def new_local_temp_file(filename="temp"):
+    local_temp_dir = new_local_temp_dir()
+    path = local_temp_dir + "/" + filename
+    return path
+
+
 storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
                             'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',

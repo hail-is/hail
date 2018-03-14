@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import java.io._
 
-import breeze.linalg.{DenseMatrix => BDM, _}
+import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
@@ -14,8 +14,8 @@ import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
-import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
+import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -93,11 +93,11 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =
-    a.map4(b, c, d, f)
-
   def map2(f: (Double, Double) => Double)(l: M, r: M): M =
     l.map2(r, f)
+
+  def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =
+    a.map4(b, c, d, f)
 
   val metadataRelativePath = "/metadata.json"
 
@@ -149,68 +149,26 @@ object BlockMatrix {
   object ops {
 
     implicit class Shim(l: M) {
-      def t: M =
-        l.transpose()
+      def +(r: M): M = l.add(r)
+      def -(r: M): M = l.sub(r)
+      def *(r: M): M = l.mul(r)
+      def /(r: M): M = l.div(r)
+      
+      def +(r: Double): M = l.scalarAdd(r)
+      def -(r: Double): M = l.scalarSub(r)
+      def *(r: Double): M = l.scalarMul(r)
+      def /(r: Double): M = l.scalarDiv(r)
 
-      def *(r: M): M =
-        l.multiply(r)
-
-      def *(r: BDM[Double]): M =
-        l.multiply(r)
-
-      def +:+(r: M): M =
-        l.add(r)
-
-      def -:-(r: M): M =
-        l.subtract(r)
-
-      def *:*(r: M): M =
-        l.pointwiseMultiply(r)
-
-      def /:/(r: M): M =
-        l.pointwiseDivide(r)
-
-      def +(r: Double): M =
-        l.scalarAdd(r)
-
-      def -(r: Double): M =
-        l.scalarSubtract(r)
-
-      def *(r: Double): M =
-        l.scalarMultiply(r)
-
-      def /(r: Double): M =
-        l.scalarDivide(r)
-
-      def :+(v: Array[Double]): M =
-        l.vectorAddToEveryColumn(v)
-
-      def :*(v: Array[Double]): M =
-        l.vectorPointwiseMultiplyEveryColumn(v)
-
-      def --+(v: Array[Double]): M =
-        l.vectorAddToEveryRow(v)
-
-      def --*(v: Array[Double]): M =
-        l.vectorPointwiseMultiplyEveryRow(v)
+      def T: M = l.transpose()
     }
 
     implicit class ScalarShim(l: Double) {
-      def +(r: M): M =
-        r.scalarAdd(l)
-
-      def -(r: M): M =
-        r.reverseScalarSubtract(l)
-
-      def *(r: M): M =
-        r.scalarMultiply(l)
-
-      def /(r: M): M =
-        r.reverseScalarDivide(l)
+      def +(r: M): M = r.scalarAdd(l)
+      def -(r: M): M = r.reverseScalarSub(l)
+      def *(r: M): M = r.scalarMul(l)
+      def /(r: M): M = r.reverseScalarDiv(l)
     }
-
   }
-
 }
 
 // must be top-level for Jackson to serialize correctly
@@ -228,92 +186,57 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
 
-  val partitioner: GridPartitioner = blocks.partitioner.get.asInstanceOf[GridPartitioner]
+  val gp: GridPartitioner = blocks.partitioner.get.asInstanceOf[GridPartitioner]
 
-  def transpose(): M =
-    new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
-
-  def diagonal(): Array[Double] =
-    new BlockMatrixDiagonalRDD(this).toArray
-
-  def add(that: M): M =
-    blockMap2(that, _ + _)
-
-  def subtract(that: M): M =
-    blockMap2(that, _ - _)
-
-  def pointwiseMultiply(that: M): M =
-    blockMap2(that, _ *:* _)
-
-  def pointwiseDivide(that: M): M =
-    blockMap2(that, _ /:/ _)
-
-  def multiply(that: M): M =
-    new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
-
-  def multiply(lm: BDM[Double]): M = {
-    require(nCols == lm.rows,
-      s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
-    multiply(BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize))
-  }
-
-  def leftMultiply(lm: BDM[Double]): M = {
-    require(lm.cols == nRows,
-      s"incompatible matrix dimensions: ${ lm.rows } x ${ lm.cols } and ${ nRows } x ${ nCols } ")
-    BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize).multiply(this)
-  }
-
+  // element-wise ops
   def unary_+(): M = this
-
   def unary_-(): M = blockMap(-_)
 
-  def scalarAdd(i: Double): M =
-    blockMap(_ + i)
+  def add(that: M): M = blockMap2(that, _ + _)
+  def sub(that: M): M = blockMap2(that, _ - _)
+  def mul(that: M): M = blockMap2(that, _ *:* _)
+  def div(that: M): M = blockMap2(that, _ /:/ _)
 
-  def scalarSubtract(i: Double): M =
-    blockMap(_ - i)
+  def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv)(a)
+  def rowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) - lv)(a)
+  def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv)(a)
+  def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv)(a)
 
-  def reverseScalarSubtract(i: Double): M =
-    blockMap(i - _)
+  def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _))(a)  
+  def reverseRowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv /:/ _))(a)
+  
+  def colVectorAdd(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) + lv)(a)
+  def colVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) - lv)(a)
+  def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv)(a)
+  def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv)(a)
 
-  def scalarMultiply(i: Double): M =
-    blockMap(_ *:* i)
+  def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _))(a)
+  def reverseColVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv /:/ _))(a)
 
-  def scalarDivide(i: Double): M =
-    blockMap(_ /:/ i)
+  def scalarAdd(i: Double): M = blockMap(_ + i)
+  def scalarSub(i: Double): M = blockMap(_ - i)
+  def scalarMul(i: Double): M = blockMap(_ *:* i)
+  def scalarDiv(i: Double): M = blockMap(_ /:/ i)
 
-  def reverseScalarDivide(i: Double): M =
-    blockMap(i /:/ _)
+  def reverseScalarSub(i: Double): M = blockMap(i - _)
+  def reverseScalarDiv(i: Double): M = blockMap(i /:/ _)
 
-  def pow(exponent: Double): M =
-    blockMap(breezePow(_, exponent))
+  def sqrt(): M = blockMap(breezeSqrt(_))
 
-  def sqrt(): M =
-    blockMap(breezeSqrt(_))
+  def pow(exponent: Double): M = blockMap(breezePow(_, exponent))
 
-  def vectorAddToEveryColumn(v: Array[Double]): M = {
-    require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
-    val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((i, _, x) => x + vBc.value(i.toInt))
+  // matrix ops
+  def dot(that: M): M = new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
+
+  def dot(lm: BDM[Double]): M = {
+    require(nCols == lm.rows,
+      s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
+    dot(BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize))
   }
 
-  def vectorPointwiseMultiplyEveryColumn(v: Array[Double]): M = {
-    require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
-    val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((i, _, x) => x * vBc.value(i.toInt))
-  }
+  def transpose(): M = new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
 
-  def vectorAddToEveryRow(v: Array[Double]): M = {
-    require(v.length == nCols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ nCols }; v: ${ v: IndexedSeq[Double] }, m: $this")
-    val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((_, j, x) => x + vBc.value(j.toInt))
-  }
-
-  def vectorPointwiseMultiplyEveryRow(v: Array[Double]): M = {
-    require(v.length == nCols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ nCols }; v: ${ v: IndexedSeq[Double] }, m: $this")
-    val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((_, j, x) => x * vBc.value(j.toInt))
-  }
+  def diagonal(): Array[Double] = new BlockMatrixDiagonalRDD(this).toArray
 
   /**
     * Write {@code this} to a Hadoop sequence file at location {@code uri}.
@@ -325,7 +248,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
       assert(it.hasNext)
-      var bdm = it.next()._2
+      val bdm = it.next()._2
       assert(!it.hasNext)
 
       bdm.write(os, forceRowMajor, bufferSpec)
@@ -336,7 +259,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     val (partFiles, _) = optKeep match {
       case Some(keep) =>
-        blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, Some(keep, partitioner.numPartitions))
+        blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, Some(keep, gp.numPartitions))
       case None =>
         blocks.writePartitions(uri, writeBlock)
     }
@@ -412,6 +335,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def blockMap(op: BDM[Double] => BDM[Double]): M =
     new BlockMatrix(blocks.mapValues(op), blockSize, nRows, nCols)
+  
+  def blockMapWithIndex(op: ((Int, Int), BDM[Double]) => BDM[Double]): M =
+    new BlockMatrix(blocks.mapValuesWithKey(op), blockSize, nRows, nCols)
 
   def blockMap2(that: M, op: (BDM[Double], BDM[Double]) => BDM[Double]): M = {
     requireZippable(that)
@@ -625,6 +551,26 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
+  def colVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
+    a => val v = BDV(a)
+      require(v.length == nRows, s"vector length must equal nRows: ${ v.length }, $nRows")
+      val vBc = blocks.sparkContext.broadcast(v)
+      blockMapWithIndex { case ((i, _), lm) =>
+        val lv = gp.vectorOnBlockRow(vBc.value, i)
+        op(lm, lv)
+    }
+  }
+
+  def rowVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
+    a => val v = BDV(a)
+      require(v.length == nCols, s"vector length must equal nCols: ${ v.length }, $nCols")
+      val vBc = blocks.sparkContext.broadcast(v)
+      blockMapWithIndex { case ((_, j), lm) =>
+        val lv = gp.vectorOnBlockCol(vBc.value, j)
+        op(lm, lv)
+    }
+  }
+
   def toIndexedRowMatrix(): IndexedRowMatrix = {
     require(this.nCols <= Integer.MAX_VALUE)
     val nCols = this.nCols.toInt
@@ -652,7 +598,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       for (k <- 0 until lm.rows)
         yield (k + iOffset, (jOffset, lm(k, ::).inner.toArray))
     }.aggregateByKey(new Array[Double](nCols))(seqOp, combOp)
-      .map { case (i, a) => IndexedRow(i, new DenseVector(a)) },
+      .map { case (i, a) => IndexedRow(i, BDV(a)) },
       nRows, nCols)
   }
 
@@ -719,12 +665,11 @@ object BlockMatrixFilterRDD {
         val newBlockNCols = newGP.blockColNCols(newBlockCol)
 
         var j = 0 // start index in newBlockCol
-      var k = 0 // end index in newBlockCol
         while (j < newBlockNCols) {
           startIndices.clear()
           endIndices.clear()
 
-          var startCol = colsInNewBlock(j)
+          val startCol = colsInNewBlock(j)
           val blockCol = (startCol / blockSize).toInt
           val finalColInBlockCol = blockCol * blockSize + gp.blockColNCols(blockCol)
 
@@ -761,7 +706,7 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, keepRows: Array[Long], keepC
   require(keepRows.nonEmpty && keepRows.isIncreasing && keepRows.head >= 0 && keepRows.last < dm.nRows)
   require(keepCols.nonEmpty && keepCols.isIncreasing && keepCols.head >= 0 && keepCols.last < dm.nCols)
 
-  private val gp = dm.partitioner
+  private val gp = dm.gp
   private val blockSize = gp.blockSize
   private val newGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
 
@@ -848,7 +793,7 @@ private class BlockMatrixFilterColsRDD(dm: BlockMatrix, keep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
   require(keep.nonEmpty && keep.isIncreasing && keep.head >= 0 && keep.last < dm.nCols)
 
-  private val gp = dm.partitioner
+  private val gp = dm.gp
   private val blockSize = gp.blockSize
   private val newGP = GridPartitioner(blockSize, gp.nRows, keep.length)
 
@@ -908,9 +853,9 @@ case class BlockMatrixTransposeRDDPartition(index: Int, prevPartition: Partition
 private class BlockMatrixTransposeRDD(dm: BlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
 
-  private val newPartitioner = dm.partitioner.transpose
+  private val newPartitioner = dm.gp.transpose
 
-  def transposePI(pi: Int): Int = dm.partitioner.coordinatesBlock(
+  def transposePI(pi: Int): Int = dm.gp.coordinatesBlock(
     newPartitioner.blockBlockCol(pi),
     newPartitioner.blockBlockRow(pi))
 
@@ -944,7 +889,7 @@ private class BlockMatrixDiagonalRDD(m: BlockMatrix)
   }
 
   private val parts = m.blocks.partitions
-  private val gp = m.partitioner
+  private val gp = m.gp
   private val nDiagBlocks = math.min(gp.nBlockRows, gp.nBlockCols)
 
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
@@ -977,9 +922,9 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   require(l.blockSize == r.blockSize,
     s"blocks must be same size, but actually were ${ l.blockSize }x${ l.blockSize } and ${ r.blockSize }x${ r.blockSize }")
 
-  private val lPartitioner = l.partitioner
+  private val lPartitioner = l.gp
   private val lPartitions = l.blocks.partitions
-  private val rPartitioner = r.partitioner
+  private val rPartitioner = r.gp
   private val rPartitions = r.blocks.partitions
   private val nProducts = lPartitioner.nBlockCols
   private val gp = GridPartitioner(l.blockSize, l.nRows, r.nCols)
