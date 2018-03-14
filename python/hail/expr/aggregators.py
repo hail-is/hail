@@ -630,6 +630,7 @@ def product(expr):
     agg = _to_agg(expr)
     if not is_numeric(agg._type):
         raise TypeError("'product' expects a numeric argument, found '{}'".format(agg._type))
+    agg = Expression._promote_numeric(agg, tfloat64)
     return _agg_func('product', agg, agg._type)
 
 @typecheck(predicate=oneof(Aggregable, expr_bool))
