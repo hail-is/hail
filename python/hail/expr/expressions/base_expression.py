@@ -417,6 +417,12 @@ class Expression(object):
                 expr = hail.map(lambda x: promote_scalar(x, typ.element_type), expr)
             else:
                 expr = promote_scalar(expr, typ.element_type)
+        elif isinstance(expr, expressions.Aggregable):
+            uid = Env._get_uid()
+            ref = expressions.construct_expr(Reference(uid), expr._type, expr._indices, expr._aggregations, expr._joins, expr._refs)
+            promoted = promote_scalar(ref, typ)
+            ast = LambdaClassMethod('map', uid, expr._ast, promoted._ast)
+            expr = expressions.Aggregable(ast, promoted.dtype, expr._indices, expr._aggregations, expr._joins, expr._refs)
         else:
             expr = promote_scalar(expr, typ)
         return expr
