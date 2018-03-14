@@ -11,6 +11,7 @@ object Children {
     case F64(x) => none
     case True() => none
     case False() => none
+    case StringConst(x) => none
     case Cast(v, typ) =>
       Array(v)
     case NA(typ) => none

@@ -299,7 +299,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
     case (t: TFloat32, x: Float) => Some(ir.F32(x))
     case (t: TFloat64, x: Double) => Some(ir.F64(x))
     case (t: TBoolean, x: Boolean) => Some(if (x) ir.True() else ir.False())
-    case (t: TString, x: String) => None
+    case (t: TString, x: String) => Some(ir.StringConst(x))
     case (t, null) => Some(ir.NA(t))
     case _ => throw new RuntimeException(s"Unrecognized constant of type $t: $value")
   }
@@ -350,11 +350,21 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         }
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
+  def toIR_raw(agg: Option[String] = None): Option[IR] = for {
     s <- lhs.toIR(agg)
     t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct]) 
     f <- t.selfField(rhs)
   } yield ir.GetField(s, rhs, f.typ)
+
+  def toIR(agg: Option[String] = None): Option[IR] = {
+    info(s"Select.toIR(agg ${agg}).${rhs} ...")
+    val ret = toIR_raw(agg)
+    ret match {
+      case None => info(s"Select.toIR(agg ${agg}).${rhs} fail")
+      case _    => info(s"Select.toIR(agg ${agg}).${rhs} pass")
+    }
+    ret
+  }
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -754,13 +764,38 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
 
-  def toIR(agg: Option[String] = None): Option[IR] = {
+  def toIR_raw(agg: Option[String] = None): Option[IR] = {
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
       ir <- tryPrimOpConversion(irArgs).orElse(
         IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
           .map { irf => irf(irArgs) })
     } yield ir
+  }
+  
+  def toIR(agg: Option[String] = None): Option[IR] = {
+    info(s"Apply(${fn}).toIR(agg ${agg}) ...")
+    val ret = toIR_raw(agg)
+    val aggStr = agg match {
+      case Some(str) => str
+      case None => "None"
+    }
+    ret match {
+      case None => 
+        info(s"Apply(${fn}).toIR(${aggStr}) fail")
+        var argIdx = 0
+        for (arg <- args) {
+          val irArg = arg.toIR(agg)
+          irArg match {
+            case None => info(s"args[${argIdx}].toIR(${aggStr}) fail")
+            case _    => info(s"args[${argIdx}] pass")
+          }
+          argIdx = argIdx + 1
+        }
+      case _ =>
+        info(s"Apply(${fn}).toIR(${aggStr}) pass")
+    }
+    ret
   }
 }
 

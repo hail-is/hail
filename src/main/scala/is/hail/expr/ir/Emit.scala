@@ -127,6 +127,8 @@ private class Emit(
         present(const(true))
       case False() =>
         present(const(false))
+      case StringConst(x) =>
+        present(const(x))
 
       case Cast(v, typ) =>
         val (dov, mv, vv) = emit(v)

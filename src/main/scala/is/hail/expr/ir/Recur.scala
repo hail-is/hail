@@ -8,6 +8,7 @@ object Recur {
     case F64(x) => ir
     case True() => ir
     case False() => ir
+    case StringConst(x) => ir
     case Cast(v, typ) => Cast(f(v), typ)
     case NA(typ) => ir
     case MapNA(name, value, body, typ) => MapNA(name, f(value), f(body), typ)
