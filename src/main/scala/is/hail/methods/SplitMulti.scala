@@ -52,12 +52,12 @@ class SplitMultiRowIR(rowIRs: Array[(String, IR)], entryIRs: Array[(String, IR)]
 
   val (t, splitRow): (Type, () => AsmFunction13[Region, Long, Boolean, Long, Boolean, Long, Boolean, Long, Boolean, Int, Boolean, Boolean, Boolean, Long]) =
     Compile[Long, Long, Long, Long, Int, Boolean, Long](
-      "global", RegionValueRep[Long](oldMatrixType.globalType),
-      "newLocus", RegionValueRep[Long](oldMatrixType.rowType.fieldByName("locus").typ),
-      "newAlleles", RegionValueRep[Long](oldMatrixType.rowType.fieldByName("alleles").typ),
-      "va", RegionValueRep[Long](oldMatrixType.rvRowType),
-      "aIndex", RegionValueRep[Int](TInt32()),
-      "wasSplit", RegionValueRep[Boolean](TBoolean()),
+      "global", oldMatrixType.globalType,
+      "newLocus", oldMatrixType.rowType.fieldByName("locus").typ,
+      "newAlleles", oldMatrixType.rowType.fieldByName("alleles").typ,
+      "va", oldMatrixType.rvRowType,
+      "aIndex", TInt32(),
+      "wasSplit", TBoolean(),
       newRowIR)
 
   val newMatrixType: MatrixType = oldMatrixType.copy(rvRowType = coerce[TStruct](t))

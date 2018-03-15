@@ -617,22 +617,22 @@ class HailContext private(val sc: SparkContext,
         val t = ast.`type`
         t match {
           case _: TBoolean =>
-            val f = ir.Compile(ir.RegionValueRep[Boolean](t), body)
+            val (_, f) = ir.Compile[Boolean](body)
             (f()(region), t)
           case _: TInt32 =>
-            val f = ir.Compile(ir.RegionValueRep[Int](t), body)
+            val (_, f) = ir.Compile[Int](body)
             (f()(region), t)
           case _: TInt64 =>
-            val f = ir.Compile(ir.RegionValueRep[Long](t), body)
+            val (_, f) = ir.Compile[Long](body)
             (f()(region), t)
           case _: TFloat32 =>
-            val f = ir.Compile(ir.RegionValueRep[Float](t), body)
+            val (_, f) = ir.Compile[Float](body)
             (f()(region), t)
           case _: TFloat64 =>
-            val f = ir.Compile(ir.RegionValueRep[Double](t), body)
+            val (_, f) = ir.Compile[Double](body)
             (f()(region), t)
           case _ =>
-            val f = ir.Compile(ir.RegionValueRep[Long](t), body)
+            val (_, f) = ir.Compile[Long](body)
             val off = f()(region)
             val v2 = UnsafeRow.read(t, region, off)
             val v3 = Annotation.copy(t, v2)
