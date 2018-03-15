@@ -353,7 +353,8 @@ private class Emit(
           srvbKeep.start(len, init = true),
           Code.whileLoop(i < len,
             xmv := !t.isElementDefined(region, xa, i),
-            xvv := xmv.mux(defaultValue(t.elementType), region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+            xvv := xmv.mux(defaultValue(t.elementType),
+              region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
             docond,
             (xmv || mcond || !coerce[Boolean](vcond)).mux(
               srvbKeep.addBoolean(false),
@@ -365,8 +366,8 @@ private class Emit(
           srvb.start(lenout, init = true),
           Code.whileLoop(i < len,
             region.loadBoolean(tKeep.loadElement(region, offKeep, i)).mux(
-              Code(
-                srvb.addIRIntermediate(t.elementType)(region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
+              Code(srvb.addIRIntermediate(t.elementType)(
+                region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
                 srvb.advance()),
               Code._empty),
             i := i + 1),

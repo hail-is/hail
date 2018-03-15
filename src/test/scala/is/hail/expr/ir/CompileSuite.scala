@@ -475,7 +475,7 @@ class CompileSuite {
     doit(ir, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     for {
-      stop <- 0 to 10
+      stop <- 0 to 5
       elt <- 0 to stop
     } {
       region.clear()
