@@ -1,11 +1,8 @@
 package is.hail.expr.ir
 
-import java.io.FileOutputStream
-
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.types._
-import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -14,6 +11,19 @@ case class RegionValueRep[RVT: ClassTag](typ: Type) {
 }
 
 object Compile {
+
+  def apply[R: TypeInfo](
+    rRep: RegionValueRep[R],
+    body: IR): () => AsmFunction1[Region, R] = {
+    val fb = FunctionBuilder.functionBuilder[Region, R]
+    var e = body
+    val env = new Env[IR]()
+    e = Subst(e, env)
+    Infer(e)
+    assert(e.typ == rRep.typ)
+    Emit(e, fb)
+    fb.result()
+  }
 
   def apply[T0: TypeInfo, T1: TypeInfo, R: TypeInfo](
     name0: String,

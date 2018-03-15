@@ -1541,7 +1541,6 @@ object FunctionRegistry {
 
     register("-", ev.negate _)
     register("+", (x: T) => x)
-    register("fromInt", ev.fromInt _)
 
     registerMethod("toInt32", ev.toInt _)
     registerMethod("toInt64", ev.toLong _)

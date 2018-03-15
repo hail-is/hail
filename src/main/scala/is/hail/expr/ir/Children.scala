@@ -38,8 +38,12 @@ object Children {
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
+    case ArrayRange(start, stop, step) =>
+      Array(start, stop, step)
     case ArrayMap(a, name, body, elementTyp) =>
       Array(a, body)
+    case ArrayFilter(a, name, cond) =>
+      Array(a, cond)
     case ArrayFold(a, zero, accumName, valueName, body, typ) =>
       Array(a, zero, body)
     case MakeStruct(fields, _) =>
@@ -60,11 +64,17 @@ object Children {
       Array(o)
     case GetFieldMissingness(o, name) =>
       Array(o)
+    case MakeTuple(types, _) =>
+      types.toIndexedSeq
+    case GetTupleElement(o, idx, _) =>
+      Array(o)
     case In(i, typ) =>
       none
     case InMissingness(i) =>
       none
     case Die(message) =>
       none
+    case ApplyFunction(impl, args) =>
+      args.toIndexedSeq
   }
 }

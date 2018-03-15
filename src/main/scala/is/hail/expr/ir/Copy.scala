@@ -55,15 +55,24 @@ object Copy {
       case ArrayLen(_) =>
         val IndexedSeq(a) = children
         ArrayLen(a)
+      case ArrayRange(_, _, _) =>
+        val IndexedSeq(start, stop, step) = children
+        ArrayRange(start, stop, step)
       case ArrayMap(_, name, _, elementTyp) =>
         val IndexedSeq(a, body) = children
         ArrayMap(a, name, body, elementTyp)
+      case ArrayFilter(_, name, _) =>
+        val IndexedSeq(a, cond) = children
+        ArrayFilter(a, name, cond)
       case ArrayFold(_, _, accumName, valueName, _, typ) =>
         val IndexedSeq(a, zero, body) = children
         ArrayFold(a, zero, accumName, valueName, body, typ)
       case MakeStruct(fields, _) =>
         assert(fields.length == children.length)
         MakeStruct(fields.zip(children).map { case ((n, _), a) => (n, a) })
+      case InsertFields(_, fields, typ) =>
+        assert(children.length == fields.length + 1)
+        InsertFields(children.head, fields.zip(children.tail).map { case ((n, _), a) => (n, a) })
       case GetField(_, name, typ) =>
         val IndexedSeq(o) = children
         GetField(o, name, typ)
@@ -84,12 +93,19 @@ object Copy {
       case ApplyAggOp(_, op, args, typ) =>
         val a +: args = children
         ApplyAggOp(a, op, args, typ)
+      case MakeTuple(_, typ) =>
+        MakeTuple(children, typ)
+      case GetTupleElement(_, idx, typ) =>
+        val IndexedSeq(o) = children
+        GetTupleElement(o, idx, typ)
       case In(_, _) =>
         same
       case InMissingness(_) =>
         same
       case Die(message) =>
         same
+      case ApplyFunction(impl, args) =>
+        ApplyFunction(impl, children)
     }
   }
 }

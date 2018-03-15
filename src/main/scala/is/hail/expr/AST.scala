@@ -715,7 +715,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
     case ("ungroup", Array(s, id, m)) =>
       val struct = s.`type`.asInstanceOf[TStruct]
-      val (identifier, mangle) = (id: @unchecked, m: @unchecked) match {
+      val (identifier, mangle) = ((id, m): @unchecked) match {
         case (SymRef(_, n), Const(_, v, _)) => (n, v.asInstanceOf[Boolean])
       }
       val f = struct.ungroup(identifier, mangle)._2
@@ -753,12 +753,17 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
-    for {
-      irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-        IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
-          .map { irf => irf(irArgs) })
-    } yield ir
+    fn match {
+      case "merge" | "select" | "drop" | "group" | "annnotate" | "ungroup" | "index" =>
+        None
+      case _ =>
+        for {
+          irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
+          ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
+            IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
+              .map { irf => irf(irArgs) })
+        } yield ir
+    }
   }
 }
 

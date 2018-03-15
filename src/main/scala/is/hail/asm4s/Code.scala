@@ -121,7 +121,7 @@ object Code {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         il += new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass))
         il += new InsnNode(DUP)
-        Invokeable.lookupConstructor[T](parameterTypes).invoke(null, args).emit(il)
+        Invokeable.lookupConstructor[T](tct.runtimeClass.asInstanceOf[Class[T]], parameterTypes).invoke(null, args).emit(il)
       }
     }
   }
@@ -166,33 +166,32 @@ object Code {
     }
   }
 
-  def invokeScalaObject[S](obj: Any, method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
-    val cls = Class.forName(obj.getClass().getCanonicalName())
-    val m = Invokeable.lookupMethod(method, parameterTypes)(ClassTag(cls), sct)
+  def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
+    val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
     m.invoke(staticObj.get(), args)
   }
 
-  def invokeStatic[T, S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] = {
-    val m = Invokeable.lookupMethod[T, S](method, parameterTypes)
+  def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
+    val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     assert(m.isStatic)
     m.invoke(null, args)
   }
 
   def invokeStatic[T, S](method: String)(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](), Array[Code[_]]())
+    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](), Array[Code[_]]())
 
   def invokeStatic[T, A1, S](method: String, a1: Code[A1])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))(tct, sct)
+    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))(sct)
 
   def invokeStatic[T, A1, A2, S](method: String, a1: Code[A1], a2: Code[A2])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))(tct, sct)
+    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))(sct)
 
   def invokeStatic[T, A1, A2, A3, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))(tct, sct)
+    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))(sct)
 
   def invokeStatic[T, A1, A2, A3, A4, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))(tct, sct)
+    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))(sct)
 
   def _null[T >: Null]: Code[T] = Code(new InsnNode(ACONST_NULL))
 
@@ -553,18 +552,21 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
 }
 
 object Invokeable {
-  def apply[T](c: Constructor[_])(implicit tct: ClassTag[T]): Invokeable[T, Unit] = new Invokeable[T, Unit]("<init>",
+  def apply[T](cls: Class[T], c: Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
+    cls,
+    "<init>",
     isStatic = false,
     isInterface = false,
     INVOKESPECIAL,
     Type.getConstructorDescriptor(c),
     implicitly[ClassTag[Unit]].runtimeClass)
 
-  def apply[T, S](m: Method)(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
+  def apply[T, S](cls: Class[T], m: Method)(implicit sct: ClassTag[S]): Invokeable[T, S] = {
     val isInterface = m.getDeclaringClass.isInterface
     val isStatic = Modifier.isStatic(m.getModifiers)
     assert(!(isInterface && isStatic))
-    new Invokeable[T, S](m.getName,
+    new Invokeable[T, S](cls,
+      m.getName,
       isStatic,
       isInterface,
       if (isInterface)
@@ -577,37 +579,38 @@ object Invokeable {
       m.getReturnType)
   }
 
-  def lookupMethod[T, S](method: String, parameterTypes: Array[Class[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
-    val m = tct.runtimeClass.getMethod(method, parameterTypes: _*)
+  def lookupMethod[T, S](cls: Class[T], method: String, parameterTypes: Array[Class[_]])(implicit sct: ClassTag[S]): Invokeable[T, S] = {
+    val m = cls.getMethod(method, parameterTypes: _*)
     assert(m != null,
-      s"no such method ${ tct.runtimeClass.getName }.$method(${
+      s"no such method ${ cls.getName }.$method(${
         parameterTypes.map(_.getName).mkString(", ")
       })")
 
     // generic type parameters return java.lang.Object instead of the correct class
     assert(m.getReturnType.isAssignableFrom(sct.runtimeClass),
-      s"when invoking ${ tct.runtimeClass.getName }.$method(): ${ m.getReturnType.getName }: wrong return type ${ sct.runtimeClass.getName }")
+      s"when invoking ${ cls.getName }.$method(): ${ m.getReturnType.getName }: wrong return type ${ sct.runtimeClass.getName }")
 
-    Invokeable(m)
+    Invokeable(cls, m)
   }
 
-  def lookupConstructor[T](parameterTypes: Array[Class[_]])(implicit tct: ClassTag[T]): Invokeable[T, Unit] = {
-    val c = tct.runtimeClass.getDeclaredConstructor(parameterTypes: _*)
+  def lookupConstructor[T](cls: Class[T], parameterTypes: Array[Class[_]]): Invokeable[T, Unit] = {
+    val c = cls.getDeclaredConstructor(parameterTypes: _*)
     assert(c != null,
-      s"no such method ${ tct.runtimeClass.getName }(${
+      s"no such method ${ cls.getName }(${
         parameterTypes.map(_.getName).mkString(", ")
       })")
 
-    Invokeable[T](c)
+    Invokeable(cls, c)
   }
 }
 
-class Invokeable[T, S](val name: String,
+class Invokeable[T, S](tcls: Class[T],
+  val name: String,
   val isStatic: Boolean,
   val isInterface: Boolean,
   val invokeOp: Int,
   val descriptor: String,
-  val concreteReturnType: Class[_])(implicit tct: ClassTag[T], sct: ClassTag[S]) {
+  val concreteReturnType: Class[_])(implicit sct: ClassTag[S]) {
   def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] =
     new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -615,7 +618,7 @@ class Invokeable[T, S](val name: String,
           lhs.emit(il)
         args.foreach(_.emit(il))
         il += new MethodInsnNode(invokeOp,
-          Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface)
+          Type.getInternalName(tcls), name, descriptor, isInterface)
         if (concreteReturnType != sct.runtimeClass) {
           // if `m`'s return type is a generic type, we must use an explicit
           // cast to the expected type
@@ -714,7 +717,7 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
 
   def invoke[S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])
     (implicit sct: ClassTag[S]): Code[S] =
-    Invokeable.lookupMethod[T, S](method, parameterTypes).invoke(lhs, args)
+    Invokeable.lookupMethod[T, S](implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]], method, parameterTypes).invoke(lhs, args)
 
   def invoke[S](method: String)(implicit sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](), Array[Code[_]]())

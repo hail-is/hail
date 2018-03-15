@@ -4,7 +4,7 @@ import java.io.PrintWriter
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, UtilFunctions}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.expr.types._
 import org.testng.annotations.Test
 import is.hail.expr.{EvalContext, FunType, Parser}
@@ -27,9 +27,9 @@ class ScalaTestCompanion {
 
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
-    registerJavaStaticFunction[java.lang.Integer, Int]("compare", TInt32(), TInt32(), TInt32())("compare")
-    registerScalaFunction[Int]("foobar1", TInt32())(ScalaTestObject, "testFunction")
-    registerScalaFunction[Int]("foobar2", TInt32())(ScalaTestCompanion, "testFunction")
+    registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
+    registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
+    registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
     registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ (_, a: Code[Int], b: Code[Int]) => a + b }
     registerCode("testCodeUnification2", tv("x"), tv("x")){ (_, a: Code[Long]) => a }
   }

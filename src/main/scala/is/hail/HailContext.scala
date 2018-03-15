@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser}
+import is.hail.expr.{EvalContext, Parser, ir}
 import is.hail.io.{CodecSpec, LoadMatrix}
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
@@ -14,7 +14,7 @@ import is.hail.io.vcf._
 import is.hail.table.Table
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{ReferenceGenome, MatrixTable, VSMSubgen}
+import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.rdd.RDD
@@ -218,7 +218,7 @@ object HailContext {
             throw e
         }
       }
-      
+
       override def finalize(): Unit = {
         dec.close()
       }
@@ -496,11 +496,16 @@ class HailContext private(val sc: SparkContext,
   private[this] val codecsKey = "io.compression.codecs"
   private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
   private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
+
   private[this] def forceBGZip[T](force: Boolean)(body: => T): T = {
     val defaultCodecs = hadoopConf.get(codecsKey)
     if (force)
       hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
-    try { body } finally { hadoopConf.set(codecsKey, defaultCodecs) }
+    try {
+      body
+    } finally {
+      hadoopConf.set(codecsKey, defaultCodecs)
+    }
   }
 
   def importVCF(file: String, force: Boolean = false,
@@ -527,7 +532,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
-    forceBGZip(forceBGZ)  {
+    forceBGZip(forceBGZ) {
       val reader = new HtsjdkRecordReader(callFields)
       LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, rg,
         contigRecoding.getOrElse(Map.empty[String, String]))
@@ -605,8 +610,38 @@ class HailContext private(val sc: SparkContext,
 
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext()
-    val (t, f) = Parser.parseExpr(expr, ec)
-    (f(), t)
+    val ast = Parser.parseToAST(expr, ec)
+    ast.toIR() match {
+      case Some(body) =>
+        val region = Region()
+        val t = ast.`type`
+        t match {
+          case _: TBoolean =>
+            val f = ir.Compile(ir.RegionValueRep[Boolean](t), body)
+            (f()(region), t)
+          case _: TInt32 =>
+            val f = ir.Compile(ir.RegionValueRep[Int](t), body)
+            (f()(region), t)
+          case _: TInt64 =>
+            val f = ir.Compile(ir.RegionValueRep[Long](t), body)
+            (f()(region), t)
+          case _: TFloat32 =>
+            val f = ir.Compile(ir.RegionValueRep[Float](t), body)
+            (f()(region), t)
+          case _: TFloat64 =>
+            val f = ir.Compile(ir.RegionValueRep[Double](t), body)
+            (f()(region), t)
+          case _ =>
+            val f = ir.Compile(ir.RegionValueRep[Long](t), body)
+            val off = f()(region)
+            val v2 = UnsafeRow.read(t, region, off)
+            val v3 = Annotation.copy(t, v2)
+            (v3, t)
+        }
+      case None =>
+        val (t, f) = Parser.eval(ast, ec)
+        (f(), t)
+    }
   }
 
   def stop() {

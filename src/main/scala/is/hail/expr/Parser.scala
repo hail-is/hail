@@ -64,7 +64,7 @@ object Parser extends JavaTokenParsers {
     () => f(ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
   }
 
-  private def eval(t: AST, ec: EvalContext): (Type, () => Any) = {
+  def eval(t: AST, ec: EvalContext): (Type, () => Any) = {
     t.typecheck(ec)
 
     if (!t.`type`.isRealizable)

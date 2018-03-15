@@ -4,7 +4,6 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
@@ -18,7 +17,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -146,7 +145,7 @@ object Table {
   }
 }
 
-class Table(val hc: HailContext, val ir: TableIR) {
+class Table(val hc: HailContext, val tir: TableIR) {
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
@@ -154,13 +153,13 @@ class Table(val hc: HailContext, val ir: TableIR) {
   ))
 
   lazy val value: TableValue = {
-    val opt = TableIR.optimize(ir)
+    val opt = TableIR.optimize(tir)
     opt.execute(hc)
   }
 
   lazy val TableValue(ktType, globals, rvd) = value
 
-  val TableType(signature, key, globalSignature) = ir.typ
+  val TableType(signature, key, globalSignature) = tir.typ
 
   lazy val rdd: RDD[Row] = value.rdd
 
@@ -201,7 +200,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
   def fieldNames: Array[String] = fields.map(_.name)
 
   def partitionCounts(): Array[Long] = {
-    ir.partitionCounts match {
+    tir.partitionCounts match {
       case Some(counts) => counts
       case None => rvd.countPerPartition()
     }
@@ -420,7 +419,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     if (paths.length == 0)
       return this
 
-    val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
+    val irs = asts.flatMap { _.toIR() }
 
     if (irs.length != asts.length || globalSignature.size != 0) {
       val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
@@ -446,21 +445,26 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
       copy(rdd = rdd.map(annotF), signature = finalSignature, key = key)
     } else {
-
-      new Table(hc, TableAnnotate(ir, paths, irs))
+      new Table(hc, TableAnnotate(tir, paths, irs))
     }
   }
 
   def filter(cond: String, keep: Boolean): Table = {
-    var filterAST = Parser.expr.parse(cond)
+    val ec = rowEvalContext()
+    var filterAST = Parser.parseToAST(cond, ec)
     val pred = filterAST.toIR()
     pred match {
       case Some(irPred) =>
-        new Table(hc, TableFilter(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
+        new Table(hc,
+          TableFilter(tir,
+            ir.Let("pred",
+              if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
+              ir.If(ir.IsNA(ir.Ref("pred")),
+                ir.False(),
+                ir.Ref("pred")))))
       case None =>
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-        val ec = rowEvalContext()
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
         val localSignature = signature
 
@@ -1082,7 +1086,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       FileFormat.version.rep,
       hc.version,
       "references",
-      ir.typ,
+      tir.typ,
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
