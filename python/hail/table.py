@@ -12,6 +12,9 @@ from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 
+from collections import OrderedDict
+import itertools
+
 table_type = lazy()
 
 
@@ -367,6 +370,12 @@ class Table(ExprContainer):
     def _force_count(self):
         return self._jt.forceCount()
 
+    @typecheck_method(caller=str, s=expr_struct)
+    def _select(self, caller, s):
+        base, cleanup = self._process_joins(s)
+        analyze(caller, s, self._row_indices)
+        return cleanup(Table(base._jt.select(s._ast.to_hql())))
+
     @classmethod
     @typecheck_method(rows=anytype,
                       schema=tstruct,
@@ -636,13 +645,9 @@ class Table(ExprContainer):
             Table with new fields.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        exprs = []
-        base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze('Table.annotate', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-        return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
+        return self._select('Table.annotate', self.row.annotate(**named_exprs))
 
     @typecheck_method(expr=anytype,
                       keep=bool)
@@ -782,27 +787,20 @@ class Table(ExprContainer):
         """
         exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
+        assignments = OrderedDict()
 
-        ids = []
         for e in exprs:
-            all_exprs.append(e)
-            analyze('Table.select', e, self._row_indices)
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
-            strs.append(e._ast.to_hql())
-            ids.append(e._ast.expand()[0].name)
-        for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze('Table.select', e, self._row_indices)
-            check_collisions(self._fields, k, self._row_indices)
-            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
-            ids.append(k)
+            assert isinstance(e._ast, Select)
+            assignments[e._ast.name] = e
 
-        check_field_uniqueness(ids)
-        return cleanup(Table(base._jt.select(strs)))
+        for k, e in named_exprs.items():
+            check_collisions(self._fields, k, self._row_indices)
+            assignments[k] = e
+
+        check_field_uniqueness(assignments.keys())
+        return self._select('Table.select', hl.struct(**assignments))
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
@@ -1788,7 +1786,15 @@ class Table(ExprContainer):
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
-        return Table(self._jt.rename(row_map, global_map))
+        table = self
+        if row_map:
+            remapped_key = [row_map.get(k, k) for k in table.key.keys()]
+            table = (table
+                     .select(**{row_map.get(k, k): v for k, v in table.row.items()})
+                     .key_by(*remapped_key))
+        if global_map:
+            table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
+        return table
 
     def expand_types(self):
         """Expand complex types into structs and arrays.

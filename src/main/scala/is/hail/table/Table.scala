@@ -3,6 +3,7 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.{IR, InsertFields, MakeStruct, Ref}
 import is.hail.expr.types._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -419,44 +420,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy2(globalSignature = finalSignature, globals = globals.copy(value = newGlobal, t = finalSignature))
   }
 
-  def annotate(code: String): Table = {
-    val ec = rowEvalContext()
-
-    val (paths, asts) = Parser.parseAnnotationExprsToAST(code, ec).unzip
-    if (paths.length == 0)
-      return this
-
-    val irs = asts.flatMap { _.toIR() }
-
-    if (irs.length != asts.length || globalSignature.size != 0) {
-      val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
-
-      val inserterBuilder = new ArrayBuilder[Inserter]()
-
-      val finalSignature = (paths, types).zipped.foldLeft(signature) { case (vs, (ids, sig)) =>
-        val (s: TStruct, i) = vs.insert(sig, ids)
-        inserterBuilder += i
-        s
-      }
-
-      val inserters = inserterBuilder.result()
-      val globalsBc = globals.broadcast
-
-      val annotF: Row => Row = { r =>
-        ec.setAll(globalsBc.value, r)
-
-        f().zip(inserters)
-          .foldLeft(r) { case (a1, (v, inserter)) =>
-            inserter(a1, v).asInstanceOf[Row]
-          }
-      }
-
-      copy(rdd = rdd.map(annotF), signature = finalSignature, key = key)
-    } else {
-      new Table(hc, TableAnnotate(tir, paths, irs))
-    }
-  }
-
   def filter(cond: String, keep: Boolean): Table = {
     val ec = rowEvalContext()
     var filterAST = Parser.parseToAST(cond, ec)
@@ -509,117 +472,29 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy(key = key.toArray[String])
   }
 
-  def select(exprs: Array[String]): Table = {
+  def select(expr: String): Table = {
     val ec = rowEvalContext()
+    val ast = Parser.parseToAST(expr, ec)
 
-    val (paths, types, f) = Parser.parseSelectExprs(exprs, ec)
+    assert(ast.`type`.isInstanceOf[TStruct])
+    ast.typecheck(ec)
+    val structIR = ast.toIR()
 
-    val insertionPaths = paths.map {
-      case Left(name) => name
-      case Right(path) => path.last
-    }
+    if (structIR.isDefined && globalSignature.size == 0) {
+      new Table(hc, TableMapRows(tir, structIR.get))
+    } else {
+      val (t, f) = Parser.parseExpr(expr, ec)
+      val newSignature = t.asInstanceOf[TStruct]
 
-    val overlappingPaths = paths.counter.filter { case (n, i) => i != 1 }.keys
-
-    if (overlappingPaths.nonEmpty)
-      fatal(s"Found ${ overlappingPaths.size } ${ plural(overlappingPaths.size, "selected field name") } that are duplicated.\n" +
-        "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
-        s"@1", overlappingPaths.truncatable("\n  "))
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-
-    val finalSignature = (insertionPaths, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
-      val (s: TStruct, i) = vs.insert(sig, p)
-      inserterBuilder += i
-      s
-    }
-
-    val globalsBc = globals.broadcast
-    val inserters = inserterBuilder.result()
-
-    val annotF: Row => Row = { r =>
-      ec.setAll(globalsBc.value, r)
-
-      f().zip(inserters)
-        .foldLeft(Row()) { case (a1, (v, inserter)) =>
-          inserter(a1, v).asInstanceOf[Row]
-        }
-    }
-
-    val newKey = key.filter(insertionPaths.toSet)
-
-    copy(rdd = rdd.map(annotF), signature = finalSignature, key = newKey)
-  }
-
-  def select(selectedColumns: String*): Table = select(selectedColumns.toArray)
-
-  def select(selectedColumns: java.util.ArrayList[String]): Table = select(selectedColumns.asScala.toArray)
-
-  def drop(columnsToDrop: Array[String]): Table = {
-    if (columnsToDrop.isEmpty)
-      return this
-
-    val fieldSet = fieldNames.toSet
-    assert(columnsToDrop.forall(fieldSet.contains))
-    val dropSet = columnsToDrop.toSet
-
-    val keepIndices = signature.fields
-      .filter(f => !dropSet.contains(f.name))
-      .map(_.index)
-
-    val newRowType = TStruct(keepIndices.map(signature.fields).map(f => (f.name, f.typ)): _*)
-    val localRowType = signature
-    val newRVD = rvd.mapPartitions(newRowType) { it =>
-
-      val rv2 = RegionValue()
-      val rvb = new RegionValueBuilder()
-
-      it.map { rv =>
-        rvb.set(rv.region)
-        rvb.start(newRowType)
-        rvb.startStruct()
-
-        var i = 0
-        while (i < keepIndices.length) {
-          rvb.addField(localRowType, rv, keepIndices(i))
-          i += 1
-        }
-
-        rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-        rv2
+      val annotF: Row => Row = { r =>
+        ec.set(1, r)
+        f().asInstanceOf[Row]
       }
+
+      val newKey = key.filter(newSignature.fieldNames.toSet)
+
+      copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
     }
-    copy2(rvd = newRVD,
-      signature = newRowType,
-      key = key.filter(k => !dropSet.contains(k)))
-  }
-
-  def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
-
-  def rename(fieldMapRows: java.util.HashMap[String, String], fieldMapGlobals: java.util.HashMap[String, String]): Table =
-    rename(fieldMapRows.asScala.toMap, fieldMapGlobals.asScala.toMap)
-
-  def rename(fieldMapRows: Map[String, String], fieldMapGlobals: Map[String, String]): Table = {
-    assert(fieldMapRows.keys.forall(k => ktType.rowType.fieldNames.contains(k)),
-      s"[${fieldMapRows.keys.mkString(", ")}], expected [${ ktType.rowType.fieldNames.mkString(", ") }]")
-
-    assert(fieldMapGlobals.keys.forall(k => ktType.globalType.fieldNames.contains(k)),
-      s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ ktType.globalType.fieldNames.mkString(", ") }]")
-
-    val rowKey = ktType.key
-    val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
-
-    val rowType = ktType.rowType
-    val newRowType = TStruct(rowType.required, rowType.fields.map { f => (fieldMapRows.getOrElse(f.name, f.name), f.typ) }: _*)
-
-    val globalType = ktType.globalType
-    val newGlobalType = if (fieldMapGlobals.isEmpty) globalType else {
-      val newFieldNames = globalType.fieldNames.map { n => fieldMapGlobals.getOrElse(n, n) }
-      TStruct(globalType.required, newFieldNames.zip(globalType.types): _*)
-    }
-
-    copy(signature = newRowType, key = newKey, globalSignature = newGlobalType)
   }
 
   def join(other: Table, joinType: String): Table = {
@@ -1205,7 +1080,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val relatedNodesToKeep = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
 
-    val nodes = this.annotate(s"node = [$iExpr, $jExpr]").select("row.node").explode("node").keyBy("node")
+    val nodes = this.select(s"{node : [$iExpr, $jExpr] }")
+      .explode("node")
+      .keyBy("node")
 
     nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
       .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)

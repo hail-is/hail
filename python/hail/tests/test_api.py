@@ -132,6 +132,8 @@ class TableTests(unittest.TestCase):
 
         kt = hl.Table.parallelize(rows, schema)
 
+        self.assertTrue(kt.annotate()._same(kt))
+
         result1 = convert_struct_to_dict(kt.annotate(foo=kt.a + 1,
                                                      foo2=kt.a).take(1)[0])
 
@@ -270,10 +272,22 @@ class TableTests(unittest.TestCase):
 
         kt = hl.Table.parallelize(rows, schema)
 
-        self.assertEqual(list(kt.select(kt.a, kt.e).row), ['a', 'e'])
-        self.assertEqual(list(kt.select(*[kt.a, kt.e]).row), ['a', 'e'])
+        t1 = kt.select(kt.a, kt.e)
+        self.assertEqual(list(t1.row), ['a', 'e'])
+        self.assertEqual(list(t1.key), [])
+
+        t2 = kt.key_by('d', 'e')
+        t2 = t2.select(*[t2.a, t2.e])
+        self.assertEqual(list(t2.row), ['a', 'e'])
+        self.assertEqual(list(t2.key), ['e'])
+
         self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ['a', 'foo'])
         self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).row), ['a', 'foo', 'x', 'y'])
+
+        # select no fields
+        s = kt.select()
+        self.assertEqual(list(s.row), [])
+        self.assertEqual(list(s.key), [])
 
     def test_aggregate(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
@@ -398,10 +412,20 @@ class TableTests(unittest.TestCase):
 
     def test_drop(self):
         kt = hl.utils.range_table(10)
-        kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
+        kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
 
-        self.assertEqual(list(kt.drop('idx', 'foo').row), ['sq', 'bar'])
+        ktd = kt.drop('idx', 'foo')
+        self.assertEqual(list(ktd.row), ['sq', 'bar'])
+        self.assertEqual(list(ktd.key), [])
+
         self.assertEqual(list(kt.drop(kt['idx'], kt['foo']).row), ['sq', 'bar'])
+
+        d = kt.drop(*list(kt.row))
+        self.assertEqual(list(d.row), [])
+        self.assertEqual(list(d.key), [])
+
+        self.assertTrue(kt.drop()._same(kt))
+        self.assertTrue(kt.drop(*list(kt.row))._same(kt.select()))
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)

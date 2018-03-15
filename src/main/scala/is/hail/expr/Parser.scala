@@ -135,6 +135,27 @@ object Parser extends JavaTokenParsers {
     (names, types, () => fs.map(_()))
   }
 
+  def parseSelectExprsToAST(codes: Array[String], ec: EvalContext): (Array[Either[String, List[String]]], Array[AST]) = {
+    val names = new Array[Either[String, List[String]]](codes.length)
+    val asts = new Array[AST](codes.length)
+    codes.indices.foreach { i =>
+      val code = codes(i)
+      annotationIdentifier.parseOpt(code) match {
+        case Some(ids) =>
+          val ast = expr.parse(code)
+          assert(ids.nonEmpty)
+          names(i) = Right(ids)
+          asts(i) = ast
+        case None =>
+          val (name, ast) = named_expr(identifier).parse(code)
+          names(i) = Left(name)
+          asts(i) = ast
+      }
+    }
+    asts.foreach { _.typecheck(ec) }
+    (names, asts)
+  }
+
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Any]) = {
 

@@ -191,9 +191,7 @@ class TableSuite extends SparkSuite {
     ktLeftJoin.export(outputFile)
 
     val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy(List("Sample", "Status"))
-    assert(noNull.join(
-      noNull.rename(Map("qPhen" -> "qPhen_"), Map.empty[String, String]), "outer"
-    ).rdd.forall { r => !r.toSeq.exists(_ == null) })
+    assert(noNull.join(noNull.rename(Map("qPhen" -> "qPhen_"), Map()), "outer").rdd.forall { r => !r.toSeq.contains(null) })
   }
 
   @Test def testJoinDiffKeyNames() = {
@@ -201,9 +199,7 @@ class TableSuite extends SparkSuite {
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
     val ktLeft = hc.importTable(inputFile1, impute = true).keyBy("Sample")
-    val ktRight = hc.importTable(inputFile2, impute = true)
-      .keyBy("Sample")
-      .rename(Map("Sample" -> "sample"), Map.empty[String, String])
+    val ktRight = hc.importTable(inputFile2, impute = true).keyBy("Sample").rename(Map("Sample" -> "sample"), Map())
     val ktBad = ktRight.keyBy("qPhen2")
 
     intercept[HailException] {
@@ -284,35 +280,6 @@ class TableSuite extends SparkSuite {
     }
 
     TestUtils.interceptFatal("Invalid key")(kt.select().keyBy("Sample"))
-  }
-
-  @Test def testDrop() {
-    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-
-    val kt = Table(hc, rdd, signature, Array("Sample"))
-    kt.typeCheck()
-    val drop0 = kt.drop(Array.empty[String])
-    assert((drop0.key sameElements Array("Sample")) && (drop0.fieldNames sameElements Array("Sample", "field1", "field2")))
-    val drop1 = kt.drop(Array("Sample"))
-    assert((drop1.key sameElements Array.empty[String]) && (drop1.fieldNames sameElements Array("field1", "field2")))
-    val drop2 = kt.drop(Array("field1", "field2"))
-    assert((drop2.key sameElements Array("Sample")) && (drop2.fieldNames sameElements Array("Sample")))
-    val drop3 = kt.drop(Array("Sample", "field1"))
-    assert((drop3.key sameElements Array.empty[String]) && (drop3.fieldNames sameElements Array("field2")))
-    val drop4 = kt.drop(Array("Sample", "field2"))
-    assert((drop4.key sameElements Array.empty[String]) && (drop4.fieldNames sameElements Array("field1")))
-    val drop5 = kt.drop(Array("Sample", "field1", "field2"))
-    assert((drop5.key sameElements Array.empty[String]) && (drop5.fieldNames sameElements Array.empty[String]))
-
-    val kt2 = Table(hc, rdd, signature, Array("field1", "field2"))
-    val drop6 = kt2.drop(Array("field1"))
-    assert((drop6.key sameElements Array("field2")) && (drop6.fieldNames sameElements Array("Sample", "field2")))
-
-    for (drop <- Array(drop0, drop1, drop2, drop3, drop4, drop5, drop6)) {
-      drop.export(tmpDir.createTempFile("drop", "tsv"))
-    }
   }
 
   @Test def testExplode() {

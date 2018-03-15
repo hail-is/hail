@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import org.testng.annotations.Test
+import is.hail.testUtils._
 
 class SelectSuite extends SparkSuite {
   @Test def testRows() {
