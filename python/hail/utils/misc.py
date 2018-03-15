@@ -3,7 +3,9 @@ from hail.utils.java import Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
 from collections import defaultdict, Counter
-import os
+import atexit
+import shutil
+import tempfile
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
@@ -101,13 +103,22 @@ def get_env_or_default(maybe, envvar, default):
     return maybe or os.environ.get(envvar) or default
 
 
-def get_URI(path):
-    return Env.jutils().getURI(path)
+def uri_path(uri):
+    return Env.jutils().uriPath(uri)
 
 
-def new_temp_file(n_char=10, prefix=None, suffix=None):
+def local_path_uri(path):
+    return 'file://' + path
+
+
+def new_temp_file(suffix=None, prefix=None, n_char=10):
     return Env.hc()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
 
+
+def new_local_temp_dir(suffix=None, prefix=None, dir=None):
+    local_temp_dir = tempfile.mkdtemp(suffix, prefix, dir)
+    atexit.register(shutil.rmtree, local_temp_dir)
+    return local_temp_dir
 
 storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',

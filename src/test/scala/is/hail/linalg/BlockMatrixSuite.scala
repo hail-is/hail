@@ -591,17 +591,6 @@ class BlockMatrixSuite extends SparkSuite {
   }
 
   @Test
-  def readWriteBDM() {
-    val lm = BDM.rand[Double](256, 129) // 33024 doubles
-    val fname = tmpDir.createTempFile("test")
-
-    lm.write(hc, fname, bufferSpec = BlockMatrix.bufferSpec)
-    val lm2 = RichDenseMatrixDouble.read(hc, fname, BlockMatrix.bufferSpec)
-
-    assert(lm === lm2)
-  }
-
-  @Test
   def filterCols() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 

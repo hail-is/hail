@@ -32,10 +32,10 @@ class Tests(unittest.TestCase):
                                               "--max {}".format(max) if max else "")
 
             plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}" \
-                .format(utils.get_URI(vcf),
-                        utils.get_URI(plinkpath),
+                .format(utils.uri_path(vcf),
+                        utils.uri_path(plinkpath),
                         threshold_string)
-            result_file = utils.get_URI(plinkpath + ".genome")
+            result_file = utils.uri_path(plinkpath + ".genome")
 
             syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
@@ -81,8 +81,8 @@ class Tests(unittest.TestCase):
 
         sex = hl.impute_sex(ds.GT, include_par=True)
 
-        vcf_file = utils.get_URI(utils.new_temp_file(prefix="plink", suffix="vcf"))
-        out_file = utils.get_URI(utils.new_temp_file(prefix="plink"))
+        vcf_file = utils.uri_path(utils.new_temp_file(prefix="plink", suffix="vcf"))
+        out_file = utils.uri_path(utils.new_temp_file(prefix="plink"))
 
         hl.export_vcf(ds, vcf_file)
 
@@ -284,7 +284,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-rel --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
+                .format(utils.uri_path(b_file), utils.uri_path(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
         self.assertEqual(load_id_file(p_file + ".rel.id"), sample_ids)
 
         grm.export_rel(rel_file)
@@ -298,7 +298,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-gz --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
+                .format(utils.uri_path(b_file), utils.uri_path(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
         self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
         grm.export_gcta_grm(grm_file)
@@ -311,7 +311,7 @@ class Tests(unittest.TestCase):
 
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-bin --out {}'''
-                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
+                .format(utils.uri_path(b_file), utils.uri_path(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
         self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
@@ -325,7 +325,7 @@ class Tests(unittest.TestCase):
                                     atol=tolerance))
 
     def test_block_matrix_from_numpy(self):
-        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]])
+        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]], dtype=np.float64)
 
         for block_size in [1, 2, 5, 1024]:
             block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
@@ -375,7 +375,7 @@ class Tests(unittest.TestCase):
 
             rrm.export_tsv(fn)
             data = []
-            with open(utils.get_URI(fn)) as f:
+            with open(utils.uri_path(fn)) as f:
                 f.readline()
                 for line in f:
                     row = line.strip().split()
