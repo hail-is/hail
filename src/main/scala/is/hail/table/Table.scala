@@ -967,19 +967,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy(rdd = newRDD, signature = keySignature.merge(aggSignature)._1, key = newKey)
   }
 
-  def ungroup(column: String, mangle: Boolean = false): Table = {
-    val (finalSignature, ungrouper) = signature.ungroup(column, mangle)
-    copy(rdd = rdd.map(ungrouper), signature = finalSignature)
-  }
-
-  def group(dest: String, columns: java.util.ArrayList[String]): Table = group(dest, columns.asScala.toArray)
-
-  def group(dest: String, columns: Array[String]): Table = {
-    val (newSignature, grouper) = signature.group(dest, columns)
-    val newKey = key.filter(!columns.contains(_))
-    copy(rdd = rdd.map(grouper), signature = newSignature, key = newKey)
-  }
-
   def expandTypes(): Table = {
     val localSignature = signature
     val expandedSignature = Annotation.expandType(localSignature).asInstanceOf[TStruct]

@@ -574,89 +574,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         assert(identifiers.duplicates().isEmpty)
         `type` = struct.`type`.asInstanceOf[TStruct].filter(identifiers.toSet, include = false)._1
 
-      case "ungroup" =>
-        if (args.length != 3)
-          parseError(
-            s"""invalid arguments for method `$fn'
-               |  Usage: $fn(Struct, identifier, mangle)
-               |  Found ${ args.length } ${ plural(args.length, "argument") }""".stripMargin)
-
-        val Array(s, id, m) = args
-        s.typecheck(ec)
-        val struct = s.`type` match {
-          case t: TStruct => t
-          case other => parseError(
-            s"""method `$fn' expects a Struct argument in the first position
-               |  Expected: $fn(Struct, ...)
-               |  Found: $fn($other, ...)""".stripMargin)
-        }
-        val identifier = id match {
-          case SymRef(_, n) => n
-          case other =>
-            parseError(
-              s"""invalid arguments for method `$fn'
-                 |  Expected struct field identifier in the second position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
-        }
-        val mangle = m match {
-          case Const(_, v, TBoolean(_)) => v.asInstanceOf[Boolean]
-          case other =>
-            parseError(
-              s"""invalid arguments for method `$fn'
-                 |  Expected boolean argument in the third position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
-        }
-
-        val (tNew, _) = try {
-          struct.ungroup(identifier, mangle)
-        } catch {
-          case e: Throwable => parseError(
-            s"""invalid arguments for method `$fn'
-               |  $e""".stripMargin)
-        }
-
-        `type` = tNew
-
-      case "group" =>
-        if (args.length < 3)
-          parseError(
-            s"""too few arguments for method `$fn'
-               |  Expected 3 or more arguments: $fn(Struct, dest, identifiers...)
-               |  Found ${ args.length } ${ plural(args.length, "argument") }""".stripMargin)
-        val (head, tail) = (args.head, args.tail)
-        head.typecheck(ec)
-        val struct = head.`type` match {
-          case t: TStruct => t
-          case other => parseError(
-            s"""method `$fn' expects a Struct argument in the first position
-               |  Expected: $fn(Struct, ...)
-               |  Found: $fn($other, ...)""".stripMargin)
-        }
-        val identifiers = tail.map {
-          case SymRef(_, id) => id
-          case other =>
-            parseError(
-              s"""invalid arguments for method `$fn'
-                 |  Expected struct field identifiers after the first position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
-        }
-
-        val dest = identifiers.head
-        val idsToGroup = identifiers.tail
-
-        val duplicates = idsToGroup.duplicates()
-        if (duplicates.nonEmpty)
-          parseError(
-            s"""invalid arguments for method `$fn'
-               |  Duplicate ${ plural(duplicates.size, "identifier") } found: [ ${ duplicates.map(prettyIdentifier).mkString(", ") } ]""".stripMargin)
-
-        val (tNew, _) = try {
-          struct.group(dest, idsToGroup)
-        } catch {
-          case e: Throwable => parseError(
-            s"""invalid arguments for method `$fn'
-               |  $e""".stripMargin)
-        }
-
-        `type` = tNew
-
       case "uniroot" =>
         if (args.length != 3)
           parseError("wrong number of arguments to uniroot")
@@ -690,7 +607,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       result <- CM.invokePrimitive2(merger)(f1, f2)
     ) yield result.asInstanceOf[Code[AnyRef]] // totally could be a problem
 
-    case ("select" | "drop" | "group", Array(head, tail@_*)) =>
+    case ("select" | "drop", Array(head, tail@_*)) =>
       val struct = head.`type`.asInstanceOf[TStruct]
       val identifiers = tail.map { ast =>
         (ast: @unchecked) match {
@@ -701,7 +618,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val f = fn match {
         case "select" => struct.select(identifiers.toArray)._2
         case "drop" => struct.filter(identifiers.toSet, include = false)._2
-        case "group" => struct.group(identifiers.head, identifiers.tail.toArray)._2
       }
 
       AST.evalComposeCodeM[AnyRef](head)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
@@ -712,14 +628,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       (_, annotator) = struct1.`type`.asInstanceOf[TStruct].annotate(struct2.`type`.asInstanceOf[TStruct]);
       result <- CM.invokePrimitive2(annotator)(f1, f2)
     ) yield result.asInstanceOf[Code[AnyRef]]
-
-    case ("ungroup", Array(s, id, m)) =>
-      val struct = s.`type`.asInstanceOf[TStruct]
-      val (identifier, mangle) = ((id, m): @unchecked) match {
-        case (SymRef(_, n), Const(_, v, _)) => (n, v.asInstanceOf[Boolean])
-      }
-      val f = struct.ungroup(identifier, mangle)._2
-      AST.evalComposeCodeM[AnyRef](s)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
 
     case ("index", Array(structArray, k)) =>
       val key = (k: @unchecked) match {
@@ -754,7 +662,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
   def toIR(agg: Option[String] = None): Option[IR] = {
     fn match {
-      case "merge" | "select" | "drop" | "group" | "annotate" | "ungroup" | "index" =>
+      case "merge" | "select" | "drop" | "annotate" | "index" =>
         None
       case _ =>
         for {
