@@ -444,8 +444,6 @@ class CompileSuite {
     val actual = new UnsafeIndexedSeq(tRange, region, aoff)
     assert(expected.length == actual.length)
     assert(actual.sameElements(expected))
-
-
   }
 
   @Test
@@ -462,6 +460,33 @@ class CompileSuite {
     } {
       val aoff = f(region, stop, false, cutoff, false)
       val expected = Array.range(0, cutoff)
+      val actual = new UnsafeIndexedSeq(t, region, aoff)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+    }
+  }
+
+  @Test
+  def testArrayFilterElement() {
+    val t = TArray(TInt32())
+    val ir = ArrayFilter(In(0, t), "x", ApplyBinaryPrimOp(EQ(), Ref("x"), In(1, TInt32())))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
+    for {
+      stop <- 0 to 5
+      elt <- 0 to stop
+    } {
+      region.clear()
+      val base = Array.range(0, stop, 1)
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(t)
+      rvb.addAnnotation(t, base.toIndexedSeq)
+      val off = rvb.end()
+
+      val aoff = f(region, off, false, elt, false)
+      val expected = base.filter(_ == elt)
       val actual = new UnsafeIndexedSeq(t, region, aoff)
       assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
