@@ -170,7 +170,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   if (!key.forall(fieldNames.contains(_)))
     fatal(s"Key names found that are not column names: ${ key.filterNot(fieldNames.contains(_)).mkString(", ") }")
 
-  private def rowEvalContext(): EvalContext = {
+  def rowEvalContext(): EvalContext = {
     val ec = EvalContext(
       "global" -> globalSignature,
       "row" -> signature)
@@ -677,35 +677,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     copy(rdd = joinedRDD, signature = newSignature, key = key)
-  }
-
-  def forall(code: String): Boolean = {
-    val ec = rowEvalContext()
-
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
-
-    rdd.forall { a =>
-      ec.set(1, a)
-      val b = f()
-      if (b == null)
-        false
-      else
-        b
-    }
-  }
-
-  def exists(code: String): Boolean = {
-    val ec = rowEvalContext()
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
-
-    rdd.exists { a =>
-      ec.set(1, a)
-      val b = f()
-      if (b == null)
-        false
-      else
-        b
-    }
   }
 
   def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {

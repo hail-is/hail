@@ -8,6 +8,7 @@ import is.hail.expr.types.{TInterval, TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
 import is.hail.utils.{HailException, Interval}
+import is.hail.testUtils._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row

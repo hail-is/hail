@@ -6,6 +6,7 @@ import is.hail.check.Properties
 import is.hail.io.plink.{ExportPlink, LoadPlink}
 import is.hail.methods.VariantQC
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test

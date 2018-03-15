@@ -5,6 +5,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.table.Table
+import is.hail.testUtils._
 import is.hail.variant.{ReferenceGenome, Locus, MatrixTable}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
