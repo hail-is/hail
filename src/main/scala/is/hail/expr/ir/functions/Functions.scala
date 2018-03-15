@@ -90,15 +90,15 @@ abstract class RegistryFunctions {
   def registerScalaFunction(mname: String, types: Type*)(cls: Class[_], method: String): Unit =
     registerScalaFunction(mname: String, types.init.toArray, types.last)(cls, method)
 
-  def registerJavaStaticFunction[C: ClassTag, R: ClassTag](mname: String, argTypes: Array[Type], rType: Type)(method: String) {
+  def registerJavaStaticFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
     registerCode(mname, argTypes, rType) { (mb, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
-      Code.invokeStatic[C, R](method, cts, args)
+      Code.invokeStatic(cls, method, cts, args)(TypeToIRIntermediateClassTag(rType))
     }
   }
 
-  def registerJavaStaticFunction[C: ClassTag, R: ClassTag](mname: String, types: Type*)(method: String): Unit =
-    registerJavaStaticFunction[C, R](mname, types.init.toArray, types.last)(method)
+  def registerJavaStaticFunction(mname: String, types: Type*)(cls: Class[_], method: String): Unit =
+    registerJavaStaticFunction(mname, types.init.toArray, types.last)(cls, method)
 
   def registerIR(mname: String, argTypes: Array[Type])(f: Seq[IR] => IR) {
     IRFunctionRegistry.addIR(mname, argTypes, f)

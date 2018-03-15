@@ -21,10 +21,6 @@ object MathFunctions extends RegistryFunctions {
 
   def ceil(x: Double): Double = math.ceil(x)
 
-  def floorMod(x: Int, y: Int): Int = java.lang.Math.floorMod(x, y)
-
-  def floorMod(x: Long, y: Long): Long = java.lang.Math.floorMod(x, y)
-
   def floorDiv(x: Int, y: Int): Int = java.lang.Math.floorDiv(x, y)
 
   def floorDiv(x: Long, y: Long): Long = java.lang.Math.floorDiv(x, y)
@@ -39,6 +35,7 @@ object MathFunctions extends RegistryFunctions {
     val thisClass = getClass
     val mathPackageClass = Class.forName("scala.math.package$")
     val statsPackageClass = Class.forName("is.hail.stats.package$")
+    val jMathClass = classOf[java.lang.Math]
 
     // numeric conversions
     registerIR("toInt32", tnum("T"))(x => Cast(x, TInt32()))
@@ -78,8 +75,8 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("//", TFloat32(), TFloat32(), TFloat32())(thisClass, "floorDiv")
     registerScalaFunction("//", TFloat64(), TFloat64(), TFloat64())(thisClass, "floorDiv")
 
-    registerScalaFunction("%", TInt32(), TInt32(), TInt32())(thisClass, "floorMod")
-    registerScalaFunction("%", TInt64(), TInt32(), TInt64())(thisClass, "floorMod")
+    registerJavaStaticFunction("%", TInt32(), TInt32(), TInt32())(jMathClass, "floorMod")
+    registerJavaStaticFunction("%", TInt64(), TInt32(), TInt64())(jMathClass, "floorMod")
 
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
   }

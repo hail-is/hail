@@ -27,7 +27,7 @@ class ScalaTestCompanion {
 
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
-    registerJavaStaticFunction[java.lang.Integer, Int]("compare", TInt32(), TInt32(), TInt32())("compare")
+    registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
     registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ (_, a: Code[Int], b: Code[Int]) => a + b }

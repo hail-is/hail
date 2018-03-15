@@ -60,6 +60,10 @@ object Children {
       Array(o)
     case GetFieldMissingness(o, name) =>
       Array(o)
+    case MakeTuple(types, _) =>
+      types.toIndexedSeq
+    case GetTupleElement(o, idx, _) =>
+      Array(o)
     case In(i, typ) =>
       none
     case InMissingness(i) =>
