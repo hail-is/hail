@@ -10,18 +10,485 @@ from hail.typecheck import *
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
+from typing import *
+
+T = TypeVar('T', bound=Expression)
+U = TypeVar('U', bound=Expression)
+K = TypeVar('K', bound=Expression)
+V = TypeVar('V', bound=Expression)
 
 
-class CollectionExpression(Expression):
-    """Expression of type :class:`.tarray` or :class:`.tset`
+class BooleanExpression(Expression):
+    """Expression of type :py:data:`.tbool`.
 
-    >>> a = hl.literal([1, 2, 3, 4, 5])
+    >>> t = hl.literal(True)
+    >>> f = hl.literal(False)
+    >>> na = hl.null(hl.tbool)
 
-    >>> s = hl.literal({'Alice', 'Bob', 'Charlie'})
+    .. doctest::
+
+        >>> hl.eval_expr(t)
+        True
+
+        >>> hl.eval_expr(f)
+        False
+
+        >>> hl.eval_expr(na)
+        None
+
     """
 
+    def _bin_op_logical(self, name, other):
+        other = to_expr(other)
+        return self._bin_op(name, other, tbool)
+
+    @typecheck_method(other=expr_bool)
+    def __rand__(self, other: 'BooleanExpression') -> 'BooleanExpression':
+        return self.__and__(other)
+
+    @typecheck_method(other=expr_bool)
+    def __ror__(self, other: 'BooleanExpression') -> 'BooleanExpression':
+        return self.__or__(other)
+
+    @typecheck_method(other=expr_bool)
+    def __and__(self, other: 'BooleanExpression') -> 'BooleanExpression':
+        """Return ``True`` if the left and right arguments are ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(t & f)
+            False
+
+            >>> hl.eval_expr(t & na)
+            None
+
+            >>> hl.eval_expr(f & na)
+            False
+
+        The ``&`` and ``|`` operators have higher priority than comparison
+        operators like ``==``, ``<``, or ``>``. Parentheses are often
+        necessary:
+
+        .. doctest::
+
+            >>> x = hl.literal(5)
+
+            >>> hl.eval_expr((x < 10) & (x > 2))
+            True
+
+        Parameters
+        ----------
+        other
+        """
+        return self._bin_op_logical("&&", other)
+
+    @typecheck_method(other=expr_bool)
+    def __or__(self, other: 'BooleanExpression') -> 'BooleanExpression':
+        """Return ``True`` if at least one of the left and right arguments is ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(t | f)
+            True
+
+            >>> hl.eval_expr(t | na)
+            True
+
+            >>> hl.eval_expr(f | na)
+            None
+
+        The ``&`` and ``|`` operators have higher priority than comparison
+        operators like ``==``, ``<``, or ``>``. Parentheses are often
+        necessary:
+
+        .. doctest::
+
+            >>> x = hl.literal(5)
+
+            >>> hl.eval_expr((x < 10) | (x > 20))
+            True
+
+        Parameters
+        ----------
+        other
+        """
+        return self._bin_op_logical("||", other)
+
+    def __invert__(self) -> 'BooleanExpression':
+        """Return the boolean negation.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(~t)
+            False
+
+            >>> hl.eval_expr(~f)
+            True
+
+            >>> hl.eval_expr(~na)
+            None
+        """
+        return self._unary_op("!")
+
+
+class NumericExpression(Expression):
+    """Expression of numeric type.
+
+    >>> x = hl.literal(3)
+
+    >>> y = hl.literal(4.5)
+    """
+
+    def _bin_op_ret_typ(self, other):
+        if isinstance(other.dtype, tarray):
+            t = other.dtype.element_type
+            wrapper = lambda t: tarray(t)
+        else:
+            t = other.dtype
+            wrapper = lambda t: t
+        t = unify_types(self.dtype, t)
+        if not t:
+            return None
+        else:
+            return t, wrapper
+
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        ret_type, wrapper = self._bin_op_ret_typ(other)
+        if not ret_type:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self.dtype, name, other.dtype))
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op(name, other, wrapper(ret_type))
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        ret_type, wrapper = self._bin_op_ret_typ(other)
+        if not ret_type:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self.dtype, name, other.dtype))
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op_reverse(name, other, wrapper(ret_type))
+
+    @typecheck_method(other=expr_numeric)
+    def __lt__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Less-than comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x < 5)
+            True
+
+        Parameters
+        ----------
+        other
+            Right side for comparison.
+        """
+        return self._bin_op_numeric("<", other, lambda _: tbool)
+
+    @typecheck_method(other=expr_numeric)
+    def __le__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Less-than-or-equals comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x <= 3)
+            True
+
+        Parameters
+        ----------
+        other
+            Right side for comparison.
+        """
+        return self._bin_op_numeric("<=", other, lambda _: tbool)
+
+    @typecheck_method(other=expr_numeric)
+    def __gt__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Greater-than comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(y > 4)
+            True
+
+        Parameters
+        ----------
+        other
+            Right side for comparison.
+        """
+        return self._bin_op_numeric(">", other, lambda _: tbool)
+
+    @typecheck_method(other=expr_numeric)
+    def __ge__(self, other: 'NumericExpression') -> BooleanExpression:
+        """Greater-than-or-equals comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(y >= 4)
+            True
+
+        Parameters
+        ----------
+        other
+            Right side for comparison.
+        """
+        return self._bin_op(">=", other, tbool)
+
+    def __pos__(self) -> 'NumericExpression':
+        return self
+
+    def __neg__(self) -> 'NumericExpression':
+        """Negate the number (multiply by -1).
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(-x)
+            -3
+        """
+        return self._unary_op("-")
+
+    def __add__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Add two numbers.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x + 2)
+            5
+
+            >>> hl.eval_expr(x + y)
+            7.5
+
+        Parameters
+        ----------
+        other
+            Number to add.
+        """
+        return self._bin_op_numeric("+", other)
+
+    def __radd__(self, other: 'NumericExpression') -> 'NumericExpression':
+        return self._bin_op_numeric_reverse("+", other)
+
+    def __sub__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Subtract the right number from the left.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x - 2)
+            1
+
+            >>> hl.eval_expr(x - y)
+            -1.5
+
+        Parameters
+        ----------
+        other
+            Number to subtract.
+        """
+        return self._bin_op_numeric("-", other)
+
+    def __rsub__(self, other: 'NumericExpression') -> 'NumericExpression':
+        return self._bin_op_numeric_reverse("-", other)
+
+    def __mul__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Multiply two numbers.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x * 2)
+            6
+
+            >>> hl.eval_expr(x * y)
+            9.0
+
+        Parameters
+        ----------
+        other
+            Number to multiply.
+        """
+        return self._bin_op_numeric("*", other)
+
+    def __rmul__(self, other: 'NumericExpression') -> 'NumericExpression':
+        return self._bin_op_numeric_reverse("*", other)
+
+    def __truediv__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Divide two numbers.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x / 2)
+            1.5
+
+            >>> hl.eval_expr(y / 0.1)
+            45.0
+
+        Parameters
+        ----------
+        other
+            Dividend.
+        """
+
+        def ret_type_f(t):
+            assert is_numeric(t)
+            if t == tint32 or t == tint64:
+                return tfloat32
+            else:
+                # Float64 or Float32
+                return t
+
+        return self._bin_op_numeric("/", other, ret_type_f)
+
+    def __rtruediv__(self, other: 'NumericExpression') -> 'NumericExpression':
+        def ret_type_f(t):
+            assert is_numeric(t)
+            if t == tint32 or t == tint64:
+                return tfloat32
+            else:
+                # Float64 or Float32
+                return t
+
+        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+
+    def __floordiv__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Divide two numbers with floor division.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x // 2)
+            1
+
+            >>> hl.eval_expr(y // 2)
+            2.0
+
+        Parameters
+        ----------
+        other
+            Dividend.
+        """
+        return self._bin_op_numeric('//', other)
+
+    def __rfloordiv__(self, other: 'NumericExpression') -> 'NumericExpression':
+        return self._bin_op_numeric_reverse('//', other)
+
+    def __mod__(self, other: 'NumericExpression') -> 'NumericExpression':
+        """Compute the left modulo the right number.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(32 % x)
+            2
+
+            >>> hl.eval_expr(7 % y)
+            2.5
+
+        Parameters
+        ----------
+        other
+            Dividend.
+        """
+        return self._bin_op_numeric('%', other)
+
+    def __rmod__(self, other: 'NumericExpression') -> 'NumericExpression':
+        return self._bin_op_numeric_reverse('%', other)
+
+    def __pow__(self, power, modulo=None) -> 'NumericExpression':
+        """Raise the left to the right power.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(x ** 2)
+            9.0
+
+            >>> hl.eval_expr(x ** -2)
+            0.1111111111111111
+
+            >>> hl.eval_expr(y ** 1.5)
+            9.545941546018392
+
+        Parameters
+        ----------
+        power
+        modulo
+            Unsupported argument.
+        """
+        return self._bin_op_numeric('**', power, lambda _: tfloat64)
+
+    def __rpow__(self, other: 'NumericExpression') -> 'NumericExpression':
+        return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
+
+
+class Float64Expression(NumericExpression):
+    """Expression of type :py:data:`.tfloat64`."""
+    pass
+
+
+class Float32Expression(NumericExpression):
+    """Expression of type :py:data:`.tfloat32`."""
+    pass
+
+
+class Int32Expression(NumericExpression):
+    """Expression of type :py:data:`.tint32`."""
+    pass
+
+class Int64Expression(NumericExpression):
+    """Expression of type :py:data:`.tint64`."""
+    pass
+
+SupportsExpr = Union[Expression, Any]
+SupportsBool = Union[bool, BooleanExpression]
+SupportsInt32 = Union[int, Int32Expression]
+SupportsInt64 = Union[SupportsInt32, Int64Expression]
+SupportsFloat32 = Union[float, SupportsInt64, Float32Expression]
+SupportsFloat64 = Union[SupportsFloat32, Float64Expression]
+Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
+
+class CollectionExpression(Expression, Generic[T]):
+    """Expression of type :class:`.tarray` or :class:`.tset`
+
+    >>> a = hl.array([1, 2, 3, 4, 5])
+
+    >>> s = hl.set({'Alice', 'Bob', 'Charlie'})
+    """
+    @property
+    def dtype(self) -> Union[tarray, tset]:
+        t = super(CollectionExpression, self).dtype
+        assert isinstance(t, (tset, tarray))
+        return t
+
     @typecheck_method(f=func_spec(1, expr_bool))
-    def any(self, f):
+    def any(self, f: Callable[[T], BooleanExpression]) -> BooleanExpression:
         """Returns ``True`` if `f` returns ``True`` for any element.
 
         Examples
@@ -36,18 +503,14 @@ class CollectionExpression(Expression):
 
         Notes
         -----
+        ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         This method always returns ``False`` for empty collections.
 
         Parameters
         ----------
-        f : function ( (arg) -> :class:`.BooleanExpression`)
+        f
             Function to evaluate for each element of the collection. Must return a
             :class:`.BooleanExpression`.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`.
-            ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
 
         def unify_ret(t):
@@ -58,7 +521,7 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("exists", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
-    def filter(self, f):
+    def filter(self, f: Callable[[T], BooleanExpression]) -> 'CollectionExpression[T]':
         """Returns a new collection containing elements where `f` returns ``True``.
 
         Examples
@@ -79,14 +542,9 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : function ( (arg) -> :class:`.BooleanExpression`)
+        f
             Function to evaluate for each element of the collection. Must return a
             :class:`.BooleanExpression`.
-
-        Returns
-        -------
-        :class:`.CollectionExpression`
-            Expression of the same type as the callee.
         """
 
         def unify_ret(t):
@@ -97,7 +555,7 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("filter", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
-    def find(self, f):
+    def find(self, f: Callable[[T], BooleanExpression]) -> T:
         """Returns the first element where `f` returns ``True``.
 
         Examples
@@ -116,13 +574,12 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : function ( (arg) -> :class:`.BooleanExpression`)
+        f
             Function to evaluate for each element of the collection. Must return a
             :class:`.BooleanExpression`.
 
         Returns
         -------
-        :class:`.Expression`
             Expression whose type is the element type of the collection.
         """
 
@@ -134,7 +591,7 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("find", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_any))
-    def flatmap(self, f):
+    def flatmap(self, f: Callable[['CollectionExpression[T]'], 'CollectionExpression[U]']) -> 'CollectionExpression[U]':
         """Map each element of the collection to a new collection, and flatten the results.
 
         Examples
@@ -149,26 +606,22 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : function ( (arg) -> :class:`.CollectionExpression`)
+        f
             Function from the element type of the collection to the type of the
             collection. For instance, `flatmap` on a ``set<str>`` should take
             a ``str`` and return a ``set``.
-
-        Returns
-        -------
-        :class:`.CollectionExpression`
         """
-        expected_type, s = (tarray, 'array') if isinstance(self._type, tarray) else (tset, 'set')
+        expected_type, s = (tarray, 'array') if isinstance(self.dtype, tarray) else (tset, 'set')
 
         def unify_ret(t):
             if not isinstance(t, expected_type):
                 raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
             return t
 
-        return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
+        return self._bin_lambda_method("flatMap", f, self.dtype.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_bool))
-    def all(self, f):
+    def all(self, f: Callable[[T], BooleanExpression]) -> BooleanExpression:
         """Returns ``True`` if `f` returns ``True`` for every element.
 
         Examples
@@ -202,7 +655,7 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("forall", f, self._type.element_type, unify_ret)
 
     @typecheck_method(f=func_spec(1, expr_any))
-    def group_by(self, f):
+    def group_by(self, f: Callable[[T], U]) -> 'DictExpression[T, U]':
         """Group elements into a dict according to a lambda function.
 
         Examples
@@ -229,7 +682,7 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: tdict(t, self._type))
 
     @typecheck_method(f=func_spec(1, expr_any))
-    def map(self, f):
+    def map(self, f: Callable[[T], U]) -> 'CollectionExpression[U]':
         """Transform each element of a collection.
 
         Examples
@@ -254,7 +707,7 @@ class CollectionExpression(Expression):
         """
         return self._bin_lambda_method("map", f, self._type.element_type, lambda t: self._type.__class__(t))
 
-    def length(self):
+    def length(self) -> Int32Expression:
         """Returns the size of a collection.
 
         Examples
@@ -274,7 +727,7 @@ class CollectionExpression(Expression):
         """
         return self._method("size", tint32)
 
-    def size(self):
+    def size(self) -> Int32Expression:
         """Returns the size of a collection.
 
         Examples
@@ -294,8 +747,7 @@ class CollectionExpression(Expression):
         """
         return self._method("size", tint32)
 
-
-class ArrayExpression(CollectionExpression):
+class ArrayExpression(CollectionExpression[T]):
     """Expression of type :class:`.tarray`.
 
     >>> a = hl.literal(['Alice', 'Bob', 'Charlie'])
@@ -304,8 +756,19 @@ class ArrayExpression(CollectionExpression):
     --------
     :class:`.CollectionExpression`
     """
+    @property
+    def dtype(self) -> tarray:
+        t = super(ArrayExpression, self).dtype
+        assert isinstance(t, tarray)
+        return t
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: slice) -> 'ArrayExpression[T]':
+        ...
+
+    def __getitem__(self, item: SupportsInt32) -> T:
+        ...
+
+    def __getitem__(self, item: Union[slice, SupportsInt32]) -> Expression:
         """Index into or slice the array.
 
         Examples
@@ -330,12 +793,11 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        item : slice or :class:`.Expression` of type :py:data:`.tint32`
+        item
             Index or slice.
 
         Returns
         -------
-        :class:`.Expression`
             Element or array slice.
         """
         if isinstance(item, slice):
@@ -348,7 +810,7 @@ class ArrayExpression(CollectionExpression):
             return self._index(self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
-    def contains(self, item):
+    def contains(self, item: T) -> BooleanExpression:
         """Returns a boolean indicating whether `item` is found in the array.
 
         Examples
@@ -362,10 +824,6 @@ class ArrayExpression(CollectionExpression):
             >>> hl.eval_expr(a.contains('Helen'))
             False
 
-        Parameters
-        ----------
-        item : :class:`.Expression`
-            Item for inclusion test.
 
         Warning
         -------
@@ -374,16 +832,18 @@ class ArrayExpression(CollectionExpression):
         more efficient to convert the array to a set first
         (:func:`~hail.expr.functions.set`).
 
+        Parameters
+        ----------
+        item
+
         Returns
         -------
-        :class:`.BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
-        import hail as hl
-        return hl.any(lambda x: x == item, self)
+        return hail.any(lambda x: x == item, self)
 
     @typecheck_method(item=expr_any)
-    def append(self, item):
+    def append(self, item: T) -> 'ArrayExpression[T]':
         """Append an element to the array and return the result.
 
         Examples
@@ -401,12 +861,8 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        item : :class:`.Expression`
+        item
             Element to append, same type as the array element type.
-
-        Returns
-        -------
-        :class:`.ArrayExpression`
         """
         if not item._type == self._type.element_type:
             raise TypeError("'ArrayExpression.append' expects 'item' to be the same type as its elements\n"
@@ -415,7 +871,7 @@ class ArrayExpression(CollectionExpression):
         return self._method("append", self._type, item)
 
     @typecheck_method(a=expr_array(...))
-    def extend(self, a):
+    def extend(self, a: 'ArrayExpression[T]') -> 'ArrayExpression[T]':
         """Concatenate two arrays and return the result.
 
         Examples
@@ -430,10 +886,6 @@ class ArrayExpression(CollectionExpression):
         ----------
         a : :class:`.ArrayExpression`
             Array to concatenate, same type as the callee.
-
-        Returns
-        -------
-        :class:`.ArrayExpression`
         """
         if not a._type == self._type:
             raise TypeError("'ArrayExpression.extend' expects 'a' to be the same type as the caller\n"
@@ -441,8 +893,7 @@ class ArrayExpression(CollectionExpression):
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
 
-
-class ArrayNumericExpression(ArrayExpression):
+class ArrayNumericExpression(ArrayExpression[Num_T]):
     """Expression of type :class:`.tarray` with a numeric type.
 
     Numeric arrays support arithmetic both with scalar values and other arrays.
@@ -458,6 +909,37 @@ class ArrayNumericExpression(ArrayExpression):
     >>> a2 = hl.literal([1, -1, 1, -1, 1, -1])
 
     """
+
+    def _bin_op_ret_typ(self, other):
+        if isinstance(other._type, tarray):
+            t = other._type.element_type
+        else:
+            t = other._type
+        t = unify_types(self._type.element_type, t)
+        if not t:
+            return None
+        else:
+            return tarray(t)
+
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        ret_type = self._bin_op_ret_typ(other)
+        if not ret_type:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self._type, name, other._type))
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op(name, other, ret_type)
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        ret_type = self._bin_op_ret_typ(other)
+        if not ret_type:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                other._type, name, self._type))
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op_reverse(name, other, ret_type)
 
     def __neg__(self):
         """Negate elements of the array.
@@ -678,7 +1160,7 @@ class ArrayNumericExpression(ArrayExpression):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
 
 
-class SetExpression(CollectionExpression):
+class SetExpression(CollectionExpression[T]):
     """Expression of type :class:`.tset`.
 
     >>> s1 = hl.literal({1, 2, 3})
@@ -689,8 +1171,14 @@ class SetExpression(CollectionExpression):
     :class:`.CollectionExpression`
     """
 
+    @property
+    def dtype(self) -> tset:
+        t = super(SetExpression, self).dtype
+        assert isinstance(t, tset)
+        return t
+
     @typecheck_method(item=expr_any)
-    def add(self, item):
+    def add(self, item: T) -> 'SetExpression[T]':
         """Returns a new set including `item`.
 
         Examples
@@ -707,7 +1195,6 @@ class SetExpression(CollectionExpression):
 
         Returns
         -------
-        :class:`.SetExpression`
             Set with `item` added.
         """
         if not item._type == self._type.element_type:
@@ -888,14 +1375,14 @@ class SetExpression(CollectionExpression):
         return self._method("union", self._type, s)
 
 
-class DictExpression(Expression):
+class DictExpression(Expression, Generic[K, V]):
     """Expression of type :class:`.tdict`.
 
     >>> d = hl.literal({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
 
     @typecheck_method(item=expr_any)
-    def __getitem__(self, item):
+    def __getitem__(self, item: K) -> V:
         """Get the value associated with key `item`.
 
         Examples
@@ -927,7 +1414,7 @@ class DictExpression(Expression):
         return self._index(self.dtype.value_type, item)
 
     @typecheck_method(item=expr_any)
-    def contains(self, item):
+    def contains(self, item: K):
         """Returns whether a given key is present in the dictionary.
 
         Examples
@@ -1090,7 +1577,7 @@ class DictExpression(Expression):
         return self._method("values", tarray(self.dtype.value_type))
 
 
-class StructExpression(Mapping, Expression):
+class StructExpression(Mapping[str, Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> s = hl.struct(a=5, b='Foo')
@@ -1117,6 +1604,12 @@ class StructExpression(Mapping, Expression):
     to access fields that are not valid Python identifiers, like fields with
     spaces or symbols.
     """
+
+    @property
+    def dtype(self) -> tstruct:
+        t = super(StructExpression, self).dtype
+        assert isinstance(t, tstruct)
+        return t
 
     @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
     def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
@@ -1342,14 +1835,20 @@ class StructExpression(Mapping, Expression):
                               self._indices, self._aggregations, self._joins)
 
 
-class TupleExpression(Expression, Sequence):
+class TupleExpression(Expression, Sequence[Expression]):
     """Expression of type :class:`.ttuple`.
 
     >>> t = hl.literal(("a", 1, [1, 2, 3]))
     """
 
+    @property
+    def dtype(self) -> ttuple:
+        t = super(TupleExpression, self).dtype
+        assert isinstance(t, ttuple)
+        return t
+
     @typecheck_method(item=int)
-    def __getitem__(self, item):
+    def __getitem__(self, item: int) -> Expression:
         """Index into the tuple.
 
         Examples
@@ -1361,12 +1860,8 @@ class TupleExpression(Expression, Sequence):
 
         Parameters
         ----------
-        item : :obj:`int`
+        item
             Element index.
-
-        Returns
-        -------
-        :class:`.Expression`
         """
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
@@ -1393,507 +1888,13 @@ class TupleExpression(Expression, Sequence):
             yield self[i]
 
 
-class BooleanExpression(Expression):
-    """Expression of type :py:data:`.tbool`.
-
-    >>> t = hl.literal(True)
-    >>> f = hl.literal(False)
-    >>> na = hl.null(hl.tbool)
-
-    .. doctest::
-
-        >>> hl.eval_expr(t)
-        True
-
-        >>> hl.eval_expr(f)
-        False
-
-        >>> hl.eval_expr(na)
-        None
-
-    """
-
-    def _bin_op_logical(self, name, other):
-        other = to_expr(other)
-        return self._bin_op(name, other, tbool)
-
-    @typecheck_method(other=expr_bool)
-    def __rand__(self, other):
-        return self.__and__(other)
-
-    @typecheck_method(other=expr_bool)
-    def __ror__(self, other):
-        return self.__or__(other)
-
-    @typecheck_method(other=expr_bool)
-    def __and__(self, other):
-        """Return ``True`` if the left and right arguments are ``True``.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(t & f)
-            False
-
-            >>> hl.eval_expr(t & na)
-            None
-
-            >>> hl.eval_expr(f & na)
-            False
-
-        The ``&`` and ``|`` operators have higher priority than comparison
-        operators like ``==``, ``<``, or ``>``. Parentheses are often
-        necessary:
-
-        .. doctest::
-
-            >>> x = hl.literal(5)
-
-            >>> hl.eval_expr((x < 10) & (x > 2))
-            True
-
-        Parameters
-        ----------
-        other : :class:`.BooleanExpression`
-            Right-side operand.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if both left and right are ``True``.
-        """
-        return self._bin_op_logical("&&", other)
-
-    @typecheck_method(other=expr_bool)
-    def __or__(self, other):
-        """Return ``True`` if at least one of the left and right arguments is ``True``.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(t | f)
-            True
-
-            >>> hl.eval_expr(t | na)
-            True
-
-            >>> hl.eval_expr(f | na)
-            None
-
-        The ``&`` and ``|`` operators have higher priority than comparison
-        operators like ``==``, ``<``, or ``>``. Parentheses are often
-        necessary:
-
-        .. doctest::
-
-            >>> x = hl.literal(5)
-
-            >>> hl.eval_expr((x < 10) | (x > 20))
-            True
-
-        Parameters
-        ----------
-        other : :class:`.BooleanExpression`
-            Right-side operand.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if either left or right is ``True``.
-        """
-        return self._bin_op_logical("||", other)
-
-    def __invert__(self):
-        """Return the boolean negation.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(~t)
-            False
-
-            >>> hl.eval_expr(~f)
-            True
-
-            >>> hl.eval_expr(~na)
-            None
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            Boolean negation.
-        """
-        return self._unary_op("!")
-
-
-class NumericExpression(Expression):
-    """Expression of numeric type.
-
-    >>> x = hl.literal(3)
-
-    >>> y = hl.literal(4.5)
-    """
-
-    @typecheck_method(other=expr_numeric)
-    def __lt__(self, other):
-        """Less-than comparison.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x < 5)
-            True
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Right side for comparison.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the left side is smaller than the right side.
-        """
-        return self._bin_op_numeric("<", other, lambda _: tbool)
-
-    @typecheck_method(other=expr_numeric)
-    def __le__(self, other):
-        """Less-than-or-equals comparison.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x <= 3)
-            True
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Right side for comparison.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the left side is smaller than or equal to the right side.
-        """
-        return self._bin_op_numeric("<=", other, lambda _: tbool)
-
-    @typecheck_method(other=expr_numeric)
-    def __gt__(self, other):
-        """Greater-than comparison.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(y > 4)
-            True
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Right side for comparison.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the left side is greater than the right side.
-        """
-        return self._bin_op_numeric(">", other, lambda _: tbool)
-
-    @typecheck_method(other=expr_numeric)
-    def __ge__(self, other):
-        """Greater-than-or-equals comparison.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(y >= 4)
-            True
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Right side for comparison.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if the left side is greater than or equal to the right side.
-        """
-        return self._bin_op_numeric(">=", other, lambda _: tbool)
-
-    def __pos__(self):
-        return self
-
-    def __neg__(self):
-        """Negate the number (multiply by -1).
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(-x)
-            -3
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            Negated number.
-        """
-        return self._unary_op("-")
-
-    def __add__(self, other):
-        """Add two numbers.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x + 2)
-            5
-
-            >>> hl.eval_expr(x + y)
-            7.5
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Number to add.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            Sum of the two numbers.
-        """
-        return self._bin_op_numeric("+", other)
-
-    def __radd__(self, other):
-        return self._bin_op_numeric_reverse("+", other)
-
-    def __sub__(self, other):
-        """Subtract the right number from the left.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x - 2)
-            1
-
-            >>> hl.eval_expr(x - y)
-            -1.5
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Number to subtract.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            Difference of the two numbers.
-        """
-        return self._bin_op_numeric("-", other)
-
-    def __rsub__(self, other):
-        return self._bin_op_numeric_reverse("-", other)
-
-    def __mul__(self, other):
-        """Multiply two numbers.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x * 2)
-            6
-
-            >>> hl.eval_expr(x * y)
-            9.0
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Number to multiply.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            Product of the two numbers.
-        """
-        return self._bin_op_numeric("*", other)
-
-    def __rmul__(self, other):
-        return self._bin_op_numeric_reverse("*", other)
-
-    def __truediv__(self, other):
-        """Divide two numbers.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x / 2)
-            1.5
-
-            >>> hl.eval_expr(y / 0.1)
-            45.0
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Dividend.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The left number divided by the left.
-        """
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
-
-    def __rtruediv__(self, other):
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # float64 or float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
-
-    def __floordiv__(self, other):
-        """Divide two numbers with floor division.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x // 2)
-            1
-
-            >>> hl.eval_expr(y // 2)
-            2.0
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Dividend.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            The floor of the left number divided by the right.
-        """
-        return self._bin_op_numeric('//', other)
-
-    def __rfloordiv__(self, other):
-        return self._bin_op_numeric_reverse('//', other)
-
-    def __mod__(self, other):
-        """Compute the left modulo the right number.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(32 % x)
-            2
-
-            >>> hl.eval_expr(7 % y)
-            2.5
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression`
-            Dividend.
-
-        Returns
-        -------
-        :class:`.NumericExpression`
-            Remainder after dividing the left by the right.
-        """
-        return self._bin_op_numeric('%', other)
-
-    def __rmod__(self, other):
-        return self._bin_op_numeric_reverse('%', other)
-
-    def __pow__(self, power, modulo=None):
-        """Raise the left to the right power.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(x ** 2)
-            9.0
-
-            >>> hl.eval_expr(x ** -2)
-            0.1111111111111111
-
-            >>> hl.eval_expr(y ** 1.5)
-            9.545941546018392
-
-        Parameters
-        ----------
-        power : :class:`.NumericExpression`
-        modulo
-            Unsupported argument.
-
-        Returns
-        -------
-        :class:`.Expression` of type :py:data:`.tfloat64`
-            Result of raising left to the right power.
-        """
-        return self._bin_op_numeric('**', power, lambda _: tfloat64)
-
-    def __rpow__(self, other):
-        return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
-
-
-class Float64Expression(NumericExpression):
-    """Expression of type :py:data:`.tfloat64`."""
-    pass
-
-
-class Float32Expression(NumericExpression):
-    """Expression of type :py:data:`.tfloat32`."""
-    pass
-
-
-class Int32Expression(NumericExpression):
-    """Expression of type :py:data:`.tint32`."""
-    pass
-
-
-class Int64Expression(NumericExpression):
-    """Expression of type :py:data:`.tint64`."""
-    pass
-
-
 class StringExpression(Expression):
     """Expression of type :py:data:`.tstr`.
 
     >>> s = hl.literal('The quick brown fox')
     """
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Union[slice, int]) -> 'StringExpression':
         """Slice or index into the string.
 
         Examples
@@ -1908,12 +1909,11 @@ class StringExpression(Expression):
 
         Parameters
         ----------
-        item : slice or :class:`.Expression` of type :py:data:`.tint32`
+        item
             Slice or character index.
 
         Returns
         -------
-        :class:`.StringExpression`
             Substring or character at index `item`.
         """
         if isinstance(item, slice):
@@ -2080,31 +2080,7 @@ class StringExpression(Expression):
         """
         return construct_expr(RegexMatch(self._ast, regex), tbool,
                               self._indices, self._aggregations, self._joins)
-
-    def to_boolean(self):
-        """Parse the string to a Boolean.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.literal('TRUE')
-            >>> hl.eval_expr(s.to_boolean())
-            True
-
-        Notes
-        -----
-        Acceptable values are: ``True``, ``true``, ``TRUE``, ``False``,
-        ``false``, and ``FALSE``.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            Parsed Boolean expression.
-        """
-
-        return self._method("toBoolean", tbool)
-
+SupportsStr = Union[str, StringExpression]
 
 class CallExpression(Expression):
     """Expression of type :py:data:`.tcall`.
@@ -2332,7 +2308,7 @@ class CallExpression(Expression):
         return self._method("nNonRefAlleles", tint32)
 
     @typecheck_method(alleles=expr_array(expr_str))
-    def one_hot_alleles(self, alleles):
+    def one_hot_alleles(self, alleles: ArrayExpression[StringExpression]) -> ArrayNumericExpression[Int32Expression]:
         """Returns an array containing the summed one-hot encoding of the
         alleles.
 
@@ -2352,17 +2328,12 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        alleles: :class:`.ArrayStringExpression`
+        alleles
             Variant alleles.
-
-        Returns
-        -------
-        :class:`.ArrayInt32Expression`
-            An array of summed one-hot encodings of allele indices.
         """
         return self._method("oneHotAlleles", tarray(tint32), alleles)
 
-    def unphased_diploid_gt_index(self):
+    def unphased_diploid_gt_index(self) -> Int32Expression:
         """Return the genotype index for unphased, diploid calls.
 
         Examples
@@ -2371,10 +2342,6 @@ class CallExpression(Expression):
 
             >>> hl.eval_expr(call.unphased_diploid_gt_index())
             1
-
-        Returns
-        -------
-        :class:`.Expression` of type :py:data:`.tint32`
         """
         return self._method("unphasedDiploidGtIndex", tint32)
 
@@ -2386,8 +2353,14 @@ class LocusExpression(Expression):
     """
 
     @property
-    def contig(self):
-        """Returns the chromosome.
+    def dtype(self) -> tlocus:
+        t = super(LocusExpression, self).dtype
+        assert isinstance(t, tlocus)
+        return t
+
+    @property
+    def contig(self) -> StringExpression:
+        """Chromosome or contig.
 
         Examples
         --------
@@ -2395,17 +2368,12 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.contig)
             '1'
-
-        Returns
-        -------
-        :class:`.StringExpression`
-            The chromosome for this locus.
         """
         return self._field("contig", tstr)
 
     @property
-    def position(self):
-        """Returns the position along the chromosome.
+    def position(self) -> Int32Expression:
+        """Position along the chromosome.
 
         Examples
         --------
@@ -2413,15 +2381,10 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.position)
             100000
-
-        Returns
-        -------
-        :class:`.Expression` of type :py:data:`.tint32`
-            This locus's position along its chromosome.
         """
         return self._field("position", tint32)
 
-    def in_x_nonpar(self):
+    def in_x_nonpar(self) -> BooleanExpression:
         """Returns ``True`` if the locus is in a non-pseudoautosomal
         region of chromosome X.
 
@@ -2431,14 +2394,10 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.in_x_nonpar())
             False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("inXNonPar", tbool)
 
-    def in_x_par(self):
+    def in_x_par(self) -> BooleanExpression:
         """Returns ``True`` if the locus is in a pseudoautosomal region
         of chromosome X.
 
@@ -2448,14 +2407,10 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.in_x_par())
             False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("inXPar", tbool)
 
-    def in_y_nonpar(self):
+    def in_y_nonpar(self) -> BooleanExpression:
         """Returns ``True`` if the locus is in a non-pseudoautosomal
         region of chromosome Y.
 
@@ -2471,14 +2426,10 @@ class LocusExpression(Expression):
         Many variant callers only generate variants on chromosome X for the
         pseudoautosomal region. In this case, all loci mapped to chromosome
         Y are non-pseudoautosomal.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("inYNonPar", tbool)
 
-    def in_y_par(self):
+    def in_y_par(self) -> BooleanExpression:
         """Returns ``True`` if the locus is in a pseudoautosomal region
         of chromosome Y.
 
@@ -2494,14 +2445,10 @@ class LocusExpression(Expression):
         Many variant callers only generate variants on chromosome X for the
         pseudoautosomal region. In this case, all loci mapped to chromosome
         Y are non-pseudoautosomal.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("inYPar", tbool)
 
-    def in_autosome(self):
+    def in_autosome(self) -> BooleanExpression:
         """Returns ``True`` if the locus is on an autosome.
 
         Notes
@@ -2515,14 +2462,10 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.in_autosome())
             True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("isAutosomal", tbool)
 
-    def in_autosome_or_par(self):
+    def in_autosome_or_par(self) -> BooleanExpression:
         """Returns ``True`` if the locus is on an autosome or
         a pseudoautosomal region of chromosome X or Y.
 
@@ -2532,14 +2475,10 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.in_autosome_or_par())
             True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("isAutosomalOrPseudoAutosomal", tbool)
 
-    def in_mito(self):
+    def in_mito(self) -> BooleanExpression:
         """Returns ``True`` if the locus is on mitochondrial DNA.
 
         Examples
@@ -2548,15 +2487,11 @@ class LocusExpression(Expression):
 
             >>> hl.eval_expr(locus.in_mito())
             True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._method("isMitochondrial", tbool)
 
     @typecheck_method(before=expr_int32, after=expr_int32)
-    def sequence_context(self, before=0, after=0):
+    def sequence_context(self, before: SupportsInt32=0, after: SupportsInt32=0):
         """Return the reference genome sequence at the locus.
 
         Examples
@@ -2586,33 +2521,37 @@ class LocusExpression(Expression):
 
         Parameters
         ----------
-        before : :class:`.Expression` of type :py:data:`.tint32`, optional
+        before
             Number of bases to include before the locus. Truncates at
             contig boundary.
-        after : :class:`.Expression` of type :py:data:`.tint32`, optional
+        after
             Number of bases to include after the locus. Truncates at
             contig boundary.
-
-        Returns
-        -------
-        :class:`.StringExpression`
         """
 
         rg = self.dtype.reference_genome
         if not rg.has_sequence():
-            raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(rg.name))
+            raise TypeError(
+                "Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(
+                    rg.name))
         return hl.get_sequence(rg, self.contig, self.position, before, after)
 
 
-class IntervalExpression(Expression):
+class IntervalExpression(Expression, Generic[T]):
     """Expression of type :class:`.tinterval`.
 
     >>> interval = hl.interval(3, 11)
     >>> locus_interval = hl.parse_locus_interval("1:53242-90543")
     """
 
+    @property
+    def dtype(self) -> tinterval:
+        t = super(IntervalExpression, self).dtype
+        assert isinstance(t, tinterval)
+        return t
+
     @typecheck_method(value=expr_any)
-    def contains(self, value):
+    def contains(self, value: T) -> BooleanExpression:
         """Tests whether a value is contained in the interval.
 
         Examples
@@ -2632,7 +2571,6 @@ class IntervalExpression(Expression):
 
         Returns
         -------
-        :class:`.BooleanExpression`
             ``True`` if `value` is contained in the interval, ``False`` otherwise.
         """
         if self.dtype.point_type != value.dtype:
@@ -2684,7 +2622,7 @@ class IntervalExpression(Expression):
         return self._field("end", self.dtype.point_type)
 
     @property
-    def start(self):
+    def start(self) -> Expression:
         """Returns the start point.
 
         Examples
@@ -2701,7 +2639,7 @@ class IntervalExpression(Expression):
         return self._field("start", self.dtype.point_type)
 
     @property
-    def includes_start(self):
+    def includes_start(self) -> BooleanExpression:
         """True if the interval includes the start point.
 
         Examples
@@ -2710,15 +2648,11 @@ class IntervalExpression(Expression):
 
             >>> hl.eval_expr(interval.includes_start)
             True
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._field("includesStart", tbool)
 
     @property
-    def includes_end(self):
+    def includes_end(self) -> BooleanExpression:
         """True if the interval includes the end point.
 
         Examples
@@ -2727,10 +2661,6 @@ class IntervalExpression(Expression):
 
             >>> hl.eval_expr(interval.includes_end)
             False
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
         """
         return self._field("includesEnd", tbool)
 
@@ -2778,3 +2708,7 @@ def construct_reference(name, type, indices, prefix=None):
     else:
         ast = TopLevelReference(name, indices)
     return construct_expr(ast, type, indices)
+
+
+Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
+

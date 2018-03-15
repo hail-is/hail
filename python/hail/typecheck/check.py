@@ -1,8 +1,8 @@
-from decorator import decorator
 import re
 import inspect
 import abc
-
+import functools
+import hail
 
 class TypecheckFailure(Exception):
     pass
@@ -376,7 +376,7 @@ char = CharChecker()
 def check_all(f, args, kwargs, checks, is_method):
     if not hasattr(f, '_cached_spec'):
         setattr(f, '_cached_spec', inspect.getfullargspec(f))
-
+    print(f._cached_spec)
     spec = f._cached_spec
     name = f.__name__
 
@@ -393,6 +393,10 @@ def check_all(f, args, kwargs, checks, is_method):
     else:
         named_args = spec.args[:]
         pos_args = args[:]
+    print(named_args)
+    print(pos_args)
+    print(kwargs)
+
 
     signature_namespace = set(named_args).union(spec.kwonlyargs).union(
         set(filter(lambda x: x is not None, [spec.varargs, spec.varkw])))
@@ -479,17 +483,24 @@ def check_all(f, args, kwargs, checks, is_method):
 def typecheck_method(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
 
-    def _typecheck(__orig_func__, *args, **kwargs):
-        args_, kwargs_ = check_all(__orig_func__, args, kwargs, checkers, is_method=True)
-        return __orig_func__(*args_, **kwargs_)
-
-    return decorator(_typecheck)
+    def _dec(f):
+        @functools.wraps(f)
+        def __dec(*args, **kwargs):
+            args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=True)
+            return f(*args_, **kwargs_)
+        functools.update_wrapper(__dec, f)
+        return __dec
+    return _dec
 
 def typecheck(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
 
-    def _typecheck(__orig_func__, *args, **kwargs):
-        args_, kwargs_ = check_all(__orig_func__, args, kwargs, checkers, is_method=False)
-        return __orig_func__(*args_, **kwargs_)
-
-    return decorator(_typecheck)
+    def _dec(f):
+        @functools.wraps(f)
+        def __dec(*args, **kwargs):
+            args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=False)
+            print(args_, kwargs_)
+            return f(*args_, **kwargs_)
+        functools.update_wrapper(__dec, f)
+        return __dec
+    return _dec

@@ -7,8 +7,6 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.utils import LinkedList
 import builtins
 
-Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
-Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
 
 def _func(name, ret_type, *args):
@@ -17,7 +15,7 @@ def _func(name, ret_type, *args):
 
 
 @typecheck(t=hail_type)
-def null(t: Union[HailType, str]) -> Expression:
+def null(t: StrHailType) -> Expression:
     """Creates an expression representing a missing value of a specified type.
 
     Examples
@@ -37,13 +35,8 @@ def null(t: Union[HailType, str]) -> Expression:
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t
         Type of the missing expression.
-
-    Returns
-    -------
-    :class:`.Expression`
-        A missing expression of type `t`.
     """
     return construct_expr(Literal('NA: {}'.format(t._jtype.parsableString())), t)
 
@@ -84,10 +77,6 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None) -> Expression:
     ----------
     x
         Object to capture and broadcast as an expression.
-
-    Returns
-    -------
-    :class:`.Expression`
     """
     if dtype:
         try:
@@ -138,10 +127,10 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None) -> Expression:
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition: BooleanExpression,
-         consequent: Expression,
-         alternate: Expression,
+         consequent: SupportsExpr,
+         alternate: SupportsExpr,
          *,
-         missing_false: bool = False) -> Expression:
+         missing_false: builtins.bool = False) -> Expression:
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
@@ -160,7 +149,6 @@ def cond(condition: BooleanExpression,
 
     Notes
     -----
-
     If `condition` evaluates to ``True``, returns `consequent`. If `condition`
     evaluates to ``False``, returns `alternate`. If `predicate` is missing, returns
     missing.
@@ -169,24 +157,23 @@ def cond(condition: BooleanExpression,
     ----
     The type of `consequent` and `alternate` must be the same.
 
-    Parameters
-    ----------
-    condition : :class:`.BooleanExpression`
-        Condition to test.
-    consequent : :class:`.Expression`
-        Branch to return if the condition is ``True``.
-    alternate : :class:`.Expression`
-        Branch to return if the condition is ``False``.
-    missing_false : :obj:`.bool`
-        If ``True``, treat missing `condition` as ``False``.
-
     See Also
     --------
     :func:`.case`, :func:`.switch`
 
+    Parameters
+    ----------
+    condition
+        Condition to test.
+    consequent
+        Branch to return if the condition is ``True``.
+    alternate
+        Branch to return if the condition is ``False``.
+    missing_false
+        If ``True``, treat missing `condition` as ``False``.
+
     Returns
     -------
-    :class:`.Expression`
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     if missing_false:
@@ -217,14 +204,14 @@ def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
         >>> hl.eval_expr(expr)
         2
 
+    See Also
+    --------
+    :class:`.CaseBuilder`, :func:`.switch`, :func:`.cond`
+
     Parameters
     ----------
     missing_false : :obj:`bool`
         Treat missing predicates as ``False``.
-
-    See Also
-    --------
-    :class:`.CaseBuilder`, :func:`.switch`, :func:`.cond`
 
     Returns
     -------
@@ -235,7 +222,7 @@ def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
 
 
 @typecheck(expr=expr_any)
-def switch(expr: Expression) -> 'hail.expr.builders.SwitchBuilder':
+def switch(expr: SupportsExpr) -> 'hail.expr.builders.SwitchBuilder':
     """Build a conditional tree on the value of an expression.
 
     Examples
@@ -260,19 +247,15 @@ def switch(expr: Expression) -> 'hail.expr.builders.SwitchBuilder':
 
     Parameters
     ----------
-    expr : :class:`.Expression`
+    expr
         Value to match against.
-
-    Returns
-    -------
-    :class:`.SwitchBuilder`
     """
     from .builders import SwitchBuilder
     return SwitchBuilder(expr)
 
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))
-def bind(expr: Expression, f: Callable[[Expression], Expression]) -> Expression:
+def bind(expr: SupportsExpr, f: Callable[[Expression], SupportsExpr]) -> Expression:
     """Bind a temporary variable and use it in a function.
 
     Examples
@@ -312,15 +295,10 @@ def bind(expr: Expression, f: Callable[[Expression], Expression]) -> Expression:
 
     Parameters
     ----------
-    expr : :class:`.Expression`
+    expr
         Expression to bind.
-    f : function ( (arg) -> :class:`.Expression`)
+    f
         Function of `expr`.
-
-    Returns
-    -------
-    :class:`.Expression`
-        Result of evaluating `f` with `expr` as an argument.
     """
     uid = Env.get_uid()
     expr = to_expr(expr)
@@ -334,7 +312,7 @@ def bind(expr: Expression, f: Callable[[Expression], Expression]) -> Expression:
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int32Expression) -> Float64Expression:
+def chisq(c1: SupportsInt32, c2: SupportsInt32, c3: SupportsInt32, c4: SupportsInt32) -> StructExpression:
     """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
 
     Examples
@@ -351,19 +329,18 @@ def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c1
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c2
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c3
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c4
         Value for cell 4.
 
     Returns
     -------
-    :class:`.StructExpression`
-        A :class:`.tstruct` expression with two fields, `p_value`
+        Struct expression with two fields, `p_value`
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
@@ -371,11 +348,11 @@ def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, min_cell_count=expr_int32)
-def ctt(c1: Int32Expression,
-        c2: Int32Expression,
-        c3: Int32Expression,
-        c4: Int32Expression,
-        min_cell_count: Int32Expression) -> Float64Expression:
+def ctt(c1: SupportsInt32,
+        c2: SupportsInt32,
+        c3: SupportsInt32,
+        c4: SupportsInt32,
+        min_cell_count: SupportsInt32) -> StructExpression:
     """Calculates p-value and odds ratio for 2x2 table.
 
     Examples
@@ -397,20 +374,19 @@ def ctt(c1: Int32Expression,
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c1
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c2
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c3
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c4
         Value for cell 4.
-    min_cell_count : int or :class:`.Expression` of type :py:data:`.tint32`
+    min_cell_count
         Minimum cell count for chi-squared approximation.
 
     Returns
     -------
-    :class:`.StructExpression`
         A :class:`.tstruct` expression with two fields, `p_value`
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
@@ -421,7 +397,7 @@ def ctt(c1: Int32Expression,
 @typecheck(collection=oneof(expr_dict(..., ...),
                             expr_set(expr_tuple([..., ...])),
                             expr_array(expr_tuple([..., ...]))))
-def dict(collection: Union[Mapping, DictExpression, SetExpression, ArrayExpression]) -> DictExpression:
+def dict(collection: Union[Dict, Sequence, Set, DictExpression, SetExpression, ArrayExpression]) -> DictExpression:
     """Creates a dictionary.
 
     Examples
@@ -439,22 +415,19 @@ def dict(collection: Union[Mapping, DictExpression, SetExpression, ArrayExpressi
 
     Parameters
     ----------
-    collection : :class:`.DictExpression` or :class:`.ArrayExpression` or :class:`.SetExpression`
-
-    Returns
-    -------
-    :class:`.DictExpression`
+    collection
     """
-    if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
-        key_type, value_type = collection.dtype.element_type.types
+    t = collection.dtype
+    if isinstance(t, tarray) or isinstance(t, tset):
+        key_type, value_type = t.element_type.types
         return _func('dict', tdict(key_type, value_type), collection)
     else:
-        assert isinstance(collection.dtype, tdict)
+        assert isinstance(t, tdict)
         return collection
 
 
 @typecheck(x=expr_float64, a=expr_float64, b=expr_float64)
-def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> Float64Expression:
+def dbeta(x: SupportsFloat64, a: SupportsFloat64, b: SupportsFloat64) -> Float64Expression:
     """
     Returns the probability density at `x` of a `beta distribution
     <https://en.wikipedia.org/wiki/Beta_distribution>`__ with parameters `a`
@@ -469,13 +442,13 @@ def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> F
 
     Parameters
     ----------
-    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+    x
         Point in [0,1] at which to sample. If a < 1 then x must be positive.
         If b < 1 then x must be less than 1.
-    a : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+    a
         The alpha parameter in the beta distribution. The result is undefined
         for non-positive a.
-    b : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+    b
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
@@ -483,7 +456,7 @@ def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> F
 
 
 @typecheck(x=expr_float64, lamb=expr_float64, log_p=expr_bool)
-def dpois(x: Float64Expression, lamb: Float64Expression, log_p: BooleanExpression = False) -> Float64Expression:
+def dpois(x: SupportsFloat64, lamb: SupportsFloat64, log_p: SupportsBool = False) -> Float64Expression:
     """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
 
     Examples
@@ -495,23 +468,18 @@ def dpois(x: Float64Expression, lamb: Float64Expression, log_p: BooleanExpressio
 
     Parameters
     ----------
-    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+    x
         Non-negative number at which to compute the probability density.
-    lamb : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+    lamb
         Poisson rate parameter. Must be non-negative.
-    log_p : :obj:`bool` or :class:`.BooleanExpression`
+    log_p
         If true, the natural logarithm of the probability density is returned.
-
-    Returns
-    -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
-        The (log) probability density.
     """
     return _func("dpois", tfloat64, x, lamb, log_p)
 
 
 @typecheck(x=expr_float64)
-def exp(x: Float64Expression) -> Float64Expression:
+def exp(x: SupportsFloat64) -> Float64Expression:
     """Computes `e` raised to the power `x`.
 
     Examples
@@ -523,20 +491,16 @@ def exp(x: Float64Expression) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
-
-    Returns
-    -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    x
     """
     return _func("exp", tfloat64, x)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def fisher_exact_test(c1: Int32Expression,
-                      c2: Int32Expression,
-                      c3: Int32Expression,
-                      c4: Int32Expression) -> Float64Expression:
+def fisher_exact_test(c1: SupportsInt32,
+                      c2: SupportsInt32,
+                      c3: SupportsInt32,
+                      c4: SupportsInt32) -> Float64Expression:
     """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
 
     Examples
@@ -561,19 +525,18 @@ def fisher_exact_test(c1: Int32Expression,
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c1
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c2
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c3
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c4
         Value for cell 4.
 
     Returns
     -------
-    :class:`.StructExpression`
-        A :class:`.tstruct` expression with four fields, `p_value`
+        A :struct expression with four fields, `p_value`
         (:py:data:`.tfloat64`), `odds_ratio` (:py:data:`.tfloat64`),
         `ci_95_lower (:py:data:`.tfloat64`), and `ci_95_upper`
         (:py:data:`.tfloat64`).
@@ -586,7 +549,7 @@ def fisher_exact_test(c1: Int32Expression,
 
 
 @typecheck(x=oneof(expr_float32, expr_float64))
-def floor(x: NumericExpression) -> NumericExpression:
+def floor(x: SupportsFloat64) -> NumericExpression:
     """The largest integral value that is less than or equal to `x`.
 
     Examples
@@ -595,16 +558,12 @@ def floor(x: NumericExpression) -> NumericExpression:
 
         >>> hl.eval_expr(hl.floor(3.1))
         3.0
-
-    Returns
-    -------
-    :obj:`.Float64Expression`
     """
     return _func("floor", x.dtype, x)
 
 
 @typecheck(x=oneof(expr_float32, expr_float64))
-def ceil(x: NumericExpression) -> NumericExpression:
+def ceil(x: SupportsFloat64) -> NumericExpression:
     """The smallest integral value that is greater than or equal to `x`.
 
     Examples
@@ -613,18 +572,14 @@ def ceil(x: NumericExpression) -> NumericExpression:
 
         >>> hl.eval_expr(hl.ceil(3.1))
         4.0
-
-    Returns
-    -------
-    :obj:`.Float64Expression`
     """
     return _func("ceil", x.dtype, x)
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hardy_weinberg_p(n_hom_ref: Int32Expression,
-                     n_het: Int32Expression,
-                     n_hom_var: Int32Expression) -> Float64Expression:
+def hardy_weinberg_p(n_hom_ref: SupportsInt32,
+                     n_het: SupportsInt32,
+                     n_hom_var: SupportsInt32) -> StructExpression:
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
     Examples
@@ -644,16 +599,15 @@ def hardy_weinberg_p(n_hom_ref: Int32Expression,
 
     Parameters
     ----------
-    n_hom_ref : int or :class:`.Expression` of type :py:data:`.tint32`
+    n_hom_ref
         Homozygous reference count.
-    n_het : int or :class:`.Expression` of type :py:data:`.tint32`
+    n_het
         Heterozygote count.
-    n_hom_var : int or :class:`.Expression` of type :py:data:`.tint32`
+    n_hom_var
         Homozygous alternate count.
 
     Returns
     -------
-    :class:`.StructExpression`
         A struct expression with two fields, `r_expected_het_freq`
         (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
     """
@@ -684,7 +638,7 @@ def index(structs, identifier):
 
 @typecheck(contig=expr_str, pos=expr_int32,
            reference_genome=reference_genome_type)
-def locus(contig: StringExpression, pos: Int32Expression,
+def locus(contig: SupportsStr, pos: Int32Expression,
           reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
     """Construct a locus expression from a chromosome and position.
 
@@ -2311,7 +2265,7 @@ def all(f: Callable[[Expression], BooleanExpression],
 
 @typecheck(f=func_spec(1, expr_bool),
            collection=oneof(expr_set(...), expr_array(...)))
-def find(f: Callable[[Expression], BooleanExpression], collection: CollectionExpression) -> Expression:
+def find(f: Callable[[T], BooleanExpression], collection: CollectionExpression[T]) -> T:
     """Returns the first element where `f` returns ``True``.
 
     Examples
@@ -2336,10 +2290,10 @@ def find(f: Callable[[Expression], BooleanExpression], collection: CollectionExp
 
     Parameters
     ----------
-    f : function ( (arg) -> :class:`.BooleanExpression`)
+    f
         Function to evaluate for each element of the collection. Must return a
         :class:`.BooleanExpression`.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
+    collection
         Collection expression.
 
     Returns
@@ -2392,7 +2346,7 @@ def flatmap(f: Callable[[Expression], Coll_T], collection: Coll_T) -> Coll_T:
 
 @typecheck(f=func_spec(1, expr_any),
            collection=oneof(expr_set(...), expr_array(...)))
-def group_by(f: Callable[[Expression], Expression], collection: CollectionExpression) -> DictExpression:
+def group_by(f: Callable[[T], U], collection: CollectionExpression[T]) -> DictExpression[T, U]:
     """Group collection elements into a dict according to a lambda function.
 
     Examples
@@ -2406,15 +2360,14 @@ def group_by(f: Callable[[Expression], Expression], collection: CollectionExpres
 
     Parameters
     ----------
-    f : function ( (arg) -> :class:`.Expression`)
+    f
         Function to evaluate for each element of the collection to produce a key for the
         resulting dictionary.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
+    collection
         Collection expression.
 
     Returns
     -------
-    :class:`.DictExpression`.
         Dictionary keyed by results of `f`.
     """
     return collection._bin_lambda_method("groupBy", f,
@@ -2423,7 +2376,7 @@ def group_by(f: Callable[[Expression], Expression], collection: CollectionExpres
 
 
 @typecheck(arrays=expr_array(...), fill_missing=bool)
-def zip(*arrays: ArrayExpression, fill_missing: bool = False) -> ArrayExpression:
+def zip(*arrays: ArrayExpression, fill_missing: bool = False) -> ArrayExpression[TupleExpression]:
     """Zip together arrays into a single array.
 
     Examples
@@ -2529,12 +2482,8 @@ def len(x: Union[CollectionExpression, DictExpression, StringExpression, TupleEx
 
     Parameters
     ----------
-    x : :class:`.ArrayExpression` or :class:`.SetExpression` or :class:`.DictExpression` or :class:`.StringExpression`
+    x
         String or collection expression.
-
-    Returns
-    -------
-    :class:`.Expression` of type :py:data:`.tint32`
     """
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
@@ -2771,7 +2720,7 @@ def median(collection: CollectionExpression) -> Float64Expression:
 
 
 @typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def product(collection: CollectionExpression) -> Float64Expression:
+def product(collection: CollectionExpression[Num_T]) -> Num_T:
     """Returns the product of values in the collection.
 
     Examples
@@ -2798,9 +2747,8 @@ def product(collection: CollectionExpression) -> Float64Expression:
     """
     return collection._method("product", collection.dtype.element_type)
 
-
 @typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def sum(collection: CollectionExpression) -> Float64Expression:
+def sum(collection: CollectionExpression[Num_T]) -> Num_T:
     """Returns the sum of values in the collection.
 
     Examples
@@ -2877,7 +2825,7 @@ def tuple(iterable: Iterable) -> TupleExpression:
 
 
 @typecheck(collection=oneof(expr_set(...), expr_array(...)))
-def set(collection: Union[CollectionExpression, Set, List]) -> SetExpression:
+def set(collection: Union[CollectionExpression, Set, List]) -> SetExpression[Expression]:
     """Convert a set expression.
 
     Examples
@@ -2899,7 +2847,7 @@ def set(collection: Union[CollectionExpression, Set, List]) -> SetExpression:
 
 
 @typecheck(t=hail_type)
-def empty_set(t: Union[HailType, str]) -> SetExpression:
+def empty_set(t: Union[HailType, str]) -> SetExpression[Expression]:
     """Returns an empty set of elements of a type `t`.
 
     Examples
@@ -2922,7 +2870,7 @@ def empty_set(t: Union[HailType, str]) -> SetExpression:
 
 
 @typecheck(collection=oneof(expr_set(...), expr_array(...), expr_dict(..., ...)))
-def array(collection: Union[CollectionExpression, DictExpression, Set, List, Dict]) -> ArrayExpression:
+def array(collection: Union[CollectionExpression, DictExpression, Set, List, Dict]) -> ArrayExpression[Expression]:
     """Construct an array expression.
 
     Examples
@@ -2952,7 +2900,7 @@ def array(collection: Union[CollectionExpression, DictExpression, Set, List, Dic
 
 
 @typecheck(t=hail_type)
-def empty_array(t: Union[HailType, str]) -> ArrayExpression:
+def empty_array(t: Union[HailType, str]) -> ArrayExpression[Expression]:
     """Returns an empty array of elements of a type `t`.
 
     Examples
@@ -3099,7 +3047,7 @@ def sorted(collection: ArrayExpression,
 
     Returns
     -------
-    :class:`.ArrayNumericExpression`
+    :class:`.ArrayExpression`
         Sorted array.
     """
     ascending = ~reverse

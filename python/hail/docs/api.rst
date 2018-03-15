@@ -14,10 +14,10 @@ Use ``import hail as hl`` to access this functionality.
     :toctree: ./
     :template: class.rst
 
-    hail.Table
-    hail.GroupedTable
-    hail.MatrixTable
-    hail.GroupedMatrixTable
+    hail.table.Table
+    hail.table.GroupedTable
+    hail.matrixtable.MatrixTable
+    hail.matrixtable.GroupedMatrixTable
 
 .. rubric:: Modules
 

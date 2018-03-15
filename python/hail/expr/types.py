@@ -1,6 +1,6 @@
 import abc
 
-import hail as hl
+import hail
 from hail.typecheck import *
 from hail.utils import Struct, Interval
 from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list, escape_parsable
@@ -10,71 +10,8 @@ from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 import json
 from collections import Mapping
+from typing import Union
 
-
-def dtype(type_str):
-    r"""Parse a type from its string representation.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> hl.dtype('int')
-        dtype('int32')
-
-        >>> hl.dtype('float')
-        dtype('float64')
-
-        >>> hl.dtype('array<int32>')
-        dtype('array<int32>')
-
-        >>> hl.dtype('dict<str, bool>')
-        dtype('dict<str, bool>')
-
-        >>> hl.dtype('struct{a: int32, `field with spaces`: int64}')
-        dtype('struct{a: int32, `field with spaces`: int64}')
-
-    Notes
-    -----
-    This function is able to reverse ``str(t)`` on a :class:`.HailType`.
-
-    The grammar is defined as follows:
-
-    .. code-block:: text
-
-        type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
-        int64 = "int64" / "tint64"
-        int32 = "int32" / "tint32" / "int" / "tint"
-        float32 = "float32" / "tfloat32"
-        float64 = "float64" / "tfloat64" / "tfloat" / "float"
-        bool = "tbool" / "bool"
-        call = "tcall" / "call"
-        str = "tstr" / "str"
-        locus = ("tlocus" / "locus") _ "[" identifier "]"
-        array = ("tarray" / "array") _ "<" type ">"
-        set = ("tset" / "set") _ "<" type ">"
-        dict = ("tdict" / "dict") _ "<" type "," type ">"
-        struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
-        tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
-        fields = field ("," field)*
-        field = identifier ":" type
-        interval = ("tinterval" / "interval") _ "<" type ">"
-        identifier = _ (simple_identifier / escaped_identifier) _
-        simple_identifier = ~"\w+"
-        escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
-        _ = ~"\s*"
-
-    Parameters
-    ----------
-    type_str : :obj:`str`
-        String representation of type.
-
-    Returns
-    -------
-    :class:`.HailType`
-    """
-    tree = type_grammar.parse(type_str)
-    return type_node_visitor.visit(tree)
 
 
 class HailType(object):
@@ -135,7 +72,7 @@ class HailType(object):
 
     @classmethod
     def _from_java(cls, jtype):
-        return hl.dtype(jtype.toString())
+        return hail.dtype(jtype.toString())
 
     @abc.abstractmethod
     def _typecheck(self, annotation):
@@ -178,6 +115,71 @@ class HailType(object):
         else:
             assert is_numeric(self)
             return self
+
+StrHailType = Union[HailType, str]
+
+def dtype(t: StrHailType) -> HailType:
+    r"""Parse a type from its string representation.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.dtype('int')
+        dtype('int32')
+
+        >>> hl.dtype('float')
+        dtype('float64')
+
+        >>> hl.dtype('array<int32>')
+        dtype('array<int32>')
+
+        >>> hl.dtype('dict<str, bool>')
+        dtype('dict<str, bool>')
+
+        >>> hl.dtype('struct{a: int32, `field with spaces`: int64}')
+        dtype('struct{a: int32, `field with spaces`: int64}')
+
+    Notes
+    -----
+    This function is able to reverse ``str(t)`` on a :class:`.HailType`.
+
+    The grammar is defined as follows:
+
+    .. code-block:: text
+
+        type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
+        int64 = "int64" / "tint64"
+        int32 = "int32" / "tint32" / "int" / "tint"
+        float32 = "float32" / "tfloat32"
+        float64 = "float64" / "tfloat64" / "tfloat" / "float"
+        bool = "tbool" / "bool"
+        call = "tcall" / "call"
+        str = "tstr" / "str"
+        locus = ("tlocus" / "locus") _ "[" identifier "]"
+        array = ("tarray" / "array") _ "<" type ">"
+        set = ("tset" / "set") _ "<" type ">"
+        dict = ("tdict" / "dict") _ "<" type "," type ">"
+        struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
+        tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
+        fields = field ("," field)*
+        field = identifier ":" type
+        interval = ("tinterval" / "interval") _ "<" type ">"
+        identifier = _ (simple_identifier / escaped_identifier) _
+        simple_identifier = ~"\w+"
+        escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
+        _ = ~"\s*"
+
+    Parameters
+    ----------
+    t
+        Type or string representation of type.
+    """
+    if isinstance(t, HailType):
+        return t
+    else:
+        tree = type_grammar.parse(t)
+        return type_node_visitor.visit(tree)
 
 
 hail_type = oneof(HailType, transformed((str, dtype)))
@@ -870,7 +872,7 @@ class _tcall(HailType):
         return isinstance(other, _tcall)
 
     def _convert_from_json(self, x):
-        return hl.Call._from_java(hl.Call._call_jobject().parse(x))
+        return hail.Call._from_java(hail.Call._call_jobject().parse(x))
 
     def _convert_to_json(self, x):
         return str(x)
@@ -936,7 +938,7 @@ class tlocus(HailType):
             Reference genome.
         """
         if self._rg is None:
-            self._rg = hl.default_reference()
+            self._rg = hail.default_reference()
         return self._rg
 
     def _pretty(self, l, indent, increment):

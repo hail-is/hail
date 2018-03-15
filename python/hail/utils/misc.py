@@ -1,14 +1,17 @@
-import hail
-from hail.utils.java import Env, joption, error
-from hail.typecheck import enumeration, typecheck, nullable
 import difflib
 from collections import defaultdict, Counter
 import atexit
 import shutil
 import tempfile
+from typing import *
+T = TypeVar('T')
+
+import hail
+from hail.typecheck import enumeration, typecheck, nullable
+from hail.utils.java import Env, joption, error
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
-def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
+def range_matrix_table(n_rows: int, n_cols: int, n_partitions: Optional[int]=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
 
     Examples
@@ -37,21 +40,17 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
 
     Parameters
     ----------
-    n_rows : :obj:`int`
+    n_rows
         Number of rows.
-    n_cols : :obj:`int`
+    n_cols
         Number of columns.
-    n_partitions : int, optional
-        Number of partitions (uses Spark default parallelism if None).
-
-    Returns
-    -------
-    :class:`.MatrixTable`
+    n_partitions
+        Number of partitions (uses Spark default parallelism by default).
     """
     return hail.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
-def range_table(n, n_partitions=None) -> 'hail.Table':
+def range_table(n: int, n_partitions: Optional[int]=None) -> 'hail.Table':
     """Construct a table with the row index and no other fields.
 
     Examples
@@ -74,24 +73,20 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
 
     Parameters
     ----------
-    n : int
+    n
         Number of rows.
-    n_partitions : int, optional
+    n_partitions
         Number of partitions (uses Spark default parallelism if None).
-
-    Returns
-    -------
-    :class:`.Table`
     """
     return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(n_partitions)))
 
-def wrap_to_list(s):
+def wrap_to_list(s: Union[T, List[T]]) -> List[T]:
     if isinstance(s, list):
         return s
     else:
         return [s]
 
-def wrap_to_tuple(x):
+def wrap_to_tuple(x: Union[T, Tuple[T, ...]]) -> Tuple[T]:
     if isinstance(x, tuple):
         return x
     else:

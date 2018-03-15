@@ -123,4 +123,5 @@ __all__ = ['HailType',
            'bool',
            'get_sequence',
            'builders',
+           'expressions',
            ]
