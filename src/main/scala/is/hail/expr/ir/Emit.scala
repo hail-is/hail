@@ -6,12 +6,10 @@ import is.hail.annotations.aggregators._
 import is.hail.expr.ir.functions.IRFunction
 import is.hail.expr.types._
 import is.hail.utils._
-import org.objectweb.asm.tree._
 
 import scala.collection.mutable
 import scala.language.existentials
 import scala.language.postfixOps
-import scala.reflect.ClassTag
 
 object Emit {
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]

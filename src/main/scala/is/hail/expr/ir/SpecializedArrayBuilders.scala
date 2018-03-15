@@ -3,33 +3,31 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.expr.types.Type
 
-object StagedArrayBuilder {
-  def newLocalRef(elt: Type, mb: MethodBuilder): LocalRef[_] = typeToTypeInfo(elt) match {
+class StagedArrayBuilder(elt: Type, mb: MethodBuilder) {
+
+  val ti = typeToTypeInfo(elt)
+
+  val ref: LocalRef[Any] = coerce[Any](ti match {
     case BooleanInfo => mb.newLocal[BooleanArrayBuilder]("zab")
     case IntInfo => mb.newLocal[IntArrayBuilder]("iab")
     case LongInfo => mb.newLocal[LongArrayBuilder]("jab")
     case FloatInfo => mb.newLocal[FloatArrayBuilder]("fab")
     case DoubleInfo => mb.newLocal[DoubleArrayBuilder]("dab")
     case ti => throw new RuntimeException(s"unsupported type found: $elt whose type info is $ti")
+  })
+
+  def create(len: Code[Int]): Code[Unit] = {
+    ref := {
+      ti match {
+        case BooleanInfo => Code.newInstance[BooleanArrayBuilder, Int](len)
+        case IntInfo => Code.newInstance[IntArrayBuilder, Int](len)
+        case LongInfo => Code.newInstance[LongArrayBuilder, Int](len)
+        case FloatInfo => Code.newInstance[FloatArrayBuilder, Int](len)
+        case DoubleInfo => Code.newInstance[DoubleArrayBuilder, Int](len)
+        case ti => throw new RuntimeException(s"unsupported type found: $elt whose type info is $ti")
+      }
+    }
   }
-
-  def getNewInstance(elt: Type, len: Code[Int]): Code[_] = typeToTypeInfo(elt) match {
-    case BooleanInfo => Code.newInstance[BooleanArrayBuilder, Int](len)
-    case IntInfo => Code.newInstance[IntArrayBuilder, Int](len)
-    case LongInfo => Code.newInstance[LongArrayBuilder, Int](len)
-    case FloatInfo => Code.newInstance[FloatArrayBuilder, Int](len)
-    case DoubleInfo => Code.newInstance[DoubleArrayBuilder, Int](len)
-    case ti => throw new RuntimeException(s"unsupported type found: $elt whose type info is $ti")
-  }
-}
-
-class StagedArrayBuilder(elt: Type, mb: MethodBuilder) {
-
-  val ti = typeToTypeInfo(elt)
-
-  val ref: LocalRef[Any] = coerce[Any](StagedArrayBuilder.newLocalRef(elt, mb))
-
-  def create(len: Code[Int]): Code[Unit] = ref := StagedArrayBuilder.getNewInstance(elt, len)
 
   def add(i: Code[_]): Code[Unit] = ti match {
     case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[Boolean, Unit]("add", coerce[Boolean](i))
