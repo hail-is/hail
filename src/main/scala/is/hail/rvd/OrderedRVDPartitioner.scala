@@ -3,6 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.broadcast.Broadcast
 
@@ -51,18 +52,10 @@ class OrderedRVDPartitioner(
     * If pkType is a prefix of the type of row, the prefix of row is used to
     * find the partition.
     *
-    * If the type of row is a prefix of pkType, keys compatible with row could
-    * span multiple partitions. In this case, depending on the value of
-    * resolveAmbiguity, either throw an exception or return the min or max
-    * partition in the span.
-    *
     * If row falls outside the bounds of the partitioner, return the min or max
     * partition.
     */
-  def getPartitionPK(
-    row: Any,
-    resolveAmbiguity: Int = OrderedRVDPartitioner.UNAMBIGUOUS
-  ): Int = {
+  def getPartitionPK(row: Any): Int = {
     val part = rangeTree.queryValues(pkType.ordering, row)
     part match {
       case Array() =>
@@ -74,25 +67,23 @@ class OrderedRVDPartitioner(
         }
 
       case Array(x) => x
-
-      case parts =>
-        assert(resolveAmbiguity != OrderedRVDPartitioner.UNAMBIGUOUS)
-        if (resolveAmbiguity == OrderedRVDPartitioner.SMALLEST)
-          parts.min
-        else
-          parts.max
     }
   }
 
   // Return the sequence of partition IDs overlapping the given interval of
   // partition keys.
-  def getPartitionRangePK(pkInterval: Interval): Seq[Int] = {
-    if (!rangeTree.probablyOverlaps(pkType.ordering, pkInterval))
-      Seq.empty[Int]
-    else {
-      val start = getPartitionPK(pkInterval.start, OrderedRVDPartitioner.SMALLEST)
-      val end = getPartitionPK(pkInterval.end, OrderedRVDPartitioner.LARGEST)
-      start to end
+  def getPartitionRange(query: Any): Seq[Int] = {
+    query match {
+      case row: Row =>
+        rangeTree.queryValues(pkType.ordering, row)
+      case interval: Interval =>
+        if (!rangeTree.probablyOverlaps(pkType.ordering, interval))
+          Seq.empty[Int]
+        else {
+          val start = getPartitionRange(interval.start).min
+          val end = getPartitionRange(interval.end).max
+          start to end
+        }
     }
   }
 
@@ -164,10 +155,6 @@ class OrderedRVDPartitioner(
 }
 
 object OrderedRVDPartitioner {
-  val UNAMBIGUOUS: Int = 0
-  val SMALLEST: Int = -1
-  val LARGEST: Int = 1
-
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
     new OrderedRVDPartitioner(typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(TInterval(typ.pkType))))
   }

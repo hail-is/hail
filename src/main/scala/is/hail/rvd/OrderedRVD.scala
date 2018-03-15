@@ -103,6 +103,8 @@ class OrderedRVD private(
     require(ordType.rowType == typ.rowType)
     require(ordType.kType isPrefixOf typ.kType)
     require(newPartitioner.kType isIsomorphicTo ordType.kType)
+    // Should remove this requirement in the future
+    require(newPartitioner.pkType isIsomorphicTo ordType.pkType)
 
     new OrderedRVD(
       typ = ordType,
