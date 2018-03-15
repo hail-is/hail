@@ -754,7 +754,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
   def toIR(agg: Option[String] = None): Option[IR] = {
     fn match {
-      case "merge" | "select" | "drop" | "group" | "annnotate" | "ungroup" | "index" =>
+      case "merge" | "select" | "drop" | "group" | "annotate" | "ungroup" | "index" =>
         None
       case _ =>
         for {
