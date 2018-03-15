@@ -22,8 +22,8 @@ class AggregatorSuite extends SparkSuite {
       .annotateRowsExpr(
         """test.callrate = AGG.fraction(g => isDefined(g.GT)),
           |test.AC = AGG.map(g => g.GT.nNonRefAlleles()).sum(),
-          |test.AF = AGG.map(g => g.GT.nNonRefAlleles()).stats().sum.toFloat64() / AGG.filter(g => isDefined(g.GT)).count() / 2.0,
-          |test.gqstats = AGG.map(g => g.GQ).stats(), test.gqhetstats = AGG.filter(g => g.GT.isHet()).map(g => g.GQ).stats(),
+          |test.AF = AGG.map(g => g.GT.nNonRefAlleles().toFloat64).stats().sum / AGG.filter(g => isDefined(g.GT)).count().toFloat64 / 2.0,
+          |test.gqstats = AGG.map(g => g.GQ.toFloat64).stats(), test.gqhetstats = AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats(),
           |lowGqGts = AGG.filter(g => g.GQ < 60).collect()""".stripMargin)
 
     val qCallRate = vds.queryVA("va.test.callrate")._2
@@ -60,8 +60,8 @@ class AggregatorSuite extends SparkSuite {
         """test.callrate = AGG.fraction(g => isDefined(g.GT)),
           |test.nCalled = AGG.filter(g => isDefined(g.GT)).count(),
           |test.nNotCalled = AGG.filter(g => !isDefined(g.GT)).count(),
-          |test.gqstats = AGG.map(g => g.GQ).stats(),
-          |test.gqhetstats = AGG.filter(g => g.GT.isHet()).map(g => g.GQ).stats(),
+          |test.gqstats = AGG.map(g => g.GQ.toFloat64).stats(),
+          |test.gqhetstats = AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats(),
           |test.nHet = AGG.filter(g => g.GT.isHet()).count(),
           |test.nHomRef = AGG.filter(g => g.GT.isHomRef()).count(),
           |test.nHomVar = AGG.filter(g => g.GT.isHomVar()).count(),
@@ -149,18 +149,17 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testProduct() {
     val rdd = sc.parallelize(Seq(
-      Row("a", 0, null, 1, 1, null, null, 10, null, 0l, 2f, 0d),
-      Row("a", -1, -1, null, 2, null, 1, 4, null, -1l, -1f, -1d),
-      Row("a", 1, -2, 2, 3, -1, -3, 2, null, 1l, 2f, 1d)), numSlices = 2)
+      Row("a", 0l, null, 1l, 1l, null, null, 10l, null, 0l, 2d, 0d),
+      Row("a", -1l, -1l, null, 2l, null, 1l, 4l, null, -1l, -1d, -1d),
+      Row("a", 1l, -2l, 2l, 3l, -1l, -3l, 2l, null, 1l, 2d, 1d)), numSlices = 2)
 
-    val signature = TStruct((("group" -> TString()) +: (0 until 8).map(i => s"s$i" -> TInt32()))
-      ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
+    val signature = TStruct((("group" -> TString()) +: (0 until 8).map(i => s"s$i" -> TInt64()))
+      ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat64(), "s10" -> TFloat64()): _*)
 
     val ktProduct = Table(hc, rdd, signature)
       .aggregate("group = row.group", ((0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).product()") :+ ("empty = AGG.map(r => r.s10).filter(x => false).product()")).mkString(","))
 
     assert(ktProduct.collect() sameElements Array(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
-
   }
 
   @Test def testHist() {
@@ -168,7 +167,7 @@ class AggregatorSuite extends SparkSuite {
 
     assert(vds.annotateRowsExpr(
       """
-        hist = AGG.map(g => g.GQ).hist(0, 100, 20),
+        hist = AGG.map(g => g.GQ.toFloat64).hist(0.0, 100.0, 20),
         bin0 = AGG.filter(g => g.GQ < 5).count(),
         bin1 = AGG.filter(g => g.GQ >= 5 && g.GQ < 10).count(),
         last = AGG.filter(g => g.GQ >= 95).count()""")
@@ -182,7 +181,7 @@ class AggregatorSuite extends SparkSuite {
     assert(vds
       .annotateRowsExpr(
         """
-        hist = AGG.map(g => g.GQ).hist(22, 80, 5),
+        hist = AGG.map(g => g.GQ.toFloat64).hist(22.0, 80.0, 5),
         nLess = AGG.filter(g => g.GQ < 22).count(),
         nGreater = AGG.filter(g => g.GQ > 80).count()""")
       .rowsTable()
@@ -197,8 +196,8 @@ class AggregatorSuite extends SparkSuite {
       .annotateRowsExpr(
         """callStats = AGG.map(g => g.GT).callStats(g => va.alleles),
           |AC = AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum(),
-          |AN = AGG.filter(g => isDefined(g.GT)).count() * 2""".stripMargin)
-      .annotateRowsExpr("AF = va.AC / va.AN.toFloat64()")
+          |AN = AGG.filter(g => isDefined(g.GT)).count() * 2L""".stripMargin)
+      .annotateRowsExpr("AF = va.AC.map(x => x.toFloat64) / va.AN.toFloat64()")
     val (_, csAC) = vds.queryVA("va.callStats.AC")
     val (_, csAF) = vds.queryVA("va.callStats.AF")
     val (_, csAN) = vds.queryVA("va.callStats.AN")

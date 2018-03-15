@@ -428,7 +428,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
       .annotateColsExpr("""culprit = AGG.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
-      .annotateColsExpr("pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
+      .annotateColsExpr("pheno.PhenoLMM = (1d + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit.toFloat64")
 
     val vdsKinship = vdsAssoc.filterRowsExpr("va.locus.position < 4")
 
@@ -491,7 +491,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   lazy val vdsSmall = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(smallMat))
     .annotateColsExpr("culprit = AGG.filter(g => va.locus.position == 2).map(g => g.GT.nNonRefAlleles()).collect()[0]")
     .annotateGlobal(randomNorms, TArray(TFloat64()), "randNorms")
-    .annotateColsExpr("pheno = sa.culprit + global.randNorms[sa.s.toInt32()]")
+    .annotateColsExpr("pheno = sa.culprit.toFloat64 + global.randNorms[sa.s.toInt32()]")
 
   lazy val vdsSmallRRM = ComputeRRM(vdsSmall)
   

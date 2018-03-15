@@ -399,6 +399,55 @@ class Expression(object):
     def __iter__(self):
         raise TypeError("'Expression' object is not iterable")
 
+    def _promote_scalar(self, typ):
+        if typ == tint32:
+            return hail.int32(self)
+        elif typ == tint64:
+            return hail.int64(self)
+        elif typ == tfloat32:
+            return hail.float32(self)
+        else:
+            assert typ == tfloat64
+            return hail.float64(self)
+
+    def _promote_numeric(self, typ):
+        if isinstance(typ, tarray):
+            if isinstance(self.dtype, tarray):
+                return hail.map(lambda x: x._promote_scalar(typ.element_type), self)
+            else:
+                return self._promote_scalar(typ.element_type)
+        elif isinstance(self, expressions.Aggregable):
+            return self._map(lambda x: x._promote_scalar(typ))
+        else:
+            return self._promote_scalar(typ)
+
+    def _bin_op_numeric_unify_types(self, name, other):
+        t = unify_types(self.dtype._scalar_type(), other.dtype._scalar_type())
+        if t is None:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self.dtype, name, other.dtype))
+        if isinstance(self.dtype, tarray) or isinstance(other.dtype, tarray):
+            t = tarray(t)
+        return t
+
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        unified_type = self._bin_op_numeric_unify_types(name, other)
+        me = self._promote_numeric(unified_type)
+        other = other._promote_numeric(unified_type)
+        if ret_type_f:
+            if isinstance(unified_type, tarray):
+                ret_type = tarray(ret_type_f(unified_type.element_type))
+            else:
+                ret_type = ret_type_f(unified_type)
+        else:
+            ret_type = unified_type
+        return me._bin_op(name, other, ret_type)
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        other = to_expr(other)
+        return other._bin_op_numeric(name, self, ret_type_f)
+
     def _unary_op(self, name):
         return expressions.construct_expr(UnaryOperation(self._ast, name),
                                           self._type, self._indices, self._aggregations, self._joins)
@@ -768,6 +817,16 @@ class Aggregable(object):
 
     def __ne__(self, other):
         raise NotImplementedError('Comparison of aggregable collections is undefined')
+
+    def _map(self, f):
+        uid = Env.get_uid()
+        ref = expressions.construct_expr(
+            VariableReference(uid), self._type, self._indices, self._aggregations, self._joins)
+        mapped = f(ref)
+        indices, aggregations, joins = unify_all(ref, mapped)
+        return expressions.Aggregable(
+            LambdaClassMethod('map', uid, self._ast, mapped._ast), mapped.dtype,
+            indices, aggregations, joins)
 
     @property
     def dtype(self) -> HailType:

@@ -125,7 +125,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryEntries("AGG.map(g => g.GQ).hist(0, 100, 100)")
+    vds.queryEntries("AGG.map(g => g.GQ.toFloat64).hist(0d, 100d, 100)")
   }
 
   @Test def testReorderSamples() {
@@ -154,11 +154,11 @@ class VSMSuite extends SparkSuite {
         .indexRows("rowIdx")
         .indexCols("colIdx")
       
-      mt.selectEntries("x = g.GT.nNonRefAlleles() + va.rowIdx + sa.colIdx + 1")
+      mt.selectEntries("x = g.GT.nNonRefAlleles().toInt64 + va.rowIdx + sa.colIdx.toInt64 + 1L")
         .writeBlockMatrix(dirname, "x", blockSize)
 
       val data = mt.entriesTable()
-          .select("x = row.GT.nNonRefAlleles() + row.rowIdx + row.colIdx + 1.0")
+          .select("x = row.GT.nNonRefAlleles().toFloat64 + row.rowIdx.toFloat64 + row.colIdx.toFloat64 + 1.0")
           .collect()
           .map(_.getAs[Double](0))
 

@@ -86,7 +86,7 @@ class TableSuite extends SparkSuite {
   @Test def testAnnotate() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
-    val kt2 = kt1.annotate("""qPhen2 = pow(row.qPhen, 2), NotStatus = row.Status == "CASE", X = row.qPhen == 5""")
+    val kt2 = kt1.annotate("""qPhen2 = pow(row.qPhen.toFloat64, 2d), NotStatus = row.Status == "CASE", X = row.qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames.map(n => s"row.$n")).keyBy("qPhen", "NotStatus")
 
@@ -383,7 +383,7 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val Array(ktMean, ktStDev) = kt.query(Array("AGG.map(r => r.qPhen).stats().mean", "AGG.map(r => r.qPhen).stats().stdev")).map(_._1)
+    val Array(ktMean, ktStDev) = kt.query(Array("AGG.map(r => r.qPhen.toFloat64).stats().mean", "AGG.map(r => r.qPhen.toFloat64).stats().stdev")).map(_._1)
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))

@@ -432,6 +432,10 @@ object Parser extends JavaTokenParsers {
     withPos("f64#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos("f32#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
       withPos("f64#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
+      withPos("""-?\d+(\.\d+)?[eE][+-]?\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
+      withPos("""-?\d*\.\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
+      withPos("""-?\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
+      withPos("""-?\d+[dD]""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos("""-?\d+(\.\d+)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos("i64#" ~> wholeNumber) ^^ (r => Const(r.pos, r.x.toLong, TInt64())) |

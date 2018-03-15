@@ -172,6 +172,13 @@ class HailType(object):
     def _convert_from_json(self, x):
         return x
 
+    def _scalar_type(self):
+        if isinstance(self, tarray):
+            return self.element_type
+        else:
+            assert is_numeric(self)
+            return self
+
 
 hail_type = oneof(HailType, transformed((str, dtype)))
 

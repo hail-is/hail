@@ -38,7 +38,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -102,7 +102,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2
@@ -159,7 +159,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2

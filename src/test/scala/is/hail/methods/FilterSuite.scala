@@ -1,10 +1,5 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
-import is.hail.expr._
-import is.hail.expr.types._
-import is.hail.io.annotators.IntervalList
-import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
@@ -32,9 +27,9 @@ class FilterSuite extends SparkSuite {
 
     assert(sQcVds.filterColsExpr("sa.qc.n_called == 337").numCols == 17)
 
-    assert(sQcVds.filterColsExpr("sa.qc.dp_mean > 60").numCols == 6)
+    assert(sQcVds.filterColsExpr("sa.qc.dp_mean > 60d").numCols == 6)
 
-    assert(sQcVds.filterColsExpr("if (\"^C1048\" ~ sa.s) {sa.qc.r_ti_tv > 3.5 && sa.qc.n_singleton < 10000000} else sa.qc.r_ti_tv > 3")
+    assert(sQcVds.filterColsExpr("if (\"^C1048\" ~ sa.s) {sa.qc.r_ti_tv > 3.5 && sa.qc.n_singleton < 10000000L} else sa.qc.r_ti_tv > 3d")
       .numCols == 16)
 
     val vQcVds = VariantQC(vds)
@@ -43,9 +38,9 @@ class FilterSuite extends SparkSuite {
 
     assert(vQcVds.filterRowsExpr("va.qc.n_hom_var > 0 && va.qc.n_het > 0").countRows() == 104)
 
-    assert(vQcVds.filterRowsExpr("va.qc.r_het_hom_var > 0").countRows() == 104)
+    assert(vQcVds.filterRowsExpr("va.qc.r_het_hom_var > 0d").countRows() == 104)
 
-    assert(vQcVds.filterRowsExpr("va.qc.r_het_hom_var >= 0").countRows() == 117)
+    assert(vQcVds.filterRowsExpr("va.qc.r_het_hom_var >= 0d").countRows() == 117)
 
     assert(vQcVds.filterRowsExpr("isMissing(va.qc.r_het_hom_var)", keep = false).countRows() == 117)
 
@@ -55,7 +50,7 @@ class FilterSuite extends SparkSuite {
     assert(!highGQ.entriesTable().exists("row.GQ < 20"))
     assert(highGQ.entriesTable().count() == 30889)
 
-    val highGQorMidQGAndLowFS = vds.filterEntries("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30)", keep = false)
+    val highGQorMidQGAndLowFS = vds.filterEntries("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30d)", keep = false)
       .expand()
       .collect()
 
@@ -64,7 +59,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds2.filterEntries("g.AD[0] < 30").entriesTable().count() == 3)
 
-    assert(vds2.filterEntries("g.AD[1].toFloat64() / g.DP > 0.05")
+    assert(vds2.filterEntries("g.AD[1] / g.DP > 0.05f")
         .entriesTable()
         .count() == 3)
 

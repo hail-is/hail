@@ -168,7 +168,7 @@ class SkatSuite extends SparkSuite {
       .annotateRowsExpr("gene = va.locus.position % 3") // three genes
       .annotateRowsExpr("AF = AGG.map(g => g.GT).callStats(GT => va.alleles).AF")
       .annotateRowsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
-        "dbeta(af, 1.0, 25.0)**2")
+        "dbeta(af, 1.0, 25.0)**2d")
   }
 
   def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
