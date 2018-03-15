@@ -42,7 +42,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'nbsphinx',
     'IPython.sphinxext.ipython_console_highlighting', # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx_autodoc_typehints',
 ]
 
 mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
@@ -77,7 +78,7 @@ autosummary_generate = ['api.rst',
 autodoc_default_flags = ['members', 'undoc-members']
 
 napoleon_use_rtype = False
-napoleon_use_param = False
+napoleon_use_param = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']

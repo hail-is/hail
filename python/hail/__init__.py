@@ -46,7 +46,8 @@ __all__ = ['init',
            'hadoop_copy',
            'Struct',
            'Interval',
-           'agg']
+           'agg',
+           'expr']
 
 
 __all__.extend(genetics.__all__)

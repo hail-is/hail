@@ -1,7 +1,7 @@
 import itertools
 from typing import *
 
-import hail
+import hail as hl
 from hail.expr import expressions
 from hail.expr.expr_ast import *
 from hail.expr.types import *
@@ -272,7 +272,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
         from collections import defaultdict
         sources = defaultdict(lambda: [])
         for e in exprs:
-            from .utils import get_refs
+            from .expression_utils import get_refs
             for name, inds in get_refs(e, *e._aggregations.exprs):
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."
@@ -511,14 +511,8 @@ class Expression(object):
         return expressions.construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins)
 
     @property
-    def dtype(self):
-        """The data type of the expression.
-
-        Returns
-        -------
-        :class:`.HailType`
-            Data type.
-        """
+    def dtype(self) -> HailType:
+        """The data type of the expression."""
         return self._type
 
     def __len__(self):
