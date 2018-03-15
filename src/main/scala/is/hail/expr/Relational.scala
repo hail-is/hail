@@ -101,13 +101,13 @@ case class MatrixValue(
   def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
     val rowType = typ.rvRowType
     val keepType = TArray(+TInt32())
-    val makeF = ir.Compile("row", ir.RegionValueRep[Long](rowType),
-      "keep", ir.RegionValueRep[Long](keepType),
-      ir.RegionValueRep[Long](rowType),
+    val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
+      "keep", keepType,
       body = ir.insertStruct(ir.Ref("row"), rowType, MatrixType.entriesIdentifier,
         ir.ArrayMap(ir.Ref("keep"), "i",
           ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
             ir.Ref("i")))))
+    assert(rTyp == rowType)
 
     val keepBc = sparkContext.broadcast(keep)
     copy(colValues = keep.map(colValues),
@@ -487,11 +487,11 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val ktv = child.execute(hc)
-    val f = ir.Compile(
-      "row", ir.RegionValueRep[Long](child.typ.rowType),
-      "global", ir.RegionValueRep[Long](child.typ.globalType),
-      ir.RegionValueRep[Boolean](TBoolean()),
+    val (rTyp, f) = ir.Compile[Long, Long, Boolean](
+      "row", child.typ.rowType,
+      "global", child.typ.globalType,
       pred)
+    assert(rTyp == TBoolean())
     ktv.filter((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
@@ -513,11 +513,11 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val f = ir.Compile(
-      "row", ir.RegionValueRep[Long](child.typ.rowType),
-      "global", ir.RegionValueRep[Long](child.typ.globalType),
-      ir.RegionValueRep[Long](typ.rowType),
+    val (rTyp, f) = ir.Compile[Long, Long, Long](
+      "row", child.typ.rowType,
+      "global", child.typ.globalType,
       newIR)
+    assert(rTyp == typ.rowType)
     val localGlobals = tv.globals
     val gType = typ.globalType
     TableValue(typ,
