@@ -11,6 +11,7 @@ import org.objectweb.asm.tree._
 import scala.collection.mutable
 import scala.language.existentials
 import scala.language.postfixOps
+import scala.reflect.ClassTag
 
 object Emit {
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
@@ -107,6 +108,7 @@ private class Emit(
       this.emit(ir, env)
     def emitAgg(ir: IR, env: E = env)(k: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] =
       this.emitAgg(ir, aggEnv)(k)
+    def emitArrayIterator(ir: IR, env: E = env)(c: (Code[Boolean], Code[_]) => Code[Unit]) = this.emitArrayIterator(ir, env)(c)
 
     val region = fb.getArg[Region](1).load()
     lazy val aggregator = {
@@ -267,6 +269,7 @@ private class Emit(
         val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
       case x@ArrayRange(startir, stopir, stepir) =>
+        val srvb = new StagedRegionValueBuilder(fb, x.typ)
         val (d, m, v) = Array(emit(startir), emit(stopir), emit(stepir)).unzip3
         val start = fb.newLocal[Int]("ar_start")
         val stop = fb.newLocal[Int]("ar_stop")
@@ -275,7 +278,6 @@ private class Emit(
         val i = fb.newLocal[Int]("ar_i")
         val len = fb.newLocal[Int]("ar_len")
         val llen = fb.newLocal[Long]("ar_llen")
-        val srvb = new StagedRegionValueBuilder(fb, x.typ)
         (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
           start := coerce[Int](v(0)),
           stop := coerce[Int](v(1)),
@@ -290,104 +292,50 @@ private class Emit(
           (llen > const(Int.MaxValue.toLong)).mux(
             Code._fatal("Array range cannot have more than MAXINT elements."),
             len := (llen < 0L).mux(0L, llen).toI),
+          srvb.start(len, init = true),
           i := 0,
-          srvb.start(len, init=true),
           Code.whileLoop(i < len,
             srvb.addInt(start),
             srvb.advance(),
             i := i + 1,
             start := start + step),
           srvb.offset))
-      case x@ArrayMap(a, name, body, elementTyp) =>
-        val tin = coerce[TArray](a.typ)
-        val tout = x.typ
-        val srvb = new StagedRegionValueBuilder(fb, tout)
-        val addElement = srvb.addIRIntermediate(tout.elementType)
-        val etiin = coerce[Any](typeToTypeInfo(tin.elementType))
-        val xa = fb.newLocal[Long]("am_a")
-        val xmv = mb.newBit()
-        val xvv = fb.newLocal(name)(etiin)
-        val i = fb.newLocal[Int]("am_i")
-        val len = fb.newLocal[Int]("am_len")
-        val out = fb.newLocal[Long]("am_out")
-        val bodyenv = env.bind(name -> (etiin, xmv, xvv))
-        val lmissing = new LabelNode()
-        val lnonmissing = new LabelNode()
-        val ltop = new LabelNode()
-        val lnext = new LabelNode()
-        val lend = new LabelNode()
-        val (doa, ma, va) = emit(a)
-        val (dobody, mbody, vbody) = emit(body, env = bodyenv)
 
-        (doa, ma, Code(
-          xa := coerce[Long](va),
-          len := TContainer.loadLength(region, xa),
+      case _: ArrayMap | _: ArrayFilter =>
+
+        val elt = coerce[TArray](ir.typ).elementType
+        val len = fb.newLocal[Int]
+        val i = fb.newLocal[Int]
+        val srvb = new StagedRegionValueBuilder(fb, ir.typ)
+        val mab = new StagedArrayBuilder(TBoolean(), fb.apply_method)
+        val vab = new StagedArrayBuilder(elt, fb.apply_method)
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          coerce[Unit](Code(mab.add(m), vab.add(v)))
+        }
+
+        val (d, m, popAB) = emitArrayIterator(ir)(cont)
+
+        (d, m, Code(
+          mab.create(16),
+          vab.create(16),
+          popAB,
+          len := mab.size,
+          srvb.start(len, init=true),
           i := 0,
-          srvb.start(len, init = true),
           Code.whileLoop(i < len,
-            xmv := !tin.isElementDefined(region, xa, i),
-            xvv := xmv.mux(
-              defaultValue(tin.elementType),
-              region.loadIRIntermediate(tin.elementType)(tin.loadElement(region, xa, i))),
-            dobody,
-            mbody.mux(srvb.setMissing(), addElement(vbody)),
-            srvb.advance(),
-            i := i + 1),
-          srvb.offset))
-      case x@ArrayFilter(a, name, condition) =>
-        val t = x.typ
-        val srvb = new StagedRegionValueBuilder(fb, t)
-        val elementTypeInfoA = coerce[Any](typeToTypeInfo(t.elementType))
+            coerce[Boolean](mab(i)).mux(
+              srvb.setMissing(),
+              srvb.addIRIntermediate(elt)(vab(i))),
+            i := i + 1,
+            srvb.advance()),
+          srvb.offset
+        ))
 
-        val xa = fb.newLocal[Long]("af_a")
-        val xmv = mb.newBit()
-        val xvv = fb.newLocal(name)(elementTypeInfoA)
-        val i = fb.newLocal[Int]("af_i")
-
-        val lenout = fb.newLocal[Int]("af_lenout")
-        val len = fb.newLocal[Int]("af_len")
-
-        val tKeep = TArray(+TBoolean())
-        val srvbKeep = new StagedRegionValueBuilder(fb, tKeep)
-        val offKeep = fb.newLocal[Long]("af_off")
-
-        val condenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
-        val (doa, ma, va) = emit(a)
-        val (docond, mcond, vcond) = emit(condition, env = condenv)
-
-        (doa, ma, Code(
-          xa := coerce[Long](va),
-          len := TContainer.loadLength(region, xa),
-          i := 0,
-          lenout := 0,
-          srvbKeep.start(len, init = true),
-          Code.whileLoop(i < len,
-            xmv := !t.isElementDefined(region, xa, i),
-            xvv := xmv.mux(defaultValue(t.elementType),
-              region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
-            docond,
-            (xmv || mcond || !coerce[Boolean](vcond)).mux(
-              srvbKeep.addBoolean(false),
-              Code(srvbKeep.addBoolean(true), lenout := lenout + 1)),
-            srvbKeep.advance(),
-            i := i + 1),
-          offKeep := srvbKeep.offset,
-          i := 0,
-          srvb.start(lenout, init = true),
-          Code.whileLoop(i < len,
-            region.loadBoolean(tKeep.loadElement(region, offKeep, i)).mux(
-              Code(srvb.addIRIntermediate(t.elementType)(
-                region.loadIRIntermediate(t.elementType)(t.loadElement(region, xa, i))),
-                srvb.advance()),
-              Code._empty),
-            i := i + 1),
-          srvb.offset))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
-        val xma = mb.newBit()
-        val xa = fb.newLocal[Long]("af_array")
         val xmv = mb.newBit()
         val xvv = coerce[Any](fb.newLocal(name2)(eti))
         val xmout = mb.newBit()
@@ -397,35 +345,35 @@ private class Emit(
         val bodyenv = env.bind(
           name1 -> (tti, xmout, xvout.load()),
           name2 -> (eti, xmv, xvv.load()))
-        val lmissing = new LabelNode()
-        val lnonmissing = new LabelNode()
-        val ltop = new LabelNode()
-        val lnext = new LabelNode()
-        val lend = new LabelNode()
-        val (doa, ma, va) = emit(a)
+
         val (dozero, mzero, vzero) = emit(zero)
         val (dobody, mbody, vbody) = emit(body, env = bodyenv)
-        val setup = Code(
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := v,
+            dobody,
+            xmout := mbody,
+            xvout := xmout.mux(defaultValue(typ), vbody))
+        }
+
+        val (doa, ma, va) = emitArrayIterator(a)(cont)
+
+        (Code(
           doa,
-          ma.mux(
-            Code(xmout := true, xvout := defaultValue(typ)),
+          xmout := true,
+          xvout := defaultValue(typ),
+          xmout := ma.mux(
+            ma,
             Code(
-              xa := coerce[Long](va),
-              len := TContainer.loadLength(region, xa),
-              i := 0,
               dozero,
               xmout := mzero,
               xvout := xmout.mux(defaultValue(typ), vzero),
-              Code.whileLoop(i < len,
-                xmv := !tarray.isElementDefined(region, xa, i),
-                xvv := xmv.mux(
-                  defaultValue(tarray.elementType),
-                  region.loadIRIntermediate(tarray.elementType)(tarray.loadElement(region, xa, i))),
-                dobody,
-                xmout := mbody,
-                xvout := xmout.mux(defaultValue(typ), vbody),
-                i := i + 1))))
-        (setup, xmout, xvout)
+              va,
+              xmout)),
+          xvout := xmout.mux(defaultValue(typ), xvout)
+        ), xmout, xvout)
 
       case x@ApplyAggOp(a, op, args, _) =>
         val agg = AggOp.get(op, x.inputType, args.map(_.typ))
@@ -638,6 +586,94 @@ private class Emit(
         throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")
       case _ =>
         throw new RuntimeException(s"Expected an aggregator, but found: $ir")
+    }
+  }
+
+  private def emitArrayIterator(ir: IR, env: E)(continuation: (Code[Boolean], Code[_]) => Code[Unit]): (Code[Unit], Code[Boolean], Code[Unit]) = {
+    def emit(ir: IR, env: E = env) = this.emit(ir, env)
+
+    def emitArrayIterator(ir: IR, env: E = env)(c: (Code[Boolean], Code[_]) => Code[Unit]) = this.emitArrayIterator(ir, env)(c)
+
+    val region = fb.getArg[Region](1).load()
+
+    ir match {
+      case x@ArrayRange(startir, stopir, stepir) =>
+        val (d, m, v) = Array(emit(startir), emit(stopir), emit(stepir)).unzip3
+        val start = fb.newLocal[Int]("ar_start")
+        val stop = fb.newLocal[Int]("ar_stop")
+        val step = fb.newLocal[Int]("ar_step")
+
+        val i = fb.newLocal[Int]("ar_i")
+        val len = fb.newLocal[Int]("ar_len")
+        val llen = fb.newLocal[Long]("ar_llen")
+        (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
+          start := coerce[Int](v(0)),
+          stop := coerce[Int](v(1)),
+          step := coerce[Int](v(2)),
+          step.ceq(0).mux(
+            Code._fatal("Array range cannot have step size 0."),
+            Code._empty[Unit]),
+          llen := start.ceq(stop).mux(0L,
+            (step < 0).mux(
+              (start.toL - stop.toL - 1L) / (-step).toL + 1L,
+              (stop.toL - start.toL - 1L) / step.toL + 1L)),
+          (llen > const(Int.MaxValue.toLong)).mux(
+            Code._fatal("Array range cannot have more than MAXINT elements."),
+            len := (llen < 0L).mux(0L, llen).toI),
+          i := 0,
+          Code.whileLoop(i < len,
+            continuation(false, i),
+            i := i + 1,
+            start := start + step)))
+      case x@ArrayFilter(a, name, condition) =>
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(x.typ.elementType))
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name)(elementTypeInfoA)
+        val condenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
+        val (docond, mcond, vcond) = emit(condition, condenv)
+
+        val filterCont = {(m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := v,
+            docond,
+            (xmv || mcond || !coerce[Boolean](vcond)).mux(
+              Code._empty,
+              continuation(false, xvv)))
+        }
+        emitArrayIterator(a)(filterCont)
+
+      case x@ArrayMap(a, name, body, _) =>
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(x.typ.elementType))
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name)(elementTypeInfoA)
+        val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
+        val (dobody, mbody, vbody) = emit(body, bodyenv)
+        val mapCont = {(m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := v,
+            dobody,
+            continuation(mbody, vbody))
+        }
+        emitArrayIterator(a)(mapCont)
+
+      case _ =>
+        val t: TArray = coerce[TArray](ir.typ)
+        val srvb = new StagedRegionValueBuilder(fb, t)
+        val i = fb.newLocal[Int]("i")
+        val len = fb.newLocal[Int]("len")
+        val aoff = fb.newLocal[Long]("aoff")
+        val (setup, m, v) = emit(ir, env)
+        (setup, m, Code(
+          aoff := coerce[Long](v),
+          len := t.loadLength(region, aoff),
+          srvb.start(len, init = true),
+          i := 0,
+          Code.whileLoop(i < len,
+            continuation(t.isElementMissing(region, aoff, i),
+              region.loadIRIntermediate(t.elementType)(t.loadElement(region, aoff, i))),
+            i := i + 1)))
     }
   }
 
