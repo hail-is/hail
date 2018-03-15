@@ -741,21 +741,21 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = flatLift {
-      case IndexedSeq(x) => for {
+  private def tryPrimOpConversion: IndexedSeq[(Type, IR)] => Option[IR] = flatLift {
+      case IndexedSeq((xt, x)) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
-        t <- ir.UnaryOp.returnTypeOption(op, x.typ)
+        t <- ir.UnaryOp.returnTypeOption(op, xt)
       } yield ir.ApplyUnaryPrimOp(op, x, t)
-      case IndexedSeq(x, y) => for {
+      case IndexedSeq((xt, x), (yt, y)) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
-        t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
+        t <- ir.BinaryOp.returnTypeOption(op, xt, yt)
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- tryPrimOpConversion(irArgs).orElse(
+      ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
         IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
           .map { irf => irf(irArgs) })
     } yield ir
@@ -859,7 +859,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             case (_: TAggregable, "map") => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
             case (_: TAggregable, "filter") => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
             case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_, "map") => ir.ArrayMap(a, name, b)
+            case (_: TArray, "map") => ir.ArrayMap(a, name, b)
+            case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
           }
         } yield result
       case _ =>
@@ -892,7 +893,7 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
   def toIR(agg: Option[String] = None): Option[IR] = for {
     irBindings <- anyFailAllFail(bindings.map { case (x, y) => y.toIR(agg).map(irY => (x, irY)) })
     irBody <- body.toIR(agg)
-  } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x, x.typ) }
+  } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x) }
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {

@@ -139,7 +139,7 @@ object TestUtils {
     if (!mt.entryType.isOfType(Genotype.htsGenotypeType))
       fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ mt.entryType }")
     val pl = """if (isDefined(g.PL))
-    range(3).map(i => range(g.PL.length).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
+    range(3).map(i => range(g.PL.size()).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
     else
     NA: Array[Int]"""
     SplitMulti(mt, "va.aIndex = aIndex, va.wasSplit = wasSplit",

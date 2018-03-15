@@ -747,16 +747,7 @@ object FunctionRegistry {
   })
 
   register("downcode", { (c: Call, i: Int) =>
-    (Call.ploidy(c): @switch) match {
-      case 0 => c
-      case 1 =>
-        Call1(if (Call.alleleByIndex(c, 0) == i) 1 else 0, Call.isPhased(c))
-      case 2 =>
-        val p = Call.allelePair(c)
-        Call2(if (p.j == i) 1 else 0, if (p.k == i) 1 else 0, Call.isPhased(c))
-      case _ =>
-        CallN(Call.alleles(c).map(a => if (a == i) 1 else 0), Call.isPhased(c))
-    }
+    Call.downcode(c, i)
   })(callHr, int32Hr, callHr)
 
   register("gqFromPL", { pl: IndexedSeq[Int] =>

@@ -25,15 +25,21 @@ object UtilFunctions extends RegistryFunctions {
         If(IsNA(Ref("value")),
           Ref("min"),
           If(ApplyBinaryPrimOp(LT(), Ref("min"), Ref("value")), Ref("min"), Ref("value"))))
-      ArrayFold(a, NA(coerce[TArray](a.typ).elementType), "min", "v", body)
+      ArrayFold(a, NA(tnum("T").t), "min", "value", body)
     }
 
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
 
-    registerIR("orMissing", TBoolean(), tv("T")) { (cond, a) => If(cond, a, NA(a.typ)) }
+    registerIR("orMissing", TBoolean(), tv("T")) { (cond, a) => If(cond, a, NA(tv("T").t)) }
 
     registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
 
     registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
+
+    registerIR("range", TInt32(), TInt32(), TInt32())(ArrayRange)
+
+    registerIR("range", TInt32(), TInt32())(ArrayRange(_, _, I32(1)))
+
+    registerIR("range", TInt32())(ArrayRange(I32(0), _, I32(1)))
   }
 }

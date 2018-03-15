@@ -225,13 +225,14 @@ private class Emit(
             srvb.offset))
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
-        val tarray = TArray(typ)
+        val tarray = coerce[TArray](a.typ)
         val ati = coerce[Long](typeToTypeInfo(tarray))
         val (doa, ma, va) = emit(a)
         val (doi, mi, vi) = emit(i)
         val xma = mb.newBit()
         val xa = fb.newLocal()(ati)
         val xi = fb.newLocal[Int]
+        val len = fb.newLocal[Int]
         val xmi = mb.newBit()
         val xmv = mb.newBit()
         val setup = Code(
@@ -243,7 +244,16 @@ private class Emit(
           xi := coerce[Int](xmi.mux(defaultValue(TInt32()), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi))
 
-        (setup, xmv, region.loadIRIntermediate(typ)(tarray.loadElement(region, xa, xi)))
+        (setup, xmv, Code(
+          len := tarray.loadLength(region, xa),
+          (xi < len).mux(
+            region.loadIRIntermediate(typ)(tarray.loadElement(region, xa, xi)),
+            Code._fatal(
+              const("array index out of bounds: ")
+                .invoke[String, String]("concat", xi.load().toS)
+                .invoke[String, String]("concat", " / ")
+                .invoke[String, String]("concat", len.load().toS)
+            ))))
       case ArrayMissingnessRef(a, i) =>
         val tarray = coerce[TArray](a.typ)
         val ati = coerce[Long](typeToTypeInfo(tarray))

@@ -8,6 +8,7 @@ import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, UtilFun
 import is.hail.expr.types._
 import org.testng.annotations.Test
 import is.hail.expr.{EvalContext, FunType, Parser}
+import is.hail.variant.Call2
 
 import scala.reflect.ClassTag
 
@@ -58,6 +59,7 @@ class FunctionSuite {
   }
 
   def lookup(meth: String, types: Type*)(irs: IR*): IR = {
+    val possible = IRFunctionRegistry.registry(meth)
     IRFunctionRegistry.lookupFunction(meth, types).get(irs)
   }
 
@@ -95,7 +97,6 @@ class FunctionSuite {
     assert(actual == 2)
   }
 
-
   @Test
   def testUnifySize() {
     val ir = lookup("size", TArray(TInt32()))(In(0, TArray(TInt32())))
@@ -113,5 +114,12 @@ class FunctionSuite {
     assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt64(), TInt32())).isEmpty)
     assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt64(), TInt64())).isEmpty)
     assert(IRFunctionRegistry.lookupFunction("testCodeUnification2", Seq(TArray(TInt32()))).isDefined)
+  }
+
+  @Test
+  def testUnphasedDiploidGtIndexCall() {
+    val ir = lookup("UnphasedDiploidGtIndexCall", TInt32())(In(0, TInt32()))
+    val f = toF[Int, Int](ir)
+    assert(f(region, 0, false) == Call2.fromUnphasedDiploidGtIndex(0))
   }
 }
