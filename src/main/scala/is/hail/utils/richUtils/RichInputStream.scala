@@ -10,9 +10,9 @@ class RichInputStream(val in: InputStream) extends AnyVal {
     var read = 0
     while (read < n) {
       val r = in.read(to, toOff + read, n - read)
-      assert( r != 0)
+      assert(r != 0)
       if (r == -1)
-        fatal("Reached end of file prematurely")
+        fatal("Premature end of file")
       read += r
     }
   }

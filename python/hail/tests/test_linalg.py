@@ -32,7 +32,7 @@ class Tests(unittest.TestCase):
 
         path = new_temp_file()
         BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
-        a4 = BlockMatrix.read(path)
+        a4 = BlockMatrix.read(path).to_numpy()
         self.assertTrue(np.array_equal(a1, a4))
 
     def test_to_from_numpy(self):

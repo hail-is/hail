@@ -32,7 +32,7 @@ class RichDenseMatrixDoubleSuite extends SparkSuite {
     val lmT2 = RichDenseMatrixDouble.importFromDoubles(hc, fileT, 100, 50, rowMajor = true)
     assert(mT === mT)
     
-    TestUtils.interceptFatal("Reached end of file prematurely") {
+    TestUtils.interceptFatal("Premature") {
       RichDenseMatrixDouble.importFromDoubles(hc, fileT, 100, 100, rowMajor = true)
     }
   }
