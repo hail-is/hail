@@ -741,21 +741,21 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private def tryPrimOpConversion(types: IndexedSeq[Type]): IndexedSeq[IR] => Option[IR] = flatLift {
-      case IndexedSeq(x) => for {
+  private def tryPrimOpConversion: IndexedSeq[(Type, IR)] => Option[IR] = flatLift {
+      case IndexedSeq((xt, x)) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
-        t <- ir.UnaryOp.returnTypeOption(op, types(0))
+        t <- ir.UnaryOp.returnTypeOption(op, xt)
       } yield ir.ApplyUnaryPrimOp(op, x, t)
-      case IndexedSeq(x, y) => for {
+      case IndexedSeq((xt, x), (yt, y)) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
-        t <- ir.BinaryOp.returnTypeOption(op, types(0), types(1))
+        t <- ir.BinaryOp.returnTypeOption(op, xt, yt)
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
 
   def toIR(agg: Option[String] = None): Option[IR] = {
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- tryPrimOpConversion(args.map(_.`type`))(irArgs).orElse(
+      ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
         IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
           .map { irf => irf(irArgs) })
     } yield ir
