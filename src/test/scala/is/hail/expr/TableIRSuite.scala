@@ -15,7 +15,7 @@ class TableIRSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = Table(hc, rdd, signature, keyNames)
-    val kt2 = new Table(hc, TableFilter(kt.ir,
+    val kt2 = new Table(hc, TableFilter(kt.tir,
       ir.ApplyBinaryPrimOp(ir.EQ(), ir.GetField(ir.Ref("row"), "field1"), ir.I32(3))))
     assert(kt2.count() == 1)
   }
@@ -27,7 +27,7 @@ class TableIRSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = Table(hc, rdd, signature, keyNames).annotateGlobalExpr("g = 3")
-    val kt2 = new Table(hc, TableFilter(kt.ir,
+    val kt2 = new Table(hc, TableFilter(kt.tir,
       ir.ApplyBinaryPrimOp(ir.EQ(), ir.GetField(ir.Ref("row"), "field1"), ir.GetField(ir.Ref("global"), "g"))))
     assert(kt2.count() == 1)
   }
@@ -39,7 +39,7 @@ class TableIRSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = Table(hc, rdd, signature, keyNames)
-    val kt2 = new Table(hc, TableAnnotate(kt.ir,
+    val kt2 = new Table(hc, TableAnnotate(kt.tir,
       IndexedSeq("dummy", "a", "field1"),
       IndexedSeq(ir.I32(0), ir.GetField(ir.Ref("row"), "field1"), ir.GetField(ir.Ref("row"), "field2"))))
     assert(kt2.select("row.Sample", "field1 = row.a", "field2 = row.field1").same(kt))
