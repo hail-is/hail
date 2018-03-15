@@ -419,7 +419,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     if (paths.length == 0)
       return this
 
-    val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
+    val irs = asts.flatMap { _.toIR() }
 
     if (irs.length != asts.length || globalSignature.size != 0) {
       val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
@@ -445,7 +445,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
       copy(rdd = rdd.map(annotF), signature = finalSignature, key = key)
     } else {
-
       new Table(hc, TableAnnotate(tir, paths, irs))
     }
   }
