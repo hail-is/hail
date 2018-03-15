@@ -7,8 +7,8 @@ import is.hail.variant.{Call, Call2}
 object CallFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerScalaFunction[Int]("downcode", TCall(), TInt32(), TCall())(Call, "downcode")
-    registerScalaFunction[Int]("UnphasedDiploidGtIndexCall", TInt32(), TCall())(Call2, "fromUnphasedDiploidGtIndex")
+    registerScalaFunction("downcode", TCall(), TInt32(), TCall())(Call.getClass, "downcode")
+    registerScalaFunction("UnphasedDiploidGtIndexCall", TInt32(), TCall())(Call2.getClass, "fromUnphasedDiploidGtIndex")
 
     registerCode("==", TCall(), TCall(), TBoolean()) { (_, a: Code[Int], b: Code[Int]) => a.ceq(b) }
   }

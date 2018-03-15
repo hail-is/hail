@@ -38,8 +38,12 @@ object Children {
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
+    case ArrayRange(start, stop, step) =>
+      Array(start, stop, step)
     case ArrayMap(a, name, body, elementTyp) =>
       Array(a, body)
+    case ArrayFilter(a, name, cond) =>
+      Array(a, cond)
     case ArrayFold(a, zero, accumName, valueName, body, typ) =>
       Array(a, zero, body)
     case MakeStruct(fields, _) =>

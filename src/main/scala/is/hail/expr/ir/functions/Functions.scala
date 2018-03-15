@@ -27,6 +27,7 @@ object IRFunctionRegistry {
   }
 
   def lookupFunction(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
+    assert(args.forall(_ != null))
     val validMethods = registry(name).flatMap { case (ts, f) =>
       if (ts.length == args.length) {
         ts.foreach(_.clear())
