@@ -1715,14 +1715,7 @@ class Table(ExprContainer):
         -------
         :obj:`bool`
         """
-        expr = to_expr(expr)
-        analyze('Table.all', expr, self._row_indices)
-        base, cleanup = self._process_joins(expr)
-        if expr.dtype != tbool:
-            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
-                            .format(expr.dtype))
-
-        return base._jt.forall(expr._ast.to_hql())
+        return self.aggregate(hail.agg.all(expr))
 
     @typecheck_method(expr=BooleanExpression)
     def any(self, expr):
@@ -1746,14 +1739,7 @@ class Table(ExprContainer):
         :obj:`bool`
             ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
         """
-        expr = to_expr(expr)
-        analyze('Table.any', expr, self._row_indices)
-        base, cleanup = self._process_joins(expr)
-        if expr.dtype != tbool:
-            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
-                            .format(expr.dtype))
-
-        return base._jt.exists(expr._ast.to_hql())
+        return self.aggregate(hail.agg.any(expr))
 
     @typecheck_method(mapping=dictof(str, str))
     def rename(self, mapping):
