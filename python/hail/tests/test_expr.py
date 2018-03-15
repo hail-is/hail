@@ -2,7 +2,7 @@ import unittest
 
 import hail.expr.aggregators as agg
 from hail.expr.types import *
-from hail.expr import dtype
+from hail.expr import dtype, coercer_from_dtype
 from .utils import startTestHailContext, stopTestHailContext
 
 setUpModule = startTestHailContext
@@ -71,6 +71,13 @@ class TypeTests(unittest.TestCase):
             p2 = t.pretty(5, 5)
             self.assertEqual(t, dtype(p1))
             self.assertEqual(t, dtype(p2))
+
+    def test_coercers_can_coerce(self):
+        ts = self.types_to_test()
+        for t in ts:
+            c = coercer_from_dtype(t)
+            self.assertTrue(c.can_coerce(t))
+            self.assertFalse(c.requires_conversion(t))
 
 
 class Tests(unittest.TestCase):

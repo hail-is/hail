@@ -227,9 +227,9 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 
 @typecheck(dataset=MatrixTable,
-           ys=oneof(expr_numeric, expr_bool, listof(oneof(expr_numeric, expr_bool))),
-           x=oneof(expr_numeric, expr_bool),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           ys=oneof(expr_float64, listof(expr_float64)),
+           x=expr_float64,
+           covariates=listof(expr_float64),
            root=str,
            block_size=int)
 def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16):
@@ -343,9 +343,9 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
 @typecheck(dataset=MatrixTable,
            test=str,
-           y=oneof(expr_bool, expr_numeric),
-           x=oneof(expr_bool, expr_numeric),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           y=expr_oneof(expr_bool, expr_float64),
+           x=expr_float64,
+           covariates=listof(expr_oneof(expr_float64)),
            root=str)
 def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
@@ -1077,10 +1077,10 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
 
 @typecheck(dataset=MatrixTable,
            key_expr=expr_any,
-           weight_expr=expr_numeric,
-           y=oneof(expr_numeric, expr_bool),
-           x=oneof(expr_numeric, expr_bool),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           weight_expr=expr_float64,
+           y=expr_float64,
+           x=expr_float64,
+           covariates=listof(expr_float64),
            logistic=bool,
            max_size=int,
            accuracy=numeric,

@@ -730,7 +730,7 @@ def hardy_weinberg(expr):
     return _agg_func('hardyWeinberg', agg, t)
 
 
-@typecheck(expr=oneof(Aggregable, expr_array(...), expr_set(...)))
+@typecheck(expr=oneof(Aggregable, expr_array(), expr_set()))
 def explode(expr):
     """Explode an array or set expression to aggregate the elements of all records.
 

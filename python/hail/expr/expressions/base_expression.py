@@ -94,7 +94,7 @@ def impute_type(x):
         raise ExpressionException("Hail cannot automatically impute type of {}: {}".format(type(x), x))
 
 
-def to_expr(e, dtype=None):
+def to_expr(e, dtype=None) -> 'Expression':
     if isinstance(e, Expression):
         if dtype and not dtype == e.dtype:
             raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
@@ -219,50 +219,6 @@ def _to_expr(e, dtype):
     else:
         raise NotImplementedError(dtype)
 
-
-_lazy_int32 = lazy()
-_lazy_numeric = lazy()
-_lazy_array = lazy()
-_lazy_set = lazy()
-_lazy_dict = lazy()
-_lazy_bool = lazy()
-_lazy_struct = lazy()
-_lazy_tuple = lazy()
-_lazy_string = lazy()
-_lazy_locus = lazy()
-_lazy_interval = lazy()
-_lazy_call = lazy()
-_lazy_expr = lazy()
-
-expr_int32 = transformed((_lazy_int32, identity),
-                         (int, to_expr))
-expr_numeric = transformed((_lazy_numeric, identity),
-                           (int, to_expr),
-                           (float, to_expr))
-expr_array = transformed((list, to_expr),
-                         (_lazy_array, identity))
-expr_set = transformed((set, to_expr),
-                       (_lazy_set, identity))
-expr_dict = transformed((dict, to_expr),
-                        (_lazy_dict, identity))
-expr_bool = transformed((bool, to_expr),
-                        (_lazy_bool, identity))
-expr_struct = transformed((Struct, to_expr),
-                          (_lazy_struct, identity))
-expr_tuple = transformed((tuple, to_expr),
-                         (_lazy_tuple, identity))
-expr_str = transformed((str, to_expr),
-                       (_lazy_string, identity))
-expr_locus = transformed((Locus, to_expr),
-                         (_lazy_locus, identity))
-expr_interval = transformed((Interval, to_expr),
-                            (_lazy_interval, identity))
-expr_call = transformed((Call, to_expr),
-                        (_lazy_call, identity))
-expr_any = transformed((_lazy_expr, identity),
-                       (anytype, to_expr))
-
-
 def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
     assert len(exprs) > 0
     try:
@@ -272,7 +228,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
         from collections import defaultdict
         sources = defaultdict(lambda: [])
         for e in exprs:
-            from .utils import get_refs
+            from .expression_utils import get_refs
             for name, inds in get_refs(e, *e._aggregations.exprs):
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."

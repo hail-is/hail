@@ -418,9 +418,9 @@ def ctt(c1: Int32Expression,
     return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
-@typecheck(collection=oneof(expr_dict(..., ...),
-                            expr_set(expr_tuple([..., ...])),
-                            expr_array(expr_tuple([..., ...]))))
+@typecheck(collection=expr_oneof(expr_dict(),
+                                 expr_set(expr_tuple([expr_any, expr_any])),
+                                 expr_array(expr_tuple([expr_any, expr_any]))))
 def dict(collection: Union[Mapping, DictExpression, SetExpression, ArrayExpression]) -> DictExpression:
     """Creates a dictionary.
 
@@ -585,7 +585,7 @@ def fisher_exact_test(c1: Int32Expression,
     return _func("fet", ret_type, c1, c2, c3, c4)
 
 
-@typecheck(x=oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64))
 def floor(x: NumericExpression) -> NumericExpression:
     """The largest integral value that is less than or equal to `x`.
 
@@ -603,7 +603,7 @@ def floor(x: NumericExpression) -> NumericExpression:
     return _func("floor", x.dtype, x)
 
 
-@typecheck(x=oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64))
 def ceil(x: NumericExpression) -> NumericExpression:
     """The smallest integral value that is greater than or equal to `x`.
 
@@ -662,7 +662,7 @@ def hardy_weinberg_p(n_hom_ref: Int32Expression,
     return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
-@typecheck(structs=oneof(expr_array(expr_struct)),
+@typecheck(structs=expr_array(expr_struct()),
            identifier=str)
 def index(structs, identifier):
     if not isinstance(structs.dtype.element_type, tstruct):
@@ -1154,7 +1154,7 @@ def is_missing(expression: Expression) -> BooleanExpression:
     return _func("isMissing", tbool, expression)
 
 
-@typecheck(x=oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64))
 def is_nan(x: NumericExpression) -> BooleanExpression:
     """Returns ``True`` if the argument is ``NaN`` (not a number).
 
@@ -2190,7 +2190,7 @@ def triangle(n: Int32Expression) -> Int32Expression:
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def filter(f: Callable[[Expression], BooleanExpression], collection: Coll_T) -> Coll_T:
     """Returns a new collection containing elements where `f` returns ``True``.
 
@@ -2230,7 +2230,7 @@ def filter(f: Callable[[Expression], BooleanExpression], collection: Coll_T) -> 
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def any(f: Callable[[Expression], BooleanExpression],
         collection: CollectionExpression) -> BooleanExpression:
     """Returns ``True`` if `f` returns ``True`` for any element.
@@ -2270,7 +2270,7 @@ def any(f: Callable[[Expression], BooleanExpression],
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def all(f: Callable[[Expression], BooleanExpression],
         collection: CollectionExpression) -> BooleanExpression:
     """Returns ``True`` if `f` returns ``True`` for every element.
@@ -2310,7 +2310,7 @@ def all(f: Callable[[Expression], BooleanExpression],
 
 
 @typecheck(f=func_spec(1, expr_bool),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def find(f: Callable[[Expression], BooleanExpression], collection: CollectionExpression) -> Expression:
     """Returns the first element where `f` returns ``True``.
 
@@ -2354,7 +2354,7 @@ def find(f: Callable[[Expression], BooleanExpression], collection: CollectionExp
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def flatmap(f: Callable[[Expression], Coll_T], collection: Coll_T) -> Coll_T:
     """Map each element of the collection to a new collection, and flatten the results.
 
@@ -2391,7 +2391,7 @@ def flatmap(f: Callable[[Expression], Coll_T], collection: Coll_T) -> Coll_T:
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def group_by(f: Callable[[Expression], Expression], collection: CollectionExpression) -> DictExpression:
     """Group collection elements into a dict according to a lambda function.
 
@@ -2422,7 +2422,7 @@ def group_by(f: Callable[[Expression], Expression], collection: CollectionExpres
                                          lambda t: tdict(t, collection.dtype))
 
 
-@typecheck(arrays=expr_array(...), fill_missing=bool)
+@typecheck(arrays=expr_array(), fill_missing=bool)
 def zip(*arrays: ArrayExpression, fill_missing: bool = False) -> ArrayExpression:
     """Zip together arrays into a single array.
 
@@ -2476,7 +2476,7 @@ def zip(*arrays: ArrayExpression, fill_missing: bool = False) -> ArrayExpression
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=oneof(expr_set(...), expr_array(...)))
+           collection=expr_oneof(expr_set(), expr_array()))
 def map(f: Callable[[Expression], Expression], collection: Coll_T) -> Coll_T:
     """Transform each element of a collection.
 
@@ -2506,7 +2506,7 @@ def map(f: Callable[[Expression], Expression], collection: Coll_T) -> Coll_T:
                                          lambda t: collection.dtype.__class__(t))
 
 
-@typecheck(x=oneof(expr_set(...), expr_array(...), expr_dict(..., ...), expr_str, expr_tuple(...), expr_struct))
+@typecheck(x=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_str, expr_tuple(), expr_struct()))
 def len(x: Union[CollectionExpression, DictExpression, StringExpression, TupleExpression,
                  StructExpression]) -> Int32Expression:
     """Returns the size of a collection or string.
@@ -2542,7 +2542,7 @@ def len(x: Union[CollectionExpression, DictExpression, StringExpression, TupleEx
         return x._method("size", tint32)
 
 
-@typecheck(exprs=oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
 def max(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
     """Returns the maximum element of a collection or of given numeric expressions.
 
@@ -2596,7 +2596,7 @@ def max(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
             return max([e for e in exprs])
 
 
-@typecheck(exprs=oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
 def min(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
     """Returns the minimum of a collection or of given numeric expressions.
 
@@ -2650,7 +2650,7 @@ def min(*exprs: Union[CollectionExpression, Num_T]) -> Num_T:
             return min([e for e in exprs])
 
 
-@typecheck(x=oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
 def abs(x: Num_T) -> Num_T:
     """Take the absolute value of a numeric value or array.
 
@@ -2678,7 +2678,7 @@ def abs(x: Num_T) -> Num_T:
         return x._method('abs', x.dtype)
 
 
-@typecheck(x=oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
 def signum(x: NumericExpression) -> Int32Expression:
     """Returns the sign (1, 0, or -1) of a numeric value or array.
 
@@ -2712,7 +2712,7 @@ def signum(x: NumericExpression) -> Int32Expression:
         return x._method('signum', tint32)
 
 
-@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def mean(collection: CollectionExpression) -> Float64Expression:
     """Returns the mean of all values in the collection.
 
@@ -2741,7 +2741,7 @@ def mean(collection: CollectionExpression) -> Float64Expression:
     return collection._method("mean", tfloat64)
 
 
-@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def median(collection: CollectionExpression) -> Float64Expression:
     """Returns the median value in the collection.
 
@@ -2770,7 +2770,7 @@ def median(collection: CollectionExpression) -> Float64Expression:
     return collection._method("median", collection.dtype.element_type)
 
 
-@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def product(collection: CollectionExpression) -> Float64Expression:
     """Returns the product of values in the collection.
 
@@ -2799,7 +2799,7 @@ def product(collection: CollectionExpression) -> Float64Expression:
     return collection._method("product", collection.dtype.element_type)
 
 
-@typecheck(collection=oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
 def sum(collection: CollectionExpression) -> Float64Expression:
     """Returns the sum of values in the collection.
 
@@ -2876,7 +2876,7 @@ def tuple(iterable: Iterable) -> TupleExpression:
     return to_expr(t)
 
 
-@typecheck(collection=oneof(expr_set(...), expr_array(...)))
+@typecheck(collection=expr_oneof(expr_set(), expr_array()))
 def set(collection: Union[CollectionExpression, Set, List]) -> SetExpression:
     """Convert a set expression.
 
@@ -2921,7 +2921,7 @@ def empty_set(t: Union[HailType, str]) -> SetExpression:
     return filter(lambda x: False, set([null(t)]))
 
 
-@typecheck(collection=oneof(expr_set(...), expr_array(...), expr_dict(..., ...)))
+@typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict()))
 def array(collection: Union[CollectionExpression, DictExpression, Set, List, Dict]) -> ArrayExpression:
     """Construct an array expression.
 
@@ -2999,7 +2999,7 @@ def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str])
     return hl.dict(hl.empty_array(hl.ttuple(key_type, value_type)))
 
 
-@typecheck(collection=oneof(expr_set(expr_set(...)), expr_array(expr_array(...))))
+@typecheck(collection=expr_oneof(expr_set(expr_set()), expr_array(expr_array())))
 def flatten(collection: Coll_T) -> Coll_T:
     """Flatten a nested collection by concatenating sub-collections.
 
@@ -3024,7 +3024,7 @@ def flatten(collection: Coll_T) -> Coll_T:
     return collection._method("flatten", collection._type.element_type)
 
 
-@typecheck(collection=oneof(expr_array(...), expr_set(...)),
+@typecheck(collection=expr_oneof(expr_array(), expr_set()),
            delimiter=expr_str)
 def delimit(collection: CollectionExpression, delimiter: StringExpression = ',') -> StringExpression:
     """Joins elements of `collection` into single string delimited by `delimiter`.
@@ -3061,7 +3061,7 @@ def delimit(collection: CollectionExpression, delimiter: StringExpression = ',')
     return collection._method("mkString", tstr, delimiter)
 
 
-@typecheck(collection=expr_array(...),
+@typecheck(collection=expr_array(),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
 def sorted(collection: ArrayExpression,
@@ -3207,7 +3207,7 @@ def argmax(array: ArrayNumericExpression, unique: bool = False) -> Int32Expressi
         return array._method("argmax", tint32)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float64(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Float64Expression:
     """Convert to a 64-bit floating point expression.
 
@@ -3235,7 +3235,7 @@ def float64(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
     return expr._method("toFloat64", tfloat64)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Float32Expression:
     """Convert to a 32-bit floating point expression.
 
@@ -3263,7 +3263,7 @@ def float32(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
     return expr._method("toFloat32", tfloat32)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int64Expression:
     """Convert to a 64-bit integer expression.
 
@@ -3291,7 +3291,7 @@ def int64(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     return expr._method("toInt64", tint64)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int32(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int32Expression:
     """Convert to a 32-bit integer expression.
 
@@ -3319,7 +3319,7 @@ def int32(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     return expr._method("toInt32", tint32)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int32Expression:
     """Convert to a 32-bit integer expression.
 
@@ -3351,7 +3351,7 @@ def int(expr: Union[int, float, str, NumericExpression, BooleanExpression, Strin
     return int32(expr)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Float64Expression:
     """Convert to a 64-bit floating point expression.
 
@@ -3383,7 +3383,7 @@ def float(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     return float64(expr)
 
 
-@typecheck(expr=oneof(expr_numeric, expr_bool, expr_str))
+@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def bool(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> BooleanExpression:
     """Convert to a Boolean expression.
 
