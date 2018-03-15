@@ -60,7 +60,6 @@ class FunctionSuite {
 
   def lookup(meth: String, types: Type*)(irs: IR*): IR = {
     val possible = IRFunctionRegistry.registry(meth)
-    println(possible.map{ case (ts, _) => ts.mkString(", ") }.mkString("\n"))
     IRFunctionRegistry.lookupFunction(meth, types).get(irs)
   }
 
