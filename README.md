@@ -156,6 +156,7 @@ $ cluster start -h
 usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.2.0}]
                      [--version {0.1,devel}]
                      [--master-machine-type MASTER_MACHINE_TYPE]
+                     [--master-memory-fraction MASTER_MEMORY_FRACTION]
                      [--master-boot-disk-size MASTER_BOOT_DISK_SIZE]
                      [--num-master-local-ssds NUM_MASTER_LOCAL_SSDS]
                      [--num-preemptible-workers NUM_PREEMPTIBLE_WORKERS]
@@ -166,9 +167,8 @@ usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.2.0}]
                      [--worker-machine-type WORKER_MACHINE_TYPE] [--zone ZONE]
                      [--properties PROPERTIES] [--metadata METADATA]
                      [--packages PACKAGES] [--jar JAR] [--zip ZIP]
-                     [--init INIT] [--vep]
+                     [--init INIT] [--vep] [--dry-run]
                      name
-
 Start a Dataproc cluster configured for Hail.
 
 positional arguments:
@@ -184,6 +184,10 @@ optional arguments:
                         Hail version to use (default: 0.1).
   --master-machine-type MASTER_MACHINE_TYPE, --master MASTER_MACHINE_TYPE, -m MASTER_MACHINE_TYPE
                         Master machine type (default: n1-highmem-8).
+  --master-memory-fraction MASTER_MEMORY_FRACTION
+                        Fraction of master memory allocated to the JVM. Use a
+                        smaller value to reserve more memory for Python.
+                        (default: 0.8)
   --master-boot-disk-size MASTER_BOOT_DISK_SIZE
                         Disk size of master machine, in GB (default: 100).
   --num-master-local-ssds NUM_MASTER_LOCAL_SSDS
@@ -216,8 +220,7 @@ optional arguments:
   --zip ZIP             Hail zip to use for Jupyter notebook.
   --init INIT           Comma-separated list of init scripts to run.
   --vep                 Configure the cluster to run VEP.
-  --dry-run             Don't start a cluster, just print the gcloud command.
-```
+  --dry-run             Print gcloud dataproc command, but don't run it.```
 
 ```
 $ cluster submit -h

@@ -41,6 +41,10 @@ def init_parser(parser):
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str,
                         help='Master machine type (default: %(default)s).')
+    parser.add_argument('--master-memory-fraction', default=0.8, type=float,
+                        help='Fraction of master memory allocated to the JVM. '
+                             'Use a smaller value to reserve more memory '
+                             'for Python. (default: %(default)s)')
     parser.add_argument('--master-boot-disk-size', default=100, type=int,
                         help='Disk size of master machine, in GB (default: %(default)s).')
     parser.add_argument('--num-master-local-ssds', default=0, type=int,
@@ -94,7 +98,7 @@ def main(args):
     
     # parse Spark and HDFS configuration parameters, combine into properties argument
     properties = [
-        'spark:spark.driver.memory={}g'.format(str(int(machine_mem[args.master_machine_type] * 0.8))),
+        'spark:spark.driver.memory={}g'.format(str(int(machine_mem[args.master_machine_type] * args.master_memory_fraction))),
         'spark:spark.driver.maxResultSize=0',
         'spark:spark.task.maxFailures=20',
         'spark:spark.kryoserializer.buffer.max=1g',
