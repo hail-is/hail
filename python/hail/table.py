@@ -370,7 +370,7 @@ class Table(ExprContainer):
     def _force_count(self):
         return self._jt.forceCount()
 
-    @typecheck_method(caller=str, s=expr_struct)
+    @typecheck_method(caller=str, s=expr_struct())
     def _select(self, caller, s):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._row_indices)
@@ -447,7 +447,7 @@ class Table(ExprContainer):
 
         Add a new global field:
 
-        >>> table_result = table1.annotate(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
+        >>> table_result = table1.annotate_globals(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
 
         Note
         ----
@@ -603,21 +603,15 @@ class Table(ExprContainer):
             Table with transmuted fields.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        exprs = []
-        base, cleanup = self._process_joins(*named_exprs.values())
         fields_referenced = set()
         for k, v in named_exprs.items():
-            analyze('Table.transmute', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             for name, inds in get_refs(v):
                 if inds == self._row_indices:
                     fields_referenced.add(name)
         fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        return cleanup(Table(base._jt
-                             .annotate(",\n".join(exprs))
-                             .drop(list(fields_referenced))))
+        return self._select('Table.transmute', self.row.annotate(**named_exprs).drop(*fields_referenced))
 
     def annotate(self, **named_exprs):
         """Add new fields.
@@ -1168,10 +1162,11 @@ class Table(ExprContainer):
             right_keys = [right[k] for k in right.key]
             right = right.select(*right_keys, **{uid: right.row})
             uids = [Env.get_uid() for i in range(len(exprs))]
-            full_key_strs = ',\n'.join('{}={}'.format(uids[i], exprs[i]._ast.to_hql()) for i in range(len(exprs)))
 
             def joiner(left):
-                left = Table(left._jt.annotate(full_key_strs)).key_by(*uids)
+                left = Table(left._jt.select(ApplyMethod('annotate',
+                                                         left.row._ast,
+                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql())).key_by(*uids)
                 left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
@@ -1278,7 +1273,7 @@ class Table(ExprContainer):
         used_uids = set()
 
         for e in exprs:
-            for j in list(e._joins)[::-1]:
+            for j in sorted(list(e._joins), key = lambda j: j.idx): # Make sure joins happen in order
                 if j.uid not in used_uids:
                     left = j.join_function(left)
                     all_uids.extend(j.temp_vars)

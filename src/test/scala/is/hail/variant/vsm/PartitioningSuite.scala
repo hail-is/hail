@@ -56,7 +56,7 @@ class PartitioningSuite extends SparkSuite {
   @Test def testHintPartitionerAdjustedCorrectly() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, "idx", partitions=Some(6)))
     val t = Table.range(hc, 205, "idx", partitions=Some(6))
-      .select("tidx = 200 - row.idx")
+      .select(Array("tidx = 200 - row.idx"))
       .keyBy("tidx")
     mt.annotateRowsTable(t, "foo").forceCountRows()
   }

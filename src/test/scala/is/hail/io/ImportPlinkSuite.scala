@@ -80,34 +80,34 @@ class ImportPlinkSuite extends SparkSuite {
 
     val a1kt = VariantQC(a1ref, "variant_qc")
       .rowsTable()
-      .select(
+      .select(Array(
         "row.rsid",
         "alleles_a1 = row.alleles",
         "n_not_called_a1 = row.variant_qc.n_not_called",
         "n_hom_ref_a1 = row.variant_qc.n_hom_ref",
         "n_het_a1 = row.variant_qc.n_het",
-        "n_hom_var_a1 = row.variant_qc.n_hom_var")
+        "n_hom_var_a1 = row.variant_qc.n_hom_var"))
       .keyBy("rsid")
 
     val a2kt = VariantQC(a2ref, "variant_qc")
       .rowsTable()
-      .select(
+      .select(Array(
         "row.rsid",
         "alleles_a2 = row.alleles",
         "n_not_called_a2 = row.variant_qc.n_not_called",
         "n_hom_ref_a2 = row.variant_qc.n_hom_ref",
         "n_het_a2 = row.variant_qc.n_het",
-        "n_hom_var_a2 = row.variant_qc.n_hom_var")
+        "n_hom_var_a2 = row.variant_qc.n_hom_var"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")
 
     assert(joined.forall(
       "row.alleles_a1[0] == row.alleles_a2[1] && " +
-      "row.alleles_a1[1] == row.alleles_a2[0] && " +
-      "row.n_not_called_a1 == row.n_not_called_a2 && " +
-      "row.n_het_a1 == row.n_het_a2 && " +
-      "row.n_hom_ref_a1 == row.n_hom_var_a2 && " +
-      "row.n_hom_var_a1 == row.n_hom_ref_a2"))
+        "row.alleles_a1[1] == row.alleles_a2[0] && " +
+        "row.n_not_called_a1 == row.n_not_called_a2 && " +
+        "row.n_het_a1 == row.n_het_a2 && " +
+        "row.n_hom_ref_a1 == row.n_hom_var_a2 && " +
+        "row.n_hom_var_a1 == row.n_hom_ref_a2"))
   }
 }

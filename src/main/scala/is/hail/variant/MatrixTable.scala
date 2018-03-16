@@ -1564,8 +1564,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def localizeEntries(entriesFieldName: String): Table = {
-    new Table(hc, TableLiteral(TableValue(TableType(rvRowType, rowKey, globalType), globals, rvd)))
-      .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName), Map.empty[String, String])
+    val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
+    new Table(hc, TableLiteral(TableValue(TableType(rvRowType.rename(m), rowKey, globalType), globals, rvd)))
   }
 
   def annotateEntriesExpr(expr: String): MatrixTable = {

@@ -143,7 +143,6 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None) -> Expression:
 def cond(condition: BooleanExpression,
          consequent: Expression,
          alternate: Expression,
-         *,
          missing_false: bool = False) -> Expression:
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 

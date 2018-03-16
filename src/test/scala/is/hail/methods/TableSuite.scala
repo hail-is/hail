@@ -263,23 +263,23 @@ class TableSuite extends SparkSuite {
     val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
 
-    val select1 = kt.select("row.field1").keyBy("field1")
+    val select1 = kt.select(Array("row.field1")).keyBy("field1")
     assert((select1.key sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
-    val select2 = kt.select("row.Sample", "row.field2", "row.field1").keyBy("Sample")
+    val select2 = kt.select(Array("row.Sample", "row.field2", "row.field1")).keyBy("Sample")
     assert((select2.key sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
-    val select3 = kt.select("row.field2", "row.field1", "row.Sample").keyBy()
+    val select3 = kt.select(Array("row.field2", "row.field1", "row.Sample")).keyBy()
     assert((select3.key sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
-    val select4 = kt.select()
+    val select4 = kt.select(Array.empty[String])
     assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
     for (select <- Array(select1, select2, select3, select4)) {
       select.export(tmpDir.createTempFile("select", "tsv"))
     }
 
-    TestUtils.interceptFatal("Invalid key")(kt.select().keyBy("Sample"))
+    TestUtils.interceptFatal("Invalid key")(kt.select(Array.empty[String]).keyBy("Sample"))
   }
 
   @Test def testExplode() {
@@ -314,7 +314,7 @@ class TableSuite extends SparkSuite {
       .rowsTable()
       .expandTypes()
       .flatten()
-      .select("row.`info.MQRankSum`")
+      .select(Array("row.`info.MQRankSum`"))
       .copy2(globalSignature = TStruct.empty())
 
     val df = kt.toDF(sqlContext)
@@ -422,7 +422,7 @@ class TableSuite extends SparkSuite {
 
     val gkt = kt.aggregate("index = row.index", "x = AGG.map(r => global.dict.get(r.index)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
-    assert(kt.select("baz = global.dict.get(row.index)").exists("row.baz == \"bar\""))
+    assert(kt.select(Array("baz = global.dict.get(row.index)")).exists("row.baz == \"bar\""))
 
     val tmpPath = tmpDir.createTempFile(extension = "kt")
     kt.write(tmpPath)
@@ -477,5 +477,4 @@ class TableSuite extends SparkSuite {
     val expectedSets = List(Set("A", "C", "E", "G"), Set("A", "C", "E", "H")).map(set => set.map(str => (str, true)))
     assert(expectedSets.contains(mis))
   }
-
 }

@@ -980,6 +980,7 @@ class Tests(unittest.TestCase):
         a1 = [1,2,3]
         a2 = ['a', 'b']
         a3 = [[1]]
+
         self.assertEqual(hl.eval_expr(hl.zip(a1, a2)), [(1, 'a'), (2, 'b')])
         self.assertEqual(hl.eval_expr(hl.zip(a1, a2, fill_missing=True)), [(1, 'a'), (2, 'b'), (3, None)])
 

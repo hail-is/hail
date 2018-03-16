@@ -509,6 +509,7 @@ class CompileSuite {
     doit(ir, fb)
     val f = fb.result()()
     region.clear()
+
     val a1actual = Array(1, 2)
     val a2actual = Array("a", "b")
     val rvb = new RegionValueBuilder(region)

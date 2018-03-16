@@ -475,25 +475,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def select(expr: String): Table = {
     val ec = rowEvalContext()
     val ast = Parser.parseToAST(expr, ec)
-
     assert(ast.`type`.isInstanceOf[TStruct])
-    ast.typecheck(ec)
-    val structIR = ast.toIR()
 
-    if (structIR.isDefined && globalSignature.size == 0) {
-      new Table(hc, TableMapRows(tir, structIR.get))
-    } else {
-      val (t, f) = Parser.parseExpr(expr, ec)
-      val newSignature = t.asInstanceOf[TStruct]
+    ast.toIR() match {
+      case Some(ir) =>
+        new Table(hc, TableMapRows(tir, ir))
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val newSignature = t.asInstanceOf[TStruct]
+        val globalsBc = globals.broadcast
 
-      val annotF: Row => Row = { r =>
-        ec.set(1, r)
-        f().asInstanceOf[Row]
-      }
+        val annotF: Row => Row = { r =>
+          ec.setAll(globalsBc.value, r)
+          f().asInstanceOf[Row]
+        }
 
-      val newKey = key.filter(newSignature.fieldNames.toSet)
+        val newKey = key.filter(newSignature.fieldNames.toSet)
 
-      copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
+        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
     }
   }
 

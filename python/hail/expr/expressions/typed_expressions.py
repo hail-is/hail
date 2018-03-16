@@ -1246,7 +1246,7 @@ class StructExpression(Mapping, Expression):
                 types.append(t)
 
         result_type = tstruct(**dict(zip(names, types)))
-        indices, aggregations, joins = unify_all(self, kwargs_struct)
+        indices, aggregations, joins = unify_all(kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
                               indices, aggregations, joins)

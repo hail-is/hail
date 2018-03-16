@@ -716,7 +716,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = FunctionRegistry.lookupMethodReturnType(it, funType +: rest.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-      case (tt: TTuple, "[]", Array(Const(_, v, t))) =>
+      case (tt: TTuple, "[]", Array(idxAST@Const(_, v, t))) =>
+        idxAST.typecheck(ec)
         val idx = v.asInstanceOf[Int]
         assert(idx >= 0 && idx < tt.size)
         `type` = tt.types(idx)
