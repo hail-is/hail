@@ -27,7 +27,7 @@ from .expr import *
 from .genetics import *
 from .methods import *
 from hail.expr import aggregators as agg
-from hail.utils import Struct, Interval, hadoop_write, hadoop_read, hadoop_copy
+from hail.utils import Struct, Interval, hadoop_copy, hadoop_open
 
 
 __all__ = ['init',
@@ -41,8 +41,7 @@ __all__ = ['init',
            'GroupedMatrixTable',
            'asc',
            'desc',
-           'hadoop_read',
-           'hadoop_write',
+           'hadoop_open',
            'hadoop_copy',
            'Struct',
            'Interval',
