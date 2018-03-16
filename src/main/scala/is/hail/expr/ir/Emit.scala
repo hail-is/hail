@@ -659,7 +659,7 @@ private class Emit(
         (cl, None, { cont: F => f(filterCont(cont, _, _)) })
 
       case x@ArrayMap(a, name, body, _) =>
-        val elementTypeInfoA = coerce[Any](typeToTypeInfo(x.typ.elementType))
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
         val xmv = mb.newBit()
         val xvv = fb.newLocal(name)(elementTypeInfoA)
         val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
