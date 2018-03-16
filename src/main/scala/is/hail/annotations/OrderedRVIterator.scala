@@ -6,12 +6,12 @@ import is.hail.utils._
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
   def restrictToPKInterval(interval: Interval): Iterator[RegionValue] = {
-    val ur = new UnsafeRow(t.rowType, null, 0)
+    val ur = new UnsafeRow(t.rowType)
     val pk = new KeyedRow(ur, t.kRowFieldIdx)
-    iterator.filter( rv => {
+    iterator.filter { rv => {
       ur.set(rv)
       interval.contains(t.kType.ordering, pk)
-    } )
+    } }
   }
 
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =

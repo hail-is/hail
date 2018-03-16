@@ -103,8 +103,9 @@ class OrderedRVD private(
     require(ordType.rowType == typ.rowType)
     require(ordType.kType isPrefixOf typ.kType)
     require(newPartitioner.kType isIsomorphicTo ordType.kType)
-    // Should remove this requirement in the future
     require(newPartitioner.pkType isIsomorphicTo ordType.pkType)
+    // Should remove this requirement in the future
+    require(typ.pkType isPrefixOf ordType.pkType)
 
     new OrderedRVD(
       typ = ordType,
@@ -116,7 +117,7 @@ class OrderedRVD private(
     val lTyp = typ
     val rTyp = right.typ
 
-    if (!lTyp.kType.types.sameElements(rTyp.kType.types))
+    if (!(lTyp.kType isIsomorphicTo rTyp.kType))
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
            | Left key type: ${ lTyp.kType.toString }
@@ -138,20 +139,20 @@ class OrderedRVD private(
     val repartitionedLeft = this.constrainToOrderedPartitioner(this.typ, newPartitioner)
     val repartitionedRight = right.constrainToOrderedPartitioner(right.typ, newPartitioner)
     val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
-      joinType match {
+      (joinType: @unchecked) match {
         case "inner" => _.innerJoin(_)
         case "left" => _.leftJoin(_)
         case "right" => _.rightJoin(_)
         case "outer" => _.outerJoin(_)
-        case _ => fatal(
-          s"Unknown join type `$joinType'. Choose from `inner', `left', `right', or `outer'.")
       }
     val joinedRDD = repartitionedLeft.rdd.zipPartitions(repartitionedRight.rdd, true){
       (leftIt, rightIt) =>
-        compute(OrderedRVIterator(lTyp, leftIt), OrderedRVIterator(rTyp, rightIt))
-    }.mapPartitions(joiner, true)
+        joiner(compute(
+          OrderedRVIterator(lTyp, leftIt),
+          OrderedRVIterator(rTyp, rightIt)))
+    }
 
-    new OrderedRVD(joinedType, partitioner, joinedRDD)
+    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
   }
 
   def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
@@ -161,10 +162,9 @@ class OrderedRVD private(
 
     val repartitionedRight = new RepartitionedOrderedRDD2(right, this.partitioner)
     val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
-      joinType match {
+      (joinType: @unchecked) match {
         case "inner" => _.innerJoinDistinct(_)
         case "left" => _.leftJoinDistinct(_)
-        case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
       }
     this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
       compute(OrderedRVIterator(lTyp, leftIt), OrderedRVIterator(rTyp, rightIt))

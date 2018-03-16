@@ -1286,8 +1286,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
-    val localSignature = signature
-
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)

@@ -34,8 +34,6 @@ class OrderedRVDPartitioner(
       (rangeBounds(i).asInstanceOf[Interval], i)
     })
 
-  val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
-
   def region: Region = rangeBounds.region
 
   def loadElement(i: Int): Long = rangeBoundsType.loadElement(region, rangeBounds.aoff, rangeBounds.length, i)

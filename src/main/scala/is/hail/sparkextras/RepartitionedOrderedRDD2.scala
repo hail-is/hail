@@ -27,7 +27,7 @@ class RepartitionedOrderedRDD2(
     Array.tabulate[Partition](newPartitioner.numPartitions) { i =>
       RepartitionedOrderedRDD2Partition(
         i,
-        dependency.getParents(i).map(prev.rdd.partitions),
+        dependency.getParents(i).toArray.map(prev.rdd.partitions),
         newPartitioner.rangeBounds(i).asInstanceOf[Interval])
     }
   }
@@ -64,6 +64,6 @@ class OrderedDependency(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner)
 
 case class RepartitionedOrderedRDD2Partition(
     index: Int,
-    parents: Seq[Partition],
+    parents: Array[Partition],
     range: Interval)
   extends Partition
