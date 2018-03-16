@@ -91,6 +91,11 @@ object Infer {
         val tarray = coerce[TArray](a.typ)
         infer(cond, env = env.bind(name, tarray.elementType))
         assert(cond.typ.isOfType(TBoolean()))
+      case x@ArrayFlatMap(a, name, body) =>
+        infer(a)
+        val tarray = coerce[TArray](a.typ)
+        infer(body, env = env.bind(name, tarray.elementType))
+        assert(body.typ.isInstanceOf[TArray])
       case x@ArrayFold(a, zero, accumName, valueName, body, _) =>
         infer(a)
         val tarray = coerce[TArray](a.typ)

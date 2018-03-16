@@ -274,7 +274,7 @@ private class Emit(
         val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
 
-      case _: ArrayMap | _: ArrayFilter | _: ArrayRange =>
+      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
 
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(fb, ir.typ)
@@ -631,7 +631,7 @@ private class Emit(
             len := (llen < 0L).mux(0L, llen).toI)
         )
 
-        (calcLength ,Some(len.load()), { continuation: F =>
+        (calcLength, Some(len.load()), { continuation: F =>
           (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
             i := 0,
             Code.whileLoop(i < len,
@@ -658,6 +658,30 @@ private class Emit(
         val (cl, _, f) = emitArrayIterator(a)
         (cl, None, { cont: F => f(filterCont(cont, _, _)) })
 
+      case x@ArrayFlatMap(a, name, body) =>
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
+        val elementTypeInfo = coerce[Any](typeToTypeInfo(x.typ.elementType))
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name)(elementTypeInfoA)
+        val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
+        val (lenCalcBody, _, bodyF) = emitArrayIterator(body, bodyenv)
+        val (cl, _, arrayF) = emitArrayIterator(a)
+
+        val bodyCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
+          val (dobody, mbody, pbody) = bodyF(cont)
+          Code(
+            xmv := m,
+            xvv := v,
+            (xmv).mux(
+              Code._empty,
+              Code(dobody,
+                mbody.mux(
+                  Code._empty,
+                  Code(lenCalcBody, pbody)))))
+        }
+
+        (cl, None, { cont: F => arrayF(bodyCont(cont, _, _)) })
+
       case x@ArrayMap(a, name, body, _) =>
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
         val xmv = mb.newBit()
@@ -674,6 +698,46 @@ private class Emit(
         val (cl, l, f) = emitArrayIterator(a)
         (cl, l, { cont: F => f(mapCont(cont, _, _)) })
 
+      case MakeArray(args, _) =>
+        val f = { cont: F =>
+          (Code._empty[Unit], const(false), coerce[Unit](Code(
+            for (elt <- args) yield {
+              val (doe, me, ve) = emit(elt)
+              Code(doe, cont(me, ve))
+            })))
+        }
+        (Code._empty, Some(const(args.length)), f)
+
+      case If(cond, cnsq, altr, typ) =>
+        val (docond, mcond, vcond) = emit(cond)
+        val xmcond = mb.newBit()
+        val xvcond = mb.newBit()
+        val mout = mb.newBit()
+        val (lenCalcCnsq, lenCnsq, fcnsq) = emitArrayIterator(cnsq)
+        val (lenCalcAltr, lenAltr, faltr) = emitArrayIterator(altr)
+
+        val f = { cont: F =>
+          val (docnsq, mcnsq, addcnsq) = fcnsq(cont)
+          val (doaltr, maltr, addaltr) = faltr(cont)
+          val setup = Code(
+            docond,
+            xmcond := mcond,
+            xmcond.mux(
+              mout := true,
+              Code(xvcond := coerce[Boolean](vcond),
+                docnsq, doaltr)))
+          val missing = Code(
+            xmcond.mux(Code._empty,
+                mout := xvcond.mux(mcnsq, maltr)),
+            mout)
+          val add = xvcond.mux(addcnsq, addaltr)
+          (setup, missing, add)
+        }
+
+        val lenCalc = xvcond.mux(lenCalcCnsq, lenCalcAltr)
+        val optLen = lenCnsq.flatMap(l1 => lenAltr.map(xvcond.mux(l1, _)))
+        (lenCalc, optLen, f)
+
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)
         val srvb = new StagedRegionValueBuilder(fb, t)
@@ -683,7 +747,7 @@ private class Emit(
         val (setup, m, v) = emit(ir, env)
         val calcLength = Code(
           aoff := coerce[Long](v),
-    len := t.loadLength(region, aoff))
+          len := t.loadLength(region, aoff))
         (calcLength, Some(len.load()), { continuation: F =>
           (setup, m, Code(
             srvb.start(len, init = true),

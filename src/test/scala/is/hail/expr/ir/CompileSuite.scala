@@ -1,6 +1,6 @@
 package is.hail.methods.ir
 
-import java.io.PrintWriter
+import java.io.{FileOutputStream, PrintWriter}
 
 import is.hail.annotations._
 import ScalaToRegionValue._
@@ -527,5 +527,54 @@ class CompileSuite {
     val expected = IndexedSeq(Row(1, "a"), Row(2, "b"))
     assert(expected.length == actual.length)
     assert(actual.sameElements(expected))
+  }
+
+  def testArrayFlatMap() {
+    val tRange = TArray(TInt32())
+    val ir = ArrayFlatMap(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "i", ArrayRange(I32(0), Ref("i"), I32(1)))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    for {
+      stop <- 0 to 5
+    } {
+      val aoff = f(region, stop, false)
+      val expected = Array.range(0, stop, 1).flatMap(i => Array.range(0, i, 1))
+      val actual = new UnsafeIndexedSeq(tRange, region, aoff)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+    }
+  }
+
+  @Test
+  def testArrayFlatMapVsFilter() {
+    val tRange = TArray(TInt32())
+    val inputIR = ArrayRange(I32(0), In(0, TInt32()), I32(1))
+    val filterCond = { x: IR => ApplyBinaryPrimOp(EQ(), x, I32(1)) }
+    val filterIR = ArrayFilter(inputIR, "i", filterCond(Ref("i")))
+    val flatMapIR = ArrayFlatMap(inputIR, "i", ArrayMap(ArrayRange(I32(0), If(filterCond(Ref("i")), I32(1), I32(0)), I32(1)), "j", Ref("i")))
+    val flatMapIR2 = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i")), MakeArray(Seq(Ref("i"))), MakeArray(Seq(), tRange)))
+
+    val region = Region()
+    val fb1 = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
+    doit(flatMapIR2, fb1)
+    val f1 = fb1.result(Some(new java.io.PrintWriter(new FileOutputStream("/Users/wang/data/filter-with-flatmap.txt"))))()
+
+    val fb2 = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
+    doit(filterIR, fb2)
+    val f2 = fb2.result(Some(new java.io.PrintWriter(new FileOutputStream("/Users/wang/data/filter-without-flatmap.txt"))))()
+
+    for {
+      stop <- 0 to 5
+    } {
+      region.clear()
+      val aoff1 = f1(region, stop, false)
+      val actual = new UnsafeIndexedSeq(tRange, region, aoff1)
+      val aoff2 = f2(region, stop, false)
+      val expected = new UnsafeIndexedSeq(tRange, region, aoff2)
+      assert(expected.length == actual.length)
+      assert(actual.sameElements(expected))
+    }
   }
 }
