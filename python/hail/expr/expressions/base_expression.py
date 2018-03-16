@@ -137,10 +137,9 @@ def _to_expr(e, dtype):
             exprs = [new_fields[i] if isinstance(new_fields[i], Expression)
                      else hl.literal(new_fields[i], dtype[i])
                      for i in range(len(new_fields))]
-            indices, aggregations, joins = unify_all(*exprs)
-            return expressions.construct_expr(StructDeclaration(list(dtype),
-                                                                [expr._ast for expr in exprs]),
-                                              dtype, indices, aggregations, joins)
+            fields = {name: expr for name, expr in zip(dtype.keys(), exprs)}
+            from .typed_expressions import StructExpression
+            return StructExpression._from_fields(fields)
 
     elif isinstance(dtype, tarray):
         elements = []

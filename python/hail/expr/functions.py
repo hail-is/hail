@@ -2849,7 +2849,7 @@ def struct(**kwargs: Expression) -> StructExpression:
     :class:`.StructExpression`
         Keyword arguments as a struct.
     """
-    return to_expr(hl.utils.Struct(**kwargs))
+    return StructExpression._from_fields(kwargs)
 
 
 def tuple(iterable: Iterable) -> TupleExpression:

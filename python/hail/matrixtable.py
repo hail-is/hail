@@ -499,13 +499,7 @@ class MatrixTable(ExprContainer):
                         )
                     )
             else:
-                row_key = [to_expr(e) for e in wrap_to_tuple(exprs[0])]
-                key_types = [k.dtype for k in row_key]
-                expected = [self[k].dtype for k in self.row_key]
-                if key_types != expected:
-                    raise ExpressionException(
-                        'Type mismatch for MatrixTable row key: expected [{}], found [{}]'.format(
-                            ', '.join(map(str, expected)), ', '.join(map(str, key_types))))
+                row_key = wrap_to_tuple(exprs[0])
 
             col_key = None
             if isinstance(exprs[1], slice):
@@ -519,13 +513,7 @@ class MatrixTable(ExprContainer):
                         )
                     )
             else:
-                col_key = [to_expr(e) for e in wrap_to_tuple(exprs[1])]
-                key_types = [k.dtype for k in col_key]
-                expected = [self[k].dtype for k in self.col_key]
-                if key_types != expected:
-                    raise ExpressionException(
-                        'Type mismatch for MatrixTable column key: expected [{}], found [{}]'.format(
-                            ', '.join(map(str, expected)), ', '.join(map(str, key_types))))
+                col_key = wrap_to_tuple(exprs[1])
 
             if row_key is not None and col_key is not None:
                 return self.index_entries(row_key, col_key)
@@ -2093,6 +2081,28 @@ class MatrixTable(ExprContainer):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
+        def types_match(left, right):
+            return (len(left) == len(right)
+                    and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
+        if not types_match(self.row_key.values(), exprs):
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], TupleExpression)
+                    and types_match(self.row_key.values(), exprs[0])):
+                return self.index_rows(*exprs[0])
+            elif (len(exprs) == 1
+                  and isinstance(exprs[0], StructExpression)
+                  and types_match(self.row_key.values(), exprs[0].values())):
+                return self.index_rows(*exprs[0].values())
+            elif len(exprs) != len(self.row_key):
+                raise ExpressionException(f'Key mismatch: matrix table has {len(self.row_key)} row key fields, '
+                                          f'found {len(exprs)} index expressions')
+            else:
+                raise ExpressionException(
+                    f"Cannot index table with given expressions\n"
+                    f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
+                    f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
+
         if isinstance(src, Table):
             # join table with matrix.rows_table()
             right = self.rows()
@@ -2119,27 +2129,67 @@ class MatrixTable(ExprContainer):
                 return self.rows().index(*exprs)
 
     def index_cols(self, *exprs: Tuple[Expression]) -> StructExpression:
-        exprs = [to_expr(e) for e in exprs]
-        indices, aggregations, joins = unify_all(*exprs)
-        src = indices.source
-
-        if aggregations:
-            raise ExpressionException('Cannot join using an aggregated field')
-        uid = Env.get_uid()
-
-        if src is None:
-            raise ExpressionException('Cannot index with a scalar expression')
-
         return self.cols().index(*exprs)
 
     def index_entries(self, row_exprs: Tuple[Expression], col_exprs: Tuple[Expression]) -> StructExpression:
-        row_exprs = [to_expr(e) for e in row_exprs]
-        col_exprs = [to_expr(e) for e in col_exprs]
+        row_exprs = tuple(row_exprs)
+        col_exprs = tuple(col_exprs)
+        if len(row_exprs) == 0  or len(col_exprs) == 0:
+            raise ValueError("'MatrixTable.index_entries:' 'row_exprs' and 'col_exprs' may not be empty")
+        row_non_exprs = list(filter(lambda e: not isinstance(e, Expression), row_exprs))
+        if row_non_exprs:
+            raise TypeError(f"'MatrixTable.index_entries': row_exprs expects expressions, found {row_non_exprs}")
+        col_non_exprs = list(filter(lambda e: not isinstance(e, Expression), col_exprs))
+        if col_non_exprs:
+            raise TypeError(f"'MatrixTable.index_entries': col_exprs expects expressions, found {col_non_exprs}")
+
+        def types_match(left, right):
+            return (len(left) == len(right)
+                    and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
+        if not types_match(self.row_key.values(), row_exprs):
+            if (len(row_exprs) == 1
+                    and isinstance(row_exprs[0], TupleExpression)
+                    and types_match(self.row_key.values(), row_exprs[0])):
+                return self.index_entries(tuple(row_exprs[0]), col_exprs)
+            elif (len(row_exprs) == 1
+                  and isinstance(row_exprs[0], StructExpression)
+                  and types_match(self.row_key.values(), row_exprs[0].values())):
+                return self.index_entries(tuple(row_exprs[0].values()), col_exprs)
+            elif len(row_exprs) != len(self.row_key):
+                raise ExpressionException(f'Key mismatch: matrix table has {len(self.row_key)} row key fields, '
+                                          f'found {len(row_exprs)} index expressions')
+            else:
+                raise ExpressionException(
+                    f"Cannot index table with given expressions\n"
+                    f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
+                    f"  Index expressions:   {', '.join(str(e.dtype) for e in row_exprs)}")
+
+
+        if not types_match(self.col_key.values(), col_exprs):
+            if (len(col_exprs) == 1
+                    and isinstance(col_exprs[0], TupleExpression)
+                    and types_match(self.col_key.values(), col_exprs[0])):
+                return self.index_entries(row_exprs, tuple(col_exprs[0]))
+            elif (len(col_exprs) == 1
+                  and isinstance(col_exprs[0], StructExpression)
+                  and types_match(self.col_key.values(), col_exprs[0].values())):
+                return self.index_entries(row_exprs, tuple(col_exprs[0].values()))
+            elif len(col_exprs) != len(self.col_key):
+                raise ExpressionException(f'Key mismatch: matrix table has {len(self.col_key)} col key fields, '
+                                          f'found {len(col_exprs)} index expressions')
+            else:
+                raise ExpressionException(
+                    f"Cannot index table with given expressions\n"
+                    f"  MatrixTable col key: {', '.join(str(t) for t in self.col_key.dtype.values())}\n"
+                    f"  Index expressions:   {', '.join(str(e.dtype) for e in col_exprs)}")
+
 
         indices, aggregations, joins = unify_all(*(row_exprs + col_exprs))
         src = indices.source
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
+
         uid = Env.get_uid()
         uids = [uid]
 

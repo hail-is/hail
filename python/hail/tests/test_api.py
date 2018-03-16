@@ -373,6 +373,11 @@ class TableTests(unittest.TestCase):
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
+    def test_join_with_key(self):
+        ht = hl.utils.range_table(10)
+        ht1 = ht.annotate(foo = 5)
+        self.assertTrue(ht.all(ht1[ht.key].foo == 5))
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -660,6 +665,19 @@ class MatrixTests(unittest.TestCase):
 
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
+
+    def test_joins_with_key_structs(self):
+        mt = self.get_vds()
+
+        rows = mt.rows()
+        cols = mt.cols()
+
+        self.assertEqual(rows[mt.locus, mt.alleles].take(1), rows[mt.row_key].take(1))
+        self.assertEqual(cols[mt.s].take(1), cols[mt.col_key].take(1))
+
+        self.assertEqual(mt[mt.row_key, :].take(1), mt[(mt.locus, mt.alleles), :].take(1))
+        self.assertEqual(mt[:, mt.col_key].take(1), mt[:, mt.s].take(1))
+        self.assertEqual(mt[mt.row_key, mt.col_key].take(1), mt[(mt.locus, mt.alleles), mt.s].take(1))
 
     def test_table_join(self):
         ds = self.get_vds()
