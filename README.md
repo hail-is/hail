@@ -42,19 +42,11 @@ If you use Hail for published work, please cite the software:
 
  - Hail, [https://github.com/hail-is/hail](https://github.com/hail-is/hail)
 
-and either the forthcoming manuscript describing Hail (if possible):
-
- - Cotton Seed, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Daniel King, Timothy Poterba, Benjamin M. Neale.  _Hail: An Open-Source Framework for Scalable Genetic Data Analysis_.  In preparation.
-
-or the following paper which includes a brief introduction to Hail in the online methods:
-
- - Andrea Ganna, Giulio Genovese, et al. _Ultra-rare disruptive and damaging mutations influence educational attainment in the general population_.  [Nature Neuroscience](http://www.nature.com/neuro/journal/vaop/ncurrent/full/nn.4404.html)
-
 ##### Acknowledgements
 
-Hail uses IntelliJ, <a
+Hail team uses IntelliJ and <a
 href="https://www.yourkit.com/java/profiler/">YourKit Java
-Profiler</a> and is tested with Team City.  We would like to thanks
-Jet Brains and YourKit, LLC for generously supporting open-source
+Profiler</a>.  We would like to thank
+YourKit, LLC for generously supporting open-source
 projects with free licenses.  <img
 src="https://www.yourkit.com/images/yklogo.png" align="right" />
