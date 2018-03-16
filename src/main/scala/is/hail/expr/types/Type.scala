@@ -312,7 +312,7 @@ abstract class Type extends BaseType with Serializable {
       case t2: TTuple =>
         t.isInstanceOf[TTuple] &&
           t.asInstanceOf[TTuple].size == t2.size &&
-          t.asInstanceOf[TTuple].types.zip(t2.types).forall { case (typ1, typ2) => typ1 == typ2 }
+          t.asInstanceOf[TTuple].types.zip(t2.types).forall { case (typ1, typ2) => typ1.isOfType(typ2) }
       case t2: TArray => t.isInstanceOf[TArray] && t.asInstanceOf[TArray].elementType.isOfType(t2.elementType)
       case t2: TSet => t.isInstanceOf[TSet] && t.asInstanceOf[TSet].elementType.isOfType(t2.elementType)
       case t2: TDict => t.isInstanceOf[TDict] && t.asInstanceOf[TDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[TDict].valueType.isOfType(t2.valueType)
