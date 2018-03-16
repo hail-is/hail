@@ -553,17 +553,16 @@ class CompileSuite {
     val inputIR = ArrayRange(I32(0), In(0, TInt32()), I32(1))
     val filterCond = { x: IR => ApplyBinaryPrimOp(EQ(), x, I32(1)) }
     val filterIR = ArrayFilter(inputIR, "i", filterCond(Ref("i")))
-    val flatMapIR = ArrayFlatMap(inputIR, "i", ArrayMap(ArrayRange(I32(0), If(filterCond(Ref("i")), I32(1), I32(0)), I32(1)), "j", Ref("i")))
-    val flatMapIR2 = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i")), MakeArray(Seq(Ref("i"))), MakeArray(Seq(), tRange)))
+    val flatMapIR = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i")), MakeArray(Seq(Ref("i"))), MakeArray(Seq(), tRange)))
 
     val region = Region()
     val fb1 = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
-    doit(flatMapIR2, fb1)
-    val f1 = fb1.result(Some(new java.io.PrintWriter(new FileOutputStream("/Users/wang/data/filter-with-flatmap.txt"))))()
+    doit(flatMapIR, fb1)
+    val f1 = fb1.result()()
 
     val fb2 = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
     doit(filterIR, fb2)
-    val f2 = fb2.result(Some(new java.io.PrintWriter(new FileOutputStream("/Users/wang/data/filter-without-flatmap.txt"))))()
+    val f2 = fb2.result()()
 
     for {
       stop <- 0 to 5
