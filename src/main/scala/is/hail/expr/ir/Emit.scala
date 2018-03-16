@@ -290,7 +290,8 @@ private class Emit(
                     srvb.addIRIntermediate(elt)(v)),
                   srvb.advance()))
             }
-            val (d, m, addElts) = f(cont)
+            val (d, optm, addElts) = f(cont)
+            val m = optm.getOrElse(const(false))
             (d, m, Code(
               calcLength,
               srvb.start(len, init = true),
@@ -310,7 +311,8 @@ private class Emit(
               coerce[Unit](Code(mab.add(m), vab.add(v)))
             }
 
-            val (d, m, popAB) = f(cont)
+            val (d, optm, popAB) = f(cont)
+            val m = optm.getOrElse(const(false))
             (d, m, Code(
               mab.clear,
               vab.clear,
@@ -357,7 +359,8 @@ private class Emit(
             xvout := xmout.mux(defaultValue(typ), vbody))
         }
 
-        val (doa, ma, va) = f(cont)
+        val (doa, optma, va) = f(cont)
+        val ma = optma.getOrElse(const(false))
 
         (Code(
           doa,
@@ -596,7 +599,7 @@ private class Emit(
     }
   }
 
-  private def emitArrayIterator(ir: IR, env: E): (Code[Unit], Option[Code[Int]], F => (Code[Unit], Code[Boolean], Code[Unit])) = {
+  private def emitArrayIterator(ir: IR, env: E): (Code[Unit], Option[Code[Int]], F => (Code[Unit], Option[Code[Boolean]], Code[Unit])) = {
 
     def emit(ir: IR, env: E = env) = this.emit(ir, env)
 
@@ -632,7 +635,7 @@ private class Emit(
         )
 
         (calcLength, Some(len.load()), { continuation: F =>
-          (coerce[Unit](Code(d: _*)), m.reduce(_ || _), Code(
+          (coerce[Unit](Code(d: _*)), Some(m.reduce(_ || _)), Code(
             i := 0,
             Code.whileLoop(i < len,
               continuation(false, start),
@@ -660,7 +663,6 @@ private class Emit(
 
       case x@ArrayFlatMap(a, name, body) =>
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
-        val elementTypeInfo = coerce[Any](typeToTypeInfo(x.typ.elementType))
         val xmv = mb.newBit()
         val xvv = fb.newLocal(name)(elementTypeInfoA)
         val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
@@ -668,16 +670,16 @@ private class Emit(
         val (cl, _, arrayF) = emitArrayIterator(a)
 
         val bodyCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
-          val (dobody, mbody, pbody) = bodyF(cont)
+          val (dobody, optmbody, pbody) = bodyF(cont)
           Code(
             xmv := m,
             xvv := v,
-            (xmv).mux(
+            xmv.mux(
               Code._empty,
               Code(dobody,
-                mbody.mux(
+                optmbody.map(_.mux(
                   Code._empty,
-                  Code(lenCalcBody, pbody)))))
+                  Code(lenCalcBody, pbody))).getOrElse(Code(lenCalcBody, pbody)))))
         }
 
         (cl, None, { cont: F => arrayF(bodyCont(cont, _, _)) })
@@ -700,7 +702,7 @@ private class Emit(
 
       case MakeArray(args, _) =>
         val f = { cont: F =>
-          (Code._empty[Unit], const(false), coerce[Unit](Code(
+          (Code._empty[Unit], None, coerce[Unit](Code(
             for (elt <- args) yield {
               val (doe, me, ve) = emit(elt)
               Code(doe, cont(me, ve))
@@ -717,8 +719,8 @@ private class Emit(
         val (lenCalcAltr, lenAltr, faltr) = emitArrayIterator(altr)
 
         val f = { cont: F =>
-          val (docnsq, mcnsq, addcnsq) = fcnsq(cont)
-          val (doaltr, maltr, addaltr) = faltr(cont)
+          val (docnsq, optmcnsq, addcnsq) = fcnsq(cont)
+          val (doaltr, optmaltr, addaltr) = faltr(cont)
           val setup = Code(
             docond,
             xmcond := mcond,
@@ -726,12 +728,15 @@ private class Emit(
               mout := true,
               Code(xvcond := coerce[Boolean](vcond),
                 docnsq, doaltr)))
-          val missing = Code(
+          val missing = if (optmcnsq.isEmpty && optmaltr.isEmpty)
+            mout
+          else
+            Code(
             xmcond.mux(Code._empty,
-                mout := xvcond.mux(mcnsq, maltr)),
+                mout := xvcond.mux(optmcnsq.getOrElse(false), optmaltr.getOrElse(false))),
             mout)
           val add = xvcond.mux(addcnsq, addaltr)
-          (setup, missing, add)
+          (setup, Some(missing), add)
         }
 
         val lenCalc = xvcond.mux(lenCalcCnsq, lenCalcAltr)
@@ -749,7 +754,7 @@ private class Emit(
           aoff := coerce[Long](v),
           len := t.loadLength(region, aoff))
         (calcLength, Some(len.load()), { continuation: F =>
-          (setup, m, Code(
+          (setup, Some(m), Code(
             srvb.start(len, init = true),
             i := 0,
             Code.whileLoop(i < len,
