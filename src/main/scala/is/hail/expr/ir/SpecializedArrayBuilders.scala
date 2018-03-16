@@ -53,6 +53,14 @@ class StagedArrayBuilder(elt: Type, mb: MethodBuilder) {
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int]("size")
   }
 
+  def clear: Code[Unit] = ti match {
+    case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[Unit]("clear")
+    case IntInfo => coerce[IntArrayBuilder](ref).invoke[Unit]("clear")
+    case LongInfo => coerce[LongArrayBuilder](ref).invoke[Unit]("clear")
+    case FloatInfo => coerce[FloatArrayBuilder](ref).invoke[Unit]("clear")
+    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Unit]("clear")
+  }
+
 }
 
 class ByteArrayBuilder(initialCapacity: Int) {
@@ -107,6 +115,8 @@ class IntArrayBuilder(initialCapacity: Int) {
     b(size_) = x
     size_ += 1
   }
+
+  def clear() {  size_ = 0 }
 }
 
 class LongArrayBuilder(initialCapacity: Int) {
@@ -134,6 +144,8 @@ class LongArrayBuilder(initialCapacity: Int) {
     b(size_) = x
     size_ += 1
   }
+
+  def clear() {  size_ = 0 }
 }
 
 class FloatArrayBuilder(initialCapacity: Int) {
@@ -161,6 +173,8 @@ class FloatArrayBuilder(initialCapacity: Int) {
     b(size_) = x
     size_ += 1
   }
+
+  def clear() {  size_ = 0 }
 }
 
 class DoubleArrayBuilder(initialCapacity: Int) {
@@ -188,6 +202,8 @@ class DoubleArrayBuilder(initialCapacity: Int) {
     b(size_) = x
     size_ += 1
   }
+
+  def clear() {  size_ = 0 }
 }
 
 class BooleanArrayBuilder(initialCapacity: Int) {
@@ -215,4 +231,6 @@ class BooleanArrayBuilder(initialCapacity: Int) {
     b(size_) = x
     size_ += 1
   }
+
+  def clear() {  size_ = 0 }
 }
