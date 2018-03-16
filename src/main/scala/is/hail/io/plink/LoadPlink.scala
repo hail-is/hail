@@ -187,7 +187,7 @@ object LoadPlink {
     }
 
     new MatrixTable(hc, matrixType,
-      Annotation.empty,
+      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
       sampleAnnotations,
       OrderedRVD(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }

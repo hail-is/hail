@@ -115,11 +115,11 @@ object Table {
   }
 
   def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
-    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): Table = {
+    globalSignature: TStruct = TStruct.empty(), globals: Annotation = Annotation.empty): Table = {
     val rdd2 = rdd.mapPartitions(_.toRegionValueIterator(signature))
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
-        globals,
+        BroadcastValue(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, rdd2))
     ))
   }
@@ -147,10 +147,17 @@ object Table {
 
 class Table(val hc: HailContext, val tir: TableIR) {
 
-  def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
-    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
-    TableValue(TableType(signature, key, globalSignature), globals, new UnpartitionedRVD(signature, rdd))
-  ))
+  def this(hc: HailContext,
+    rdd: RDD[RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String] = Array.empty[String],
+    globalSignature: TStruct = TStruct.empty(),
+    globals: Row = Row.empty) = {
+    this(hc, TableLiteral(
+      TableValue(TableType(signature, key, globalSignature), BroadcastValue(globals, globalSignature, hc.sc),
+        new UnpartitionedRVD(signature, rdd))
+    ))
+  }
 
   lazy val value: TableValue = {
     val opt = TableIR.optimize(tir)
@@ -174,7 +181,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ec = EvalContext(
       "global" -> globalSignature,
       "row" -> signature)
-    ec.set(0, globals)
     ec
   }
 
@@ -185,7 +191,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     )
     val ec = EvalContext("global" -> globalSignature,
       "AGG" -> TAggregable(signature, aggSymbolTable))
-    ec.set(0, globals)
     ec
   }
 
@@ -228,11 +233,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def typeCheck() {
 
-    if (!globalSignature.typeCheck(globals)) {
+    if (!globalSignature.typeCheck(globals.value)) {
       fatal(
         s"""found violation of global signature
            |  Schema: ${ globalSignature.toString }
-           |  Annotation: $globals""".stripMargin)
+           |  Annotation: ${ globals.value }""".stripMargin)
     }
 
     val localSignature = signature
@@ -280,11 +285,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
            | right: ${ other.globalSignature.toString }
            |""".stripMargin)
       false
-    } else if (!globalSignatureOpt.valuesSimilar(globals, other.globals)) {
+    } else if (!globalSignatureOpt.valuesSimilar(globals.value, other.globals.value)) {
       info(
         s"""different global annotations:
-           | left: $globals
-           | right: ${ other.globals }
+           | left: ${ globals.value }
+           | right: ${ other.globals.value }
            |""".stripMargin)
       false
     } else {
@@ -324,9 +329,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
+    val globalsBc = globals.broadcast
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
       case (ec, a) =>
-        ec.set(1, a)
+        ec.setAll(globalsBc.value, a)
     })
 
     val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
@@ -337,7 +343,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     val (newT, i) = globalSignature.insert(t, name)
-    copy2(globalSignature = newT.asInstanceOf[TStruct], globals = i(globals, a).asInstanceOf[Row])
+    copy2(globalSignature = newT.asInstanceOf[TStruct],
+      globals = globals.copy(value = i(globals.value, a), t = newT))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
@@ -348,7 +355,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def annotateGlobalExpr(expr: String): Table = {
     val ec = EvalContext("global" -> globalSignature)
-    ec.set(0, globals)
+    ec.set(0, globals.value)
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
 
@@ -364,11 +371,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val ga = inserters
       .zip(f())
-      .foldLeft(globals) { case (a, (ins, res)) =>
+      .foldLeft(globals.value) { case (a, (ins, res)) =>
         ins(a, res).asInstanceOf[Row]
       }
 
-    copy2(globals = ga,
+    copy2(globals = globals.copy(value = ga, t = finalType),
       globalSignature = finalType)
   }
 
@@ -378,7 +385,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def selectGlobal(fields: String*): Table = {
     val ec = EvalContext("global" -> globalSignature)
-    ec.set(0, globals)
+    ec.set(0, globals.value)
 
     val (paths, types, f) = Parser.parseSelectExprs(fields.toArray, ec)
 
@@ -409,7 +416,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         inserter(a1, v).asInstanceOf[Row]
       }
 
-    copy2(globalSignature = finalSignature, globals = newGlobal)
+    copy2(globalSignature = finalSignature, globals = globals.copy(value = newGlobal, t = finalSignature))
   }
 
   def annotate(code: String): Table = {
@@ -433,9 +440,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
 
       val inserters = inserterBuilder.result()
+      val globalsBc = globals.broadcast
 
       val annotF: Row => Row = { r =>
-        ec.set(1, r)
+        ec.setAll(globalsBc.value, r)
 
         f().zip(inserters)
           .foldLeft(r) { case (a1, (v, inserter)) =>
@@ -468,9 +476,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
         val localSignature = signature
 
+        val globalsBc = globals.broadcast
         val p = (rv: RegionValue) => {
           val ur = new UnsafeRow(localSignature, rv)
-          ec.set(1, ur)
+          ec.setAll(globalsBc.value, ur)
           val ret = f()
           ret != null && ret.booleanValue()
         }
@@ -525,10 +534,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
       s
     }
 
+    val globalsBc = globals.broadcast
     val inserters = inserterBuilder.result()
 
     val annotF: Row => Row = { r =>
-      ec.set(1, r)
+      ec.setAll(globalsBc.value, r)
 
       f().zip(inserters)
         .foldLeft(Row()) { case (a1, (v, inserter)) =>
@@ -895,7 +905,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
     new MatrixTable(hc,
       matrixType,
-      globals: Annotation,
+      globals,
       colDataConcat,
       newRVD)
   }
@@ -914,16 +924,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val keySignature = TStruct((newKey, keyTypes).zipped.toSeq: _*)
     val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
+    val globalsBc = globals.broadcast
 
+    // FIXME: delete this when we understand what it's doing
+    ec.set(0, globals.value)
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
-      case (ec, r) =>
-        ec.set(1, r)
+      case (ec_, r) =>
+        ec_.set(0, globalsBc.value)
+        ec_.set(1, r)
     })
 
     val newRDD = rdd.mapPartitions {
       it =>
         it.map {
           r =>
+            keyEC.set(0, globalsBc.value)
             keyEC.set(1, r)
             val key = Row.fromSeq(keyF())
             (key, r)
@@ -931,6 +946,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
       .map {
         case (k, agg) =>
+          ec.set(0, globalsBc.value)
           resultOp(agg)
           Row.fromSeq(k.toSeq ++ aggF())
       }
@@ -1031,7 +1047,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, codecSpec, Array(globals))
+    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", codecSpec)
 
@@ -1169,8 +1185,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
     }.getOrElse(null)
 
+    val globalsBc = globals.broadcast
+
     val edgeRdd = rdd.map { r =>
-      ec.set(1, r)
+      ec.setAll(globalsBc.value, r)
       (iThunk(), jThunk())
     }
 
@@ -1343,15 +1361,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: Row = globals): Table = {
-    Table(hc, rdd, signature, key, globalSignature, globals)
+    newGlobals: Annotation = globals.value): Table = {
+    Table(hc, rdd, signature, key, globalSignature, newGlobals)
   }
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: Row = globals): Table = {
+    globals: BroadcastValue = globals): Table = {
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))

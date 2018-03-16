@@ -23,7 +23,7 @@ object Aggregators {
 
   def buildRowAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
-    globals: Annotation,
+    globals: BroadcastValue,
     colValues: IndexedSeq[Annotation],
     nKeys: Int,
     keyMap: Array[Int],
@@ -36,7 +36,7 @@ object Aggregators {
     val localA = ec.a
     val localNCols = colValues.length
     val localAnnotationsBc = sc.broadcast(colValues)
-    val localGlobals = globals
+    val globalsBc = globals.broadcast
 
     val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
@@ -55,7 +55,7 @@ object Aggregators {
         }
         nk += 1
       }
-      localA(0) = localGlobals
+      localA(0) = globalsBc.value
       localA(1) = row
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
@@ -88,7 +88,7 @@ object Aggregators {
 
   def buildRowAggregations(sc: SparkContext,
     typ: MatrixType,
-    globals: Annotation,
+    globals: BroadcastValue,
     colValues: IndexedSeq[Annotation],
     ec: EvalContext): Option[(RegionValue) => Unit] = {
 
@@ -101,6 +101,7 @@ object Aggregators {
     val colValuesBc = sc.broadcast(colValues)
     val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
+    val globalsBc = globals.broadcast
 
     Some({ (rv: RegionValue) =>
 
@@ -109,6 +110,7 @@ object Aggregators {
 
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
 
+      ec.set(0, globalsBc.value)
       ec.set(1, row)
 
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
@@ -144,9 +146,8 @@ object Aggregators {
 
     val localA = ec.a
     val localNCols = value.nCols
-    val localGlobals = value.globals
+    val globalsBc = value.globals.broadcast
     val localColValuesBc = value.colValuesBc
-    localA(0) = localGlobals
 
     val nAggregations = aggregations.length
     val nCols = value.nCols
@@ -164,6 +165,7 @@ object Aggregators {
       val fullRow = new UnsafeRow(fullRowType, rv)
       val row = fullRow.deleteField(localEntriesIndex)
 
+      localA(0) = globalsBc.value
       localA(3) = row
 
       val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
@@ -210,11 +212,12 @@ object Aggregators {
     val newType = TStruct(resultNames.zip(resultTypes): _*)
 
     val localNCols = vsm.numCols
-    val localGlobals = vsm.globals
     val localColValuesBc = vsm.colValuesBc
 
     val aggregations = ec.aggregations
     val nAggregations = aggregations.size
+
+    val globalsBc = vsm.globals.broadcast
 
     val ma = MultiArray2.fill[Aggregator](localNCols, nAggregations)(null)
     val zVal = { () =>
@@ -236,7 +239,7 @@ object Aggregators {
 
       var i = 0
       while (i < localNCols) {
-        ec.setAll(localGlobals,
+        ec.setAll(globalsBc.value,
           localColValuesBc.value(i),
           is(i),
           row)
@@ -252,7 +255,7 @@ object Aggregators {
     }
 
     val resultOp = (ma: MultiArray2[Aggregator], rvb: RegionValueBuilder) => {
-      ec.set(0, localGlobals)
+      ec.set(0, globalsBc.value)
       rvb.startArray(localNCols)
 
       var i = 0
@@ -291,8 +294,6 @@ object Aggregators {
     (Array[Aggregator] => Unit)) = {
 
     val aggregations = ec.aggregations
-
-    val localA = ec.a
 
     val zVal = aggregations.map { case (_, _, agg0) => agg0.copy() }.toArray
 

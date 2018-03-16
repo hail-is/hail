@@ -396,7 +396,7 @@ object LoadMatrix {
 
     new MatrixTable(hc,
       matrixType,
-      Annotation.empty,
+      BroadcastValue(Annotation.empty, matrixType.globalType, hc.sc),
       colIDs.map(x => Annotation(x)),
       orderedRVD)
   }

@@ -48,7 +48,7 @@ object FilterAlleles {
     val (t2, insertAlleles) = vAnnotator.newT.insert(allelesType, "alleles")
     assert(t2 == vAnnotator.newT)
 
-    val localGlobalAnnotation = vsm.globals
+    val globalsBc = vsm.globals.broadcast
     val localNSamples = vsm.numCols
 
     val newEntryType = gAnnotator.newT
@@ -62,7 +62,7 @@ object FilterAlleles {
         val oldToNew = new Array[Int](v.nAlleles)
         for (aai <- v.altAlleles.indices) {
           val index = aai + 1
-          conditionEC.setAll(localGlobalAnnotation, va, index)
+          conditionEC.setAll(globalsBc.value, va, index)
           oldToNew(index) =
             if (Filter.boxedKeepThis(conditionE(), keep)) {
               alive += 1
@@ -134,7 +134,7 @@ object FilterAlleles {
 
                 val newLocus = newV.locus
                 val newAlleles = IndexedSeq(newV.ref) ++ newV.altAlleles.map(_.alt)
-                vAnnotator.ec.setAll(localGlobalAnnotation, row, newLocus, newAlleles, oldToNew, newToOld)
+                vAnnotator.ec.setAll(globalsBc.value, row, newLocus, newAlleles, oldToNew, newToOld)
                 var newVA = vAnnotator.insert(row)
                 newVA = insertLocus(newVA, newLocus)
                 newVA = insertAlleles(newVA, newAlleles)
@@ -147,7 +147,7 @@ object FilterAlleles {
                   i += 1
                 }
 
-                gAnnotator.ec.setAll(localGlobalAnnotation, row, newLocus, newAlleles, oldToNew, newToOld)
+                gAnnotator.ec.setAll(globalsBc.value, row, newLocus, newAlleles, oldToNew, newToOld)
 
                 rvb.startArray(localNSamples) // gs
                 var k = 0

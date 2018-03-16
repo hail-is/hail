@@ -7,6 +7,7 @@ import is.hail.utils._
 class RichTable(ht: Table) {
   def forall(code: String): Boolean = {
     val ec = ht.rowEvalContext()
+    ec.set(0, ht.globals.value)
 
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
@@ -22,6 +23,7 @@ class RichTable(ht: Table) {
 
   def exists(code: String): Boolean = {
     val ec = ht.rowEvalContext()
+    ec.set(0, ht.globals.value)
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     ht.rdd.exists { a =>

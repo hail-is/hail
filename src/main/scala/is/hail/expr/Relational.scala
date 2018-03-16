@@ -81,7 +81,7 @@ abstract class BaseIR {
 
 case class MatrixValue(
   typ: MatrixType,
-  globals: Annotation,
+  globals: BroadcastValue,
   colValues: IndexedSeq[Annotation],
   rvd: OrderedRVD) {
 
@@ -293,7 +293,7 @@ case class MatrixRead(
 
     MatrixValue(
       typ,
-      globals,
+      BroadcastValue(globals, typ.globalType, hc.sc),
       colAnnotations,
       rvd)
   }
@@ -350,7 +350,6 @@ case class FilterRows(
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val localGlobals = prev.globals
     val ec = prev.typ.rowEC
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
@@ -362,13 +361,14 @@ case class FilterRows(
     val localRowType = prev.typ.rowType
     val localEntriesIndex = prev.typ.entriesIdx
 
-    ec.set(0, prev.globals)
+    val localGlobals = prev.globals.broadcast
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
       val fullRow = new UnsafeRow(fullRowType)
       val row = fullRow.deleteField(localEntriesIndex)
       it.filter { rv =>
         fullRow.set(rv)
+        ec.set(0, localGlobals.value)
         ec.set(1, row)
         aggregatorOption.foreach(_ (rv))
         f() == true
@@ -379,7 +379,7 @@ case class FilterRows(
   }
 }
 
-case class TableValue(typ: TableType, globals: Row, rvd: RVD) {
+case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
@@ -387,14 +387,14 @@ case class TableValue(typ: TableType, globals: Row, rvd: RVD) {
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
-    val localGlobals = globals
+    val localGlobals = globals.broadcast
     copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
       val globalRV = RegionValue()
       val globalRVb = new RegionValueBuilder()
       it.filter { rv =>
         globalRVb.set(rv.region)
         globalRVb.start(globalType)
-        globalRVb.addAnnotation(globalType, localGlobals)
+        globalRVb.addAnnotation(globalType, localGlobals.value)
         globalRV.set(rv.region, globalRVb.end())
         p(rv, globalRV)
       }
@@ -451,7 +451,7 @@ case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends T
   def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path)(0)
     TableValue(typ,
-      globals,
+      BroadcastValue(globals, typ.globalType, hc.sc),
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
@@ -460,6 +460,7 @@ case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends T
 }
 
 case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: Option[Int] = None) extends TableIR {
+  assert(typ.globalType.size == 0)
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
@@ -471,7 +472,7 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
     val rowTyp = typ.rowType
     val rvd = hc.sc.parallelize(rows, nPartitions.getOrElse(hc.sc.defaultParallelism))
       .mapPartitions(_.toRegionValueIterator(rowTyp))
-    TableValue(typ, Row(), new UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastValue(Annotation.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
   }
 }
 
@@ -518,7 +519,7 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
       "global", child.typ.globalType,
       newIR)
     assert(rTyp == typ.rowType)
-    val localGlobals = tv.globals
+    val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
     TableValue(typ,
       tv.globals,
@@ -530,7 +531,7 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
         it.map { rv =>
           globalRVb.set(rv.region)
           globalRVb.start(gType)
-          globalRVb.addAnnotation(gType, localGlobals)
+          globalRVb.addAnnotation(gType, globalsBc.value)
           globalRV.set(rv.region, globalRVb.end())
           rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
           rv2

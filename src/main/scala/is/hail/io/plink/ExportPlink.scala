@@ -13,7 +13,7 @@ object ExportPlink {
       "sa" -> (0, vsm.colType),
       "global" -> (1, vsm.globalType)))
 
-    ec.set(1, vsm.globals)
+    ec.set(1, vsm.globals.value)
 
     type Formatter = (Option[Any]) => String
 

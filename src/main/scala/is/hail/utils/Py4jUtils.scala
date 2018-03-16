@@ -78,19 +78,19 @@ trait Py4jUtils {
   }
 
   def joinGlobals(left: Table, right: Table, identifier: String): Table = {
-    left.annotateGlobal(right.globals, right.globalSignature, identifier)
+    left.annotateGlobal(right.globals.value, right.globalSignature, identifier)
   }
 
   def joinGlobals(left: Table, right: MatrixTable, identifier: String): Table = {
-    left.annotateGlobal(right.globals, right.globalType, identifier)
+    left.annotateGlobal(right.globals.value, right.globalType, identifier)
   }
 
   def joinGlobals(left: MatrixTable, right: Table, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globals, right.globalSignature, identifier)
+    left.annotateGlobal(right.globals.value, right.globalSignature, identifier)
   }
 
   def joinGlobals(left: MatrixTable, right: MatrixTable, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globals, right.globalType, identifier)
+    left.annotateGlobal(right.globals.value, right.globalType, identifier)
   }
 
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
