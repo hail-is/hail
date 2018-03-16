@@ -217,7 +217,8 @@ def _to_expr(e, dtype):
         raise NotImplementedError(dtype)
 
 def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
-    assert len(exprs) > 0
+    if len(exprs) == 0:
+        return Indices(), LinkedList(Join), LinkedList(Aggregation)
     try:
         new_indices = Indices.unify(*[e._indices for e in exprs])
     except ExpressionException:
