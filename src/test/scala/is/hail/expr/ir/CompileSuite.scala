@@ -1,6 +1,6 @@
 package is.hail.methods.ir
 
-import java.io.{FileOutputStream, PrintWriter}
+import java.io.PrintWriter
 
 import is.hail.annotations._
 import ScalaToRegionValue._
@@ -12,8 +12,6 @@ import org.scalatest._
 import Matchers._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import org.apache.spark.sql.Row
-
-import scala.collection.{immutable, mutable}
 
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
