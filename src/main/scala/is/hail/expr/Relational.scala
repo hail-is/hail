@@ -379,6 +379,40 @@ case class FilterRows(
   }
 }
 
+case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, newEntries)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+    assert(newChildren.length == 1)
+    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val newRow = {
+    val ArrayLen(GetField(Ref("va"), MatrixType.entriesIdentifier))
+  }
+    InsertFields(Ref("va"), Seq((MatrixType.entriesIdentifier, ArrayMap(GetField(Ref("va"), MatrixType.entriesIdentifier), "g", newEntries))))
+
+  val typ: MatrixType = {
+    Infer(newRow, None, new Env[Type]().bind("va", child.typ.rvRowType))
+    child.typ.copy(rvRowType=newRow.typ)
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "global", child.typ.globalType,
+      "va", child.typ.rvRowType,
+      "sa", child.typ.colType,
+      newRow)
+    assert(rTyp == typ.rvRowType)
+
+    prev.rvd.mapPartitionsPreservesPartitioning()
+
+  }
+}
+
 case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
