@@ -1,15 +1,14 @@
 import abc
-
-import hail as hl
-from hail.typecheck import *
-from hail.utils import Struct, Interval
-from hail.utils.java import scala_object, jset, jindexed_seq, Env, jarray_to_list, escape_parsable
-from hail.genetics import Locus, Call, ReferenceGenome
-from hail.genetics.reference_genome import reference_genome_type
-from hail import genetics
-from hail.expr.type_parsing import type_grammar, type_node_visitor
 import json
 from collections import Mapping
+
+import hail as hl
+from hail import genetics
+from hail.expr.type_parsing import type_grammar, type_node_visitor
+from hail.genetics.reference_genome import reference_genome_type
+from hail.typecheck import *
+from hail.utils import Struct, Interval
+from hail.utils.java import scala_object, jset, Env, escape_parsable
 
 __all__ = [
     'dtype',

@@ -345,9 +345,9 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
 @typecheck(dataset=MatrixTable,
            test=str,
-           y=expr_oneof(expr_bool, expr_float64),
+           y=expr_float64,
            x=expr_float64,
-           covariates=listof(expr_oneof(expr_float64)),
+           covariates=listof(expr_float64),
            root=str)
 def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
