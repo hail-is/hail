@@ -1,9 +1,7 @@
-from collections import Mapping, Sequence
-
-import hail
+import hail as hl
 from hail.expr.expr_ast import *
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Join, Aggregation, unify_types
+    unify_all, Indices, Join, Aggregation
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.typecheck import *
@@ -414,7 +412,7 @@ class ArrayExpression(CollectionExpression):
                             "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
         return self._method("append", self._type, item)
 
-    @typecheck_method(a=expr_array(...))
+    @typecheck_method(a=expr_array())
     def extend(self, a):
         """Concatenate two arrays and return the result.
 
@@ -773,7 +771,7 @@ class SetExpression(CollectionExpression):
                             "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
         return self._method("contains", tbool, item)
 
-    @typecheck_method(s=expr_set(...))
+    @typecheck_method(s=expr_set())
     def difference(self, s):
         """Return the set of elements in the set that are not present in set `s`.
 
@@ -803,7 +801,7 @@ class SetExpression(CollectionExpression):
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("difference", self._type, s)
 
-    @typecheck_method(s=expr_set(...))
+    @typecheck_method(s=expr_set())
     def intersection(self, s):
         """Return the intersection of the set and set `s`.
 
@@ -830,7 +828,7 @@ class SetExpression(CollectionExpression):
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("intersection", self._type, s)
 
-    @typecheck_method(s=expr_set(...))
+    @typecheck_method(s=expr_set())
     def is_subset(self, s):
         """Returns ``True`` if every element is contained in set `s`.
 
@@ -860,7 +858,7 @@ class SetExpression(CollectionExpression):
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("isSubset", tbool, s)
 
-    @typecheck_method(s=expr_set(...))
+    @typecheck_method(s=expr_set())
     def union(self, s):
         """Return the union of the set and set `s`.
 

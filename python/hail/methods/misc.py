@@ -1,11 +1,12 @@
+import hail as hl
+from hail.expr.expr_ast import VariableReference
+from hail.expr.expressions import *
+from hail.expr.types import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.utils.java import Env, jarray_to_list, joption
-from hail.utils import wrap_to_list, Interval
 from hail.typecheck import *
-from hail.expr.expressions import *
-from hail.expr.expr_ast import VariableReference
-from hail.expr.types import *
+from hail.utils import Interval, Struct
+from hail.utils.java import Env, joption
 
 
 @typecheck(i=Expression,

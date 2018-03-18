@@ -1,3 +1,6 @@
+import itertools
+
+import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
@@ -5,14 +8,13 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
+from hail.methods.misc import require_biallelic, require_col_key_str
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import *
 from hail.utils.misc import check_collisions
-from hail.methods.misc import require_biallelic, require_col_key_str
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
-import itertools
 
 
 @typecheck(dataset=MatrixTable,
@@ -227,9 +229,9 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 
 @typecheck(dataset=MatrixTable,
-           ys=oneof(expr_numeric, expr_bool, listof(oneof(expr_numeric, expr_bool))),
-           x=oneof(expr_numeric, expr_bool),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           ys=oneof(expr_float64, listof(expr_float64)),
+           x=expr_float64,
+           covariates=listof(expr_float64),
            root=str,
            block_size=int)
 def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16):
@@ -343,9 +345,9 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
 @typecheck(dataset=MatrixTable,
            test=str,
-           y=oneof(expr_bool, expr_numeric),
-           x=oneof(expr_bool, expr_numeric),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           y=expr_float64,
+           x=expr_float64,
+           covariates=listof(expr_float64),
            root=str)
 def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
@@ -571,9 +573,9 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
 
 @typecheck(ds=MatrixTable,
            kinship_matrix=KinshipMatrix,
-           y=oneof(expr_numeric, expr_bool),
-           x=oneof(expr_numeric, expr_bool),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           y=expr_float64,
+           x=expr_float64,
+           covariates=listof(expr_float64),
            global_root=str,
            row_root=str,
            run_assoc=bool,
@@ -1077,10 +1079,10 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
 
 @typecheck(dataset=MatrixTable,
            key_expr=expr_any,
-           weight_expr=expr_numeric,
-           y=oneof(expr_numeric, expr_bool),
-           x=oneof(expr_numeric, expr_bool),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           weight_expr=expr_float64,
+           y=expr_float64,
+           x=expr_float64,
+           covariates=listof(expr_float64),
            logistic=bool,
            max_size=int,
            accuracy=numeric,

@@ -34,7 +34,7 @@ class TypeChecker(object):
         ...
 
     def format(self, arg):
-        return extract(type(arg))
+        return f"{extract(type(arg))}: {arg}"
 
 
 class MultipleTypeChecker(TypeChecker):
@@ -422,23 +422,21 @@ def check_all(f, args, kwargs, checks, is_method):
         except TypecheckFailure:
             if i < len(named_args):
                 raise TypeError("{fname}: parameter '{argname}': "
-                                "expected {expected}, found {found}: '{arg}'".format(
+                                "expected {expected}, found {found}".format(
                     fname=name,
                     argname=argname,
                     expected=tc.expects(),
-                    found=tc.format(arg),
-                    arg=str(arg)
+                    found=tc.format(arg)
                 ))
             else:
                 raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
-                                "expected {expected}, found {found}: '{arg}'".format(
+                                "expected {expected}, found {found}".format(
                     fname=name,
                     argname=argname,
                     idx=i - len(named_args),
                     tot=len(pos_args) - len(named_args),
                     expected=tc.expects(),
-                    found=tc.format(arg),
-                    arg=str(arg)
+                    found=tc.format(arg)
                 ))
 
     kwargs_ = {}
@@ -450,12 +448,11 @@ def check_all(f, args, kwargs, checks, is_method):
             kwargs_[kw] = arg_
         except TypecheckFailure:
             raise TypeError("{fname}: keyword argument '{argname}': "
-                            "expected {expected}, found {found}: '{arg}'".format(
+                            "expected {expected}, found {found}".format(
                 fname=name,
                 argname=kw,
                 expected=tc.expects(),
-                found=tc.format(kwargs[kw]),
-                arg=str(kwargs[kw])
+                found=tc.format(kwargs[kw])
             ))
     if spec.varkw:
         tc = checks[spec.varkw]
@@ -465,12 +462,11 @@ def check_all(f, args, kwargs, checks, is_method):
                 kwargs_[argname] = arg_
             except TypecheckFailure:
                 raise TypeError("{fname}: keyword argument '{argname}': "
-                                "expected {expected}, found {found}: '{arg}'".format(
+                                "expected {expected}, found {found}".format(
                     fname=name,
                     argname=argname,
                     expected=tc.expects(),
-                    found=tc.format(arg),
-                    arg=str(arg)
+                    found=tc.format(arg)
                 ))
 
     return args_, kwargs_

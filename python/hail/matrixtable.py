@@ -1,13 +1,16 @@
-import hail
-from hail.expr.expressions import *
-from hail.expr.expr_ast import Select, TopLevelReference
-from hail.expr.types import *
-from hail.utils import storage_level, LinkedList, new_temp_file
-from hail.utils.java import escape_id, warn, jiterable_to_list
-from hail.utils.misc import get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
-from hail.table import Table, ExprContainer
 import itertools
 from typing import *
+
+import hail
+import hail as hl
+from hail.expr.expr_ast import Select, TopLevelReference
+from hail.expr.expressions import *
+from hail.expr.types import *
+from hail.table import Table, ExprContainer
+from hail.typecheck import *
+from hail.utils import storage_level, LinkedList
+from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object
+from hail.utils.misc import get_nice_field_error, wrap_to_tuple, check_collisions, check_field_uniqueness
 
 
 class GroupedMatrixTable(ExprContainer):

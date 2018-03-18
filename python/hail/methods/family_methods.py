@@ -1,9 +1,9 @@
 import hail as hl
-from hail.genetics.pedigree import Pedigree
-from hail.typecheck import *
 import hail.expr.aggregators as agg
+from hail.genetics.pedigree import Pedigree
 from hail.matrixtable import MatrixTable
 from hail.table import Table
+from hail.typecheck import *
 from .misc import require_biallelic
 
 
