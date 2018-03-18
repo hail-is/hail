@@ -1130,33 +1130,32 @@ class Table(ExprContainer):
             # FIXME: this should be OK: table[m.global_index_into_table]
             raise ExpressionException('Cannot index table with a scalar expression')
 
-        def types_match(left, right):
+        def types_compatible(left, right):
             left = list(left)
             right = list(right)
-            return (len(left) == len(right)
-                    and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right)))
+            return (types_match(left, right)
                     or (isinstance(src, MatrixTable)
                         and len(left) == 1
                         and len(right) == 1
                         and isinstance(left[0].dtype, tinterval)
                         and left[0].dtype.point_type == right[0].dtype))
 
-        if not types_match(self.key.values(), exprs):
+        if not types_compatible(self.key.values(), exprs):
             if (len(exprs) == 1
                     and isinstance(exprs[0], TupleExpression)
-                    and types_match(self.key.values(), exprs[0])):
+                    and types_compatible(self.key.values(), exprs[0])):
                 return self.index(*exprs[0])
             elif (len(exprs) == 1
                   and isinstance(exprs[0], StructExpression)
-                  and types_match(self.key.values(), exprs[0].values())):
+                  and types_compatible(self.key.values(), exprs[0].values())):
                 return self.index(*exprs[0].values())
             elif len(exprs) != len(self.key):
                 raise ExpressionException(f'Key mismatch: table has {len(self.key)} key fields, '
-                                          f'found {len(exprs)} index expressions')
+                                          f'found {len(exprs)} index expressions.')
             else:
-                raise ExpressionException(f"Cannot index table with given expressions\n"
-                                          f"  Table key:   {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                          f"  Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+                raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
+                                          f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
+                                          f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
         uid = Env.get_uid()
 
