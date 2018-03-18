@@ -344,7 +344,7 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
 
 @typecheck(dataset=MatrixTable,
-           test=str,
+           test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=expr_float64,
            x=expr_float64,
            covariates=listof(expr_float64),
