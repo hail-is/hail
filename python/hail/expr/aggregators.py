@@ -1,3 +1,4 @@
+import hail as hl
 from hail.typecheck import *
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *

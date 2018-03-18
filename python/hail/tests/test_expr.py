@@ -1,8 +1,9 @@
 import unittest
 
+import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr.types import *
 from hail.expr import dtype, coercer_from_dtype
+from hail.expr.types import *
 from .utils import startTestHailContext, stopTestHailContext
 
 setUpModule = startTestHailContext
@@ -1096,7 +1097,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr_typed(interval.overlaps(hl.interval(5, 9))) == (True, hl.tbool))
 
         li = hl.parse_locus_interval('1:100-110')
-        self.assertEqual(li.value, Interval(Locus("1", 100), Locus("1", 110)))
+        self.assertEqual(li.value, hl.utils.Interval(hl.genetics.Locus("1", 100),
+                                                     hl.genetics.Locus("1", 110)))
         self.assertTrue(li.dtype.point_type == hl.tlocus())
         self.assertTrue(li.contains(hl.locus("1", 100)).value)
         self.assertTrue(li.contains(hl.locus("1", 109)).value)

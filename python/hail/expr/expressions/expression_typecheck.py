@@ -51,10 +51,6 @@ class ExprCoercer(TypeChecker):
     def can_coerce(self, t: HailType) -> bool:
         ...
 
-    def _coerce(self, x: Expression) -> Expression:
-        # many coercers don't write any conversion rules, so don't override
-        raise AssertionError()
-
     def coerce(self, x: Expression) -> Expression:
         if not self.can_coerce(x.dtype):
             raise ExpressionException(f"cannot coerce type '{x.dtype}' to type '{self.str_t}'")
@@ -62,6 +58,10 @@ class ExprCoercer(TypeChecker):
             return self._coerce(x)
         else:
             return x
+
+    def _coerce(self, x: Expression) -> Expression:
+        # many coercers don't write any coercion rules, so don't override
+        raise AssertionError()
 
     def expects(self):
         return f"expression of type {self.str_t}"
@@ -92,7 +92,6 @@ class AnyCoercer(ExprCoercer):
 
 
 class BoolCoercer(ExprCoercer):
-
     @property
     def str_t(self):
         return 'bool'
@@ -105,7 +104,6 @@ class BoolCoercer(ExprCoercer):
 
 
 class Int32Coercer(ExprCoercer):
-
     @property
     def str_t(self):
         return 'int32'
@@ -121,7 +119,6 @@ class Int32Coercer(ExprCoercer):
 
 
 class Int64Coercer(ExprCoercer):
-
     @property
     def str_t(self):
         return 'int64'
@@ -137,7 +134,6 @@ class Int64Coercer(ExprCoercer):
 
 
 class Float32Coercer(ExprCoercer):
-
     @property
     def str_t(self):
         return 'float32'
@@ -153,7 +149,6 @@ class Float32Coercer(ExprCoercer):
 
 
 class Float64Coercer(ExprCoercer):
-
     @property
     def str_t(self):
         return 'float64'
@@ -193,10 +188,13 @@ class CallCoercer(ExprCoercer):
 
 
 class LocusCoercer(ExprCoercer):
-
-    def __init__(self, rg: Optional['hl.ReferenceGenome']=None):
+    def __init__(self, rg: Optional['hl.ReferenceGenome'] = None):
         super(LocusCoercer, self).__init__()
         self.rg = rg
+
+    @property
+    def str_t(self):
+        return f'locus<{"any" if not self.rg else self.rg}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
         return False
@@ -207,30 +205,22 @@ class LocusCoercer(ExprCoercer):
         else:
             return isinstance(t, tlocus)
 
-    @property
-    def str_t(self):
-        return f'locus<{"any" if not self.rg else self.rg}>'
-
 
 class IntervalCoercer(ExprCoercer):
-
     def __init__(self, point_type: ExprCoercer = AnyCoercer()):
         super(IntervalCoercer, self).__init__()
         self.point_type = point_type
+
+    @property
+    def str_t(self):
+        return f'interval<{self.point_type.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
         assert isinstance(t, tinterval)
         return self.point_type._requires_conversion(t.point_type)
 
     def can_coerce(self, t: HailType) -> bool:
-        if isinstance(t, tinterval):
-            return self.point_type.can_coerce(t.point_type)
-        else:
-            return False
-
-    @property
-    def str_t(self):
-        return f'interval<{self.point_type.str_t}>'
+        return isinstance(t, tinterval) and self.point_type.can_coerce(t.point_type)
 
     def _coerce(self, x):
         assert isinstance(x, hl.expr.IntervalExpression)
@@ -241,10 +231,13 @@ class IntervalCoercer(ExprCoercer):
 
 
 class ArrayCoercer(ExprCoercer):
-
-    def __init__(self, ec: ExprCoercer=AnyCoercer()):
+    def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(ArrayCoercer, self).__init__()
         self.ec = ec
+
+    @property
+    def str_t(self):
+        return f'array<{self.ec.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
         assert isinstance(t, tarray)
@@ -253,10 +246,6 @@ class ArrayCoercer(ExprCoercer):
     def can_coerce(self, t: HailType) -> bool:
         return isinstance(t, tarray) and self.ec.can_coerce(t.element_type)
 
-    @property
-    def str_t(self):
-        return f'array<{self.ec.str_t}>'
-
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.ArrayExpression)
         return hl.map(lambda x_: self.ec.coerce(x_), x)
@@ -264,9 +253,13 @@ class ArrayCoercer(ExprCoercer):
 
 class SetCoercer(ExprCoercer):
 
-    def __init__(self, ec: ExprCoercer=AnyCoercer()):
+    def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(SetCoercer, self).__init__()
         self.ec = ec
+
+    @property
+    def str_t(self):
+        return f'set<{self.ec.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
         assert isinstance(t, tset)
@@ -275,21 +268,20 @@ class SetCoercer(ExprCoercer):
     def can_coerce(self, t: HailType) -> bool:
         return isinstance(t, tset) and self.ec.can_coerce(t.element_type)
 
-    @property
-    def str_t(self):
-        return f'set<{self.ec.str_t}>'
-
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.SetExpression)
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
 class DictCoercer(ExprCoercer):
-
-    def __init__(self, kc: ExprCoercer=AnyCoercer(), vc: ExprCoercer=AnyCoercer()):
+    def __init__(self, kc: ExprCoercer = AnyCoercer(), vc: ExprCoercer = AnyCoercer()):
         super(DictCoercer, self).__init__()
         self.kc = kc
         self.vc = vc
+
+    @property
+    def str_t(self):
+        return f'dict<{self.kc.str_t, self.vc.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
         assert isinstance(t, tdict)
@@ -297,10 +289,6 @@ class DictCoercer(ExprCoercer):
 
     def can_coerce(self, t: HailType) -> bool:
         return isinstance(t, tdict) and self.kc.can_coerce(t.key_type) and self.vc.can_coerce(t.value_type)
-
-    @property
-    def str_t(self):
-        return f'dict<{self.kc.str_t, self.vc.str_t}>'
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.DictExpression)
@@ -313,16 +301,22 @@ class DictCoercer(ExprCoercer):
 
 
 class TupleCoercer(ExprCoercer):
-
     def __init__(self, elements: Optional[List[ExprCoercer]] = None):
         super(TupleCoercer, self).__init__()
         self.elements = elements
+
+    def str_t(self):
+        if self.elements is None:
+            return 'tuple'
+        else:
+            return f'tuple({", ".join(c.str_t for c in self.elements)})'
 
     def _requires_conversion(self, t: HailType) -> bool:
         assert isinstance(t, ttuple)
         if self.elements is None:
             return False
         else:
+            assert len(self.elements) == len(t.types)
             return any(c._requires_conversion(t_) for c, t_ in zip(self.elements, t.types))
 
     def can_coerce(self, t: HailType):
@@ -333,22 +327,22 @@ class TupleCoercer(ExprCoercer):
                     and len(t.types) == len(self.elements)
                     and all(c.can_coerce(t_) for c, t_ in zip(self.elements, t.types)))
 
-    def str_t(self):
-        if self.elements is None:
-            return 'tuple'
-        else:
-            return f'tuple({", ".join(c.str_t for c in self.elements)})'
-
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.TupleExpression)
         return hl.tuple(c.coerce(element) for c, element in zip(self.elements, x))
 
 
 class StructCoercer(ExprCoercer):
-
     def __init__(self, fields: Optional[Dict[str, ExprCoercer]] = None):
         super(StructCoercer, self).__init__()
         self.fields = fields
+
+    def str_t(self) -> str:
+        if self.fields is None:
+            return 'struct'
+        else:
+            field_strs = ', '.join(f'{escape_parsable(name)}: {c.str_t}' for name, c in self.fields.items())
+            return f'struct{{{field_strs}}})'
 
     def _requires_conversion(self, t: HailType) -> bool:
         assert isinstance(t, tstruct)
@@ -365,13 +359,6 @@ class StructCoercer(ExprCoercer):
                     and len(t) == len(self.fields)
                     and all(expected[0] == actual[0] and expected[1].can_coerce(actual[1])
                             for expected, actual in zip(self.fields.items(), t.items())))
-
-    def str_t(self) -> str:
-        if self.fields is None:
-            return 'struct'
-        else:
-            field_strs = ', '.join(f'{escape_parsable(name)}: {c.str_t}' for name, c in self.fields.items())
-            return f'struct{{{field_strs}}})'
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.StructExpression)

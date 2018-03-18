@@ -11,6 +11,32 @@ from hail.expr.type_parsing import type_grammar, type_node_visitor
 import json
 from collections import Mapping
 
+__all__ = [
+    'dtype',
+    'HailType',
+    'hail_type',
+    'is_container',
+    'is_numeric',
+    'is_primitive',
+    'tint',
+    'tint32',
+    'tint64',
+    'tfloat',
+    'tfloat32',
+    'tfloat64',
+    'tstr',
+    'tbool',
+    'tarray',
+    'tset',
+    'tdict',
+    'tstruct',
+    'ttuple',
+    'tinterval',
+    'tlocus',
+    'tcall',
+    'hts_entry_schema',
+]
+
 
 def dtype(type_str):
     r"""Parse a type from its string representation.

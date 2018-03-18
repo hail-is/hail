@@ -1,3 +1,6 @@
+import itertools
+
+import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
@@ -5,14 +8,13 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
+from hail.methods.misc import require_biallelic, require_col_key_str
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import *
 from hail.utils.misc import check_collisions
-from hail.methods.misc import require_biallelic, require_col_key_str
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
-import itertools
 
 
 @typecheck(dataset=MatrixTable,
@@ -571,9 +573,9 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
 
 @typecheck(ds=MatrixTable,
            kinship_matrix=KinshipMatrix,
-           y=oneof(expr_numeric, expr_bool),
-           x=oneof(expr_numeric, expr_bool),
-           covariates=listof(oneof(expr_numeric, expr_bool)),
+           y=expr_float64,
+           x=expr_float64,
+           covariates=listof(expr_float64),
            global_root=str,
            row_root=str,
            run_assoc=bool,
