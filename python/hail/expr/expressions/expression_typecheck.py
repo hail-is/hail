@@ -45,6 +45,7 @@ class ExprCoercer(TypeChecker):
 
     @abc.abstractmethod
     def _requires_conversion(self, t: HailType) -> bool:
+        """Assumes that :meth:`can_coerce` is ``True``"""
         ...
 
     @abc.abstractmethod
@@ -296,7 +297,7 @@ class DictCoercer(ExprCoercer):
             # fast path
             return x.map_values(self.vc.coerce)
         else:
-            return hl.dict(hl.map(lambda element: (self.kc.coerce(element[0]), self.vc.coerce(element[1])),
+            return hl.dict(hl.map(lambda e: (self.kc.coerce(e[0]), self.vc.coerce(e[1])),
                                   hl.array(x)))
 
 
@@ -329,7 +330,7 @@ class TupleCoercer(ExprCoercer):
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.TupleExpression)
-        return hl.tuple(c.coerce(element) for c, element in zip(self.elements, x))
+        return hl.tuple(c.coerce(e) for c, e in zip(self.elements, x))
 
 
 class StructCoercer(ExprCoercer):
