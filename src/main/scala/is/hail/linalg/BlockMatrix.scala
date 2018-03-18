@@ -211,7 +211,9 @@ object BlockMatrix {
       def /(r: M): M =
         r.reverseScalarDivide(l)
     }
+
   }
+
 }
 
 // must be top-level for Jackson to serialize correctly
@@ -267,7 +269,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def scalarSubtract(i: Double): M =
     blockMap(_ - i)
-  
+
   def reverseScalarSubtract(i: Double): M =
     blockMap(i - _)
 
@@ -314,7 +316,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     * Write {@code this} to a Hadoop sequence file at location {@code uri}.
     **/
   def write(uri: String, forceRowMajor: Boolean = false, optKeep: Option[Array[Int]] = None) {
-    
+
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
@@ -342,7 +344,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       case None =>
         blocks.writePartitions(uri, writeBlock)
     }
-    
+
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
   }
 
@@ -1145,14 +1147,9 @@ class WriteBlocksRDD(path: String,
     val entryArrayType = matrixType.entryArrayType
     val entryType = matrixType.entryType
     val fieldType = entryType.field(entryField).typ
-    
-    def loadAsDouble(region: Region, offset: Long): Double = fieldType match {
-      case _: TInt32 => region.loadInt(offset).toDouble
-      case _: TInt64 => region.loadLong(offset).toDouble
-      case _: TFloat32 => region.loadLong(offset).toDouble
-      case _: TFloat64 => region.loadDouble(offset)
-    }
-    
+
+    assert(fieldType.isOfType(TFloat64()))
+
     val entryArrayIdx = matrixType.entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)
 
@@ -1168,7 +1165,7 @@ class WriteBlocksRDD(path: String,
           j += 1
         }
       }
-      
+
       val data = new Array[Double](blockSize)
 
       var i = 0
@@ -1188,7 +1185,7 @@ class WriteBlocksRDD(path: String,
               val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
               if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
                 val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-                data(j) = loadAsDouble(region, fieldOffset)
+                data(j) = region.loadDouble(fieldOffset)
               } else {
                 val rowIdx = blockRow * blockSize + i
                 fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")
@@ -1200,7 +1197,7 @@ class WriteBlocksRDD(path: String,
             colIdx += 1
             j += 1
           }
-          outPerBlockCol(blockCol).writeDoubles(data, 0, n)          
+          outPerBlockCol(blockCol).writeDoubles(data, 0, n)
           blockCol += 1
         }
         i += 1

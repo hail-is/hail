@@ -23,7 +23,7 @@ object LinearRegression {
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
   ): MatrixTable = {
     val ec = vsm.matrixType.genotypeEC
-    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+    val xf = RegressionUtils.parseFloat64Expr(xExpr, ec)
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 

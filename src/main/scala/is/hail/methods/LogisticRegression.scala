@@ -21,7 +21,7 @@ object LogisticRegression {
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
     val ec = vsm.matrixType.genotypeEC
-    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+    val xf = RegressionUtils.parseFloat64Expr(xExpr, ec)
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
 

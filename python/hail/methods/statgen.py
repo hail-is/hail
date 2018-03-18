@@ -18,12 +18,12 @@ from hail.utils.misc import check_collisions
 
 
 @typecheck(dataset=MatrixTable,
-           maf=nullable(expr_numeric),
+           maf=nullable(expr_float64),
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
 def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
-    """Compute matrix of identity-by-descent estimations.
+    """Compute matrix of identity-by-descent estimates.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -72,9 +72,9 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        A variant-keyed :class:`.MatrixTable` containing genotype information.
-    maf : :class:`.Expression` of type :py:data:`.tfloat64`, optional
-        (optional) expression on `dataset` for the minor allele frequency.
+        Variant-keyed :class:`.MatrixTable` containing genotype information.
+    maf : :class:`.NumericExpression`, optional
+        Row-indexed expression for the minor allele frequency.
     bounded : :obj:`bool`
         Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
         on biologically meaningful values (in the range [0,1]).
@@ -1351,7 +1351,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
         lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
                                 (dataset.GT.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                0))
+                                0.0))
     result = pca(entry_expr,
                  k,
                  compute_loadings,
@@ -1360,7 +1360,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     return result
 
 
-@typecheck(entry_expr=expr_numeric,
+@typecheck(entry_expr=expr_float64,
            k=int,
            compute_loadings=bool,
            as_array=bool)

@@ -38,7 +38,7 @@ object LinearMixedRegression {
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
     val ec = assocVSM.matrixType.genotypeEC
-    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+    val xf = RegressionUtils.parseFloat64Expr(xExpr, ec)
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yExpr, covExpr)
     val completeSampleIds = completeSampleIndex.map(assocVSM.stringSampleIds)
