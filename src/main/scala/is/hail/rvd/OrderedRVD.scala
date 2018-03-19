@@ -390,6 +390,15 @@ object OrderedRVD {
       sc.emptyRDD[RegionValue])
   }
 
+  // FIXME: delete this, it's just a wrapper around coerce
+  def apply(typ: OrderedRVDType,
+    // rdd: RDD[RegionValue[rowType]]
+    rdd: RDD[RegionValue],
+    // fastKeys: Option[RDD[RegionValue[kType]]]
+    fastKeys: Option[RDD[RegionValue]] = None,
+    hintPartitioner: Option[OrderedRVDPartitioner] = None): OrderedRVD =
+    coerce(typ, rdd, fastKeys, hintPartitioner)
+
   /**
     * Precondition: the iterator it is PK-sorted.  We lazily K-sort each block
     * of PK-equivalent elements.
@@ -457,69 +466,6 @@ object OrderedRVD {
     pkis.sortBy(_.min)(typ.pkOrd)
   }
 
-  def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
-    assert(nPartitions > 0)
-
-    val pkOrd = typ.pkOrd
-    var keys = pkis
-      .flatMap(_.samples)
-      .sorted(pkOrd)
-
-    val min = pkis.map(_.min).min(pkOrd)
-    val max = pkis.map(_.max).max(pkOrd)
-
-    val ab = new ArrayBuilder[RegionValue]()
-    ab += min
-    var start = 0
-    while (start < keys.length
-      && pkOrd.compare(min, keys(start)) == 0)
-      start += 1
-    var i = 1
-    while (i < nPartitions && start < keys.length) {
-      var end = ((i.toDouble * keys.length) / nPartitions).toInt
-      if (start > end)
-        end = start
-      while (end < keys.length - 1
-        && pkOrd.compare(keys(end), keys(end + 1)) == 0)
-        end += 1
-      ab += keys(end)
-      start = end + 1
-      i += 1
-    }
-    if (pkOrd.compare(ab.last, max) != 0)
-      ab += max
-    val partitionEdges = ab.result()
-    assert(partitionEdges.length <= nPartitions + 1)
-
-    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionEdges)
-  }
-
-  def adjustBoundsAndShuffle(typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]): OrderedRVD = {
-
-    val pkType = partitioner.pkType
-    val pkOrdUnsafe = pkType.unsafeOrdering(true)
-    val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
-
-    if (pkis.isEmpty)
-      return OrderedRVD(typ, partitioner, rdd)
-
-    val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
-    val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
-
-    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
-  }
-
-  // FIXME: delete eventually, only here to keep changes small for this PR
-  def apply(typ: OrderedRVDType,
-    // rdd: RDD[RegionValue[rowType]]
-    rdd: RDD[RegionValue],
-    // fastKeys: Option[RDD[RegionValue[kType]]]
-    fastKeys: Option[RDD[RegionValue]] = None,
-    hintPartitioner: Option[OrderedRVDPartitioner] = None): OrderedRVD =
-    coerce(typ, rdd, fastKeys, hintPartitioner)
-
   def coerce(typ: OrderedRVDType,
     // rdd: RDD[RegionValue[rowType]]
     rdd: RDD[RegionValue],
@@ -582,6 +528,60 @@ object OrderedRVD {
         shuffle(typ, p, rdd)
       }
     }
+  }
+
+  def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
+    assert(nPartitions > 0)
+
+    val pkOrd = typ.pkOrd
+    var keys = pkis
+      .flatMap(_.samples)
+      .sorted(pkOrd)
+
+    val min = pkis.map(_.min).min(pkOrd)
+    val max = pkis.map(_.max).max(pkOrd)
+
+    val ab = new ArrayBuilder[RegionValue]()
+    ab += min
+    var start = 0
+    while (start < keys.length
+      && pkOrd.compare(min, keys(start)) == 0)
+      start += 1
+    var i = 1
+    while (i < nPartitions && start < keys.length) {
+      var end = ((i.toDouble * keys.length) / nPartitions).toInt
+      if (start > end)
+        end = start
+      while (end < keys.length - 1
+        && pkOrd.compare(keys(end), keys(end + 1)) == 0)
+        end += 1
+      ab += keys(end)
+      start = end + 1
+      i += 1
+    }
+    if (pkOrd.compare(ab.last, max) != 0)
+      ab += max
+    val partitionEdges = ab.result()
+    assert(partitionEdges.length <= nPartitions + 1)
+
+    OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionEdges)
+  }
+
+  def adjustBoundsAndShuffle(typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    rdd: RDD[RegionValue]): OrderedRVD = {
+
+    val pkType = partitioner.pkType
+    val pkOrdUnsafe = pkType.unsafeOrdering(true)
+    val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
+
+    if (pkis.isEmpty)
+      return OrderedRVD(typ, partitioner, rdd)
+
+    val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
+    val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
+
+    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
   }
 
   def shuffle(typ: OrderedRVDType,
