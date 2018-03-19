@@ -4,7 +4,7 @@ import io
 
 
 @typecheck(path=str,
-           mode=str,
+           mode=enumeration('r', 'w', 'rb', 'wb'),
            buffer_size=int)
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
@@ -58,11 +58,6 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     -------
         Readable or writable file handle.
     """
-    supported_modes = ('r', 'w', 'rb', 'wb')
-    if not mode in supported_modes:
-        raise ValueError(f"unsupported mode {repr(mode)}. Supported modes are {supported_modes}")
-
-
     if 'r' in mode:
         handle = io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
     else:
