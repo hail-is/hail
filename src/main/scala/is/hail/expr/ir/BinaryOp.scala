@@ -156,27 +156,15 @@ object BinaryOp {
 sealed trait BinaryOp {}
 
 case class Add() extends BinaryOp {}
-
 case class Subtract() extends BinaryOp {}
-
 case class Multiply() extends BinaryOp {}
-
 case class FloatingPointDivide() extends BinaryOp {}
-
 case class RoundToNegInfDivide() extends BinaryOp {}
-
 case class GT() extends BinaryOp {}
-
 case class GTEQ() extends BinaryOp {}
-
 case class LTEQ() extends BinaryOp {}
-
 case class LT() extends BinaryOp {}
-
 case class EQ() extends BinaryOp {}
-
 case class NEQ() extends BinaryOp {}
-
 case class DoubleAmpersand() extends BinaryOp {}
-
 case class DoublePipe() extends BinaryOp {}
