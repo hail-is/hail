@@ -337,7 +337,7 @@ def bind(expr: Expression, f: Callable[[Expression], Expression]) -> Expression:
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int32Expression) -> Float64Expression:
+def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int32Expression) -> StructExpression:
     """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
 
     Examples
@@ -378,7 +378,7 @@ def ctt(c1: Int32Expression,
         c2: Int32Expression,
         c3: Int32Expression,
         c4: Int32Expression,
-        min_cell_count: Int32Expression) -> Float64Expression:
+        min_cell_count: Int32Expression) -> StructExpression:
     """Calculates p-value and odds ratio for 2x2 table.
 
     Examples
@@ -481,6 +481,10 @@ def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> F
     b : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
+
+    Returns
+    -------
+    :class:`.Float64Expression`
     """
     return _func("dbeta", tfloat64, x, a, b)
 
@@ -539,7 +543,7 @@ def exp(x: Float64Expression) -> Float64Expression:
 def fisher_exact_test(c1: Int32Expression,
                       c2: Int32Expression,
                       c3: Int32Expression,
-                      c4: Int32Expression) -> Float64Expression:
+                      c4: Int32Expression) -> StructExpression:
     """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
 
     Examples
@@ -627,7 +631,7 @@ def ceil(x: NumericExpression) -> NumericExpression:
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
 def hardy_weinberg_p(n_hom_ref: Int32Expression,
                      n_het: Int32Expression,
-                     n_hom_var: Int32Expression) -> Float64Expression:
+                     n_hom_var: Int32Expression) -> StructExpression:
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
     Examples
