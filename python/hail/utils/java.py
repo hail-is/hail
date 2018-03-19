@@ -181,7 +181,6 @@ def info(msg):
 def handle_java_exception(f):
     def deco(*args, **kwargs):
         import pyspark
-        _exception = None
         try:
             return f(*args, **kwargs)
         except py4j.protocol.Py4JJavaError as e:
@@ -193,17 +192,13 @@ def handle_java_exception(f):
 
             tpl = Env.jutils().handleForPython(e.java_exception)
             deepest, full = tpl._1(), tpl._2()
-            _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
-                                    'Hail version: %s\n'
-                                    'Error summary: %s' % (deepest, full, Env.hc().version, deepest))
+            raise FatalError('%s\n\nJava stack trace:\n%s\n'
+                             'Hail version: %s\n'
+                             'Error summary: %s' % (deepest, full, Env.hc().version, deepest)) from None
         except pyspark.sql.utils.CapturedException as e:
-            _exception = FatalError('%s\n\nJava stack trace:\n%s\n'
-                                    'Hail version: %s\n'
-                                    'Error summary: %s' % (e.desc, e.stackTrace, Env.hc().version, e.desc))
-        finally:
-            # this is a hack to suppress the original error's stack trace
-            if _exception:
-                raise _exception
+            raise FatalError('%s\n\nJava stack trace:\n%s\n'
+                             'Hail version: %s\n'
+                             'Error summary: %s' % (e.desc, e.stackTrace, Env.hc().version, e.desc)) from None
 
     return deco
 

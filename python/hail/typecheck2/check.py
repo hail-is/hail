@@ -266,14 +266,10 @@ def check_collection(arg, t, context: str) -> None:
 def check_t(arg, t, context: str) -> None:
     # the following motif is used to squelch the original (deeply recursive)
     # stack trace
-    _e: TypeCheckFailure = None
     try:
         _check_t(arg, t, context)
     except TypeCheckFailure as e:
-        _e = e
-    finally:
-        if _e:
-            raise TypeError(_e.msg)
+        raise TypeError(e.msg) from None
 
 
 known_checkers = {
