@@ -326,13 +326,16 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def diagonalTestTiny() {
-    val m = toBM(4, 4, Array[Double](
+    val lm = toLM(3, 4, Array[Double](
       1, 2, 3, 4,
       5, 6, 7, 8,
-      9, 10, 11, 12,
-      13, 14, 15, 16))
+      9, 10, 11, 12))
+    
+    val m = toBM(lm, blockSize = 2)
 
-    assert(m.diagonal().toSeq == Seq(1, 6, 11, 16))
+    assert(m.diagonal().toSeq == Seq(1, 6, 11))
+    assert(m.t.diagonal().toSeq == Seq(1, 6, 11))
+    assert((m * m.t).diagonal().toSeq == Seq(30, 174, 446))
   }
 
   @Test
