@@ -392,11 +392,7 @@ object OrderedRVD {
 
   // FIXME: delete this, it's just a wrapper around coerce
   def apply(typ: OrderedRVDType,
-    // rdd: RDD[RegionValue[rowType]]
-    rdd: RDD[RegionValue],
-    // fastKeys: Option[RDD[RegionValue[kType]]]
-    fastKeys: Option[RDD[RegionValue]] = None,
-    hintPartitioner: Option[OrderedRVDPartitioner] = None): OrderedRVD =
+    rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedRVDPartitioner]): OrderedRVD =
     coerce(typ, rdd, fastKeys, hintPartitioner)
 
   /**
