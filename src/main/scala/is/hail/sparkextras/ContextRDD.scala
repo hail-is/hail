@@ -32,18 +32,10 @@ object ContextRDD {
   type ElementType[C, T] = C => Iterator[T]
 }
 
-// FIXME: Subclassing seems super dangerous, did I actually implement the
-// interace right?!?! Also: I want `map` to work on `T` not on the literal
-// elements of the RDD (i.e. `C => Iterator[T]`).
 class ContextRDD[C <: AutoCloseable, T: ClassTag](val rdd: RDD[C => Iterator[T]])
     extends Serializable {
-  // FIXME: is this the right choice? Should I broadcast c? Should there be a
-  // new one per useCtx? Probably need a method that constructs a context
-  // FIXME: I probably need to reset the region per record??
   def run(c: () => C): RDD[T] =
     rdd.mapPartitions { part => using(c()) { cc => part.flatMap(_(cc)).toArray.iterator } }
-
-  def collect(c: () => C): Array[T] = run(c).collect()
 
   private[this] def inCtx[U: ClassTag](f: C => Iterator[U])
       : Iterator[C => Iterator[U]] =
@@ -97,23 +89,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](val rdd: RDD[C => Iterator[T]]
       { (u, useCtx) => useCtx(c()).foldLeft(u)(seqOp)},
       combOp)
 
-  def aggregateByKey[U: ClassTag, K: ClassTag, V: ClassTag]
-    (zero: U)(seqOp: (U, V) => U,combOp: (U, U) => U)
-    (implicit ev: T =:= (K, V))
-      : ContextRDD[C, (K, U)] =
-    // FIXME: how do I do this
-    ???
-
   def summarizePartitions[U: ClassTag](c: () => C)(f: Iterator[T] => U): Array[U] =
     run(c).mapPartitions(f.andThen(Iterator.single)).collect()
-
-  def find(f: T => Boolean): Option[T] = filter(f).take(1) match {
-    case Array(elem) => Some(elem)
-    case _ => None
-  }
-
-  def take(i: Int): Array[T] =
-    ??? // FIXME: I shouldn't need a context to do this
 
   private[this] def withContext[U: ClassTag](f: (C, Iterator[T]) => Iterator[U])
       : ContextRDD[C, U] =
@@ -164,29 +141,24 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](val rdd: RDD[C => Iterator[T]]
   def partitioner: Option[Partitioner] = rdd.partitioner
 
   def persist(level: StorageLevel): ContextRDD[C, T] =
-    onRdd(_.persist)
+    onRDD(_.persist)
 
   def unpersist(): ContextRDD[C, T] =
-    onRdd(_.unpersist())
+    onRDD(_.unpersist())
 
   def getStorageLevel: StorageLevel = rdd.getStorageLevel
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): ContextRDD[C, T] =
-    onRdd(_.coalesce(maxPartitions, shuffle))
+    onRDD(_.coalesce(maxPartitions, shuffle))
 
   def preferredLocations(p: Partition): Seq[String] =
     rdd.preferredLocations(p)
 
   def subsetPartitions(keptPartitionIndices: Array[Int]): ContextRDD[C, T] =
-    onRdd(_.subsetPartitions(keptPartitionIndices))
-
-  def head(c: () => C)(n: Long): ContextRDD[C, T] =
-    // FIXME: do I really need a context to do head? This doesn't seem
-    // necessary. I think I just need to pull the thread on RichRDD.head
-    ContextRDD.weaken(run(c).head(n))
+    onRDD(_.subsetPartitions(keptPartitionIndices))
 
   def reorderPartitions(oldIndices: Array[Int]): ContextRDD[C, T] =
-    onRdd(_.reorderPartitions(oldIndices))
+    onRDD(_.reorderPartitions(oldIndices))
 
   def adjustPartitions(adjustments: IndexedSeq[Array[Adjustment[T]]])
       : ContextRDD[C, T] = {
@@ -197,33 +169,12 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](val rdd: RDD[C => Iterator[T]]
       new Adjustment(a.index, contextIgnorantPartitionFunction(a.f))
     val contextIgnorantAdjustments =
       adjustments.map(as => as.map(a => contextIgnorantAdjustment(a)))
-    onRdd(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
+    onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
   }
-
-  def partitionBy[K: ClassTag, V: ClassTag](partitioner: Partitioner)
-    (implicit ev: (K, V) =:= T): ContextRDD[C, T] =
-    // FIXME: this actually inserts a map step that shouldn't be necessary
-    // probably need PairContextRDDFunctions
-    /// map(ev(_)).onRdd(_.partitionBy(partitioner))
-    // FIXME: Actually, wtf, how do I do this? I need a new RDD I think
-    ???
-
-  def values[K: ClassTag, V: ClassTag](implicit ev: (K, V) =:= T)
-      : ContextRDD[C, V] =
-    // FIXME scala is actually super dumb and doesn't let me go from T to (K, V)
-    // using ev /shrug
-    ???
-    // map(???.apply(_)._2)
 
   def iterator(partition: Partition, context: TaskContext): Iterator[C => Iterator[T]] =
     rdd.iterator(partition, context)
 
-  // FIXME: this seems like a dangerous method, I should suck all functionality
-  // into my interface and this should be private. I think only use is
-  // BlockedRDD in OrderedRVD; should I just implement that here instead?
-  def onRdd(f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]): ContextRDD[C, T] =
+  private[this] def onRDD(f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]): ContextRDD[C, T] =
     new ContextRDD(f(rdd))
-
-  // FIXME: I should define cache and use it smartly rather than run'ing. go
-  // look for all run's followed by cache and fix them
 }
