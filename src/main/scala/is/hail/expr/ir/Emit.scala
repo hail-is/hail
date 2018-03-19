@@ -206,9 +206,8 @@ private class Emit(
       case ApplyBinaryPrimOp(op, l, r, typ) =>
         val (dol, ml, vl) = emit(l)
         val (dor, mr, vr) = emit(r)
-        (Code(dol, dor),
-          ml || mr,
-          BinaryOp.emit(op, l.typ, r.typ, vl, vr))
+        val (setup, m, v) = BinaryOp.emit(fb, mb, op, l.typ, r.typ, ml, vl, mr, vr)
+        (Code(dol, dor, setup), m, v)
       case ApplyUnaryPrimOp(op, x, typ) =>
         val (dox, mx, vx) = emit(x)
         (dox, mx, UnaryOp.emit(op, x.typ, vx))

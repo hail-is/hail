@@ -406,6 +406,8 @@ case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
 object TableIR {
   def optimize(ir: TableIR): TableIR = {
     BaseIR.rewriteTopDown(ir, {
+      case TableFilter(TableFilter(x, p1), p2) =>
+        TableFilter(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
       case TableFilter(x, True()) => x
       case TableFilter(TableRead(path, spec, _), False() | NA(TBoolean(_))) =>
         TableRead(path, spec, true)
