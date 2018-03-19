@@ -61,7 +61,7 @@ object Compile {
     val env = new Env[IR]()
       .bind(name0, In(0, typ0))
       .bind(name1, In(1, typ1))
-      .bind(name1, In(2, typ2))
+      .bind(name2, In(2, typ2))
     e = Subst(e, env)
     Infer(e)
     assert(TypeToIRIntermediateClassTag(e.typ) == classTag[R])

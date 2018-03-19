@@ -384,17 +384,25 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, newEntries)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
-    assert(newChildren.length == 1)
+    assert(newChildren.length == 2)
     MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   val newRow = {
-    val ArrayLen(GetField(Ref("va"), MatrixType.entriesIdentifier))
+    val arrayLength = ArrayLen(GetField(Ref("va"), MatrixType.entriesIdentifier))
+    val idxEnv = new Env[IR]()
+      .bind("g", ArrayRef(GetField(Ref("va"), MatrixType.entriesIdentifier), Ref("i")))
+      .bind("sa", ArrayRef(Ref("sa"), Ref("i")))
+    val entries = ArrayMap(ArrayRange(I32(0), arrayLength, I32(1)), "i", Subst(newEntries, idxEnv))
+    InsertFields(Ref("va"), Seq((MatrixType.entriesIdentifier, entries)))
   }
-    InsertFields(Ref("va"), Seq((MatrixType.entriesIdentifier, ArrayMap(GetField(Ref("va"), MatrixType.entriesIdentifier), "g", newEntries))))
 
   val typ: MatrixType = {
-    Infer(newRow, None, new Env[Type]().bind("va", child.typ.rvRowType))
+    Infer(newRow, None, new Env[Type]()
+      .bind("global", child.typ.globalType)
+      .bind("va", child.typ.rvRowType)
+      .bind("sa", TArray(child.typ.colType))
+    )
     child.typ.copy(rvRowType=newRow.typ)
   }
 
@@ -408,8 +416,36 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
       newRow)
     assert(rTyp == typ.rvRowType)
 
-    prev.rvd.mapPartitionsPreservesPartitioning()
+    val localGlobalsType = typ.globalType
+    val localColsType = TArray(typ.colType)
+    val colValuesBc = prev.colValuesBc
+    val globalsBc = prev.globals.broadcast
 
+    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+      val rvb = new RegionValueBuilder()
+      val newRV = RegionValue()
+      val rowF = f()
+
+      it.map { rv =>
+        val region = rv.region
+        val oldRow = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        val off = rowF(region, globals, false, oldRow, false, cols, false)
+
+        newRV.set(region, off)
+        newRV
+      }
+    }
+    prev.copy(typ = typ, rvd = newRVD)
   }
 }
 
