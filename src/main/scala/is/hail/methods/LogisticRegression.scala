@@ -17,8 +17,7 @@ object LogisticRegression {
     xExpr: String,
     covExpr: Array[String],
     root: String): MatrixTable = {
-    val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
-      fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
+    val logRegTest = LogisticRegressionTest.tests(test)
 
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
