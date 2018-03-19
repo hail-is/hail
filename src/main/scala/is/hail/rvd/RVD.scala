@@ -20,8 +20,8 @@ object RVDSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[RVDSpec], classOf[UnpartitionedRVDSpec], classOf[OrderedRVDSpec],
-      classOf[CodecSpec], classOf[DirectCodecSpec], classOf[PackCodecSpec],
-      classOf[BlockBufferSpec], classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
+      classOf[CodecSpec], classOf[PackCodecSpec], classOf[BlockBufferSpec],
+      classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
       classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec]))
     override val typeHintFieldName = "name"
   } +

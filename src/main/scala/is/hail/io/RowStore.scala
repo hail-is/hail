@@ -71,8 +71,7 @@ object CodecSpec {
   }
 
   val codecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
-    Array(new DirectCodecSpec(bufferSpec),
-      new PackCodecSpec(bufferSpec))
+    Array(new PackCodecSpec(bufferSpec))
   }
 
   val supportedCodecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
@@ -96,12 +95,6 @@ final class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   def buildEncoder(out: OutputStream): Encoder = new PackEncoder(child.buildOutputBuffer(out))
 
   def buildDecoder(in: InputStream): Decoder = new PackDecoder(child.buildInputBuffer(in))
-}
-
-final class DirectCodecSpec(child: BufferSpec) extends CodecSpec {
-  def buildEncoder(out: OutputStream): Encoder = new DirectEncoder(child.buildOutputBuffer(out))
-
-  def buildDecoder(in: InputStream): Decoder = new DirectDecoder(child.buildInputBuffer(in))
 }
 
 trait OutputBlockBuffer extends Closeable {
@@ -509,23 +502,6 @@ trait Decoder extends Closeable {
   def readByte(): Byte
 }
 
-final class DirectDecoder(in: InputBuffer) extends Decoder {
-  def close() {
-    in.close()
-  }
-
-  def readRegionValue(t: Type, region: Region): Long = {
-    val size = in.readInt()
-    val off = region.allocate(t.alignment, size)
-    assert(off == 0)
-    in.readBytes(region, 0, size)
-
-    in.readInt() // offset
-  }
-
-  def readByte(): Byte = in.readByte()
-}
-
 final class PackDecoder(in: InputBuffer) extends Decoder {
   def close() {
     in.close()
@@ -636,27 +612,6 @@ trait Encoder extends Closeable {
   def writeRegionValue(t: Type, region: Region, offset: Long): Unit
 
   def writeByte(b: Byte): Unit
-}
-
-final class DirectEncoder(out: OutputBuffer) extends Encoder {
-  def flush() {
-    out.flush()
-  }
-
-  def close() {
-    out.close()
-  }
-
-  def writeRegionValue(t: Type, region: Region, offset: Long) {
-    assert(region.size <= Int.MaxValue)
-    out.writeInt(region.size.toInt)
-    out.writeBytes(region, 0, region.size.toInt)
-
-    assert(offset <= Int.MaxValue)
-    out.writeInt(offset.toInt)
-  }
-
-  def writeByte(b: Byte): Unit = out.writeByte(b)
 }
 
 final class PackEncoder(out: OutputBuffer) extends Encoder {
