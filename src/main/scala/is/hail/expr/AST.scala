@@ -270,6 +270,8 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
       f(values)
     }
   }
+  
+  def getSubexprs(): Array[AST] = subexprs
 
   def toIR(agg: Option[String] = None): Option[IR]
 }
@@ -874,3 +876,45 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     alternate <- elseTree.toIR(agg)
   } yield ir.If(condition, consequent, alternate, `type`)
 }
+
+// PrettyAST(ast).toString() gives a pretty-print of an AST tree
+
+case class PrettyAST(rootAST: AST) {
+  val sb = new StringBuilder()
+  putDeepAST(rootAST, 0)
+  
+  def astToName(ast: AST): String = {
+    ast match {
+      case Apply(_,fn,_) => s"Apply[${fn}]"
+      case ApplyMethod(_,_,method,_) => s"ApplyMethod[${method}]"
+      case ArrayConstructor(_,_) => "ArrayConstructor"
+      case Const(_,value,_) => s"Const[${value.toString()}]"
+      case If(_,_,_,_) => "If"
+      case Lambda(_,param,_) => s"Lambda[${param}]"
+      case Let(_,_,_) => "Let"
+      case Select(_,_,rhs) => s"Select[${rhs}]"
+      case StructConstructor(_,_,_) => "StructConstructor"
+      case SymRef(_,symbol) => s"SymRef[${symbol}]"
+      case TupleConstructor(_,_) => "TupleConstructor"
+      case _ => "UnknownAST"
+    }
+  }
+ 
+  def putDeepAST(ast: AST, depth: Int) {
+    for (j <- 1 to depth) sb.append("  ")
+    val sub = ast.getSubexprs()
+    sb.append(astToName(ast))
+    if (sub.length > 0) {
+      sb.append("(\n")
+      for (oneSub <- sub) {
+        putDeepAST(oneSub, depth+1)
+      }
+      for (j <- 1 to depth) sb.append("  ")
+      sb.append(")")
+    }
+    if (depth > 0) sb.append("\n")
+  }
+  
+  override def toString(): String = sb.toString()
+}
+

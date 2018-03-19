@@ -464,12 +464,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     pred match {
       case Some(irPred) =>
         new Table(hc,
-          TableFilter(tir,
-            ir.Let("pred",
-              if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
-              ir.If(ir.IsNA(ir.Ref("pred")),
-                ir.False(),
-                ir.Ref("pred")))))
+          TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep, "filter_pred"))
+        )
       case None =>
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))

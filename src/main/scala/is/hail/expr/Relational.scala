@@ -141,11 +141,12 @@ object MatrixIR {
       MatrixRead(path, spec, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropSamples, dropRows = true)
+
       case FilterCols(
       MatrixRead(path, spec, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropCols = true, dropVariants)
-
+    
       case FilterRows(m, Const(_, true, TBoolean(_))) =>
         m
       case FilterCols(m, Const(_, true, TBoolean(_))) =>
@@ -160,6 +161,31 @@ object MatrixIR {
 
       case FilterCols(FilterCols(m, pred1), pred2) =>
         FilterCols(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
+
+      // Equivalent rewrites for the new Filter{Cols,Rows}IR
+      case FilterRowsIR(MatrixRead(path, spec, dropSamples, _), False()) =>
+        MatrixRead(path, spec, dropSamples, dropRows = true)
+
+      case FilterColsIR(MatrixRead(path, spec, dropVariants, _), False()) =>
+        MatrixRead(path, spec, dropCols = true, dropVariants)
+
+      // Keep all rows/cols = do nothing
+      case FilterRowsIR(m, True()) => m
+      
+      case FilterColsIR(m, True()) => m
+      
+      // Push FilterRowsIR into FilterColsIR
+      case FilterRowsIR(FilterColsIR(m, colPred), rowPred) =>
+        FilterColsIR(FilterRowsIR(m, rowPred), colPred)
+      
+      // Combine multiple filters into one
+      case FilterRowsIR(FilterRowsIR(m, pred1), pred2) =>
+        FilterRowsIR(m,
+          ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
+    
+      case FilterColsIR(FilterColsIR(m, pred1), pred2) =>
+        FilterColsIR(m,
+          ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
     })
   }
 }
@@ -334,6 +360,62 @@ case class FilterCols(
   }
 }
 
+// FilterColsIR is used when the predicate passes toIR()
+
+case class FilterColsIR(
+  child: MatrixIR,
+  pred: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, pred)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterColsIR = {
+    assert(newChildren.length == 2)
+    FilterColsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  def typ: MatrixType = child.typ
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localGlobals = prev.globals.broadcast
+    val localColType = typ.colType
+    val ec = typ.colEC
+	  //
+	  // Initialize a region containing the globals
+	  //
+	  val colRegion = Region()
+	  val rvb = new RegionValueBuilder(colRegion)
+	  rvb.start(typ.globalType)
+	  rvb.addAnnotation(typ.globalType, localGlobals.value)
+    val globalRVend = rvb.currentOffset()
+	  val globalRVoffset = rvb.end()
+
+    val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
+      "global", typ.globalType,
+      "sa",     typ.colType,
+      pred
+    )
+	  //
+	  // Hmm ... is this going to do a separate reduction for each column/sample ?
+	  // Won't that be slow in the distributed case ?
+	  //
+    val colAggregationOption = Aggregators.buildColAggregations(hc, prev, ec)
+
+    val p = (sa: Annotation, i: Int) => {
+      colAggregationOption.foreach(f => f.apply(i))
+      ec.setAll(localGlobals, sa)
+      colRegion.clear(globalRVend)
+      val colRVb = new RegionValueBuilder(colRegion)
+      colRVb.start(localColType)
+      colRVb.addAnnotation(localColType, sa)
+      val colRVoffset = colRVb.end()
+      predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false) == true
+    }
+    prev.filterCols(p)
+  }
+}
+
 case class FilterRows(
   child: MatrixIR,
   pred: AST) extends MatrixIR {
@@ -372,6 +454,63 @@ case class FilterRows(
         ec.set(1, row)
         aggregatorOption.foreach(_ (rv))
         f() == true
+      }
+    }
+
+    prev.copy(rvd = filteredRDD)
+  }
+}
+
+case class FilterRowsIR(
+  child: MatrixIR,
+  pred: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, pred)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterRowsIR = {
+    assert(newChildren.length == 2)
+    FilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  def typ: MatrixType = child.typ
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val ec = prev.typ.rowEC
+
+    val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
+      "va",     typ.rvRowType,
+      "global", typ.globalType,
+      pred
+    )
+
+    val aggregatorOption = Aggregators.buildRowAggregations(
+      prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
+    //
+    // Everything used inside the Spark iteration must be serializable,
+    // so we pick out precisely what is needed.
+    //
+    val fullRowType = prev.typ.rvRowType
+    val localRowType = prev.typ.rowType
+    val localEntriesIndex = prev.typ.entriesIdx
+    val localGlobalType = typ.globalType
+    val localGlobals = prev.globals.broadcast
+
+    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
+      it.filter { rv =>
+        fullRow.set(rv)
+        ec.set(0, localGlobals.value)
+        ec.set(1, row)
+        aggregatorOption.foreach(_ (rv))
+        // Append all the globals into this region
+        val globalRVb = new RegionValueBuilder(rv.region)
+        globalRVb.start(localGlobalType)
+        globalRVb.addAnnotation(localGlobalType, localGlobals.value)
+        val globalRVoffset = globalRVb.end()
+        predCompiledFunc()(rv.region, rv.offset, false, globalRVoffset, false) == true
       }
     }
 
