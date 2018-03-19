@@ -2095,7 +2095,7 @@ class MatrixTable(ExprContainer):
                                           f'found {len(exprs)} index expressions')
             else:
                 raise ExpressionException(
-                    f"Cannot index table with given expressions\n"
+                    f"Key type mismatch: cannot index matrix table with given expressions:\n"
                     f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
                     f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
