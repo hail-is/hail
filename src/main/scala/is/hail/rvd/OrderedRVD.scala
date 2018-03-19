@@ -16,27 +16,12 @@ import org.apache.spark.sql.Row
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class OrderedRVD private(
+class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
   val rdd: RDD[RegionValue]) extends RVD with Serializable {
   self =>
   def rowType: TStruct = typ.rowType
-
-  // should be totally generic, permitting any number of keys, but that requires more work
-  def downcastToPK(): OrderedRVD = {
-    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
-      key = typ.partitionKey,
-      rowType = rowType)
-    OrderedRVD(newType, partitioner, rdd)
-  }
-
-  def upcast(castKeys: Array[String]): OrderedRVD = {
-    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
-      key = typ.key ++ castKeys,
-      rowType = rowType)
-    OrderedRVD(newType, partitioner, rdd)
-  }
 
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
     OrderedRVD(newTyp,
@@ -102,7 +87,7 @@ class OrderedRVD private(
 
     require(ordType.rowType == typ.rowType)
     require(ordType.kType isPrefixOf typ.kType)
-    require(newPartitioner.kType isIsomorphicTo ordType.kType)
+//    require(newPartitioner.kType isIsomorphicTo ordType.kType)
     require(newPartitioner.pkType isIsomorphicTo ordType.pkType)
     // Should remove this requirement in the future
     require(typ.pkType isPrefixOf ordType.pkType)
@@ -125,62 +110,22 @@ class OrderedRVD private(
          """.stripMargin)
   }
 
+  def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
+    new KeyedOrderedRVD(this, key)
+
   def orderedJoin(
     right: OrderedRVD,
     joinType: String,
     joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
     joinedType: OrderedRVDType
-  ): OrderedRVD = {
-    checkJoinCompatability(right)
-    val lTyp = typ
-    val rTyp = right.typ
+  ): OrderedRVD =
+    keyBy().orderedJoin(right.keyBy(), joinType, joiner, joinedType)
 
-    val newPartitioner = partitioner.enlargeToRange(right.partitioner.range)
-    val repartitionedLeft = this.constrainToOrderedPartitioner(this.typ, newPartitioner)
-    val repartitionedRight = right.constrainToOrderedPartitioner(right.typ, newPartitioner)
-    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
-      (joinType: @unchecked) match {
-        case "inner" => _.innerJoin(_)
-        case "left" => _.leftJoin(_)
-        case "right" => _.rightJoin(_)
-        case "outer" => _.outerJoin(_)
-      }
-    val joinedRDD = repartitionedLeft.rdd.zipPartitions(repartitionedRight.rdd, true){
-      (leftIt, rightIt) =>
-        joiner(compute(
-          OrderedRVIterator(lTyp, leftIt),
-          OrderedRVIterator(rTyp, rightIt)))
-    }
+  def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] =
+    keyBy().orderedJoinDistinct(right.keyBy(), joinType)
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
-  }
-
-  def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
-    checkJoinCompatability(right)
-    val lTyp = typ
-    val rTyp = right.typ
-
-    val repartitionedRight = new RepartitionedOrderedRDD2(right, this.partitioner)
-    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
-      (joinType: @unchecked) match {
-        case "inner" => _.innerJoinDistinct(_)
-        case "left" => _.leftJoinDistinct(_)
-      }
-    this.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
-      compute(OrderedRVIterator(lTyp, leftIt), OrderedRVIterator(rTyp, rightIt))
-    }
-  }
-
-  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] = {
-    val newPartitioner = partitioner.enlargeToRange(right.partitioner.range)
-
-    val repartitionedLeft = new RepartitionedOrderedRDD2(this, newPartitioner)
-    val repartitionedRight = new RepartitionedOrderedRDD2(right, newPartitioner)
-
-    repartitionedLeft.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
-      OrderedRVIterator(this.typ, leftIt).zipJoin(OrderedRVIterator(right.typ, rightIt))
-    }
-  }
+  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] =
+    keyBy().orderedZipJoin(right.keyBy())
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)

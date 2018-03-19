@@ -18,7 +18,7 @@ class RepartitionedOrderedRDD2(
     newPartitioner: OrderedRVDPartitioner)
   extends RDD[RegionValue](prev.sparkContext, Nil) { // Nil since we implement getDependencies
 
-  require(newPartitioner.kType isPrefixOf prev.typ.kType)
+//  require(newPartitioner.kType isPrefixOf prev.typ.kType)
   // There should really be no precondition on partition keys. Drop this when
   // we're able
   require(prev.typ.pkType isPrefixOf newPartitioner.pkType)
@@ -50,7 +50,7 @@ class OrderedDependency(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner)
   extends NarrowDependency[RegionValue](prev.rdd) {
 
   // no precondition on partition keys
-  require(newPartitioner.kType isPrefixOf prev.typ.kType)
+//  require(newPartitioner.kType isPrefixOf prev.typ.kType)
   // There should really be no precondition on partition keys. Drop this when
   // we're able
   require(prev.typ.pkType isPrefixOf newPartitioner.pkType)

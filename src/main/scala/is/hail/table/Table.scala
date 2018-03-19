@@ -594,7 +594,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       joinType,
       rvMerger,
       new OrderedRVDType(left.typ.partitionKey, left.typ.key, newSignature))
-    copy2(rvd = joinedRVD, signature = newSignature, key = key)
+    copy2(rvd = joinedRVD, signature = newSignature)
   }
 
   def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {

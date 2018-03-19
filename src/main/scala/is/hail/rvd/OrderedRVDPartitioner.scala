@@ -78,8 +78,16 @@ class OrderedRVDPartitioner(
         if (!rangeTree.probablyOverlaps(pkType.ordering, interval))
           Seq.empty[Int]
         else {
-          val start = getPartitionRange(interval.start).min
-          val end = getPartitionRange(interval.end).max
+          val startRange = getPartitionRange(interval.start)
+          val start = if (startRange.nonEmpty)
+            startRange.min
+          else
+            0
+          val endRange =  getPartitionRange(interval.end)
+          val end = if (endRange.nonEmpty)
+            endRange.max
+          else
+            numPartitions - 1
           start to end
         }
     }
