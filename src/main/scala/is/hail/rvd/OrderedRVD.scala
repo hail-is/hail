@@ -38,6 +38,9 @@ class OrderedRVD private(
     OrderedRVD(newType, partitioner, rdd)
   }
 
+  def unsafeChangeType(newTyp: OrderedRVDType): OrderedRVD =
+    OrderedRVD(newTyp, partitioner, rdd)
+
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
@@ -368,12 +371,12 @@ class OrderedRVD private(
     partitionCounts
   }
 
-  def zipPartitions(that: OrderedRVD)
+  def zipPartitions(that: RVD)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
     zipPartitions(that, true)(zipper)
 
-  def zipPartitions(that: OrderedRVD, preservesPartitioning: Boolean)
+  def zipPartitions(that: RVD, preservesPartitioning: Boolean)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
     zipPartitions(that.rdd, preservesPartitioning)(zipper)

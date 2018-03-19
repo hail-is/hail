@@ -2163,7 +2163,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD = if (fieldMapRows.isEmpty) rvd else {
       val newType = newMatrixType.orvdType
       val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
-      rvd.assertOrdered(newType, newPartitioner)
+      rvd.unsafeChangeType(newType)
     }
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
