@@ -23,7 +23,6 @@ object BinaryOp {
     case (EQ() | NEQ(), _: TFloat32, _: TFloat32) => TBoolean()
     case (EQ() | NEQ(), _: TFloat64, _: TFloat64) => TBoolean()
     case (EQ() | NEQ(), _: TBoolean, _: TBoolean) => TBoolean()
-    case (DoubleAmpersand() | DoublePipe(), _: TBoolean, _: TBoolean) => TBoolean()
   }
 
   def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
@@ -108,8 +107,6 @@ object BinaryOp {
       val ll = coerce[Boolean](l)
       val rr = coerce[Boolean](r)
       op match {
-        case DoubleAmpersand() => ll && rr
-        case DoublePipe() => ll || rr
         case EQ() => ll.toI.ceq(rr.toI)
         case NEQ() => ll.toI ^ rr.toI
         case _ => incompatible(lt, rt, op)
@@ -130,8 +127,6 @@ object BinaryOp {
     case "<" => LT()
     case "==" => EQ()
     case "!=" => NEQ()
-    case "&&" => DoubleAmpersand()
-    case "||" => DoublePipe()
   }
 }
 
@@ -147,6 +142,3 @@ case class LTEQ() extends BinaryOp { }
 case class LT() extends BinaryOp { }
 case class EQ() extends BinaryOp { }
 case class NEQ() extends BinaryOp { }
-case class DoubleAmpersand() extends BinaryOp { }
-case class DoublePipe() extends BinaryOp { }
-
