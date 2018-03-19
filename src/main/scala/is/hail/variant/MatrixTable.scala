@@ -1337,60 +1337,45 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
-  def selectEntries(selectExprs: java.util.ArrayList[String]): MatrixTable = selectEntries(selectExprs.asScala.toArray: _*)
-
-  def selectEntries(exprs: String*): MatrixTable = {
+  def selectEntries(expr: String): MatrixTable = {
     val ec = entryEC
-    val globalsBc = globals.broadcast
 
-    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
-    val topLevelFields = mutable.Set.empty[String]
+    val entryAST = Parser.parseToAST(expr, ec)
+    assert(entryAST.`type`.isInstanceOf[TStruct])
 
-    val finalNames = paths.map {
-      // assignment
-      case Left(name) => name
-      case Right(path) =>
-        assert(path.head == Annotation.ENTRY_HEAD)
-        path match {
-          case List(Annotation.ENTRY_HEAD, name) => topLevelFields += name
-        }
-        path.last
+    entryAST.toIR() match {
+      case Some(ir) =>
+        new MatrixTable(hc, MapEntries(ast, ir))
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val newEntryType = t.asInstanceOf[TStruct]
+        val globalsBc = globals.broadcast
+        val fullRowType = rvRowType
+        val localEntriesIndex = entriesIndex
+        val localNCols = numCols
+        val localColValuesBc = colValuesBc
+
+        insertEntries(() => {
+          val fullRow = new UnsafeRow(fullRowType)
+          val row = fullRow.deleteField(localEntriesIndex)
+          ec.set(0, globalsBc.value)
+          ec.set(1, row)
+          fullRow -> row
+        })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+          fullRow.set(rv)
+          val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+          rvb.startArray(localNCols)
+          var i = 0
+          while (i < localNCols) {
+            val entry = entries(i)
+            ec.set(2, localColValuesBc.value(i))
+            ec.set(3, entry)
+            rvb.addAnnotation(newEntryType, f())
+            i += 1
+          }
+          rvb.endArray()
+        })
     }
-    assert(finalNames.areDistinct())
-
-    val newEntryType = TStruct(finalNames.zip(types): _*)
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val localNCols = numCols
-    val localColValuesBc = colValuesBc
-
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      ec.set(0, globalsBc.value)
-      ec.set(1, row)
-      fullRow -> row
-    })(newEntryType, { case ((fullRow, row), rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-      rvb.startArray(localNCols)
-      var i = 0
-      while (i < localNCols) {
-        val entry = entries(i)
-        ec.set(2, localColValuesBc.value(i))
-        ec.set(3, entry)
-        val results = f()
-        var j = 0
-        rvb.startStruct()
-        while (j < types.length) {
-          rvb.addAnnotation(types(j), results(j))
-          j += 1
-        }
-        rvb.endStruct()
-        i += 1
-      }
-      rvb.endArray()
-    })
   }
 
 
