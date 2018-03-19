@@ -303,15 +303,8 @@ object MatrixTable {
   def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
     require(datasets.length >= 2)
     val first = datasets(0)
-    val sc = first.sparkContext
-
     checkDatasetSchemasCompatible(datasets)
-
-    first.copyMT(
-      rvd = OrderedRVD(
-        first.rvd.typ,
-        sc.union(datasets.map(_.rvd.rdd)),
-        None, None))
+    first.copyMT(rvd = OrderedRVD.union(datasets.map(_.rvd)))
   }
 
   def fromRowsTable(kt: Table, partitionKey: java.util.ArrayList[String] = null): MatrixTable = {
@@ -576,7 +569,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rowPartitionKey = partitionKeys)
 
     copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD(newMatrixType.orvdType, rvd.rdd, None, None))
+      rvd = rvd.coerceOrdered(newMatrixType.orvdType, None, None))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
@@ -1080,7 +1073,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
     val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
-    val newRDD = rvd.rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
+    val newRDD = rvd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { rv =>
           val ur = new UnsafeRow(ktSignature, rv)
@@ -1380,7 +1373,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     // need to strip entries!
     // FIXME: HACK
     val rTyp = new OrderedRVDType(right.rowPartitionKey.toArray, right.rowKey.toArray, right.rowType)
-    val rightRVD = OrderedRVD(rTyp, right.rvd.partitioner, right.rowsTable().rvd)
+    val rightRVD = right.rowsTable().rvd.assertOrdered(rTyp, right.rvd.partitioner)
     orderedRVDLeftJoinDistinctAndInsert(rightRVD, root, product = false)
   }
 
@@ -2052,7 +2045,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD = if (fieldMapRows.isEmpty) rvd else {
       val newType = newMatrixType.orvdType
       val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
-      OrderedRVD(newType, newPartitioner, rvd.rdd)
+      rvd.assertOrdered(newType, newPartitioner)
     }
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
@@ -2558,7 +2551,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val partitionCounts = rvd.rdd.writeRowsSplit(path, matrixType, codecSpec, rvd.partitioner)
+    val partitionCounts = rvd.writeRowsSplit(path, matrixType, codecSpec)
 
     val globalsPath = path + "/globals"
     hadoopConf.mkDir(globalsPath)
