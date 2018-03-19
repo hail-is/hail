@@ -10,6 +10,7 @@ import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import org.apache.spark.sql.Row
 
 import scala.collection.{immutable, mutable}
@@ -491,5 +492,40 @@ class CompileSuite {
       assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
+  }
+
+  @Test
+  def testArrayZip() {
+    val tout = TArray(TTuple(TInt32(), TString()))
+    val a1t = TArray(TInt32())
+    val a2t = TArray(TString())
+    val a1 = In(0, TArray(TInt32()))
+    val a2 = In(1, TArray(TString()))
+    val min = IRFunctionRegistry.lookupFunction("min", Seq(TArray(TInt32()))).get
+    val range = ArrayRange(I32(0), min(Seq(MakeArray(Seq(ArrayLen(a1), ArrayLen(a2))))), I32(1))
+    val ir = ArrayMap(range, "i", MakeTuple(Seq(ArrayRef(a1, Ref("i")), ArrayRef(a2, Ref("i")))))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    region.clear()
+    val a1actual = Array(1, 2)
+    val a2actual = Array("a", "b")
+    val rvb = new RegionValueBuilder(region)
+
+    rvb.start(a1t)
+    rvb.addAnnotation(a1t, a1actual.toIndexedSeq)
+    val off1 = rvb.end()
+
+    rvb.start(a2t)
+    rvb.addAnnotation(a2t, a2actual.toIndexedSeq)
+    val off2 = rvb.end()
+
+    val aoff = f(region, off1, false, off2, false)
+    val actual = new UnsafeIndexedSeq(tout, region, aoff)
+
+    val expected = IndexedSeq(Row(1, "a"), Row(2, "b"))
+    assert(expected.length == actual.length)
+    assert(actual.sameElements(expected))
   }
 }

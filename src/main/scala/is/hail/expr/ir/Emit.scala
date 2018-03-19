@@ -254,7 +254,7 @@ private class Emit(
         (setup, xmv, Code(
           len := tarray.loadLength(region, xa),
           (xi < len).mux(
-            region.loadIRIntermediate(typ)(tarray.loadElement(region, xa, xi)),
+            region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi)),
             Code._fatal(
               const("array index out of bounds: ")
                 .invoke[String, String]("concat", xi.load().toS)
