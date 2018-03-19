@@ -409,17 +409,17 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
-      "global", child.typ.globalType,
-      "va", child.typ.rvRowType,
-      "sa", child.typ.colType,
-      newRow)
-    assert(rTyp == typ.rvRowType)
-
     val localGlobalsType = typ.globalType
     val localColsType = TArray(typ.colType)
     val colValuesBc = prev.colValuesBc
     val globalsBc = prev.globals.broadcast
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "global", localGlobalsType,
+      "va", prev.typ.rvRowType,
+      "sa", localColsType,
+      newRow)
+    assert(rTyp == typ.rvRowType)
 
     val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
       val rvb = new RegionValueBuilder()
