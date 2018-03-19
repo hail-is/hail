@@ -210,13 +210,13 @@ class ExportVCFSuite extends SparkSuite {
 
     TestUtils.interceptFatal("Invalid type for format field 'BOOL'. Found 'bool'.") {
       ExportVCF(vds
-        .annotateEntriesExpr("g = {BOOL: true}"),
+        .annotateEntriesExpr("g.BOOL = true"),
         out)
     }
 
     TestUtils.interceptFatal("Invalid type for format field 'AA'.") {
       ExportVCF(vds
-        .annotateEntriesExpr("g = {AA: [[0]]}"),
+        .annotateEntriesExpr("g.AA = [[0]]"),
         out)
     }
   }
