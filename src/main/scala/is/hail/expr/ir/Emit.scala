@@ -652,11 +652,14 @@ private class Emit(
         val filterCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xvv := v,
-            docond,
-            (xmv || mcond || !coerce[Boolean](vcond)).mux(
+            xmv.mux(
               Code._empty,
-              cont(false, xvv)))
+              Code(
+                xvv := v,
+                docond,
+                (mcond || !coerce[Boolean](vcond)).mux(
+                  Code._empty,
+                  cont(false, xvv)))))
         }
         val (cl, _, f) = emitArrayIterator(a)
         (cl, None, { cont: F => f(filterCont(cont, _, _)) })
@@ -673,10 +676,11 @@ private class Emit(
           val (dobody, optmbody, pbody) = bodyF(cont)
           Code(
             xmv := m,
-            xvv := v,
             xmv.mux(
               Code._empty,
-              Code(dobody,
+              Code(
+                xvv := v,
+                dobody,
                 optmbody.map(_.mux(
                   Code._empty,
                   Code(lenCalcBody, pbody))).getOrElse(Code(lenCalcBody, pbody)))))
@@ -685,7 +689,8 @@ private class Emit(
         (cl, None, { cont: F => arrayF(bodyCont(cont, _, _)) })
 
       case x@ArrayMap(a, name, body, _) =>
-        val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
+        val elt = coerce[TArray](a.typ).elementType
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmv = mb.newBit()
         val xvv = fb.newLocal(name)(elementTypeInfoA)
         val bodyenv = env.bind(name -> (elementTypeInfoA, xmv, xvv))
@@ -693,7 +698,9 @@ private class Emit(
         val mapCont = { (continuation: F, m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xvv := v,
+            xmv.mux(
+              xvv := defaultValue(elt),
+              xvv := v),
             dobody,
             continuation(mbody, vbody))
         }
