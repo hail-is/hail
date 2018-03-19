@@ -332,7 +332,7 @@ class BlockMatrixSuite extends SparkSuite {
       9, 10, 11, 12,
       13, 14, 15, 16))
 
-    assert(m.diag.toSeq == Seq(1, 6, 11, 16))
+    assert(m.diagonal().toSeq == Seq(1, 6, 11, 16))
   }
 
   @Test
@@ -342,11 +342,11 @@ class BlockMatrixSuite extends SparkSuite {
       val diagonalLength = math.min(lm.rows, lm.cols)
       val diagonal = Array.tabulate(diagonalLength)(i => lm(i, i))
 
-      if (m.diag.toSeq == diagonal.toSeq)
+      if (m.diagonal().toSeq == diagonal.toSeq)
         true
       else {
         println(s"lm: $lm")
-        println(s"${ m.diag.toSeq } != ${ diagonal.toSeq }")
+        println(s"${ m.diagonal().toSeq } != ${ diagonal.toSeq }")
         false
       }
     }.check()

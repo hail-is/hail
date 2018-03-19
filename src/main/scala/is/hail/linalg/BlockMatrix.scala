@@ -152,9 +152,6 @@ object BlockMatrix {
       def t: M =
         l.transpose()
 
-      def diag: Array[Double] =
-        l.diagonal()
-
       def *(r: M): M =
         l.multiply(r)
 
@@ -963,11 +960,12 @@ private class BlockMatrixDiagonalRDD(m: BlockMatrix)
     val result = new Array[Double](length)
     var i = 0
     while (i < partitionsLength) {
-      val a = diag(block(m, dmPartitions, dmPartitioner, context, i, i)).toArray
+      val lm = block(m, dmPartitions, dmPartitioner, context, i, i)
+      val size = math.min(lm.rows, lm.cols)
       var k = 0
       val offset = i * blockSize
-      while (k < a.length) {
-        result(offset + k) = a(k)
+      while (k < size) {
+        result(offset + k) = lm(k, k)
         k += 1
       }
       i += 1
