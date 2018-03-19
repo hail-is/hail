@@ -178,7 +178,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        entry_expr: :class:`.NumericExpression` or :class:`.BooleanExpression`
+        entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
@@ -306,7 +306,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        entry_expr: :class:`.NumericExpression` or :class:`.BooleanExpression`
+        entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
         path: :obj:`str`
             Path for output.
