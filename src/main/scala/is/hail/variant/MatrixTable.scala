@@ -1117,10 +1117,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
 
-    val newRVD = OrderedRVD(
+    val newRVD = newRDD.assertOrdered(
       newMatrixType.orvdType,
-      rvd.partitioner,
-      newRDD)
+      rvd.partitioner)
 
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
