@@ -23,6 +23,24 @@ class OrderedRVD(
   self =>
   def rowType: TStruct = typ.rowType
 
+  // should be totally generic, permitting any number of keys, but that requires more work
+  def downcastToPK(): OrderedRVD = {
+    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
+      key = typ.partitionKey,
+      rowType = rowType)
+    OrderedRVD(newType, partitioner, rdd)
+  }
+
+  def upcast(castKeys: Array[String]): OrderedRVD = {
+    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
+      key = typ.key ++ castKeys,
+      rowType = rowType)
+    OrderedRVD(newType, partitioner, rdd)
+  }
+
+  def unsafeChangeType(newTyp: OrderedRVDType): OrderedRVD =
+    OrderedRVD(newTyp, partitioner, rdd)
+
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
@@ -355,12 +373,12 @@ class OrderedRVD(
     partitionCounts
   }
 
-  def zipPartitions(that: OrderedRVD)
+  def zipPartitions(that: RVD)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
     zipPartitions(that, true)(zipper)
 
-  def zipPartitions(that: OrderedRVD, preservesPartitioning: Boolean)
+  def zipPartitions(that: RVD, preservesPartitioning: Boolean)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
     zipPartitions(that.rdd, preservesPartitioning)(zipper)

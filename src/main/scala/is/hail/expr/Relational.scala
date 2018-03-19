@@ -250,7 +250,7 @@ case class MatrixRead(
             }
           }
         } else {
-          val entriesRVD = spec.entriesComponent.read(hc, path).asInstanceOf[OrderedRVD]
+          val entriesRVD = spec.entriesComponent.read(hc, path)
           val entriesRowType = entriesRVD.rowType
           // FIXME: DK added this assert when refactoring, but should this just
           // always be true? Is this assert necessary?
