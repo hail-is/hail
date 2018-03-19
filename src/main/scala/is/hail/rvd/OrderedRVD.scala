@@ -19,8 +19,11 @@ import scala.reflect.ClassTag
 class OrderedRVD private(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
-  val rdd: RDD[RegionValue]) extends RVD with Serializable {
+  val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD with Serializable {
   self =>
+
+  val rdd = crdd.run
+
   def rowType: TStruct = typ.rowType
 
   // should be totally generic, permitting any number of keys, but that requires more work
