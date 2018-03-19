@@ -171,17 +171,28 @@ object FilterAlleles {
 
     val newRDD2: OrderedRVD =
       if (leftAligned) {
-        OrderedRVD(newMatrixType.orvdType,
-          vsm.rvd.partitioner,
-          filter(vsm.rvd, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
+        filter(
+          vsm.rvd,
+          removeLeftAligned = false,
+          removeMoving = false,
+          verifyLeftAligned = true)
+          .assertOrdered(newMatrixType.orvdType, vsm.rvd.partitioner)
       } else {
-        val leftAlignedVariants = OrderedRVD(newMatrixType.orvdType,
-          vsm.rvd.partitioner,
-          filter(vsm.rvd, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
+        val leftAlignedVariants =
+          filter(
+            vsm.rvd,
+            removeLeftAligned = false,
+            removeMoving = true,
+            verifyLeftAligned = false)
+            .assertOrdered(newMatrixType.orvdType, vsm.rvd.partitioner)
 
-        val movingVariants = OrderedRVD.shuffle(newMatrixType.orvdType,
-          vsm.rvd.partitioner,
-          filter(vsm.rvd, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
+        val movingVariants =
+          filter(
+            vsm.rvd,
+            removeLeftAligned = true,
+            removeMoving = false,
+            verifyLeftAligned = false)
+            .assertOrdered(newMatrixType.orvdType, vsm.rvd.partitioner)
 
         leftAlignedVariants.partitionSortedUnion(movingVariants)
       }

@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.expr.types.{TArray, TInterval, TStruct, TStructSerializer}
+import is.hail.sparkextras._
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
@@ -204,4 +205,26 @@ trait RVD {
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
   def write(path: String, codecSpec: CodecSpec): Array[Long]
+
+  def shuffle(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner): OrderedRVD = {
+    assert(typ.rowType == rowType)
+    OrderedRVD.shuffle(typ, partitioner, rdd)
+  }
+
+  def assertOrdered(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner): OrderedRVD = {
+    assert(typ.rowType == rowType)
+    OrderedRVD(typ, partitioner, rdd)
+  }
+
+  def toUnsafeRows: RDD[Row] = {
+    val localRowType = rowType
+    rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
+  }
+
+  def coerceOrdered(
+    typ: OrderedRVDType,
+    // fastKeys: Option[RDD[RegionValue[kType]]]
+    fastKeys: Option[RDD[RegionValue]] = None,
+    hintPartitioner: Option[OrderedRVDPartitioner] = None
+  ): OrderedRVD = OrderedRVD.coerce(typ, rdd, fastKeys, hintPartitioner)
 }

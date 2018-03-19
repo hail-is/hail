@@ -367,26 +367,40 @@ class OrderedRVD private(
     spec.write(sparkContext.hadoopConfiguration, path)
     partitionCounts
   }
+
+  def zipPartitions(that: OrderedRVD)
+    (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
+      : OrderedRVD =
+    zipPartitions(that, true)(zipper)
+
+  def zipPartitions(that: OrderedRVD, preservesPartitioning: Boolean)
+    (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
+      : OrderedRVD =
+    zipPartitions(that.rdd, preservesPartitioning)(zipper)
+
+  def zipPartitions[T: ClassTag](that: RDD[T])
+    (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
+      : OrderedRVD =
+    zipPartitions(that, true)(zipper)
+
+  def zipPartitions[T: ClassTag](that: RDD[T], preservesPartitioning: Boolean)
+    (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
+      : OrderedRVD =
+    OrderedRVD(
+      typ,
+      partitioner,
+      this.rdd.zipPartitions(that, preservesPartitioning)(zipper))
+
+  def writeRowsSplit(path: String, t: MatrixType, codecSpec: CodecSpec)
+      : Array[Long] =
+    rdd.writeRowsSplit(path, t, codecSpec, partitioner)
 }
 
 object OrderedRVD {
-  type CoercionMethod = Int
-
-  final val ORDERED_PARTITIONER: CoercionMethod = 0
-  final val AS_IS: CoercionMethod = 1
-  final val LOCAL_SORT: CoercionMethod = 2
-  final val SHUFFLE: CoercionMethod = 3
-
   def empty(sc: SparkContext, typ: OrderedRVDType): OrderedRVD = {
     OrderedRVD(typ,
       OrderedRVDPartitioner.empty(typ),
       sc.emptyRDD[RegionValue])
-  }
-
-  def apply(typ: OrderedRVDType,
-    rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedRVDPartitioner]): OrderedRVD = {
-    val (_, orderedRDD) = coerce(typ, rdd, fastKeys, hintPartitioner)
-    orderedRDD
   }
 
   /**
@@ -456,71 +470,6 @@ object OrderedRVD {
     pkis.sortBy(_.min)(typ.pkOrd)
   }
 
-  def coerce(typ: OrderedRVDType,
-    // rdd: RDD[RegionValue[rowType]]
-    rdd: RDD[RegionValue],
-    // fastKeys: Option[RDD[RegionValue[kType]]]
-    fastKeys: Option[RDD[RegionValue]] = None,
-    hintPartitioner: Option[OrderedRVDPartitioner] = None): (CoercionMethod, OrderedRVD) = {
-    val sc = rdd.sparkContext
-
-    if (rdd.partitions.isEmpty)
-      return (ORDERED_PARTITIONER, empty(sc, typ))
-
-    // keys: RDD[RegionValue[kType]]
-    val keys = fastKeys.getOrElse(getKeys(typ, rdd))
-
-    val pkis = getPartitionKeyInfo(typ, keys)
-
-    if (pkis.isEmpty)
-      return (AS_IS, empty(sc, typ))
-
-    val partitionsSorted = (pkis, pkis.tail).zipped.forall { case (p, pnext) =>
-      val r = typ.pkOrd.lteq(p.max, pnext.min)
-      if (!r)
-        log.info(s"not sorted: p = $p, pnext = $pnext")
-      r
-    }
-
-    val sortedness = pkis.map(_.sortedness).min
-    if (partitionsSorted && sortedness >= OrderedRVPartitionInfo.TSORTED) {
-      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, pkis, sortedness)
-
-      val partitioner = new OrderedRVDPartitioner(typ.partitionKey,
-        typ.kType,
-        rangeBounds)
-
-      val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
-      val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
-      (adjSortedness: @unchecked) match {
-        case OrderedRVPartitionInfo.KSORTED =>
-          info("Coerced sorted dataset")
-          (AS_IS, OrderedRVD(typ,
-            partitioner,
-            adjustedRDD))
-
-        case OrderedRVPartitionInfo.TSORTED =>
-          info("Coerced almost-sorted dataset")
-          (LOCAL_SORT, OrderedRVD(typ,
-            partitioner,
-            adjustedRDD.mapPartitions { it =>
-              localKeySort(typ, it)
-            }))
-      }
-    } else {
-      info("Ordering unsorted dataset with network shuffle")
-      val orvd = hintPartitioner
-        .filter(_.numPartitions >= rdd.partitions.length)
-        .map(adjustBoundsAndShuffle(typ, _, rdd))
-        .getOrElse {
-          val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
-          val p = new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges)
-          shuffle(typ, p, rdd)
-        }
-      (SHUFFLE, orvd)
-    }
-  }
-
   def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
     assert(nPartitions > 0)
 
@@ -587,6 +536,79 @@ object OrderedRVD {
     shuffle(typ, newPartitioner, rdd)
   }
 
+  // FIXME: delete eventually, only here to keep changes small for this PR
+  def apply(typ: OrderedRVDType,
+    // rdd: RDD[RegionValue[rowType]]
+    rdd: RDD[RegionValue],
+    // fastKeys: Option[RDD[RegionValue[kType]]]
+    fastKeys: Option[RDD[RegionValue]] = None,
+    hintPartitioner: Option[OrderedRVDPartitioner] = None): OrderedRVD =
+    coerce(typ, rdd, fastKeys, hintPartitioner)
+
+  def coerce(typ: OrderedRVDType,
+    // rdd: RDD[RegionValue[rowType]]
+    rdd: RDD[RegionValue],
+    // fastKeys: Option[RDD[RegionValue[kType]]]
+    fastKeys: Option[RDD[RegionValue]] = None,
+    hintPartitioner: Option[OrderedRVDPartitioner] = None): OrderedRVD = {
+    val sc = rdd.sparkContext
+
+    if (rdd.partitions.isEmpty)
+      return empty(sc, typ)
+
+    // keys: RDD[RegionValue[kType]]
+    val keys = fastKeys.getOrElse(getKeys(typ, rdd))
+
+    val pkis = getPartitionKeyInfo(typ, keys)
+
+    if (pkis.isEmpty)
+      return empty(sc, typ)
+
+    val partitionsSorted = (pkis, pkis.tail).zipped.forall { case (p, pnext) =>
+      val r = typ.pkOrd.lteq(p.max, pnext.min)
+      if (!r)
+        log.info(s"not sorted: p = $p, pnext = $pnext")
+      r
+    }
+
+    val sortedness = pkis.map(_.sortedness).min
+    if (partitionsSorted && sortedness >= OrderedRVPartitionInfo.TSORTED) {
+      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, pkis, sortedness)
+
+      val partitioner = new OrderedRVDPartitioner(typ.partitionKey,
+        typ.kType,
+        rangeBounds)
+
+      val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
+      val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
+        (adjSortedness: @unchecked) match {
+        case OrderedRVPartitionInfo.KSORTED =>
+          info("Coerced sorted dataset")
+          OrderedRVD(typ,
+            partitioner,
+            adjustedRDD)
+
+        case OrderedRVPartitionInfo.TSORTED =>
+          info("Coerced almost-sorted dataset")
+          OrderedRVD(typ,
+            partitioner,
+            adjustedRDD.mapPartitions { it =>
+              localKeySort(typ, it)
+            })
+      }
+    } else {
+      info("Ordering unsorted dataset with network shuffle")
+      hintPartitioner
+        .filter(_.numPartitions >= rdd.partitions.length)
+        .map(adjustBoundsAndShuffle(typ, _, rdd))
+        .getOrElse {
+        val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
+        val p = new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges)
+        shuffle(typ, p, rdd)
+      }
+    }
+  }
+
   def shuffle(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): OrderedRVD = {
@@ -611,9 +633,6 @@ object OrderedRVD {
           }
         })
   }
-
-  def shuffle(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner, rvd: RVD): OrderedRVD =
-    shuffle(typ, partitioner, rvd.rdd)
 
   def rangesAndAdjustments(typ: OrderedRVDType,
     sortedKeyInfo: Array[OrderedRVPartitionInfo],
@@ -720,8 +739,14 @@ object OrderedRVD {
     })
   }
 
-  def apply(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner, rvd: RVD): OrderedRVD = {
-    assert(typ.rowType == rvd.rowType)
-    apply(typ, partitioner, rvd.rdd)
+  def union(rvds: Array[OrderedRVD]): OrderedRVD = {
+    require(rvds.length > 1)
+    val first = rvds(0)
+    val sc = first.sparkContext
+    OrderedRVD(
+      first.typ,
+      sc.union(rvds.map(_.rdd)),
+      None,
+      None)
   }
 }
