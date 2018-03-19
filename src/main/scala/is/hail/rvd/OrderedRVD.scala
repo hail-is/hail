@@ -19,8 +19,11 @@ import scala.reflect.ClassTag
 class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
-  val rdd: RDD[RegionValue]) extends RVD {
+  val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
+
+  val rdd = crdd.run
+
   def rowType: TStruct = typ.rowType
 
   def updateType(newTyp: OrderedRVDType): OrderedRVD =
