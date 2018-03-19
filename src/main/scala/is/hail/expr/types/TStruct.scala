@@ -435,7 +435,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       if (a == null)
         a
       else if (newSize == 0)
-        null
+        Annotation.empty
       else {
         val r = a.asInstanceOf[Row]
         val newValues = included.zipWithIndex

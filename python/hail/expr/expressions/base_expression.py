@@ -125,31 +125,30 @@ def _to_expr(e, dtype):
         return e
     elif isinstance(dtype, tstruct):
         new_fields = []
-        any_expr = False
+        found_expr = False
         for f, t in dtype.items():
             value = _to_expr(e[f], t)
-            any_expr = any_expr or isinstance(value, Expression)
+            found_expr = found_expr or isinstance(value, Expression)
             new_fields.append(value)
 
-        if not any_expr:
+        if not found_expr:
             return e
         else:
             exprs = [new_fields[i] if isinstance(new_fields[i], Expression)
                      else hl.literal(new_fields[i], dtype[i])
                      for i in range(len(new_fields))]
-            indices, aggregations, joins = unify_all(*exprs)
-            return expressions.construct_expr(StructDeclaration(list(dtype),
-                                                                [expr._ast for expr in exprs]),
-                                              dtype, indices, aggregations, joins)
+            fields = {name: expr for name, expr in zip(dtype.keys(), exprs)}
+            from .typed_expressions import StructExpression
+            return StructExpression._from_fields(fields)
 
     elif isinstance(dtype, tarray):
         elements = []
-        any_expr = False
+        found_expr = False
         for element in e:
             value = _to_expr(element, dtype.element_type)
-            any_expr = any_expr or isinstance(value, Expression)
+            found_expr = found_expr or isinstance(value, Expression)
             elements.append(value)
-        if not any_expr:
+        if not found_expr:
             return e
         else:
             assert (len(elements) > 0)
@@ -161,12 +160,12 @@ def _to_expr(e, dtype):
                                           dtype, indices, aggregations, joins)
     elif isinstance(dtype, tset):
         elements = []
-        any_expr = False
+        found_expr = False
         for element in e:
             value = _to_expr(element, dtype.element_type)
-            any_expr = any_expr or isinstance(value, Expression)
+            found_expr = found_expr or isinstance(value, Expression)
             elements.append(value)
-        if not any_expr:
+        if not found_expr:
             return e
         else:
             assert (len(elements) > 0)
@@ -178,13 +177,13 @@ def _to_expr(e, dtype):
                                                      tarray(dtype.element_type), indices, aggregations, joins))
     elif isinstance(dtype, ttuple):
         elements = []
-        any_expr = False
+        found_expr = False
         assert len(e) == len(dtype.types)
         for i in range(len(e)):
             value = _to_expr(e[i], dtype.types[i])
-            any_expr = any_expr or isinstance(value, Expression)
+            found_expr = found_expr or isinstance(value, Expression)
             elements.append(value)
-        if not any_expr:
+        if not found_expr:
             return e
         else:
             exprs = [elements[i] if isinstance(elements[i], Expression)
@@ -196,15 +195,15 @@ def _to_expr(e, dtype):
     elif isinstance(dtype, tdict):
         keys = []
         values = []
-        any_expr = False
+        found_expr = False
         for k, v in e.items():
             k_ = _to_expr(k, dtype.key_type)
             v_ = _to_expr(v, dtype.value_type)
-            any_expr = any_expr or isinstance(k_, Expression)
-            any_expr = any_expr or isinstance(v_, Expression)
+            found_expr = found_expr or isinstance(k_, Expression)
+            found_expr = found_expr or isinstance(v_, Expression)
             keys.append(k_)
             values.append(v_)
-        if not any_expr:
+        if not found_expr:
             return e
         else:
             assert len(keys) > 0
@@ -218,7 +217,8 @@ def _to_expr(e, dtype):
         raise NotImplementedError(dtype)
 
 def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
-    assert len(exprs) > 0
+    if len(exprs) == 0:
+        return Indices(), LinkedList(Join), LinkedList(Aggregation)
     try:
         new_indices = Indices.unify(*[e._indices for e in exprs])
     except ExpressionException:

@@ -17,6 +17,7 @@ __all__ = [
     'is_container',
     'is_numeric',
     'is_primitive',
+    'types_match',
     'tint',
     'tint32',
     'tint64',
@@ -1157,6 +1158,12 @@ def is_container(t):
             or isinstance(t, tdict)
             or isinstance(t, ttuple)
             or isinstance(t, tstruct))
+
+
+def types_match(left, right):
+    return (len(left) == len(right)
+            and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
 
 import pprint
 
