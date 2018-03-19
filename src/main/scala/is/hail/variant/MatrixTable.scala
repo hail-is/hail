@@ -2951,7 +2951,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "va" -> (1, rowType),
       "sa" -> (2, colType),
       "g" -> (3, entryType)))
-    val f = RegressionUtils.parseExprAsDouble(expr, ec)
+    val f = RegressionUtils.parseFloat64Expr(expr, ec)
     val globalsBc = globals.broadcast
 
     val indexedRows = rvd.mapPartitionsWithIndex { case (i, it) =>

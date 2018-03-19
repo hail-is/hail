@@ -110,7 +110,7 @@ class SkatSuite extends SparkSuite {
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
+      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64",
         completeSampleIndex, keyExpr, weightExpr)
 
     runInR(keyGsWeightRdd, keyType, y, cov)
@@ -120,7 +120,7 @@ class SkatSuite extends SparkSuite {
   // 5 genes with sizes 24, 13, 66, 27, and 51
   lazy val vdsSkat: MatrixTable = {
     val covSkat = hc.importTable("src/test/resources/skat.cov",
-      impute = true).keyBy("Sample")
+      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
 
     val phenoSkat = hc.importTable("src/test/resources/skat.pheno",
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
@@ -139,7 +139,8 @@ class SkatSuite extends SparkSuite {
       .annotateRowsExpr("gene = va.gene.target, weight = va.weight.weight")
       .annotateColsTable(covSkat, root = "cov")
       .annotateColsTable(phenoSkat, root = "pheno")
-      .annotateColsExpr("pheno = if (sa.pheno.Pheno == 1.0) false else if (sa.pheno.Pheno == 2.0) true else NA: Boolean")
+      .annotateColsExpr(
+        "pheno = (if (sa.pheno.Pheno == 1.0) false else if (sa.pheno.Pheno == 2.0) true else NA: Boolean).toFloat64")
   }
 
   // A larger deterministic example using the Balding-Nichols model (only hardcalls)
@@ -159,12 +160,12 @@ class SkatSuite extends SparkSuite {
 
     val G: DenseMatrix[Double] = TestUtils.vdsToMatrixDouble(vdsBN0)
     val pi: DenseVector[Double] = sigmoid(sum(G(*, ::)) - nVariants.toDouble)
-    val phenoArray: Array[Boolean] = pi.toArray.map(_ > rand.nextDouble())
+    val phenoArray: Array[Double] = pi.toArray.map(x => if (x > rand.nextDouble()) 1.0 else 0.0)
 
     vdsBN0
       .annotateSamplesF(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
-      .annotateSamplesF(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
+      .annotateSamplesF(TFloat64(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateRowsExpr("gene = va.locus.position % 3") // three genes
       .annotateRowsExpr("AF = AGG.map(g => g.GT).callStats(GT => va.alleles).AF")
       .annotateRowsExpr("weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
@@ -179,7 +180,7 @@ class SkatSuite extends SparkSuite {
     val vds = if (useBN) vdsBN else vdsSkat
 
     val hailKT = vds.skat("va.gene", "va.weight", "sa.pheno",
-      if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
+      if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic)
 
     hailKT.typeCheck()
@@ -226,7 +227,8 @@ class SkatSuite extends SparkSuite {
   @Test def maxSizeTest() {
     val maxSize = 27
 
-    val kt = vdsSkat.skat("va.gene", y = "sa.pheno", x = "g.GT.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
+    val kt = vdsSkat.skat("va.gene", y = "sa.pheno", x = "g.GT.nNonRefAlleles().toFloat64",
+      weightExpr = "1.0", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
@@ -271,19 +273,20 @@ class SkatSuite extends SparkSuite {
     val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")
     val vds = vds0
       .annotateRowsTable(kt, "key", product = true)
-      .annotateRowsExpr("key = va.key.map(x => x.target).toSet(), weight = va.locus.position")
+      .annotateRowsExpr("key = va.key.map(x => x.target).toSet(), weight = va.locus.position.toFloat64")
       .explodeRows("va.key")
       .annotateRowsExpr("key = va.key.toInt32()")
     
     // annotations from expr
     val vds2 = vds0
-      .annotateRowsExpr("key = [9, va.locus.position % 2, va.locus.position // 2 + 1].toSet(), weight = va.locus.position") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
+      .annotateRowsExpr( // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
+        "key = [9, va.locus.position % 2, va.locus.position // 2 + 1].toSet(), weight = va.locus.position.toFloat64")
       .explodeRows("va.key") // 0 -> {v2}, 1 -> {v1, v3}, 2 -> {v2, v3}, 9 -> {v1, v2, v3}
     
     // table/explode and annotate/explode give same keys
     assert(vds.same(vds2))
     
-    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles()",
+    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles().toFloat64",
       completeSampleIndex = Array(1, 3), keyExpr = "va.key", weightExpr = "va.weight")
     
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => key.asInstanceOf[Int] -> it.toSet }.toMap

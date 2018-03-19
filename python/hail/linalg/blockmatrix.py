@@ -3,7 +3,7 @@ from hail.utils.java import Env, jarray, joption, FatalError
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.expr.expressions import expr_numeric
+from hail.expr.expressions import expr_float64
 import numpy as np
 
 block_matrix_type = lazy()
@@ -171,15 +171,15 @@ class BlockMatrix(object):
         return cls.fromfile(uri, n_rows, n_cols, block_size)
 
     @classmethod
-    @typecheck_method(entry_expr=expr_numeric,
+    @typecheck_method(entry_expr=expr_float64,
                       block_size=nullable(int))
     def from_entry_expr(cls, entry_expr, block_size=None):
-        """Create a block matrix using a numeric matrix table entry expression.
+        """Create a block matrix using a matrix table entry expression.
 
         Parameters
         ----------
-        entry_expr: :class:`.NumericExpression`
-            Numeric entry expression for matrix entries.
+        entry_expr: :class:`.Float64Expression`
+            Entry expression for numeric matrix entries.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
@@ -294,11 +294,11 @@ class BlockMatrix(object):
         self._jbm.write(path, force_row_major, joption(None))
 
     @staticmethod
-    @typecheck(entry_expr=expr_numeric,
+    @typecheck(entry_expr=expr_float64,
                path=str,
                block_size=nullable(int))
     def write_from_entry_expr(entry_expr, path, block_size=None):
-        """Writes a block matrix from a numeric matrix table entry expression.
+        """Writes a block matrix from a matrix table entry expression.
 
         Notes
         -----
@@ -306,8 +306,8 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        entry_expr: :class:`.NumericExpression`
-            Numeric entry expression for matrix entries.
+        entry_expr: :class:`.Float64Expression`
+            Entry expression for numeric matrix entries.
         path: :obj:`str`
             Path for output.
         block_size: :obj:`int`, optional

@@ -345,7 +345,7 @@ object IBD {
 
     val mafSymbolTable = Map("va" -> (0, vds.rowType))
     val mafEc = EvalContext(mafSymbolTable)
-    val computeMafThunk = RegressionUtils.parseExprAsDouble(computeMafExpr, mafEc)
+    val computeMafThunk = RegressionUtils.parseFloat64Expr(computeMafExpr, mafEc)
     val rowType = vds.rvRowType
 
     val rowKeysF = vds.rowKeysF

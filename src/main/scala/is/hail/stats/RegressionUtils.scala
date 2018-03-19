@@ -113,29 +113,15 @@ object RegressionUtils {
       None
   }
 
-  def parseExprAsDouble(expr: String, ec: EvalContext): () => java.lang.Double = {
+  def parseFloat64Expr(expr: String, ec: EvalContext): () => java.lang.Double = {
     val (xt, xf0) = Parser.parseExpr(expr, ec)
-
-    def castToDouble[T](f: (T) => Double): () => java.lang.Double = { () =>
-      val a = xf0()
-      if (a == null)
-        null
-      else
-        f(a.asInstanceOf[T])
-    }
-
-    xt match {
-      case _: TInt32 => castToDouble[Int](_.toDouble)
-      case _: TInt64 => castToDouble[Long](_.toDouble)
-      case _: TFloat32 => castToDouble[Float](_.toDouble)
-      case _: TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
-      case _: TBoolean => castToDouble[Boolean](_.toDouble)
-    }
+    assert(xt.isOfType(TFloat64()))
+    () => xf0().asInstanceOf[java.lang.Double]
   }
 
   // IndexedSeq indexed by samples, Array by annotations
   def getSampleAnnotations(vds: MatrixTable, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
-    val aQs = annots.map(parseExprAsDouble(_, ec))
+    val aQs = annots.map(parseFloat64Expr(_, ec))
 
     vds.colValues.map { sa =>
       ec.set(0, sa)

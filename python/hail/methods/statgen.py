@@ -18,12 +18,12 @@ from hail.utils.misc import check_collisions
 
 
 @typecheck(dataset=MatrixTable,
-           maf=nullable(expr_numeric),
+           maf=nullable(expr_float64),
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
 def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
-    """Compute matrix of identity-by-descent estimations.
+    """Compute matrix of identity-by-descent estimates.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -72,9 +72,9 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        A variant-keyed :class:`.MatrixTable` containing genotype information.
-    maf : :class:`.Expression` of type :py:data:`.tfloat64`, optional
-        (optional) expression on `dataset` for the minor allele frequency.
+        Variant-keyed :class:`.MatrixTable` containing genotype information.
+    maf : :class:`.Float64Expression`, optional
+        Row-indexed expression for the minor allele frequency.
     bounded : :obj:`bool`
         Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
         on biologically meaningful values (in the range [0,1]).
@@ -296,11 +296,11 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
     Parameters
     ----------
-    y : :class:`.NumericExpression` or :class:`.BooleanExpression` or (:obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`))
+    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
         One or more column-indexed response expressions.
-    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+    x : :class:`.Float64Expression`
         Row- and column-indexed expression for input variable.
-    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+    covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     root : :obj:`str`
         Name of resulting row-indexed field.
@@ -532,11 +532,14 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
-        Column-indexed response expression. If numeric, must evaluate to 0 or 1.
-    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+    y : :class:`.Float64Expression`
+        Column-indexed response expression.
+        All non-missing values must evaluate to 0 or 1.
+        Note that a :class:`.BooleanExpression` will be implicitly converted to
+        a :class:`.Float64Expression` with this property.
+    x : :class:`.Float64Expression`
         Row- and column-indexed expression for input variable.
-    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+    covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
@@ -1016,11 +1019,11 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     ----------
     kinship_matrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
-    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
+    y : :class:`.Float64Expression`
         Column-indexed response expression.
-    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+    x : :class:`.Float64Expression`
         Row- and column-indexed expression for input variable.
-    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+    covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     global_root : :obj:`str`
         Global field root.
@@ -1216,13 +1219,13 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     ----------
     key_expr : :class:`.Expression`
         Row-indexed expression for key associated to each row.
-    weight_expr : :class:`.NumericExpression`
-        Row-indexed expression of numeric type for row weights.
-    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
+    weight_expr : :class:`.Float64Expression`
+        Row-indexed expression for row weights.
+    y : :class:`.Float64Expression`
         Column-indexed response expression.
-    x : :class:`.NumericExpression` or :class:`.BooleanExpression`
+    x : :class:`.Float64Expression`
         Row- and column-indexed expression for input variable.
-    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+    covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     logistic : :obj:`bool`
         If true, use the logistic test rather than the linear test.
@@ -1351,7 +1354,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
         lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
                                 (dataset.GT.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                0))
+                                0.0))
     result = pca(entry_expr,
                  k,
                  compute_loadings,
@@ -1360,7 +1363,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     return result
 
 
-@typecheck(entry_expr=expr_numeric,
+@typecheck(entry_expr=expr_float64,
            k=int,
            compute_loadings=bool,
            as_array=bool)
