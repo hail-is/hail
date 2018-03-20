@@ -156,7 +156,7 @@ object Infer {
       case x@GetField(o, name, _) =>
         infer(o)
         val t = coerce[TStruct](o.typ)
-        assert(t.index(name).nonEmpty)
+        assert(t.index(name).nonEmpty, s"$name not in $t")
         x.typ = -t.field(name).typ
       case GetFieldMissingness(o, name) =>
         infer(o)
