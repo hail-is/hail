@@ -1033,7 +1033,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
     }
 
-    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length).toArray).newOrderedJoinDistinct(
+    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length).toArray).orderedJoinDistinct(
       right.keyBy(),
       "left",
       joiner,
@@ -1769,7 +1769,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = matrixType.entryArrayType
     assert(right.matrixType.entryArrayType == localEntriesType)
 
-    val joined = rvd.orderedJoinDistinct(right.rvd, "inner").mapPartitions({ it =>
+    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -1813,13 +1813,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2.set(lrv.region, rvb.end())
         rv2
       }
-    }, preservesPartitioning = true)
+    }
 
     val newMatrixType = matrixType.copyParts() // move entries to the end
 
     copyMT(matrixType = newMatrixType,
       colValues = colValues ++ right.colValues,
-      rvd = OrderedRVD(rvd.typ, rvd.partitioner, joined))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
   }
 
   def makeKT(rowExpr: String, entryExpr: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {

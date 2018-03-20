@@ -121,8 +121,13 @@ class OrderedRVD(
   ): OrderedRVD =
     keyBy().orderedJoin(right.keyBy(), joinType, joiner, joinedType)
 
-  def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] =
-    keyBy().orderedJoinDistinct(right.keyBy(), joinType)
+  def orderedJoinDistinct(
+    right: OrderedRVD,
+    joinType: String,
+    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joinedType: OrderedRVDType
+  ): OrderedRVD =
+    keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
 
   def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] =
     keyBy().orderedZipJoin(right.keyBy())

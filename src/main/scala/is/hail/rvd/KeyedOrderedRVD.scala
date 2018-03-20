@@ -52,7 +52,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) extends Seria
     new OrderedRVD(joinedType, newPartitioner, joinedRDD)
   }
 
-  def newOrderedJoinDistinct(
+  def orderedJoinDistinct(
     right: KeyedOrderedRVD,
     joinType: String,
     joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
@@ -79,22 +79,6 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) extends Seria
     }
 
     new OrderedRVD(joinedType, newPartitioner, joinedRDD)
-  }
-
-  def orderedJoinDistinct(right: KeyedOrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
-    checkJoinCompatability(right)
-    val rekeyedLTyp = new OrderedRVDType(typ.partitionKey, key, typ.rowType)
-    val rekeyedRTyp = new OrderedRVDType(right.typ.partitionKey, right.key, right.typ.rowType)
-
-    val repartitionedRight = right.rvd.constrainToOrderedPartitioner(right.typ, this.rvd.partitioner)
-    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
-      (joinType: @unchecked) match {
-        case "inner" => _.innerJoinDistinct(_)
-        case "left" => _.leftJoinDistinct(_)
-      }
-    this.rvd.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
-      compute(OrderedRVIterator(rekeyedLTyp, leftIt), OrderedRVIterator(rekeyedRTyp, rightIt))
-    }
   }
 
   def orderedZipJoin(right: KeyedOrderedRVD): RDD[JoinedRegionValue] = {
