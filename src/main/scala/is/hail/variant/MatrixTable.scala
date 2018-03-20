@@ -1338,6 +1338,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def selectEntries(expr: String): MatrixTable = {
+    println(expr)
     val ec = entryEC
 
     val entryAST = Parser.parseToAST(expr, ec)
@@ -1376,52 +1377,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           rvb.endArray()
         })
     }
-  }
-
-
-  def dropEntries(fields: java.util.ArrayList[String]): MatrixTable = dropEntries(fields.asScala.toArray: _*)
-
-  def dropEntries(fields: String*): MatrixTable = {
-    if (fields.isEmpty)
-      return this
-    assert(fields.areDistinct())
-    val dropSet = fields.toSet
-    val allEntryFields = entryType.fieldNames.toSet
-    assert(fields.forall(allEntryFields.contains))
-
-    val keepIndices = entryType.fields
-      .filter(f => !dropSet.contains(f.name))
-      .map(f => f.index)
-      .toArray
-    val newEntryType = TStruct(keepIndices.map(entryType.fields(_)).map(f => f.name -> f.typ): _*)
-
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    val localEntryType = entryType
-    val localNCols = numCols
-    // FIXME: replace with physical type
-    insertEntries(noOp)(newEntryType, { case (_, rv, rvb) =>
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-      rvb.startArray(localNCols)
-      var i = 0
-      while (i < localNCols) {
-        if (localEntriesType.isElementMissing(rv.region, entriesOffset, i))
-          rvb.setMissing()
-        else {
-          val eltOffset = localEntriesType.loadElement(rv.region, entriesOffset, localNCols, i)
-          rvb.startStruct()
-          var j = 0
-          while (j < keepIndices.length) {
-            rvb.addField(localEntryType, rv.region, eltOffset, keepIndices(j))
-            j += 1
-          }
-          rvb.endStruct()
-        }
-        i += 1
-      }
-      rvb.endArray()
-    })
   }
 
   def nPartitions: Int = rvd.partitions.length
@@ -1552,73 +1507,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def localizeEntries(entriesFieldName: String): Table = {
     val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
     new Table(hc, TableLiteral(TableValue(TableType(rvRowType.rename(m), rowKey, globalType), globals, rvd)))
-  }
-
-  def annotateEntriesExpr(expr: String): MatrixTable = {
-    val symTab = Map(
-      "va" -> (0, rowType),
-      "sa" -> (1, colType),
-      "g" -> (2, entryType),
-      "global" -> (3, globalType))
-    val ec = EvalContext(symTab)
-
-    val globalsBc = globals.broadcast
-
-    val asts = Parser.parseAnnotationExprsToAST(expr, ec, Some(Annotation.ENTRY_HEAD))
-
-    val irs = asts.flatMap { case (f, a) => a.toIR().map((f, _)) }
-
-    val colValuesIsSmall = colType.size == 1 && colType.types.head.isOfType(TString())
-    if (irs.length == asts.length && colValuesIsSmall) {
-      val newEntries = ir.InsertFields(ir.Ref("g"), irs)
-
-      new MatrixTable(hc, MapEntries(ast, newEntries))
-    } else {
-
-      val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.ENTRY_HEAD))
-
-      val inserterBuilder = new ArrayBuilder[Inserter]()
-      val newEntryType = (paths, types).zipped.foldLeft(entryType) { case (gsig, (ids, signature)) =>
-        val (s, i) = gsig.structInsert(signature, ids)
-        inserterBuilder += i
-        s
-      }
-      val inserters = inserterBuilder.result()
-
-      val localNSamples = numCols
-      val fullRowType = rvRowType
-      val localColValuesBc = colValuesBc
-      val localEntriesIndex = entriesIndex
-
-      insertEntries(() => {
-        val fullRow = new UnsafeRow(fullRowType)
-        val row = fullRow.deleteField(localEntriesIndex)
-        (fullRow, row)
-      })(newEntryType, { case ((fullRow, row), rv, rvb) =>
-        fullRow.set(rv)
-        val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-
-        rvb.startArray(localNSamples)
-
-        var i = 0
-        while (i < localNSamples) {
-          val entry = entries(i)
-          ec.setAll(row,
-            localColValuesBc.value(i),
-            entry,
-            globalsBc.value)
-
-          val newEntry = f().zip(inserters)
-            .foldLeft(entry) { case (ga, (a, inserter)) =>
-              inserter(ga, a)
-            }
-          rvb.addAnnotation(newEntryType, newEntry)
-
-          i += 1
-        }
-        rvb.endArray()
-      })
-    }
   }
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
