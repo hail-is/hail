@@ -56,13 +56,6 @@ class OrderedRVD(
       partitioner,
       rdd.mapPartitions(f))
 
-  def zipPartitionsPreservesPartitioning[T](newTyp: OrderedRVDType, rdd2: RDD[T])(f: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])(implicit tct: ClassTag[T]): OrderedRVD =
-    OrderedRVD(newTyp,
-      partitioner,
-      rdd.zipPartitions(rdd2) { case (it, it2) =>
-        f(it, it2)
-      })
-
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
