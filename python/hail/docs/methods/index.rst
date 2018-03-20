@@ -23,6 +23,7 @@ Methods
     get_vcf_metadata
     import_bed
     import_bgen
+    index_bgen
     import_fam
     import_gen
     import_locus_intervals
