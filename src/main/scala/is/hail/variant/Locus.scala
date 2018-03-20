@@ -92,6 +92,8 @@ case class Locus(contig: String, position: Int) {
 
   def inYNonPar(rg: RGBase): Boolean = inY(rg) && !inYPar(rg)
 
+  def near(other: Locus, window: Int) = (contig == other.contig && Math.abs(position - other.position) <= window)
+
   private def inX(rg: RGBase): Boolean = rg.inX(contig)
 
   private def inY(rg: RGBase): Boolean = rg.inY(contig)

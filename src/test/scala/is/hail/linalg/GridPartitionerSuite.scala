@@ -106,12 +106,22 @@ class GridPartitionerSuite extends TestNGSuite {
   }
 
   @Test
-  def triangularBlocksTest() {
+  def testUpperDiagonalBlocksExcludeDiagonalWhenDesiredPartitionsDoNotOverlapWithDiagonal() {
+    val gp = GridPartitioner(blockSize = 1, nRows = 6, nCols = 6)
+
+    assert(gp.upperDiagonalBlocks(Array(Array(0, 1), Array(1, 3), Array(2, 5))) sameElements
+      Array(6, 13, 19, 20, 26, 27, 32, 33, 34))
+  }
+
+  @Test
+  def testUpperDiagonalBlocksIncludeDiagonalWhenDesiredPartitionsOverlapWithDiagonal() {
     val gp = GridPartitioner(blockSize = 10, nRows = 40, nCols = 40)
+    val gp2 = GridPartitioner(blockSize = 10, nRows = 31, nCols = 31)
 
-    val intervals: Array[Array[Long]] = Array(Array(0, 3), Array(4, 9), Array(10, 11),
-      Array(12, 20), Array(23, 30), Array(31, 33), Array(35, 39))
+    assert(gp.upperDiagonalBlocks(Array(Array(0, 3), Array(4, 12), Array(11, 20), Array(35, 39))) sameElements
+      Array(0, 4, 5, 9, 15))
 
-    assert(gp.triangularBlocks(intervals).toSet sameElements Array(0, 5, 9, 10, 14, 15).toSet)
+    assert(gp2.upperDiagonalBlocks(Array(Array(0, 3), Array(4, 12), Array(11, 20), Array(31, 31))) sameElements
+      Array(0, 4, 5, 9))
   }
 }

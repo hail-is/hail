@@ -329,7 +329,7 @@ class BlockMatrixSuite extends SparkSuite {
       1, 2, 3, 4,
       5, 6, 7, 8,
       9, 10, 11, 12))
-    
+
     val m = toBM(lm, blockSize = 2)
 
     assert(m.diagonal().toSeq == Seq(1, 6, 11))
@@ -751,7 +751,7 @@ class BlockMatrixSuite extends SparkSuite {
           bm2.nCols == 10 &&
           bm2.blockSize == blockSize)
       }
-      
+
       bm.write(allFile)
       verifyMetadata(allFile)
 
@@ -787,13 +787,14 @@ class BlockMatrixSuite extends SparkSuite {
     }
   }
 
+
   @Test
-  def testSparsify(): Unit = {
+  def testEntriesTableWhenKeepingOnlySomeBlocks(): Unit = {
     val data = (0 until 50).map(_.toDouble).toArray
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
-    assert(bm.sparsify(Array(0, 1, 6)).entriesTable(hc).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
+    assert(bm.entriesTable(hc, Some(Array(0, 1, 6))).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
       Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
   }
 

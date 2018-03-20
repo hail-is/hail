@@ -48,12 +48,12 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     val firstRow = i * blockSize
     v(firstRow until firstRow + blockRowNRows(i))
   }
-  
+
   def vectorOnBlockCol(v: BDV[Double], j: Int): BDV[Double] = {
     val firstCol = j * blockSize
     v(firstCol until firstCol + blockColNCols(j))
   }
-  
+
   // returns increasing array of all blocks intersecting the diagonal band consisting of
   //   all entries with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth
   def bandedBlocks(lowerBandwidth: Long, upperBandwidth: Long): Array[Int] = {
@@ -91,26 +91,18 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     rects
   }
 
-  // returns array of all blocks intersecting the upper triangles of a square matrix
-  def triangularBlocks(triangles: Array[Array[Long]]): Array[Int] = {
+  // returns increasing array of all blocks above the diagonal which intersect the union of squares
+  def upperDiagonalBlocks(squares: Array[Array[Long]]): Array[Int] = {
     if (nRows != nCols) {
       fatal(s"Expected square block matrix, but found block matrix with $nRows rows and $nCols columns.")
     }
 
-    require(triangles.forall(t => t.length == 2 && t(0) <= t(1)))
-    val tris = triangles.foldLeft(Set[Int]()) { (s, t) =>
-      val lo = blockIndex(t(0))
-      val hi = blockIndex(t(1))
-
-      val upperBlockBandwidth = hi - lo
-
-      s ++ (for {j <- lo to hi
-      i <- ((j - upperBlockBandwidth) max lo) to (j min hi)
-      } yield (j * nBlockRows) + i)
+    require(squares.forall(sq => sq.length==2))
+    val sqs = squares.foldLeft(Set[Int]()) { (s, square) =>
+      s ++ (for {i <- square(0) until square(1)} yield rectangularBlocks(square(0), i, i + 1, i + 1)).flatten
     }.toArray
 
-    scala.util.Sorting.quickSort(tris)
-    tris
+    scala.util.Sorting.quickSort(sqs)
+    sqs
   }
-
 }

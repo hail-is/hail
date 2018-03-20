@@ -2,67 +2,15 @@ package is.hail.methods
 
 import java.util
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.linalg.BlockMatrix
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, UnpartitionedRVD}
-import is.hail.table.Table
 import is.hail.variant._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
-import scala.collection.mutable
-
-object LDPruneSparseEntriesTable {
-  def windows(tbl: Table, window: Int): List[(Long, Long)] = {
-    val expectedSignature = TStruct("index" -> TInt64(), "chromosome" -> TString(), "position" -> TInt32())
-    if (tbl.signature != expectedSignature) {
-      fatal(s"Expected table to have signature $expectedSignature but found ${ tbl.signature }")
-    }
-
-    val q = new mutable.Queue[(Long, String, Int)] // index, chromosome, position
-    var stack = List[(Long, Long)]()
-
-    tbl.rdd.collect().foreach { r =>
-      val (index, chromosome, position) =
-        (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[String], r.get(2).asInstanceOf[Int])
-
-      if (q.isEmpty) {
-        stack = (index, index) :: stack
-        q += ((index, chromosome, position))
-      } else {
-        q += ((index, chromosome, position))
-        var peek = q.front
-        while (chromosome != peek._2 || Math.abs(position - peek._3) > window) {
-          q.dequeue()
-          peek = q.front
-        }
-
-        if (q.size > 1) {
-          // check for overlap with interval in stack
-          val (a, b) = stack.head
-          stack = stack.tail
-          if (peek._1 <= b) {
-            stack = (a, index) :: stack
-          } else {
-            stack = (a, b) :: stack
-            stack = (peek._1, index) :: stack
-          }
-        }
-      }
-    }
-    stack
-  }
-
-  def entriesTable(hc: HailContext, tbl: Table, bm: BlockMatrix, window: Int): Table = {
-    val intervals = windows(tbl, window).map { case (start: Long, end: Long) => Array(start, end) }.toArray
-    val blocksToKeep = bm.partitioner.triangularBlocks(intervals)
-    val sparseBlockMatrix = bm.sparsify(blocksToKeep)
-    sparseBlockMatrix.entriesTable(hc)
-  }
-}
 
 
 object BitPackedVectorView {
@@ -388,8 +336,8 @@ object LDPrune {
     }
 
     val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
-        i == 0 || rangeBounds(i-1).end.asInstanceOf[Row].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[Row].getAs[Locus](0).contig
-      }
+      i == 0 || rangeBounds(i - 1).end.asInstanceOf[Row].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[Row].getAs[Locus](0).contig
+    }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
 
