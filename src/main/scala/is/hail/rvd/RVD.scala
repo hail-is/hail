@@ -67,7 +67,9 @@ case class UnpartitionedRVDSpec(
   codecSpec: CodecSpec,
   partFiles: Array[String]) extends RVDSpec {
   def read(hc: HailContext, path: String): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, hc.readRows(path, rowType, codecSpec, partFiles))
+    new UnpartitionedRVD(
+      rowType,
+      hc.readRows(path, rowType, codecSpec, partFiles))
 
   def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
     RVDSpec.readLocal(hc, path, rowType, codecSpec, partFiles)
@@ -92,7 +94,7 @@ case class OrderedRVDSpec(
 
 case class PersistedRVRDD(
   persistedRDD: RDD[RegionValue],
-  iterationRDD: RDD[RegionValue])
+  iterationRDD: ContextRDD[RVDContext, RegionValue])
 
 object RVD {
   def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, codecSpec: CodecSpec, rows: IndexedSeq[Annotation]): Array[Long] = {
@@ -121,6 +123,8 @@ trait RVD {
   self =>
   def rowType: TStruct
 
+  def crdd: ContextRDD[RVDContext, RegionValue]
+
   def rdd: RDD[RegionValue]
 
   def sparkContext: SparkContext = rdd.sparkContext
@@ -131,17 +135,19 @@ trait RVD {
 
   def filter(f: (RegionValue) => Boolean): RVD
 
-  def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD = new UnpartitionedRVD(newRowType, rdd.map(f))
+  def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD =
+    new UnpartitionedRVD(newRowType, crdd.map(f))
 
   def mapWithContext[C](newRowType: TStruct)(makeContext: () => C)(f: (C, RegionValue) => RegionValue): UnpartitionedRVD =
-    new UnpartitionedRVD(newRowType, rdd.mapPartitions { it =>
+    new UnpartitionedRVD(newRowType, crdd.mapPartitions { it =>
       val c = makeContext()
       it.map { rv => f(c, rv) }
     })
 
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(f)
 
-  def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD = new UnpartitionedRVD(newRowType, rdd.mapPartitions(f))
+  def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
+    new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
 
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitionsWithIndex(f)
 
@@ -184,7 +190,7 @@ trait RVD {
       .persist(level)
 
     PersistedRVRDD(persistedRDD,
-      persistedRDD
+      ContextRDD.weaken(persistedRDD, RVDContext.default _)
         .mapPartitions { it =>
           val region = Region()
           val rv2 = RegionValue(region)

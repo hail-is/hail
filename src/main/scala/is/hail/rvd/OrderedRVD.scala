@@ -728,37 +728,40 @@ object OrderedRVD {
     val partitionerBc = partitioner.broadcast(sc)
     val localType = typ
 
-    new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
-      val prevK = WritableRegionValue(typ.kType)
-      val prevPK = WritableRegionValue(typ.pkType)
-      val pkUR = new UnsafeRow(typ.pkType)
+    new OrderedRVD(
+      typ,
+      partitioner,
+      ContextRDD.weaken(rdd, RVDContext.default _)
+        .mapPartitionsWithIndex { case (i, it) =>
+          val prevK = WritableRegionValue(typ.kType)
+          val prevPK = WritableRegionValue(typ.pkType)
+          val pkUR = new UnsafeRow(typ.pkType)
 
-      new Iterator[RegionValue] {
-        var first = true
+          new Iterator[RegionValue] {
+            var first = true
 
-        def hasNext: Boolean = it.hasNext
+            def hasNext: Boolean = it.hasNext
 
-        def next(): RegionValue = {
-          val rv = it.next()
+            def next(): RegionValue = {
+              val rv = it.next()
 
-          if (first)
-            first = false
-          else {
-            assert(localType.pkRowOrd.compare(prevPK.value, rv) <= 0 && localType.kRowOrd.compare(prevK.value, rv) <= 0)
+              if (first)
+                first = false
+              else {
+                assert(localType.pkRowOrd.compare(prevPK.value, rv) <= 0 && localType.kRowOrd.compare(prevK.value, rv) <= 0)
+              }
+
+              prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+              prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
+
+              pkUR.set(prevPK.value)
+              assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(localType.pkType.ordering, pkUR))
+
+              assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
+              rv
+            }
           }
-
-          prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-          prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
-
-          pkUR.set(prevPK.value)
-          assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(localType.pkType.ordering, pkUR))
-
-          assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
-
-          rv
-        }
-      }
-    })
+      })
   }
 
   def union(rvds: Array[OrderedRVD]): OrderedRVD = {

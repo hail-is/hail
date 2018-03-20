@@ -23,6 +23,5 @@ case class SimpleRVDContext(region: Region) extends RVDContext {
   val partitionRegion = region
 
   def close {
-    region.close()
   }
 }
