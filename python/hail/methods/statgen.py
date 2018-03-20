@@ -1724,7 +1724,7 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
         kinship and identity-by-descent zero, one, and two.
 
         The fields of the resulting :class:`.Table` entries are of types:
-        `i`: ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`: `Double`, `k2`: `Double`,
+        `i`: ``ds.col_key.dtype``, `j`: ``ds.col_key.dtype``, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
 
     """
@@ -1785,7 +1785,7 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
         kinship and identity-by-descent zero, one, and two.
 
         The fields of the resulting :class:`.Table` entries are of types: `i`:
-        ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`:
+        ``ds.col_key.dtype``, `j`: ``ds.col_key.dtype``, `kin`:
         :py:data:`.tfloat64`, `k2`: :py:data:`tfloat64`, `k1`:
         :py:data:`tfloat64`, `k0`: :py:data:`tfloat64`. The table is keyed by
         `i` and `j`.
