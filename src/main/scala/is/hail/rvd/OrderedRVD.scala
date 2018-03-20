@@ -38,7 +38,7 @@ class OrderedRVD private(
     OrderedRVD(newType, partitioner, rdd)
   }
 
-  def unsafeChangeType(newTyp: OrderedRVDType): OrderedRVD =
+  def updateType(newTyp: OrderedRVDType): OrderedRVD =
     OrderedRVD(newTyp, partitioner, rdd)
 
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
