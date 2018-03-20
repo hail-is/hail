@@ -495,19 +495,19 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
-case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: IndexedSeq[IR]) extends TableIR {
-  val children: IndexedSeq[BaseIR] = Array(child) ++ preds
-
-  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds))
+case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
-    Infer(newIR, None, child.typ.env)
-    child.typ.copy(rowType = newIR.typ.asInstanceOf[TStruct])
+    Infer(newRow, None, child.typ.env)
+    val newRowType = newRow.typ.asInstanceOf[TStruct]
+    val newKey = child.typ.key.filter(newRowType.fieldIdx.contains)
+    child.typ.copy(rowType = newRowType, key = newKey)
   }
 
-  def copy(newChildren: IndexedSeq[BaseIR]): TableAnnotate = {
-    assert(newChildren.length == children.length)
-    TableAnnotate(newChildren(0).asInstanceOf[TableIR], paths, newChildren.tail.asInstanceOf[IndexedSeq[IR]])
+  def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
+    assert(newChildren.length == 2)
+    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -515,7 +515,7 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
     val (rTyp, f) = ir.Compile[Long, Long, Long](
       "row", child.typ.rowType,
       "global", child.typ.globalType,
-      newIR)
+      newRow)
     assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
@@ -537,4 +537,3 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
       })
   }
 }
-

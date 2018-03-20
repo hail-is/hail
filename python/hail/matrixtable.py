@@ -2261,7 +2261,7 @@ class MatrixTable(ExprContainer):
         used_uids = set()
 
         for e in exprs:
-            for j in list(e._joins)[::-1]:
+            for j in sorted(list(e._joins), key = lambda j: j.idx): # Make sure joins happen in order
                 if j.uid not in used_uids:
                     left = j.join_function(left)
                     all_uids.extend(j.temp_vars)
