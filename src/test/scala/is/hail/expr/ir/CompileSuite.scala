@@ -426,13 +426,11 @@ class CompileSuite {
       val aoff = f(region, start, false, stop, false, step, false)
       val expected = Array.range(start, stop, step)
       val actual = new UnsafeIndexedSeq(tRange, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
 
       val expected2 = Array.range(stop, start, -step)
       val aoff2 = f(region, stop, false, start, false, -step, false)
       val actual2 = new UnsafeIndexedSeq(tRange, region, aoff2)
-      assert(expected2.length == actual2.length)
       assert(actual2.sameElements(expected2))
     }
 
@@ -441,7 +439,6 @@ class CompileSuite {
     val expected = Array.tabulate(len)(start + _ * step)
     val aoff = f(region, start, false, stop, false, step, false)
     val actual = new UnsafeIndexedSeq(tRange, region, aoff)
-    assert(expected.length == actual.length)
     assert(actual.sameElements(expected))
   }
 
@@ -460,7 +457,6 @@ class CompileSuite {
       val aoff = f(region, stop, false, cutoff, false)
       val expected = Array.range(0, cutoff)
       val actual = new UnsafeIndexedSeq(t, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
   }
@@ -487,7 +483,6 @@ class CompileSuite {
       val aoff = f(region, off, false, elt, false)
       val expected = base.filter(_ == elt)
       val actual = new UnsafeIndexedSeq(t, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
   }
@@ -523,7 +518,6 @@ class CompileSuite {
     val actual = new UnsafeIndexedSeq(tout, region, aoff)
 
     val expected = IndexedSeq(Row(1, "a"), Row(2, "b"))
-    assert(expected.length == actual.length)
     assert(actual.sameElements(expected))
   }
 
@@ -540,7 +534,6 @@ class CompileSuite {
       val aoff = f(region, stop, false)
       val expected = Array.range(0, stop, 1).flatMap(i => Array.range(0, i, 1))
       val actual = new UnsafeIndexedSeq(tRange, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
   }
@@ -570,7 +563,6 @@ class CompileSuite {
       val actual = new UnsafeIndexedSeq(tRange, region, aoff1)
       val aoff2 = f2(region, stop, false)
       val expected = new UnsafeIndexedSeq(tRange, region, aoff2)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
   }

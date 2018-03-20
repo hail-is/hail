@@ -737,8 +737,13 @@ private class Emit(
             docond,
             xmcond := mcond,
             xmcond.mux(
-              mout := true,
-              Code(xvcond := coerce[Boolean](vcond),
+              Code(
+                mout := true,
+                xvcond := coerce[Boolean](defaultValue(cond.typ))
+              ),
+              Code(
+                mout := false,
+                xvcond := coerce[Boolean](vcond),
                 addCnsq.setup, addAltr.setup)))
           val missing = if (addCnsq.m.isEmpty && addAltr.m.isEmpty)
             mout
