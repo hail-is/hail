@@ -56,4 +56,4 @@ import builtins
 __all__.extend([x for x in expr.__all__ if not hasattr(builtins, x)])
 del builtins
 
-__version__ = None
+__version__ = None  # set in hail.init()
