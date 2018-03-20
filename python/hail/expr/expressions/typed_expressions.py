@@ -1403,141 +1403,6 @@ class TupleExpression(Expression, Sequence):
             yield self[i]
 
 
-class BooleanExpression(Expression):
-    """Expression of type :py:data:`.tbool`.
-
-    >>> t = hl.literal(True)
-    >>> f = hl.literal(False)
-    >>> na = hl.null(hl.tbool)
-
-    .. doctest::
-
-        >>> hl.eval_expr(t)
-        True
-
-        >>> hl.eval_expr(f)
-        False
-
-        >>> hl.eval_expr(na)
-        None
-
-    """
-
-    def _bin_op_logical(self, name, other):
-        other = to_expr(other)
-        return self._bin_op(name, other, tbool)
-
-    @typecheck_method(other=expr_bool)
-    def __rand__(self, other):
-        return self.__and__(other)
-
-    @typecheck_method(other=expr_bool)
-    def __ror__(self, other):
-        return self.__or__(other)
-
-    @typecheck_method(other=expr_bool)
-    def __and__(self, other):
-        """Return ``True`` if the left and right arguments are ``True``.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(t & f)
-            False
-
-            >>> hl.eval_expr(t & na)
-            None
-
-            >>> hl.eval_expr(f & na)
-            False
-
-        The ``&`` and ``|`` operators have higher priority than comparison
-        operators like ``==``, ``<``, or ``>``. Parentheses are often
-        necessary:
-
-        .. doctest::
-
-            >>> x = hl.literal(5)
-
-            >>> hl.eval_expr((x < 10) & (x > 2))
-            True
-
-        Parameters
-        ----------
-        other : :class:`.BooleanExpression`
-            Right-side operand.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if both left and right are ``True``.
-        """
-        return self._bin_op_logical("&&", other)
-
-    @typecheck_method(other=expr_bool)
-    def __or__(self, other):
-        """Return ``True`` if at least one of the left and right arguments is ``True``.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(t | f)
-            True
-
-            >>> hl.eval_expr(t | na)
-            True
-
-            >>> hl.eval_expr(f | na)
-            None
-
-        The ``&`` and ``|`` operators have higher priority than comparison
-        operators like ``==``, ``<``, or ``>``. Parentheses are often
-        necessary:
-
-        .. doctest::
-
-            >>> x = hl.literal(5)
-
-            >>> hl.eval_expr((x < 10) | (x > 20))
-            True
-
-        Parameters
-        ----------
-        other : :class:`.BooleanExpression`
-            Right-side operand.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            ``True`` if either left or right is ``True``.
-        """
-        return self._bin_op_logical("||", other)
-
-    def __invert__(self):
-        """Return the boolean negation.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> hl.eval_expr(~t)
-            False
-
-            >>> hl.eval_expr(~f)
-            True
-
-            >>> hl.eval_expr(~na)
-            None
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            Boolean negation.
-        """
-        return self._unary_op("!")
-
 
 class NumericExpression(Expression):
     """Expression of numeric type.
@@ -1657,7 +1522,8 @@ class NumericExpression(Expression):
         :class:`.NumericExpression`
             Negated number.
         """
-        return self._unary_op("-")
+
+        return expr_numeric.coerce(self)._unary_op("-")
 
     def __add__(self, other):
         """Add two numbers.
@@ -1875,6 +1741,142 @@ class NumericExpression(Expression):
 
     def __rpow__(self, other):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
+
+
+class BooleanExpression(NumericExpression):
+    """Expression of type :py:data:`.tbool`.
+
+    >>> t = hl.literal(True)
+    >>> f = hl.literal(False)
+    >>> na = hl.null(hl.tbool)
+
+    .. doctest::
+
+        >>> hl.eval_expr(t)
+        True
+
+        >>> hl.eval_expr(f)
+        False
+
+        >>> hl.eval_expr(na)
+        None
+
+    """
+
+    def _bin_op_logical(self, name, other):
+        other = to_expr(other)
+        return self._bin_op(name, other, tbool)
+
+    @typecheck_method(other=expr_bool)
+    def __rand__(self, other):
+        return self.__and__(other)
+
+    @typecheck_method(other=expr_bool)
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    @typecheck_method(other=expr_bool)
+    def __and__(self, other):
+        """Return ``True`` if the left and right arguments are ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(t & f)
+            False
+
+            >>> hl.eval_expr(t & na)
+            None
+
+            >>> hl.eval_expr(f & na)
+            False
+
+        The ``&`` and ``|`` operators have higher priority than comparison
+        operators like ``==``, ``<``, or ``>``. Parentheses are often
+        necessary:
+
+        .. doctest::
+
+            >>> x = hl.literal(5)
+
+            >>> hl.eval_expr((x < 10) & (x > 2))
+            True
+
+        Parameters
+        ----------
+        other : :class:`.BooleanExpression`
+            Right-side operand.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if both left and right are ``True``.
+        """
+        return self._bin_op_logical("&&", other)
+
+    @typecheck_method(other=expr_bool)
+    def __or__(self, other):
+        """Return ``True`` if at least one of the left and right arguments is ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(t | f)
+            True
+
+            >>> hl.eval_expr(t | na)
+            True
+
+            >>> hl.eval_expr(f | na)
+            None
+
+        The ``&`` and ``|`` operators have higher priority than comparison
+        operators like ``==``, ``<``, or ``>``. Parentheses are often
+        necessary:
+
+        .. doctest::
+
+            >>> x = hl.literal(5)
+
+            >>> hl.eval_expr((x < 10) | (x > 20))
+            True
+
+        Parameters
+        ----------
+        other : :class:`.BooleanExpression`
+            Right-side operand.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if either left or right is ``True``.
+        """
+        return self._bin_op_logical("||", other)
+
+    def __invert__(self):
+        """Return the boolean negation.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> hl.eval_expr(~t)
+            False
+
+            >>> hl.eval_expr(~f)
+            True
+
+            >>> hl.eval_expr(~na)
+            None
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            Boolean negation.
+        """
+        return self._unary_op("!")
 
 
 class Float64Expression(NumericExpression):

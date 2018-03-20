@@ -849,6 +849,23 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 % float64_3s, expected, tarray(tfloat64))
         self.check_expr(a_float64 % float64_3s, expected, tarray(tfloat64))
 
+    def test_bools_can_math(self):
+        b1 = hl.literal(True)
+        b2 = hl.literal(False)
+
+        b_array = hl.literal([True, False])
+        f1 = hl.float64(5.5)
+        f_array = hl.array([1.5, 2.5])
+
+        self.assertEqual((b1 * b2).value, 0)
+        self.assertEqual((b1 + b2).value, 1)
+        self.assertEqual((b1 - b2).value, 1)
+        self.assertEqual((b1 / b1).value, 1.0)
+        self.assertEqual((f1 * b2).value, 0.0)
+        self.assertEqual((b_array + f1).value, [6.5, 5.5])
+        self.assertEqual((b_array + f_array).value, [2.5, 2.5])
+
+
     def test_allele_methods(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
         self.assertFalse(hl.eval_expr(hl.is_transversion("A", "G")))

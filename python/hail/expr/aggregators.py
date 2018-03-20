@@ -1,18 +1,44 @@
 import hail as hl
-from hail.typecheck import *
+from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *
 from hail.expr.types import *
 
+class AggregableChecker(TypeChecker):
+    def __init__(self, coercer):
+        self.coercer = coercer
+        super(AggregableChecker, self).__init__()
+
+    def expects(self):
+        return self.coercer.expects()
+
+    def format(self, arg):
+        if isinstance(arg, Aggregable):
+            return f'<aggregable Expression of type {repr(arg.dtype)}>'
+        else:
+            return self.coercer.format(arg)
+
+    def check(self, x, caller, param):
+        coercer = self.coercer
+        if isinstance(x, Aggregable):
+            if coercer.can_coerce(x.dtype):
+                # check if conversion is required for performance reasons
+                if coercer.requires_conversion(x.dtype):
+                    return x._map(lambda x_: coercer.coerce(x_))
+                else:
+                    return x
+            else:
+                raise TypecheckFailure
+        else:
+            x = coercer.check(x, caller, param)
+            return _to_agg(x)
 
 def _to_agg(x):
-    if isinstance(x, Aggregable):
-        return x
-    else:
-        x = to_expr(x)
-        uid = Env.get_uid()
-        ast = LambdaClassMethod('map', uid, AggregableReference(), x._ast)
-        return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins)
+    uid = Env.get_uid()
+    ast = LambdaClassMethod('map', uid, AggregableReference(), x._ast)
+    return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins)
+
+agg_expr = AggregableChecker
 
 
 def _agg_func(name, aggregable, ret_type, *args):
@@ -39,7 +65,7 @@ def _check_agg_bindings(expr):
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
-@typecheck(expr=oneof(Aggregable, expr_any))
+@typecheck(expr=agg_expr(expr_any))
 def collect(expr):
     """Collect records into an array.
 
@@ -73,10 +99,9 @@ def collect(expr):
     :class:`.ArrayExpression`
         Array of all `expr` records.
     """
-    agg = _to_agg(expr)
-    return _agg_func('collect', agg, tarray(agg._type))
+    return _agg_func('collect', expr, tarray(expr.dtype))
 
-@typecheck(expr=oneof(Aggregable, expr_any))
+@typecheck(expr=agg_expr(expr_any))
 def collect_as_set(expr):
     """Collect records into a set.
 
@@ -103,11 +128,9 @@ def collect_as_set(expr):
     :class:`.SetExpression`
         Set of unique `expr` records.
     """
+    return _agg_func('collectAsSet', expr, tarray(expr.dtype))
 
-    agg = _to_agg(expr)
-    return _agg_func('collectAsSet', agg, tarray(agg._type))
-
-@typecheck(expr=nullable(oneof(Aggregable, expr_any)))
+@typecheck(expr=nullable(agg_expr(expr_any)))
 def count(expr=None):
     """Count the number of records.
 
@@ -147,11 +170,11 @@ def count(expr=None):
         Total number of records.
     """
     if expr is not None:
-        return _agg_func('count', _to_agg(expr), tint64)
+        return _agg_func('count', expr, tint64)
     else:
-        return _agg_func('count', _to_agg(0), tint64)
+        return _agg_func('count', _to_agg(hl.int32(0)), tint64)
 
-@typecheck(condition=oneof(Aggregable, expr_bool))
+@typecheck(condition=expr_bool)
 def count_where(condition):
     """Count the number of records where a predicate is ``True``.
 
@@ -178,7 +201,7 @@ def count_where(condition):
 
     return _agg_func('count', filter(condition, 0), tint64)
 
-@typecheck(condition=oneof(Aggregable, expr_bool))
+@typecheck(condition=agg_expr(expr_bool))
 def any(condition):
     """Returns ``True`` if `condition` is ``True`` for any record.
 
@@ -216,7 +239,7 @@ def any(condition):
     """
     return count(filter(lambda x: x, condition)) > 0
 
-@typecheck(condition=oneof(Aggregable, expr_bool))
+@typecheck(condition=agg_expr(expr_bool))
 def all(condition):
     """Returns ``True`` if `condition` is ``True`` for every record.
 
@@ -256,7 +279,7 @@ def all(condition):
     n_true = count(filter(lambda x: hl.is_defined(x) & x, condition))
     return n_defined == n_true
 
-@typecheck(expr=oneof(Aggregable, expr_any))
+@typecheck(expr=agg_expr(expr_any))
 def counter(expr):
     """Count the occurrences of each unique record and return a dictionary.
 
@@ -293,10 +316,11 @@ def counter(expr):
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
-    agg = _to_agg(expr)
-    return _agg_func('counter', agg, tdict(agg._type, tint64))
+    return _agg_func('counter', expr, tdict(expr.dtype, tint64))
 
-@typecheck(expr=oneof(Aggregable, expr_any), n=int, ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
+@typecheck(expr=agg_expr(expr_any),
+           n=int,
+           ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
 def take(expr, n, ordering=None):
     """Take `n` records of `expr`, optionally ordered by `ordering`.
 
@@ -353,37 +377,36 @@ def take(expr, n, ordering=None):
         Array of up to `n` records of `expr`.
 
     """
-    agg = _to_agg(expr)
     n = to_expr(n)
     if ordering is None:
-        return _agg_func('take', agg, tarray(agg.dtype), n)
+        return _agg_func('take', expr, tarray(expr.dtype), n)
     else:
         uid = Env.get_uid()
         if callable(ordering):
             lambda_result = to_expr(
-                ordering(construct_expr(VariableReference(uid), agg._type, agg._indices,
-                                        agg._aggregations, agg._joins)))
+                ordering(construct_expr(VariableReference(uid), expr.dtype, expr._indices,
+                                        expr._aggregations, expr._joins)))
 
         else:
             lambda_result = ordering
-        indices, aggregations, joins = unify_all(agg, lambda_result)
+        indices, aggregations, joins = unify_all(expr, lambda_result)
 
         if not (is_numeric(ordering.dtype) or ordering.dtype == tstr):
             raise TypeError("'take' expects 'ordering' to be or return an ordered expression\n"
                             "    Ordered expressions are 'int32', 'int64', 'float32', 'float64', 'str'\n"
                             "    Found '{}'".format(ordering._type))
-        ast = LambdaClassMethod('takeBy', uid, agg._ast, lambda_result._ast, n._ast)
+        ast = LambdaClassMethod('takeBy', uid, expr._ast, lambda_result._ast, n._ast)
 
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-        _check_agg_bindings(agg)
+        _check_agg_bindings(expr)
         _check_agg_bindings(lambda_result)
 
-        return construct_expr(ast, tarray(agg._type), Indices(source=indices.source),
-                              aggregations.push(Aggregation(agg, lambda_result)), joins)
+        return construct_expr(ast, tarray(expr._type), Indices(source=indices.source),
+                              aggregations.push(Aggregation(expr, lambda_result)), joins)
 
-@typecheck(expr=oneof(Aggregable, expr_numeric))
+@typecheck(expr=agg_expr(expr_numeric))
 def min(expr):
     """Compute the minimum `expr`.
 
@@ -411,12 +434,9 @@ def min(expr):
     :class:`.NumericExpression`
         Minimum value of all `expr` records, same type as `expr`.
     """
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'min' expects a numeric argument, found '{}'".format(agg._type))
-    return _agg_func('min', agg, agg._type)
+    return _agg_func('min', expr, expr.dtype)
 
-@typecheck(expr=oneof(Aggregable, expr_numeric))
+@typecheck(expr=agg_expr(expr_numeric))
 def max(expr):
     """Compute the maximum `expr`.
 
@@ -444,12 +464,9 @@ def max(expr):
     :class:`.NumericExpression`
         Maximum value of all `expr` records, same type as `expr`.
     """
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'max' expects a numeric argument, found '{}'".format(agg._type))
-    return _agg_func('max', agg, agg._type)
+    return _agg_func('max', expr, expr.dtype)
 
-@typecheck(expr=oneof(Aggregable, expr_numeric))
+@typecheck(expr=agg_expr(expr_numeric))
 def sum(expr):
     """Compute the sum of all records of `expr`.
 
@@ -481,12 +498,9 @@ def sum(expr):
     :class:`.Expression` of type :py:data:`.tint64` or :py:data:`.tfloat64`
         Sum of records of `expr`.
     """
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'sum' expects a numeric argument, found '{}'".format(agg._type))
-    return _agg_func('sum', agg, agg._type)
+    return _agg_func('sum', expr, expr.dtype)
 
-@typecheck(expr=oneof(Aggregable, expr_any))
+@typecheck(expr=agg_expr(expr_array(expr_numeric)))
 def array_sum(expr):
     """Compute the coordinate-wise sum of all records of `expr`.
 
@@ -512,12 +526,9 @@ def array_sum(expr):
     -------
     :class:`.ArrayNumericExpression`
     """
-    agg = _to_agg(expr)
-    if not (isinstance(agg._type, tarray) and is_numeric(agg._type.element_type)):
-        raise TypeError("'array_sum' expects a numeric array argument, found '{}'".format(agg._type))
-    return _agg_func('sum', agg, agg._type)
+    return _agg_func('sum', expr, expr.dtype.element_type)
 
-@typecheck(expr=oneof(Aggregable, expr_numeric))
+@typecheck(expr=agg_expr(expr_numeric))
 def mean(expr):
     """Compute the mean value of records of `expr`.
 
@@ -544,12 +555,9 @@ def mean(expr):
     :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'mean' expects a numeric argument, found '{}'".format(agg._type))
-    return stats(agg).mean
+    return stats(expr).mean
 
-@typecheck(expr=oneof(Aggregable, expr_numeric))
+@typecheck(expr=agg_expr(expr_numeric))
 def stats(expr):
     """Compute a number of useful statistics about `expr`.
 
@@ -584,18 +592,14 @@ def stats(expr):
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
         `n`, and `sum`.
     """
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'stats' expects a numeric argument, found '{}'".format(agg._type))
-    agg = Expression._promote_numeric(agg, tfloat64)
-    return _agg_func('stats', agg, tstruct(mean=tfloat64,
+    return _agg_func('stats', expr, tstruct(mean=tfloat64,
                                            stdev=tfloat64,
                                            min=tfloat64,
                                            max=tfloat64,
                                            n=tint64,
                                            sum=tfloat64))
 
-@typecheck(expr=oneof(Aggregable, expr_numeric))
+@typecheck(expr=agg_expr(expr_numeric))
 def product(expr):
     """Compute the product of all records of `expr`.
 
@@ -628,13 +632,9 @@ def product(expr):
         Product of records of `expr`.
     """
 
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'product' expects a numeric argument, found '{}'".format(agg._type))
-    agg = Expression._promote_numeric(agg, tfloat64)
-    return _agg_func('product', agg, agg._type)
+    return _agg_func('product', expr, expr.dtype)
 
-@typecheck(predicate=oneof(Aggregable, expr_bool))
+@typecheck(predicate=agg_expr(expr_bool))
 def fraction(predicate):
     """Compute the fraction of records where `predicate` is ``True``.
 
@@ -661,20 +661,15 @@ def fraction(predicate):
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    agg = _to_agg(predicate)
-    if not agg.dtype == tbool:
-        raise TypeError(
-            "'fraction' aggregator expects an expression of type 'bool', found '{}'".format(agg.dtype))
-
-    if agg._aggregations:
+    if predicate._aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     uid = Env.get_uid()
-    ast = LambdaClassMethod('fraction', uid, agg._ast, VariableReference(uid))
-    return construct_expr(ast, tfloat64, Indices(source=agg._indices.source),
-                          agg._aggregations.push(Aggregation(agg)), agg._joins)
+    ast = LambdaClassMethod('fraction', uid, predicate._ast, VariableReference(uid))
+    return construct_expr(ast, tfloat64, Indices(source=predicate._indices.source),
+                          predicate._aggregations.push(Aggregation(predicate)), predicate._joins)
 
-@typecheck(expr=oneof(Aggregable, expr_any))
+@typecheck(expr=agg_expr(expr_call))
 def hardy_weinberg(expr):
     """Compute Hardy-Weinberg Equilbrium (HWE) p-value and heterozygosity ratio.
 
@@ -722,16 +717,11 @@ def hardy_weinberg(expr):
     :class:`.StructExpression`
         Struct expression with fields `r_expected_het_freq` and `p_hwe`.
     """
-    t = tstruct(r_expected_het_freq=tfloat64,
-                p_hwe=tfloat64)
-    agg = _to_agg(expr)
-    if not agg.dtype == tcall:
-        raise TypeError("aggregator 'hardy_weinberg' requires an expression of type 'Call', found '{}'".format(
-            agg._type.__class__))
-    return _agg_func('hardyWeinberg', agg, t)
+    t = tstruct(r_expected_het_freq=tfloat64, p_hwe=tfloat64)
+    return _agg_func('hardyWeinberg', expr, t)
 
 
-@typecheck(expr=oneof(Aggregable, expr_array(), expr_set()))
+@typecheck(expr=agg_expr(expr_oneof(expr_array(), expr_set())))
 def explode(expr):
     """Explode an array or set expression to aggregate the elements of all records.
 
@@ -778,14 +768,11 @@ def explode(expr):
     :class:`.Aggregable`
         Aggregable expression.
     """
-    agg = _to_agg(expr)
-    if not (isinstance(agg._type, tset) or isinstance(agg._type, tarray)):
-        raise  TypeError("'explode' expects a 'Set' or 'Array' argument, found '{}'".format(agg._type))
     uid = Env.get_uid()
-    return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, VariableReference(uid)),
-                      agg._type.element_type, agg._indices, agg._aggregations, agg._joins)
+    return Aggregable(LambdaClassMethod('flatMap', uid, expr._ast, VariableReference(uid)),
+                      expr._type.element_type, expr._indices, expr._aggregations, expr._joins)
 
-@typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=oneof(Aggregable, expr_any))
+@typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
 def filter(condition, expr):
     """Filter records according to a predicate.
 
@@ -795,7 +782,7 @@ def filter(condition, expr):
 
     .. doctest::
 
-        >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
+        >>> table1.aggregate(expr.collect(expr.filter(table1.HT >= 70, table1.ID)))
         [2, 3]
 
     Notes
@@ -820,27 +807,24 @@ def filter(condition, expr):
         Aggregable expression.
     """
 
-    agg = _to_agg(expr)
     uid = Env.get_uid()
 
     if callable(condition):
         lambda_result = to_expr(
             condition(
-                construct_expr(VariableReference(uid), agg._type, agg._indices,
-                               agg._aggregations, agg._joins)))
+                construct_expr(VariableReference(uid), expr._type, expr._indices,
+                               expr._aggregations, expr._joins)))
     else:
         lambda_result = to_expr(condition)
 
-    if lambda_result.dtype != tbool:
-        raise TypeError(
-            "'filter' expects the 'condition' argument to be or return an expression of type 'bool', found '{}'".format(
-                lambda_result.dtype))
-    indices, aggregations, joins = unify_all(agg, lambda_result)
-    ast = LambdaClassMethod('filter', uid, agg._ast, lambda_result._ast)
-    return Aggregable(ast, agg.dtype, indices, aggregations, joins)
+    assert lambda_result.dtype == tbool
+
+    indices, aggregations, joins = unify_all(expr, lambda_result)
+    ast = LambdaClassMethod('filter', uid, expr._ast, lambda_result._ast)
+    return Aggregable(ast, expr.dtype, indices, aggregations, joins)
 
 
-@typecheck(expr=oneof(Aggregable, expr_call), prior=expr_numeric)
+@typecheck(expr=agg_expr(expr_call), prior=expr_float64)
 def inbreeding(expr, prior):
     """Compute inbreeding statistics on calls.
 
@@ -900,35 +884,24 @@ def inbreeding(expr, prior):
     :class:`.StructExpression`
         Struct expression with fields `f_stat`, `n_called`, `expected_homs`, `observed_homs`.
     """
-    agg = _to_agg(expr)
-
-    if not agg.dtype == tcall:
-        raise TypeError("aggregator 'inbreeding' requires an expression of type 'call', found '{}'".format(
-            agg.dtype))
-
-    if prior.dtype == tfloat32:
-        prior = hl.float64(prior)
-    if not prior.dtype == tfloat64:
-        raise TypeError("'inbreeding' expects 'prior' to be type 'float32' or 'float64', found '{}'".format(prior._type))
-
     uid = Env.get_uid()
-    ast = LambdaClassMethod('inbreeding', uid, agg._ast, prior._ast)
+    ast = LambdaClassMethod('inbreeding', uid, expr._ast, prior._ast)
 
-    indices, aggregations, joins = unify_all(agg, prior)
+    indices, aggregations, joins = unify_all(expr, prior)
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    _check_agg_bindings(agg)
+    _check_agg_bindings(expr)
     _check_agg_bindings(prior)
     t = tstruct(f_stat=tfloat64,
                 n_called=tint64,
                 expected_homs=tfloat64,
                 observed_homs=tint64)
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(agg, prior)), joins)
+                          aggregations.push(Aggregation(expr, prior)), joins)
 
 
-@typecheck(expr=oneof(Aggregable, expr_call), alleles=expr_array(expr_str))
+@typecheck(expr=agg_expr(expr_call), alleles=expr_array(expr_str))
 def call_stats(expr, alleles):
     """Compute useful call statistics.
 
@@ -983,31 +956,25 @@ def call_stats(expr, alleles):
     :class:`.StructExpression`
         Struct expression with fields `AC`, `AF`, and `AN`
     """
-    agg = _to_agg(expr)
     alleles = to_expr(alleles)
-
     uid = Env.get_uid()
 
-    if agg.dtype != tcall:
-        raise TypeError("aggregator 'call_stats' requires an expression of type 'TCall', found '{}'".format(
-            agg.dtype))
-
-    ast = LambdaClassMethod('callStats', uid, agg._ast, alleles._ast)
-    indices, aggregations, joins = unify_all(agg, alleles)
+    ast = LambdaClassMethod('callStats', uid, expr._ast, alleles._ast)
+    indices, aggregations, joins = unify_all(expr, alleles)
 
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    _check_agg_bindings(agg)
+    _check_agg_bindings(expr)
     _check_agg_bindings(alleles)
     t = tstruct(AC=tarray(tint32),
                 AF=tarray(tfloat64),
                 AN=tint32)
 
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(agg, alleles)), joins)
+                          aggregations.push(Aggregation(expr, alleles)), joins)
 
-@typecheck(expr=oneof(Aggregable, expr_numeric), start=expr_float64, end=expr_float64, bins=expr_int32)
+@typecheck(expr=agg_expr(expr_float64), start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins):
     """Compute binned counts of a numeric expression.
 
@@ -1053,12 +1020,8 @@ def hist(expr, start, end, bins):
     :class:`.StructExpression`
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
-    agg = _to_agg(expr)
-    if not is_numeric(agg._type):
-        raise TypeError("'hist' expects argument 'expr' to be a numeric type, found '{}'".format(agg._type))
-    agg = Expression._promote_numeric(agg, tfloat64)
     t = tstruct(bin_edges=tarray(tfloat64),
                 bin_freq=tarray(tint64),
                 n_less=tint64,
                 n_larger=tint64)
-    return _agg_func('hist', agg, t, start, end, bins)
+    return _agg_func('hist', expr, t, start, end, bins)

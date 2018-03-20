@@ -53,6 +53,7 @@ class ExprCoercer(TypeChecker):
         ...
 
     def coerce(self, x: Expression) -> Expression:
+        x = to_expr(x)
         if not self.can_coerce(x.dtype):
             raise ExpressionException(f"cannot coerce type '{x.dtype}' to type '{self.str_t}'")
         if self._requires_conversion(x.dtype):
