@@ -3238,8 +3238,10 @@ def float64(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
-    return expr._method("toFloat64", tfloat64)
-
+    if expr.dtype == tfloat64:
+        return expr
+    else:
+        return expr._method("toFloat64", tfloat64)
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Float32Expression:
@@ -3266,8 +3268,10 @@ def float32(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat32`
     """
-    return expr._method("toFloat32", tfloat32)
-
+    if expr.dtype == tfloat32:
+        return expr
+    else:
+        return expr._method("toFloat32", tfloat32)
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int64Expression:
@@ -3294,7 +3298,10 @@ def int64(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     -------
     :class:`.NumericExpression` of type :py:data:`.tint64`
     """
-    return expr._method("toInt64", tint64)
+    if expr.dtype == tint64:
+        return expr
+    else:
+        return expr._method("toInt64", tint64)
 
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
@@ -3322,8 +3329,10 @@ def int32(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     -------
     :class:`.NumericExpression` of type :py:data:`.tint32`
     """
-    return expr._method("toInt32", tint32)
-
+    if expr.dtype == tint32:
+        return expr
+    else:
+        return expr._method("toInt32", tint32)
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int32Expression:
@@ -3415,7 +3424,9 @@ def bool(expr: Union[int, float, str, NumericExpression, BooleanExpression, Stri
     -------
     :class:`.BooleanExpression`
     """
-    if is_numeric(expr.dtype):
+    if expr.dtype == tbool:
+        return expr
+    elif is_numeric(expr.dtype):
         return expr != 0
     else:
         return expr._method("toBoolean", tbool)
