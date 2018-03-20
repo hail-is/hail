@@ -500,7 +500,7 @@ def sum(expr):
     """
     return _agg_func('sum', expr, expr.dtype)
 
-@typecheck(expr=agg_expr(expr_array(expr_numeric)))
+@typecheck(expr=agg_expr(expr_array(expr_oneof(expr_int64, expr_float64))))
 def array_sum(expr):
     """Compute the coordinate-wise sum of all records of `expr`.
 
@@ -528,7 +528,7 @@ def array_sum(expr):
     """
     return _agg_func('sum', expr, expr.dtype.element_type)
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=agg_expr(expr_float64))
 def mean(expr):
     """Compute the mean value of records of `expr`.
 
@@ -599,7 +599,7 @@ def stats(expr):
                                            n=tint64,
                                            sum=tfloat64))
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=agg_expr(expr_oneof(expr_int64, expr_float64)))
 def product(expr):
     """Compute the product of all records of `expr`.
 
