@@ -241,7 +241,7 @@ class ExactlyTypeChecker(TypeChecker):
             raise TypecheckFailure
 
     def expects(self):
-        return str(self.v)
+        return repr(self.v)
 
 
 class CoercionChecker(TypeChecker):

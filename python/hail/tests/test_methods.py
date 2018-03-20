@@ -214,7 +214,7 @@ class Tests(unittest.TestCase):
 
         def load_id_file(path):
             ids = []
-            with hl.hadoop_read(path) as f:
+            with hl.hadoop_open(path) as f:
                 for l in f:
                     r = l.strip().split('\t')
                     self.assertEqual(len(r), 2)
@@ -223,7 +223,7 @@ class Tests(unittest.TestCase):
 
         def load_rel(ns, path):
             rel = np.zeros((ns, ns))
-            with hl.hadoop_read(path) as f:
+            with hl.hadoop_open(path) as f:
                 for i, l in enumerate(f):
                     for j, n in enumerate(map(float, l.strip().split('\t'))):
                         rel[i, j] = n
@@ -233,7 +233,7 @@ class Tests(unittest.TestCase):
 
         def load_grm(ns, nv, path):
             m = np.zeros((ns, ns))
-            with utils.hadoop_read(path) as f:
+            with utils.hadoop_open(path) as f:
                 i = 0
                 for l in f:
                     row = l.strip().split('\t')
@@ -246,7 +246,7 @@ class Tests(unittest.TestCase):
 
         def load_bin(ns, path):
             m = np.zeros((ns, ns))
-            with utils.hadoop_read_binary(path) as f:
+            with utils.hadoop_open(path, 'rb') as f:
                 for i in range(ns):
                     for j in range(i + 1):
                         b = f.read(4)

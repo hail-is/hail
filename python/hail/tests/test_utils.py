@@ -14,39 +14,39 @@ class Tests(unittest.TestCase):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
 
-        with hadoop_write('/tmp/test_out.txt') as f:
+        with hadoop_open('/tmp/test_out.txt', 'w') as f:
             for d in data:
                 f.write(d)
                 f.write('\n')
 
-        with hadoop_read('/tmp/test_out.txt') as f:
+        with hadoop_open('/tmp/test_out.txt') as f:
             data2 = [line.strip() for line in f]
 
         self.assertEqual(data, data2)
 
-        with hadoop_write('/tmp/test_out.txt.gz') as f:
+        with hadoop_open('/tmp/test_out.txt.gz', 'w') as f:
             for d in data:
                 f.write(d)
                 f.write('\n')
 
-        with hadoop_read('/tmp/test_out.txt.gz') as f:
+        with hadoop_open('/tmp/test_out.txt.gz') as f:
             data3 = [line.strip() for line in f]
 
         self.assertEqual(data, data3)
 
         hadoop_copy('/tmp/test_out.txt.gz', '/tmp/test_out.copy.txt.gz')
 
-        with hadoop_read('/tmp/test_out.copy.txt.gz') as f:
+        with hadoop_open('/tmp/test_out.copy.txt.gz') as f:
             data4 = [line.strip() for line in f]
 
         self.assertEqual(data, data4)
 
-        with hadoop_read(resource('randomBytes'), buffer_size=100) as f:
-            with hadoop_write('/tmp/randomBytesOut', buffer_size=150) as out:
+        with hadoop_open(resource('randomBytes'), buffer_size=100) as f:
+            with hadoop_open('/tmp/randomBytesOut', 'w', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)
 
-        with hadoop_read('/tmp/randomBytesOut', buffer_size=199) as f:
+        with hadoop_open('/tmp/randomBytesOut', buffer_size=199) as f:
             b2 = f.read()
 
         self.assertEqual(b, b2)
