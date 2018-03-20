@@ -1805,7 +1805,7 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
                                       path=path,
                                       block_size=block_size)
 
-    pc_scores = (ds.index_cols('column_index').cols_table().collect())
+    pc_scores = (ds.index_cols('column_index').cols().collect())
     pc_scores.sort(key=lambda x: x.column_index)
     pc_scores = [x.scores for x in pc_scores]
 
