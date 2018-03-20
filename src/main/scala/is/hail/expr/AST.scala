@@ -775,6 +775,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
             case (_: TArray, "map") => ir.ArrayMap(a, name, b)
             case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
+            case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
           }
         } yield result
       case _ =>

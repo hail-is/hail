@@ -25,6 +25,7 @@ object Recur {
     case ArrayRange(start, stop, step) => ArrayRange(f(start), f(stop), f(step))
     case ArrayMap(a, name, body, elementTyp) => ArrayMap(f(a), name, f(body), elementTyp)
     case ArrayFilter(a, name, cond) => ArrayFilter(f(a), name, f(cond))
+    case ArrayFlatMap(a, name, body) => ArrayFlatMap(f(a), name, f(body))
     case ArrayFold(a, zero, accumName, valueName, body, typ) => ArrayFold(f(a), f(zero), accumName, valueName, f(body), typ)
     case MakeStruct(fields, _) => MakeStruct(fields map { case (n,a) => (n,f(a)) })
     case InsertFields(old, fields, _) => InsertFields(f(old), fields map { case (n,a) => (n,f(a)) } )

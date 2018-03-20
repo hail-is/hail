@@ -13,8 +13,6 @@ import Matchers._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import org.apache.spark.sql.Row
 
-import scala.collection.{immutable, mutable}
-
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
@@ -428,13 +426,11 @@ class CompileSuite {
       val aoff = f(region, start, false, stop, false, step, false)
       val expected = Array.range(start, stop, step)
       val actual = new UnsafeIndexedSeq(tRange, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
 
       val expected2 = Array.range(stop, start, -step)
       val aoff2 = f(region, stop, false, start, false, -step, false)
       val actual2 = new UnsafeIndexedSeq(tRange, region, aoff2)
-      assert(expected2.length == actual2.length)
       assert(actual2.sameElements(expected2))
     }
 
@@ -443,7 +439,6 @@ class CompileSuite {
     val expected = Array.tabulate(len)(start + _ * step)
     val aoff = f(region, start, false, stop, false, step, false)
     val actual = new UnsafeIndexedSeq(tRange, region, aoff)
-    assert(expected.length == actual.length)
     assert(actual.sameElements(expected))
   }
 
@@ -462,7 +457,6 @@ class CompileSuite {
       val aoff = f(region, stop, false, cutoff, false)
       val expected = Array.range(0, cutoff)
       val actual = new UnsafeIndexedSeq(t, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
   }
@@ -489,7 +483,6 @@ class CompileSuite {
       val aoff = f(region, off, false, elt, false)
       val expected = base.filter(_ == elt)
       val actual = new UnsafeIndexedSeq(t, region, aoff)
-      assert(expected.length == actual.length)
       assert(actual.sameElements(expected))
     }
   }
@@ -526,7 +519,52 @@ class CompileSuite {
     val actual = new UnsafeIndexedSeq(tout, region, aoff)
 
     val expected = IndexedSeq(Row(1, "a"), Row(2, "b"))
-    assert(expected.length == actual.length)
     assert(actual.sameElements(expected))
+  }
+
+  def testArrayFlatMap() {
+    val tRange = TArray(TInt32())
+    val ir = ArrayFlatMap(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "i", ArrayRange(I32(0), Ref("i"), I32(1)))
+    val region = Region()
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    for {
+      stop <- 0 to 5
+    } {
+      val aoff = f(region, stop, false)
+      val expected = Array.range(0, stop, 1).flatMap(i => Array.range(0, i, 1))
+      val actual = new UnsafeIndexedSeq(tRange, region, aoff)
+      assert(actual.sameElements(expected))
+    }
+  }
+
+  @Test
+  def testArrayFlatMapVsFilter() {
+    val tRange = TArray(TInt32())
+    val inputIR = ArrayRange(I32(0), In(0, TInt32()), I32(1))
+    val filterCond = { x: IR => ApplyBinaryPrimOp(EQ(), x, I32(1)) }
+    val filterIR = ArrayFilter(inputIR, "i", filterCond(Ref("i")))
+    val flatMapIR = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i")), MakeArray(Seq(Ref("i"))), MakeArray(Seq(), tRange)))
+
+    val region = Region()
+    val fb1 = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
+    doit(flatMapIR, fb1)
+    val f1 = fb1.result()()
+
+    val fb2 = FunctionBuilder.functionBuilder[Region, Int, Boolean, Long]
+    doit(filterIR, fb2)
+    val f2 = fb2.result()()
+
+    for {
+      stop <- 0 to 5
+    } {
+      region.clear()
+      val aoff1 = f1(region, stop, false)
+      val actual = new UnsafeIndexedSeq(tRange, region, aoff1)
+      val aoff2 = f2(region, stop, false)
+      val expected = new UnsafeIndexedSeq(tRange, region, aoff2)
+      assert(actual.sameElements(expected))
+    }
   }
 }
