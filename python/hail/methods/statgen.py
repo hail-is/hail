@@ -1351,9 +1351,9 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     dataset = dataset.annotate_rows(mean_gt = dataset.AC / dataset.n_called)
     dataset = dataset.annotate_rows(hwe_std_dev = hl.sqrt(dataset.mean_gt * (2 - dataset.mean_gt) * n_variants / 2))
 
-    entry_expr = hl.or_else((dataset.GT.n_alt_alleles() - dataset.mean_gt) /
-                             dataset.hwe_std_dev,
-                             0.0)
+    entry_expr = hl.or_else(
+        (dataset.GT.n_alt_alleles() - dataset.mean_gt) / dataset.hwe_std_dev,
+        0.0)
     result = pca(entry_expr,
                  k,
                  compute_loadings,
