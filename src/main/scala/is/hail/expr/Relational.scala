@@ -565,6 +565,109 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
+case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends TableIR {
+  require(left.typ.keyType isIsomorphicTo right.typ.keyType)
+
+  val children: IndexedSeq[BaseIR] = Array(left, right)
+
+  private val joinedFields = left.typ.keyType.fields ++
+    left.typ.valueType.fields ++
+    right.typ.valueType.fields
+  private val preNames = joinedFields.map(_.name).toArray
+  private val (finalColumnNames, remapped) = mangle(preNames)
+
+  val newRowType = TStruct(joinedFields.zipWithIndex.map {
+    case (fd, i) => (finalColumnNames(i), fd.typ)
+  }: _*)
+
+  val typ: TableType = left.typ.copy(rowType = newRowType)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
+    assert(newChildren.length == 2)
+    TableJoin(
+      newChildren(0).asInstanceOf[TableIR],
+      newChildren(1).asInstanceOf[TableIR],
+      joinType )
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val leftTV = left.execute(hc)
+    val rightTV = right.execute(hc)
+    val leftRowType = left.typ.rowType
+    val rightRowType = right.typ.rowType
+    val leftKeyFieldIdx = left.typ.keyFieldIdx
+    val rightKeyFieldIdx = right.typ.keyFieldIdx
+    val leftValueFieldIdx = left.typ.valueFieldIdx
+    val rightValueFieldIdx = right.typ.valueFieldIdx
+    val localNewRowType = newRowType
+    val rvMerger: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
+      val rvb = new RegionValueBuilder()
+      val rv = RegionValue()
+      it.map { joined =>
+        val lrv = joined._1
+        val rrv = joined._2
+
+        if (lrv != null)
+          rvb.set(lrv.region)
+        else {
+          assert(rrv != null)
+          rvb.set(rrv.region)
+        }
+
+        rvb.start(localNewRowType)
+        rvb.startStruct()
+
+        if (lrv != null)
+          rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
+        else {
+          assert(rrv != null)
+          rvb.addFields(rightRowType, rrv, rightKeyFieldIdx)
+        }
+
+        if (lrv != null)
+          rvb.addFields(leftRowType, lrv, leftValueFieldIdx)
+        else
+          rvb.skipFields(leftValueFieldIdx.length)
+
+        if (rrv != null)
+          rvb.addFields(rightRowType, rrv, rightValueFieldIdx)
+        else
+          rvb.skipFields(rightValueFieldIdx.length)
+
+        rvb.endStruct()
+        rv.set(rvb.region, rvb.end())
+        rv
+      }
+    }
+    val leftORVD = leftTV.rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        OrderedRVD(
+          new OrderedRVDType(left.typ.key.toArray, left.typ.key.toArray, leftRowType),
+          unordered.rdd,
+          None,
+          None)
+    }
+    val rightORVD = rightTV.rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        val ordType =
+          new OrderedRVDType(right.typ.key.toArray, right.typ.key.toArray, rightRowType)
+        if (joinType == "left" || joinType == "inner")
+          unordered.constrainToOrderedPartitioner(ordType, leftORVD.partitioner)
+        else
+          OrderedRVD(ordType, unordered.rdd, None, Some(leftORVD.partitioner))
+    }
+    val joinedRVD = leftORVD.orderedJoin(
+      rightORVD,
+      joinType,
+      rvMerger,
+      new OrderedRVDType(leftORVD.typ.partitionKey, leftORVD.typ.key, newRowType))
+
+    TableValue(typ, leftTV.globals, joinedRVD)
+  }
+}
+
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
