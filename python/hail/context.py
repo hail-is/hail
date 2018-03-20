@@ -82,7 +82,9 @@ class HailContext(object):
                 '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
 
             if self.version.startswith('devel'):
-                sys.stderr.write('WARNING: This is an unstable development build.\n')
+                sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
+                                 '  during the beta period. We also recommend pulling\n'
+                                 '  the latest changes weekly.')
 
         install_exception_handler()
 
