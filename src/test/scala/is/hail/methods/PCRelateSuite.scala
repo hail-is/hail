@@ -169,9 +169,9 @@ class PCRelateSuite extends SparkSuite {
 
     val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
-    val pcr = new PCRelate(0.01, blockSize)
+    val pcr = new PCRelate(0.01, blockSize, PCRelate.PhiK2K0K1)
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
-    val dmu = pcr.mu(BlockMatrix.from(g, blockSize), pcs).cache()
+    val dmu = pcr.mu(BlockMatrix.fromIRM(g, blockSize), pcs).cache()
     // blockedG : variant x sample
     val blockedG = BlockMatrix.fromIRM(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
