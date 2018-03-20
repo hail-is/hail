@@ -16,6 +16,17 @@ object ContextRDD {
   ): ContextRDD[C, T] =
     new ContextRDD(sc.emptyRDD[C => Iterator[T]], mkc)
 
+  // this one weird trick permits the caller to specify T without C
+  sealed trait Empty[T] {
+    def apply[C <: AutoCloseable](
+      sc: SparkContext,
+      mkc: () => C
+    )(implicit tct: ClassTag[T]): ContextRDD[C, T] =
+      empty[C, T](sc, mkc)
+  }
+  private[this] object emptyInstance extends Empty[Nothing]
+  def empty[T] = emptyInstance.asInstanceOf[Empty[T]]
+
   def union[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
