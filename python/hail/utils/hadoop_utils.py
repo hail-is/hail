@@ -4,134 +4,69 @@ import io
 
 
 @typecheck(path=str,
+           mode=enumeration('r', 'w', 'rb', 'wb'),
            buffer_size=int)
-def hadoop_read(path, buffer_size=8192):
-    """Open a readable file through the Hadoop filesystem API.
-    Supports distributed file systems like hdfs, gs, and s3.
+def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
+    """Open a file through the Hadoop filesystem API. Supports distributed
+    file systems like hdfs, gs, and s3.
 
     Examples
     --------
-
     .. doctest::
         :options: +SKIP
 
-        >>> with hadoop_read('gs://my-bucket/notes.txt') as f:
+        >>> with hadoop_open('gs://my-bucket/notes.txt') as f:
         ...     for line in f:
         ...         print(line.strip())
 
-    Notes
-    -----
-    The provided source file path must be a URI (uniform resource identifier).
-
-    .. caution::
-
-        These file handles are slower than standard Python file handles.
-        If you are reading a file larger than ~50M, it will be faster to
-        use :meth:`~hail.hadoop_copy` to copy the file locally, then read it
-        with standard Python I/O tools.
-
-    Parameters
-    ----------
-    path: :obj:`str`
-        Source file URI.
-    buffer_size: :obj:`int`
-        Size of internal buffer.
-
-    Returns
-    -------
-    :class:`io.BufferedReader`
-        Iterable file reader,
-        `io.BufferedReader <https://docs.python.org/3/library/io.html#io.BufferedReader>`__.
-    """
-    return io.TextIOWrapper(io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size),
-                            encoding='iso-8859-1')
-
-
-@typecheck(path=str,
-           buffer_size=int)
-def hadoop_read_binary(path, buffer_size=8192):
-    """Open a readable binary file through the Hadoop filesystem API.
-    Supports distributed file systems like hdfs, gs, and s3.
-
-    Calling :meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
-    Python bytearray. If no argument is provided, the entire file will be read.
-
-    Examples
-    --------
-
-    .. doctest::
-        :options: +SKIP
+        >>> with hadoop_open('gs://my-bucket/notes.txt', 'w') as f:
+        ...     f.write('result1: %s\\n' % result1)
+        ...     f.write('result2: %s\\n' % result2)
 
         >>> from struct import unpack
-        >>> with hadoop_read('gs://my-bucket/notes.txt') as f:
+        >>> with hadoop_open('gs://my-bucket/notes.txt', 'rb') as f:
         ...     print(unpack('<f', bytearray(f.read())))
 
     Notes
     -----
-    The provided source file path must be a URI (uniform resource identifier).
+    The supported modes are:
 
-    .. caution::
+     - ``'r'`` -- Readable text file (:class:`io.TextIOWrapper`). Default behavior.
+     - ``'w'`` -- Writable text file (:class:`io.TextIOWrapper`).
+     - ``'rb'`` -- Readable binary file (:class:`io.BufferedReader`).
+     - ``'wb'`` -- Writable binary file (:class:`io.BufferedWriter`).
 
-        These file handles are slower than standard Python file handles.
-        If you are reading a file larger than ~50M, it will be faster to
-        use :meth:`~hail.hadoop_copy` to copy the file locally, then read it
-        with standard Python I/O tools.
-
-    Parameters
-    ----------
-    path: :obj:`str`
-        Source file URI.
-    buffer_size: :obj:`int`
-        Size of internal buffer.
-
-    Returns
-    -------
-    `io.BufferedReader`
-        Binary file reader,
-        `io.BufferedReader <https://docs.python.org/3/library/io.html#io.BufferedReader>`__.
-    """
-    return io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
-
-
-@typecheck(path=str,
-           buffer_size=int)
-def hadoop_write(path, buffer_size=8192):
-    """Open a writable file through the Hadoop filesystem API.
-    Supports distributed file systems like hdfs, gs, and s3.
-
-    Examples
-    --------
-
-    .. doctest::
-        :options: +SKIP
-
-        >>> with hadoop_write('gs://my-bucket/notes.txt') as f:
-        ...     f.write('result1: %s\\n' % result1)
-        ...     f.write('result2: %s\\n' % result2)
-
-    Notes
-    -----
     The provided destination file path must be a URI (uniform resource identifier).
 
     .. caution::
 
         These file handles are slower than standard Python file handles. If you
         are writing a large file (larger than ~50M), it will be faster to write
-        to a local file using standard Python I/O and use :meth:`~hail.hadoop_copy`
+        to a local file using standard Python I/O and use :func:`.hadoop_copy`
         to move your file to a distributed file system.
 
     Parameters
     ----------
-    path: :obj:`str`
-        Destination file URI.
+    path : :obj:`str`
+        Path to file.
+    mode : :obj:`str`
+        File access mode.
+    buffer_size : :obj:`int`
+        Buffer size, in bytes.
 
     Returns
     -------
-    :class:`io.BufferedWriter`
-        File writer object,
-        `io.BufferedWriter <https://docs.python.org/3/library/io.html#io.BufferedWriter>`__.
+        Readable or writable file handle.
     """
-    return io.TextIOWrapper(io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size), encoding='iso-8859-1')
+    if 'r' in mode:
+        handle = io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
+    else:
+        handle = io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
+
+    if 'b' in mode:
+        return handle
+    else:
+        return io.TextIOWrapper(handle, encoding='iso-8859-1')
 
 
 @typecheck(src=str,

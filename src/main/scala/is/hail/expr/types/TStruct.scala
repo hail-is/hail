@@ -392,6 +392,15 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     newStruct -> annotator
   }
 
+  def rename(m: Map[String, String]): TStruct = {
+    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
+    fields.foreach { fd =>
+      val n = fd.name
+      newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
+    }
+    TStruct(newFieldsBuilder.result(): _*)
+  }
+
   def filter(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
     val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
     if (notFound.nonEmpty)
@@ -435,7 +444,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       if (a == null)
         a
       else if (newSize == 0)
-        null
+        Annotation.empty
       else {
         val r = a.asInstanceOf[Row]
         val newValues = included.zipWithIndex

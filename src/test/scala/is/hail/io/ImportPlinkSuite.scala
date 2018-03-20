@@ -80,37 +80,34 @@ class ImportPlinkSuite extends SparkSuite {
 
     val a1kt = VariantQC(a1ref, "variant_qc")
       .rowsTable()
-      .select(
+      .select(Array(
         "row.rsid",
-        "row.alleles",
-        "row.variant_qc.n_not_called",
-        "row.variant_qc.n_hom_ref",
-        "row.variant_qc.n_het",
-        "row.variant_qc.n_hom_var")
-      .rename(Map("alleles" -> "vA1", "n_not_called" -> "nNotCalledA1",
-        "n_hom_ref" -> "nHomRefA1", "n_het" -> "nHetA1", "n_hom_var" -> "nHomVarA1"), Map.empty[String, String])
+        "alleles_a1 = row.alleles",
+        "n_not_called_a1 = row.variant_qc.n_not_called",
+        "n_hom_ref_a1 = row.variant_qc.n_hom_ref",
+        "n_het_a1 = row.variant_qc.n_het",
+        "n_hom_var_a1 = row.variant_qc.n_hom_var"))
       .keyBy("rsid")
 
     val a2kt = VariantQC(a2ref, "variant_qc")
       .rowsTable()
-      .select(
+      .select(Array(
         "row.rsid",
-        "row.alleles",
-        "row.variant_qc.n_not_called",
-        "row.variant_qc.n_hom_ref",
-        "row.variant_qc.n_het",
-        "row.variant_qc.n_hom_var")
-      .rename(Map("alleles" -> "vA2", "n_not_called" -> "nNotCalledA2",
-        "n_hom_ref" -> "nHomRefA2", "n_het" -> "nHetA2", "n_hom_var" -> "nHomVarA2"), Map.empty[String, String])
+        "alleles_a2 = row.alleles",
+        "n_not_called_a2 = row.variant_qc.n_not_called",
+        "n_hom_ref_a2 = row.variant_qc.n_hom_ref",
+        "n_het_a2 = row.variant_qc.n_het",
+        "n_hom_var_a2 = row.variant_qc.n_hom_var"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")
 
-    assert(joined.forall("row.vA1[0] == row.vA2[1] && " +
-      "row.vA1[1] == row.vA2[0] && " +
-      "row.nNotCalledA1 == row.nNotCalledA2 && " +
-      "row.nHetA1 == row.nHetA2 && " +
-      "row.nHomRefA1 == row.nHomVarA2 && " +
-      "row.nHomVarA1 == row.nHomRefA2"))
+    assert(joined.forall(
+      "row.alleles_a1[0] == row.alleles_a2[1] && " +
+        "row.alleles_a1[1] == row.alleles_a2[0] && " +
+        "row.n_not_called_a1 == row.n_not_called_a2 && " +
+        "row.n_het_a1 == row.n_het_a2 && " +
+        "row.n_hom_ref_a1 == row.n_hom_var_a2 && " +
+        "row.n_hom_var_a1 == row.n_hom_ref_a2"))
   }
 }

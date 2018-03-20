@@ -143,7 +143,6 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None) -> Expression:
 def cond(condition: BooleanExpression,
          consequent: Expression,
          alternate: Expression,
-         *,
          missing_false: bool = False) -> Expression:
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
@@ -337,7 +336,7 @@ def bind(expr: Expression, f: Callable[[Expression], Expression]) -> Expression:
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int32Expression) -> Float64Expression:
+def chisq(c1: Int32Expression, c2: Int32Expression, c3: Int32Expression, c4: Int32Expression) -> StructExpression:
     """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
 
     Examples
@@ -378,7 +377,7 @@ def ctt(c1: Int32Expression,
         c2: Int32Expression,
         c3: Int32Expression,
         c4: Int32Expression,
-        min_cell_count: Int32Expression) -> Float64Expression:
+        min_cell_count: Int32Expression) -> StructExpression:
     """Calculates p-value and odds ratio for 2x2 table.
 
     Examples
@@ -481,6 +480,10 @@ def dbeta(x: Float64Expression, a: Float64Expression, b: Float64Expression) -> F
     b : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
+
+    Returns
+    -------
+    :class:`.Float64Expression`
     """
     return _func("dbeta", tfloat64, x, a, b)
 
@@ -539,7 +542,7 @@ def exp(x: Float64Expression) -> Float64Expression:
 def fisher_exact_test(c1: Int32Expression,
                       c2: Int32Expression,
                       c3: Int32Expression,
-                      c4: Int32Expression) -> Float64Expression:
+                      c4: Int32Expression) -> StructExpression:
     """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
 
     Examples
@@ -627,7 +630,7 @@ def ceil(x: NumericExpression) -> NumericExpression:
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
 def hardy_weinberg_p(n_hom_ref: Int32Expression,
                      n_het: Int32Expression,
-                     n_hom_var: Int32Expression) -> Float64Expression:
+                     n_hom_var: Int32Expression) -> StructExpression:
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
     Examples
@@ -2849,7 +2852,7 @@ def struct(**kwargs: Expression) -> StructExpression:
     :class:`.StructExpression`
         Keyword arguments as a struct.
     """
-    return to_expr(hl.utils.Struct(**kwargs))
+    return StructExpression._from_fields(kwargs)
 
 
 def tuple(iterable: Iterable) -> TupleExpression:
@@ -3235,8 +3238,10 @@ def float64(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
-    return expr._method("toFloat64", tfloat64)
-
+    if expr.dtype == tfloat64:
+        return expr
+    else:
+        return expr._method("toFloat64", tfloat64)
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Float32Expression:
@@ -3263,8 +3268,10 @@ def float32(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat32`
     """
-    return expr._method("toFloat32", tfloat32)
-
+    if expr.dtype == tfloat32:
+        return expr
+    else:
+        return expr._method("toFloat32", tfloat32)
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int64Expression:
@@ -3291,7 +3298,10 @@ def int64(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     -------
     :class:`.NumericExpression` of type :py:data:`.tint64`
     """
-    return expr._method("toInt64", tint64)
+    if expr.dtype == tint64:
+        return expr
+    else:
+        return expr._method("toInt64", tint64)
 
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
@@ -3319,8 +3329,10 @@ def int32(expr: Union[int, float, str, NumericExpression, BooleanExpression, Str
     -------
     :class:`.NumericExpression` of type :py:data:`.tint32`
     """
-    return expr._method("toInt32", tint32)
-
+    if expr.dtype == tint32:
+        return expr
+    else:
+        return expr._method("toInt32", tint32)
 
 @typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Int32Expression:
@@ -3412,7 +3424,9 @@ def bool(expr: Union[int, float, str, NumericExpression, BooleanExpression, Stri
     -------
     :class:`.BooleanExpression`
     """
-    if is_numeric(expr.dtype):
+    if expr.dtype == tbool:
+        return expr
+    elif is_numeric(expr.dtype):
         return expr != 0
     else:
         return expr._method("toBoolean", tbool)

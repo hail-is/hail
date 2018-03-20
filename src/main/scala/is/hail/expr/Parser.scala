@@ -134,7 +134,7 @@ object Parser extends JavaTokenParsers {
     }
     (names, types, () => fs.map(_()))
   }
-
+  
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Any]) = {
 

@@ -132,6 +132,8 @@ class TableTests(unittest.TestCase):
 
         kt = hl.Table.parallelize(rows, schema)
 
+        self.assertTrue(kt.annotate()._same(kt))
+
         result1 = convert_struct_to_dict(kt.annotate(foo=kt.a + 1,
                                                      foo2=kt.a).take(1)[0])
 
@@ -270,10 +272,22 @@ class TableTests(unittest.TestCase):
 
         kt = hl.Table.parallelize(rows, schema)
 
-        self.assertEqual(list(kt.select(kt.a, kt.e).row), ['a', 'e'])
-        self.assertEqual(list(kt.select(*[kt.a, kt.e]).row), ['a', 'e'])
+        t1 = kt.select(kt.a, kt.e)
+        self.assertEqual(list(t1.row), ['a', 'e'])
+        self.assertEqual(list(t1.key), [])
+
+        t2 = kt.key_by('d', 'e')
+        t2 = t2.select(*[t2.a, t2.e])
+        self.assertEqual(list(t2.row), ['a', 'e'])
+        self.assertEqual(list(t2.key), ['e'])
+
         self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ['a', 'foo'])
         self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).row), ['a', 'foo', 'x', 'y'])
+
+        # select no fields
+        s = kt.select()
+        self.assertEqual(list(s.row), [])
+        self.assertEqual(list(s.key), [])
 
     def test_aggregate(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
@@ -373,6 +387,11 @@ class TableTests(unittest.TestCase):
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
+    def test_join_with_key(self):
+        ht = hl.utils.range_table(10)
+        ht1 = ht.annotate(foo = 5)
+        self.assertTrue(ht.all(ht1[ht.key].foo == 5))
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -393,10 +412,20 @@ class TableTests(unittest.TestCase):
 
     def test_drop(self):
         kt = hl.utils.range_table(10)
-        kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
+        kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
 
-        self.assertEqual(list(kt.drop('idx', 'foo').row), ['sq', 'bar'])
+        ktd = kt.drop('idx', 'foo')
+        self.assertEqual(list(ktd.row), ['sq', 'bar'])
+        self.assertEqual(list(ktd.key), [])
+
         self.assertEqual(list(kt.drop(kt['idx'], kt['foo']).row), ['sq', 'bar'])
+
+        d = kt.drop(*list(kt.row))
+        self.assertEqual(list(d.row), [])
+        self.assertEqual(list(d.key), [])
+
+        self.assertTrue(kt.drop()._same(kt))
+        self.assertTrue(kt.drop(*list(kt.row))._same(kt.select()))
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)
@@ -660,6 +689,19 @@ class MatrixTests(unittest.TestCase):
 
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
+
+    def test_joins_with_key_structs(self):
+        mt = self.get_vds()
+
+        rows = mt.rows()
+        cols = mt.cols()
+
+        self.assertEqual(rows[mt.locus, mt.alleles].take(1), rows[mt.row_key].take(1))
+        self.assertEqual(cols[mt.s].take(1), cols[mt.col_key].take(1))
+
+        self.assertEqual(mt[mt.row_key, :].take(1), mt[(mt.locus, mt.alleles), :].take(1))
+        self.assertEqual(mt[:, mt.col_key].take(1), mt[:, mt.s].take(1))
+        self.assertEqual(mt[mt.row_key, mt.col_key].take(1), mt[(mt.locus, mt.alleles), mt.s].take(1))
 
     def test_table_join(self):
         ds = self.get_vds()

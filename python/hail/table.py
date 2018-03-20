@@ -12,6 +12,9 @@ from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
 
+from collections import OrderedDict
+import itertools
+
 table_type = lazy()
 
 
@@ -297,7 +300,6 @@ class Table(ExprContainer):
             self._set_field(k, v)
 
 
-    @typecheck_method(item=oneof(str, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
@@ -318,7 +320,7 @@ class Table(ExprContainer):
             return self.index(*exprs)
 
     @property
-    def key(self):
+    def key(self) -> StructExpression:
         """Row key struct.
 
         Examples
@@ -367,6 +369,12 @@ class Table(ExprContainer):
 
     def _force_count(self):
         return self._jt.forceCount()
+
+    @typecheck_method(caller=str, s=expr_struct())
+    def _select(self, caller, s):
+        base, cleanup = self._process_joins(s)
+        analyze(caller, s, self._row_indices)
+        return cleanup(Table(base._jt.select(s._ast.to_hql())))
 
     @classmethod
     @typecheck_method(rows=anytype,
@@ -439,7 +447,7 @@ class Table(ExprContainer):
 
         Add a new global field:
 
-        >>> table_result = table1.annotate(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
+        >>> table_result = table1.annotate_globals(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
 
         Note
         ----
@@ -595,21 +603,15 @@ class Table(ExprContainer):
             Table with transmuted fields.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        exprs = []
-        base, cleanup = self._process_joins(*named_exprs.values())
         fields_referenced = set()
         for k, v in named_exprs.items():
-            analyze('Table.transmute', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             for name, inds in get_refs(v):
                 if inds == self._row_indices:
                     fields_referenced.add(name)
         fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        return cleanup(Table(base._jt
-                             .annotate(",\n".join(exprs))
-                             .drop(list(fields_referenced))))
+        return self._select('Table.transmute', self.row.annotate(**named_exprs).drop(*fields_referenced))
 
     def annotate(self, **named_exprs):
         """Add new fields.
@@ -637,13 +639,9 @@ class Table(ExprContainer):
             Table with new fields.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        exprs = []
-        base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze('Table.annotate', v, self._row_indices)
             check_collisions(self._fields, k, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-        return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
+        return self._select('Table.annotate', self.row.annotate(**named_exprs))
 
     @typecheck_method(expr=anytype,
                       keep=bool)
@@ -783,27 +781,20 @@ class Table(ExprContainer):
         """
         exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
+        assignments = OrderedDict()
 
-        ids = []
         for e in exprs:
-            all_exprs.append(e)
-            analyze('Table.select', e, self._row_indices)
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
-            strs.append(e._ast.to_hql())
-            ids.append(e._ast.expand()[0].name)
-        for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze('Table.select', e, self._row_indices)
-            check_collisions(self._fields, k, self._row_indices)
-            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
-            ids.append(k)
+            assert isinstance(e._ast, Select)
+            assignments[e._ast.name] = e
 
-        check_field_uniqueness(ids)
-        return cleanup(Table(base._jt.select(strs)))
+        for k, e in named_exprs.items():
+            check_collisions(self._fields, k, self._row_indices)
+            assignments[k] = e
+
+        check_field_uniqueness(assignments.keys())
+        return self._select('Table.select', hl.struct(**assignments))
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
@@ -1116,35 +1107,54 @@ class Table(ExprContainer):
         print(to_print)
 
     def index(self, *exprs):
+        exprs = tuple(exprs)
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index a table')
-
-        exprs = [to_expr(e) for e in exprs]
-        if not len(exprs) == len(self.key):
-            raise ExpressionException('Key mismatch: table has {} keys, found {} index expressions'.format(
-                len(self.key), len(exprs)))
-
-        indices, aggregations, joins = unify_all(*exprs)
+        non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
+        if non_exprs:
+            raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
 
         from hail.matrixtable import MatrixTable
-        uid = Env.get_uid()
-
+        indices, aggregations, joins = unify_all(*exprs)
         src = indices.source
+
+        if src is None or len(indices.axes) == 0:
+            # FIXME: this should be OK: table[m.global_index_into_table]
+            raise ExpressionException('Cannot index table with a scalar expression')
+
+        def types_compatible(left, right):
+            left = list(left)
+            right = list(right)
+            return (types_match(left, right)
+                    or (isinstance(src, MatrixTable)
+                        and len(left) == 1
+                        and len(right) == 1
+                        and isinstance(left[0].dtype, tinterval)
+                        and left[0].dtype.point_type == right[0].dtype))
+
+        if not types_compatible(self.key.values(), exprs):
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], TupleExpression)
+                    and types_compatible(self.key.values(), exprs[0])):
+                return self.index(*exprs[0])
+            elif (len(exprs) == 1
+                  and isinstance(exprs[0], StructExpression)
+                  and types_compatible(self.key.values(), exprs[0].values())):
+                return self.index(*exprs[0].values())
+            elif len(exprs) != len(self.key):
+                raise ExpressionException(f'Key mismatch: table has {len(self.key)} key fields, '
+                                          f'found {len(exprs)} index expressions.')
+            else:
+                raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
+                                          f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
+                                          f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+
+        uid = Env.get_uid()
 
         key_set = set(self.key)
         new_schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in key_set})
 
-        if src is None or len(indices.axes) == 0:
-            # FIXME: this should be OK: table[m.global_index_into_table]
-            raise ExpressionException('found explicit join indexed by a scalar expression')
-        elif isinstance(src, Table):
-            for i, (k, e) in enumerate(zip(self.key, exprs)):
-                if not self[k]._type == e._type:
-                    raise ExpressionException(
-                        "type mismatch at index {} of table key: "
-                        "expected type '{}', found '{}'"
-                            .format(i, k, e))
-
+        if isinstance(src, Table):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
@@ -1152,10 +1162,11 @@ class Table(ExprContainer):
             right_keys = [right[k] for k in right.key]
             right = right.select(*right_keys, **{uid: right.row})
             uids = [Env.get_uid() for i in range(len(exprs))]
-            full_key_strs = ',\n'.join('{}={}'.format(uids[i], exprs[i]._ast.to_hql()) for i in range(len(exprs)))
 
             def joiner(left):
-                left = Table(left._jt.annotate(full_key_strs)).key_by(*uids)
+                left = Table(left._jt.select(ApplyMethod('annotate',
+                                                         left.row._ast,
+                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql())).key_by(*uids)
                 left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
@@ -1164,22 +1175,6 @@ class Table(ExprContainer):
             return construct_expr(Select(TopLevelReference('row', src._row_indices), uid), new_schema, indices, aggregations,
                                   joins.push(Join(joiner, all_uids, uid, exprs)))
         elif isinstance(src, MatrixTable):
-            if len(exprs) == 1:
-                key_type = self.key[0].dtype
-                expr_type = exprs[0].dtype
-                if not (key_type == expr_type or
-                        key_type == tinterval(expr_type)):
-                    raise ExpressionException(
-                        "type mismatch at index 0 of table key: expected type {expected}, found '{et}'"
-                            .format(expected="'{}'".format(key_type) if not isinstance(key_type, tinterval)
-                        else "'{}' or '{}'".format(key_type, key_type.point_type), et=expr_type))
-            else:
-                for i, (k, e) in enumerate(zip(self.key, exprs)):
-                    if not self[k]._type == e._type:
-                        raise ExpressionException(
-                            "type mismatch at index {} of table key: "
-                            "expected type '{}', found '{}'"
-                                .format(i, k, e))
             for e in exprs:
                 analyze('Table.index', e, src._entry_indices)
 
@@ -1278,7 +1273,7 @@ class Table(ExprContainer):
         used_uids = set()
 
         for e in exprs:
-            for j in list(e._joins)[::-1]:
+            for j in sorted(list(e._joins), key = lambda j: j.idx): # Make sure joins happen in order
                 if j.uid not in used_uids:
                     left = j.join_function(left)
                     all_uids.extend(j.temp_vars)
@@ -1786,7 +1781,15 @@ class Table(ExprContainer):
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
-        return Table(self._jt.rename(row_map, global_map))
+        table = self
+        if row_map:
+            remapped_key = [row_map.get(k, k) for k in table.key.keys()]
+            table = (table
+                     .select(**{row_map.get(k, k): v for k, v in table.row.items()})
+                     .key_by(*remapped_key))
+        if global_map:
+            table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
+        return table
 
     def expand_types(self):
         """Expand complex types into structs and arrays.

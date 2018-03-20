@@ -16,7 +16,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.colsTable().select("Sample = row.s",
+    vds.colsTable().select(Array("Sample = row.s",
     "row.qc.call_rate",
     "row.qc.n_called",
     "row.qc.n_not_called",
@@ -37,7 +37,7 @@ class ExportSuite extends SparkSuite {
     "row.qc.n_non_ref",
     "row.qc.r_ti_tv",
     "row.qc.r_het_hom_var",
-    "row.qc.r_insertion_deletion").export(out)
+    "row.qc.r_insertion_deletion")).export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -86,7 +86,7 @@ class ExportSuite extends SparkSuite {
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.colsTable().select("row.s").export(f, header = false)
+    vds.colsTable().select(Array("row.s")).export(f, header = false)
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -96,9 +96,9 @@ class ExportSuite extends SparkSuite {
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
-    vds.colsTable().select("`S.A.M.P.L.E.ID` = row.s").export(f)
-    vds.colsTable().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = row.s", "ANOTHERTHING = row.s").export(f2)
-    vds.colsTable().select("`I have some spaces and tabs\\there` = row.s", "`more weird stuff here` = row.s").export(f3)
+    vds.colsTable().select(Array("`S.A.M.P.L.E.ID` = row.s")).export(f)
+    vds.colsTable().select(Array("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = row.s", "ANOTHERTHING = row.s")).export(f2)
+    vds.colsTable().select(Array("`I have some spaces and tabs\\there` = row.s", "`more weird stuff here` = row.s")).export(f3)
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -125,7 +125,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
     vds
       .colsTable()
-      .select("computation = 5 * (if (row.qc.call_rate < .95) 0 else 1)")
+      .select(Array("computation = 5 * (if (row.qc.call_rate < .95) 0 else 1)"))
       .export(f)
   }
 }

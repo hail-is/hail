@@ -1116,6 +1116,18 @@ class StructExpression(Mapping, Expression):
     spaces or symbols.
     """
 
+    @classmethod
+    def _from_fields(cls, fields: Dict[str, Expression]):
+        t = tstruct(**{k: v.dtype for k, v in fields.items()})
+        ast = StructDeclaration(list(fields), list(expr._ast for expr in fields.values()))
+        indices, aggregations, joins = unify_all(*fields.values())
+        s = StructExpression.__new__(cls)
+        s._fields = {}
+        for k, v in fields.items():
+            s._set_field(k, v)
+        super(StructExpression, s).__init__(ast, t, indices, aggregations, joins)
+        return s
+
     @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
     def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
         super(StructExpression, self).__init__(ast, type, indices, aggregations, joins)
@@ -1234,7 +1246,7 @@ class StructExpression(Mapping, Expression):
                 types.append(t)
 
         result_type = tstruct(**dict(zip(names, types)))
-        indices, aggregations, joins = unify_all(self, kwargs_struct)
+        indices, aggregations, joins = unify_all(kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
                               indices, aggregations, joins)

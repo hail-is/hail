@@ -44,6 +44,8 @@ object Children {
       Array(a, body)
     case ArrayFilter(a, name, cond) =>
       Array(a, cond)
+    case ArrayFlatMap(a, name, body) =>
+      Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body, typ) =>
       Array(a, zero, body)
     case MakeStruct(fields, _) =>

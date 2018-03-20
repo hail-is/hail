@@ -72,7 +72,7 @@ environment for hail:
 
 .. code-block:: bash
 
-    conda env create haildoc -f ./python/hail/environment.yml
+    conda env create haildoc -f ./python/hail/dev-environment.yml
 
 Activate the environment
 
@@ -96,13 +96,13 @@ When you are finished developing hail, disable the environment
 
     source deactivate haildoc
 
-The ``environment.yml`` file may change without warning; therefore, after
+The ``dev-environment.yml`` file may change without warning; therefore, after
 pulling new changes from a remote repository, we always recommend updating the
 conda environment
 
 .. code-block:: bash
 
-    conda env update haildoc -f ./python/hail/environment.yml
+    conda env update haildoc -f ./python/hail/dev-environment.yml
 
 -----------------
 Running the tests
