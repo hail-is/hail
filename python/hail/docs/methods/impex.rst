@@ -16,6 +16,7 @@ Import / Export
     get_vcf_metadata
     import_bed
     import_bgen
+    index_bgen
     import_fam
     import_gen
     import_locus_intervals
@@ -34,6 +35,7 @@ Import / Export
 .. autofunction:: get_vcf_metadata
 .. autofunction:: import_bed
 .. autofunction:: import_bgen
+.. autofunction:: index_bgen
 .. autofunction:: import_fam
 .. autofunction:: import_gen
 .. autofunction:: import_locus_intervals
