@@ -557,7 +557,7 @@ def mean(expr):
     """
     return stats(expr).mean
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=agg_expr(expr_float64))
 def stats(expr):
     """Compute a number of useful statistics about `expr`.
 
