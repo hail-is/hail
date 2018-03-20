@@ -1192,8 +1192,11 @@ class Table(ExprContainer):
                 if is_row_key or is_partition_key:
                     # no vds_key (way faster)
                     def joiner(left):
-                        return MatrixTable(left._jvds.annotateRowsTable(
+                        left.annotate_rows(es=hl.agg.collect(left.x)).rows().show()
+                        rt = MatrixTable(left._jvds.annotateRowsTable(
                             right._jt, uid, False))
+                        rt.annotate_rows(es=hl.agg.collect(rt.x)).rows().show()
+                        return rt
 
                     return construct_expr(Select(TopLevelReference('va', src._row_indices), uid), new_schema,
                                           indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
@@ -1237,9 +1240,9 @@ class Table(ExprContainer):
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src[list(src.col_key)[i]] for i in range(len(exprs))]):
                     # no vds_key (faster)
-                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
-                        right._jt, None, uid, False))
+                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(right._jt, None, uid, False))
                 else:
+                    # use vds_key
                     # use vds_key
                     joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
                         right._jt, [e._ast.to_hql() for e in exprs], uid, False))

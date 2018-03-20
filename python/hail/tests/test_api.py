@@ -799,13 +799,17 @@ class MatrixTests(unittest.TestCase):
                 hl.is_missing(rt['value']))))
 
     def test_entry_join_self(self):
-        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
-        mt1 = mt1.annotate_entries(x = mt1.row_idx + mt1.col_idx)
+        mt1 = hl.utils.range_matrix_table(6, 6, n_partitions=2)
+        mt1 = mt1.annotate_entries(x = 100*mt1.row_idx + 10*mt1.col_idx)
 
+        mt1.entries().show(20)
         self.assertEqual(mt1[mt1.row_idx, mt1.col_idx].dtype, mt1.entry.dtype)
 
         mt_join = mt1.annotate_entries(x2 = mt1[mt1.row_idx, mt1.col_idx].x)
         mt_join_entries = mt_join.entries()
+
+        mt_join_entries.show(20)
+
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
 
     def test_entry_join_const(self):

@@ -1,5 +1,6 @@
 import itertools
 from typing import *
+from collections import OrderedDict
 
 import hail
 import hail as hl
@@ -947,7 +948,7 @@ class MatrixTable(ExprContainer):
         for k, v in named_exprs.items():
             check_collisions(self._fields, k, self._entry_indices)
 
-        return self._select_entries("MatrixTable.annotate_entries", self.entries.annotate(**named_exprs))
+        return self._select_entries("MatrixTable.annotate_entries", self.entry.annotate(**named_exprs))
 
     def select_globals(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
         """Select existing global fields or create new fields by name, dropping the rest.
@@ -1280,10 +1281,11 @@ class MatrixTable(ExprContainer):
             new_col_fields = [f for f in m.col if f not in fields_to_drop]
             m = m.select_cols(*new_col_fields)
 
-        entry_fields = [x for x in fields_to_drop if self._fields[x]._indices == self._entry_indices]
-        if any(self._fields[field]._indices == self._entry_indices for field in fields_to_drop):
-            # need to drop entry fields
-            m = MatrixTable(m._jvds.dropEntries(entry_fields))
+
+
+        entry_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._entry_indices]
+        if entry_fields:
+            m = m._select_entries("MatrixTable.drop_entries", m.entry.drop(*entry_fields))
 
         return m
 
@@ -2182,6 +2184,7 @@ class MatrixTable(ExprContainer):
             uids.append(row_uid)
             col_uid = Env.get_uid()
             uids.append(col_uid)
+            uids.append(col_uid)
 
             def joiner(left: MatrixTable):
                 localized = Table(self._jvds.localizeEntries(row_uid))
@@ -2189,7 +2192,6 @@ class MatrixTable(ExprContainer):
                 src_cols_indexed = src_cols_indexed.annotate(**{col_uid: hl.int32(src_cols_indexed[col_uid])})
                 left = left._annotate_all(row_exprs = {row_uid: localized.index(*row_exprs)[row_uid]},
                                           col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
-
                 return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
             return construct_expr(Select(TopLevelReference('g', self._entry_indices), uid),
@@ -2228,12 +2230,9 @@ class MatrixTable(ExprContainer):
                 check_collisions(self._fields, k, self._col_indices)
                 jmt = jmt.annotateColsExpr(",\n".join(col_strs))
         if entry_exprs:
-            entry_strs = []
-            for k, v in entry_exprs.items():
-                analyze('MatrixTable.annotate_entries', v, self._entry_indices)
-                entry_strs.append('g.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-                check_collisions(self._fields, k, self._entry_indices)
-                jmt = jmt.annotateEntriesExpr(",\n".join(entry_strs))
+            entry_struct = self.entry.annotate(**entry_exprs)
+            analyze("MatrixTable.annotate_entries", entry_struct, self._entry_indices)
+            jmt = jmt.selectEntries(entry_struct._ast.to_hql())
         if global_exprs:
             global_strs = []
             for k, v in global_exprs.items():
@@ -2606,8 +2605,8 @@ class MatrixTable(ExprContainer):
     @typecheck_method(caller=str, s=expr_struct())
     def _select_entries(self, caller, s):
         base, cleanup = self._process_joins(s)
-        analyze(caller, s, self._row_indices)
-        return cleanup(MatrixTable(base._jt.select(s._ast.to_hql())))
+        analyze(caller, s, self._entry_indices)
+        return cleanup(MatrixTable(base._jvds.selectEntries(s._ast.to_hql())))
 
     @typecheck(datasets=matrix_table_type)
     def union_rows(*datasets: Tuple['MatrixTable']) -> 'MatrixTable':

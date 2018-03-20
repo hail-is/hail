@@ -3,6 +3,8 @@ package is.hail.expr
 import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.table.Table
+import is.hail.variant.MatrixTable
+import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -30,5 +32,12 @@ class TableIRSuite extends SparkSuite {
     val kt2 = new Table(hc, TableFilter(kt.tir,
       ir.ApplyBinaryPrimOp(ir.EQ(), ir.GetField(ir.Ref("row"), "field1"), ir.GetField(ir.Ref("global"), "g"))))
     assert(kt2.count() == 1)
+  }
+
+  @Test def testAnnotateRowsTable() {
+    val mt = MatrixTable.range(hc, 6, 6, Some(4)).annotateEntriesExpr(("x", "va.row_idx * 10 + sa.col_idx"))
+    val entries = mt.localizeEntries("x")
+    val joined = mt.annotateRowsTable(entries, "x2", false)
+    println(joined.unsafeRowRDD().collect().mkString("\n"))
   }
 }
