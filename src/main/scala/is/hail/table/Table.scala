@@ -354,70 +354,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     annotateGlobal(ann, t, name)
   }
 
-  def annotateGlobalExpr(expr: String): Table = {
+  def selectGlobal(expr: String): Table = {
     val ec = EvalContext("global" -> globalSignature)
     ec.set(0, globals.value)
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
+    val ast = Parser.parseToAST(expr, ec)
+    assert(ast.`type`.isInstanceOf[TStruct])
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
+    ast.toIR() match {
+      case Some(ir) =>
+        new Table(hc, TableMapGlobals(tir, ir))
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val newSignature = t.asInstanceOf[TStruct]
+        val newGlobal = f()
 
-    val finalType = (paths, types).zipped.foldLeft(globalSignature) { case (v, (ids, signature)) =>
-      val (s, i) = v.insert(signature, ids)
-      inserterBuilder += i
-      s.asInstanceOf[TStruct]
+        copy2(globalSignature = newSignature,
+          globals = globals.copy(value = newGlobal, t = newSignature))
     }
-
-    val inserters = inserterBuilder.result()
-
-    val ga = inserters
-      .zip(f())
-      .foldLeft(globals.value) { case (a, (ins, res)) =>
-        ins(a, res).asInstanceOf[Row]
-      }
-
-    copy2(globals = globals.copy(value = ga, t = finalType),
-      globalSignature = finalType)
-  }
-
-  def selectGlobal(fields: java.util.ArrayList[String]): Table = {
-    selectGlobal(fields.asScala.toArray: _*)
-  }
-
-  def selectGlobal(fields: String*): Table = {
-    val ec = EvalContext("global" -> globalSignature)
-    ec.set(0, globals.value)
-
-    val (paths, types, f) = Parser.parseSelectExprs(fields.toArray, ec)
-
-    val names = paths.map {
-      case Left(n) => n
-      case Right(l) => l.last
-    }
-
-    val overlappingPaths = names.counter().filter { case (n, i) => i != 1 }.keys
-
-    if (overlappingPaths.nonEmpty)
-      fatal(s"Found ${ overlappingPaths.size } ${ plural(overlappingPaths.size, "selected field name") } that are duplicated.\n" +
-        "Overlapping fields:\n  " +
-        s"@1", overlappingPaths.truncatable("\n  "))
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-
-    val finalSignature = (names, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
-      val (s: TStruct, i) = vs.insert(sig, p)
-      inserterBuilder += i
-      s
-    }
-
-    val inserters = inserterBuilder.result()
-
-    val newGlobal = f().zip(inserters)
-      .foldLeft(Row()) { case (a1, (v, inserter)) =>
-        inserter(a1, v).asInstanceOf[Row]
-      }
-
-    copy2(globalSignature = finalSignature, globals = globals.copy(value = newGlobal, t = finalSignature))
   }
 
   def filter(cond: String, keep: Boolean): Table = {
@@ -1085,7 +1039,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
       .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
-      .selectGlobal()
+      .selectGlobal("{}")
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {

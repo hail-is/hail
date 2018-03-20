@@ -607,3 +607,36 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       })
   }
 }
+
+case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child, newRow)
+
+  val typ: TableType = {
+    Infer(newRow, None, child.typ.env)
+    child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
+  }
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
+    assert(newChildren.length == 2)
+    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val tv = child.execute(hc)
+    val gType = typ.globalType
+
+    val (rTyp, f) = ir.Compile[Long, Long](
+      "global", child.typ.globalType,
+      newRow)
+    assert(rTyp == gType)
+
+    val rv = tv.globals.regionValue
+    val offset = f()(rv.region, rv.offset, false)
+
+    val newGlobals = tv.globals.copy(
+      value = UnsafeRow.read(rTyp, rv.region, offset),
+      t = rTyp)
+
+    TableValue(typ, newGlobals, tv.rvd)
+  }
+}

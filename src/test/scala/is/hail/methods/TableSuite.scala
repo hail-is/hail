@@ -477,4 +477,10 @@ class TableSuite extends SparkSuite {
     val expectedSets = List(Set("A", "C", "E", "G"), Set("A", "C", "E", "H")).map(set => set.map(str => (str, true)))
     assert(expectedSets.contains(mis))
   }
+
+  @Test def testSelectGlobals() {
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
+    val kt2 = kt.selectGlobal("{x: 5}").selectGlobal("{y: global.x}")
+    assert(kt2.globalSignature == TStruct("y" -> TInt32()) && kt2.globals.value.asInstanceOf[Row].get(0) == 5)
+  }
 }
