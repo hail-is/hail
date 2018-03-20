@@ -216,7 +216,7 @@ trait RVD {
     OrderedRVD(typ, partitioner, rdd)
   }
 
-  def toUnsafeRows: RDD[Row] = {
+  def toRows: RDD[Row] = {
     val localRowType = rowType
     rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
