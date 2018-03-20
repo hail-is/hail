@@ -382,7 +382,7 @@ case class FilterRows(
 
 case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
   def rdd: RDD[Row] =
-    rvd.toUnsafeRows
+    rvd.toRows
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
