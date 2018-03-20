@@ -1733,8 +1733,6 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
 
     _, scores, _ = hwe_normalized_pca(ds, k, False, True)
 
-    scores = scores.annotate(FIXME_join_logic_lifts_a_single_field_to_the_top_level=0)
-
     ds = ds.annotate_cols(scores=scores[ds.s].scores)
 
     return pc_relate_with_scores(ds, ds.scores, maf, path, block_size, min_kinship, statistics)
