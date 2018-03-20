@@ -2184,7 +2184,6 @@ class MatrixTable(ExprContainer):
             uids.append(row_uid)
             col_uid = Env.get_uid()
             uids.append(col_uid)
-            uids.append(col_uid)
 
             def joiner(left: MatrixTable):
                 localized = Table(self._jvds.localizeEntries(row_uid))

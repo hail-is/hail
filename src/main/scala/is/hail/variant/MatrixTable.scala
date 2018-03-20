@@ -1363,6 +1363,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def selectEntries(expr: String): MatrixTable = {
+    println(expr)
     val ec = entryEC
 
     val entryAST = Parser.parseToAST(expr, ec)
@@ -1396,7 +1397,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             val entry = entries(i)
             ec.set(2, localColValuesBc.value(i))
             ec.set(3, entry)
-            rvb.addAnnotation(newEntryType, f())
+            val result = f()
+            rvb.addAnnotation(newEntryType, result)
             i += 1
           }
           rvb.endArray()
