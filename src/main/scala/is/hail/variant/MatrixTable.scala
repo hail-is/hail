@@ -1583,12 +1583,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val irs = asts.flatMap { case (f, a) => a.toIR().map((f, _)) }
 
-    if (irs.length == asts.length) {
-      val newEntries = ir.InsertFields(ir.Ref("g"), irs)
-
-      new MatrixTable(hc, MapEntries(ast, newEntries))
-    } else {
-      info("No IR conversion found for annotate_entries. Falling back to AST.")
+//    if (irs.length == asts.length) {
+//      val newEntries = ir.InsertFields(ir.Ref("g"), irs)
+//
+//      new MatrixTable(hc, MapEntries(ast, newEntries))
+//    } else {
 
       val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.ENTRY_HEAD))
 
@@ -1633,7 +1632,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         }
         rvb.endArray()
       })
-    }
+//    }
   }
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {

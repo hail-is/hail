@@ -4,7 +4,7 @@ import hail
 
 
 def startTestHailContext():
-    hail.init(master='local[2]', min_block_size=0)
+    hail.init(master='local[2]', min_block_size=0, quiet=True)
 
 
 def stopTestHailContext():

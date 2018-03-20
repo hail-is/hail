@@ -403,7 +403,7 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
       .bind("va", child.typ.rvRowType)
       .bind("sa", TArray(child.typ.colType))
     )
-    child.typ.copy(rvRowType=newRow.typ)
+    child.typ.copy(rvRowType = newRow.typ)
   }
 
   def execute(hc: HailContext): MatrixValue = {
