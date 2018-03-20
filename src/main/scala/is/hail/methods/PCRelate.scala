@@ -114,7 +114,7 @@ object PCRelate {
 
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.from(g, blockSize).cache()
+    val blockedG = BlockMatrix.fromBreezeMatrix(g, blockSize).cache()
 
     apply(vds.hc, blockedG, vds.stringSampleIds.toArray[Annotation], TString(), pcaScores, maf, blockSize, minKinship, statistics)
   }
@@ -129,7 +129,7 @@ object PCRelate {
 
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.from(g, blockSize).cache()
+    val blockedG = BlockMatrix.fromBreezeMatrix(g, blockSize).cache()
 
     apply(vds.hc, blockedG, vds.stringSampleIds.toArray[Annotation], TString(), pcs, maf, blockSize, minKinship, statistics)
   }
