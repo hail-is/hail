@@ -4,7 +4,7 @@ import is.hail.annotations.{JoinedRegionValue, OrderedRVIterator, RegionValue}
 import org.apache.spark.rdd.RDD
 import is.hail.utils.fatal
 
-class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
+class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) extends Serializable {
   val typ = rvd.typ
   val (kType, _) = rvd.rowType.select(key)
   require(kType isPrefixOf rvd.typ.kType)
