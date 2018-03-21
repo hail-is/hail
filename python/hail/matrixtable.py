@@ -1194,6 +1194,7 @@ class MatrixTable(ExprContainer):
                                           " found indices {}".format(list(e._indices.axes)))
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
+            assignments[e._ast.name] = e
         for k, e in named_exprs.items():
             check_collisions(self._fields, k, self._entry_indices)
             assignments[k] = e
@@ -1275,8 +1276,6 @@ class MatrixTable(ExprContainer):
             # need to drop col fields
             new_col_fields = [f for f in m.col if f not in fields_to_drop]
             m = m.select_cols(*new_col_fields)
-
-
 
         entry_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._entry_indices]
         if entry_fields:
