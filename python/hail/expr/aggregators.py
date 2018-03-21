@@ -22,7 +22,6 @@ class AggregableChecker(TypeChecker):
         coercer = self.coercer
         if isinstance(x, Aggregable):
             if coercer.can_coerce(x.dtype):
-                # check if conversion is required for performance reasons
                 if coercer.requires_conversion(x.dtype):
                     return x._map(lambda x_: coercer.coerce(x_))
                 else:
@@ -500,7 +499,7 @@ def sum(expr):
     """
     return _agg_func('sum', expr, expr.dtype)
 
-@typecheck(expr=agg_expr(expr_array(expr_oneof(expr_int64, expr_float64))))
+@typecheck(expr=agg_expr(expr_array(expr_numeric)))
 def array_sum(expr):
     """Compute the coordinate-wise sum of all records of `expr`.
 
