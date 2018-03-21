@@ -169,7 +169,7 @@ object LoadBgen {
     new MatrixTable(hc, matrixType,
       BroadcastValue(Annotation.empty, matrixType.globalType, sc),
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orvdType, rdd2, Some(fastKeys), None))
+      OrderedRVD.coerce(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

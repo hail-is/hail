@@ -190,6 +190,6 @@ object LoadGDB {
     new MatrixTable(hc, matrixType,
       BroadcastValue(Annotation.empty, matrixType.globalType, sc),
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orvdType, hc.sc.parallelize(records), None, None))
+      OrderedRVD.coerce(matrixType.orvdType, hc.sc.parallelize(records), None, None))
   }
 }

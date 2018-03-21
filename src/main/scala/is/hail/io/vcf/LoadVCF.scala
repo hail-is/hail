@@ -841,7 +841,7 @@ object LoadVCF {
     // nothing after the key
     val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, rg, contigRecoding)
 
-    val rdd = OrderedRVD(
+    val rdd = OrderedRVD.coerce(
       matrixType.orvdType,
       parseLines { () =>
         new ParseLineContext(genotypeSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))

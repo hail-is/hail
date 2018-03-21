@@ -85,6 +85,8 @@ case class MatrixValue(
   colValues: IndexedSeq[Annotation],
   rvd: OrderedRVD) {
 
+  assert(rvd.typ == typ.orvdType)
+
   def sparkContext: SparkContext = rvd.sparkContext
 
   def nPartitions: Int = rvd.partitions.length
@@ -252,42 +254,43 @@ case class MatrixRead(
         } else {
           val entriesRVD = spec.entriesComponent.read(hc, path)
           val entriesRowType = entriesRVD.rowType
-          OrderedRVD(typ.orvdType,
-            rowsRVD.partitioner,
-            rowsRVD.rdd.zipPartitions(entriesRVD.rdd) { case (it1, it2) =>
-              val rvb = new RegionValueBuilder()
+          rowsRVD.zipPartitionsPreservesPartitioning(
+            typ.orvdType,
+            entriesRVD
+          ) { case (it1, it2) =>
+            val rvb = new RegionValueBuilder()
 
-              new Iterator[RegionValue] {
-                def hasNext: Boolean = {
-                  val hn = it1.hasNext
-                  assert(hn == it2.hasNext)
-                  hn
-                }
-
-                def next(): RegionValue = {
-                  val rv1 = it1.next()
-                  val rv2 = it2.next()
-                  val region = rv2.region
-                  rvb.set(region)
-                  rvb.start(fullRowType)
-                  rvb.startStruct()
-                  var i = 0
-                  while (i < localEntriesIndex) {
-                    rvb.addField(fullRowType, rv1, i)
-                    i += 1
-                  }
-                  rvb.addField(entriesRowType, rv2, 0)
-                  i += 1
-                  while (i < fullRowType.size) {
-                    rvb.addField(fullRowType, rv1, i - 1)
-                    i += 1
-                  }
-                  rvb.endStruct()
-                  rv2.set(region, rvb.end())
-                  rv2
-                }
+            new Iterator[RegionValue] {
+              def hasNext: Boolean = {
+                val hn = it1.hasNext
+                assert(hn == it2.hasNext)
+                hn
               }
-            })
+
+              def next(): RegionValue = {
+                val rv1 = it1.next()
+                val rv2 = it2.next()
+                val region = rv2.region
+                rvb.set(region)
+                rvb.start(fullRowType)
+                rvb.startStruct()
+                var i = 0
+                while (i < localEntriesIndex) {
+                  rvb.addField(fullRowType, rv1, i)
+                  i += 1
+                }
+                rvb.addField(entriesRowType, rv2, 0)
+                i += 1
+                while (i < fullRowType.size) {
+                  rvb.addField(fullRowType, rv1, i - 1)
+                  i += 1
+                }
+                rvb.endStruct()
+                rv2.set(region, rvb.end())
+                rv2
+              }
+            }
+          }
         }
       }
 
@@ -450,10 +453,8 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 }
 
 case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
-  def rdd: RDD[Row] = {
-    val localRowType = typ.rowType
-    rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
-  }
+  def rdd: RDD[Row] =
+    rvd.toRows
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType

@@ -54,8 +54,8 @@ object FilterAlleles {
     val newEntryType = gAnnotator.newT
     val newMatrixType = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = newEntryType)
 
-    def filter(rdd: RVD,
-      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
+    def filter(rdd: OrderedRVD,
+      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): OrderedRVD = {
 
       def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
         var alive = 0
@@ -99,7 +99,7 @@ object FilterAlleles {
 
       val localSampleAnnotationsBc = vsm.colValuesBc
 
-      rdd.mapPartitions(newRVType) { it =>
+      rdd.mapPartitionsPreservesPartitioning(newRVType) { it =>
         var prevLocus: Locus = null
         val fullRow = new UnsafeRow(fullRowType)
         val row = fullRow.deleteField(localEntriesIndex)
@@ -171,17 +171,25 @@ object FilterAlleles {
 
     val newRDD2: OrderedRVD =
       if (leftAligned) {
-        OrderedRVD(newMatrixType.orvdType,
-          vsm.rvd.partitioner,
-          filter(vsm.rvd, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
+        filter(
+          vsm.rvd,
+          removeLeftAligned = false,
+          removeMoving = false,
+          verifyLeftAligned = true)
       } else {
-        val leftAlignedVariants = OrderedRVD(newMatrixType.orvdType,
-          vsm.rvd.partitioner,
-          filter(vsm.rvd, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
+        val leftAlignedVariants =
+          filter(
+            vsm.rvd,
+            removeLeftAligned = false,
+            removeMoving = true,
+            verifyLeftAligned = false)
 
-        val movingVariants = OrderedRVD.shuffle(newMatrixType.orvdType,
-          vsm.rvd.partitioner,
-          filter(vsm.rvd, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
+        val movingVariants =
+          filter(
+            vsm.rvd,
+            removeLeftAligned = true,
+            removeMoving = false,
+            verifyLeftAligned = false)
 
         leftAlignedVariants.partitionSortedUnion(movingVariants)
       }

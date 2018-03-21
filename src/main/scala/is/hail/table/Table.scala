@@ -712,7 +712,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val ordType = new OrderedRVDType(partitionKeys, rowKeys ++ Array(INDEX_UID), rowEntryStruct)
-    val ordered = OrderedRVD(ordType, rowEntryRVD.rdd, None, None)
+    val ordered = OrderedRVD.coerce(ordType, rowEntryRVD)
 
     val matrixType: MatrixType = MatrixType.fromParts(
       globalSignature,
@@ -1256,6 +1256,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
-    OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)
+    OrderedRVD.coerce(orderedKTType, rvd, None, hintPartitioner)
   }
 }

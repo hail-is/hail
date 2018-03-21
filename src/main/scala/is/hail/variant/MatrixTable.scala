@@ -143,7 +143,7 @@ object MatrixTable {
     val localNCols = colValues.length
 
     var ds = new MatrixTable(hc, matrixType, BroadcastValue(globals, matrixType.globalType, hc.sc), colValues,
-      OrderedRVD(matrixType.orvdType,
+      OrderedRVD.coerce(matrixType.orvdType,
         rdd.mapPartitions { it =>
           val region = Region()
           val rvb = new RegionValueBuilder(region)
@@ -212,7 +212,7 @@ object MatrixTable {
           rv
         }
       }
-    val rvd = OrderedRVD(mt.orvdType, rdd, None, None)
+    val rvd = OrderedRVD.coerce(mt.orvdType, rdd, None, None)
     new MatrixTable(hc, mt, BroadcastValue(Annotation.empty, mt.globalType, hc.sc), Array.tabulate(nCols)(Annotation(_)), rvd)
   }
 
@@ -303,15 +303,8 @@ object MatrixTable {
   def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
     require(datasets.length >= 2)
     val first = datasets(0)
-    val sc = first.sparkContext
-
     checkDatasetSchemasCompatible(datasets)
-
-    first.copyMT(
-      rvd = OrderedRVD(
-        first.rvd.typ,
-        sc.union(datasets.map(_.rvd.rdd)),
-        None, None))
+    first.copyMT(rvd = OrderedRVD.union(datasets.map(_.rvd)))
   }
 
   def fromRowsTable(kt: Table, partitionKey: java.util.ArrayList[String] = null): MatrixTable = {
@@ -347,7 +340,7 @@ object MatrixTable {
 
     new MatrixTable(kt.hc, matrixType, BroadcastValue(Annotation.empty, matrixType.globalType, kt.hc.sc),
       Array.empty[Annotation],
-      OrderedRVD(matrixType.orvdType, rdd, None, None))
+      OrderedRVD.coerce(matrixType.orvdType, rdd, None, None))
   }
 }
 
@@ -576,7 +569,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rowPartitionKey = partitionKeys)
 
     copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD(newMatrixType.orvdType, rvd.rdd, None, None))
+      rvd = OrderedRVD.coerce(newMatrixType.orvdType, rvd))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
@@ -970,7 +963,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       warn("modified row key, rescanning to compute ordering...")
       val newRDD = rvd.mapPartitions(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD(newMatrixType.orvdType, newRDD, None, None))
+        rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
       rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
@@ -1085,7 +1078,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
     val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
-    val newRDD = rvd.rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
+    val newRVD = rvd.zipPartitionsPreservesPartitioning(
+      newMatrixType.orvdType,
+      zipRDD
+    ) { case (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { rv =>
           val ur = new UnsafeRow(ktSignature, rv)
@@ -1122,13 +1119,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2
       }
     }
-
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
-
-    val newRVD = OrderedRVD(
-      newMatrixType.orvdType,
-      rvd.partitioner,
-      newRDD)
 
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
@@ -1278,7 +1268,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       warn("modified row key, rescanning to compute ordering...")
       val newRDD = rvd.mapPartitions(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD(newMatrixType.orvdType, newRDD, None, None))
+        rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
       rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
@@ -1332,7 +1322,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       warn("modified row key, rescanning to compute ordering...")
       val newRDD = rvd.mapPartitions(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD(newMatrixType.orvdType, newRDD, None, None))
+        rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
       rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
@@ -1441,13 +1431,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def nPartitions: Int = rvd.partitions.length
 
-  def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable = {
-    // need to strip entries!
-    // FIXME: HACK
-    val rTyp = new OrderedRVDType(right.rowPartitionKey.toArray, right.rowKey.toArray, right.rowType)
-    val rightRVD = OrderedRVD(rTyp, right.rvd.partitioner, right.rowsTable().rvd)
-    orderedRVDLeftJoinDistinctAndInsert(rightRVD, root, product = false)
-  }
+  def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
+    orderedRVDLeftJoinDistinctAndInsert(right.rowFieldsRVD, root, product = false)
 
   def count(): (Long, Long) = (countRows(), numCols)
 
@@ -2184,7 +2169,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD = if (fieldMapRows.isEmpty) rvd else {
       val newType = newMatrixType.orvdType
       val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
-      OrderedRVD(newType, newPartitioner, rvd.rdd)
+      rvd.updateType(newType)
     }
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
@@ -2451,12 +2436,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array.empty[String])
   }
 
-  def rowsTable(): Table = {
+  private def rowFieldsRVD: OrderedRVD = {
     val localRowType = rowType
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
-    val tableType = TableType(rowType, rowKey, globalType)
-    new Table(hc, TableLiteral(TableValue(tableType, globals, rvd.mapPartitions(rowType) { it =>
+    rvd.mapPartitionsPreservesPartitioning(
+      new OrderedRVDType(rowPartitionKey.toArray, rowKey.toArray, rowType)
+    ) { it =>
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.map { rv =>
@@ -2473,7 +2459,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2.set(rv.region, rv2b.end())
         rv2
       }
-    })))
+    }
+  }
+
+  def rowsTable(): Table = {
+    val tableType = TableType(rowType, rowKey, globalType)
+    new Table(hc, TableLiteral(TableValue(tableType, globals, rowFieldsRVD)))
   }
 
   def entriesTable(): Table = {
@@ -2690,7 +2681,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val partitionCounts = rvd.rdd.writeRowsSplit(path, matrixType, codecSpec, rvd.partitioner)
+    val partitionCounts = rvd.writeRowsSplit(path, matrixType, codecSpec)
 
     val globalsPath = path + "/globals"
     hadoopConf.mkDir(globalsPath)
