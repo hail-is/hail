@@ -211,16 +211,6 @@ trait RVD {
 
   def write(path: String, codecSpec: CodecSpec): Array[Long]
 
-  def shuffle(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner): OrderedRVD = {
-    assert(typ.rowType == rowType)
-    OrderedRVD.shuffle(typ, partitioner, rdd)
-  }
-
-  def assertOrdered(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner): OrderedRVD = {
-    assert(typ.rowType == rowType)
-    OrderedRVD(typ, partitioner, rdd)
-  }
-
   def toRows: RDD[Row] = {
     val localRowType = rowType
     rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }

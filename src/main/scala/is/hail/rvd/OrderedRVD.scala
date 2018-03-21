@@ -369,7 +369,7 @@ class OrderedRVD(
   def zipPartitions(newTyp: OrderedRVDType, that: RVD)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
-    zipPartitions(newTyp, that, true)(zipper)
+    zipPartitions(newTyp, that, false)(zipper)
 
   def zipPartitions(newTyp: OrderedRVDType, that: RVD, preservesPartitioning: Boolean)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
@@ -379,7 +379,7 @@ class OrderedRVD(
   def zipPartitions[T: ClassTag](newTyp: OrderedRVDType, that: RDD[T])
     (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
       : OrderedRVD =
-    zipPartitions(newTyp, that, true)(zipper)
+    zipPartitions(newTyp, that, false)(zipper)
 
   def zipPartitions[T: ClassTag](newTyp: OrderedRVDType, that: RDD[T], preservesPartitioning: Boolean)
     (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
@@ -400,11 +400,6 @@ object OrderedRVD {
       OrderedRVDPartitioner.empty(typ),
       sc.emptyRDD[RegionValue])
   }
-
-  // FIXME: delete this, it's just a wrapper around coerce
-  def apply(typ: OrderedRVDType,
-    rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedRVDPartitioner]): OrderedRVD =
-    coerce(typ, rdd, fastKeys, hintPartitioner)
 
   /**
     * Precondition: the iterator it is PK-sorted.  We lazily K-sort each block
@@ -725,7 +720,7 @@ object OrderedRVD {
     require(rvds.length > 1)
     val first = rvds(0)
     val sc = first.sparkContext
-    OrderedRVD(
+    OrderedRVD.coerce(
       first.typ,
       sc.union(rvds.map(_.rdd)),
       None,

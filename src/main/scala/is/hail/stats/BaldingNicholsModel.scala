@@ -216,7 +216,7 @@ object BaldingNicholsModel {
         Array.tabulate(N)(i => Annotation(i, popOfSample_n(0, i).toInt))
 
     // FIXME: should use fast keys
-    val ordrdd = OrderedRVD(matrixType.orvdType, rdd, None, None)
+    val ordrdd = OrderedRVD.coerce(matrixType.orvdType, rdd, None, None)
 
     new MatrixTable(hc,
       matrixType,

@@ -54,8 +54,8 @@ object FilterAlleles {
     val newEntryType = gAnnotator.newT
     val newMatrixType = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = newEntryType)
 
-    def filter(rdd: RVD,
-      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
+    def filter(rdd: OrderedRVD,
+      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): OrderedRVD = {
 
       def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
         var alive = 0
@@ -176,7 +176,6 @@ object FilterAlleles {
           removeLeftAligned = false,
           removeMoving = false,
           verifyLeftAligned = true)
-          .assertOrdered(newMatrixType.orvdType, vsm.rvd.partitioner)
       } else {
         val leftAlignedVariants =
           filter(
@@ -184,7 +183,6 @@ object FilterAlleles {
             removeLeftAligned = false,
             removeMoving = true,
             verifyLeftAligned = false)
-            .assertOrdered(newMatrixType.orvdType, vsm.rvd.partitioner)
 
         val movingVariants =
           filter(
@@ -192,7 +190,6 @@ object FilterAlleles {
             removeLeftAligned = true,
             removeMoving = false,
             verifyLeftAligned = false)
-            .assertOrdered(newMatrixType.orvdType, vsm.rvd.partitioner)
 
         leftAlignedVariants.partitionSortedUnion(movingVariants)
       }
