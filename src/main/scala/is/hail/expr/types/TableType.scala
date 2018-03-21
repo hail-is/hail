@@ -17,6 +17,12 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
       .bind(("row", rowType))
   }
 
+  def keyType: TStruct = rowType.select(key.toArray)._1
+  val keyFieldIdx: Array[Int] = key.toArray.map(rowType.fieldIdx)
+  def valueType: TStruct = rowType.filter(key.toSet, include = false)._1
+  val valueFieldIdx: Array[Int] =
+    rowType.fields.filter(f => !key.contains(f.name)).map(_.index).toArray
+
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0
 

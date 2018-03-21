@@ -3,6 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.broadcast.Broadcast
 
@@ -33,8 +34,6 @@ class OrderedRVDPartitioner(
       (rangeBounds(i).asInstanceOf[Interval], i)
     })
 
-  val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
-
   def region: Region = rangeBounds.region
 
   def loadElement(i: Int): Long = rangeBoundsType.loadElement(region, rangeBounds.aoff, rangeBounds.length, i)
@@ -45,46 +44,61 @@ class OrderedRVDPartitioner(
 
   def range: Interval = rangeTree.root.get.range
 
-  // if outside bounds, return min or max depending on location
-  // pk: Annotation[pkType]
-  def getPartitionPK(pk: Any): Int = {
-    assert(pkType.typeCheck(pk))
-    val part = rangeTree.queryValues(pkType.ordering, pk)
+  /**
+    * Find the partition containing the given Row.
+    *
+    * If pkType is a prefix of the type of row, the prefix of row is used to
+    * find the partition.
+    *
+    * If row falls outside the bounds of the partitioner, return the min or max
+    * partition.
+    */
+  def getPartitionPK(row: Any): Int = {
+    val part = rangeTree.queryValues(pkType.ordering, row)
     part match {
       case Array() =>
-        if (range.isAbovePosition(pkType.ordering, pk))
+        if (range.isAbovePosition(pkType.ordering, row))
           0
         else {
-          assert(range.isBelowPosition(pkType.ordering, pk))
+          assert(range.isBelowPosition(pkType.ordering, row))
           numPartitions - 1
         }
 
       case Array(x) => x
+    }
+  }
+
+  // Return the sequence of partition IDs overlapping the given interval of
+  // partition keys.
+  def getPartitionRange(query: Any): Seq[Int] = {
+    query match {
+      case row: Row =>
+        rangeTree.queryValues(pkType.ordering, row)
+      case interval: Interval =>
+        if (!rangeTree.probablyOverlaps(pkType.ordering, interval))
+          Seq.empty[Int]
+        else {
+          val startRange = getPartitionRange(interval.start)
+          val start = if (startRange.nonEmpty)
+            startRange.min
+          else
+            0
+          val endRange =  getPartitionRange(interval.end)
+          val end = if (endRange.nonEmpty)
+            endRange.max
+          else
+            numPartitions - 1
+          start to end
+        }
     }
   }
 
   // return the partition containing key
   // if outside bounds, return min or max depending on location
   // key: RegionValue[kType]
-  def getPartition(key: Any): Int = {
-    val keyrv = key.asInstanceOf[RegionValue]
-    val wpkrv = WritableRegionValue(pkType)
-    wpkrv.setSelect(kType, pkKFieldIdx, keyrv)
-    val pkUR = new UnsafeRow(pkType, wpkrv.value)
+  def getPartition(key: Any): Int =
+    getPartitionPK(new UnsafeRow(kType, key.asInstanceOf[RegionValue]))
 
-    val part = rangeTree.queryValues(pkType.ordering, pkUR)
-
-    part match {
-      case Array() =>
-        if (range.isAbovePosition(pkType.ordering, pkUR))
-          0
-        else {
-          assert(range.isBelowPosition(pkType.ordering, pkUR))
-          numPartitions - 1
-        }
-      case Array(x) => x
-    }
-  }
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
     val (newPKType, _) = newKType.select(newPartitionKey)
@@ -97,6 +111,18 @@ class OrderedRVDPartitioner(
   def copy(numPartitions: Int = numPartitions, partitionKey: Array[String] = partitionKey,
     kType: TStruct = kType, rangeBounds: UnsafeIndexedSeq = rangeBounds): OrderedRVDPartitioner = {
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
+  }
+
+  // FIXME Make work if newRange has different point type than pkType
+  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner = {
+    val newStart = pkType.ordering.min(range.start, newRange.start)
+    val newEnd = pkType.ordering.max(range.end, newRange.end)
+    val newRangeBounds = rangeBounds.toArray
+    newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
+      .copy(start = newStart, includesStart = true)
+    newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1)
+      .asInstanceOf[Interval].copy(end = newEnd, includesEnd = true)
+    copy(rangeBounds = UnsafeIndexedSeq(rangeBoundsType, newRangeBounds))
   }
 
   def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {

@@ -202,7 +202,7 @@ class TableSuite extends SparkSuite {
     val ktRight = hc.importTable(inputFile2, impute = true).keyBy("Sample").rename(Map("Sample" -> "sample"), Map())
     val ktBad = ktRight.keyBy("qPhen2")
 
-    intercept[HailException] {
+    intercept[Exception] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
       assert(ktJoinBad.key sameElements Array("Sample"))
     }

@@ -10,6 +10,11 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, classTag}
 
 object TBaseStruct {
+  /**
+    * Define an ordering on Row objects. Works with any row r such that the list
+    * of types of r is a prefix of types, or types is a prefix of the list of
+    * types of r.
+    */
   def getOrdering(types: Array[Type]): ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.ordering))
 

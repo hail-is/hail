@@ -1,9 +1,9 @@
 package is.hail.rvd
 
-import is.hail.annotations.RegionValue
-import is.hail.utils._
+import is.hail.annotations.{KeyedRow, RegionValue, UnsafeRow}
 import is.hail.expr.types.TStruct
 import is.hail.io.CodecSpec
+import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -49,4 +49,26 @@ class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends 
   }
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, rdd.coalesce(maxPartitions, shuffle = shuffle))
+
+  def constrainToOrderedPartitioner(
+    ordType: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD = {
+
+    assert(ordType.rowType == rowType)
+
+    val localRowType = rowType
+    val pkOrdering = ordType.pkType.ordering
+    val rangeTree = newPartitioner.rangeTree
+    val filtered = rdd.mapPartitions { it =>
+      val ur = new UnsafeRow(localRowType, null, 0)
+      val key = new KeyedRow(ur, ordType.pkRowFieldIdx)
+      it.filter { rv =>
+        ur.set(rv)
+        rangeTree.contains(pkOrdering, key)
+      }
+    }
+
+    OrderedRVD.shuffle(ordType, newPartitioner, filtered)
+  }
 }
