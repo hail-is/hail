@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
-import is.hail.expr.ir._
+import is.hail.expr.ir
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
@@ -1579,49 +1579,61 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val globalsBc = globals.broadcast
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.ENTRY_HEAD))
+    val asts = Parser.parseAnnotationExprsToAST(expr, ec, Some(Annotation.ENTRY_HEAD))
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-    val newEntryType = (paths, types).zipped.foldLeft(entryType) { case (gsig, (ids, signature)) =>
-      val (s, i) = gsig.structInsert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-    val inserters = inserterBuilder.result()
+    val irs = asts.flatMap { case (f, a) => a.toIR().map((f, _)) }
 
-    val localNSamples = numCols
-    val fullRowType = rvRowType
-    val localColValuesBc = colValuesBc
-    val localEntriesIndex = entriesIndex
+    val colValuesIsSmall = colType.size == 1 && colType.types.head.isOfType(TString())
+    if (irs.length == asts.length && colValuesIsSmall) {
+      val newEntries = ir.InsertFields(ir.Ref("g"), irs)
 
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      (fullRow, row)
-    })(newEntryType, { case ((fullRow, row), rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+      new MatrixTable(hc, MapEntries(ast, newEntries))
+    } else {
 
-      rvb.startArray(localNSamples)
+      val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.ENTRY_HEAD))
 
-      var i = 0
-      while (i < localNSamples) {
-        val entry = entries(i)
-        ec.setAll(row,
-          localColValuesBc.value(i),
-          entry,
-          globalsBc.value)
-
-        val newEntry = f().zip(inserters)
-          .foldLeft(entry) { case (ga, (a, inserter)) =>
-            inserter(ga, a)
-          }
-        rvb.addAnnotation(newEntryType, newEntry)
-
-        i += 1
+      val inserterBuilder = new ArrayBuilder[Inserter]()
+      val newEntryType = (paths, types).zipped.foldLeft(entryType) { case (gsig, (ids, signature)) =>
+        val (s, i) = gsig.structInsert(signature, ids)
+        inserterBuilder += i
+        s
       }
-      rvb.endArray()
-    })
+      val inserters = inserterBuilder.result()
+
+      val localNSamples = numCols
+      val fullRowType = rvRowType
+      val localColValuesBc = colValuesBc
+      val localEntriesIndex = entriesIndex
+
+      insertEntries(() => {
+        val fullRow = new UnsafeRow(fullRowType)
+        val row = fullRow.deleteField(localEntriesIndex)
+        (fullRow, row)
+      })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+        fullRow.set(rv)
+        val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+
+        rvb.startArray(localNSamples)
+
+        var i = 0
+        while (i < localNSamples) {
+          val entry = entries(i)
+          ec.setAll(row,
+            localColValuesBc.value(i),
+            entry,
+            globalsBc.value)
+
+          val newEntry = f().zip(inserters)
+            .foldLeft(entry) { case (ga, (a, inserter)) =>
+              inserter(ga, a)
+            }
+          rvb.addAnnotation(newEntryType, newEntry)
+
+          i += 1
+        }
+        rvb.endArray()
+      })
+    }
   }
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {

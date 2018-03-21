@@ -523,6 +523,76 @@ case class FilterRowsIR(
   }
 }
 
+case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, newEntries)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+    assert(newChildren.length == 2)
+    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val newRow = {
+    val arrayLength = ArrayLen(GetField(Ref("va"), MatrixType.entriesIdentifier))
+    val idxEnv = new Env[IR]()
+      .bind("g", ArrayRef(GetField(Ref("va"), MatrixType.entriesIdentifier), Ref("i")))
+      .bind("sa", ArrayRef(Ref("sa"), Ref("i")))
+    val entries = ArrayMap(ArrayRange(I32(0), arrayLength, I32(1)), "i", Subst(newEntries, idxEnv))
+    InsertFields(Ref("va"), Seq((MatrixType.entriesIdentifier, entries)))
+  }
+
+  val typ: MatrixType = {
+    Infer(newRow, None, new Env[Type]()
+      .bind("global", child.typ.globalType)
+      .bind("va", child.typ.rvRowType)
+      .bind("sa", TArray(child.typ.colType))
+    )
+    child.typ.copy(rvRowType = newRow.typ)
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localGlobalsType = typ.globalType
+    val localColsType = TArray(typ.colType)
+    val colValuesBc = prev.colValuesBc
+    val globalsBc = prev.globals.broadcast
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "global", localGlobalsType,
+      "va", prev.typ.rvRowType,
+      "sa", localColsType,
+      newRow)
+    assert(rTyp == typ.rvRowType)
+
+    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+      val rvb = new RegionValueBuilder()
+      val newRV = RegionValue()
+      val rowF = f()
+
+      it.map { rv =>
+        val region = rv.region
+        val oldRow = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        val off = rowF(region, globals, false, oldRow, false, cols, false)
+
+        newRV.set(region, off)
+        newRV
+      }
+    }
+    prev.copy(typ = typ, rvd = newRVD)
+  }
+}
+
 case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
