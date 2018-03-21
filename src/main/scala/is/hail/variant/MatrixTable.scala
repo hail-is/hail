@@ -568,7 +568,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rowPartitionKey = partitionKeys)
 
     copyMT(matrixType = newMatrixType,
-      rvd = rvd.coerceOrdered(newMatrixType.orvdType, None, None))
+      rvd = OrderedRVD.coerce(newMatrixType.orvdType, rvd))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
@@ -1432,7 +1432,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def nPartitions: Int = rvd.partitions.length
 
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
-    orderedRVDLeftJoinDistinctAndInsert(right.rowFieldsRVD, root, product = false
+    orderedRVDLeftJoinDistinctAndInsert(right.rowFieldsRVD, root, product = false)
 
   def count(): (Long, Long) = (countRows(), numCols)
 
@@ -2424,7 +2424,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array.empty[String])
   }
 
-  private[this] def rowFieldsRVD: OrderedRVD = {
+  private def rowFieldsRVD: OrderedRVD = {
     val localRowType = rowType
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
