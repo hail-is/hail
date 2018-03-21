@@ -189,7 +189,7 @@ object LoadPlink {
     new MatrixTable(hc, matrixType,
       BroadcastValue(Annotation.empty, matrixType.globalType, sc),
       sampleAnnotations,
-      OrderedRVD(matrixType.orvdType, rdd2, Some(fastKeys), None))
+      OrderedRVD.coerce(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
