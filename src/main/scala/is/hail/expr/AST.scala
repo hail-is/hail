@@ -660,11 +660,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
 
-  def tryIRConversion(agg: Option[String]): Option[IR] =
+  private[this] def tryIRConversion(agg: Option[String]): Option[IR] =
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
       ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-        IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
+        IRFunctionRegistry.lookupConversion(fn, args.map(_.`type`))
           .map { irf => irf(irArgs) })
     } yield ir
 
