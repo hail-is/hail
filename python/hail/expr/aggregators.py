@@ -782,7 +782,7 @@ def filter(condition, expr):
 
     .. doctest::
 
-        >>> table1.aggregate(expr.collect(expr.filter(table1.HT >= 70, table1.ID)))
+        >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
         [2, 3]
 
     Notes
