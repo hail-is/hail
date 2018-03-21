@@ -179,6 +179,9 @@ object MatrixIR {
         FilterColsIR(FilterRowsIR(m, rowPred), colPred)
 
       // Combine multiple filters into one
+      /*
+       * FIXME: optimizations disabled due to lack of DoubleAmpersand()
+       *
       case FilterRowsIR(FilterRowsIR(m, pred1), pred2) =>
         FilterRowsIR(m,
           ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
@@ -186,6 +189,7 @@ object MatrixIR {
       case FilterColsIR(FilterColsIR(m, pred1), pred2) =>
         FilterColsIR(m,
           ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
+       */
     })
   }
 }
