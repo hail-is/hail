@@ -68,7 +68,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   val mkc: () => C
 ) extends Serializable {
   def run: RDD[T] =
-    rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)).toArray.iterator } }
+    rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
   private[this] def inCtx[U: ClassTag](f: C => Iterator[U])
       : Iterator[C => Iterator[U]] =
