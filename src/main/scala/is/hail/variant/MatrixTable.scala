@@ -5,6 +5,7 @@ import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
 import is.hail.expr.ir
+import is.hail.expr.ir.ContainsAgg
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
