@@ -96,6 +96,19 @@ trait Py4jUtils {
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
 
   def escapeIdentifier(s: String): String = prettyIdentifier(s)
+
+  def fileExists(hc: HailContext, path: String): Boolean = hc.hadoopConf.exists(path) && hc.hadoopConf.isFile(path)
+
+  def dirExists(hc: HailContext, path: String): Boolean = hc.hadoopConf.exists(path) && hc.hadoopConf.isDir(path)
+
+  def mkdir(hc: HailContext, path: String): Boolean = hc.hadoopConf.mkDir(path)
+
+  def copyToTmp(hc: HailContext, path: String): String = {
+    val ext = hc.hadoopConf.getCodec(path)
+    val tmpFile = hc.getTemporaryFile(suffix = Some(ext))
+    hc.hadoopConf.copy(path, tmpFile)
+    path
+  }
 }
 
 class HadoopPyReader(in: InputStream, buffSize: Int) {

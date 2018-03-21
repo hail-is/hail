@@ -338,7 +338,7 @@ class Expression(object):
             '    {inds}{agg_tag}{maybe_bar}{agg}{joins}\n' \
             '{bar}'.format(bar=bar,
                            t=self.dtype.pretty(indent=4),
-                           src=self._indices.source.__class__,
+                           src=self._indices.source,
                            inds=list(self._indices.axes),
                            maybe_bar='\n' + bar + '\n' if join_str or agg_str else '',
                            agg_tag=agg_tag,
