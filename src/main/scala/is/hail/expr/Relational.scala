@@ -225,7 +225,6 @@ case class MatrixRead(
         val localEntriesIndex = typ.entriesIdx
 
         val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
-        assert(rowsRVD.typ == typ.orvdType)
         if (dropCols) {
           rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
             var rv2b = new RegionValueBuilder()
@@ -255,7 +254,7 @@ case class MatrixRead(
         } else {
           val entriesRVD = spec.entriesComponent.read(hc, path)
           val entriesRowType = entriesRVD.rowType
-          rowsRVD.zipPartitions(entriesRVD) { case (it1, it2) =>
+          rowsRVD.zipPartitions(typ.orvdType, entriesRVD) { case (it1, it2) =>
             val rvb = new RegionValueBuilder()
 
             new Iterator[RegionValue] {

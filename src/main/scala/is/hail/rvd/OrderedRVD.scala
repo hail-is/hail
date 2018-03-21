@@ -364,26 +364,26 @@ class OrderedRVD private(
     partitionCounts
   }
 
-  def zipPartitions(that: RVD)
+  def zipPartitions(newTyp: OrderedRVDType, that: RVD)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
-    zipPartitions(that, true)(zipper)
+    zipPartitions(newTyp, that, true)(zipper)
 
-  def zipPartitions(that: RVD, preservesPartitioning: Boolean)
+  def zipPartitions(newTyp: OrderedRVDType, that: RVD, preservesPartitioning: Boolean)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
       : OrderedRVD =
-    zipPartitions(that.rdd, preservesPartitioning)(zipper)
+    zipPartitions(newTyp, that.rdd, preservesPartitioning)(zipper)
 
-  def zipPartitions[T: ClassTag](that: RDD[T])
+  def zipPartitions[T: ClassTag](newTyp: OrderedRVDType, that: RDD[T])
     (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
       : OrderedRVD =
-    zipPartitions(that, true)(zipper)
+    zipPartitions(newTyp, that, true)(zipper)
 
-  def zipPartitions[T: ClassTag](that: RDD[T], preservesPartitioning: Boolean)
+  def zipPartitions[T: ClassTag](newTyp: OrderedRVDType, that: RDD[T], preservesPartitioning: Boolean)
     (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
       : OrderedRVD =
     OrderedRVD(
-      typ,
+      newTyp,
       partitioner,
       this.rdd.zipPartitions(that, preservesPartitioning)(zipper))
 
