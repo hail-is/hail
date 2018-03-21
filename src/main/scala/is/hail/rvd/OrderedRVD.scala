@@ -51,6 +51,13 @@ class OrderedRVD(
       partitioner,
       rdd.mapPartitionsWithIndex(f))
 
+  def mapPartitionsPreservesPartitioning(rowTyp: TStruct)
+    (f: (Iterator[RegionValue]) => Iterator[RegionValue])
+      : OrderedRVD =
+    OrderedRVD(typ.copy(rowType = rowTyp),
+      partitioner,
+      rdd.mapPartitions(f))
+
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
