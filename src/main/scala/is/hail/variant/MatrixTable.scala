@@ -1073,7 +1073,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
     val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
-    val newRDD = rvd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
+    val newRDD = rvd.zipPartitions(
+      newMatrixType.orvdType,
+      zipRDD,
+      preservesPartitioning = true
+    ) { case (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { rv =>
           val ur = new UnsafeRow(ktSignature, rv)
@@ -1110,8 +1115,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2
       }
     }
-
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
 
     val newRVD = newRDD.assertOrdered(
       newMatrixType.orvdType,
