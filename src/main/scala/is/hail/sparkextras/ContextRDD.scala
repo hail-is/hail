@@ -3,7 +3,8 @@ package is.hail.sparkextras
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd._
-
+import org.apache.spark.storage._
+import org.apache.spark.util.random._
 import scala.reflect.ClassTag
 
 object ContextRDD {
@@ -164,6 +165,20 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       ContextRDD.weaken(run.coalesce(numPartitions, shuffle), mkc)
     else
       onRDD(_.coalesce(numPartitions, shuffle))
+
+  def sample(
+    withReplacement: Boolean,
+    fraction: Double,
+    seed: Long
+  ): ContextRDD[C, T] = {
+    require(fraction >= 0.0 && fraction <= 1.0)
+    new ContextRDD(
+      (if (withReplacement)
+        new ContextSampledRDD(rdd, new PoissonSampler(fraction), seed)
+      else
+        new ContextSampledRDD(rdd, new BernoulliSampler(fraction), seed)),
+      mkc)
+  }
 
   def sparkContext: SparkContext = rdd.sparkContext
 
