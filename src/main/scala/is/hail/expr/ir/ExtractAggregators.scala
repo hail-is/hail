@@ -12,7 +12,7 @@ object ExtractAggregators {
 
   private case class IRAgg(in: In, applyAggOp: ApplyAggOp) { }
 
-  def apply(ir: IR, tAggIn: TAggregable, nSpecialArguments: Int): (IR, TStruct, Array[(IR, RegionValueAggregator)]) = {
+  def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, Array[(IR, RegionValueAggregator)]) = {
     val (ir2, aggs) = extract(ir, tAggIn)
     val rvas = aggs.map(_.applyAggOp).map(x => (x: IR, newAggregator(x)))
 

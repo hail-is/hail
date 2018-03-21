@@ -53,7 +53,7 @@ class ExtractAggregatorsSuite {
 
     Infer(ir, Some(tAgg))
     // special arguments: region, aggregator, element, element missingness
-    val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg, 2)
+    val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg)
 
     val seqOps = aggregators.map { case (ir, agg) =>
       val fb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator, IN, Boolean, SCOPE0, Boolean, Unit]
