@@ -977,75 +977,70 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
-    assert(right.typ.pkType.types.map(_.deepOptional())
-      .sameElements(rowPartitionKeyTypes.map(_.deepOptional())))
 
+    val valueType = if (product)
+      TArray(right.typ.valueType, required = true)
+    else
+      right.typ.valueType
 
-    val (leftRVD, upcastKeys) = if (right.typ.kType.types.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
-      (rvd.downcastToPK(), rowKey.drop(rowPartitionKey.length).toArray)
-    } else (rvd, Array.empty[String])
-
-    var valueType: Type = right.typ.valueType
-
-    var rightRVD = right
-    if (product) {
-      valueType = TArray(valueType, required = true)
-      rightRVD = rightRVD.groupByKey(" !!! values !!! ")
-    }
+    val rightRVD = if (product)
+        right.groupByKey(" !!! values !!! ")
+      else
+        right
 
     val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
 
-    val leftRowType = leftRVD.rowType
     val rightRowType = rightRVD.rowType
-    val oldRVType = leftRVD.typ.rowType
 
     val rightValueIndices = rightRVD.typ.valueIndices
     assert(!product || rightValueIndices.length == 1)
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val intermediateMatrixType = newMatrixType.copy(rowKey = newMatrixType.rowPartitionKey)
 
-    copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD(
-        newMatrixType.orvdType,
-        leftRVD.partitioner,
-        leftRVD.orderedJoinDistinct(rightRVD, "left")
-          .mapPartitions { it =>
-            val rvb = new RegionValueBuilder()
-            val rv = RegionValue()
+    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
+      val rvb = new RegionValueBuilder()
+      val rv = RegionValue()
 
-            it.map { jrv =>
-              val lrv = jrv.rvLeft
+      it.map { jrv =>
+        val lrv = jrv.rvLeft
 
-              rvb.set(lrv.region)
-              rvb.start(newRVType)
-              ins(lrv.region, lrv.offset, rvb,
-                () => {
-                  if (product) {
-                    if (jrv.rvRight == null) {
-                      rvb.startArray(0)
-                      rvb.endArray()
-                    } else
-                      rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(0))
-                  } else {
-                    if (jrv.rvRight == null)
-                      rvb.setMissing()
-                    else {
-                      rvb.startStruct()
-                      var i = 0
-                      while (i < rightValueIndices.length) {
-                        rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(i))
-                        i += 1
-                      }
-                      rvb.endStruct()
-                    }
-                  }
-                })
-              rv.set(lrv.region, rvb.end())
-              rv
+        rvb.set(lrv.region)
+        rvb.start(newRVType)
+        ins(lrv.region, lrv.offset, rvb,
+          () => {
+            if (product) {
+              if (jrv.rvRight == null) {
+                rvb.startArray(0)
+                rvb.endArray()
+              } else
+                rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(0))
+            } else {
+              if (jrv.rvRight == null)
+                rvb.setMissing()
+              else {
+                rvb.startStruct()
+                var i = 0
+                while (i < rightValueIndices.length) {
+                  rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(i))
+                  i += 1
+                }
+                rvb.endStruct()
+              }
             }
           })
+        rv.set(lrv.region, rvb.end())
+        rv
+      }
+    }
+
+    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length).toArray).orderedJoinDistinct(
+      right.keyBy(),
+      "left",
+      joiner,
+      newMatrixType.orvdType
     )
+
+    copyMT(matrixType = newMatrixType, rvd = joinedRVD)
   }
 
   private def annotateRowsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
@@ -1774,7 +1769,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = matrixType.entryArrayType
     assert(right.matrixType.entryArrayType == localEntriesType)
 
-    val joined = rvd.orderedJoinDistinct(right.rvd, "inner").mapPartitions({ it =>
+    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -1818,13 +1813,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2.set(lrv.region, rvb.end())
         rv2
       }
-    }, preservesPartitioning = true)
+    }
 
     val newMatrixType = matrixType.copyParts() // move entries to the end
 
     copyMT(matrixType = newMatrixType,
       colValues = colValues ++ right.colValues,
-      rvd = OrderedRVD(rvd.typ, rvd.partitioner, joined))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
   }
 
   def makeKT(rowExpr: String, entryExpr: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {

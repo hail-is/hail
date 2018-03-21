@@ -496,72 +496,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def join(other: Table, joinType: String): Table = {
-    if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
-      fatal(
-        s"""Both tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ keySignature.toString }
-           |  Right signature: ${ other.keySignature.toString }""".stripMargin)
-
-    val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
-
-    val preNames = joinedFields.map(_.name).toArray
-    val (finalColumnNames, remapped) = mangle(preNames)
-    if (remapped.nonEmpty) {
-      warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
-        remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
-    }
-
-    val newSignature = TStruct(joinedFields
-      .zipWithIndex
-      .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
-    val localNKeys = nKeys
-    val size1 = valueSignature.size
-    val size2 = other.valueSignature.size
-    val totalSize = newSignature.size
-
-    assert(totalSize == localNKeys + size1 + size2)
-
-    val merger = (k: Row, r1: Row, r2: Row) => {
-      val result = Array.fill[Any](totalSize)(null)
-
-      var i = 0
-      while (i < localNKeys) {
-        result(i) = k.get(i)
-        i += 1
-      }
-
-      if (r1 != null) {
-        i = 0
-        while (i < size1) {
-          result(localNKeys + i) = r1.get(i)
-          i += 1
-        }
-      }
-
-      if (r2 != null) {
-        i = 0
-        while (i < size2) {
-          result(localNKeys + size1 + i) = r2.get(i)
-          i += 1
-        }
-      }
-      Row.fromSeq(result)
-    }
-
-    val rddLeft = keyedRDD()
-    val rddRight = other.keyedRDD()
-
-    val joinedRDD = joinType match {
-      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l, r.orNull) }
-      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r) }
-      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(k, l, r) }
-      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
-      case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
-    }
-
-    copy(rdd = joinedRDD, signature = newSignature, key = key)
-  }
+  def join(other: Table, joinType: String): Table =
+    new Table(hc, TableJoin(this.tir, other.tir, joinType))
 
   def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     val hConf = hc.hadoopConf
@@ -1252,8 +1188,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
-    val localSignature = signature
-
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)

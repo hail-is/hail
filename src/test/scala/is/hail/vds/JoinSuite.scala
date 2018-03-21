@@ -67,24 +67,23 @@ class JoinSuite extends SparkSuite {
     val localRowType = left.rvRowType
 
     // Inner distinct ordered join
-    val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner")
+    val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner", _.map(_._1), left.rvd.typ)
     val jInnerOrdRDD1 = left.rdd.join(right.rdd.distinct)
 
     assert(jInner.count() == jInnerOrdRDD1.count())
-    assert(jInner.forall(jrv => jrv.rvLeft != null && jrv.rvRight != null))
-    assert(jInner.map { jrv =>
-      val ur = new UnsafeRow(localRowType, jrv.rvLeft)
+    assert(jInner.map { rv =>
+      val ur = new UnsafeRow(localRowType, rv)
       ur.getAs[Locus](0)
     }.collect() sameElements jInnerOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
 
     // Left distinct ordered join
-    val jLeft = left.rvd.orderedJoinDistinct(right.rvd, "left")
+    val jLeft = left.rvd.orderedJoinDistinct(right.rvd, "left", _.map(_._1), left.rvd.typ)
     val jLeftOrdRDD1 = left.rdd.leftOuterJoin(right.rdd.distinct)
 
     assert(jLeft.count() == jLeftOrdRDD1.count())
-    assert(jLeft.forall(jrv => jrv.rvLeft != null))
-    assert(jLeft.map { jrv =>
-      val ur = new UnsafeRow(localRowType, jrv.rvLeft)
+    assert(jLeft.rdd.forall(rv => rv != null))
+    assert(jLeft.map { rv =>
+      val ur = new UnsafeRow(localRowType, rv)
       ur.getAs[Locus](0)
     }.collect() sameElements jLeftOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
   }
