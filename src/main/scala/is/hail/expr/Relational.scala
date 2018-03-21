@@ -402,11 +402,7 @@ case class FilterColsIR(
     // We don't yet support IR aggregators
     assert(ec.aggregations.isEmpty)
 
-    val colAggregationOption = Aggregators.buildColAggregations(hc, prev, ec)
-
     val p = (sa: Annotation, i: Int) => {
-      colAggregationOption.foreach(f => f.apply(i))
-      ec.setAll(localGlobals, sa)
       colRegion.clear(globalRVend)
       val colRVb = new RegionValueBuilder(colRegion)
       colRVb.start(localColType)
@@ -503,13 +499,7 @@ case class FilterRowsIR(
     val localGlobals = prev.globals.broadcast
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
       it.filter { rv =>
-        fullRow.set(rv)
-        ec.set(0, localGlobals.value)
-        ec.set(1, row)
-        aggregatorOption.foreach(_ (rv))
         // Append all the globals into this region
         val globalRVb = new RegionValueBuilder(rv.region)
         globalRVb.start(localGlobalType)
