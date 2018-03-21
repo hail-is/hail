@@ -50,6 +50,7 @@ object IRFunctionRegistry {
   GenotypeFunctions.registerAll()
   MathFunctions.registerAll()
   UtilFunctions.registerAll()
+  StringFunctions.registerAll()
 }
 
 abstract class RegistryFunctions {

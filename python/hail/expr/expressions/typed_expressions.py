@@ -2049,7 +2049,8 @@ class StringExpression(Expression):
             return self._method("split", tarray(tstr), delim, n)
 
     def lower(self):
-        """Returns a string of only lower-case characters.
+        """Returns a copy of the string, but with upper case letters converted
+        to lower case.
 
         Examples
         --------
@@ -2063,7 +2064,8 @@ class StringExpression(Expression):
         return self._method("lower", tstr)
 
     def upper(self):
-        """Returns a string of only upper-case characters.
+        """Returns a copy of the string, but with lower case letters converted
+        to upper case.
 
         Examples
         --------
@@ -2077,7 +2079,8 @@ class StringExpression(Expression):
         return self._method("upper", tstr)
 
     def strip(self):
-        r"""Returns a string with whitespace removed from the start and end.
+        r"""Returns a copy of the string with whitespace removed from the start
+        and end.
 
         Examples
         --------
