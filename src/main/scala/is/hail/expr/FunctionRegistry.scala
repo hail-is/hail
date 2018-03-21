@@ -1013,6 +1013,11 @@ object FunctionRegistry {
 
   registerMethod("split", (s: String, p: String, n: Int) => s.split(p, n): IndexedSeq[String])
 
+  registerMethod("lower", (s: String) => s.toLowerCase)
+  registerMethod("upper", (s: String) => s.toUpperCase)
+  registerMethod("strip", (s: String) => s.trim())
+  registerMethod("contains", (s: String, t: String) => s.contains(t))
+
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
     str.replaceAll(pattern1, pattern2))
 

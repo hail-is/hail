@@ -2048,6 +2048,75 @@ class StringExpression(Expression):
         else:
             return self._method("split", tarray(tstr), delim, n)
 
+    def lower(self):
+        """Returns a string of only lower-case characters.
+
+        Examples
+        --------
+        >>> s.lower().value
+        'the quick brown fox'
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method("lower", tstr)
+
+    def upper(self):
+        """Returns a string of only upper-case characters.
+
+        Examples
+        --------
+        >>> s.upper().value
+        'THE QUICK BROWN FOX'
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method("upper", tstr)
+
+    def strip(self):
+        r"""Returns a string with whitespace removed from the start and end.
+
+        Examples
+        --------
+        >>> s2 = hl.str('  once upon a time\n')
+        >>> s2.strip().value
+        'once upon a time'
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method("strip", tstr)
+
+    @typecheck_method(substr=expr_str)
+    def contains(self, substr):
+        """Returns whether `substr` is contained in the string.
+
+        Examples
+        --------
+        >>> s.contains('fox').value
+        True
+
+        >>> s.contains('dog').value
+        False
+
+        Note
+        ----
+        This method is case-sensitive.
+
+        Parameters
+        ----------
+        substr : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("contains", tstr, substr)
+
     @typecheck_method(regex=str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
