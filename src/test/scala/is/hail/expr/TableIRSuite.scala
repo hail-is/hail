@@ -3,8 +3,6 @@ package is.hail.expr
 import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.table.Table
-import is.hail.variant.MatrixTable
-import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

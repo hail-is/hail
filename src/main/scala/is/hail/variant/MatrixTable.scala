@@ -1338,7 +1338,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def selectEntries(expr: String): MatrixTable = {
-    println(expr)
     val ec = entryEC
 
     val entryAST = Parser.parseToAST(expr, ec)

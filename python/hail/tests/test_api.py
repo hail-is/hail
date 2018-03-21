@@ -804,7 +804,7 @@ class MatrixTests(unittest.TestCase):
 
         self.assertEqual(mt1[mt1.row_idx, mt1.col_idx].dtype, mt1.entry.dtype)
 
-        mt_join = mt1.annotate_entries(x2 = mt1[mt1.row_idx, mt1.col_idx].x + mt1.x3)
+        mt_join = mt1.annotate_entries(x2 = mt1[mt1.row_idx, mt1.col_idx].x)
         mt_join_entries = mt_join.entries()
 
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
