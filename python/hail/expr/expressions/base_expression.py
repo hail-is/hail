@@ -233,7 +233,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
                                   "\n    Found fields from {n} objects:{fields}".format(
             n=len(sources),
             fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
-        ))
+        )) from None
     first, rest = exprs[0], exprs[1:]
     aggregations = first._aggregations
     joins = first._joins
@@ -365,18 +365,26 @@ class Expression(object):
             return hail.float64(self)
 
     def _promote_numeric(self, typ):
-        if isinstance(typ, tarray):
-            if isinstance(self.dtype, tarray):
-                return hail.map(lambda x: x._promote_scalar(typ.element_type), self)
-            else:
-                return self._promote_scalar(typ.element_type)
-        elif isinstance(self, expressions.Aggregable):
-            return self._map(lambda x: x._promote_scalar(typ))
+        coercer = expressions.coercer_from_dtype(typ)
+        if isinstance(typ, tarray) and not isinstance(self.dtype, tarray):
+            return coercer.ec.coerce(self)
         else:
-            return self._promote_scalar(typ)
+            return coercer.coerce(self)
 
     def _bin_op_numeric_unify_types(self, name, other):
-        t = unify_types(self.dtype._scalar_type(), other.dtype._scalar_type())
+        def numeric_proxy(t):
+            if t == tbool:
+                return tint32
+            else:
+                return t
+
+        def scalar_type(t):
+            if isinstance(t, tarray):
+                return numeric_proxy(t.element_type)
+            else:
+                return numeric_proxy(t)
+
+        t = unify_types(scalar_type(self.dtype), scalar_type(other.dtype))
         if t is None:
             raise NotImplementedError("'{}' {} '{}'".format(
                 self.dtype, name, other.dtype))
@@ -399,8 +407,7 @@ class Expression(object):
         return me._bin_op(name, other, ret_type)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
-        other = to_expr(other)
-        return other._bin_op_numeric(name, self, ret_type_f)
+        return to_expr(other)._bin_op_numeric(name, self, ret_type_f)
 
     def _unary_op(self, name):
         return expressions.construct_expr(UnaryOperation(self._ast, name),
@@ -465,13 +472,13 @@ class Expression(object):
         return expressions.construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins)
 
     @property
-    def dtype(self):
+    def dtype(self) -> HailType:
         """The data type of the expression.
 
         Returns
         -------
         :class:`.HailType`
-            Data type.
+
         """
         return self._type
 

@@ -1,6 +1,7 @@
 from .check import *
 
-__all__ = ['typecheck',
+__all__ = ['TypeChecker',
+           'typecheck',
            'typecheck_method',
            'anytype',
            'nullable',
