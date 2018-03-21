@@ -99,7 +99,7 @@ object FilterAlleles {
 
       val localSampleAnnotationsBc = vsm.colValuesBc
 
-      rdd.mapPartitions(newRVType) { it =>
+      rdd.mapPartitionsPreservesPartitioning(newRVType) { it =>
         var prevLocus: Locus = null
         val fullRow = new UnsafeRow(fullRowType)
         val row = fullRow.deleteField(localEntriesIndex)
