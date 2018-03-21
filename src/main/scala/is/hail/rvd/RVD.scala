@@ -215,11 +215,4 @@ trait RVD {
     val localRowType = rowType
     rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
-
-  def coerceOrdered(
-    typ: OrderedRVDType,
-    // fastKeys: Option[RDD[RegionValue[kType]]]
-    fastKeys: Option[RDD[RegionValue]] = None,
-    hintPartitioner: Option[OrderedRVDPartitioner] = None
-  ): OrderedRVD = OrderedRVD.coerce(typ, rdd, fastKeys, hintPartitioner)
 }
