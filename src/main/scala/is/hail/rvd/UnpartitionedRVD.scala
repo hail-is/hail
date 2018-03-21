@@ -48,12 +48,8 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, crdd.sample(withReplacement, p, seed))
 
-  def write(path: String, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)
-    val spec = UnpartitionedRVDSpec(rowType, codecSpec, partFiles)
-    spec.write(sparkContext.hadoopConfiguration, path)
-    partitionCounts
-  }
+  override protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
+    UnpartitionedRVDSpec(rowType, codecSpec, partFiles)
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, crdd.coalesce(maxPartitions, shuffle = shuffle))

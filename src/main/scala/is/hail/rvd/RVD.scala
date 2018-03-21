@@ -102,7 +102,7 @@ object RVD {
 
     val os = hConf.unsafeWriter(path + "/parts/part-0")
     val rvb = new RegionValueBuilder()
-    val part0Count = RichRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
+    val part0Count = RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
       rows.map { a =>
         val region = Region()
         rvb.set(region)
@@ -134,11 +134,11 @@ trait RVD {
 
   def rdd: RDD[RegionValue]
 
-  def sparkContext: SparkContext = rdd.sparkContext
+  def sparkContext: SparkContext = crdd.sparkContext
 
-  def getNumPartitions: Int = rdd.getNumPartitions
+  def getNumPartitions: Int = crdd.getNumPartitions
 
-  def partitions: Array[Partition] = rdd.partitions
+  def partitions: Array[Partition] = crdd.partitions
 
   def filter(f: (RegionValue) => Boolean): RVD
 
@@ -151,14 +151,17 @@ trait RVD {
       it.map { rv => f(c, rv) }
     })
 
-  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(f)
+  // FIXME: just make user call run
+  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
 
-  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitionsWithIndex(f)
+  // FIXME: just make user call run
+  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitionsWithIndex(f).run
 
-  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitions(f)
+  // FIXME: just make user call run
+  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitions(f).run
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
@@ -223,7 +226,13 @@ trait RVD {
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
-  def write(path: String, codecSpec: CodecSpec): Array[Long]
+  protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec
+
+  final def write(path: String, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, codecSpec)
+    rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
+    partitionCounts
+  }
 
   def toRows: RDD[Row] = {
     val localRowType = rowType

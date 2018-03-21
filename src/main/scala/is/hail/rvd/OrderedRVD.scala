@@ -355,16 +355,14 @@ class OrderedRVD(
     OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
   }
 
-  def write(path: String, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)
-    val spec = OrderedRVDSpec(
+  override protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
+    OrderedRVDSpec(
       typ,
       codecSpec,
       partFiles,
-      JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))
-    spec.write(sparkContext.hadoopConfiguration, path)
-    partitionCounts
-  }
+      JSONAnnotationImpex.exportAnnotation(
+        partitioner.rangeBounds,
+        partitioner.rangeBoundsType))
 
   def zipPartitionsPreservesPartitioning[T: ClassTag](
     newTyp: OrderedRVDType,
@@ -390,7 +388,7 @@ class OrderedRVD(
     path: String,
     t: MatrixType,
     codecSpec: CodecSpec
-  ): Array[Long] = rdd.writeRowsSplit(path, t, codecSpec, partitioner)
+  ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner)
 }
 
 object OrderedRVD {
