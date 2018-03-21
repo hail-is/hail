@@ -371,28 +371,22 @@ class OrderedRVD private(
     partitionCounts
   }
 
-  def zipPartitions(newTyp: OrderedRVDType, that: RVD)
+  def zipPartitionsPreservesPartitioning[T: ClassTag](
+    newTyp: OrderedRVDType, that: RDD[T]
+  )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
+  ) : OrderedRVD =
+    OrderedRVD(
+      newTyp,
+      partitioner,
+      this.rdd.zipPartitions(that, preservesPartitioning = true)(zipper))
+
+  def zipPartitionsPreservesPartitioning(newTyp: OrderedRVDType, that: RVD)
     (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
-      : OrderedRVD =
-    zipPartitions(newTyp, that, false)(zipper)
-
-  def zipPartitions(newTyp: OrderedRVDType, that: RVD, preservesPartitioning: Boolean)
-    (zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
-      : OrderedRVD =
-    zipPartitions(newTyp, that.rdd, preservesPartitioning)(zipper)
-
-  def zipPartitions[T: ClassTag](newTyp: OrderedRVDType, that: RDD[T])
-    (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
-      : OrderedRVD =
-    zipPartitions(newTyp, that, false)(zipper)
-
-  def zipPartitions[T: ClassTag](newTyp: OrderedRVDType, that: RDD[T], preservesPartitioning: Boolean)
-    (zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])
       : OrderedRVD =
     OrderedRVD(
       newTyp,
       partitioner,
-      this.rdd.zipPartitions(that, preservesPartitioning)(zipper))
+      this.rdd.zipPartitions(that.rdd, preservesPartitioning = true)(zipper))
 
   def writeRowsSplit(path: String, t: MatrixType, codecSpec: CodecSpec)
       : Array[Long] =
