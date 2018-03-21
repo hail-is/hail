@@ -51,7 +51,6 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = n
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
-final case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray = TArray(elementType) }
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 final case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean() }
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }

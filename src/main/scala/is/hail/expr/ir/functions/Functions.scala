@@ -93,7 +93,19 @@ abstract class RegistryFunctions {
     tv(name, _.isInstanceOf[TNumeric])
 
   def registerCode(mname: String, aTypes: Array[Type], rType: Type)(impl: (MethodBuilder, Array[Code[_]]) => Code[_]) {
-    IRFunctionRegistry.addIRFunction(new IRFunction {
+    IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
+      override val name: String = mname
+
+      override val argTypes: Seq[Type] = aTypes
+
+      override val returnType: Type = rType
+
+      override def apply(mb: MethodBuilder, args: Code[_]*): Code[_] = impl(mb, args.toArray)
+    })
+  }
+
+  def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (MethodBuilder, Array[Code[_]]) => Code[_]) {
+    IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
       override val name: String = mname
 
       override val argTypes: Seq[Type] = aTypes
@@ -154,7 +166,33 @@ abstract class RegistryFunctions {
     registerIR(mname, Array(mt1, mt2, mt3)) { case Seq(a1, a2, a3) => f(a1, a2, a3) }
 }
 
-abstract class IRFunction {
+sealed abstract class IRFunction {
+  def name: String
+
+  def argTypes: Seq[Type]
+
+  def apply(mb: MethodBuilder, args: Code[_]*): Code[_]
+
+  def returnType: Type
+
+  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+
+}
+
+abstract class IRFunctionWithoutMissingness extends IRFunction {
+  def name: String
+
+  def argTypes: Seq[Type]
+
+  def apply(mb: MethodBuilder, args: Code[_]*): Code[_]
+
+  def returnType: Type
+
+  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+
+}
+
+abstract class IRFunctionWithMissingness extends IRFunction {
   def name: String
 
   def argTypes: Seq[Type]

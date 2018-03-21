@@ -18,7 +18,6 @@ object Recur {
     case ApplyBinaryPrimOp(op, l, r, typ) => ApplyBinaryPrimOp(op, f(l), f(r), typ)
     case ApplyUnaryPrimOp(op, x, typ) => ApplyUnaryPrimOp(op, f(x), typ)
     case MakeArray(args, typ) => MakeArray(args map f, typ)
-    case MakeArrayN(len, elementType) => MakeArrayN(f(len), elementType)
     case ArrayRef(a, i, typ) => ArrayRef(f(a), f(i), typ)
     case ArrayMissingnessRef(a, i) => ArrayMissingnessRef(f(a), f(i))
     case ArrayLen(a) => ArrayLen(f(a))
