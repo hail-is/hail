@@ -660,6 +660,14 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
 
+  def tryIRConversion(agg: Option[String]): Option[IR] =
+    for {
+      irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
+      ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
+        IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
+          .map { irf => irf(irArgs) })
+    } yield ir
+
   def toIR(agg: Option[String] = None): Option[IR] = {
     fn match {
       case "merge" | "select" | "drop" | "index" =>
@@ -667,18 +675,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case "annotate" =>
         if (!args(1).isInstanceOf[StructConstructor])
           return None
-        for {
-          irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-          ir <- IRFunctionRegistry.lookupFunction(fn, args.map(_.`type`))
-              .map { irf => irf(irArgs) }
-        } yield ir
+        tryIRConversion(agg)
       case _ =>
-        for {
-          irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-          ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-            IRFunctionRegistry.lookupConversion(fn, args.map(_.`type`))
-              .map { irf => irf(irArgs) })
-        } yield ir
+        tryIRConversion(agg)
     }
   }
 }
