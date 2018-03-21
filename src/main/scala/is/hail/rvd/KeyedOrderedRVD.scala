@@ -4,8 +4,8 @@ import is.hail.annotations.{JoinedRegionValue, OrderedRVIterator, RegionValue}
 import org.apache.spark.rdd.RDD
 import is.hail.utils.fatal
 
-class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) extends Serializable {
-  val typ = rvd.typ
+class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
+  val typ: OrderedRVDType = rvd.typ
   val (kType, _) = rvd.rowType.select(key)
   require(kType isPrefixOf rvd.typ.kType)
 
@@ -87,8 +87,10 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) extends Seria
     val repartitionedLeft = rvd.constrainToOrderedPartitioner(typ, newPartitioner)
     val repartitionedRight = right.rvd.constrainToOrderedPartitioner(right.typ, newPartitioner)
 
+    val leftType = this.typ
+    val rightType = right.typ
     repartitionedLeft.rdd.zipPartitions(repartitionedRight.rdd, true){ (leftIt, rightIt) =>
-      OrderedRVIterator(this.typ, leftIt).zipJoin(OrderedRVIterator(right.typ, rightIt))
+      OrderedRVIterator(leftType, leftIt).zipJoin(OrderedRVIterator(rightType, rightIt))
     }
   }
 }

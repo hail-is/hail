@@ -87,7 +87,6 @@ class OrderedRVD(
 
     require(ordType.rowType == typ.rowType)
     require(ordType.kType isPrefixOf typ.kType)
-//    require(newPartitioner.kType isIsomorphicTo ordType.kType)
     require(newPartitioner.pkType isIsomorphicTo ordType.pkType)
     // Should remove this requirement in the future
     require(typ.pkType isPrefixOf ordType.pkType)
@@ -96,18 +95,6 @@ class OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
       rdd = new RepartitionedOrderedRDD2(this, newPartitioner))
-  }
-
-  private def checkJoinCompatability(right: OrderedRVD) {
-    val lTyp = typ
-    val rTyp = right.typ
-
-    if (!(lTyp.kType isIsomorphicTo rTyp.kType))
-      fatal(
-        s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ lTyp.kType.toString }
-           | Right key type: ${ rTyp.kType.toString }
-         """.stripMargin)
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
