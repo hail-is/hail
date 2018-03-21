@@ -976,21 +976,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
-    println(s"unsafe row rdd")
-    println(this.unsafeRowRDD().collect().mkString("\n"))
-
-    val localRowType = right.rowType
-    val urrdd = right.rdd.mapPartitions{ it =>
-      val ur = new UnsafeRow(localRowType)
-      it.map { rv =>
-        ur.set(rv)
-        ur.copy()
-      }
-    }
-
-    println(s"unsafe row rdd2")
-    println(urrdd.collect().mkString("\n"))
-
     assert(!rowKey.contains(root))
     assert(right.typ.pkType.types.map(_.deepOptional())
       .sameElements(rowPartitionKeyTypes.map(_.deepOptional())))
@@ -1020,7 +1005,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
     val intermediateMatrixType = newMatrixType.copy(rowKey = newMatrixType.rowPartitionKey)
 
-    val res = copyMT(matrixType = newMatrixType,
+    copyMT(matrixType = newMatrixType,
       rvd = OrderedRVD(
         newMatrixType.orvdType,
         leftRVD.partitioner,
@@ -1032,11 +1017,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             it.map { jrv =>
               val lrv = jrv.rvLeft
 
-              println(s"leftRV: ${jrv.rvLeft}, rightRV: ${jrv.rvRight}")
-              if (jrv.rvLeft != null)
-                println(s"left:  ${new UnsafeRow(leftRowType, jrv.rvLeft)}")
-              if (jrv.rvRight != null)
-                println(s"right: ${new UnsafeRow(rightRowType, jrv.rvRight)}")
               rvb.set(lrv.region)
               rvb.start(newRVType)
               ins(lrv.region, lrv.offset, rvb,
@@ -1066,9 +1046,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             }
           })
     )
-    println(s"result")
-    println(res.unsafeRowRDD().collect().mkString("\n"))
-    res
   }
 
   private def annotateRowsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
@@ -1157,8 +1134,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateRowsTable(kt: Table, root: String, product: Boolean = false): MatrixTable = {
-    println(kt.showString())
-
     assert(!rowKey.contains(root))
 
     val keyTypes = kt.keyFields.map(_.typ)
@@ -1373,7 +1348,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case Some(ir) =>
         new MatrixTable(hc, MapEntries(ast, ir))
       case None =>
-        info(s"Using AST")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newEntryType = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast
@@ -1386,10 +1360,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           val fullRow = new UnsafeRow(fullRowType)
           val row = fullRow.deleteField(localEntriesIndex)
           ec.set(0, globalsBc.value)
-          ec.set(1, row)
           fullRow -> row
         })(newEntryType, { case ((fullRow, row), rv, rvb) =>
           fullRow.set(rv)
+          ec.set(1, row)
           val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           rvb.startArray(localNCols)
           var i = 0

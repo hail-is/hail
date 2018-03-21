@@ -941,8 +941,6 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with new row-and-column-indexed field(s).
         """
-
-
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         for k, v in named_exprs.items():
