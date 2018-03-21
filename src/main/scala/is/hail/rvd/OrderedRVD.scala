@@ -468,12 +468,50 @@ object OrderedRVD {
     pkis.sortBy(_.min)(typ.pkOrd)
   }
 
-  def coerce(typ: OrderedRVDType,
+  def coerce(
+    typ: OrderedRVDType,
+    rvd: RVD
+  ): OrderedRVD = coerce(typ, rvd, None, None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    rvd: RVD,
+    fastKeys: Option[RDD[RegionValue]],
+    hintPartitioner: Option[OrderedRVDPartitioner]
+  ): OrderedRVD = coerce(typ, rvd.rdd, fastKeys, hintPartitioner)
+
+  def coerce(
+    typ: OrderedRVDType,
+    rdd: RDD[RegionValue]
+  ): OrderedRVD = coerce(typ, rdd, None, None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    rdd: RDD[RegionValue],
+    fastKeys: RDD[RegionValue]
+  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys), None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    rdd: RDD[RegionValue],
+    hintPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD = coerce(typ, rdd, None, Some(hintPartitioner))
+
+  def coerce(
+    typ: OrderedRVDType,
+    rdd: RDD[RegionValue],
+    fastKeys: RDD[RegionValue],
+    hintPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys), Some(hintPartitioner))
+
+  def coerce(
+    typ: OrderedRVDType,
     // rdd: RDD[RegionValue[rowType]]
     rdd: RDD[RegionValue],
     // fastKeys: Option[RDD[RegionValue[kType]]]
-    fastKeys: Option[RDD[RegionValue]] = None,
-    hintPartitioner: Option[OrderedRVDPartitioner] = None): OrderedRVD = {
+    fastKeys: Option[RDD[RegionValue]],
+    hintPartitioner: Option[OrderedRVDPartitioner]
+  ): OrderedRVD = {
     val sc = rdd.sparkContext
 
     if (rdd.partitions.isEmpty)
