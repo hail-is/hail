@@ -213,7 +213,7 @@ object AST extends Positional {
 
 case class Positioned[T](x: T) extends Positional
 
-sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
+sealed abstract class AST(pos: Position, val subexprs: Array[AST] = Array.empty) {
   var `type`: Type = _
 
   def getPos: Position = pos
@@ -271,9 +271,6 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     }
   }
 
-  // This allows access to the (abstract) subexprs for PrettyAST
-  def getSubexprs() = subexprs
-  
   def toIR(agg: Option[String] = None): Option[IR]
 }
 
@@ -905,7 +902,7 @@ case class PrettyAST(rootAST: AST) {
  
   def putDeepAST(ast: AST, depth: Int) {
     sb.append("  " * depth)
-    val sub = ast.getSubexprs
+    val sub = ast.subexprs
     sb.append(astToName(ast))
     if (sub.length > 0) {
       sb.append("(\n")
