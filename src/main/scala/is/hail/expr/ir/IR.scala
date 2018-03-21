@@ -84,6 +84,4 @@ final case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
 
-final case class Apply(function: String, args: Seq[IR], var implementation: IRFunction = null) extends IR {
-  def typ = implementation.returnType
-}
+final case class Apply(function: String, args: Seq[IR], var implementation: IRFunction = null) extends IR { def typ = implementation.returnType }
