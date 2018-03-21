@@ -7,15 +7,22 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{Call, Call2, ReferenceGenome, MatrixTable}
+import is.hail.variant.{Call2, ReferenceGenome, MatrixTable}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
 
-  def apply(hc: HailContext, nPops: Int, nSamples: Int, nVariants: Int,
-    popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
-    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution,
-    rg: ReferenceGenome = ReferenceGenome.defaultReference): MatrixTable = {
+  def apply(hc: HailContext,
+    nPops: Int,
+    nSamples: Int,
+    nVariants: Int,
+    popDistArrayOpt: Option[Array[Double]],
+    FstOfPopArrayOpt: Option[Array[Double]],
+    seed: Int,
+    nPartitionsOpt: Option[Int],
+    af_dist: Distribution,
+    rg: ReferenceGenome = ReferenceGenome.defaultReference,
+    mixture: Boolean = false): MatrixTable = {
 
     val sc = hc.sc
 
@@ -69,17 +76,24 @@ object BaldingNicholsModel {
     Rand.generator.setSeed(seed)
 
     val popDist_k = popDist
-    popDist_k :/= sum(popDist_k)
-
-    val popDistRV = Multinomial(popDist_k)
-    val popOfSample_n: DenseVector[Int] = DenseVector.fill[Int](N)(popDistRV.draw())
+    val popOfSample_n = DenseMatrix.zeros[Double](if (mixture) K else 1, N)
+    
+    if (mixture) {
+      val popDistRV = Dirichlet(popDist_k)
+      (0 until N).foreach(j => popOfSample_n(::, j) := popDistRV.draw())
+    } else {
+      popDist_k :/= sum(popDist_k)
+      val popDistRV = Multinomial(popDist_k)
+      (0 until N).foreach(j => popOfSample_n(0, j) = popDistRV.draw())
+    }
+    
     val popOfSample_nBc = sc.broadcast(popOfSample_n)
 
     val Fst_k = FstOfPop
     val Fst1_k = (1d - Fst_k) /:/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
-    val saSignature = TStruct("sample_idx" -> TInt32(), "pop" -> TInt32())
+    val saSignature = TStruct("sample_idx" -> TInt32(), "pop" -> (if (mixture) TArray(TFloat64()) else TInt32()))
     val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
     val ancestralAFAnnotation = af_dist match {
@@ -88,7 +102,7 @@ object BaldingNicholsModel {
       case TruncatedBetaDist(a, b, min, max) => Annotation("TruncatedBetaDist", a, b, min, max)
     }
     val globalAnnotation =
-      Annotation(K, N, M, popDistArray: IndexedSeq[Double], FstOfPopArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
+      Annotation(K, N, M, popDistArray: IndexedSeq[Double], FstOfPopArray: IndexedSeq[Double], ancestralAFAnnotation, seed, mixture)
 
     val ancestralAFAnnotationSignature = af_dist match {
       case UniformDist(min, max) => TStruct("type" -> TString(), "min" -> TFloat64(), "max" -> TFloat64())
@@ -103,7 +117,8 @@ object BaldingNicholsModel {
       "pop_dist" -> TArray(TFloat64()),
       "fst" -> TArray(TFloat64()),
       "ancestral_af_dist" -> ancestralAFAnnotationSignature,
-      "seed" -> TInt32())
+      "seed" -> TInt32(),
+      "mixture" -> TBoolean())
 
     val matrixType: MatrixType = MatrixType.fromParts(
       globalType = globalSignature,
@@ -130,9 +145,11 @@ object BaldingNicholsModel {
 
           val ancestralAF = af_dist.getBreezeDist(perVariantRandomBasis).draw()
 
-          val popAF_k: IndexedSeq[Double] = Array.tabulate(K) { k =>
-            new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
-          }
+          val popAF_k: DenseVector[Double] = DenseVector(
+            Array.tabulate(K) { k =>
+              new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis)
+                .draw()
+          })
 
           region.clear()
           rvb.start(rvType)
@@ -165,7 +182,11 @@ object BaldingNicholsModel {
           i = 0
           val unif = new Uniform(0, 1)(perVariantRandomBasis)
           while (i < N) {
-            val p = popAF_k(popOfSample_nBc.value(i))
+            val p =
+              if (mixture)
+                popOfSample_nBc.value(::, i) dot popAF_k
+              else
+                popAF_k(popOfSample_nBc.value(0, i).toInt)
             val pSq = p * p
             val x = unif.draw()
             val c =
@@ -188,7 +209,11 @@ object BaldingNicholsModel {
         }
       }
 
-    val sampleAnnotations = (0 until N).map { i => Annotation(i, popOfSample_n(i)) }.toArray
+    val sampleAnnotations: Array[Annotation] =
+      if (mixture)
+        Array.tabulate(N)(i => Annotation(i, popOfSample_n(::, i).data.toIndexedSeq))
+      else
+        Array.tabulate(N)(i => Annotation(i, popOfSample_n(0, i).toInt))
 
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orvdType, rdd, None, None)
