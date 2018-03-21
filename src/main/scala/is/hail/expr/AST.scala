@@ -271,8 +271,6 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     }
   }
   
-  def getSubexprs(): Array[AST] = subexprs
-
   def toIR(agg: Option[String] = None): Option[IR]
 }
 
@@ -903,15 +901,13 @@ case class PrettyAST(rootAST: AST) {
   }
  
   def putDeepAST(ast: AST, depth: Int) {
-    for (j <- 1 to depth) sb.append("  ")
-    val sub = ast.getSubexprs()
+    sb.append("  " * depth)
+    val sub = ast.subexprs
     sb.append(astToName(ast))
     if (sub.length > 0) {
       sb.append("(\n")
-      for (oneSub <- sub) {
-        putDeepAST(oneSub, depth+1)
-      }
-      for (j <- 1 to depth) sb.append("  ")
+      for (oneSub <- sub) putDeepAST(oneSub, depth+1)
+      sb.append("  " * depth)
       sb.append(")")
     }
     if (depth > 0) sb.append("\n")

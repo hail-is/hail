@@ -146,7 +146,7 @@ object MatrixIR {
       MatrixRead(path, spec, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
         MatrixRead(path, spec, dropCols = true, dropVariants)
-    
+
       case FilterRows(m, Const(_, true, TBoolean(_))) =>
         m
       case FilterCols(m, Const(_, true, TBoolean(_))) =>
@@ -171,18 +171,18 @@ object MatrixIR {
 
       // Keep all rows/cols = do nothing
       case FilterRowsIR(m, True()) => m
-      
+
       case FilterColsIR(m, True()) => m
-      
+
       // Push FilterRowsIR into FilterColsIR
       case FilterRowsIR(FilterColsIR(m, colPred), rowPred) =>
         FilterColsIR(FilterRowsIR(m, rowPred), colPred)
-      
+
       // Combine multiple filters into one
       case FilterRowsIR(FilterRowsIR(m, pred1), pred2) =>
         FilterRowsIR(m,
           ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
-    
+
       case FilterColsIR(FilterColsIR(m, pred1), pred2) =>
         FilterColsIR(m,
           ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
@@ -360,8 +360,6 @@ case class FilterCols(
   }
 }
 
-// FilterColsIR is used when the predicate passes toIR()
-
 case class FilterColsIR(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
@@ -381,25 +379,25 @@ case class FilterColsIR(
     val localGlobals = prev.globals.broadcast
     val localColType = typ.colType
     val ec = typ.colEC
-	  //
-	  // Initialize a region containing the globals
-	  //
-	  val colRegion = Region()
-	  val rvb = new RegionValueBuilder(colRegion)
-	  rvb.start(typ.globalType)
-	  rvb.addAnnotation(typ.globalType, localGlobals.value)
+    
+    //
+    // Initialize a region containing the globals
+    //
+    val colRegion = Region()
+    val rvb = new RegionValueBuilder(colRegion)
+    rvb.start(typ.globalType)
+    rvb.addAnnotation(typ.globalType, localGlobals.value)
     val globalRVend = rvb.currentOffset()
-	  val globalRVoffset = rvb.end()
+    val globalRVoffset = rvb.end()
 
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "global", typ.globalType,
       "sa",     typ.colType,
       pred
     )
-	  //
-	  // Hmm ... is this going to do a separate reduction for each column/sample ?
-	  // Won't that be slow in the distributed case ?
-	  //
+    // We don't yet support IR aggregators
+    assert(ec.aggregations.isEmpty)
+
     val colAggregationOption = Aggregators.buildColAggregations(hc, prev, ec)
 
     val p = (sa: Annotation, i: Int) => {
@@ -410,7 +408,7 @@ case class FilterColsIR(
       colRVb.start(localColType)
       colRVb.addAnnotation(localColType, sa)
       val colRVoffset = colRVb.end()
-      predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false) == true
+      predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false)
     }
     prev.filterCols(p)
   }
@@ -485,6 +483,9 @@ case class FilterRowsIR(
       pred
     )
 
+    // We don't yet support IR aggregators
+    assert(ec.aggregations.isEmpty)
+
     val aggregatorOption = Aggregators.buildRowAggregations(
       prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
     //
@@ -510,7 +511,7 @@ case class FilterRowsIR(
         globalRVb.start(localGlobalType)
         globalRVb.addAnnotation(localGlobalType, localGlobals.value)
         val globalRVoffset = globalRVb.end()
-        predCompiledFunc()(rv.region, rv.offset, false, globalRVoffset, false) == true
+        predCompiledFunc()(rv.region, rv.offset, false, globalRVoffset, false)
       }
     }
 
