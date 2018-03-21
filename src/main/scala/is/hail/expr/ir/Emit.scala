@@ -501,7 +501,7 @@ private class Emit(
         present(fb.getArg[Boolean](i * 2 + 3))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
-      case ApplyFunction(impl, args) =>
+      case Apply(fn, args, impl) =>
         val meth = methods.getOrElseUpdate(impl, {
           impl.argTypes.foreach(_.clear())
           (impl.argTypes, args.map(a => a.typ)).zipped.foreach(_.unify(_))

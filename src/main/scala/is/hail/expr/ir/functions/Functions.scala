@@ -7,38 +7,60 @@ import is.hail.utils._
 import is.hail.asm4s.coerce
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 object IRFunctionRegistry {
 
-  val registry: mutable.Map[String, Seq[(Seq[Type], Seq[IR] => IR)]] = mutable.Map().withDefaultValue(Seq.empty)
+  val irRegistry: mutable.Map[String, Seq[(Seq[Type], Seq[IR] => IR)]] = mutable.Map().withDefaultValue(Seq.empty)
+
+  val codeRegistry: mutable.Map[String, Seq[(Seq[Type], IRFunction)]] = mutable.Map().withDefaultValue(Seq.empty)
 
   def addIRFunction(f: IRFunction) {
-    val l = registry(f.name)
-    registry.put(f.name,
-      l :+ (f.argTypes, { args: Seq[IR] =>
-        ApplyFunction(f, args)
-      }))
+    val l = codeRegistry(f.name)
+    codeRegistry.put(f.name,
+      l :+ (f.argTypes, f))
   }
 
   def addIR(name: String, types: Seq[Type], f: Seq[IR] => IR) {
-    val l = registry(name)
-    registry.put(name, l :+ ((types, f)))
+    val l = irRegistry(name)
+    irRegistry.put(name, l :+ ((types, f)))
   }
 
-  def lookupFunction(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    assert(args.forall(_ != null))
-    val validMethods = registry(name).flatMap { case (ts, f) =>
+  def lookupFunction(name: String, args: Seq[Type]): Option[IRFunction] = {
+    val validF = codeRegistry(name).flatMap { case (ts, f) =>
       if (ts.length == args.length) {
         ts.foreach(_.clear())
         if ((ts, args).zipped.forall(_.unify(_)))
           Some(f)
         else
           None
-      } else {
+      } else
         None
-      }
     }
+
+    validF match {
+      case Seq() => None
+      case Seq(x) => Some(x)
+      case _ => fatal(s"Multiple IRFunctions found that satisfy $name$args.")
+    }
+  }
+
+  def lookupConversion(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
+    assert(args.forall(_ != null))
+    val validIR = irRegistry(name).flatMap { case (ts, f) =>
+      if (ts.length == args.length) {
+        ts.foreach(_.clear())
+        if ((ts, args).zipped.forall(_.unify(_)))
+          Some(f)
+        else
+          None
+      } else
+        None
+    }
+
+    val validMethods = validIR ++ lookupFunction(name, args).map { f =>
+      { args: Seq[IR] => Apply(name, args, f) }
+    }
+
     validMethods match {
       case Seq() => None
       case Seq(x) => Some(x)
