@@ -58,10 +58,8 @@ class FunctionSuite {
     fb.result(Some(new PrintWriter(System.out)))()
   }
 
-  def lookup(meth: String, types: Type*)(irs: IR*): IR = {
-    val possible = IRFunctionRegistry.registry(meth)
+  def lookup(meth: String, types: Type*)(irs: IR*): IR =
     IRFunctionRegistry.lookupConversion(meth, types).get(irs)
-  }
 
   @Test
   def testCodeFunction() {

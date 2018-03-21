@@ -7,7 +7,6 @@ import is.hail.utils._
 import is.hail.asm4s.coerce
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 object IRFunctionRegistry {
 
@@ -59,7 +58,7 @@ object IRFunctionRegistry {
     }
 
     val validMethods = validIR ++ lookupFunction(name, args).map { f =>
-      { args: Seq[IR] => ApplyFunction(f, args) }
+      { args: Seq[IR] => Apply(name, args, f) }
     }
 
     validMethods match {

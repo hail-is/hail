@@ -104,8 +104,8 @@ object Copy {
         same
       case Die(message) =>
         same
-      case ApplyFunction(impl, args) =>
-        ApplyFunction(impl, children)
+      case Apply(fn, args, impl) =>
+        Apply(fn, children, impl)
     }
   }
 }
