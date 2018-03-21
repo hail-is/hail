@@ -58,10 +58,8 @@ class FunctionSuite {
     fb.result(Some(new PrintWriter(System.out)))()
   }
 
-  def lookup(meth: String, types: Type*)(irs: IR*): IR = {
-    val possible = IRFunctionRegistry.registry(meth)
-    IRFunctionRegistry.lookupFunction(meth, types).get(irs)
-  }
+  def lookup(meth: String, types: Type*)(irs: IR*): IR =
+    IRFunctionRegistry.lookupConversion(meth, types).get(irs)
 
   @Test
   def testCodeFunction() {
@@ -110,10 +108,10 @@ class FunctionSuite {
 
   @Test
   def testVariableUnification() {
-    assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt32(), TInt32())).isDefined)
-    assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt64(), TInt32())).isEmpty)
-    assert(IRFunctionRegistry.lookupFunction("testCodeUnification", Seq(TInt64(), TInt64())).isEmpty)
-    assert(IRFunctionRegistry.lookupFunction("testCodeUnification2", Seq(TArray(TInt32()))).isDefined)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt32(), TInt32())).isDefined)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt64(), TInt32())).isEmpty)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt64(), TInt64())).isEmpty)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification2", Seq(TArray(TInt32()))).isDefined)
   }
 
   @Test
