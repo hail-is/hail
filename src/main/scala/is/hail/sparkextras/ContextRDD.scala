@@ -184,6 +184,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   def getNumPartitions: Int = rdd.getNumPartitions
 
+  def partitions: Array[Partition] = rdd.partitions
+
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
   ): ContextRDD[C, T] = new ContextRDD(f(rdd), mkc)

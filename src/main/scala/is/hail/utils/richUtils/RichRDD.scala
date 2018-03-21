@@ -183,7 +183,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }, preservesPartitioning = true)
       .subsetPartitions((0 to idxLast).toArray)
   }
-  
+
+  // FIXME: somehow harmonize this with the RichContextRDD.writePartitions,
+  // since BlockMatrix will likely never use a ContextRDD
   def writePartitions(path: String,
     write: (Int, Iterator[T], OutputStream) => Long,
     remapPartitions: Option[(Array[Int], Int)] = None): (Array[String], Array[Long]) = {

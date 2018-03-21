@@ -3,9 +3,9 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{Region, RegionValue, JoinedRegionValue}
+import is.hail.annotations.{JoinedRegionValue, Region, RegionValue}
 import is.hail.asm4s.Code
-import is.hail.io.RichRDDRegionValue
+import is.hail.io.{RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import org.apache.hadoop
@@ -83,7 +83,7 @@ trait Implicits {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichRDDRegionValue(r: RDD[RegionValue]): RichRDDRegionValue = new RichRDDRegionValue(r)
+  implicit def toRichContextRDDRegionValue[C <: AutoCloseable](r: ContextRDD[C, RegionValue]): RichContextRDDRegionValue[C] = new RichContextRDDRegionValue(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
@@ -124,4 +124,6 @@ trait Implicits {
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
 
   implicit def toContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](x: ContextRDD[C, (K, V)]): ContextPairRDDFunctions[C, K, V] = new ContextPairRDDFunctions(x)
+
+  implicit def toRichContextRDD[C <: AutoCloseable, T: ClassTag](x: ContextRDD[C, T]): RichContextRDD[C, T] = new RichContextRDD(x)
 }
