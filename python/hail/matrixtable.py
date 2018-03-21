@@ -1188,15 +1188,12 @@ class MatrixTable(ExprContainer):
         assignments = OrderedDict()
 
         for e in exprs:
-            all_exprs.append(e)
             if not e._indices == self._entry_indices:
                 # detect row or col fields here
                 raise ExpressionException("method 'select_entries' parameter 'exprs' expects entry-indexed fields,"
                                           " found indices {}".format(list(e._indices.axes)))
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_entries' expects keyword arguments for complex expressions")
-            strs.append(e._ast.to_hql())
-            ids.append(e._ast.name)
         for k, e in named_exprs.items():
             check_collisions(self._fields, k, self._entry_indices)
             assignments[k] = e
