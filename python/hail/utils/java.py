@@ -5,8 +5,7 @@ import re
 from threading import Thread
 
 import py4j
-import numpy as np
-
+import hail
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -194,11 +193,11 @@ def handle_java_exception(f):
             deepest, full = tpl._1(), tpl._2()
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
-                             'Error summary: %s' % (deepest, full, Env.hc().version, deepest)) from None
+                             'Error summary: %s' % (deepest, full, hail.__version__, deepest)) from None
         except pyspark.sql.utils.CapturedException as e:
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
-                             'Error summary: %s' % (e.desc, e.stackTrace, Env.hc().version, e.desc)) from None
+                             'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)) from None
 
     return deco
 
