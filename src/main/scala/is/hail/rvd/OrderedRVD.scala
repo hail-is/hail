@@ -185,9 +185,15 @@ class OrderedRVD(
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
-      val shuffled = rdd.coalesce(maxPartitions, shuffle = true)
-      val ranges = OrderedRVD.calculateKeyRanges(typ, OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)), shuffled.getNumPartitions)
-      OrderedRVD.shuffle(typ, new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges), shuffled)
+      val shuffled = crdd.coalesce(maxPartitions, shuffle = true)
+      val ranges = OrderedRVD.calculateKeyRanges(
+        typ,
+        OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)),
+        shuffled.getNumPartitions)
+      OrderedRVD.shuffle(
+        typ,
+        new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges),
+        shuffled)
     } else {
 
       val partSize = rdd.context.runJob(rdd, getIteratorSize _)
@@ -429,11 +435,13 @@ object OrderedRVD {
   }
 
   // getKeys: RDD[RegionValue[kType]]
-  def getKeys(typ: OrderedRVDType,
+  def getKeys(
+    typ: OrderedRVDType,
     // rdd: RDD[RegionValue[rowType]]
-    rdd: RDD[RegionValue]): RDD[RegionValue] = {
+    crdd: ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = {
     val localType = typ
-    rdd.mapPartitions { it =>
+    crdd.mapPartitions { it =>
       val wrv = WritableRegionValue(localType.kType)
       it.map { rv =>
         wrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
@@ -442,9 +450,19 @@ object OrderedRVD {
     }
   }
 
-  def getPartitionKeyInfo(typ: OrderedRVDType,
+  // FIXME: delete when I've removed all need for RDDs
+  def getKeys(
+    typ: OrderedRVDType,
+    rdd: RDD[RegionValue]
+  ): RDD[RegionValue] = getKeys(
+    typ,
+    ContextRDD.weaken[RVDContext](rdd, RVDContext.default _)).run
+
+  def getPartitionKeyInfo(
+    typ: OrderedRVDType,
     // keys: RDD[kType]
-    keys: RDD[RegionValue]): Array[OrderedRVPartitionInfo] = {
+    keys: ContextRDD[RVDContext, RegionValue]
+  ): Array[OrderedRVPartitionInfo] = {
     val nPartitions = keys.getNumPartitions
     if (nPartitions == 0)
       return Array()
@@ -462,10 +480,19 @@ object OrderedRVD {
         Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else
         Iterator()
-    }.collect()
+    }.run.collect()
 
     pkis.sortBy(_.min)(typ.pkOrd)
   }
+
+  // FIXME: delete when I've removed all need for RDDs
+  def getPartitionKeyInfo[C](
+    typ: OrderedRVDType,
+    // keys: RDD[kType]
+    keys: RDD[RegionValue]
+  ): Array[OrderedRVPartitionInfo] = getPartitionKeyInfo(
+    typ,
+    ContextRDD.weaken(keys, RVDContext.default _))
 
   def coerce(
     typ: OrderedRVDType,
@@ -627,33 +654,38 @@ object OrderedRVD {
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rvd: RVD
-  ): OrderedRVD = shuffle(typ, partitioner, rvd.rdd)
+  ): OrderedRVD = shuffle(typ, partitioner, rvd.crdd)
 
   def shuffle(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]): OrderedRVD = {
+    rdd: RDD[RegionValue]
+  ): OrderedRVD =
+    shuffle(typ, partitioner, ContextRDD.weaken(rdd, RVDContext.default _))
+
+  def shuffle(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    crdd: ContextRDD[RVDContext, RegionValue]
+  ): OrderedRVD = {
     val localType = typ
-    val partBc = partitioner.broadcast(rdd.sparkContext)
+    val partBc = partitioner.broadcast(crdd.sparkContext)
     OrderedRVD(typ,
       partitioner,
-      new ShuffledRDD[RegionValue, RegionValue, RegionValue](
-        rdd.mapPartitions { it =>
-          val wrv = WritableRegionValue(localType.rowType)
-          val wkrv = WritableRegionValue(localType.kType)
+      crdd.mapPartitions { it =>
+          val wrv = WritableRegionValue(typ.rowType)
+          val wkrv = WritableRegionValue(typ.kType)
           it.map { rv =>
             wrv.set(rv)
             wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
             (wkrv.value, wrv.value)
           }
-        },
-        partBc.value.sparkPartitioner(rdd.sparkContext))
-        .setKeyOrdering(typ.kOrd)
+      }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
         .mapPartitionsWithIndex { case (i, it) =>
           it.map { case (k, v) =>
             assert(partBc.value.getPartition(k) == i)
             v
           }
-        })
+      })
   }
 
   def rangesAndAdjustments(typ: OrderedRVDType,
@@ -727,10 +759,18 @@ object OrderedRVD {
     rvd: RVD
   ): OrderedRVD = apply(typ, partitioner, rvd.rdd)
 
-  def apply(typ: OrderedRVDType,
+  def apply(
+    typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]): OrderedRVD = {
-    val sc = rdd.sparkContext
+    rdd: RDD[RegionValue]
+  ): OrderedRVD = apply(typ, partitioner, ContextRDD.weaken(rdd, RVDContext.default _))
+
+  def apply(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    crdd: ContextRDD[RVDContext, RegionValue]
+  ): OrderedRVD = {
+    val sc = crdd.sparkContext
 
     val partitionerBc = partitioner.broadcast(sc)
     val localType = typ
@@ -738,8 +778,7 @@ object OrderedRVD {
     new OrderedRVD(
       typ,
       partitioner,
-      ContextRDD.weaken(rdd)
-        .mapPartitionsWithIndex { case (i, it) =>
+      crdd.mapPartitionsWithIndex { case (i, it) =>
           val prevK = WritableRegionValue(typ.kType)
           val prevPK = WritableRegionValue(typ.pkType)
           val pkUR = new UnsafeRow(typ.pkType)

@@ -157,6 +157,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
   }
 
+  def coalesce(numPartitions: Int, shuffle: Boolean = false): ContextRDD[C, T] =
+    // NB: the run marks the end of a context lifetime, the next one starts
+    // after the coalesce/shuffle
+    ContextRDD.weaken(run.coalesce(numPartitions, shuffle), mkc)
+
+  def sparkContext: SparkContext = rdd.sparkContext
+
+  def getNumPartitions: Int = rdd.getNumPartitions
+
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
   ): ContextRDD[C, T] = new ContextRDD(f(rdd), mkc)
