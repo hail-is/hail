@@ -1074,7 +1074,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType
     val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val newRVD = rvd.zipPartitions(
+    val newRVD = rvd.zipPartitionsPreservesPartitioning(
       newMatrixType.orvdType,
       zipRDD
     ) { case (it, intervals) =>
