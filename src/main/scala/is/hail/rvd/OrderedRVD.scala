@@ -377,7 +377,7 @@ class OrderedRVD(
   def zipPartitionsPreservesPartitioning[T: ClassTag](
     newTyp: OrderedRVDType, that: RDD[T]
   )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
-  ) : OrderedRVD =
+  ): OrderedRVD =
     OrderedRVD(
       newTyp,
       partitioner,
