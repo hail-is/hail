@@ -1738,7 +1738,7 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
     return pc_relate_with_scores(ds, ds.scores, maf, path, block_size, min_kinship, statistics)
 
 @typecheck(ds=MatrixTable,
-           scores=ArrayFloat64Expression,
+           scores=expr_array(expr_float64),
            maf=numeric,
            path=nullable(str),
            block_size=int,
