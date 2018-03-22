@@ -157,7 +157,8 @@ class PCRelateSuite extends SparkSuite {
         None
     }
     if (!fails.isEmpty)
-      fails.foreach(println _)
+      println(fails.length)
+      fails.foreach(println)
     assert(fails.isEmpty)
   }
 
@@ -171,14 +172,34 @@ class PCRelateSuite extends SparkSuite {
 
     val pcr = new PCRelate(0.01, blockSize, PCRelate.PhiK2K0K1)
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
-    val dmu = pcr.mu(BlockMatrix.fromIRM(g, blockSize), pcs).cache()
+    
     // blockedG : variant x sample
     val blockedG = BlockMatrix.fromIRM(g, blockSize)
+
+    val predmu = pcr.mu(BlockMatrix.fromIRM(g, blockSize), pcs)
+    
+    val dmu = BlockMatrix.map2 { (g, mu) =>
+      def badmu(mu: Double, maf: Double): Boolean =
+        mu <= maf || mu >= (1.0 - maf) || mu <= 0.0 || mu >= 1.0
+  
+      def badgt(gt: Double): Boolean =
+        gt != 0.0 && gt != 1.0 && gt != 2.0
+      
+      if (badgt(g) || badmu(mu, 0.01))
+        Double.NaN
+      else
+        mu
+    } (blockedG, predmu).cache()
+    
     val actual = runPcRelateHail(vds, pcs, 0.01)
     val actual_g = blockedG.toBreezeMatrix().t
     val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toBreezeMatrix()
     val actual_mean = dmu.toBreezeMatrix()
 
+    println(blockedG.toBreezeMatrix().toArray.count(g => g != 0.0 && g != 1.0 && g != 2.0))
+    println(actual_ibs0)
+    println(truth_ibs0)
+    
     compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
     compareBDMs(actual_g, truth_g, tolerance=1e-14)

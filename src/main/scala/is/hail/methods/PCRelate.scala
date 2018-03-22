@@ -278,14 +278,14 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
   def apply(blockedG: M, pcs: DenseMatrix[Double]): Result[M] = {
     val preMu = this.mu(blockedG, pcs)
-    val mu = (BlockMatrix.map2 { (g, mu) =>
+    val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-   } (blockedG, preMu)).cache()
+   } (blockedG, preMu).cache()
     val variance = cacheWhen(PhiK2)(
-      mu.map(mu => if (mu.isNaN()) 0.0 else mu * (1.0 - mu)))
+      mu.map(mu => if (mu.isNaN) 0.0 else mu * (1.0 - mu)))
     val phi = cacheWhen(PhiK2)(
       this.phi(mu, variance, blockedG))
 
@@ -296,7 +296,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
         val k0 = cacheWhen(PhiK2K0K1)(
           this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)))
         if (statistics >= PhiK2K0K1) {
-          val k1 = (1.0 - (k2 +:+ k0))
+          val k1 = 1.0 - (k2 +:+ k0)
           Result(phi, k0, k1, k2)
         } else
           Result(phi, k0, null, k2)
@@ -350,7 +350,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
-    val twoPhi_ii = phi.diagonal.map(2.0 * _)
+    val twoPhi_ii = phi.diagonal().map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
       if (mu.isNaN)
         0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
