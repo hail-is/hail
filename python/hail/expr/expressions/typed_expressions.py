@@ -2165,30 +2165,6 @@ class StringExpression(Expression):
         return construct_expr(RegexMatch(self._ast, regex), tbool,
                               self._indices, self._aggregations, self._joins)
 
-    def to_boolean(self):
-        """Parse the string to a Boolean.
-
-        Examples
-        --------
-        .. doctest::
-
-            >>> s = hl.literal('TRUE')
-            >>> hl.eval_expr(s.to_boolean())
-            True
-
-        Notes
-        -----
-        Acceptable values are: ``True``, ``true``, ``TRUE``, ``False``,
-        ``false``, and ``FALSE``.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-            Parsed Boolean expression.
-        """
-
-        return self._method("toBoolean", tbool)
-
 
 class CallExpression(Expression):
     """Expression of type :py:data:`.tcall`.
