@@ -1301,7 +1301,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     :math:`i` and :math:`j` of :math:`M`; in terms of :math:`C` it is
 
     .. math::
-    
+
       \frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
 
     where :math:`\mathcal{C}_i = \{l \mid C_{il} \text{ is non-missing}\}`. In
@@ -1323,7 +1323,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        Dataset.
+        Matrix table with entry-indexed ``GT`` field of type :py:data:`.tcall`.
     k : :obj:`int`
         Number of principal components.
     compute_loadings : :obj:`bool`
@@ -1379,7 +1379,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     1s encoding missingness of genotype calls.
 
     >>> eigenvalues, scores, _ = hl.pca(hl.int(hl.is_defined(dataset.GT)),
-    ...                                      k=2)
+    ...                                 k=2)
 
     Warning
     -------
@@ -1438,8 +1438,6 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
-        Dataset.
     entry_expr : :class:`.Expression`
         Numeric expression for matrix entries.
     k : :obj:`int`
@@ -2258,10 +2256,11 @@ def realized_relationship_matrix(call_expr):
            fst=nullable(listof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
-           reference_genome=reference_genome_type)
+           reference_genome=reference_genome_type,
+           mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome='default'):
+                          seed=0, reference_genome='default', mixture=False):
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2324,7 +2323,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     population allele frequencies by :math:`p_{k, m}`, and diploid, unphased
     genotype calls by :math:`g_{n, m}` (0, 1, and 2 correspond to homozygous
     reference, heterozygous, and homozygous variant, respectively).
-    
+
     The generative model is then given by:
 
     .. math::
@@ -2354,6 +2353,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     - `ancestral_af_dist` (:class:`.tstruct`) -- Description of the ancestral allele
       frequency distribution.
     - `seed` (:py:data:`.tint32`) -- Random seed.
+    - `mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
 
     Row fields:
 
@@ -2397,6 +2397,12 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         Random seed.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
+    mixture : :obj:`bool`
+        Treat `pop_dist` as the parameters of a Dirichlet distribution,
+        as in the Prichard-Stevens-Donnelly model. This feature is
+        EXPERIMENTAL and currently undocumented and untested.
+        If ``True``, the type of `pop` is :class:`.tarray` of
+        :py:data:`.tfloat64` and the value is the mixture proportions.
 
     Returns
     -------
@@ -2420,7 +2426,8 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                             jvm_fst_opt,
                                             af_dist._jrep(),
                                             seed,
-                                            reference_genome._jrep)
+                                            reference_genome._jrep,
+                                            mixture)
     return MatrixTable(jmt)
 
 
