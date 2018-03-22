@@ -52,7 +52,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable with Serializable {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable {
 
   var length: Int = t.loadLength(region, aoff)
 
