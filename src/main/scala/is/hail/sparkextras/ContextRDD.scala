@@ -125,9 +125,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       using(mkc()) { c =>
         serialize(
           it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
+    var result = makeZero()
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
-    var result = makeZero()
     sparkContext.runJob(rdd, aggregatePartition, localCombiner)
     result
   }
