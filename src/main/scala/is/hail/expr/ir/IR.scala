@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.expr.BaseIR
-import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
+import is.hail.expr.ir.functions.IRFunction
 
 sealed trait IR extends BaseIR {
   def typ: Type
