@@ -6,8 +6,9 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
 import is.hail.io._
+import is.hail.rvd.OrderedRVDPartitioner
 import is.hail.utils._
-import is.hail.variant.{RGBase, Locus}
+import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
@@ -155,7 +156,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long) extends Row {
+  var region: Region, var offset: Long, var dummyPartitioner: OrderedRVDPartitioner = null) extends Row {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
