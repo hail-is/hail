@@ -20,7 +20,7 @@ def _func(name, ret_type, *args):
 
 
 @typecheck(t=hail_type)
-def null(t: Union[HailType, str]) -> Expression:
+def null(t: Union[HailType, str]):
     """Creates an expression representing a missing value of a specified type.
 
     Examples
@@ -336,7 +336,7 @@ def bind(expr, f: Callable):
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1, c2, c3, c4) -> StructExpression:
+def chisq(c1, c2, c3, c4):
     """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
 
     Examples
@@ -419,7 +419,7 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 @typecheck(collection=expr_oneof(expr_dict(),
                                  expr_set(expr_tuple([expr_any, expr_any])),
                                  expr_array(expr_tuple([expr_any, expr_any]))))
-def dict(collection) -> DictExpression:
+def dict(collection):
     """Creates a dictionary.
 
     Examples
@@ -452,7 +452,7 @@ def dict(collection) -> DictExpression:
 
 
 @typecheck(x=expr_float64, a=expr_float64, b=expr_float64)
-def dbeta(x, a, b) -> Float64Expression:
+def dbeta(x, a, b):
     """
     Returns the probability density at `x` of a `beta distribution
     <https://en.wikipedia.org/wiki/Beta_distribution>`__ with parameters `a`
@@ -485,7 +485,7 @@ def dbeta(x, a, b) -> Float64Expression:
 
 
 @typecheck(x=expr_float64, lamb=expr_float64, log_p=expr_bool)
-def dpois(x, lamb, log_p=False) -> Float64Expression:
+def dpois(x, lamb, log_p=False):
     """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
 
     Examples
@@ -513,7 +513,7 @@ def dpois(x, lamb, log_p=False) -> Float64Expression:
 
 
 @typecheck(x=expr_float64)
-def exp(x) -> Float64Expression:
+def exp(x):
     """Computes `e` raised to the power `x`.
 
     Examples
@@ -535,7 +535,7 @@ def exp(x) -> Float64Expression:
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
+def fisher_exact_test(c1, c2, c3, c4):
     """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
 
     Examples
@@ -629,7 +629,7 @@ def ceil(x):
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
+def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var):
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
     Examples
@@ -689,7 +689,7 @@ def index(structs, identifier):
 
 @typecheck(contig=expr_str, pos=expr_int32,
            reference_genome=reference_genome_type)
-def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'):
     """Construct a locus expression from a chromosome and position.
 
     Examples
@@ -719,7 +719,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
 
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
-def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default'):
     """Construct a locus expression by parsing a string or string expression.
 
     Examples
@@ -751,7 +751,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
 
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
-def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> StructExpression:
+def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default'):
     """Construct a struct with a locus and alleles by parsing a string.
 
     Examples
@@ -788,7 +788,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
 
 
 @typecheck(gp=expr_array(expr_float64))
-def gp_dosage(gp) -> Float64Expression:
+def gp_dosage(gp):
     """
     Return expected genotype dosage from array of genotype probabilities.
 
@@ -847,7 +847,7 @@ def pl_dosage(pl):
 def interval(start,
              end,
              includes_start=True,
-             includes_end=False) -> IntervalExpression:
+             includes_end=False):
     """Construct an interval expression.
 
     Examples
@@ -899,7 +899,7 @@ def locus_interval(contig,
                    end,
                    includes_start=True,
                    includes_end=False,
-                   reference_genome: Union[str, ReferenceGenome] = 'default') -> IntervalExpression:
+                   reference_genome: Union[str, ReferenceGenome] = 'default'):
     """Construct a locus interval expression.
 
     Examples
@@ -939,7 +939,7 @@ def locus_interval(contig,
 
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
-def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> IntervalExpression:
+def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default'):
     """Construct a locus interval expression by parsing a string or string
     expression.
 
@@ -1002,7 +1002,7 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
 
 @typecheck(alleles=expr_int32,
            phased=expr_bool)
-def call(*alleles, phased=False) -> CallExpression:
+def call(*alleles, phased=False):
     """Construct a call expression.
 
     Examples
@@ -1031,7 +1031,7 @@ def call(*alleles, phased=False) -> CallExpression:
 
 
 @typecheck(gt_index=expr_int32)
-def unphased_diploid_gt_index_call(gt_index) -> CallExpression:
+def unphased_diploid_gt_index_call(gt_index):
     """Construct an unphased, diploid call from a genotype index.
 
     Examples
@@ -1056,7 +1056,7 @@ def unphased_diploid_gt_index_call(gt_index) -> CallExpression:
 
 
 @typecheck(s=expr_str)
-def parse_call(s) -> CallExpression:
+def parse_call(s):
     """Construct a call expression by parsing a string or string expression.
 
     Examples
@@ -1098,7 +1098,7 @@ def parse_call(s) -> CallExpression:
 
 
 @typecheck(expression=expr_any)
-def is_defined(expression) -> BooleanExpression:
+def is_defined(expression):
     """Returns ``True`` if the argument is not missing.
 
     Examples
@@ -1128,7 +1128,7 @@ def is_defined(expression) -> BooleanExpression:
 
 
 @typecheck(expression=expr_any)
-def is_missing(expression) -> BooleanExpression:
+def is_missing(expression):
     """Returns ``True`` if the argument is missing.
 
     Examples
@@ -1158,7 +1158,7 @@ def is_missing(expression) -> BooleanExpression:
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
-def is_nan(x) -> BooleanExpression:
+def is_nan(x):
     """Returns ``True`` if the argument is ``NaN`` (not a number).
 
     Examples
@@ -1194,7 +1194,7 @@ def is_nan(x) -> BooleanExpression:
 
 
 @typecheck(x=expr_any)
-def json(x) -> StringExpression:
+def json(x):
     """Convert an expression to a JSON string expression.
 
     Examples
@@ -1221,7 +1221,7 @@ def json(x) -> StringExpression:
 
 
 @typecheck(x=expr_float64, base=nullable(expr_float64))
-def log(x, base=None) -> Float64Expression:
+def log(x, base=None):
     """Take the logarithm of the `x` with base `base`.
 
     Examples
@@ -1258,7 +1258,7 @@ def log(x, base=None) -> Float64Expression:
 
 
 @typecheck(x=expr_float64)
-def log10(x) -> Float64Expression:
+def log10(x):
     """Take the logarithm of the `x` with base 10.
 
     Examples
@@ -1343,7 +1343,7 @@ def or_missing(predicate, value):
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_float64,
            alternative=enumeration("two.sided", "greater", "less"))
-def binom_test(x, n, p, alternative: str) -> Float64Expression:
+def binom_test(x, n, p, alternative: str):
     """Performs a binomial test on `p` given `x` successes in `n` trials.
 
     Examples
@@ -1383,7 +1383,7 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
 
 
 @typecheck(x=expr_float64, df=expr_float64)
-def pchisqtail(x, df) -> Float64Expression:
+def pchisqtail(x, df):
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
 
@@ -1408,7 +1408,7 @@ def pchisqtail(x, df) -> Float64Expression:
 
 
 @typecheck(x=expr_float64)
-def pnorm(x) -> Float64Expression:
+def pnorm(x):
     """The cumulative probability function of a standard normal distribution.
 
     Examples
@@ -1443,7 +1443,7 @@ def pnorm(x) -> Float64Expression:
 def ppois(x,
           lamb,
           lower_tail=True,
-          log_p=False) -> Float64Expression:
+          log_p=False):
     """The cumulative probability function of a Poisson distribution.
 
     Examples
@@ -1478,7 +1478,7 @@ def ppois(x,
 
 
 @typecheck(p=expr_float64, df=expr_float64)
-def qchisqtail(p, df) -> Float64Expression:
+def qchisqtail(p, df):
     """Inverts :meth:`.pchisqtail`.
 
     Examples
@@ -1508,7 +1508,7 @@ def qchisqtail(p, df) -> Float64Expression:
 
 
 @typecheck(p=expr_float64)
-def qnorm(p) -> Float64Expression:
+def qnorm(p):
     """Inverts :meth:`.pnorm`.
 
     Examples
@@ -1539,7 +1539,7 @@ def qnorm(p) -> Float64Expression:
 def qpois(p,
           lamb,
           lower_tail=True,
-          log_p=False) -> Float64Expression:
+          log_p=False):
     """Inverts :meth:`.ppois`.
 
     Examples
@@ -1572,7 +1572,7 @@ def qpois(p,
 
 
 @typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
-def range(start, stop, step=1) -> ArrayNumericExpression:
+def range(start, stop, step=1):
     """Returns an array of integers from `start` to `stop` by `step`.
 
     Examples
@@ -1606,7 +1606,7 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
 
 
 @typecheck(p=expr_float64)
-def rand_bool(p) -> BooleanExpression:
+def rand_bool(p):
     """Returns ``True`` with probability `p` (RNG).
 
     Examples
@@ -1637,7 +1637,7 @@ def rand_bool(p) -> BooleanExpression:
 
 
 @typecheck(mean=expr_float64, sd=expr_float64)
-def rand_norm(mean=0, sd=1) -> Float64Expression:
+def rand_norm(mean=0, sd=1):
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
     Examples
@@ -1671,7 +1671,7 @@ def rand_norm(mean=0, sd=1) -> Float64Expression:
 
 
 @typecheck(lamb=expr_float64)
-def rand_pois(lamb) -> Float64Expression:
+def rand_pois(lamb):
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
 
     Examples
@@ -1703,7 +1703,7 @@ def rand_pois(lamb) -> Float64Expression:
 
 
 @typecheck(min=expr_float64, max=expr_float64)
-def rand_unif(min, max) -> Float64Expression:
+def rand_unif(min, max):
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
 
     Examples
@@ -1737,7 +1737,7 @@ def rand_unif(min, max) -> Float64Expression:
 
 
 @typecheck(x=expr_float64)
-def sqrt(x) -> Float64Expression:
+def sqrt(x):
     """Returns the square root of `x`.
 
     Examples
@@ -1764,7 +1764,7 @@ def sqrt(x) -> Float64Expression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_snp(ref, alt) -> BooleanExpression:
+def is_snp(ref, alt):
     """Returns ``True`` if the alleles constitute a single nucleotide polymorphism.
 
     Examples
@@ -1789,7 +1789,7 @@ def is_snp(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_mnp(ref, alt) -> BooleanExpression:
+def is_mnp(ref, alt):
     """Returns ``True`` if the alleles constitute a multiple nucleotide polymorphism.
 
     Examples
@@ -1814,7 +1814,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_transition(ref, alt) -> BooleanExpression:
+def is_transition(ref, alt):
     """Returns ``True`` if the alleles constitute a transition.
 
     Examples
@@ -1842,7 +1842,7 @@ def is_transition(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_transversion(ref, alt) -> BooleanExpression:
+def is_transversion(ref, alt):
     """Returns ``True`` if the alleles constitute a transversion.
 
     Examples
@@ -1870,7 +1870,7 @@ def is_transversion(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_insertion(ref, alt) -> BooleanExpression:
+def is_insertion(ref, alt):
     """Returns ``True`` if the alleles constitute an insertion.
 
     Examples
@@ -1895,7 +1895,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_deletion(ref, alt) -> BooleanExpression:
+def is_deletion(ref, alt):
     """Returns ``True`` if the alleles constitute a deletion.
 
     Examples
@@ -1920,7 +1920,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_indel(ref, alt) -> BooleanExpression:
+def is_indel(ref, alt):
     """Returns ``True`` if the alleles constitute an insertion or deletion.
 
     Examples
@@ -1945,7 +1945,7 @@ def is_indel(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_star(ref, alt) -> BooleanExpression:
+def is_star(ref, alt):
     """Returns ``True`` if the alleles constitute an upstream deletion.
 
     Examples
@@ -1970,7 +1970,7 @@ def is_star(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_complex(ref, alt) -> BooleanExpression:
+def is_complex(ref, alt):
     """Returns ``True`` if the alleles constitute a complex polymorphism.
 
     Examples
@@ -1995,7 +1995,7 @@ def is_complex(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def is_strand_ambiguous(ref, alt) -> BooleanExpression:
+def is_strand_ambiguous(ref, alt):
     """Returns ``True`` if the alleles are strand ambiguous.
 
     Strand ambiguous allele pairs are ``A/T``, ``T/A``,
@@ -2025,7 +2025,7 @@ def is_strand_ambiguous(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def allele_type(ref, alt) -> BooleanExpression:
+def allele_type(ref, alt):
     """Returns the type of the polymorphism as a string.
 
     Examples
@@ -2063,7 +2063,7 @@ def allele_type(ref, alt) -> BooleanExpression:
 
 
 @typecheck(s1=expr_str, s2=expr_str)
-def hamming(s1, s2) -> Int32Expression:
+def hamming(s1, s2):
     """Returns the Hamming distance between the two strings.
 
     Examples
@@ -2095,7 +2095,7 @@ def hamming(s1, s2) -> Int32Expression:
 
 
 @typecheck(x=expr_any)
-def str(x) -> StringExpression:
+def str(x):
     """Returns the string representation of `x`.
 
     Examples
@@ -2120,7 +2120,7 @@ def str(x) -> StringExpression:
 
 
 @typecheck(c=expr_call, i=expr_int32)
-def downcode(c, i) -> CallExpression:
+def downcode(c, i):
     """Create a new call by setting all alleles other than i to ref
 
     Examples
@@ -2148,7 +2148,7 @@ def downcode(c, i) -> CallExpression:
 
 
 @typecheck(pl=expr_array(expr_int32))
-def gq_from_pl(pl) -> Int32Expression:
+def gq_from_pl(pl):
     """Compute genotype quality from Phred-scaled probability likelihoods.
 
     Examples
@@ -2170,7 +2170,7 @@ def gq_from_pl(pl) -> Int32Expression:
 
 
 @typecheck(n=expr_int32)
-def triangle(n) -> Int32Expression:
+def triangle(n):
     """Returns the triangle number of `n`.
 
     Examples
@@ -2237,7 +2237,7 @@ def filter(f: Callable, collection):
 
 @typecheck(f=func_spec(1, expr_bool),
            collection=expr_oneof(expr_set(), expr_array()))
-def any(f: Callable, collection) -> BooleanExpression:
+def any(f: Callable, collection):
     """Returns ``True`` if `f` returns ``True`` for any element.
 
     Examples
@@ -2276,7 +2276,7 @@ def any(f: Callable, collection) -> BooleanExpression:
 
 @typecheck(f=func_spec(1, expr_bool),
            collection=expr_oneof(expr_set(), expr_array()))
-def all(f: Callable, collection) -> BooleanExpression:
+def all(f: Callable, collection):
     """Returns ``True`` if `f` returns ``True`` for every element.
 
     Examples
@@ -2396,7 +2396,7 @@ def flatmap(f: Callable, collection):
 
 @typecheck(f=func_spec(1, expr_any),
            collection=expr_oneof(expr_set(), expr_array()))
-def group_by(f: Callable, collection) -> DictExpression:
+def group_by(f: Callable, collection):
     """Group collection elements into a dict according to a lambda function.
 
     Examples
@@ -2427,7 +2427,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
 
 @typecheck(arrays=expr_array(), fill_missing=bool)
-def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
+def zip(*arrays, fill_missing: bool = False):
     """Zip together arrays into a single array.
 
     Examples
@@ -2511,7 +2511,7 @@ def map(f: Callable, collection):
 
 
 @typecheck(x=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_str, expr_tuple(), expr_struct()))
-def len(x) -> Int32Expression:
+def len(x):
     """Returns the size of a collection or string.
 
     Examples
@@ -2682,7 +2682,7 @@ def abs(x):
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
-def signum(x: NumericExpression) -> Int32Expression:
+def signum(x):
     """Returns the sign (1, 0, or -1) of a numeric value or array.
 
     Examples
@@ -2716,7 +2716,7 @@ def signum(x: NumericExpression) -> Int32Expression:
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def mean(collection) -> Float64Expression:
+def mean(collection):
     """Returns the mean of all values in the collection.
 
     Examples
@@ -2832,7 +2832,7 @@ def sum(collection):
 
 
 @typecheck(kwargs=expr_any)
-def struct(**kwargs: Expression) -> StructExpression:
+def struct(**kwargs):
     """Construct a struct expression.
 
     Examples
@@ -2852,7 +2852,7 @@ def struct(**kwargs: Expression) -> StructExpression:
     return StructExpression._from_fields(kwargs)
 
 
-def tuple(iterable: Iterable) -> TupleExpression:
+def tuple(iterable: Iterable):
     """Construct a tuple expression.
 
     Examples
@@ -2880,7 +2880,7 @@ def tuple(iterable: Iterable) -> TupleExpression:
 
 
 @typecheck(collection=expr_oneof(expr_set(), expr_array()))
-def set(collection) -> SetExpression:
+def set(collection):
     """Convert a set expression.
 
     Examples
@@ -2902,7 +2902,7 @@ def set(collection) -> SetExpression:
 
 
 @typecheck(t=hail_type)
-def empty_set(t: Union[HailType, str]) -> SetExpression:
+def empty_set(t: Union[HailType, str]):
     """Returns an empty set of elements of a type `t`.
 
     Examples
@@ -2925,7 +2925,7 @@ def empty_set(t: Union[HailType, str]) -> SetExpression:
 
 
 @typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict()))
-def array(collection) -> ArrayExpression:
+def array(collection):
     """Construct an array expression.
 
     Examples
@@ -2955,7 +2955,7 @@ def array(collection) -> ArrayExpression:
 
 
 @typecheck(t=hail_type)
-def empty_array(t: Union[HailType, str]) -> ArrayExpression:
+def empty_array(t: Union[HailType, str]):
     """Returns an empty array of elements of a type `t`.
 
     Examples
@@ -2978,7 +2978,7 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
-def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str]) -> DictExpression:
+def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str]):
     """Returns an empty dictionary with key type `key_type` and value type
     `value_type`.
 
@@ -3029,7 +3029,7 @@ def flatten(collection):
 
 @typecheck(collection=expr_oneof(expr_array(), expr_set()),
            delimiter=expr_str)
-def delimit(collection, delimiter=',') -> StringExpression:
+def delimit(collection, delimiter=','):
     """Joins elements of `collection` into single string delimited by `delimiter`.
 
     Examples
@@ -3069,7 +3069,7 @@ def delimit(collection, delimiter=',') -> StringExpression:
            reverse=expr_bool)
 def sorted(collection,
            key: Optional[Callable]=None,
-           reverse=False) -> ArrayExpression:
+           reverse=False):
     """Returns a sorted array.
 
     Examples
@@ -3125,7 +3125,7 @@ def sorted(collection,
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
-def argmin(array, unique: bool = False) -> Int32Expression:
+def argmin(array, unique: bool = False):
     """Return the index of the minimum value in the array.
 
     Examples
@@ -3168,7 +3168,7 @@ def argmin(array, unique: bool = False) -> Int32Expression:
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
-def argmax(array, unique: bool = False) -> Int32Expression:
+def argmax(array, unique: bool = False):
     """Return the index of the maximum value in the array.
 
     Examples
@@ -3210,8 +3210,8 @@ def argmax(array, unique: bool = False) -> Int32Expression:
         return array._method("argmax", tint32)
 
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def float64(expr: Union[int, float, str, NumericExpression, BooleanExpression, StringExpression]) -> Float64Expression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def float64(x):
     """Convert to a 64-bit floating point expression.
 
     Examples
@@ -3229,19 +3229,19 @@ def float64(expr: Union[int, float, str, NumericExpression, BooleanExpression, S
 
     Parameters
     ----------
-    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
 
     Returns
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
-    if expr.dtype == tfloat64:
-        return expr
+    if x.dtype == tfloat64:
+        return x
     else:
-        return expr._method("toFloat64", tfloat64)
+        return x._method("toFloat64", tfloat64)
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def float32(expr: Union[int, float, str, NumericExpression, StringExpression]) -> Float32Expression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def float32(x):
     """Convert to a 32-bit floating point expression.
 
     Examples
@@ -3259,19 +3259,19 @@ def float32(expr: Union[int, float, str, NumericExpression, StringExpression]) -
 
     Parameters
     ----------
-    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
 
     Returns
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat32`
     """
-    if expr.dtype == tfloat32:
-        return expr
+    if x.dtype == tfloat32:
+        return x
     else:
-        return expr._method("toFloat32", tfloat32)
+        return x._method("toFloat32", tfloat32)
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def int64(expr: Union[int, float, str, NumericExpression, StringExpression]) -> Int64Expression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def int64(x):
     """Convert to a 64-bit integer expression.
 
     Examples
@@ -3289,20 +3289,20 @@ def int64(expr: Union[int, float, str, NumericExpression, StringExpression]) -> 
 
     Parameters
     ----------
-    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
 
     Returns
     -------
     :class:`.NumericExpression` of type :py:data:`.tint64`
     """
-    if expr.dtype == tint64:
-        return expr
+    if x.dtype == tint64:
+        return x
     else:
-        return expr._method("toInt64", tint64)
+        return x._method("toInt64", tint64)
 
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def int32(expr: Union[int, float, str, NumericExpression, StringExpression]) -> Int32Expression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def int32(x):
     """Convert to a 32-bit integer expression.
 
     Examples
@@ -3320,19 +3320,19 @@ def int32(expr: Union[int, float, str, NumericExpression, StringExpression]) -> 
 
     Parameters
     ----------
-    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
 
     Returns
     -------
     :class:`.NumericExpression` of type :py:data:`.tint32`
     """
-    if expr.dtype == tint32:
-        return expr
+    if x.dtype == tint32:
+        return x
     else:
-        return expr._method("toInt32", tint32)
+        return x._method("toInt32", tint32)
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def int(expr: Union[int, float, str, NumericExpression, StringExpression]) -> Int32Expression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def int(x):
     """Convert to a 32-bit integer expression.
 
     Examples
@@ -3354,17 +3354,17 @@ def int(expr: Union[int, float, str, NumericExpression, StringExpression]) -> In
 
     Parameters
     ----------
-    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
 
     Returns
     -------
     :class:`.NumericExpression` of type :py:data:`.tint32`
     """
-    return int32(expr)
+    return int32(x)
 
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def float(expr: Union[int, float, str, NumericExpression, StringExpression]) -> Float64Expression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def float(x):
     """Convert to a 64-bit floating point expression.
 
     Examples
@@ -3386,17 +3386,17 @@ def float(expr: Union[int, float, str, NumericExpression, StringExpression]) -> 
 
     Parameters
     ----------
-    expr : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
 
     Returns
     -------
     :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
-    return float64(expr)
+    return float64(x)
 
 
-@typecheck(expr=expr_oneof(expr_numeric, expr_bool, expr_str))
-def bool(expr: Union[int, float, str, NumericExpression, StringExpression]) -> BooleanExpression:
+@typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
+def bool(x):
     """Convert to a Boolean expression.
 
     Examples
@@ -3417,16 +3417,20 @@ def bool(expr: Union[int, float, str, NumericExpression, StringExpression]) -> B
     Acceptable string values are: ``'True'``, ``'true'``, ``'TRUE'``,
     ``'False'``, ``'false'``, and ``'FALSE'``.
 
+    Parameters
+    ----------
+    x : :class:`.NumericExpression` or :class:`.BooleanExpression` or :class:`.StringExpression`
+
     Returns
     -------
     :class:`.BooleanExpression`
     """
-    if expr.dtype == tbool:
-        return expr
-    elif is_numeric(expr.dtype):
-        return expr != 0
+    if x.dtype == tbool:
+        return x
+    elif is_numeric(x.dtype):
+        return x != 0
     else:
-        return expr._method("toBoolean", tbool)
+        return x._method("toBoolean", tbool)
 
 
 @typecheck(reference_genome=reference_genome_type,
