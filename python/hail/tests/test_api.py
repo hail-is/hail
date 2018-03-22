@@ -616,6 +616,15 @@ class MatrixTests(unittest.TestCase):
         qgs = vds.aggregate_entries(hl.Struct(x=agg.collect(agg.filter(False, vds.y1)),
                                               y=agg.collect(agg.filter(hl.rand_bool(0.1), vds.GT))))
 
+    def test_select_entries(self):
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt = mt.annotate_entries(a=hl.struct(b=mt.row_idx, c=mt.col_idx), foo=mt.row_idx * 10 + mt.col_idx)
+        mt = mt.select_entries(mt.a.b, mt.a.c, mt.foo)
+        mt = mt.annotate_entries(bc=mt.b * 10 + mt.c)
+        mt_entries = mt.entries()
+
+        assert(mt_entries.all(mt_entries.bc == mt_entries.foo))
+
     def test_drop(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
@@ -800,12 +809,13 @@ class MatrixTests(unittest.TestCase):
 
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
-        mt1 = mt1.annotate_entries(x = mt1.row_idx + mt1.col_idx)
+        mt1 = mt1.annotate_entries(x = 10*mt1.row_idx + mt1.col_idx)
 
         self.assertEqual(mt1[mt1.row_idx, mt1.col_idx].dtype, mt1.entry.dtype)
 
         mt_join = mt1.annotate_entries(x2 = mt1[mt1.row_idx, mt1.col_idx].x)
         mt_join_entries = mt_join.entries()
+
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
 
     def test_entry_join_const(self):
