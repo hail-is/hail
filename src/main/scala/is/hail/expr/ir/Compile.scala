@@ -35,6 +35,14 @@ object Compile {
     apply[AsmFunction1[Region, R], R](Seq(), body)
   }
 
+  def apply[T0: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: Type,
+    body: IR): (Type, () => AsmFunction3[Region, T0, Boolean, R]) = {
+
+    apply[AsmFunction3[Region, T0, Boolean, R], R](Seq((name0, typ0, classTag[T0])), body)
+  }
+
   def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: Type,
