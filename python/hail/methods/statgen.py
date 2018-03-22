@@ -1798,14 +1798,15 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
     ds = ds.select_entries(GT=ds.GT,
                            naa=hl.float64(ds.GT.n_alt_alleles()))
     ds = ds.select_rows(
+        *ds.row_key,
         mean_gt=(agg.sum(ds.naa) /
-                 agg.count_where(functions.is_defined(ds.GT))))
-    mean_imputed_gt = functions.or_else(ds.naa, ds.mean_gt)
+                 agg.count_where(hl.is_defined(ds.GT))))
+    mean_imputed_gt = hl.or_else(ds.naa, ds.mean_gt)
     g = BlockMatrix.write_from_entry_expr(mean_imputed_gt,
                                           path=path,
                                           block_size=block_size)
 
-    pc_scores = (ds.index_cols('column_index').cols().collect())
+    pc_scores = (ds.add_col_index('column_index').cols().collect())
     pc_scores.sort(key=lambda x: x.column_index)
     pc_scores = [x.scores for x in pc_scores]
 
