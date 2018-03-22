@@ -326,7 +326,7 @@ object Nirvana {
 
     val nirvanaRVD: OrderedRVD = OrderedRVD(
       nirvanaORVDType,
-      vds.rvd.partitioner,
+      vds.rvd.partitionerBc,
       annotations.mapPartitions { it =>
         val region = Region()
         val rvb = new RegionValueBuilder(region)

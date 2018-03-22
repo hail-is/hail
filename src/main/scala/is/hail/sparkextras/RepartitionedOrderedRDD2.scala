@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType}
 import is.hail.utils._
 import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -15,8 +16,10 @@ import org.apache.spark.sql.Row
   */
 class RepartitionedOrderedRDD2(
     prev: OrderedRVD,
-    newPartitioner: OrderedRVDPartitioner)
+    newPartitionerBc: Broadcast[OrderedRVDPartitioner])
   extends RDD[RegionValue](prev.sparkContext, Nil) { // Nil since we implement getDependencies
+
+  def newPartitioner = newPartitionerBc.value
 
 //  require(newPartitioner.kType isPrefixOf prev.typ.kType)
   // There should really be no precondition on partition keys. Drop this when
@@ -41,13 +44,15 @@ class RepartitionedOrderedRDD2(
     OrderedRVIterator(prev.typ, it).restrictToPKInterval(ordPartition.range)
   }
 
-  val dependency = new OrderedDependency(prev, newPartitioner)
+  val dependency = new OrderedDependency(prev, newPartitionerBc)
 
   override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
 }
 
-class OrderedDependency(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner)
+class OrderedDependency(prev: OrderedRVD, newPartitionerBc: Broadcast[OrderedRVDPartitioner])
   extends NarrowDependency[RegionValue](prev.rdd) {
+
+  def newPartitioner = newPartitionerBc.value
 
   // no precondition on partition keys
 //  require(newPartitioner.kType isPrefixOf prev.typ.kType)

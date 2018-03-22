@@ -363,7 +363,7 @@ object LDPrune {
     }
 
     val prunedRDD = OrderedRVD(inputRDD.typ,
-      inputRDD.partitioner,
+      inputRDD.partitionerBc,
       new GeneralRDD[RegionValue](sc, pruneIntermediates.map(_.rvd.rdd),
         pruneIntermediates.zipWithIndex.map { case (gpi, i) =>
           (Array((i, gpi.index)), pruneF)

@@ -244,7 +244,7 @@ object SplitMulti {
     val movedRVD = OrderedRVD.adjustBoundsAndShuffle(ordered.typ,
       ordered.partitioner, moved)
 
-    ordered.copy(orderedPartitioner = movedRVD.partitioner).partitionSortedUnion(movedRVD)
+    ordered.copy(orderedPartitionerBc = movedRVD.partitionerBc).partitionSortedUnion(movedRVD)
   }
 }
 
@@ -333,12 +333,12 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
       if (leftAligned)
         OrderedRVD(
           newMatrixType.orvdType,
-          vsm.rvd.partitioner,
+          vsm.rvd.partitionerBc,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       else
         SplitMulti.unionMovedVariants(OrderedRVD(
           newMatrixType.orvdType,
-          vsm.rvd.partitioner,
+          vsm.rvd.partitionerBc,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 

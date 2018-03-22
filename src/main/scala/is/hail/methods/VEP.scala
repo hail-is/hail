@@ -335,7 +335,7 @@ object VEP {
 
     val vepRVD: OrderedRVD = OrderedRVD(
       vepORVDType,
-      vsm.rvd.partitioner,
+      vsm.rvd.partitionerBc,
       annotations.mapPartitions { it =>
         val region = Region()
         val rvb = new RegionValueBuilder(region)

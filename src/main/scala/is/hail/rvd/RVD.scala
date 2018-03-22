@@ -82,7 +82,7 @@ case class OrderedRVDSpec(
     OrderedRVD(orvdType,
       new OrderedRVDPartitioner(orvdType.partitionKey, orvdType.kType,
         UnsafeIndexedSeq(rangeBoundsType,
-          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]])),
+          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]])).broadcast(hc.sc),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles))
   }
 
