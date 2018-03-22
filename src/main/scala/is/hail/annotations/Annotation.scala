@@ -129,16 +129,6 @@ object Annotation {
 
   def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
 
-  def toRegionValue(a: Annotation, t: Type): RegionValue = {
-    val rv = RegionValue(Region())
-    val rvb = new RegionValueBuilder()
-    rvb.set(rv.region)
-    rvb.start(t)
-    rvb.addAnnotation(t, a)
-    rv.set(rv.region, rvb.end())
-    rv
-  }
-
   def buildInserter(code: String, t: TStruct, ec: EvalContext, expectedHead: String): (TStruct, Inserter) = {
     val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(expectedHead))
 

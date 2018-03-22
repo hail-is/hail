@@ -630,11 +630,11 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
       newRow)
     assert(rTyp == gType)
 
-    val globals = tv.globals
-    val rv = Annotation.toRegionValue(globals.value, globals.t)
+    val rv = tv.globals.regionValue
+    val offset = f()(rv.region, rv.offset, false)
 
-    val newGlobals = globals.copy(
-      value = UnsafeRow.read(rTyp, rv.region, f()(rv.region, rv.offset, false)),
+    val newGlobals = tv.globals.copy(
+      value = UnsafeRow.read(rTyp, rv.region, offset),
       t = rTyp)
 
     TableValue(typ, newGlobals, tv.rvd)
