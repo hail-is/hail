@@ -155,6 +155,10 @@ def require_biallelic(dataset, method):
     dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
     return dataset
 
+@typecheck(ds=MatrixTable, method_name=str)
+def require_unique_samples(ds, method_name):
+    ds._jvds.requireUniqueSamples(method_name)
+    return ds
 
 @typecheck(dataset=MatrixTable, name=str)
 def rename_duplicates(dataset, name='unique_id'):
