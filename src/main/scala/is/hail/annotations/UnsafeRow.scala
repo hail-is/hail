@@ -1,12 +1,8 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import com.esotericsoftware.kryo.io.{Input, Output}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
-import is.hail.io._
-import is.hail.rvd.OrderedRVDPartitioner
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
@@ -54,7 +50,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] {
 
   var length: Int = t.loadLength(region, aoff)
 
@@ -65,34 +61,6 @@ class UnsafeIndexedSeq(
       UnsafeRow.read(t.elementType, region, t.loadElement(region, aoff, length, i))
     } else
       null
-  }
-
-  override def write(kryo: Kryo, output: Output) {
-    kryo.writeObject(output, t)
-
-    val aos = new ByteArrayOutputStream()
-    val enc = CodecSpec.default.buildEncoder(aos)
-    enc.writeRegionValue(t, region, aoff)
-    enc.flush()
-
-    val a = aos.toByteArray
-    output.writeInt(a.length)
-    output.write(a, 0, a.length)
-  }
-
-  override def read(kryo: Kryo, input: Input) {
-    t = kryo.readObject(input, classOf[TArray])
-
-    val smallInOff = input.readInt()
-    val a = new Array[Byte](smallInOff)
-    input.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
-
-      region = Region()
-      aoff = dec.readRegionValue(t, region)
-
-      length = region.loadInt(aoff)
-    }
   }
 }
 

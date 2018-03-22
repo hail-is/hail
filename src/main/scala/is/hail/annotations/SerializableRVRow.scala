@@ -53,3 +53,47 @@ class SerializableRVRow(var t: TBaseStruct, var bytes: Array[Byte]) extends Kryo
     new UnsafeRow(t, region, offset)
   }
 }
+
+object SerializableRVSeq {
+
+  def apply(uis: UnsafeIndexedSeq): SerializableRVSeq = {
+    val aos = new ByteArrayOutputStream()
+    val enc = CodecSpec.default.buildEncoder(aos)
+    enc.writeRegionValue(uis.t, uis.region, uis.aoff)
+    enc.flush()
+
+    new SerializableRVSeq(uis.t, aos.toByteArray)
+  }
+}
+
+class SerializableRVSeq(var t: TContainer, var bytes: Array[Byte]) extends KryoSerializable {
+
+  override def write(kryo: Kryo, output: Output) {
+    kryo.writeObject(output, t)
+
+    output.writeInt(bytes.length)
+    output.write(bytes, 0, bytes.length)
+  }
+
+  override def read(kryo: Kryo, input: Input) {
+    t = kryo.readObject(input, classOf[TArray])
+
+    val smallInOff = input.readInt()
+    bytes = new Array[Byte](smallInOff)
+    input.readFully(bytes, 0, smallInOff)
+
+  }
+
+  def toRegion(region: Region): Long = {
+    var offset = 0L
+    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(bytes))) { dec =>
+      offset = dec.readRegionValue(t, region)
+    }
+    offset
+  }
+
+  def toUnsafeIndexedSeq(region: Region): UnsafeIndexedSeq = {
+    val offset = toRegion(region)
+    new UnsafeIndexedSeq(t, region, offset)
+  }
+}
