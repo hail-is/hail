@@ -1054,7 +1054,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val (newRVType, ins) = rvRowType.unsafeStructInsert(typToInsert, List(root))
 
-    val partBc = sparkContext.broadcast(rvd.partitioner)
+    val partBc = rvd.partitionerBc
     val ktSignature = kt.signature
     val ktKeyFieldIdx = kt.keyFieldIdx(0)
     val ktValueFieldIdx = kt.valueFieldIdx
@@ -1122,7 +1122,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newRVD = OrderedRVD(
       newMatrixType.orvdType,
-      rvd.partitioner,
+      rvd.partitionerBc,
       newRDD)
 
     copyMT(rvd = newRVD, matrixType = newMatrixType)
@@ -2179,7 +2179,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD = if (fieldMapRows.isEmpty) rvd else {
       val newType = newMatrixType.orvdType
       val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
-      OrderedRVD(newType, newPartitioner, rvd.rdd)
+      OrderedRVD(newType, newPartitioner.broadcast(rvd.rdd.sparkContext), rvd.rdd)
     }
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
@@ -2824,12 +2824,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD =
       if (leftAligned)
         OrderedRVD(rvd.typ,
-          rvd.partitioner,
+          rvd.partitionerBc,
           minRep1(removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       else
         SplitMulti.unionMovedVariants(
           OrderedRVD(rvd.typ,
-            rvd.partitioner,
+            rvd.partitionerBc,
             minRep1(removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 

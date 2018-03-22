@@ -253,7 +253,7 @@ case class MatrixRead(
           val entriesRVD = spec.entriesComponent.read(hc, path)
           val entriesRowType = entriesRVD.rowType
           OrderedRVD(typ.orvdType,
-            rowsRVD.partitioner,
+            rowsRVD.partitionerBc,
             rowsRVD.rdd.zipPartitions(entriesRVD.rdd) { case (it1, it2) =>
               val rvb = new RegionValueBuilder()
 

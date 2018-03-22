@@ -390,7 +390,7 @@ object LoadMatrix {
 
     val orderedRVD = if (useIndex) {
       val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.pkType)
-      OrderedRVD(matrixType.orvdType, partitioner, rdd.subsetPartitions(keepPartitions))
+      OrderedRVD(matrixType.orvdType, partitioner.broadcast(hc.sc), rdd.subsetPartitions(keepPartitions))
     } else
       OrderedRVD(matrixType.orvdType, rdd, None, None)
 

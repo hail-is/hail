@@ -11,6 +11,7 @@ import is.hail.utils._
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.SparkContext
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -18,46 +19,48 @@ import scala.reflect.ClassTag
 
 class OrderedRVD(
   val typ: OrderedRVDType,
-  val partitioner: OrderedRVDPartitioner,
+  val partitionerBc: Broadcast[OrderedRVDPartitioner],
   val rdd: RDD[RegionValue]) extends RVD with Serializable {
   self =>
   def rowType: TStruct = typ.rowType
 
+  def partitioner = partitionerBc.value
+
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
     OrderedRVD(newTyp,
-      partitioner,
+      partitionerBc,
       rdd.map(f))
 
   def mapPartitionsWithIndexPreservesPartitioning(newTyp: OrderedRVDType)(f: (Int, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
-      partitioner,
+      partitionerBc,
       rdd.mapPartitionsWithIndex(f))
 
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
-      partitioner,
+      partitionerBc,
       rdd.mapPartitions(f))
 
   def zipPartitionsPreservesPartitioning[T](newTyp: OrderedRVDType, rdd2: RDD[T])(f: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])(implicit tct: ClassTag[T]): OrderedRVD =
     OrderedRVD(newTyp,
-      partitioner,
+      partitionerBc,
       rdd.zipPartitions(rdd2) { case (it, it2) =>
         f(it, it2)
       })
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
-      partitioner,
+      partitionerBc,
       rdd.filter(p))
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ,
-      partitioner,
+      partitionerBc,
       rdd.sample(withReplacement, p, seed))
 
   def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
-    new OrderedRVD(typ, partitioner, iterationRDD) {
+    new OrderedRVD(typ, partitionerBc, iterationRDD) {
       override def storageLevel: StorageLevel = persistedRDD.getStorageLevel
 
       override def persist(newLevel: StorageLevel): OrderedRVD = {
@@ -93,8 +96,8 @@ class OrderedRVD(
 
     new OrderedRVD(
       typ = ordType,
-      partitioner = newPartitioner,
-      rdd = new RepartitionedOrderedRDD2(this, newPartitioner))
+      partitionerBc = newPartitioner.broadcast(this.sparkContext),
+      rdd = new RepartitionedOrderedRDD2(this, newPartitioner.broadcast(this.sparkContext)))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -121,10 +124,10 @@ class OrderedRVD(
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
-    assert(partitioner == rdd2.partitioner)
+    assert(partitionerBc == rdd2.partitionerBc)
 
     val localTyp = typ
-    OrderedRVD(typ, partitioner,
+    OrderedRVD(typ, partitionerBc,
       rdd.zipPartitions(rdd2.rdd) { case (it, it2) =>
         new Iterator[RegionValue] {
           private val bit = it.buffered
@@ -150,15 +153,15 @@ class OrderedRVD(
   }
 
   def copy(typ: OrderedRVDType = typ,
-    orderedPartitioner: OrderedRVDPartitioner = partitioner,
+    orderedPartitionerBc: Broadcast[OrderedRVDPartitioner] = partitionerBc,
     rdd: RDD[RegionValue] = rdd): OrderedRVD = {
-    OrderedRVD(typ, orderedPartitioner, rdd)
+    OrderedRVD(typ, orderedPartitionerBc, rdd)
   }
 
   def blockCoalesce(partitionEnds: Array[Int]): OrderedRVD = {
     assert(partitionEnds.last == partitioner.numPartitions - 1 && partitionEnds(0) >= 0)
     assert(partitionEnds.zip(partitionEnds.tail).forall { case (i, inext) => i < inext })
-    OrderedRVD(typ, partitioner.coalesceRangeBounds(partitionEnds), new BlockedRDD(rdd, partitionEnds))
+    OrderedRVD(typ, partitioner.coalesceRangeBounds(partitionEnds).broadcast(this.sparkContext), new BlockedRDD(rdd, partitionEnds))
   }
 
   def naiveCoalesce(maxPartitions: Int): OrderedRVD = {
@@ -270,7 +273,7 @@ class OrderedRVD(
       partitioner.kType,
       UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
-    OrderedRVD(typ, newPartitioner, newRDD)
+    OrderedRVD(typ, newPartitioner.broadcast(this.sparkContext), newRDD)
   }
 
   def groupByKey(valuesField: String = "values"): OrderedRVD = {
@@ -310,7 +313,7 @@ class OrderedRVD(
       }
     }
 
-    OrderedRVD(newTyp, partitioner, newRDD)
+    OrderedRVD(newTyp, partitionerBc, newRDD)
   }
 
   def distinctByKey(): OrderedRVD = {
@@ -320,7 +323,7 @@ class OrderedRVD(
         .staircase
         .map(_.value)
     }
-    OrderedRVD(typ, partitioner, newRVD)
+    OrderedRVD(typ, partitionerBc, newRVD)
   }
 
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {
@@ -341,7 +344,7 @@ class OrderedRVD(
       partitioner.kType,
       UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
-    OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
+    OrderedRVD(typ, newPartitioner.broadcast(this.sparkContext), rdd.subsetPartitions(keep))
   }
 
   def write(path: String, codecSpec: CodecSpec): Array[Long] = {
@@ -366,7 +369,7 @@ object OrderedRVD {
 
   def empty(sc: SparkContext, typ: OrderedRVDType): OrderedRVD = {
     OrderedRVD(typ,
-      OrderedRVDPartitioner.empty(typ),
+      OrderedRVDPartitioner.empty(typ).broadcast(sc),
       sc.emptyRDD[RegionValue])
   }
 
@@ -473,9 +476,9 @@ object OrderedRVD {
     if (partitionsSorted && sortedness >= OrderedRVPartitionInfo.TSORTED) {
       val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, pkis, sortedness)
 
-      val partitioner = new OrderedRVDPartitioner(typ.partitionKey,
+      val partitionerBc = new OrderedRVDPartitioner(typ.partitionKey,
         typ.kType,
-        rangeBounds)
+        rangeBounds).broadcast(sc)
 
       val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
       val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
@@ -483,13 +486,13 @@ object OrderedRVD {
         case OrderedRVPartitionInfo.KSORTED =>
           info("Coerced sorted dataset")
           (AS_IS, OrderedRVD(typ,
-            partitioner,
+            partitionerBc,
             adjustedRDD))
 
         case OrderedRVPartitionInfo.TSORTED =>
           info("Coerced almost-sorted dataset")
           (LOCAL_SORT, OrderedRVD(typ,
-            partitioner,
+            partitionerBc,
             adjustedRDD.mapPartitions { it =>
               localKeySort(typ, it)
             }))
@@ -554,7 +557,7 @@ object OrderedRVD {
     val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
 
     if (pkis.isEmpty)
-      return OrderedRVD(typ, partitioner, rdd)
+      return OrderedRVD(typ, partitioner.broadcast(rdd.sparkContext), rdd)
 
     val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
     val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
@@ -567,7 +570,7 @@ object OrderedRVD {
     rdd: RDD[RegionValue]): OrderedRVD = {
     val partitionerBc = partitioner.broadcast(rdd.sparkContext)
     OrderedRVD(typ,
-      partitioner,
+      partitionerBc,
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
         rdd.mapPartitions { it =>
           val wrv = WritableRegionValue(typ.rowType)
@@ -658,13 +661,11 @@ object OrderedRVD {
   }
 
   def apply(typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
+    partitionerBc: Broadcast[OrderedRVDPartitioner],
     rdd: RDD[RegionValue]): OrderedRVD = {
     val sc = rdd.sparkContext
 
-    val partitionerBc = partitioner.broadcast(sc)
-
-    new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
+    new OrderedRVD(typ, partitionerBc, rdd.mapPartitionsWithIndex { case (i, it) =>
       val prevK = WritableRegionValue(typ.kType)
       val prevPK = WritableRegionValue(typ.pkType)
       val pkUR = new UnsafeRow(typ.pkType)
@@ -699,6 +700,6 @@ object OrderedRVD {
 
   def apply(typ: OrderedRVDType, partitioner: OrderedRVDPartitioner, rvd: RVD): OrderedRVD = {
     assert(typ.rowType == rvd.rowType)
-    apply(typ, partitioner, rvd.rdd)
+    apply(typ, partitioner.broadcast(rvd.sparkContext), rvd.rdd)
   }
 }

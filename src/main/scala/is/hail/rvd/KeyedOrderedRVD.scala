@@ -49,7 +49,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
             OrderedRVIterator(rTyp, rightIt)))
     }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    new OrderedRVD(joinedType, newPartitioner.broadcast(this.rvd.sparkContext), joinedRDD)
   }
 
   def orderedJoinDistinct(
@@ -78,7 +78,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
             OrderedRVIterator(rekeyedRTyp, rightIt)))
     }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    new OrderedRVD(joinedType, this.rvd.partitionerBc, joinedRDD)
   }
 
   def orderedZipJoin(right: KeyedOrderedRVD): RDD[JoinedRegionValue] = {
