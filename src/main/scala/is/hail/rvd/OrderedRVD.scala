@@ -714,6 +714,12 @@ object OrderedRVD {
     (adjustmentsBuffer, rangeBounds, adjSortedness)
   }
 
+  def apply(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    rvd: RVD
+  ): OrderedRVD = apply(typ, partitioner, rvd.rdd)
+
   def apply(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): OrderedRVD = {
