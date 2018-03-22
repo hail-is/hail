@@ -43,6 +43,9 @@ class RichMatrixTable(vsm: MatrixTable) {
     vsm.annotateCols(t, i) { case (_, i) => annotation(sampleIds(i)) }
   }
 
+  def annotateEntriesExpr(exprs: (String, String)*): MatrixTable =
+    vsm.selectEntries(s"annotate(g, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})")
+
   def querySA(code: String): (Type, Querier) = {
     val st = Map(Annotation.COL_HEAD -> (0, vsm.colType))
     val ec = EvalContext(st)
