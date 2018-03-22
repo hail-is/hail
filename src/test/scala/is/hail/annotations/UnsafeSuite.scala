@@ -278,37 +278,6 @@ class UnsafeSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def unsafeSer() {
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
-
-    val path = tmpDir.createTempFile(extension = "ser")
-
-    val g = Type.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
-      .filter { case (t, a) => a != null }
-    val p = Prop.forAll(g) { case (t, a) =>
-      region.clear()
-      rvb.start(t)
-      rvb.addRow(t, a.asInstanceOf[Row])
-      val offset = rvb.end()
-      val ur = new UnsafeRow(t, region, offset)
-
-      hadoopConf.writeObjectFile(path) { out =>
-        out.writeObject(ur)
-      }
-
-      val ur2 = hadoopConf.readObjectFile(path) { in =>
-        in.readObject().asInstanceOf[UnsafeRow]
-      }
-
-      assert(t.valuesSimilar(ur, ur2))
-
-      true
-    }
-    p.check()
-  }
-
   @Test def unsafeKryo() {
     val conf = sc.getConf // force sc
     val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
@@ -328,12 +297,12 @@ class UnsafeSuite extends SparkSuite {
       val ur = new UnsafeRow(t, region, offset)
 
       hadoopConf.writeKryoFile(path) { out =>
-        kryo.writeObject(out, ur)
+        kryo.writeObject(out, SerializableRVRow(ur))
       }
 
       val ur2 = hadoopConf.readKryoFile(path) { in =>
-        kryo.readObject[UnsafeRow](in, classOf[UnsafeRow])
-      }
+        kryo.readObject[SerializableRVRow](in, classOf[SerializableRVRow])
+      }.toUnsafeRow(region)
 
       assert(t.valuesSimilar(ur, ur2))
 

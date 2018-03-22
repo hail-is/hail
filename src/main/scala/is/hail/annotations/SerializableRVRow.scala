@@ -47,4 +47,9 @@ class SerializableRVRow(var t: TBaseStruct, var bytes: Array[Byte]) extends Kryo
     }
     offset
   }
+
+  def toUnsafeRow(region: Region): UnsafeRow = {
+    val offset = toRegion(region)
+    new UnsafeRow(t, region, offset)
+  }
 }
