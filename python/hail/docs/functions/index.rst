@@ -94,6 +94,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     float
     float32
     float64
+    floor
+    ceil
 
 .. rubric:: Numeric collection functions
 
