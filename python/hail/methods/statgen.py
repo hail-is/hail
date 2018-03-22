@@ -1802,9 +1802,9 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
         mean_gt=(agg.sum(ds.naa) /
                  agg.count_where(hl.is_defined(ds.GT))))
     mean_imputed_gt = hl.or_else(ds.naa, ds.mean_gt)
-    g = BlockMatrix.from_matrix_table(mean_imputed_gt,
-                                      path=path,
-                                      block_size=block_size)
+    g = BlockMatrix.write_from_entry_expr(mean_imputed_gt,
+                                          path=path,
+                                          block_size=block_size)
 
     pc_scores = (ds.add_col_index('column_index').cols().collect())
     pc_scores.sort(key=lambda x: x.column_index)
