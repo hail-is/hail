@@ -1471,10 +1471,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
            k=int,
            maf=numeric,
            block_size=int,
-           path=nullable(str),
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
+def pc_relate(ds, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -1697,9 +1696,6 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
-    path : :obj:`str` or :obj:`None`
-        A temporary directory to store intermediate matrices. Storing the matrices
-        to a file system is necessary for reliable execution of this method.
     block_size : :obj:`int`
         the side length of the blocks of the block-distributed matrices; this
         should be set such that at least three of these matrices fit in memory
@@ -1733,16 +1729,15 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
 
     ds = ds.annotate_cols(scores=scores[ds.s].scores)
 
-    return pc_relate_with_scores(ds, ds.scores, maf, path, block_size, min_kinship, statistics)
+    return pc_relate_with_scores(ds, ds.scores, maf, block_size, min_kinship, statistics)
 
 @typecheck(ds=MatrixTable,
            scores=expr_array(expr_float64),
            maf=numeric,
-           path=nullable(str),
            block_size=int,
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
+def pc_relate_with_scores(ds, scores, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
     """The PC-Relate method parameterized by sample PC scores
 
     See the detailed documentation at :meth:`.pc_relate`.
@@ -1758,9 +1753,6 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
-    path : :obj:`str` or :obj:`None`
-        A temporary directory to store intermediate matrices. Storing the matrices
-        to a file system is necessary for reliable execution of this method.
     block_size : :obj:`int`
         the side length of the blocks of the block-distributed matrices; this
         should be set such that at least three of these matrices fit in memory
@@ -1800,9 +1792,8 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
         mean_gt=(agg.sum(ds.naa) /
                  agg.count_where(hl.is_defined(ds.GT))))
     mean_imputed_gt = hl.or_else(ds.naa, ds.mean_gt)
-    g = BlockMatrix.write_from_entry_expr(mean_imputed_gt,
-                                          path=path,
-                                          block_size=block_size)
+    g = BlockMatrix.from_entry_expr(mean_imputed_gt,
+                                block_size=block_size)
 
     pc_scores = (ds.add_col_index('column_index').cols().collect())
     pc_scores.sort(key=lambda x: x.column_index)
