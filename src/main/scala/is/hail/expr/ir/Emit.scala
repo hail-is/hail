@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
-import is.hail.expr.ir.functions.IRFunction
+import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.expr.types._
 import is.hail.utils._
 
@@ -68,7 +68,7 @@ private class Emit(
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
-  val methods: mutable.Map[IRFunction, MethodBuilder] = mutable.Map()
+  val methods: mutable.Map[String, Seq[(Seq[Type], MethodBuilder)]] = mutable.Map().withDefaultValue(Seq())
 
   import Emit.E
   import Emit.F
@@ -497,21 +497,27 @@ private class Emit(
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case Apply(fn, args, impl) =>
-        val meth = methods.getOrElseUpdate(impl, {
-          impl.argTypes.foreach(_.clear())
-          (impl.argTypes, args.map(a => a.typ)).zipped.foreach(_.unify(_))
-          val argTypes = impl.argTypes.map { t => typeToTypeInfo(t.subst()) }
-          val methodbuilder = fb.newMethod((typeInfo[Region] +: argTypes).toArray, typeToTypeInfo(impl.returnType))
-          methodbuilder.emit(impl.apply(methodbuilder, argTypes.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
-          methodbuilder
-        })
-        val codeArgs = args.map(emit(_))
-        val vars = args.map { a => coerce[Any](fb.newLocal()(typeToTypeInfo(a.typ))) }
-        val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
-        val setup = coerce[Unit](Code(codeArgs.map(_.setup): _*))
-        val missing = if (codeArgs.isEmpty) const(false) else codeArgs.map(_.m).reduce(_ || _)
-        val value = Code(ins :+ meth.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
-        EmitTriplet(setup, missing, value)
+        impl match {
+          case _: IRFunctionWithoutMissingness =>
+            val existing =
+              methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
+                case Seq(f) =>
+                  f._2
+                case Seq() =>
+                  val methodbuilder = impl.getAsMethod(fb, args.map(_.typ): _*)
+                  methods.update(fn, methods(fn) :+ (args.map(_.typ), methodbuilder))
+                  methodbuilder
+              }
+            val codeArgs = args.map(emit(_))
+            val vars = args.map { a => coerce[Any](fb.newLocal()(typeToTypeInfo(a.typ))) }
+            val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
+            val setup = coerce[Unit](Code(codeArgs.map(_.setup): _*))
+            val missing = if (codeArgs.isEmpty) const(false) else codeArgs.map(_.m).reduce(_ || _)
+            val value = Code(ins :+ existing.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
+            EmitTriplet(setup, missing, value)
+          case _: IRFunctionWithMissingness =>
+            impl.apply(fb.apply_method, args.map(emit(_)): _*)
+        }
     }
   }
 

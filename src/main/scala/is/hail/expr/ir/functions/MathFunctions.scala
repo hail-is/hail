@@ -1,9 +1,10 @@
 package is.hail.expr.ir.functions
 
+import is.hail.asm4s.Code
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.stats
 import org.apache.commons.math3.special.Gamma
+import is.hail.expr.ir.coerce
 
 object MathFunctions extends RegistryFunctions {
 
@@ -79,5 +80,21 @@ object MathFunctions extends RegistryFunctions {
     registerJavaStaticFunction("%", TInt64(), TInt32(), TInt64())(jMathClass, "floorMod")
 
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
+
+    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
+      EmitTriplet(
+        Code(l.setup, r.setup),
+        l.m || (coerce[Boolean](l.v) && r.m),
+        coerce[Boolean](l.v) && coerce[Boolean](r.v)
+      )
+    }
+
+    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
+      EmitTriplet(
+        Code(l.setup, r.setup),
+        l.m || (!coerce[Boolean](l.v) && r.m),
+        coerce[Boolean](l.v) || coerce[Boolean](r.v)
+      )
+    }
   }
 }

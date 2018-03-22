@@ -567,4 +567,46 @@ class CompileSuite {
       assert(actual.sameElements(expected))
     }
   }
+
+  @Test
+  def testShortCircuitBooleans() {
+    val tin = TArray(TBoolean())
+    val tout = TTuple(TBoolean())
+    val irAnd = MakeTuple(Seq(Apply("&&", Seq(ArrayRef(In(0, tin), I32(0)), ArrayRef(In(0, tin), I32(1))))))
+    val irOr = MakeTuple(Seq(Apply("||", Seq(ArrayRef(In(0, tin), I32(0)), ArrayRef(In(0, tin), I32(1))))))
+
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
+    doit(irAnd, fb)
+    val fAnd = fb.result()()
+
+    val fb2 = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
+    doit(irOr, fb2)
+    val fOr = fb2.result()()
+
+    val region = Region()
+    val rvb = new RegionValueBuilder(region)
+
+    for {
+      l: Option[Boolean] <- Seq(Some(true), Some(false), None)
+      r: Option[Boolean] <- Seq(Some(true), Some(false), None)
+    } {
+      region.clear()
+      val in = IndexedSeq(l.getOrElse(null), r.getOrElse(null))
+      rvb.start(tin)
+      rvb.addAnnotation(tin, in)
+      val inOff = rvb.end()
+
+      val outAnd = fAnd(region, inOff, false)
+      val expectMissingAnd = l.isEmpty || (l.get && r.isEmpty)
+      assert(!tout.isFieldDefined(region, outAnd, 0) == expectMissingAnd)
+      if (!expectMissingAnd)
+        assert(region.loadBoolean(tout.loadField(region, outAnd, 0)) == (l.get && r.get))
+
+      val outOr = fOr(region, inOff, false)
+      val expectMissingOr = l.isEmpty || (!l.get && r.isEmpty)
+      assert(!tout.isFieldDefined(region, outOr, 0) == expectMissingOr)
+      if (!expectMissingOr)
+        assert(region.loadBoolean(tout.loadField(region, outOr, 0)) == (l.get || r.get))
+    }
+  }
 }
