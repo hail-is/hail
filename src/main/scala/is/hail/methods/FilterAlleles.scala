@@ -54,8 +54,8 @@ object FilterAlleles {
     val newEntryType = gAnnotator.newT
     val newMatrixType = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = newEntryType)
 
-    def filter(rdd: OrderedRVD,
-      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): OrderedRVD = {
+    def filter(rdd: RVD,
+      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
 
       def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
         var alive = 0
@@ -99,7 +99,7 @@ object FilterAlleles {
 
       val localSampleAnnotationsBc = vsm.colValuesBc
 
-      rdd.mapPartitionsPreservesPartitioning(newRVType) { it =>
+      rdd.mapPartitions(newRVType) { it =>
         var prevLocus: Locus = null
         val fullRow = new UnsafeRow(fullRowType)
         val row = fullRow.deleteField(localEntriesIndex)
@@ -171,25 +171,32 @@ object FilterAlleles {
 
     val newRDD2: OrderedRVD =
       if (leftAligned) {
-        filter(
-          vsm.rvd,
-          removeLeftAligned = false,
-          removeMoving = false,
-          verifyLeftAligned = true)
-      } else {
-        val leftAlignedVariants =
+        OrderedRVD.coerce(
+          newMatrixType.orvdType,
           filter(
             vsm.rvd,
             removeLeftAligned = false,
-            removeMoving = true,
-            verifyLeftAligned = false)
+            removeMoving = false,
+            verifyLeftAligned = true))
+      } else {
+        val leftAlignedVariants =
+          OrderedRVD.coerce(
+            newMatrixType.orvdType,
+            filter(
+              vsm.rvd,
+              removeLeftAligned = false,
+              removeMoving = true,
+              verifyLeftAligned = false))
 
         val movingVariants =
-          filter(
-            vsm.rvd,
-            removeLeftAligned = true,
-            removeMoving = false,
-            verifyLeftAligned = false)
+          OrderedRVD.shuffle(
+            newMatrixType.orvdType,
+            vsm.rvd.partitioner,
+            filter(
+              vsm.rvd,
+              removeLeftAligned = true,
+              removeMoving = false,
+              verifyLeftAligned = false))
 
         leftAlignedVariants.partitionSortedUnion(movingVariants)
       }

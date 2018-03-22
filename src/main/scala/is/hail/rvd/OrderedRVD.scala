@@ -51,14 +51,6 @@ class OrderedRVD(
       partitioner,
       rdd.mapPartitionsWithIndex(f))
 
-  def mapPartitionsPreservesPartitioning(
-    rowTyp: TStruct
-  )(f: (Iterator[RegionValue]) => Iterator[RegionValue]
-  ): OrderedRVD =
-    OrderedRVD(typ.copy(rowType = rowTyp),
-      partitioner,
-      rdd.mapPartitions(f))
-
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
@@ -625,6 +617,12 @@ object OrderedRVD {
 
     shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
   }
+
+  def shuffle(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    rvd: RVD
+  ): OrderedRVD = shuffle(typ, partitioner, rvd.rdd)
 
   def shuffle(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
