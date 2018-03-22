@@ -10,6 +10,7 @@ import is.hail.rvd.OrderedRVDPartitioner
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object UnsafeIndexedSeq {
   def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
@@ -156,7 +157,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long, var dummyPartitioner: OrderedRVDPartitioner = null) extends Row {
+  var region: Region, var offset: Long) extends Row {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
@@ -221,6 +222,14 @@ class UnsafeRow(var t: TBaseStruct,
     if (i < 0 || i >= t.size)
       throw new IndexOutOfBoundsException(i.toString)
     !t.isFieldDefined(region, offset, i)
+  }
+
+  private def writeObject(s: ObjectOutputStream): Unit = {
+    throw NotImplementedException
+  }
+
+  private def readObject(s: ObjectInputStream): Unit = {
+    throw NotImplementedException
   }
 }
 
