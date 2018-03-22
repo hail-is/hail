@@ -643,7 +643,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     val leftORVD = leftTV.rvd match {
       case ordered: OrderedRVD => ordered
       case unordered =>
-        OrderedRVD(
+        OrderedRVD.coerce(
           new OrderedRVDType(left.typ.key.toArray, left.typ.key.toArray, leftRowType),
           unordered.rdd,
           None,
@@ -657,7 +657,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
         if (joinType == "left" || joinType == "inner")
           unordered.constrainToOrderedPartitioner(ordType, leftORVD.partitioner)
         else
-          OrderedRVD(ordType, unordered.rdd, None, Some(leftORVD.partitioner))
+          OrderedRVD.coerce(ordType, unordered.rdd, None, Some(leftORVD.partitioner))
     }
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
