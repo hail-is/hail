@@ -41,5 +41,6 @@ object Recur {
     case InMissingness(i) => ir
     case Die(message) => ir
     case Apply(fn, args, impl) => Apply(fn, args.map(f), impl)
+    case ApplySpecial(fn, args, impl) => ApplySpecial(fn, args.map(f), impl)
   }
 }

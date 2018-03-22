@@ -572,8 +572,8 @@ class CompileSuite {
   def testShortCircuitBooleans() {
     val tin = TArray(TBoolean())
     val tout = TTuple(TBoolean())
-    val irAnd = MakeTuple(Seq(Apply("&&", Seq(ArrayRef(In(0, tin), I32(0)), ArrayRef(In(0, tin), I32(1))))))
-    val irOr = MakeTuple(Seq(Apply("||", Seq(ArrayRef(In(0, tin), I32(0)), ArrayRef(In(0, tin), I32(1))))))
+    val irAnd = MakeTuple(Seq(ApplySpecial("&&", Seq(ArrayRef(In(0, tin), I32(0)), ArrayRef(In(0, tin), I32(1))))))
+    val irOr = MakeTuple(Seq(ApplySpecial("||", Seq(ArrayRef(In(0, tin), I32(0)), ArrayRef(In(0, tin), I32(1))))))
 
     val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
     doit(irAnd, fb)

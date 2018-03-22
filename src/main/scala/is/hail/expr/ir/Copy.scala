@@ -103,6 +103,8 @@ object Copy {
         same
       case Apply(fn, args, impl) =>
         Apply(fn, children, impl)
+      case ApplySpecial(fn, args, impl) =>
+        ApplySpecial(fn, children, impl)
     }
   }
 }

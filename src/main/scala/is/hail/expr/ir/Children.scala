@@ -76,5 +76,7 @@ object Children {
       none
     case Apply(_, args, _) =>
       args.toIndexedSeq
+    case ApplySpecial(_, args, _) =>
+      args.toIndexedSeq
   }
 }

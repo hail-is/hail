@@ -59,7 +59,11 @@ object IRFunctionRegistry {
     }
 
     val validMethods = validIR ++ lookupFunction(name, args).map { f =>
-      { args: Seq[IR] => Apply(name, args, f) }
+      { args: Seq[IR] =>
+        f match {
+          case irf: IRFunctionWithoutMissingness => Apply(name, args, irf)
+          case irf: IRFunctionWithMissingness => ApplySpecial(name, args, irf)
+        } }
     }
 
     validMethods match {

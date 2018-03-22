@@ -497,27 +497,24 @@ private class Emit(
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case Apply(fn, args, impl) =>
-        impl match {
-          case _: IRFunctionWithoutMissingness =>
-            val existing =
-              methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
-                case Seq(f) =>
-                  f._2
-                case Seq() =>
-                  val methodbuilder = impl.getAsMethod(fb, args.map(_.typ): _*)
-                  methods.update(fn, methods(fn) :+ (args.map(_.typ), methodbuilder))
-                  methodbuilder
-              }
-            val codeArgs = args.map(emit(_))
-            val vars = args.map { a => coerce[Any](fb.newLocal()(typeToTypeInfo(a.typ))) }
-            val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
-            val setup = coerce[Unit](Code(codeArgs.map(_.setup): _*))
-            val missing = if (codeArgs.isEmpty) const(false) else codeArgs.map(_.m).reduce(_ || _)
-            val value = Code(ins :+ existing.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
-            EmitTriplet(setup, missing, value)
-          case _: IRFunctionWithMissingness =>
-            impl.apply(fb.apply_method, args.map(emit(_)): _*)
-        }
+        val existing =
+          methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
+            case Seq(f) =>
+              f._2
+            case Seq() =>
+              val methodbuilder = impl.getAsMethod(fb, args.map(_.typ): _*)
+              methods.update(fn, methods(fn) :+ (args.map(_.typ), methodbuilder))
+              methodbuilder
+          }
+        val codeArgs = args.map(emit(_))
+        val vars = args.map { a => coerce[Any](fb.newLocal()(typeToTypeInfo(a.typ))) }
+        val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
+        val setup = coerce[Unit](Code(codeArgs.map(_.setup): _*))
+        val missing = if (codeArgs.isEmpty) const(false) else codeArgs.map(_.m).reduce(_ || _)
+        val value = Code(ins :+ existing.invoke(fb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
+        EmitTriplet(setup, missing, value)
+      case ApplySpecial(fn, args, impl) =>
+        impl.apply(fb.apply_method, args.map(emit(_)): _*)
     }
   }
 
