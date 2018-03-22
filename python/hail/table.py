@@ -376,6 +376,12 @@ class Table(ExprContainer):
         analyze(caller, s, self._row_indices)
         return cleanup(Table(base._jt.select(s._ast.to_hql())))
 
+    @typecheck_method(caller=str, s=expr_struct())
+    def _select_globals(self, caller, s):
+        base, cleanup = self._process_joins(s)
+        analyze(caller, s, self._global_indices)
+        return cleanup(Table(base._jt.selectGlobal(s._ast.to_hql())))
+
     @classmethod
     @typecheck_method(rows=anytype,
                       schema=tstruct,
@@ -463,17 +469,10 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with new global field(s).
         """
-
-        exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze('Table.annotate_globals', v, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
-            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-
-        m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
-        return cleanup(m)
+        return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs):
         """Select existing global fields or create new fields by name, dropping the rest.
@@ -511,29 +510,22 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with specified global fields.
         """
-
         exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
+        assignments = OrderedDict()
 
-        ids = []
         for e in exprs:
-            all_exprs.append(e)
-            analyze('Table.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append(e._ast.to_hql())
-            ids.append(e._ast.expand()[0].name)
+            assert isinstance(e._ast, Select)
+            assignments[e._ast.name] = e
+
         for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze('Table.select_globals', e, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
-            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
-            ids.append(k)
-        check_field_uniqueness(ids)
-        return cleanup(Table(base._jt.selectGlobal(strs)))
+            assignments[k] = e
+
+        check_field_uniqueness(assignments.keys())
+        return self._select_globals('Table.select_globals', hl.struct(**assignments))
 
     def transmute_globals(self, **named_exprs):
         raise NotImplementedError()

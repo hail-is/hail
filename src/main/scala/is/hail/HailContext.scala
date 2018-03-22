@@ -603,8 +603,9 @@ class HailContext private(val sc: SparkContext,
     fst: Option[Array[Double]] = None,
     afDist: Distribution = UniformDist(0.1, 0.9),
     seed: Int = 0,
-    rg: ReferenceGenome = ReferenceGenome.defaultReference): MatrixTable =
-    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, rg)
+    rg: ReferenceGenome = ReferenceGenome.defaultReference,
+    mixture: Boolean = false): MatrixTable =
+    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, rg, mixture)
 
   def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
 

@@ -9,6 +9,7 @@ import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{MatrixTable, VSMSubgen, Variant}
 import org.testng.annotations.Test
+import is.hail.testUtils._
 
 import scala.io.Source
 import scala.language.postfixOps
@@ -210,13 +211,13 @@ class ExportVCFSuite extends SparkSuite {
 
     TestUtils.interceptFatal("Invalid type for format field 'BOOL'. Found 'bool'.") {
       ExportVCF(vds
-        .annotateEntriesExpr("g = {BOOL: true}"),
+        .annotateEntriesExpr(("BOOL","true")),
         out)
     }
 
     TestUtils.interceptFatal("Invalid type for format field 'AA'.") {
       ExportVCF(vds
-        .annotateEntriesExpr("g = {AA: [[0]]}"),
+        .annotateEntriesExpr(("AA", "[[0]]")),
         out)
     }
   }
@@ -281,15 +282,15 @@ class ExportVCFSuite extends SparkSuite {
       val callArrayFields = schema.fields.filter(fd => fd.typ == TArray(TCall())).map(_.name)
       val callSetFields = schema.fields.filter(fd => fd.typ == TSet(TCall())).map(_.name)
 
-      val callAnnots = callFields.map(name => s"g.$name = let c = g.$name in " +
-        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c")
+      val callAnnots = callFields.map(name => (name, s"let c = g.$name in " +
+        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c"))
 
-      val callContainerAnnots = (callArrayFields ++ callSetFields).map(name => s"g.$name = " +
-        s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c)")
+      val callContainerAnnots = (callArrayFields ++ callSetFields).map(name => (name,
+        s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c)"))
 
       val annots = callAnnots ++ callContainerAnnots
 
-      val vsmAnn = if (annots.nonEmpty) vsm.annotateEntriesExpr(annots.mkString(",")) else vsm
+      val vsmAnn = if (annots.nonEmpty) vsm.annotateEntriesExpr(annots: _*) else vsm
 
       hadoopConf.delete(out, recursive = true)
       ExportVCF(vsmAnn, out)

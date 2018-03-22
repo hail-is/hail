@@ -202,7 +202,7 @@ class TableSuite extends SparkSuite {
     val ktRight = hc.importTable(inputFile2, impute = true).keyBy("Sample").rename(Map("Sample" -> "sample"), Map())
     val ktBad = ktRight.keyBy("qPhen2")
 
-    intercept[HailException] {
+    intercept[Exception] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
       assert(ktJoinBad.key sameElements Array("Sample"))
     }
@@ -476,5 +476,11 @@ class TableSuite extends SparkSuite {
     val mis = misTable.collect().map(row => (row.getStruct(0).get(0), row.getStruct(0).get(1))).toSet
     val expectedSets = List(Set("A", "C", "E", "G"), Set("A", "C", "E", "H")).map(set => set.map(str => (str, true)))
     assert(expectedSets.contains(mis))
+  }
+
+  @Test def testSelectGlobals() {
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
+    val kt2 = kt.selectGlobal("{x: 5}").selectGlobal("{y: global.x}")
+    assert(kt2.globalSignature == TStruct("y" -> TInt32()) && kt2.globals.value.asInstanceOf[Row].get(0) == 5)
   }
 }

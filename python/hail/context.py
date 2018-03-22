@@ -1,6 +1,7 @@
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
+import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
@@ -65,6 +66,9 @@ class HailContext(object):
         self._default_ref = None
         Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
+        version = self._jhc.version()
+        hail.__version__ = version
+
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
             if self._jsc.uiWebUrl().isDefined():
@@ -79,19 +83,14 @@ class HailContext(object):
                 '     __  __     <>__\n'
                 '    / /_/ /__  __/ /\n'
                 '   / __  / _ `/ / /\n'
-                '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
+                '  /_/ /_/\_,_/_/_/   version {}\n'.format(version))
 
-            if self.version.startswith('devel'):
+            if version.startswith('devel'):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
                                  '  during the beta period. We also recommend pulling\n'
-                                 '  the latest changes weekly.')
+                                 '  the latest changes weekly.\n')
 
         install_exception_handler()
-
-
-    @property
-    def version(self):
-        return self._jhc.version()
 
     @property
     def default_reference(self):

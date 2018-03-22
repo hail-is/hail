@@ -354,70 +354,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     annotateGlobal(ann, t, name)
   }
 
-  def annotateGlobalExpr(expr: String): Table = {
+  def selectGlobal(expr: String): Table = {
     val ec = EvalContext("global" -> globalSignature)
     ec.set(0, globals.value)
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
+    val ast = Parser.parseToAST(expr, ec)
+    assert(ast.`type`.isInstanceOf[TStruct])
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
+    ast.toIR() match {
+      case Some(ir) =>
+        new Table(hc, TableMapGlobals(tir, ir))
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val newSignature = t.asInstanceOf[TStruct]
+        val newGlobal = f()
 
-    val finalType = (paths, types).zipped.foldLeft(globalSignature) { case (v, (ids, signature)) =>
-      val (s, i) = v.insert(signature, ids)
-      inserterBuilder += i
-      s.asInstanceOf[TStruct]
+        copy2(globalSignature = newSignature,
+          globals = globals.copy(value = newGlobal, t = newSignature))
     }
-
-    val inserters = inserterBuilder.result()
-
-    val ga = inserters
-      .zip(f())
-      .foldLeft(globals.value) { case (a, (ins, res)) =>
-        ins(a, res).asInstanceOf[Row]
-      }
-
-    copy2(globals = globals.copy(value = ga, t = finalType),
-      globalSignature = finalType)
-  }
-
-  def selectGlobal(fields: java.util.ArrayList[String]): Table = {
-    selectGlobal(fields.asScala.toArray: _*)
-  }
-
-  def selectGlobal(fields: String*): Table = {
-    val ec = EvalContext("global" -> globalSignature)
-    ec.set(0, globals.value)
-
-    val (paths, types, f) = Parser.parseSelectExprs(fields.toArray, ec)
-
-    val names = paths.map {
-      case Left(n) => n
-      case Right(l) => l.last
-    }
-
-    val overlappingPaths = names.counter().filter { case (n, i) => i != 1 }.keys
-
-    if (overlappingPaths.nonEmpty)
-      fatal(s"Found ${ overlappingPaths.size } ${ plural(overlappingPaths.size, "selected field name") } that are duplicated.\n" +
-        "Overlapping fields:\n  " +
-        s"@1", overlappingPaths.truncatable("\n  "))
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-
-    val finalSignature = (names, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
-      val (s: TStruct, i) = vs.insert(sig, p)
-      inserterBuilder += i
-      s
-    }
-
-    val inserters = inserterBuilder.result()
-
-    val newGlobal = f().zip(inserters)
-      .foldLeft(Row()) { case (a1, (v, inserter)) =>
-        inserter(a1, v).asInstanceOf[Row]
-      }
-
-    copy2(globalSignature = finalSignature, globals = globals.copy(value = newGlobal, t = finalSignature))
   }
 
   def filter(cond: String, keep: Boolean): Table = {
@@ -496,72 +450,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def join(other: Table, joinType: String): Table = {
-    if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
-      fatal(
-        s"""Both tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ keySignature.toString }
-           |  Right signature: ${ other.keySignature.toString }""".stripMargin)
-
-    val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
-
-    val preNames = joinedFields.map(_.name).toArray
-    val (finalColumnNames, remapped) = mangle(preNames)
-    if (remapped.nonEmpty) {
-      warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
-        remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
-    }
-
-    val newSignature = TStruct(joinedFields
-      .zipWithIndex
-      .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
-    val localNKeys = nKeys
-    val size1 = valueSignature.size
-    val size2 = other.valueSignature.size
-    val totalSize = newSignature.size
-
-    assert(totalSize == localNKeys + size1 + size2)
-
-    val merger = (k: Row, r1: Row, r2: Row) => {
-      val result = Array.fill[Any](totalSize)(null)
-
-      var i = 0
-      while (i < localNKeys) {
-        result(i) = k.get(i)
-        i += 1
-      }
-
-      if (r1 != null) {
-        i = 0
-        while (i < size1) {
-          result(localNKeys + i) = r1.get(i)
-          i += 1
-        }
-      }
-
-      if (r2 != null) {
-        i = 0
-        while (i < size2) {
-          result(localNKeys + size1 + i) = r2.get(i)
-          i += 1
-        }
-      }
-      Row.fromSeq(result)
-    }
-
-    val rddLeft = keyedRDD()
-    val rddRight = other.keyedRDD()
-
-    val joinedRDD = joinType match {
-      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l, r.orNull) }
-      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r) }
-      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(k, l, r) }
-      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
-      case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
-    }
-
-    copy(rdd = joinedRDD, signature = newSignature, key = key)
-  }
+  def join(other: Table, joinType: String): Table =
+    new Table(hc, TableJoin(this.tir, other.tir, joinType))
 
   def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     val hConf = hc.hadoopConf
@@ -1085,7 +975,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
       .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
-      .selectGlobal()
+      .selectGlobal("{}")
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
@@ -1252,8 +1142,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
-    val localSignature = signature
-
     val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD(orderedKTType, rvd.rdd, None, hintPartitioner)

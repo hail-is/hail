@@ -379,6 +379,76 @@ case class FilterRows(
   }
 }
 
+case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, newEntries)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+    assert(newChildren.length == 2)
+    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val newRow = {
+    val arrayLength = ArrayLen(GetField(Ref("va"), MatrixType.entriesIdentifier))
+    val idxEnv = new Env[IR]()
+      .bind("g", ArrayRef(GetField(Ref("va"), MatrixType.entriesIdentifier), Ref("i")))
+      .bind("sa", ArrayRef(Ref("sa"), Ref("i")))
+    val entries = ArrayMap(ArrayRange(I32(0), arrayLength, I32(1)), "i", Subst(newEntries, idxEnv))
+    InsertFields(Ref("va"), Seq((MatrixType.entriesIdentifier, entries)))
+  }
+
+  val typ: MatrixType = {
+    Infer(newRow, None, new Env[Type]()
+      .bind("global", child.typ.globalType)
+      .bind("va", child.typ.rvRowType)
+      .bind("sa", TArray(child.typ.colType))
+    )
+    child.typ.copy(rvRowType = newRow.typ)
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localGlobalsType = typ.globalType
+    val localColsType = TArray(typ.colType)
+    val colValuesBc = prev.colValuesBc
+    val globalsBc = prev.globals.broadcast
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "global", localGlobalsType,
+      "va", prev.typ.rvRowType,
+      "sa", localColsType,
+      newRow)
+    assert(rTyp == typ.rvRowType)
+
+    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+      val rvb = new RegionValueBuilder()
+      val newRV = RegionValue()
+      val rowF = f()
+
+      it.map { rv =>
+        val region = rv.region
+        val oldRow = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        val off = rowF(region, globals, false, oldRow, false, cols, false)
+
+        newRV.set(region, off)
+        newRV
+      }
+    }
+    prev.copy(typ = typ, rvd = newRVD)
+  }
+}
+
 case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
@@ -495,6 +565,109 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
+case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends TableIR {
+  require(left.typ.keyType isIsomorphicTo right.typ.keyType)
+
+  val children: IndexedSeq[BaseIR] = Array(left, right)
+
+  private val joinedFields = left.typ.keyType.fields ++
+    left.typ.valueType.fields ++
+    right.typ.valueType.fields
+  private val preNames = joinedFields.map(_.name).toArray
+  private val (finalColumnNames, remapped) = mangle(preNames)
+
+  val newRowType = TStruct(joinedFields.zipWithIndex.map {
+    case (fd, i) => (finalColumnNames(i), fd.typ)
+  }: _*)
+
+  val typ: TableType = left.typ.copy(rowType = newRowType)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
+    assert(newChildren.length == 2)
+    TableJoin(
+      newChildren(0).asInstanceOf[TableIR],
+      newChildren(1).asInstanceOf[TableIR],
+      joinType )
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val leftTV = left.execute(hc)
+    val rightTV = right.execute(hc)
+    val leftRowType = left.typ.rowType
+    val rightRowType = right.typ.rowType
+    val leftKeyFieldIdx = left.typ.keyFieldIdx
+    val rightKeyFieldIdx = right.typ.keyFieldIdx
+    val leftValueFieldIdx = left.typ.valueFieldIdx
+    val rightValueFieldIdx = right.typ.valueFieldIdx
+    val localNewRowType = newRowType
+    val rvMerger: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
+      val rvb = new RegionValueBuilder()
+      val rv = RegionValue()
+      it.map { joined =>
+        val lrv = joined._1
+        val rrv = joined._2
+
+        if (lrv != null)
+          rvb.set(lrv.region)
+        else {
+          assert(rrv != null)
+          rvb.set(rrv.region)
+        }
+
+        rvb.start(localNewRowType)
+        rvb.startStruct()
+
+        if (lrv != null)
+          rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
+        else {
+          assert(rrv != null)
+          rvb.addFields(rightRowType, rrv, rightKeyFieldIdx)
+        }
+
+        if (lrv != null)
+          rvb.addFields(leftRowType, lrv, leftValueFieldIdx)
+        else
+          rvb.skipFields(leftValueFieldIdx.length)
+
+        if (rrv != null)
+          rvb.addFields(rightRowType, rrv, rightValueFieldIdx)
+        else
+          rvb.skipFields(rightValueFieldIdx.length)
+
+        rvb.endStruct()
+        rv.set(rvb.region, rvb.end())
+        rv
+      }
+    }
+    val leftORVD = leftTV.rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        OrderedRVD(
+          new OrderedRVDType(left.typ.key.toArray, left.typ.key.toArray, leftRowType),
+          unordered.rdd,
+          None,
+          None)
+    }
+    val rightORVD = rightTV.rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        val ordType =
+          new OrderedRVDType(right.typ.key.toArray, right.typ.key.toArray, rightRowType)
+        if (joinType == "left" || joinType == "inner")
+          unordered.constrainToOrderedPartitioner(ordType, leftORVD.partitioner)
+        else
+          OrderedRVD(ordType, unordered.rdd, None, Some(leftORVD.partitioner))
+    }
+    val joinedRVD = leftORVD.orderedJoin(
+      rightORVD,
+      joinType,
+      rvMerger,
+      new OrderedRVDType(leftORVD.typ.partitionKey, leftORVD.typ.key, newRowType))
+
+    TableValue(typ, leftTV.globals, joinedRVD)
+  }
+}
+
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
@@ -535,5 +708,38 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           rv2
         }
       })
+  }
+}
+
+case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child, newRow)
+
+  val typ: TableType = {
+    Infer(newRow, None, child.typ.env)
+    child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
+  }
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
+    assert(newChildren.length == 2)
+    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val tv = child.execute(hc)
+    val gType = typ.globalType
+
+    val (rTyp, f) = ir.Compile[Long, Long](
+      "global", child.typ.globalType,
+      newRow)
+    assert(rTyp == gType)
+
+    val rv = tv.globals.regionValue
+    val offset = f()(rv.region, rv.offset, false)
+
+    val newGlobals = tv.globals.copy(
+      value = UnsafeRow.read(rTyp, rv.region, offset),
+      t = rTyp)
+
+    TableValue(typ, newGlobals, tv.rvd)
   }
 }

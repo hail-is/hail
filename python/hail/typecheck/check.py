@@ -427,7 +427,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     argname=argname,
                     expected=tc.expects(),
                     found=tc.format(arg)
-                ))
+                )) from None
             else:
                 raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
                                 "expected {expected}, found {found}".format(
@@ -437,7 +437,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     tot=len(pos_args) - len(named_args),
                     expected=tc.expects(),
                     found=tc.format(arg)
-                ))
+                )) from None
 
     kwargs_ = {}
 
@@ -453,7 +453,7 @@ def check_all(f, args, kwargs, checks, is_method):
                 argname=kw,
                 expected=tc.expects(),
                 found=tc.format(kwargs[kw])
-            ))
+            )) from None
     if spec.varkw:
         tc = checks[spec.varkw]
         for argname, arg in kwargs.items():
@@ -467,7 +467,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     argname=argname,
                     expected=tc.expects(),
                     found=tc.format(arg)
-                ))
+                )) from None
 
     return args_, kwargs_
 

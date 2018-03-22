@@ -147,6 +147,11 @@ trait RVD {
 
   def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitions(f)
 
+  def constrainToOrderedPartitioner(
+    ordType: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD
+
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,

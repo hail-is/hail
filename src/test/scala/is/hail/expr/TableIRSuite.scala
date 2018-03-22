@@ -26,7 +26,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testFilterGlobals() {
-    val kt = getKT.annotateGlobalExpr("g = 3")
+    val kt = getKT.selectGlobal("{g: 3}")
     val kt2 = new Table(hc, TableFilter(kt.tir,
       ir.ApplyBinaryPrimOp(ir.EQ(), ir.GetField(ir.Ref("row"), "field1"), ir.GetField(ir.Ref("global"), "g"))))
     assert(kt2.count() == 1)

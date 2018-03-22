@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
+import is.hail.expr.ir
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
@@ -976,75 +977,70 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
-    assert(right.typ.pkType.types.map(_.deepOptional())
-      .sameElements(rowPartitionKeyTypes.map(_.deepOptional())))
 
+    val valueType = if (product)
+      TArray(right.typ.valueType, required = true)
+    else
+      right.typ.valueType
 
-    val (leftRVD, upcastKeys) = if (right.typ.kType.types.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
-      (rvd.downcastToPK(), rowKey.drop(rowPartitionKey.length).toArray)
-    } else (rvd, Array.empty[String])
-
-    var valueType: Type = right.typ.valueType
-
-    var rightRVD = right
-    if (product) {
-      valueType = TArray(valueType, required = true)
-      rightRVD = rightRVD.groupByKey(" !!! values !!! ")
-    }
+    val rightRVD = if (product)
+        right.groupByKey(" !!! values !!! ")
+      else
+        right
 
     val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
 
-    val leftRowType = leftRVD.rowType
     val rightRowType = rightRVD.rowType
-    val oldRVType = leftRVD.typ.rowType
 
     val rightValueIndices = rightRVD.typ.valueIndices
     assert(!product || rightValueIndices.length == 1)
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val intermediateMatrixType = newMatrixType.copy(rowKey = newMatrixType.rowPartitionKey)
 
-    copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD(
-        newMatrixType.orvdType,
-        leftRVD.partitioner,
-        leftRVD.orderedJoinDistinct(rightRVD, "left")
-          .mapPartitions { it =>
-            val rvb = new RegionValueBuilder()
-            val rv = RegionValue()
+    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
+      val rvb = new RegionValueBuilder()
+      val rv = RegionValue()
 
-            it.map { jrv =>
-              val lrv = jrv.rvLeft
+      it.map { jrv =>
+        val lrv = jrv.rvLeft
 
-              rvb.set(lrv.region)
-              rvb.start(newRVType)
-              ins(lrv.region, lrv.offset, rvb,
-                () => {
-                  if (product) {
-                    if (jrv.rvRight == null) {
-                      rvb.startArray(0)
-                      rvb.endArray()
-                    } else
-                      rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(0))
-                  } else {
-                    if (jrv.rvRight == null)
-                      rvb.setMissing()
-                    else {
-                      rvb.startStruct()
-                      var i = 0
-                      while (i < rightValueIndices.length) {
-                        rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(i))
-                        i += 1
-                      }
-                      rvb.endStruct()
-                    }
-                  }
-                })
-              rv.set(lrv.region, rvb.end())
-              rv
+        rvb.set(lrv.region)
+        rvb.start(newRVType)
+        ins(lrv.region, lrv.offset, rvb,
+          () => {
+            if (product) {
+              if (jrv.rvRight == null) {
+                rvb.startArray(0)
+                rvb.endArray()
+              } else
+                rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(0))
+            } else {
+              if (jrv.rvRight == null)
+                rvb.setMissing()
+              else {
+                rvb.startStruct()
+                var i = 0
+                while (i < rightValueIndices.length) {
+                  rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(i))
+                  i += 1
+                }
+                rvb.endStruct()
+              }
             }
           })
+        rv.set(lrv.region, rvb.end())
+        rv
+      }
+    }
+
+    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length).toArray).orderedJoinDistinct(
+      right.keyBy(),
+      "left",
+      joiner,
+      newMatrixType.orvdType
     )
+
+    copyMT(matrixType = newMatrixType, rvd = joinedRVD)
   }
 
   private def annotateRowsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
@@ -1336,106 +1332,46 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
-  def selectEntries(selectExprs: java.util.ArrayList[String]): MatrixTable = selectEntries(selectExprs.asScala.toArray: _*)
-
-  def selectEntries(exprs: String*): MatrixTable = {
+  def selectEntries(expr: String): MatrixTable = {
     val ec = entryEC
-    val globalsBc = globals.broadcast
 
-    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
-    val topLevelFields = mutable.Set.empty[String]
+    val entryAST = Parser.parseToAST(expr, ec)
+    assert(entryAST.`type`.isInstanceOf[TStruct])
 
-    val finalNames = paths.map {
-      // assignment
-      case Left(name) => name
-      case Right(path) =>
-        assert(path.head == Annotation.ENTRY_HEAD)
-        path match {
-          case List(Annotation.ENTRY_HEAD, name) => topLevelFields += name
-        }
-        path.last
-    }
-    assert(finalNames.areDistinct())
+    entryAST.toIR() match {
+      case Some(ir) =>
+        new MatrixTable(hc, MapEntries(ast, ir))
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val newEntryType = t.asInstanceOf[TStruct]
+        val globalsBc = globals.broadcast
+        val fullRowType = rvRowType
+        val localEntriesIndex = entriesIndex
+        val localNCols = numCols
+        val localColValuesBc = colValuesBc
 
-    val newEntryType = TStruct(finalNames.zip(types): _*)
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val localNCols = numCols
-    val localColValuesBc = colValuesBc
-
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      ec.set(0, globalsBc.value)
-      ec.set(1, row)
-      fullRow -> row
-    })(newEntryType, { case ((fullRow, row), rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-      rvb.startArray(localNCols)
-      var i = 0
-      while (i < localNCols) {
-        val entry = entries(i)
-        ec.set(2, localColValuesBc.value(i))
-        ec.set(3, entry)
-        val results = f()
-        var j = 0
-        rvb.startStruct()
-        while (j < types.length) {
-          rvb.addAnnotation(types(j), results(j))
-          j += 1
-        }
-        rvb.endStruct()
-        i += 1
-      }
-      rvb.endArray()
-    })
-  }
-
-
-  def dropEntries(fields: java.util.ArrayList[String]): MatrixTable = dropEntries(fields.asScala.toArray: _*)
-
-  def dropEntries(fields: String*): MatrixTable = {
-    if (fields.isEmpty)
-      return this
-    assert(fields.areDistinct())
-    val dropSet = fields.toSet
-    val allEntryFields = entryType.fieldNames.toSet
-    assert(fields.forall(allEntryFields.contains))
-
-    val keepIndices = entryType.fields
-      .filter(f => !dropSet.contains(f.name))
-      .map(f => f.index)
-      .toArray
-    val newEntryType = TStruct(keepIndices.map(entryType.fields(_)).map(f => f.name -> f.typ): _*)
-
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    val localEntryType = entryType
-    val localNCols = numCols
-    // FIXME: replace with physical type
-    insertEntries(noOp)(newEntryType, { case (_, rv, rvb) =>
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-      rvb.startArray(localNCols)
-      var i = 0
-      while (i < localNCols) {
-        if (localEntriesType.isElementMissing(rv.region, entriesOffset, i))
-          rvb.setMissing()
-        else {
-          val eltOffset = localEntriesType.loadElement(rv.region, entriesOffset, localNCols, i)
-          rvb.startStruct()
-          var j = 0
-          while (j < keepIndices.length) {
-            rvb.addField(localEntryType, rv.region, eltOffset, keepIndices(j))
-            j += 1
+        insertEntries(() => {
+          val fullRow = new UnsafeRow(fullRowType)
+          val row = fullRow.deleteField(localEntriesIndex)
+          ec.set(0, globalsBc.value)
+          fullRow -> row
+        })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+          fullRow.set(rv)
+          ec.set(1, row)
+          val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+          rvb.startArray(localNCols)
+          var i = 0
+          while (i < localNCols) {
+            val entry = entries(i)
+            ec.set(2, localColValuesBc.value(i))
+            ec.set(3, entry)
+            val result = f()
+            rvb.addAnnotation(newEntryType, result)
+            i += 1
           }
-          rvb.endStruct()
-        }
-        i += 1
-      }
-      rvb.endArray()
-    })
+          rvb.endArray()
+        })
+    }
   }
 
   def nPartitions: Int = rvd.partitions.length
@@ -1566,61 +1502,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def localizeEntries(entriesFieldName: String): Table = {
     val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
     new Table(hc, TableLiteral(TableValue(TableType(rvRowType.rename(m), rowKey, globalType), globals, rvd)))
-  }
-
-  def annotateEntriesExpr(expr: String): MatrixTable = {
-    val symTab = Map(
-      "va" -> (0, rowType),
-      "sa" -> (1, colType),
-      "g" -> (2, entryType),
-      "global" -> (3, globalType))
-    val ec = EvalContext(symTab)
-
-    val globalsBc = globals.broadcast
-
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.ENTRY_HEAD))
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-    val newEntryType = (paths, types).zipped.foldLeft(entryType) { case (gsig, (ids, signature)) =>
-      val (s, i) = gsig.structInsert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-    val inserters = inserterBuilder.result()
-
-    val localNSamples = numCols
-    val fullRowType = rvRowType
-    val localColValuesBc = colValuesBc
-    val localEntriesIndex = entriesIndex
-
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      (fullRow, row)
-    })(newEntryType, { case ((fullRow, row), rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-
-      rvb.startArray(localNSamples)
-
-      var i = 0
-      while (i < localNSamples) {
-        val entry = entries(i)
-        ec.setAll(row,
-          localColValuesBc.value(i),
-          entry,
-          globalsBc.value)
-
-        val newEntry = f().zip(inserters)
-          .foldLeft(entry) { case (ga, (a, inserter)) =>
-            inserter(ga, a)
-          }
-        rvb.addAnnotation(newEntryType, newEntry)
-
-        i += 1
-      }
-      rvb.endArray()
-    })
   }
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
@@ -1761,7 +1642,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = matrixType.entryArrayType
     assert(right.matrixType.entryArrayType == localEntriesType)
 
-    val joined = rvd.orderedJoinDistinct(right.rvd, "inner").mapPartitions({ it =>
+    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -1805,13 +1686,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2.set(lrv.region, rvb.end())
         rv2
       }
-    }, preservesPartitioning = true)
+    }
 
     val newMatrixType = matrixType.copyParts() // move entries to the end
 
     copyMT(matrixType = newMatrixType,
       colValues = colValues ++ right.colValues,
-      rvd = OrderedRVD(rvd.typ, rvd.partitioner, joined))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
   }
 
   def makeKT(rowExpr: String, entryExpr: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {

@@ -494,7 +494,7 @@ class CompileSuite {
     val a2t = TArray(TString())
     val a1 = In(0, TArray(TInt32()))
     val a2 = In(1, TArray(TString()))
-    val min = IRFunctionRegistry.lookupFunction("min", Seq(TArray(TInt32()))).get
+    val min = IRFunctionRegistry.lookupConversion("min", Seq(TArray(TInt32()))).get
     val range = ArrayRange(I32(0), min(Seq(MakeArray(Seq(ArrayLen(a1), ArrayLen(a2))))), I32(1))
     val ir = ArrayMap(range, "i", MakeTuple(Seq(ArrayRef(a1, Ref("i")), ArrayRef(a2, Ref("i")))))
     val region = Region()

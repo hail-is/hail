@@ -301,3 +301,13 @@ class UnsafeRow(var t: TBaseStruct,
     }
   }
 }
+
+class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {
+  def length: Int = row.size
+  def get(i: Int): Any = row.get(keyFields(i))
+  def copy(): Row = new KeyedRow(row, keyFields)
+  def set(newRow: Row): KeyedRow = {
+    row = newRow
+    this
+  }
+}

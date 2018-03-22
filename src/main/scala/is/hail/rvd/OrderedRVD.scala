@@ -16,27 +16,12 @@ import org.apache.spark.sql.Row
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class OrderedRVD private(
+class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
   val rdd: RDD[RegionValue]) extends RVD with Serializable {
   self =>
   def rowType: TStruct = typ.rowType
-
-  // should be totally generic, permitting any number of keys, but that requires more work
-  def downcastToPK(): OrderedRVD = {
-    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
-      key = typ.partitionKey,
-      rowType = rowType)
-    OrderedRVD(newType, partitioner, rdd)
-  }
-
-  def upcast(castKeys: Array[String]): OrderedRVD = {
-    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
-      key = typ.key ++ castKeys,
-      rowType = rowType)
-    OrderedRVD(newType, partitioner, rdd)
-  }
 
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
     OrderedRVD(newTyp,
@@ -95,42 +80,44 @@ class OrderedRVD private(
 
   override def unpersist(): OrderedRVD = this
 
-  def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
-    val lTyp = typ
-    val rTyp = right.typ
+  def constrainToOrderedPartitioner(
+    ordType: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD = {
 
-    if (!lTyp.kType.types.sameElements(rTyp.kType.types))
-      fatal(
-        s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ lTyp.kType.toString }
-           | Right key type: ${ rTyp.kType.toString }
-         """.stripMargin)
+    require(ordType.rowType == typ.rowType)
+    require(ordType.kType isPrefixOf typ.kType)
+    require(newPartitioner.pkType isIsomorphicTo ordType.pkType)
+    // Should remove this requirement in the future
+    require(typ.pkType isPrefixOf ordType.pkType)
 
-    joinType match {
-      case "inner" | "left" => new OrderedJoinDistinctRDD2(this, right, joinType)
-      case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
-    }
+    new OrderedRVD(
+      typ = ordType,
+      partitioner = newPartitioner,
+      rdd = new RepartitionedOrderedRDD2(this, newPartitioner))
   }
 
-  def orderedZipJoin(right: OrderedRVD): OrderedZipJoinRDD = {
-    val pkOrd = this.partitioner.pkType.ordering
-    if (this.partitioner.range.includes(pkOrd, right.partitioner.range))
-      new OrderedZipJoinRDD(this, right)
-    else {
-      val newRangeBounds = partitioner.rangeBounds.toArray
-      val newStart = pkOrd.min(this.partitioner.range.start, right.partitioner.range.start)
-      val newEnd = pkOrd.max(this.partitioner.range.end, right.partitioner.range.end)
-      newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-        .copy(start = newStart, includesStart = true)
-      newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-        .copy(end = newEnd, includesEnd = true)
+  def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
+    new KeyedOrderedRVD(this, key)
 
-      val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
-        partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+  def orderedJoin(
+    right: OrderedRVD,
+    joinType: String,
+    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joinedType: OrderedRVDType
+  ): OrderedRVD =
+    keyBy().orderedJoin(right.keyBy(), joinType, joiner, joinedType)
 
-      new OrderedZipJoinRDD(OrderedRVD(this.typ, newPartitioner, this.rdd), right)
-    }
-  }
+  def orderedJoinDistinct(
+    right: OrderedRVD,
+    joinType: String,
+    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joinedType: OrderedRVDType
+  ): OrderedRVD =
+    keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
+
+  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] =
+    keyBy().orderedZipJoin(right.keyBy())
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
@@ -385,8 +372,8 @@ object OrderedRVD {
 
   def apply(typ: OrderedRVDType,
     rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedRVDPartitioner]): OrderedRVD = {
-    val (_, orderedRDD) = coerce(typ, rdd, fastKeys, hintPartitioner)
-    orderedRDD
+    val (_, orderedRVD) = coerce(typ, rdd, fastKeys, hintPartitioner)
+    orderedRVD
   }
 
   /**
@@ -564,7 +551,6 @@ object OrderedRVD {
 
     val pkType = partitioner.pkType
     val pkOrdUnsafe = pkType.unsafeOrdering(true)
-    val pkOrd = pkType.ordering.toOrdering
     val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
 
     if (pkis.isEmpty)
@@ -573,18 +559,7 @@ object OrderedRVD {
     val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
     val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
 
-    val newRangeBounds = partitioner.rangeBounds.toArray
-
-    newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
-      .copy(start = pkOrd.min(newRangeBounds(0).asInstanceOf[Interval].start, min))
-
-    newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval]
-      .copy(end = pkOrd.max(newRangeBounds(newRangeBounds.length - 1).asInstanceOf[Interval].end, max))
-
-    val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
-      partitioner.kType, UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
-
-    shuffle(typ, newPartitioner, rdd)
+    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
   }
 
   def shuffle(typ: OrderedRVDType,

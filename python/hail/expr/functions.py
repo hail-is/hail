@@ -2116,7 +2116,10 @@ def str(x: Expression) -> StringExpression:
     -------
     :class:`.StringExpression`
     """
-    return _func("str", tstr, x)
+    if x.dtype == tstr:
+        return x
+    else:
+        return _func("str", tstr, x)
 
 
 @typecheck(c=expr_call, i=expr_int32)

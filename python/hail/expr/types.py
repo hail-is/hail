@@ -198,13 +198,6 @@ class HailType(object):
     def _convert_from_json(self, x):
         return x
 
-    def _scalar_type(self):
-        if isinstance(self, tarray):
-            return self.element_type
-        else:
-            assert is_numeric(self)
-            return self
-
 
 hail_type = oneof(HailType, transformed((str, dtype)))
 
@@ -1138,8 +1131,8 @@ See Also
 
 hts_entry_schema = tstruct(GT=tcall, AD=tarray(tint32), DP=tint32, GQ=tint32, PL=tarray(tint32))
 
-_numeric_types = {tint32, tint64, tfloat32, tfloat64}
-_primitive_types = _numeric_types.union({tbool, tstr})
+_numeric_types = {tbool, tint32, tint64, tfloat32, tfloat64}
+_primitive_types = _numeric_types.union({tstr})
 
 
 @typecheck(t=HailType)

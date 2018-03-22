@@ -35,6 +35,14 @@ object Compile {
     apply[AsmFunction1[Region, R], R](Seq(), body)
   }
 
+  def apply[T0: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: Type,
+    body: IR): (Type, () => AsmFunction3[Region, T0, Boolean, R]) = {
+
+    apply[AsmFunction3[Region, T0, Boolean, R], R](Seq((name0, typ0, classTag[T0])), body)
+  }
+
   def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: Type,
@@ -43,6 +51,30 @@ object Compile {
     body: IR): (Type, () => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
 
     apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](Seq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body)
+  }
+
+  def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, T2: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: Type,
+    name1: String,
+    typ1: Type,
+    name2: String,
+    typ2: Type,
+    body: IR): (Type, () => AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]) = {
+    assert(TypeToIRIntermediateClassTag(typ0) == classTag[T0])
+    assert(TypeToIRIntermediateClassTag(typ1) == classTag[T1])
+    assert(TypeToIRIntermediateClassTag(typ2) == classTag[T2])
+    val fb = FunctionBuilder.functionBuilder[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]
+    var e = body
+    val env = new Env[IR]()
+      .bind(name0, In(0, typ0))
+      .bind(name1, In(1, typ1))
+      .bind(name2, In(2, typ2))
+    e = Subst(e, env)
+    Infer(e)
+    assert(TypeToIRIntermediateClassTag(e.typ) == classTag[R])
+    Emit(e, fb)
+    (e.typ, fb.result())
   }
 
   def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, T2: TypeInfo : ClassTag,

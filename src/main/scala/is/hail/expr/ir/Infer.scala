@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 
 object Infer {
@@ -156,7 +157,7 @@ object Infer {
       case x@GetField(o, name, _) =>
         infer(o)
         val t = coerce[TStruct](o.typ)
-        assert(t.index(name).nonEmpty)
+        assert(t.index(name).nonEmpty, s"$name not in $t")
         x.typ = -t.field(name).typ
       case GetFieldMissingness(o, name) =>
         infer(o)
@@ -174,9 +175,11 @@ object Infer {
         assert(typ != null)
       case InMissingness(i) =>
       case Die(msg) =>
-      case ApplyFunction(impl, args) =>
+      case x@Apply(fn, args, impl) =>
         args.foreach(infer(_))
-        assert(args.map(_.typ).zip(impl.argTypes).forall {case (i, j) => j.unify(i)})
+        if (impl == null)
+          x.implementation = IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get
+        assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
     }
   }
 
