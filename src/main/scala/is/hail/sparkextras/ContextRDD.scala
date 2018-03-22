@@ -5,6 +5,7 @@ import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.storage._
 import org.apache.spark.util.random._
+import org.apache.spark.util.Utils
 import scala.reflect.ClassTag
 
 object ContextRDD {
@@ -62,6 +63,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   val rdd: RDD[C => Iterator[T]],
   val mkc: () => C
 ) extends Serializable {
+  import ContextRDD._
+
   def run: RDD[T] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
@@ -98,6 +101,36 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   )(f: (Iterator[T], Iterator[U]) => Iterator[V]
   ): ContextRDD[C, V] =
     czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
+
+  // FIXME: this should disappear when region values become non-serializable
+  def aggregate[U: ClassTag](
+    makeZero: () => U,
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U
+  ): U = aggregate[U, U](makeZero, seqOp, combOp, x => x, x => x)
+
+  // FIXME: spark uses spark serialization to clone the zero, but its private,
+  // so I just force the user to give me a constructor instead
+  def aggregate[U: ClassTag, V: ClassTag](
+    makeZero: () => U,
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U,
+    serialize: U => V,
+    deserialize: V => U
+  ): U = {
+    val zeroValue = makeZero()
+    // FIXME: I need to clean seqOp and combOp but that's private in
+    // SparkContext, wtf...
+    val aggregatePartition = { (it: Iterator[C => Iterator[T]]) =>
+      using(mkc()) { c =>
+        serialize(
+          it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
+    val localCombiner = { (_: Int, v: V) =>
+      result = combOp(result, deserialize(v)) }
+    var result = makeZero()
+    sparkContext.runJob(rdd, aggregatePartition, localCombiner)
+    result
+  }
 
   private[this] def withContext[U: ClassTag](
     f: (C, Iterator[T]) => Iterator[U]
