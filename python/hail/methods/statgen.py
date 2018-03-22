@@ -1796,7 +1796,7 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
     ds = require_biallelic(ds, 'pc_relate_with_scores')
     ds = require_unique_samples(ds, 'pc_relate_with_scores')
     ds = ds.select_entries(GT=ds.GT,
-                           naa=ds.GT.num_alt_alleles().to_float64())
+                           naa=hl.float64(ds.GT.n_alt_alleles()))
     ds = ds.select_rows(
         mean_gt=(agg.sum(ds.naa) /
                  agg.count_where(functions.is_defined(ds.GT))))
