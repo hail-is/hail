@@ -1798,6 +1798,7 @@ def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinshi
     ds = ds.select_entries(GT=ds.GT,
                            naa=hl.float64(ds.GT.n_alt_alleles()))
     ds = ds.select_rows(
+        *ds.row_key,
         mean_gt=(agg.sum(ds.naa) /
                  agg.count_where(hl.is_defined(ds.GT))))
     mean_imputed_gt = hl.or_else(ds.naa, ds.mean_gt)
