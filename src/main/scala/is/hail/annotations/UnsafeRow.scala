@@ -193,11 +193,11 @@ class UnsafeRow(var t: TBaseStruct,
   }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
-    throw NotImplementedException
+    throw new NotImplementedException()
   }
 
   private def readObject(s: ObjectInputStream): Unit = {
-    throw NotImplementedException
+    throw new NotImplementedException()
   }
 }
 
