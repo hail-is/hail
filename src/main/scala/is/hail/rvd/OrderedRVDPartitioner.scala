@@ -105,8 +105,8 @@ class OrderedRVDPartitioner(
 
   // FIXME Make work if newRange has different point type than pkType
   def enlargeToRange(newRange: Interval): OrderedRVDPartitioner = {
-    val newStart = pkType.ordering.min(range.start, newRange.start)
-    val newEnd = pkType.ordering.max(range.end, newRange.end)
+    val newStart = pkType.ordering.min(range.start, Annotation.copy(pkType, newRange.start))
+    val newEnd = pkType.ordering.max(range.end, Annotation.copy(pkType, newRange.end))
     val newRangeBounds =
       rangeBounds match {
         case IndexedSeq(x) => IndexedSeq(x.copy(newStart, newEnd, true, true))
@@ -118,7 +118,7 @@ class OrderedRVDPartitioner(
             rangeBounds.tail.init :+
             rangeBounds.last.copy(end = newEnd, includesEnd = true)
       }
-    copy(rangeBounds = Annotation.copy(rangeBoundsType, newRangeBounds).asInstanceOf[IndexedSeq[Interval]])
+    copy(rangeBounds = newRangeBounds)
   }
 
   def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
