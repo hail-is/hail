@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType}
 import is.hail.utils._
 import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -15,16 +16,23 @@ import org.apache.spark.sql.Row
   */
 object RepartitionedOrderedRDD {
   def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD = {
-    new RepartitionedOrderedRDD(prev.rdd, prev.typ, prev.partitioner, newPartitioner)
+    new RepartitionedOrderedRDD(
+      prev.rdd,
+      prev.typ,
+      prev.partitioner.broadcast(prev.rdd.sparkContext),
+      newPartitioner.broadcast(prev.rdd.sparkContext))
   }
 }
 
 class RepartitionedOrderedRDD(
     prevRDD: RDD[RegionValue],
     typ: OrderedRVDType,
-    oldPartitioner: OrderedRVDPartitioner,
-    newPartitioner: OrderedRVDPartitioner)
+    oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+    newPartitionerBc: Broadcast[OrderedRVDPartitioner])
   extends RDD[RegionValue](prevRDD.sparkContext, Nil) { // Nil since we implement getDependencies
+
+  private def oldPartitioner = oldPartitionerBc.value
+  private def newPartitioner = newPartitionerBc.value
 
 //  require(newPartitioner.kType isPrefixOf prev.typ.kType)
   // There should really be no precondition on partition keys. Drop this when
@@ -49,13 +57,16 @@ class RepartitionedOrderedRDD(
     OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range)
   }
 
-  val dependency = new OrderedDependency(oldPartitioner, newPartitioner, prevRDD)
+  val dependency = new OrderedDependency(oldPartitionerBc, newPartitionerBc, prevRDD)
 
   override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
 }
 
-class OrderedDependency(oldPartitioner: OrderedRVDPartitioner, newPartitioner: OrderedRVDPartitioner, rdd: RDD[RegionValue])
+class OrderedDependency(oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newPartitionerBc: Broadcast[OrderedRVDPartitioner], rdd: RDD[RegionValue])
   extends NarrowDependency[RegionValue](rdd) {
+
+  private def oldPartitioner = oldPartitionerBc.value
+  private def newPartitioner = newPartitionerBc.value
 
   // no precondition on partition keys
 //  require(newPartitioner.kType isPrefixOf prev.typ.kType)
