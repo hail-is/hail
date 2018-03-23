@@ -6,7 +6,6 @@ import is.hail.io.InputBuffer
 import is.hail.utils._
 import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
-import org.json4s.jackson
 
 object RowMatrix {
   def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int): RowMatrix =
@@ -18,21 +17,6 @@ object RowMatrix {
   def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long, partitionCounts: Array[Long]): RowMatrix =
     new RowMatrix(hc, rows, nCols, Some(nRows), Some(partitionCounts))
     
-  def readGridPartitioner(hc: HailContext, uri: String): GridPartitioner = {
-    val hadoop = hc.hadoopConf
-    
-    if (!hadoop.exists(uri + "/_SUCCESS"))
-      fatal("Write failed: no success indicator found")
-    
-    val BlockMatrixMetadata(blockSize, nRows, nCols, _) =
-      hadoop.readTextFile(uri + BlockMatrix.metadataRelativePath) { isr  =>
-        implicit val formats = defaultJSONFormats
-        jackson.Serialization.read[BlockMatrixMetadata](isr)
-      }
-    
-    GridPartitioner(blockSize, nRows, nCols)
-  }
-
   def computePartitionCounts(partSize: Long, nRows: Long): Array[Long] = {
     val nParts = ((nRows - 1) / partSize).toInt + 1
     val partitionCounts = Array.fill[Long](nParts)(partSize)
@@ -40,17 +24,13 @@ object RowMatrix {
     
     partitionCounts
   }
-  
+
   def readBlockMatrix(hc: HailContext, uri: String, partSize: Int): RowMatrix = {
-    val gp = readGridPartitioner(hc, uri)
-    readBlockMatrix(hc, uri, gp, computePartitionCounts(partSize, gp.nRows))
+    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) = BlockMatrix.readMetadata(hc, uri)
+    val gp = GridPartitioner(blockSize, nRows, nCols)
+    val partitionCounts = computePartitionCounts(partSize, gp.nRows)
+    RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partFiles, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)
   }
-  
-  def readBlockMatrix(hc: HailContext, uri: String, partitionCounts: Array[Long]): RowMatrix =
-    readBlockMatrix(hc, uri, readGridPartitioner(hc, uri), partitionCounts)
-  
-  def readBlockMatrix(hc: HailContext, uri: String, gp: GridPartitioner, partitionCounts: Array[Long]): RowMatrix =
-    RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)
 }
 
 class RowMatrix(val hc: HailContext,
@@ -163,6 +143,7 @@ case class ReadBlocksAsRowsRDDPartition(index: Int, start: Long, end: Long) exte
 
 class ReadBlocksAsRowsRDD(path: String,
   sc: SparkContext,
+  partFiles: Array[String],
   partitionCounts: Array[Long],
   gp: GridPartitioner) extends RDD[(Long, Array[Double])](sc, Nil) {
   
@@ -178,7 +159,6 @@ class ReadBlocksAsRowsRDD(path: String,
   private val nBlockCols = gp.nBlockCols
   private val blockSize = gp.blockSize
 
-  private val d = digitsNeeded(gp.numPartitions)
   private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
   protected def getPartitions: Array[Partition] = Array.tabulate(partitionStarts.length - 1)(pi => 
@@ -202,7 +182,7 @@ class ReadBlocksAsRowsRDD(path: String,
           
           inPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
             val pi = gp.coordinatesBlock(blockRow, blockCol)
-            val filename = path + "/parts/" + partFile(d, pi)
+            val filename = path + "/parts/" + partFiles(pi)
 
             val is = sHadoopBc.value.value.unsafeReader(filename)
             val in = BlockMatrix.bufferSpec.buildInputBuffer(is)

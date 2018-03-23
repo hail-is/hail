@@ -100,20 +100,23 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
+  def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
+    hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
+      implicit val formats = defaultJSONFormats
+      jackson.Serialization.read[BlockMatrixMetadata](isr)
+    }
+  }
+
   /**
     * Reads a BlockMatrix matrix written by {@code write} at location {@code uri}.
     **/
   def read(hc: HailContext, uri: String): M = {
-    val hadoop = hc.hadoopConf
+    val hadoopConf = hc.hadoopConf
 
-    if (!hadoop.exists(uri + "/_SUCCESS"))
+    if (!hadoopConf.exists(uri + "/_SUCCESS"))
       fatal("Write failed: no success indicator found")
 
-    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) =
-      hadoop.readTextFile(uri + metadataRelativePath) { isr =>
-        implicit val formats = defaultJSONFormats
-        jackson.Serialization.read[BlockMatrixMetadata](isr)
-      }
+    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) = readMetadata(hc, uri)
 
     val gp = GridPartitioner(blockSize, nRows, nCols)
 
