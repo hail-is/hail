@@ -173,7 +173,6 @@ object Infer {
       case Die(msg) =>
       case x@Apply(fn, args, impl) =>
         args.foreach(infer(_))
-        println(IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get.getClass())
         if (impl == null)
           x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithoutMissingness]
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})

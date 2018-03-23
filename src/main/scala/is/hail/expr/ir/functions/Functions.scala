@@ -222,7 +222,6 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   def returnType: Type
 
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
-
 }
 
 abstract class IRFunctionWithMissingness extends IRFunction {
@@ -235,5 +234,4 @@ abstract class IRFunctionWithMissingness extends IRFunction {
   def returnType: Type
 
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
-
 }
