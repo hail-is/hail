@@ -571,6 +571,7 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): OrderedRVD = {
     val localType = typ
+    val partBc = partitioner.broadcast(rdd.sparkContext)
     OrderedRVD(typ,
       partitioner,
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
@@ -583,11 +584,11 @@ object OrderedRVD {
             (wkrv.value, wrv.value)
           }
         },
-        partitioner.sparkPartitioner(rdd.sparkContext))
+        partBc.value.sparkPartitioner(rdd.sparkContext))
         .setKeyOrdering(typ.kOrd)
         .mapPartitionsWithIndex { case (i, it) =>
           it.map { case (k, v) =>
-            assert(partitioner.getPartition(k) == i)
+            assert(partBc.value.getPartition(k) == i)
             v
           }
         })
