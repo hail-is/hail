@@ -169,9 +169,9 @@ trait RVD {
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
     depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
-  ) : U = // rdd.treeAggregate(zeroValue)(seqOp, combOp, depth)
-    // FIXME: 1) need a real copyable zeroValue 2) actual tree aggregate
-    crdd.aggregate(() => zeroValue, seqOp, combOp)
+  ) : U =
+    // FIXME: 1) need real copyable zeroValue
+    crdd.treeAggregate(() => zeroValue, seqOp, combOp, depth)
 
   def aggregate[U: ClassTag](
     zeroValue: U
