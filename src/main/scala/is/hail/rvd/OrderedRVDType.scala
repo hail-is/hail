@@ -118,7 +118,7 @@ class OrderedRVDType(
     partitionKey: Array[String] = partitionKey,
     key: Array[String] = key,
     rowType: TStruct = rowType
-  ) : OrderedRVDType = new OrderedRVDType(partitionKey, key, rowType)
+  ): OrderedRVDType = new OrderedRVDType(partitionKey, key, rowType)
 }
 
 object OrderedRVDType {
