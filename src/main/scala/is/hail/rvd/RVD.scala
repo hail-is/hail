@@ -163,9 +163,9 @@ trait RVD {
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
-    depth: Int = 2): U = // rdd.treeAggregate(zeroValue)(seqOp, combOp, depth)
-    // FIXME: 1) need a real copyable zeroValue 2) actual tree aggregate
-    crdd.aggregate(() => zeroValue, seqOp, combOp)
+    depth: Int = 2): U =
+    // FIXME: 1) need real copyable zeroValue
+    crdd.treeAggregate(() => zeroValue, seqOp, combOp, depth)
 
   def aggregateWithContext[U: ClassTag, V](context: () => V)(zeroValue: U)
     (seqOp: (V, U, RegionValue) => U, combOp: (U, U) => U): U = {

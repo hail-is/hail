@@ -111,6 +111,10 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   // FIXME: spark uses spark serialization to clone the zero, but its private,
   // so I just force the user to give me a constructor instead
+  //
+  // FIXME: do serialize and deserialize belong on contextrdd? They seem
+  // necessary for the RegionValues as offsets to work, but it seems irrelevant
+  // to ContextRDD
   def aggregate[U: ClassTag, V: ClassTag](
     makeZero: () => U,
     seqOp: (U, T) => U,
@@ -130,6 +134,73 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       result = combOp(result, deserialize(v)) }
     sparkContext.runJob(rdd, aggregatePartition, localCombiner)
     result
+  }
+
+  def treeAggregate[U: ClassTag](
+    makeZero: () => U,
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U
+  ): U = treeAggregate(makeZero, seqOp, combOp, 2)
+
+  def treeAggregate[U: ClassTag](
+    makeZero: () => U,
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U,
+    depth: Int
+  ): U = treeAggregate[U, U](makeZero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
+
+  def treeAggregate[U: ClassTag, V: ClassTag](
+    makeZero: () => U,
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U,
+    serialize: U => V,
+    deserialize: V => U
+  ): V = treeAggregate(makeZero, seqOp, combOp, serialize, deserialize, 2)
+
+  def treeAggregate[U: ClassTag, V: ClassTag](
+    makeZero: () => U,
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U,
+    serialize: U => V,
+    deserialize: V => U,
+    depth: Int
+  ): V = {
+    require(depth > 0)
+    val zeroValue = serialize(makeZero())
+    // FIXME: I need to clean seqOp and combOp but that's private in
+    // SparkContext, wtf...
+    val aggregatePartitionOfContextTs = { (it: Iterator[C => Iterator[T]]) =>
+      using(mkc()) { c =>
+        serialize(
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp, combOp)) } }
+    val aggregatePartitionOfVs = { (it: Iterator[V]) =>
+      using(mkc()) { c =>
+        serialize(
+          it.map(deserialize).fold(deserialize(zeroValue))(combOp)) } }
+    val combOpV = { (l: V, r: V) =>
+      using(mkc()) { c =>
+        serialize(
+          combOp(deserialize(l), deserialize(r))) } }
+
+    var reduced: RDD[V] =
+      rdd.mapPartitions(
+        aggregatePartitionOfContextTs.andThen(Iterator.single _))
+    var level = depth
+    val scale =
+      math.max(
+        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        2)
+    var targetPartitionCount = reduced.partitions.length / scale
+
+    while (level > 1 && targetPartitionCount >= scale) {
+      reduced = reduced.mapPartitionsWithIndex { (i, it) =>
+        it.map(i % targetPartitionCount -> _)
+      }.reduceByKey(combOpV, targetPartitionCount).map(_._2)
+      level -= 1
+      targetPartitionCount /= scale
+    }
+
+    reduced.reduce(combOpV)
   }
 
   private[this] def withContext[U: ClassTag](
