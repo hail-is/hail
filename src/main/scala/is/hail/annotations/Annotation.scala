@@ -166,21 +166,14 @@ object Annotation {
         Row(Array.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))): _*)
 
       case t: TArray =>
-        a.asInstanceOf[IndexedSeq[Annotation]].map { elt => Annotation.copy(t.elementType, elt) }.toIndexedSeq
+        a.asInstanceOf[IndexedSeq[Annotation]].map(Annotation.copy(t.elementType, _))
 
       case t: TSet =>
-        val s = a.asInstanceOf[Set[Annotation]]
-          .toArray
-          .sorted(t.elementType.ordering.toOrdering).toFastIndexedSeq
-
-        s.map(Annotation.copy(t.elementType, _))
+        a.asInstanceOf[Set[Annotation]].map(Annotation.copy(t.elementType, _))
 
       case t: TDict =>
-        val m = a.asInstanceOf[Map[Annotation, Annotation]]
-          .map { case (k, v) => Row(k, v) }
-          .toArray
-          .sorted(t.elementType.ordering.toOrdering)
-        m.map(Annotation.copy(t.elementType, _))
+        a.asInstanceOf[Map[Annotation, Annotation]]
+          .map { case (k, v) => (Annotation.copy(t.keyType, k), Annotation.copy(t.valueType, v)) }
 
       case t: TInterval =>
         val i = a.asInstanceOf[Interval]
