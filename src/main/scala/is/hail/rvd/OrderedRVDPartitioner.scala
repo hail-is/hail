@@ -11,7 +11,7 @@ class OrderedRVDPartitioner(
   val partitionKey: Array[String], val kType: TStruct,
   // rangeBounds: Array[Interval[pkType]]
   // rangeBounds is interval containing all partition keys within a partition
-  val rangeBounds: UnsafeIndexedSeq) extends Partitioner {
+  val rangeBounds: UnsafeIndexedSeq) {
   val numPartitions: Int = rangeBounds.length
 
   val (pkType, _) = kType.select(partitionKey)
