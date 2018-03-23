@@ -15,15 +15,14 @@ import org.apache.spark.sql.Row
   */
 object RepartitionedOrderedRDD2 {
   def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD2 = {
-    val dep = new OrderedDependency(prev.partitioner, newPartitioner, prev.rdd)
-    new RepartitionedOrderedRDD2(prev.rdd, prev.typ, dep, newPartitioner)
+    new RepartitionedOrderedRDD2(prev.rdd, prev.typ, prev.partitioner, newPartitioner)
   }
 }
 
 class RepartitionedOrderedRDD2(
     prevRDD: RDD[RegionValue],
     typ: OrderedRVDType,
-    dependency: OrderedDependency,
+    oldPartitioner: OrderedRVDPartitioner,
     newPartitioner: OrderedRVDPartitioner)
   extends RDD[RegionValue](prevRDD.sparkContext, Nil) { // Nil since we implement getDependencies
 
@@ -49,6 +48,8 @@ class RepartitionedOrderedRDD2(
       }
     OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range)
   }
+
+  val dependency = new OrderedDependency(oldPartitioner, newPartitioner, prevRDD)
 
   override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
 }
