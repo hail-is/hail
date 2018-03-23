@@ -12,12 +12,10 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     new OrderedRVDPartitioner(
       Array("A", "B"),
       TStruct(("A", TInt32()), ("C", TInt32()), ("B", TInt32())),
-      UnsafeIndexedSeq(
-        TArray(TInterval(TTuple(TInt32(), TInt32()), true), true),
-        IndexedSeq(
+        Array(
           Interval(Row(1, 0), Row(4, 3), true, false),
           Interval(Row(4, 3), Row(7, 9), true, false),
-          Interval(Row(7, 9), Row(10, 0), true, true)))
+          Interval(Row(7, 9), Row(10, 0), true, true))
     )
 
   @Test def testGetPartitionPKWithPartitionKeys() {

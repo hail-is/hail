@@ -11,14 +11,14 @@ class OrderedRVDPartitioner(
   val partitionKey: Array[String], val kType: TStruct,
   // rangeBounds: Array[Interval[pkType]]
   // rangeBounds is interval containing all partition keys within a partition
-  val rangeBounds: UnsafeIndexedSeq) {
+  val rangeBounds: IndexedSeq[Interval]) {
   val numPartitions: Int = rangeBounds.length
 
   val (pkType, _) = kType.select(partitionKey)
   val pkIntervalType = TInterval(pkType)
   val rangeBoundsType = TArray(pkIntervalType)
 
-  assert(rangeBoundsType.typeCheck(rangeBounds))
+  assert(rangeBoundsType.typeCheck(rangeBounds), s"$rangeBoundsType, ${rangeBounds.mkString(",")}")
 
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
@@ -31,16 +31,8 @@ class OrderedRVDPartitioner(
 
   val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(pkType.ordering,
     Array.tabulate[(Interval, Int)](numPartitions) { i =>
-      (rangeBounds(i).asInstanceOf[Interval], i)
+      (rangeBounds(i), i)
     })
-
-  def region: Region = rangeBounds.region
-
-  def loadElement(i: Int): Long = rangeBoundsType.loadElement(region, rangeBounds.aoff, rangeBounds.length, i)
-
-  def loadStart(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
-
-  def loadEnd(i: Int): Long = pkIntervalType.loadStart(region, loadElement(i))
 
   def range: Interval = rangeTree.root.get.range
 
@@ -101,15 +93,13 @@ class OrderedRVDPartitioner(
 
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
-    val (newPKType, _) = newKType.select(newPartitionKey)
-    val newRangeBounds = new UnsafeIndexedSeq(TArray(TInterval(newPKType)), rangeBounds.region, rangeBounds.aoff)
-    val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, newRangeBounds)
+    val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, rangeBounds)
     assert(newPart.pkType.types.sameElements(pkType.types))
     newPart
   }
 
   def copy(numPartitions: Int = numPartitions, partitionKey: Array[String] = partitionKey,
-    kType: TStruct = kType, rangeBounds: UnsafeIndexedSeq = rangeBounds): OrderedRVDPartitioner = {
+    kType: TStruct = kType, rangeBounds: IndexedSeq[Interval] = rangeBounds): OrderedRVDPartitioner = {
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
@@ -118,21 +108,19 @@ class OrderedRVDPartitioner(
     val newStart = pkType.ordering.min(range.start, newRange.start)
     val newEnd = pkType.ordering.max(range.end, newRange.end)
     val newRangeBounds = rangeBounds.toArray
-    newRangeBounds(0) = newRangeBounds(0).asInstanceOf[Interval]
+    newRangeBounds(0) = newRangeBounds(0)
       .copy(start = newStart, includesStart = true)
     newRangeBounds(newRangeBounds.length - 1) = newRangeBounds(newRangeBounds.length - 1)
-      .asInstanceOf[Interval].copy(end = newEnd, includesEnd = true)
-    copy(rangeBounds = UnsafeIndexedSeq(rangeBoundsType, newRangeBounds))
+      .copy(end = newEnd, includesEnd = true)
+    copy(rangeBounds = Annotation.copy(rangeBoundsType, newRangeBounds).asInstanceOf[IndexedSeq[Interval]])
   }
 
   def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
-    val newRangeBounds = UnsafeIndexedSeq(
-      rangeBoundsType,
-      (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
-        val i1 = rangeBounds(s + 1).asInstanceOf[Interval]
-        val i2 = rangeBounds(e).asInstanceOf[Interval]
+    val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
+        val i1 = rangeBounds(s + 1)
+        val i2 = rangeBounds(e)
         Interval(i1.start, i2.end, i1.includesStart, i2.includesEnd)
-      })
+      }
     copy(numPartitions = newPartEnd.length, rangeBounds = newRangeBounds)
   }
 
@@ -162,18 +150,17 @@ class OrderedRVDPartitioner(
 
 object OrderedRVDPartitioner {
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(TInterval(typ.pkType))))
+    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, Array.empty[Interval])
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): UnsafeIndexedSeq = {
+  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): Array[Interval] = {
     val uisRangeBounds = UnsafeIndexedSeq(TArray(pType), rangeBounds)
     var includesStart = true
-    val rangeBoundIntervals = uisRangeBounds.zip(uisRangeBounds.tail).map { case (s, e) =>
-        val i = Interval(s, e, includesStart, true)
+    uisRangeBounds.zip(uisRangeBounds.tail).map { case (s, e) =>
+        val i = Interval(Annotation.copy(pType, s), Annotation.copy(pType, e), includesStart, true)
         includesStart = false
         i
-    }
-    UnsafeIndexedSeq(TArray(TInterval(pType)), rangeBoundIntervals)
+    }.toArray
   }
 }

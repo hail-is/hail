@@ -636,7 +636,7 @@ class HailContext private(val sc: SparkContext,
             val (_, f) = ir.Compile[Long](body)
             val off = f()(region)
             val v2 = UnsafeRow.read(t, region, off)
-            val v3 = Annotation.copy(t, v2)
+            val v3 = Annotation.unsafeCopy(t, v2)
             (v3, t)
         }
       case None =>

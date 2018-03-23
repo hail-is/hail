@@ -4,6 +4,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils.{ArrayBuilder, Interval}
 import is.hail.variant._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object Annotation {
@@ -155,7 +156,7 @@ object Annotation {
     (finalType, insF)
   }
 
-  def copy(t: Type, a: Annotation): Annotation = {
+  def unsafeCopy(t: Type, a: Annotation): Annotation = {
     if (a == null)
       return null
 
@@ -173,6 +174,40 @@ object Annotation {
         rvb.start(t)
         rvb.addAnnotation(t, a)
         new UnsafeIndexedSeq(t, region, rvb.end())
+
+      case _ => a
+    }
+  }
+
+  def copy(t: Type, a: Annotation): Annotation = {
+    if (a == null)
+      return null
+
+    t match {
+      case t: TBaseStruct =>
+        val r = a.asInstanceOf[Row]
+        Row(Array.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))): _*)
+
+      case t: TArray =>
+        a.asInstanceOf[IndexedSeq[Annotation]].map { elt => Annotation.copy(t.elementType, elt) }.toIndexedSeq
+
+      case t: TSet =>
+        val s = a.asInstanceOf[Set[Annotation]]
+          .toArray
+          .sorted(t.elementType.ordering.toOrdering).toFastIndexedSeq
+
+        s.map(Annotation.copy(t.elementType, _))
+
+      case t: TDict =>
+        val m = a.asInstanceOf[Map[Annotation, Annotation]]
+          .map { case (k, v) => Row(k, v) }
+          .toArray
+          .sorted(t.elementType.ordering.toOrdering)
+        m.map(Annotation.copy(t.elementType, _))
+
+      case t: TInterval =>
+        val i = a.asInstanceOf[Interval]
+        i.copy(start = Annotation.copy(t.pointType, i.start), end = Annotation.copy(t.pointType, i.end))
 
       case _ => a
     }
