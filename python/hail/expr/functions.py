@@ -1440,10 +1440,7 @@ def pnorm(x):
 
 
 @typecheck(x=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
-def ppois(x,
-          lamb,
-          lower_tail=True,
-          log_p=False):
+def ppois(x, lamb, lower_tail=True, log_p=False):
     """The cumulative probability function of a Poisson distribution.
 
     Examples
@@ -1536,10 +1533,7 @@ def qnorm(p):
 
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
-def qpois(p,
-          lamb,
-          lower_tail=True,
-          log_p=False):
+def qpois(p, lamb, lower_tail=True, log_p=False):
     """Inverts :meth:`.ppois`.
 
     Examples
