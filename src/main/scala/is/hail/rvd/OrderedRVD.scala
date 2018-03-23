@@ -280,13 +280,15 @@ class OrderedRVD(
       typ.kType ++ TStruct(valuesField -> TArray(typ.valueType)))
     val newRowType = newTyp.rowType
 
+    val localType = typ
+
     val newRDD: RDD[RegionValue] = rdd.mapPartitions { it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
       val outRV = RegionValue(region)
-      val buffer = new RegionValueArrayBuffer(typ.valueType)
+      val buffer = new RegionValueArrayBuffer(localType.valueType)
       val stepped: FlipbookIterator[FlipbookIterator[RegionValue]] =
-        OrderedRVIterator(typ, it).staircase
+        OrderedRVIterator(localType, it).staircase
 
       stepped.map { stepIt =>
         region.clear()
@@ -294,15 +296,15 @@ class OrderedRVD(
         rvb.start(newRowType)
         rvb.startStruct()
         var i = 0
-        while (i < typ.kType.size) {
-          rvb.addField(typ.rowType, stepIt.value, typ.kRowFieldIdx(i))
+        while (i < localType.kType.size) {
+          rvb.addField(localType.rowType, stepIt.value, localType.kRowFieldIdx(i))
           i += 1
         }
         for (rv <- stepIt)
-          buffer.appendSelect(typ.rowType, typ.valueFieldIdx, rv)
+          buffer.appendSelect(localType.rowType, localType.valueFieldIdx, rv)
         rvb.startArray(buffer.length)
         for (rv <- buffer)
-          rvb.addRegionValue(typ.valueType, rv)
+          rvb.addRegionValue(localType.valueType, rv)
         rvb.endArray()
         rvb.endStruct()
         outRV.setOffset(rvb.end())
@@ -314,9 +316,9 @@ class OrderedRVD(
   }
 
   def distinctByKey(): OrderedRVD = {
-    val localRowType = rowType
+    val localType = typ
     val newRVD = rdd.mapPartitions { it =>
-      OrderedRVIterator(typ, it)
+      OrderedRVIterator(localType, it)
         .staircase
         .map(_.value)
     }
@@ -411,10 +413,11 @@ object OrderedRVD {
   def getKeys(typ: OrderedRVDType,
     // rdd: RDD[RegionValue[rowType]]
     rdd: RDD[RegionValue]): RDD[RegionValue] = {
+    val localType = typ
     rdd.mapPartitions { it =>
-      val wrv = WritableRegionValue(typ.kType)
+      val wrv = WritableRegionValue(localType.kType)
       it.map { rv =>
-        wrv.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
+        wrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
         wrv.value
       }
     }
@@ -433,9 +436,11 @@ object OrderedRVD {
     val sampleSize = math.min(nPartitions * 20, 1000000)
     val samplesPerPartition = sampleSize / nPartitions
 
+    val localType = typ
+
     val pkis = keys.mapPartitionsWithIndex { case (i, it) =>
       if (it.hasNext)
-        Iterator(OrderedRVPartitionInfo(typ, samplesPerPartition, i, it, partitionSeed(i)))
+        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else
         Iterator()
     }.collect()
@@ -565,15 +570,16 @@ object OrderedRVD {
   def shuffle(typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): OrderedRVD = {
+    val localType = typ
     OrderedRVD(typ,
       partitioner,
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
         rdd.mapPartitions { it =>
-          val wrv = WritableRegionValue(typ.rowType)
-          val wkrv = WritableRegionValue(typ.kType)
+          val wrv = WritableRegionValue(localType.rowType)
+          val wkrv = WritableRegionValue(localType.kType)
           it.map { rv =>
             wrv.set(rv)
-            wkrv.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
+            wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
             (wkrv.value, wrv.value)
           }
         },
@@ -661,6 +667,7 @@ object OrderedRVD {
     val sc = rdd.sparkContext
 
     val partitionerBc = partitioner.broadcast(sc)
+    val localType = typ
 
     new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
       val prevK = WritableRegionValue(typ.kType)
@@ -678,16 +685,16 @@ object OrderedRVD {
           if (first)
             first = false
           else {
-            assert(typ.pkRowOrd.compare(prevPK.value, rv) <= 0 && typ.kRowOrd.compare(prevK.value, rv) <= 0)
+            assert(localType.pkRowOrd.compare(prevPK.value, rv) <= 0 && localType.kRowOrd.compare(prevK.value, rv) <= 0)
           }
 
-          prevK.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
-          prevPK.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
+          prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+          prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
 
           pkUR.set(prevPK.value)
-          assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(typ.pkType.ordering, pkUR))
+          assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(localType.pkType.ordering, pkUR))
 
-          assert(typ.pkRowOrd.compare(prevPK.value, rv) == 0)
+          assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
 
           rv
         }
