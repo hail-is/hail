@@ -11,6 +11,10 @@ import scala.reflect.ClassTag
 import scala.util._
 
 object ContextRDD {
+  def apply[C <: AutoCloseable : Pointed, T: ClassTag](
+    rdd: RDD[C => Iterator[T]]
+  ): ContextRDD[C, T] = new ContextRDD(rdd, point[C])
+
   def empty[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
     mkc: () => C
@@ -85,9 +89,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   val rdd: RDD[C => Iterator[T]],
   val mkc: () => C
 ) extends Serializable {
-  import ContextRDD._
+  type ElementType = ContextRDD.ElementType[C, T]
 
-  def run[U >: T: ClassTag]: RDD[U] =
+  def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
   private[this] def inCtx[U: ClassTag](
@@ -311,6 +315,11 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   private[this] def clean[T <: AnyRef](value: T): T =
     ExposedUtils.clean(sparkContext, value)
+
+  def partitions: Array[Partition] = rdd.partitions
+
+  def iterator(p: Partition, c: TaskContext): Iterator[ElementType] =
+    rdd.iterator(p, c)
 
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]

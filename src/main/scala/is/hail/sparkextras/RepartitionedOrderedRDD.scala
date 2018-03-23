@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
@@ -19,7 +19,7 @@ import org.apache.spark.sql.Row
 object RepartitionedOrderedRDD {
   def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD = {
     new RepartitionedOrderedRDD(
-      prev.rdd,
+      prev.crdd,
       prev.typ,
       prev.partitioner.broadcast(prev.rdd.sparkContext),
       newPartitioner.broadcast(prev.rdd.sparkContext))
@@ -27,11 +27,11 @@ object RepartitionedOrderedRDD {
 }
 
 class RepartitionedOrderedRDD(
-    prevRDD: RDD[RegionValue],
-    typ: OrderedRVDType,
-    oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
-    newPartitionerBc: Broadcast[OrderedRVDPartitioner])
-  extends RDD[RegionValue](prevRDD.sparkContext, Nil) { // Nil since we implement getDependencies
+  prev: ContextRDD[RVDContext, RegionValue],
+  typ: OrderedRVDType,
+  oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+  newPartitionerBc: Broadcast[OrderedRVDPartitioner]
+) extends RDD[RVDContext => Iterator[RegionValue]](prev.sparkContext, Nil) { // Nil since we implement getDependencies
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
@@ -45,27 +45,32 @@ class RepartitionedOrderedRDD(
     Array.tabulate[Partition](newPartitioner.numPartitions) { i =>
       RepartitionedOrderedRDD2Partition(
         i,
-        dependency.getParents(i).toArray.map(prevRDD.partitions),
+        dependency.getParents(i).toArray.map(prev.partitions),
         newPartitioner.rangeBounds(i).asInstanceOf[Interval])
     }
   }
 
-  override def compute(partition: Partition, context: TaskContext): Iterator[RegionValue] = {
+  override def compute(partition: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
-    val it = ordPartition.parents.iterator
-      .flatMap { parentPartition =>
-        prevRDD.iterator(parentPartition, context)
+
+    Iterator.single { (ctx: RVDContext) =>
+      val it = ordPartition.parents.iterator
+        .flatMap { parentPartition =>
+        prev.iterator(parentPartition, context).flatMap(_(ctx))
       }
-    OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range)
+      OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range) }
   }
 
-  val dependency = new OrderedDependency(oldPartitionerBc, newPartitionerBc, prevRDD)
+  val dependency = new OrderedDependency(oldPartitionerBc, newPartitionerBc, prev.rdd)
 
   override def getDependencies: Seq[Dependency[_]] = FastSeq(dependency)
 }
 
-class OrderedDependency(oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newPartitionerBc: Broadcast[OrderedRVDPartitioner], rdd: RDD[RegionValue])
-  extends NarrowDependency[RegionValue](rdd) {
+class OrderedDependency(
+  oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+  newPartitionerBc: Broadcast[OrderedRVDPartitioner],
+  rdd: RDD[RVDContext => Iterator[RegionValue]]
+) extends NarrowDependency[RVDContext => Iterator[RegionValue]](rdd) {
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
@@ -84,7 +89,7 @@ class OrderedDependency(oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newP
 }
 
 case class RepartitionedOrderedRDD2Partition(
-    index: Int,
-    parents: Array[Partition],
-    range: Interval)
-  extends Partition
+  index: Int,
+  parents: Array[Partition],
+  range: Interval
+) extends Partition
