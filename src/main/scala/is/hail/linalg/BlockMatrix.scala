@@ -955,7 +955,7 @@ private class BlockMatrixDiagonalRDD(m: BlockMatrix)
   protected def getPartitions: Array[Partition] = Array.tabulate(nDiagBlocks)(IntPartition)
 
   def toArray: Array[Double] = {
-    val diag = this.collect()
+    val diag = collect()
     assert(diag.length == nDiagElements)
     diag
   }
