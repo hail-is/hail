@@ -927,7 +927,7 @@ private class BlockMatrixTransposeRDD(dm: BlockMatrix)
 }
 
 private class BlockMatrixDiagonalRDD(m: BlockMatrix)
-  extends RDD[Array[Double]](m.blocks.sparkContext, Nil) {
+  extends RDD[Double](m.blocks.sparkContext, Nil) {
 
   import BlockMatrix.block
 
@@ -946,16 +946,16 @@ private class BlockMatrixDiagonalRDD(m: BlockMatrix)
       def getParents(partitionId: Int): Seq[Int] = Array(gp.coordinatesBlock(partitionId, partitionId))
     })
 
-  def compute(split: Partition, context: TaskContext): Iterator[Array[Double]] = {
+  def compute(split: Partition, context: TaskContext): Iterator[Double] = {
     val i = split.index
     val lm = block(m, parts, gp, context, i, i)
-    Iterator.single(Array.tabulate(math.min(lm.rows, lm.cols))(k => lm(k, k)))
+    (0 until math.min(lm.rows, lm.cols)).iterator.map(k => lm(k, k))
   }
 
   protected def getPartitions: Array[Partition] = Array.tabulate(nDiagBlocks)(IntPartition)
 
   def toArray: Array[Double] = {
-    val diag = this.collect().flatten
+    val diag = this.collect()
     assert(diag.length == nDiagElements)
     diag
   }
