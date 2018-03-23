@@ -291,13 +291,13 @@ object LDPrune {
     require(inputRDD.storageLevel == StorageLevel.MEMORY_AND_DISK)
 
     val partitioner = inputRDD.partitioner
-    val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Interval]).toArray
+    val rangeBounds = partitioner.rangeBounds
     val nPartitions = inputRDD.partitions.length
 
     val localRowType = inputRDD.typ.rowType
 
     def computeDependencies(partitionId: Int): Array[Int] = {
-      val startLocus = rangeBounds(partitionId).start.asInstanceOf[UnsafeRow].getAs[Locus](0)
+      val startLocus = rangeBounds(partitionId).start.asInstanceOf[Row].getAs[Locus](0)
       val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
       
       val minPart = partitioner.getPartitionPK(Annotation(minLocus))
@@ -335,7 +335,7 @@ object LDPrune {
     }
 
     val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
-        i == 0 || rangeBounds(i-1).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[UnsafeRow].getAs[Locus](0).contig
+        i == 0 || rangeBounds(i-1).end.asInstanceOf[Row].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[Row].getAs[Locus](0).contig
       }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
@@ -350,7 +350,7 @@ object LDPrune {
           (pruneIntermediates(depIndex).rvd, (i, gpi.index))
         }
       }.unzip
-      (rvds.toArray, inputs.toArray)
+      (rvds, inputs)
     }
 
     for (i <- 0 until nPartitions) {
