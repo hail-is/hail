@@ -64,6 +64,9 @@ object Copy {
       case ArrayFilter(_, name, _) =>
         val IndexedSeq(a, cond) = children
         ArrayFilter(a, name, cond)
+      case ArrayFlatMap(_, name, _) =>
+        val IndexedSeq(a, body) = children
+        ArrayFlatMap(a, name, body)
       case ArrayFold(_, _, accumName, valueName, _, typ) =>
         val IndexedSeq(a, zero, body) = children
         ArrayFold(a, zero, accumName, valueName, body, typ)
