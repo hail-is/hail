@@ -18,7 +18,7 @@ class OrderedRVDPartitioner(
   val pkIntervalType = TInterval(pkType)
   val rangeBoundsType = TArray(pkIntervalType)
 
-  assert(rangeBoundsType.typeCheck(rangeBounds), s"$rangeBoundsType, ${rangeBounds.mkString(",")}")
+  assert(rangeBoundsType.typeCheck(rangeBounds))
 
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
