@@ -19,8 +19,15 @@ import scala.reflect.ClassTag
 class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
-  val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
+  val crdd: ContextRDD[RVDContext, RegionValue]
+) extends RVD {
   self =>
+
+  def this(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    rdd: RDD[RegionValue]
+  ) = this(typ, partitioner, ContextRDD.weaken(rdd, RVDContext.default _))
 
   val rdd = crdd.run
 
@@ -93,7 +100,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      rdd = RepartitionedOrderedRDD(this, newPartitioner))
+      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner), RVDContext.default _))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
