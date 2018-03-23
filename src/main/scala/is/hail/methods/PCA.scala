@@ -82,7 +82,7 @@ object PCA {
         val ur = new UnsafeRow(fullRowType)
         it.map { rv =>
           ur.set(rv)
-          Annotation.unsafeCopy(localKeyStruct, localRKF(ur))
+          Annotation.copy(localKeyStruct, localRKF(ur))
         }
       }.collect()
     }

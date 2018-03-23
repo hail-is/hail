@@ -156,29 +156,6 @@ object Annotation {
     (finalType, insF)
   }
 
-  def unsafeCopy(t: Type, a: Annotation): Annotation = {
-    if (a == null)
-      return null
-
-    t match {
-      case t: TBaseStruct =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(t)
-        rvb.addAnnotation(t, a)
-        new UnsafeRow(t, region, rvb.end())
-
-      case t: TContainer =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(t)
-        rvb.addAnnotation(t, a)
-        new UnsafeIndexedSeq(t, region, rvb.end())
-
-      case _ => a
-    }
-  }
-
   def copy(t: Type, a: Annotation): Annotation = {
     if (a == null)
       return null

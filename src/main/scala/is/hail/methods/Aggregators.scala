@@ -439,7 +439,7 @@ class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] 
 
   def seqOp(x: Any) {
     // FIXME only need to copy on the first one
-    val cx = Annotation.unsafeCopy(t, x)
+    val cx = Annotation.copy(t, x)
     m.updateValue(cx, 0L, _ + 1)
   }
 
@@ -478,7 +478,7 @@ class CollectSetAggregator(t: Type) extends TypedAggregator[Set[Any]] {
   def result = _state.toSet
 
   def seqOp(x: Any) {
-    _state += Annotation.unsafeCopy(t, x)
+    _state += Annotation.copy(t, x)
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
@@ -493,7 +493,7 @@ class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
   def result = _state
 
   def seqOp(x: Any) {
-    _state += Annotation.unsafeCopy(t, x)
+    _state += Annotation.copy(t, x)
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
@@ -739,7 +739,7 @@ class TakeAggregator(t: Type, n: Int) extends TypedAggregator[IndexedSeq[Any]] {
 
   def seqOp(x: Any) = {
     if (_state.length < n)
-      _state += Annotation.unsafeCopy(t, x)
+      _state += Annotation.copy(t, x)
   }
 
   def combOp(agg2: this.type) {
@@ -772,7 +772,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def result = _state.clone.dequeueAll.toArray[(Any, Any)].map(_._1).reverse: IndexedSeq[Any]
 
   def seqOp(x: Any) = {
-    val cx = Annotation.unsafeCopy(t, x)
+    val cx = Annotation.copy(t, x)
     seqOp(cx, f(cx))
   }
 
