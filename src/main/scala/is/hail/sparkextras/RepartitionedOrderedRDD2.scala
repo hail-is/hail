@@ -13,21 +13,30 @@ import org.apache.spark.sql.Row
   * needed. No assumption should need to be made about partition keys, but currently
   * assumes old partition key type is a prefix of the new partition key type.
   */
+object RepartitionedOrderedRDD2 {
+  def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD2 = {
+    val dep = new OrderedDependency(prev.partitioner, newPartitioner, prev.rdd)
+    new RepartitionedOrderedRDD2(prev.rdd, prev.typ, dep, newPartitioner)
+  }
+}
+
 class RepartitionedOrderedRDD2(
-    prev: OrderedRVD,
+    prevRDD: RDD[RegionValue],
+    typ: OrderedRVDType,
+    dependency: OrderedDependency,
     newPartitioner: OrderedRVDPartitioner)
-  extends RDD[RegionValue](prev.sparkContext, Nil) { // Nil since we implement getDependencies
+  extends RDD[RegionValue](prevRDD.sparkContext, Nil) { // Nil since we implement getDependencies
 
 //  require(newPartitioner.kType isPrefixOf prev.typ.kType)
   // There should really be no precondition on partition keys. Drop this when
   // we're able
-  require(prev.typ.pkType isPrefixOf newPartitioner.pkType)
+  require(typ.pkType isPrefixOf newPartitioner.pkType)
 
   def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](newPartitioner.numPartitions) { i =>
       RepartitionedOrderedRDD2Partition(
         i,
-        dependency.getParents(i).toArray.map(prev.rdd.partitions),
+        dependency.getParents(i).toArray.map(prevRDD.partitions),
         newPartitioner.rangeBounds(i).asInstanceOf[Interval])
     }
   }
@@ -36,29 +45,27 @@ class RepartitionedOrderedRDD2(
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
     val it = ordPartition.parents.iterator
       .flatMap { parentPartition =>
-        prev.rdd.iterator(parentPartition, context)
+        prevRDD.iterator(parentPartition, context)
       }
-    OrderedRVIterator(prev.typ, it).restrictToPKInterval(ordPartition.range)
+    OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range)
   }
-
-  val dependency = new OrderedDependency(prev, newPartitioner)
 
   override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
 }
 
-class OrderedDependency(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner)
-  extends NarrowDependency[RegionValue](prev.rdd) {
+class OrderedDependency(oldPartitioner: OrderedRVDPartitioner, newPartitioner: OrderedRVDPartitioner, rdd: RDD[RegionValue])
+  extends NarrowDependency[RegionValue](rdd) {
 
   // no precondition on partition keys
 //  require(newPartitioner.kType isPrefixOf prev.typ.kType)
   // There should really be no precondition on partition keys. Drop this when
   // we're able
-  require(prev.typ.pkType isPrefixOf newPartitioner.pkType)
+  require(oldPartitioner.pkType isPrefixOf newPartitioner.pkType)
 
   override def getParents(partitionId: Int): Seq[Int] = {
     val partBounds =
       newPartitioner.rangeBounds(partitionId).asInstanceOf[Interval]
-    prev.partitioner.getPartitionRange(partBounds)
+    oldPartitioner.getPartitionRange(partBounds)
   }
 }
 
