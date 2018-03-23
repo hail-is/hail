@@ -207,12 +207,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     val (partFiles, partitionCounts) = r.mapPartitionsWithIndex { case (index, it) =>
       val i = remapBc.value(index)
-
-      val rng = new java.security.SecureRandom()
-      val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-      val ctx = TaskContext.get
-      val f = partFile(d, i) + s"-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-${ fileUUID }"
-
+      val f = partFile(d, i, TaskContext.get)
       val filename = path + "/parts/" + f
       val os = sHadoopConfBc.value.value.unsafeWriter(filename)
       Iterator.single(f -> write(i, it, os))

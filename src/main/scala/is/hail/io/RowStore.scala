@@ -756,10 +756,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val partFilePartitionCounts = rdd.mapPartitionsWithIndex { case (i, it) =>
       val hConf = sHConfBc.value.value
 
-      val rng = new java.security.SecureRandom()
-      val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-      val ctx = TaskContext.get
-      val f = partFile(d, i) + s"-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-${ fileUUID }"
+      val f = partFile(d, i, TaskContext.get)
 
       val rowsPartPath = path + "/rows/rows/parts/" + f
       hConf.writeFile(rowsPartPath) { rowsOS =>

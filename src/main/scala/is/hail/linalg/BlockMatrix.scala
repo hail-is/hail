@@ -1101,17 +1101,13 @@ class WriteBlocksRDD(path: String,
   def compute(split: Partition, context: TaskContext): Iterator[(Int, String)] = {
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
-
-    val rng = new java.security.SecureRandom()
     val ctx = TaskContext.get
 
     val (blockPartFiles, outPerBlockCol) = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val i = gp.coordinatesBlock(blockRow, blockCol)
-
-      val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-      val f = partFile(d, i) + s"-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-${ fileUUID }"
+      val f = partFile(d, i, ctx)
       val filename = path + "/parts/" + f
 
       val os = sHadoopBc.value.value.unsafeWriter(filename)
