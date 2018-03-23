@@ -931,55 +931,33 @@ private class BlockMatrixDiagonalRDD(m: BlockMatrix)
 
   import BlockMatrix.block
 
-  private val length = {
-    val x = math.min(m.nRows, m.nCols)
-    assert(x <= Integer.MAX_VALUE, s"diagonal is too big for local array: $x; ${ m.st }")
-    x.toInt
+  private val nDiagElements = {
+    val d = math.min(m.nRows, m.nCols)
+    assert(d <= Integer.MAX_VALUE, s"diagonal is too big for local array: $d; ${ m.st }")
+    d.toInt
   }
-  private val blockSize = m.blockSize
-  private val dmPartitions = m.blocks.partitions
-  private val dmPartitioner = m.partitioner
-  private val partitionsLength = math.min(
-    dmPartitioner.nBlockRows, dmPartitioner.nBlockCols)
+
+  private val parts = m.blocks.partitions
+  private val gp = m.partitioner
+  private val nDiagBlocks = math.min(gp.nBlockRows, gp.nBlockCols)
 
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(m.blocks) {
-      def getParents(partitionId: Int): Seq[Int] = {
-        assert(partitionId == 0)
-        val deps = new Array[Int](partitionsLength)
-        var i = 0
-        while (i < partitionsLength) {
-          deps(i) = dmPartitioner.coordinatesBlock(i, i)
-          i += 1
-        }
-        deps
-      }
+      def getParents(partitionId: Int): Seq[Int] = Array(gp.coordinatesBlock(partitionId, partitionId))
     })
 
   def compute(split: Partition, context: TaskContext): Iterator[Array[Double]] = {
-    val result = new Array[Double](length)
-    var i = 0
-    while (i < partitionsLength) {
-      val lm = block(m, dmPartitions, dmPartitioner, context, i, i)
-      val size = math.min(lm.rows, lm.cols)
-      var k = 0
-      val offset = i * blockSize
-      while (k < size) {
-        result(offset + k) = lm(k, k)
-        k += 1
-      }
-      i += 1
-    }
-    Iterator.single(result)
+    val i = split.index
+    val lm = block(m, parts, gp, context, i, i)
+    Iterator.single(Array.tabulate(math.min(lm.rows, lm.cols))(k => lm(k, k)))
   }
 
-  protected def getPartitions: Array[Partition] =
-    Array(IntPartition(0))
+  protected def getPartitions: Array[Partition] = Array.tabulate(nDiagBlocks)(IntPartition)
 
   def toArray: Array[Double] = {
-    val a = this.collect()
-    assert(a.length == 1)
-    a(0)
+    val diag = this.collect().flatten
+    assert(diag.length == nDiagElements)
+    diag
   }
 }
 
