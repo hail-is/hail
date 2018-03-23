@@ -13,13 +13,13 @@ import org.apache.spark.sql.Row
   * needed. No assumption should need to be made about partition keys, but currently
   * assumes old partition key type is a prefix of the new partition key type.
   */
-object RepartitionedOrderedRDD2 {
-  def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD2 = {
-    new RepartitionedOrderedRDD2(prev.rdd, prev.typ, prev.partitioner, newPartitioner)
+object RepartitionedOrderedRDD {
+  def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD = {
+    new RepartitionedOrderedRDD(prev.rdd, prev.typ, prev.partitioner, newPartitioner)
   }
 }
 
-class RepartitionedOrderedRDD2(
+class RepartitionedOrderedRDD(
     prevRDD: RDD[RegionValue],
     typ: OrderedRVDType,
     oldPartitioner: OrderedRVDPartitioner,

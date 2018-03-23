@@ -94,7 +94,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      rdd = RepartitionedOrderedRDD2(this, newPartitioner))
+      rdd = RepartitionedOrderedRDD(this, newPartitioner))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
