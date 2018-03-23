@@ -180,7 +180,7 @@ trait RVD {
     val localRowType = rowType
 
     // copy, persist region values
-    val persistedRDD = rdd.mapPartitions { it =>
+    val persistedRDD = crdd.mapPartitions { it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
       it.map { rv =>
@@ -190,8 +190,7 @@ trait RVD {
         val off = rvb.end()
         RegionValue(region.copy(), off)
       }
-    }
-      .persist(level)
+    }.run.persist(level)
 
     PersistedRVRDD(persistedRDD,
       ContextRDD.weaken(persistedRDD)
@@ -228,6 +227,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
+    crdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }.run
   }
 }

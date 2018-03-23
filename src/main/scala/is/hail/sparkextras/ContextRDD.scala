@@ -65,7 +65,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 ) extends Serializable {
   import ContextRDD._
 
-  def run: RDD[T] =
+  def run[U >: T]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
   private[this] def inCtx[U: ClassTag](
