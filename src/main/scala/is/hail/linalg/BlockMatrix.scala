@@ -1042,7 +1042,7 @@ case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) 
 }
 
 class WriteBlocksRDD(path: String,
-  rvd: RVD,
+  rdd: RDD[RegionValue],
   sc: SparkContext,
   matrixType: MatrixType,
   parentPartStarts: Array[Long],
@@ -1051,7 +1051,7 @@ class WriteBlocksRDD(path: String,
 
   require(gp.nRows == parentPartStarts.last)
 
-  private val parentParts = rvd.partitions
+  private val parentParts = rdd.partitions
   private val blockSize = gp.blockSize
 
   private val d = digitsNeeded(gp.numPartitions)
@@ -1059,7 +1059,7 @@ class WriteBlocksRDD(path: String,
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
-      new NarrowDependency(rvd.rdd) {
+      new NarrowDependency(rdd) {
         def getParents(partitionId: Int): Seq[Int] =
           partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
       }
@@ -1132,7 +1132,7 @@ class WriteBlocksRDD(path: String,
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.foreach { pi =>
-      val it = rvd.rdd.iterator(parentParts(pi), context)
+      val it = rdd.iterator(parentParts(pi), context)
 
       if (pi == start) {
         var j = 0
