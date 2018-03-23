@@ -18,6 +18,8 @@ Numeric functions
     float
     float32
     float64
+    floor
+    ceil
 
 .. rubric:: Numeric collection functions
 
@@ -38,6 +40,8 @@ Numeric functions
 .. autofunction:: is_nan
 .. autofunction:: log
 .. autofunction:: log10
+.. autofunction:: floor
+.. autofunction:: ceil
 .. autofunction:: sqrt
 .. autofunction:: min
 .. autofunction:: max
