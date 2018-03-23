@@ -360,27 +360,27 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
-    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
-    vSig <- vSigGen.resize(3);
-    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-    sSig <- sSigGen.resize(3);
-    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-    globalSig <- globalSigGen.resize(5);
-    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-    global <- globalGen(globalSig).resize(25);
-    nPartitions <- Gen.choose(1, 10);
+      vSig <- vSigGen.resize(3);
+      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+      sSig <- sSigGen.resize(3);
+      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+      globalSig <- globalSigGen.resize(5);
+      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
+      global <- globalGen(globalSig).resize(25);
+      nPartitions <- Gen.choose(1, 10);
 
-    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-      .map(ids => ids.distinct);
-    nSamples = sampleIds.length;
-    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-    rows <- Gen.buildableOfN[Array](l,
-      for (
-        v <- vGen(vSig).resize(3);
-        va <- vaGen(vaSig).resize(5);
-        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-        yield (v, (va, ts: Iterable[Annotation]))))
+      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+        .map(ids => ids.distinct);
+      nSamples = sampleIds.length;
+      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+      rows <- Gen.buildableOfN[Array](l,
+        for (
+          v <- vGen(vSig).resize(3);
+          va <- vaGen(vaSig).resize(5);
+          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
+          yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))
         val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
@@ -977,9 +977,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       right.typ.valueType
 
     val rightRVD = if (product)
-        right.groupByKey(" !!! values !!! ")
-      else
-        right
+      right.groupByKey(" !!! values !!! ")
+    else
+      right
 
     val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
 
@@ -1985,19 +1985,19 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val fieldMapRows = oldToNewRows.asScala
     assert(fieldMapRows.keys.forall(k => matrixType.rowType.fieldNames.contains(k)),
-      s"[${fieldMapRows.keys.mkString(", ")}], expected [${ matrixType.rowType.fieldNames.mkString(", ") }]")
+      s"[${ fieldMapRows.keys.mkString(", ") }], expected [${ matrixType.rowType.fieldNames.mkString(", ") }]")
 
     val fieldMapCols = oldToNewCols.asScala
     assert(fieldMapCols.keys.forall(k => matrixType.colType.fieldNames.contains(k)),
-      s"[${fieldMapCols.keys.mkString(", ")}], expected [${ matrixType.colType.fieldNames.mkString(", ") }]")
+      s"[${ fieldMapCols.keys.mkString(", ") }], expected [${ matrixType.colType.fieldNames.mkString(", ") }]")
 
     val fieldMapEntries = oldToNewEntries.asScala
     assert(fieldMapEntries.keys.forall(k => matrixType.entryType.fieldNames.contains(k)),
-      s"[${fieldMapEntries.keys.mkString(", ")}], expected [${ matrixType.entryType.fieldNames.mkString(", ") }]")
+      s"[${ fieldMapEntries.keys.mkString(", ") }], expected [${ matrixType.entryType.fieldNames.mkString(", ") }]")
 
     val fieldMapGlobals = oldToNewGlobals.asScala
     assert(fieldMapGlobals.keys.forall(k => matrixType.globalType.fieldNames.contains(k)),
-      s"[${fieldMapGlobals.keys.mkString(", ")}], expected [${ matrixType.globalType.fieldNames.mkString(", ") }]")
+      s"[${ fieldMapGlobals.keys.mkString(", ") }], expected [${ matrixType.globalType.fieldNames.mkString(", ") }]")
 
     val (newColKey, newColType) = if (fieldMapCols.isEmpty) (colKey, colType) else {
       val newFieldNames = colType.fieldNames.map { n => fieldMapCols.getOrElse(n, n) }
@@ -2014,10 +2014,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val newPK = rowPartitionKey.map { f => fieldMapRows.getOrElse(f, f) }
       val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
       val newRVRowType = TStruct(rvRowType.required, rvRowType.fields.map { f =>
-          f.name match {
-            case x@MatrixType.entriesIdentifier => (x, TArray(newEntryType, f.typ.required))
-            case x => (fieldMapRows.getOrElse(x, x), f.typ)
-          }
+        f.name match {
+          case x@MatrixType.entriesIdentifier => (x, TArray(newEntryType, f.typ.required))
+          case x => (fieldMapRows.getOrElse(x, x), f.typ)
+        }
       }: _*)
       (newPK, newKey, newRVRowType)
     }
@@ -2872,20 +2872,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val hadoop = sparkContext.hadoopConfiguration
     hadoop.mkDir(dirname)
 
+    // write blocks
+    hadoop.mkDir(dirname + "/parts")
+    val gp = GridPartitioner(blockSize, nRows, localNCols)
+    val blockPartFiles =
+      new WriteBlocksRDD(dirname, rvd.rdd, sparkContext, matrixType, partStarts, entryField, gp)
+      .collect()
+
+    val blockCount = blockPartFiles.length
+    val partFiles = new Array[String](blockCount)
+    blockPartFiles.foreach { case (i, f) => partFiles(i) = f }
+
     // write metadata
     hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, localNCols),
+        BlockMatrixMetadata(blockSize, nRows, localNCols, partFiles),
         os)
     }
-
-    // write blocks
-    hadoop.mkDir(dirname + "/parts")
-    val gp = GridPartitioner(blockSize, nRows, localNCols)
-    val blockCount =
-      new WriteBlocksRDD(dirname, rvd.rdd, sparkContext, matrixType, partStarts, entryField, gp)
-        .reduce(_ + _)
 
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")

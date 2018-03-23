@@ -738,27 +738,37 @@ class BlockMatrixSuite extends SparkSuite {
   def writeSubsetTest() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
-    def prefix(blockSize: Double): String = "/parts/part-" + (if (blockSize <= 3) "0" else "")
-    
-    for {blockSize <- Seq(2, 4, 8)} {
+    for (blockSize <- Seq(2, 4, 8)) {
       val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
-      val pre = prefix(blockSize)
 
       val allFile = tmpDir.createTempFile("all")
       val someFile = tmpDir.createTempFile("some")
+
+      val keep = Array(1, 3)
+
+      def verifyMetadata(path: String) {
+        val bm2 = BlockMatrix.read(hc, allFile)
+        assert(bm2.nRows == 9 &&
+          bm2.nCols == 10 &&
+          bm2.blockSize == blockSize)
+      }
       
       bm.write(allFile)
-      bm.write(someFile, optKeep = Some(Array(1, 3)))
+      verifyMetadata(allFile)
 
-      assert(!hc.hadoopConf.exists(someFile + pre + "0"))
-      assert( hc.hadoopConf.exists( allFile + pre + "0"))
+      bm.write(someFile, optKeep = Some(keep))
+      verifyMetadata(someFile)
 
-      assert(!hc.hadoopConf.exists(someFile + pre + "2"))
-      assert( hc.hadoopConf.exists( allFile + pre + "2"))
+      val allParts = hc.hadoopConf.glob(allFile + "/parts/part-*")
+        .map(_.getPath.toString)
+      val someParts = hc.hadoopConf.glob(someFile + "/parts/part-*")
+        .map(_.getPath.toString)
 
-      assert(TestUtils.fileHaveSameBytes(someFile + pre + "1", allFile + pre + "1"))
-      assert(TestUtils.fileHaveSameBytes(someFile + pre + "3", allFile + pre + "3"))
-      assert(TestUtils.fileHaveSameBytes(someFile + "/metadata.json", allFile + "/metadata.json"))
+      for (i <- keep) {
+        val allPart = allParts.find(f => getPartNumber(f) == i).get
+        val somePart = allParts.find(f => getPartNumber(f) == i).get
+        assert(TestUtils.fileHaveSameBytes(allPart, somePart))
+      }
     }
   }
 

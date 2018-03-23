@@ -191,19 +191,13 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(path)
 
-    hadoop.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
-      implicit val formats = defaultJSONFormats
-      jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, m.rows, m.cols),
-        os)
-    }
-
     val gp = GridPartitioner(blockSize, m.rows, m.cols)
     val nParts = gp.numPartitions
     val d = digitsNeeded(nParts)
 
-    (0 until nParts).par.foreach { pi =>
-      val filename = path + "/parts/" + partFile(d, pi)
+    val partFiles = (0 until nParts).par.map { pi =>
+      val f = partFile(d, pi)
+      val filename = path + "/parts/" + f
 
       val (i, j) = gp.blockCoordinates(pi)
       val (blockNRows, blockNCols) = gp.blockDims(pi)
@@ -212,6 +206,16 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
       var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
 
       block.write(hc, filename, forceRowMajor, BlockMatrix.bufferSpec)
+
+      f
+    }
+      .toArray
+
+    hadoop.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, m.rows, m.cols, partFiles),
+        os)
     }
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")

@@ -24,7 +24,7 @@ object RowMatrix {
     if (!hadoop.exists(uri + "/_SUCCESS"))
       fatal("Write failed: no success indicator found")
     
-    val BlockMatrixMetadata(blockSize, nRows, nCols) =
+    val BlockMatrixMetadata(blockSize, nRows, nCols, _) =
       hadoop.readTextFile(uri + BlockMatrix.metadataRelativePath) { isr  =>
         implicit val formats = defaultJSONFormats
         jackson.Serialization.read[BlockMatrixMetadata](isr)

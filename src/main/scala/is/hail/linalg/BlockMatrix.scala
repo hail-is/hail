@@ -109,7 +109,7 @@ object BlockMatrix {
     if (!hadoop.exists(uri + "/_SUCCESS"))
       fatal("Write failed: no success indicator found")
 
-    val BlockMatrixMetadata(blockSize, nRows, nCols) =
+    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) =
       hadoop.readTextFile(uri + metadataRelativePath) { isr =>
         implicit val formats = defaultJSONFormats
         jackson.Serialization.read[BlockMatrixMetadata](isr)
@@ -123,10 +123,6 @@ object BlockMatrix {
 
       Iterator.single(gp.blockCoordinates(i), bdm)
     }
-
-    val nPartitions = gp.numPartitions
-    val d = digitsNeeded(nPartitions)
-    val partFiles = Array.tabulate[String](nPartitions) { i => partFile(d, i) }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
@@ -214,7 +210,7 @@ object BlockMatrix {
 }
 
 // must be top-level for Jackson to serialize correctly
-case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long)
+case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long, partFiles: Array[String])
 
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
@@ -223,7 +219,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   import BlockMatrix._
 
-  private[linalg] val st: String = Thread.currentThread().getStackTrace().mkString("\n")
+  private[linalg] val st: String = Thread.currentThread().getStackTrace.mkString("\n")
 
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
@@ -328,18 +324,18 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
-      implicit val formats = defaultJSONFormats
-      jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols),
-        os)
-    }
-
-    optKeep match {
+    val (partFiles, _) = optKeep match {
       case Some(keep) =>
         blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, Some(keep, partitioner.numPartitions))
       case None =>
         blocks.writePartitions(uri, writeBlock)
+    }
+
+    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, nRows, nCols, partFiles),
+        os)
     }
 
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
@@ -1047,7 +1043,7 @@ class WriteBlocksRDD(path: String,
   matrixType: MatrixType,
   parentPartStarts: Array[Long],
   entryField: String,
-  gp: GridPartitioner) extends RDD[Int](sc, Nil) {
+  gp: GridPartitioner) extends RDD[(Int, String)](sc, Nil) {
 
   require(gp.nRows == parentPartStarts.last)
 
@@ -1099,15 +1095,21 @@ class WriteBlocksRDD(path: String,
     parts
   }
 
-  def compute(split: Partition, context: TaskContext): Iterator[Int] = {
+  def compute(split: Partition, context: TaskContext): Iterator[(Int, String)] = {
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
 
-    val outPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
+    val rng = new java.security.SecureRandom()
+    val ctx = TaskContext.get
+
+    val (blockPartFiles, outPerBlockCol) = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val i = gp.coordinatesBlock(blockRow, blockCol)
-      val filename = path + "/parts/" + partFile(d, i)
+
+      val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
+      val f = partFile(d, i) + s"-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-${ fileUUID }"
+      val filename = path + "/parts/" + f
 
       val os = sHadoopBc.value.value.unsafeWriter(filename)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
@@ -1116,8 +1118,9 @@ class WriteBlocksRDD(path: String,
       out.writeInt(nColsInBlock)
       out.writeBoolean(true) // transposed, stored row major
 
-      out
+      ((i, f), out)
     }
+      .unzip
 
     val rvRowType = matrixType.rvRowType
     val entryArrayType = matrixType.entryArrayType
@@ -1182,6 +1185,6 @@ class WriteBlocksRDD(path: String,
 
     outPerBlockCol.foreach(_.close())
 
-    Iterator.single(gp.nBlockCols) // number of blocks written
+    blockPartFiles.iterator
   }
 }
