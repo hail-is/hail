@@ -121,9 +121,7 @@ class GroupedMatrixTable(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
-    def group_rows_by(self,
-                      *exprs: Tuple[Union[Expression, str]],
-                      **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
+    def group_rows_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -183,9 +181,7 @@ class GroupedMatrixTable(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
-    def group_cols_by(self,
-                      *exprs: FieldRefArgs,
-                      **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
+    def group_cols_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -307,7 +303,7 @@ class GroupedMatrixTable(ExprContainer):
         self._partitions = n
         return self
 
-    def aggregate(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def aggregate(self, **named_exprs) -> 'MatrixTable':
         """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
 
         Examples
@@ -526,7 +522,7 @@ class MatrixTable(ExprContainer):
                 return self.index_globals()
 
     @property
-    def col_key(self) -> StructExpression:
+    def col_key(self):
         """Column key struct.
 
         Examples
@@ -546,7 +542,7 @@ class MatrixTable(ExprContainer):
         return self._col_key
 
     @property
-    def row_key(self) -> StructExpression:
+    def row_key(self):
         """Row key struct.
 
         Examples
@@ -566,7 +562,7 @@ class MatrixTable(ExprContainer):
         return self._row_key
 
     @property
-    def partition_key(self) -> StructExpression:
+    def partition_key(self):
         """Partition key struct.
 
         Examples
@@ -586,7 +582,7 @@ class MatrixTable(ExprContainer):
         return self._partition_key
 
     @property
-    def globals(self) -> StructExpression:
+    def globals(self):
         """Returns a struct expression including all global fields.
 
         Returns
@@ -596,7 +592,7 @@ class MatrixTable(ExprContainer):
         return self._globals
 
     @property
-    def row(self) -> StructExpression:
+    def row(self):
         """Returns a struct expression including all row-indexed fields.
 
         Examples
@@ -617,7 +613,7 @@ class MatrixTable(ExprContainer):
         return self._row
 
     @property
-    def col(self) -> StructExpression:
+    def col(self):
         """Returns a struct expression including all column-indexed fields.
 
         Examples
@@ -638,7 +634,7 @@ class MatrixTable(ExprContainer):
         return self._col
 
     @property
-    def entry(self) -> StructExpression:
+    def entry(self):
         """Returns a struct expression including all row-and-column-indexed fields.
 
         Examples
@@ -660,7 +656,7 @@ class MatrixTable(ExprContainer):
         return self._entry
 
     @typecheck_method(keys=oneof(str, Expression))
-    def key_cols_by(self, *keys: FieldRefArgs) -> 'MatrixTable':
+    def key_cols_by(self, *keys) -> 'MatrixTable':
         """Key columns by a new set of fields.
 
         Parameters
@@ -690,10 +686,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(keys=oneof(str, Expression),
                       partition_key=nullable(oneof(oneof(str, Expression), listof(oneof(str, Expression)))))
-    def key_rows_by(self,
-                    *keys: FieldRefArgs,
-                    partition_key: Optional[Union[FieldRef, Sequence[FieldRef]]] = None
-                    ) -> 'MatrixTable':
+    def key_rows_by(self, *keys, partition_key=None) -> 'MatrixTable':
         """Key rows by a new set of fields.
 
         Parameters
@@ -735,7 +728,7 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(self._jvds.keyRowsBy(str_keys, str_pks))
 
-    def annotate_globals(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def annotate_globals(self, **named_exprs) -> 'MatrixTable':
         """Create new global fields by name.
 
         Examples
@@ -787,7 +780,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def annotate_rows(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def annotate_rows(self, **named_exprs) -> 'MatrixTable':
         """Create new row-indexed fields by name.
 
         Examples
@@ -843,7 +836,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.annotateRowsExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def annotate_cols(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def annotate_cols(self, **named_exprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
 
         Examples
@@ -896,7 +889,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.annotateColsExpr(",\n".join(exprs)))
         return cleanup(m)
 
-    def annotate_entries(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def annotate_entries(self, **named_exprs) -> 'MatrixTable':
         """Create new row-and-column-indexed fields by name.
 
         Examples
@@ -948,7 +941,7 @@ class MatrixTable(ExprContainer):
 
         return self._select_entries("MatrixTable.annotate_entries", self.entry.annotate(**named_exprs))
 
-    def select_globals(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def select_globals(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing global fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1013,7 +1006,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
-    def select_rows(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def select_rows(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing row fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1081,7 +1074,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.selectRows(strs))
         return cleanup(m)
 
-    def select_cols(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def select_cols(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing column fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1148,7 +1141,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.selectCols(strs))
         return cleanup(m)
 
-    def select_entries(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def select_entries(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing entry fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1202,7 +1195,7 @@ class MatrixTable(ExprContainer):
         return self._select_entries("MatrixTable.select_entries", hl.struct(**assignments))
 
     @typecheck_method(exprs=oneof(str, Expression))
-    def drop(self, *exprs: FieldRefArgs) -> 'MatrixTable':
+    def drop(self, *exprs) -> 'MatrixTable':
         """Drop fields.
 
         Examples
@@ -1283,7 +1276,7 @@ class MatrixTable(ExprContainer):
 
         return m
 
-    def drop_rows(self):
+    def drop_rows(self) -> 'MatrixTable':
         """Drop all rows of the matrix.  Is equivalent to:
 
         >>> dataset_result = dataset.filter_rows(False)
@@ -1298,7 +1291,7 @@ class MatrixTable(ExprContainer):
         warn("deprecation: 'drop_rows' will be removed before 0.2 release")
         return MatrixTable(self._jvds.dropRows())
 
-    def drop_cols(self):
+    def drop_cols(self) -> 'MatrixTable':
         """Drop all columns of the matrix.  Is equivalent to:
 
         >>> dataset_result = dataset.filter_cols(False)
@@ -1314,7 +1307,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.dropCols())
 
     @typecheck_method(expr=expr_any, keep=bool)
-    def filter_rows(self, expr: BooleanExpression, keep: bool = True) -> 'MatrixTable':
+    def filter_rows(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter rows of the matrix.
 
         Examples
@@ -1368,7 +1361,7 @@ class MatrixTable(ExprContainer):
         return cleanup(m)
 
     @typecheck_method(expr=expr_bool, keep=bool)
-    def filter_cols(self, expr: BooleanExpression, keep: bool = True) -> 'MatrixTable':
+    def filter_cols(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter columns of the matrix.
 
         Examples
@@ -1430,7 +1423,7 @@ class MatrixTable(ExprContainer):
         return cleanup(m)
 
     @typecheck_method(expr=expr_bool, keep=bool)
-    def filter_entries(self, expr: BooleanExpression, keep: bool = True) -> 'MatrixTable':
+    def filter_entries(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter entries of the matrix.
 
         Examples
@@ -1485,7 +1478,7 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(base._jvds.filterEntries(expr._ast.to_hql(), keep))
         return cleanup(m)
 
-    def transmute_globals(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def transmute_globals(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.
 
         Note
@@ -1504,7 +1497,7 @@ class MatrixTable(ExprContainer):
         """
         raise NotImplementedError()
 
-    def transmute_rows(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def transmute_rows(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_rows`, but drops referenced fields.
 
         Note
@@ -1524,7 +1517,7 @@ class MatrixTable(ExprContainer):
 
         raise NotImplementedError()
 
-    def transmute_cols(self, **named_exprs: NamedExprs) -> 'MatrixTable':
+    def transmute_cols(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
         Note
@@ -1563,7 +1556,7 @@ class MatrixTable(ExprContainer):
         raise NotImplementedError()
 
     @typecheck_method(expr=expr_any)
-    def aggregate_rows(self, expr: Expression) -> Any:
+    def aggregate_rows(self, expr) -> Any:
         """Aggregate over rows to a local value.
 
         Examples
@@ -1610,7 +1603,7 @@ class MatrixTable(ExprContainer):
         return expr.dtype._from_json(result_json)
 
     @typecheck_method(expr=expr_any)
-    def aggregate_cols(self, expr: Expression) -> Any:
+    def aggregate_cols(self, expr) -> Any:
         """Aggregate over columns to a local value.
 
         Examples
@@ -1659,7 +1652,7 @@ class MatrixTable(ExprContainer):
         return expr.dtype._from_json(result_json)
 
     @typecheck_method(expr=expr_any)
-    def aggregate_entries(self, expr: Expression) -> Any:
+    def aggregate_entries(self, expr) -> Any:
         """Aggregate over entries to a local value.
 
         Examples
@@ -1704,7 +1697,7 @@ class MatrixTable(ExprContainer):
         return expr.dtype._from_json(result_json)
 
     @typecheck_method(field_expr=oneof(str, Expression))
-    def explode_rows(self, field_expr: FieldRef) -> 'MatrixTable':
+    def explode_rows(self, field_expr) -> 'MatrixTable':
         """Explodes a row field of type array or set, copying the entire row for each element.
 
         Examples
@@ -1753,7 +1746,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.explodeRows(s))
 
     @typecheck_method(field_expr=oneof(str, Expression))
-    def explode_cols(self, field_expr: FieldRef) -> 'MatrixTable':
+    def explode_cols(self, field_expr) -> 'MatrixTable':
         """Explodes a column field of type array or set, copying the entire column for each element.
 
         Examples
@@ -1801,7 +1794,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.explodeCols(s))
 
     @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
-    def group_rows_by(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
+    def group_rows_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -1832,7 +1825,7 @@ class MatrixTable(ExprContainer):
         return GroupedMatrixTable(self).group_rows_by(*exprs, **named_exprs)
 
     @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
-    def group_cols_by(self, *exprs: FieldRefArgs, **named_exprs: NamedExprs) -> 'GroupedMatrixTable':
+    def group_cols_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
         """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
@@ -2054,7 +2047,7 @@ class MatrixTable(ExprContainer):
         return construct_expr(Select(TopLevelReference('global', Indices()), uid), self.globals.dtype,
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
-    def index_rows(self, *exprs: Tuple[Expression]) -> StructExpression:
+    def index_rows(self, *exprs):
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins = unify_all(*exprs)
         src = indices.source
@@ -2110,10 +2103,10 @@ class MatrixTable(ExprContainer):
             else:
                 return self.rows().index(*exprs)
 
-    def index_cols(self, *exprs: Tuple[Expression]) -> StructExpression:
+    def index_cols(self, *exprs):
         return self.cols().index(*exprs)
 
-    def index_entries(self, row_exprs: Tuple[Expression], col_exprs: Tuple[Expression]) -> StructExpression:
+    def index_entries(self, row_exprs, col_exprs):
         row_exprs = tuple(row_exprs)
         col_exprs = tuple(col_exprs)
         if len(row_exprs) == 0  or len(col_exprs) == 0:
@@ -2196,10 +2189,10 @@ class MatrixTable(ExprContainer):
                       entry_exprs=dictof(str, expr_any),
                       global_exprs=dictof(str, expr_any))
     def _annotate_all(self,
-                      row_exprs: Optional[Dict[str, Expression]] = {},
-                      col_exprs: Optional[Dict[str, Expression]] = {},
-                      entry_exprs: Optional[Dict[str, Expression]] = {},
-                      global_exprs: Optional[Dict[str, Expression]] = {},
+                      row_exprs={},
+                      col_exprs={},
+                      entry_exprs={},
+                      global_exprs={},
                       ) -> 'MatrixTable':
         all_exprs = list(itertools.chain(row_exprs.values(),
                                          col_exprs.values(),
@@ -2315,7 +2308,7 @@ class MatrixTable(ExprContainer):
         print(s)
 
     @typecheck_method(order=listof(str))
-    def reorder_columns(self, order: Sequence[str]) -> 'MatrixTable':
+    def reorder_columns(self, order: List[str]) -> 'MatrixTable':
         """Reorder columns.
 
         .. include:: _templates/req_tstring.rst
@@ -2335,7 +2328,7 @@ class MatrixTable(ExprContainer):
 
         This method requires the keys to be unique. `order` must contain the
         same set of keys as
-        ``[x.s for x in dataset.cols_table().select("s").collect()]``. The
+        ``dataset.col_key.collect()``. The
         order of the keys in `order` determines the column order in the
         output dataset.
 
@@ -2602,7 +2595,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(base._jvds.selectEntries(s._ast.to_hql())))
 
     @typecheck(datasets=matrix_table_type)
-    def union_rows(*datasets: Tuple['MatrixTable']) -> 'MatrixTable':
+    def union_rows(*datasets: 'MatrixTable') -> 'MatrixTable':
         """Take the union of dataset rows.
 
         Examples

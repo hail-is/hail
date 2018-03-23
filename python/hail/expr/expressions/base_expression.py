@@ -792,8 +792,3 @@ class Aggregable(object):
     @property
     def dtype(self) -> HailType:
         return self._type
-
-
-FieldRef = Union[str, Expression]
-FieldRefArgs = Tuple[FieldRef]
-NamedExprs = Dict[str, Expression]
