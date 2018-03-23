@@ -19,7 +19,7 @@ import scala.reflect.ClassTag
 class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
-  val rdd: RDD[RegionValue]) extends RVD with Serializable {
+  val rdd: RDD[RegionValue]) extends RVD {
   self =>
   def rowType: TStruct = typ.rowType
 
