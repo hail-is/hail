@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.expr.types.{TArray, TInterval, TStruct, TStructSerializer}
+import is.hail.sparkextras._
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
@@ -209,4 +210,9 @@ trait RVD {
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
   def write(path: String, codecSpec: CodecSpec): Array[Long]
+
+  def toRows: RDD[Row] = {
+    val localRowType = rowType
+    rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
+  }
 }

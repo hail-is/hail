@@ -113,6 +113,12 @@ class OrderedRVDType(
     sb += '}'
     sb.result()
   }
+
+  def copy(
+    partitionKey: Array[String] = partitionKey,
+    key: Array[String] = key,
+    rowType: TStruct = rowType
+  ): OrderedRVDType = new OrderedRVDType(partitionKey, key, rowType)
 }
 
 object OrderedRVDType {
