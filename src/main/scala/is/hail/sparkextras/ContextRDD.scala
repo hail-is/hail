@@ -21,8 +21,8 @@ object ContextRDD {
     def apply[C <: AutoCloseable](
       sc: SparkContext,
       mkc: () => C
-    )(implicit tct: ClassTag[T]): ContextRDD[C, T] =
-      empty[C, T](sc, mkc)
+    )(implicit tct: ClassTag[T]
+    ): ContextRDD[C, T] = empty[C, T](sc, mkc)
   }
   private[this] object emptyInstance extends Empty[Nothing]
   def empty[T] = emptyInstance.asInstanceOf[Empty[T]]
@@ -60,13 +60,13 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def run: RDD[T] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
-  private[this] def inCtx[U: ClassTag](f: C => Iterator[U])
-      : Iterator[C => Iterator[U]] =
-    Iterator.single { (ctx: C) => f(ctx) }
+  private[this] def inCtx[U: ClassTag](
+    f: C => Iterator[U]
+  ): Iterator[C => Iterator[U]] = Iterator.single { (ctx: C) => f(ctx) }
 
-  private[this] def withoutContext[U: ClassTag](f: Iterator[T] => Iterator[U])
-      : ContextRDD[C, U] =
-    new ContextRDD(rdd.map(_.andThen(f)), mkc)
+  private[this] def withoutContext[U: ClassTag](
+    f: Iterator[T] => Iterator[U]
+  ): ContextRDD[C, U] = new ContextRDD(rdd.map(_.andThen(f)), mkc)
 
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
     withoutContext(_.map(f))
@@ -77,23 +77,26 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def flatMap[U: ClassTag](f: T => TraversableOnce[U]): ContextRDD[C, U] =
     withoutContext(_.flatMap(f))
 
-  def mapPartitions[U: ClassTag]
-    (f: Iterator[T] => Iterator[U], preservesPartitioning: Boolean = false)
-      : ContextRDD[C, U] =
+  def mapPartitions[U: ClassTag](
+    f: Iterator[T] => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] =
     cmapPartitions((_, part) => f(part), preservesPartitioning)
 
-  def mapPartitionsWithIndex[U: ClassTag](f: (Int, Iterator[T]) => Iterator[U])
-      : ContextRDD[C, U] =
-    cmapPartitionsWithIndex((i, _, part) => f(i, part))
+  def mapPartitionsWithIndex[U: ClassTag](
+    f: (Int, Iterator[T]) => Iterator[U]
+  ): ContextRDD[C, U] = cmapPartitionsWithIndex((i, _, part) => f(i, part))
 
-  def zipPartitions[U: ClassTag, V: ClassTag]
-    (that: ContextRDD[C, U], preservesPartitioning: Boolean = false)
-    (f: (Iterator[T], Iterator[U]) => Iterator[V])
-      : ContextRDD[C, V] =
+  def zipPartitions[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (Iterator[T], Iterator[U]) => Iterator[V]
+  ): ContextRDD[C, V] =
     czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
 
-  private[this] def withContext[U: ClassTag](f: (C, Iterator[T]) => Iterator[U])
-      : ContextRDD[C, U] =
+  private[this] def withContext[U: ClassTag](
+    f: (C, Iterator[T]) => Iterator[U]
+  ): ContextRDD[C, U] =
     new ContextRDD(rdd.map(useCtx => ctx => f(ctx, useCtx(ctx))), mkc)
 
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
@@ -105,30 +108,30 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def cflatMap[U: ClassTag](f: (C, T) => TraversableOnce[U]): ContextRDD[C, U] =
     withContext((c, it) => it.flatMap(f(c,_)))
 
-  def cmapPartitions[U: ClassTag]
-    (f: (C, Iterator[T]) => Iterator[U], preservesPartitioning: Boolean = false)
-      : ContextRDD[C, U] =
-    new ContextRDD(
-      rdd.mapPartitions(
-        part => inCtx(ctx => f(ctx, part.flatMap(_(ctx)))),
-        preservesPartitioning),
-      mkc)
+  def cmapPartitions[U: ClassTag](
+    f: (C, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] = new ContextRDD(
+    rdd.mapPartitions(
+      part => inCtx(ctx => f(ctx, part.flatMap(_(ctx)))),
+      preservesPartitioning),
+    mkc)
 
-  def cmapPartitionsWithIndex[U: ClassTag](f: (Int, C, Iterator[T]) => Iterator[U])
-      : ContextRDD[C, U] =
-    new ContextRDD(
-      rdd.mapPartitionsWithIndex(
-        (i, part) => inCtx(ctx => f(i, ctx, part.flatMap(_(ctx))))),
-      mkc)
+  def cmapPartitionsWithIndex[U: ClassTag](
+    f: (Int, C, Iterator[T]) => Iterator[U]
+  ): ContextRDD[C, U] = new ContextRDD(
+    rdd.mapPartitionsWithIndex(
+      (i, part) => inCtx(ctx => f(i, ctx, part.flatMap(_(ctx))))),
+    mkc)
 
-  def czipPartitions[U: ClassTag, V: ClassTag]
-    (that: ContextRDD[C, U], preservesPartitioning: Boolean = false)
-    (f: (C, Iterator[T], Iterator[U]) => Iterator[V])
-      : ContextRDD[C, V] =
-    new ContextRDD(
-      rdd.zipPartitions(that.rdd, preservesPartitioning)(
-        (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
-      mkc)
+  def czipPartitions[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (C, Iterator[T], Iterator[U]) => Iterator[V]
+  ): ContextRDD[C, V] = new ContextRDD(
+    rdd.zipPartitions(that.rdd, preservesPartitioning)(
+      (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
+    mkc)
 
   def subsetPartitions(keptPartitionIndices: Array[Int]): ContextRDD[C, T] =
     onRDD(_.subsetPartitions(keptPartitionIndices))
@@ -136,10 +139,12 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def reorderPartitions(oldIndices: Array[Int]): ContextRDD[C, T] =
     onRDD(_.reorderPartitions(oldIndices))
 
-  def adjustPartitions(adjustments: IndexedSeq[Array[Adjustment[T]]])
-      : ContextRDD[C, T] = {
-    def contextIgnorantPartitionFunction(f: Iterator[T] => Iterator[T])
-        : Iterator[C => Iterator[T]] => Iterator[C => Iterator[T]] =
+  def adjustPartitions(
+    adjustments: IndexedSeq[Array[Adjustment[T]]]
+  ): ContextRDD[C, T] = {
+    def contextIgnorantPartitionFunction(
+      f: Iterator[T] => Iterator[T]
+    ): Iterator[C => Iterator[T]] => Iterator[C => Iterator[T]] =
       it => inCtx(ctx => f(it.flatMap(useCtx => useCtx(ctx))))
     def contextIgnorantAdjustment(a: Adjustment[T]): Adjustment[C => Iterator[T]] =
       new Adjustment(a.index, contextIgnorantPartitionFunction(a.f))
@@ -148,6 +153,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
   }
 
-  private[this] def onRDD(f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]): ContextRDD[C, T] =
-    new ContextRDD(f(rdd), mkc)
+  private[this] def onRDD(
+    f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
+  ): ContextRDD[C, T] = new ContextRDD(f(rdd), mkc)
 }
