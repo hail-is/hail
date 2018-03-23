@@ -11,6 +11,7 @@ import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.commons.lang3.StringUtils
@@ -118,13 +119,70 @@ object Table {
     Table(hc, rdd, typ, Array("id"))
   }
 
-  def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: IndexedSeq[String] = Array.empty[String],
-    globalSignature: TStruct = TStruct.empty(), globals: Annotation = Annotation.empty): Table = {
-    val rdd2 = rdd.mapPartitions(_.toRegionValueIterator(signature))
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct
+  ): Table = apply(hc, rdd, signature, Array.empty[String])
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: IndexedSeq[String]
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty())
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct
+  ): Table = apply(hc, rdd, signature, key, globalSignature, Annotation.empty)
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Annotation
+  ): Table = apply(
+    hc,
+    ContextRDD.weaken(rdd, RVDContext.default _),
+    signature,
+    key,
+    globalSignature,
+    globals)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: TStruct,
+    key: IndexedSeq[String]
+  ): Table = apply(hc, crdd, signature, key, TStruct.empty())
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct
+  ): Table = apply(hc, crdd, signature, key, globalSignature, Annotation.empty)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Annotation
+  ): Table = {
+    val crdd2 = crdd.mapPartitions(_.toRegionValueIterator(signature))
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
         BroadcastValue(globals, globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, rdd2))
+        new UnpartitionedRVD(signature, crdd2))
     ))
   }
 
@@ -150,23 +208,60 @@ object Table {
 }
 
 class Table(val hc: HailContext, val tir: TableIR) {
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Row
+  ) = this(hc,
+    TableLiteral(
+      TableValue(
+        TableType(signature, key, globalSignature),
+        BroadcastValue(globals, globalSignature, hc.sc),
+        new UnpartitionedRVD(signature, crdd))))
 
-  def this(hc: HailContext,
+  def this(
+    hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String] = Array.empty[String],
-    globalSignature: TStruct = TStruct.empty(),
-    globals: Row = Row.empty) = {
-    this(hc, TableLiteral(
-      TableValue(TableType(signature, key, globalSignature), BroadcastValue(globals, globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, rdd))
-    ))
-  }
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Row
+  ) = this(
+    hc,
+    ContextRDD.weaken(rdd, RVDContext.default _),
+    signature,
+    key,
+    globalSignature,
+    globals)
+
+  def this(
+    hc: HailContext,
+    rdd: RDD[RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct
+  ) = this(hc, rdd, signature, key, globalSignature, Row.empty)
 
   lazy val value: TableValue = {
     val opt = TableIR.optimize(tir)
     opt.execute(hc)
   }
+
+  def this(
+    hc: HailContext,
+    rdd: RDD[RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String]
+  ) = this(hc, rdd, signature, key, TStruct.empty())
+
+  def this(
+    hc: HailContext,
+    rdd: RDD[RegionValue],
+    signature: TStruct
+  ) = this(hc, rdd, signature, Array.empty[String])
 
   lazy val TableValue(ktType, globals, rvd) = value
 

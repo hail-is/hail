@@ -9,6 +9,10 @@ import org.apache.spark.util.Utils
 import scala.reflect.ClassTag
 
 object ContextRDD {
+  def apply[C <: AutoCloseable : Pointed, T: ClassTag](
+    rdd: RDD[C => Iterator[T]]
+  ): ContextRDD[C, T] = new ContextRDD(rdd, point[C])
+
   def empty[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
     mkc: () => C
@@ -63,9 +67,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   val rdd: RDD[C => Iterator[T]],
   val mkc: () => C
 ) extends Serializable {
-  import ContextRDD._
+  type ElementType = ContextRDD.ElementType[C, T]
 
-  def run[U >: T: ClassTag]: RDD[U] =
+  def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
   private[this] def inCtx[U: ClassTag](
@@ -203,6 +207,23 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     reduced.reduce(combOpV)
   }
 
+  def treeReduce(f: (T, T) => T, depth: Int = 2): T = {
+    val seqOp: (Option[T], T) => Option[T] = {
+      case (Some(l), r) => Some(f(l, r))
+      case (None, r) => Some(r)
+    }
+
+    val combOp: (Option[T], Option[T]) => Option[T] = {
+      case (Some(l), Some(r)) => Some(f(l, r))
+      case (l: Some[_], None) => l
+      case (None, r: Some[_]) => r
+      case (None, None) => None
+    }
+
+    treeAggregate(() => Option.empty, seqOp, combOp, depth)
+      .getOrElse(throw new RuntimeException("nothing in the RDD!"))
+  }
+
   private[this] def withContext[U: ClassTag](
     f: (C, Iterator[T]) => Iterator[U]
   ): ContextRDD[C, U] =
@@ -289,6 +310,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def getNumPartitions: Int = rdd.getNumPartitions
 
   def partitions: Array[Partition] = rdd.partitions
+
+  def iterator(p: Partition, c: TaskContext): Iterator[ElementType] =
+    rdd.iterator(p, c)
 
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]

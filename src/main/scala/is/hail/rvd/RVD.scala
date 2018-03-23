@@ -9,7 +9,7 @@ import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
 import org.apache.spark.{Partition, SparkContext}
-import org.apache.spark.rdd.{AggregateWithContext, RDD}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{CustomSerializer, DefaultFormats, Formats, JValue, ShortTypeHints}
@@ -166,11 +166,6 @@ trait RVD {
     depth: Int = 2): U =
     // FIXME: 1) need real copyable zeroValue
     crdd.treeAggregate(() => zeroValue, seqOp, combOp, depth)
-
-  def aggregateWithContext[U: ClassTag, V](context: () => V)(zeroValue: U)
-    (seqOp: (V, U, RegionValue) => U, combOp: (U, U) => U): U = {
-    AggregateWithContext.aggregateWithContext(rdd)(context)(zeroValue)(seqOp, combOp)
-  }
 
   def count(): Long = rdd.count()
 

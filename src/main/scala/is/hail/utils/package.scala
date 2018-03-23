@@ -570,7 +570,6 @@ package object utils extends Logging
   def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift
   def optMatch[T, S](a: T)(pf : PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
-
   def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
     try {
       consume(r)

@@ -98,7 +98,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner)))
+      crdd = ContextRDD(RepartitionedOrderedRDD(this, newPartitioner)))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -120,7 +120,7 @@ class OrderedRVD(
   ): OrderedRVD =
     keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
 
-  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] =
+  def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
     keyBy().orderedZipJoin(right.keyBy())
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
@@ -494,6 +494,18 @@ object OrderedRVD {
     typ: OrderedRVDType,
     rvd: RVD
   ): OrderedRVD = coerce(typ, rvd, None, None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    rvd: RVD,
+    fastKeys: RDD[RegionValue]
+  ): OrderedRVD = coerce(typ, rvd, Some(fastKeys), None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    rvd: RVD,
+    hintPartitioner: OrderedRVDPartitioner
+  ): OrderedRVD = coerce(typ, rvd, None, Some(hintPartitioner))
 
   def coerce(
     typ: OrderedRVDType,
