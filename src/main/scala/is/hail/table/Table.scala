@@ -433,8 +433,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     ast.toIR() match {
       case Some(ir) =>
+        println("Table.select using IR")
         new Table(hc, TableMapRows(tir, ir))
       case None =>
+        println("Table.select using AST")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast
