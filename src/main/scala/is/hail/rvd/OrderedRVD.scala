@@ -23,21 +23,6 @@ class OrderedRVD(
   self =>
   def rowType: TStruct = typ.rowType
 
-  // should be totally generic, permitting any number of keys, but that requires more work
-  def downcastToPK(): OrderedRVD = {
-    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
-      key = typ.partitionKey,
-      rowType = rowType)
-    OrderedRVD(newType, partitioner, rdd)
-  }
-
-  def upcast(castKeys: Array[String]): OrderedRVD = {
-    val newType = new OrderedRVDType(partitionKey = typ.partitionKey,
-      key = typ.key ++ castKeys,
-      rowType = rowType)
-    OrderedRVD(newType, partitioner, rdd)
-  }
-
   def updateType(newTyp: OrderedRVDType): OrderedRVD =
     OrderedRVD(newTyp, partitioner, rdd)
 
