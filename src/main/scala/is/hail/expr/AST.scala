@@ -877,42 +877,44 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   } yield ir.If(condition, consequent, alternate, `type`)
 }
 
-// PrettyAST(ast).toString() gives a pretty-print of an AST tree
+// PrettyAST(ast) gives a pretty-print of an AST tree
 
-case class PrettyAST(rootAST: AST) {
-  val sb = new StringBuilder()
-  putDeepAST(rootAST, 0)
-  
-  def astToName(ast: AST): String = {
+object  PrettyAST {
+  def apply(rootAST: AST): String = {
+    val sb = new StringBuilder()
+
+    def putDeepAST(ast: AST, depth: Int) {
+      sb.append("  " * depth)
+      val children = ast.subexprs
+      sb.append(astToName(ast))
+      if (children.length > 0) {
+        sb.append("(\n")
+        children.foreach(putDeepAST(_, depth+1))
+        sb.append("  " * depth)
+        sb.append(")")
+      }
+      if (depth > 0) sb.append("\n")
+    }
+
+    putDeepAST(rootAST, 0)
+    sb.toString()
+  }
+
+  private def astToName(ast: AST): String = {
     ast match {
-      case Apply(_,fn,_) => s"Apply[${fn}]"
-      case ApplyMethod(_,_,method,_) => s"ApplyMethod[${method}]"
-      case ArrayConstructor(_,_) => "ArrayConstructor"
-      case Const(_,value,_) => s"Const[${value.toString()}]"
-      case If(_,_,_,_) => "If"
-      case Lambda(_,param,_) => s"Lambda[${param}]"
-      case Let(_,_,_) => "Let"
-      case Select(_,_,rhs) => s"Select[${rhs}]"
-      case StructConstructor(_,_,_) => "StructConstructor"
-      case SymRef(_,symbol) => s"SymRef[${symbol}]"
-      case TupleConstructor(_,_) => "TupleConstructor"
+      case Apply(_, fn, _) => s"Apply[${fn}]"
+      case ApplyMethod(_, _, method, _) => s"ApplyMethod[${method}]"
+      case ArrayConstructor(_, _) => "ArrayConstructor"
+      case Const(_, value, _) => s"Const[${value.toString()}]"
+      case If(_, _, _, _) => "If"
+      case Lambda(_, param, _) => s"Lambda[${param}]"
+      case Let(_, _, _) => "Let"
+      case Select(_, _, rhs) => s"Select[${rhs}]"
+      case StructConstructor(_, _, _) => "StructConstructor"
+      case SymRef(_, symbol) => s"SymRef[${symbol}]"
+      case TupleConstructor(_, _) => "TupleConstructor"
       case _ => "UnknownAST"
     }
   }
- 
-  def putDeepAST(ast: AST, depth: Int) {
-    sb.append("  " * depth)
-    val sub = ast.subexprs
-    sb.append(astToName(ast))
-    if (sub.length > 0) {
-      sb.append("(\n")
-      for (oneSub <- sub) putDeepAST(oneSub, depth+1)
-      sb.append("  " * depth)
-      sb.append(")")
-    }
-    if (depth > 0) sb.append("\n")
-  }
-  
-  override def toString(): String = sb.toString()
 }
 

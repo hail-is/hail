@@ -1646,7 +1646,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     filterAST.typecheck(matrixType.colEC)
     var pred = filterAST.toIR()
     pred match {
-      case Some(irPred) if (ContainsAgg(irPred)) =>
+      case Some(irPred) if ContainsAgg(irPred) =>
         // FIXME: the IR path doesn't yet support aggs
         info("filterCols: predicate contains aggs - not yet supported in IR")
         pred = None
@@ -1678,7 +1678,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     filterAST.typecheck(matrixType.rowEC)
     var pred = filterAST.toIR()
     pred match {
-      case Some(irPred) if (ContainsAgg(irPred)) =>
+      case Some(irPred) if ContainsAgg(irPred) =>
         // FIXME: the IR path doesn't yet support aggs
         info("filterRows: predicate contains aggs - not yet supported in IR")
         pred = None
