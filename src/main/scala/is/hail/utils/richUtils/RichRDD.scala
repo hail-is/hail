@@ -205,19 +205,15 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     
     val remapBc = sc.broadcast(remap)
 
-    val partFiles = Array.tabulate[String](nPartitions) { i =>
-      val is = i.toString
-      assert(is.length <= d)
-      "part-" + StringUtils.leftPad(is, d, "0")
-    }
-
-    val partitionCounts = r.mapPartitionsWithIndex { case (index, it) =>
+    val (partFiles, partitionCounts) = r.mapPartitionsWithIndex { case (index, it) =>
       val i = remapBc.value(index)
-      val filename = path + "/parts/" + partFile(d, i)
+      val f = partFile(d, i, TaskContext.get)
+      val filename = path + "/parts/" + f
       val os = sHadoopConfBc.value.value.unsafeWriter(filename)
-      Iterator.single(write(i, it, os))
+      Iterator.single(f -> write(i, it, os))
     }
       .collect()
+      .unzip
         
     val itemCount = partitionCounts.sum
     assert(nPartitionsToWrite == partitionCounts.length)

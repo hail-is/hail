@@ -100,20 +100,23 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
+  def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
+    hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
+      implicit val formats = defaultJSONFormats
+      jackson.Serialization.read[BlockMatrixMetadata](isr)
+    }
+  }
+
   /**
     * Reads a BlockMatrix matrix written by {@code write} at location {@code uri}.
     **/
   def read(hc: HailContext, uri: String): M = {
-    val hadoop = hc.hadoopConf
+    val hadoopConf = hc.hadoopConf
 
-    if (!hadoop.exists(uri + "/_SUCCESS"))
+    if (!hadoopConf.exists(uri + "/_SUCCESS"))
       fatal("Write failed: no success indicator found")
 
-    val BlockMatrixMetadata(blockSize, nRows, nCols) =
-      hadoop.readTextFile(uri + metadataRelativePath) { isr =>
-        implicit val formats = defaultJSONFormats
-        jackson.Serialization.read[BlockMatrixMetadata](isr)
-      }
+    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) = readMetadata(hc, uri)
 
     val gp = GridPartitioner(blockSize, nRows, nCols)
 
@@ -123,10 +126,6 @@ object BlockMatrix {
 
       Iterator.single(gp.blockCoordinates(i), bdm)
     }
-
-    val nPartitions = gp.numPartitions
-    val d = digitsNeeded(nPartitions)
-    val partFiles = Array.tabulate[String](nPartitions) { i => partFile(d, i) }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
@@ -214,7 +213,7 @@ object BlockMatrix {
 }
 
 // must be top-level for Jackson to serialize correctly
-case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long)
+case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long, partFiles: Array[String])
 
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
@@ -223,7 +222,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   import BlockMatrix._
 
-  private[linalg] val st: String = Thread.currentThread().getStackTrace().mkString("\n")
+  private[linalg] val st: String = Thread.currentThread().getStackTrace.mkString("\n")
 
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
@@ -328,18 +327,18 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
-      implicit val formats = defaultJSONFormats
-      jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols),
-        os)
-    }
-
-    optKeep match {
+    val (partFiles, _) = optKeep match {
       case Some(keep) =>
         blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, Some(keep, partitioner.numPartitions))
       case None =>
         blocks.writePartitions(uri, writeBlock)
+    }
+
+    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
+      implicit val formats = defaultJSONFormats
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, nRows, nCols, partFiles),
+        os)
     }
 
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
@@ -1047,7 +1046,7 @@ class WriteBlocksRDD(path: String,
   matrixType: MatrixType,
   parentPartStarts: Array[Long],
   entryField: String,
-  gp: GridPartitioner) extends RDD[Int](sc, Nil) {
+  gp: GridPartitioner) extends RDD[(Int, String)](sc, Nil) {
 
   require(gp.nRows == parentPartStarts.last)
 
@@ -1099,15 +1098,17 @@ class WriteBlocksRDD(path: String,
     parts
   }
 
-  def compute(split: Partition, context: TaskContext): Iterator[Int] = {
+  def compute(split: Partition, context: TaskContext): Iterator[(Int, String)] = {
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
+    val ctx = TaskContext.get
 
-    val outPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
+    val (blockPartFiles, outPerBlockCol) = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val i = gp.coordinatesBlock(blockRow, blockCol)
-      val filename = path + "/parts/" + partFile(d, i)
+      val f = partFile(d, i, ctx)
+      val filename = path + "/parts/" + f
 
       val os = sHadoopBc.value.value.unsafeWriter(filename)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
@@ -1116,8 +1117,9 @@ class WriteBlocksRDD(path: String,
       out.writeInt(nColsInBlock)
       out.writeBoolean(true) // transposed, stored row major
 
-      out
+      ((i, f), out)
     }
+      .unzip
 
     val rvRowType = matrixType.rvRowType
     val entryArrayType = matrixType.entryArrayType
@@ -1182,6 +1184,6 @@ class WriteBlocksRDD(path: String,
 
     outPerBlockCol.foreach(_.close())
 
-    Iterator.single(gp.nBlockCols) // number of blocks written
+    blockPartFiles.iterator
   }
 }

@@ -11,6 +11,8 @@ import org.json4s.{Extraction, JValue}
 import org.json4s.jackson.JsonMethods
 import java.io.{Closeable, InputStream, OutputStream}
 
+import org.apache.spark.TaskContext
+
 trait BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
 
@@ -744,8 +746,6 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val nPartitions = rdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
-    val partFiles = Array.tabulate[String](nPartitions) { i => partFile(d, i) }
-
     val fullRowType = t.rvRowType
     val rowsRVType = t.rowType
     val localEntriesIndex = t.entriesIdx
@@ -753,10 +753,10 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val entriesRVType = TStruct(
       MatrixType.entriesIdentifier -> TArray(t.entryType))
 
-    val partitionCounts = rdd.mapPartitionsWithIndex { case (i, it) =>
+    val partFilePartitionCounts = rdd.mapPartitionsWithIndex { case (i, it) =>
       val hConf = sHConfBc.value.value
 
-      val f = partFile(d, i)
+      val f = partFile(d, i, TaskContext.get)
 
       val rowsPartPath = path + "/rows/rows/parts/" + f
       hConf.writeFile(rowsPartPath) { rowsOS =>
@@ -797,13 +797,15 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
               rowsEN.writeByte(0) // end
               entriesEN.writeByte(0)
 
-              Iterator.single(rowCount)
+              Iterator.single(f -> rowCount)
             }
           }
         }
       }
     }
       .collect()
+
+    val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
     val rowsSpec = OrderedRVDSpec(t.rowORVDType,
       codecSpec,
