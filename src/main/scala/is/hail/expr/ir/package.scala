@@ -38,6 +38,16 @@ package object ir {
     })
   }
 
+  // Build consistent expression for a filter-condition with keep polarity,
+  // using Let to manage missing-ness.
+  def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean, letName: String): ir.IR = {
+    ir.Let(letName,
+      if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
+      ir.If(ir.IsNA(ir.Ref(letName)),
+        ir.False(),
+        ir.Ref(letName)))
+  }
+
   private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)
 
   private[ir] def coerce[T](lr: LocalRef[_]): LocalRef[T] = lr.asInstanceOf[LocalRef[T]]

@@ -213,7 +213,7 @@ object AST extends Positional {
 
 case class Positioned[T](x: T) extends Positional
 
-sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
+sealed abstract class AST(pos: Position, val subexprs: Array[AST] = Array.empty) {
   var `type`: Type = _
 
   def getPos: Position = pos
@@ -883,3 +883,45 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     alternate <- elseTree.toIR(agg)
   } yield ir.If(condition, consequent, alternate, `type`)
 }
+
+// PrettyAST(ast) gives a pretty-print of an AST tree
+
+object  PrettyAST {
+  def apply(rootAST: AST): String = {
+    val sb = new StringBuilder()
+
+    def putDeepAST(ast: AST, depth: Int) {
+      sb.append("  " * depth)
+      val children = ast.subexprs
+      sb.append(astToName(ast))
+      if (children.length > 0) {
+        sb.append("(\n")
+        children.foreach(putDeepAST(_, depth+1))
+        sb.append("  " * depth)
+        sb.append(")")
+      }
+      if (depth > 0) sb.append("\n")
+    }
+
+    putDeepAST(rootAST, 0)
+    sb.toString()
+  }
+
+  private def astToName(ast: AST): String = {
+    ast match {
+      case Apply(_, fn, _) => s"Apply[${fn}]"
+      case ApplyMethod(_, _, method, _) => s"ApplyMethod[${method}]"
+      case ArrayConstructor(_, _) => "ArrayConstructor"
+      case Const(_, value, _) => s"Const[${value.toString()}]"
+      case If(_, _, _, _) => "If"
+      case Lambda(_, param, _) => s"Lambda[${param}]"
+      case Let(_, _, _) => "Let"
+      case Select(_, _, rhs) => s"Select[${rhs}]"
+      case StructConstructor(_, _, _) => "StructConstructor"
+      case SymRef(_, symbol) => s"SymRef[${symbol}]"
+      case TupleConstructor(_, _) => "TupleConstructor"
+      case _ => "UnknownAST"
+    }
+  }
+}
+

@@ -5,6 +5,7 @@ import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
 import is.hail.expr.ir
+import is.hail.expr.ir.ContainsAgg
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
@@ -1495,9 +1496,26 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
-    if (!keep)
-      filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    copyAST(ast = FilterCols(ast, filterAST))
+    filterAST.typecheck(matrixType.colEC)
+    var pred = filterAST.toIR()
+    pred match {
+      case Some(irPred) if ContainsAgg(irPred) =>
+        // FIXME: the IR path doesn't yet support aggs
+        info("filterCols: predicate contains aggs - not yet supported in IR")
+        pred = None
+      case _ =>
+    }
+    pred match {
+      case Some(irPred) =>
+        new MatrixTable(hc,
+          FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterCols_pred"))
+        )
+      case None =>
+        info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        if (!keep)
+          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+        copyAST(ast = FilterCols(ast, filterAST))
+    }
   }
 
   def filterColsList(samples: java.util.ArrayList[Annotation], keep: Boolean): MatrixTable =
@@ -1510,9 +1528,26 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
-    if (!keep)
-      filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-    copyAST(ast = FilterRows(ast, filterAST))
+    filterAST.typecheck(matrixType.rowEC)
+    var pred = filterAST.toIR()
+    pred match {
+      case Some(irPred) if ContainsAgg(irPred) =>
+        // FIXME: the IR path doesn't yet support aggs
+        info("filterRows: predicate contains aggs - not yet supported in IR")
+        pred = None
+      case _ =>
+    }
+    pred match {
+      case Some(irPred) =>
+        new MatrixTable(hc,
+          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
+        )
+      case _ =>
+        info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        if (!keep)
+          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+        copyAST(ast = FilterRows(ast, filterAST))
+    }
   }
 
   def sparkContext: SparkContext = hc.sc
