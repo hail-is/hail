@@ -382,7 +382,6 @@ case class FilterColsIR(
 
     val localGlobals = prev.globals.broadcast
     val localColType = typ.colType
-    val ec = typ.colEC
     
     //
     // Initialize a region containing the globals
@@ -399,9 +398,7 @@ case class FilterColsIR(
       "sa",     typ.colType,
       pred
     )
-    // We don't yet support IR aggregators
-    assert(ec.aggregations.isEmpty)
-
+    // Note that we don't yet support IR aggregators
     val p = (sa: Annotation, i: Int) => {
       colRegion.clear(globalRVend)
       val colRVb = new RegionValueBuilder(colRegion)
@@ -475,19 +472,13 @@ case class FilterRowsIR(
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val ec = prev.typ.rowEC
-
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "va",     typ.rvRowType,
       "global", typ.globalType,
       pred
     )
 
-    // We don't yet support IR aggregators
-    assert(ec.aggregations.isEmpty)
-
-    val aggregatorOption = Aggregators.buildRowAggregations(
-      prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
+    // Note that we don't yet support IR aggregators
     //
     // Everything used inside the Spark iteration must be serializable,
     // so we pick out precisely what is needed.
