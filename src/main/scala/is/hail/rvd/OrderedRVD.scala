@@ -456,7 +456,7 @@ object OrderedRVD {
     rdd: RDD[RegionValue]
   ): RDD[RegionValue] = getKeys(
     typ,
-    ContextRDD.weaken[RVDContext](rdd, RVDContext.default _)).run
+    ContextRDD.weaken(rdd, RVDContext.default _)).run
 
   def getPartitionKeyInfo(
     typ: OrderedRVDType,
