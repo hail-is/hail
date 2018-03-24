@@ -109,7 +109,7 @@ class OrderedRVDPartitioner(
     val newEnd = pkType.ordering.max(range.end, Annotation.copy(pkType, newRange.end))
     val newRangeBounds =
       rangeBounds match {
-        case IndexedSeq(x) => IndexedSeq(x.copy(newStart, newEnd, true, true))
+        case IndexedSeq(x) => IndexedSeq(Interval(newStart, newEnd, true, true))
         case IndexedSeq(x1, x2) =>
           IndexedSeq(x1.copy(start = newStart, includesStart = true),
             x2.copy(end = newEnd, includesEnd = true))
