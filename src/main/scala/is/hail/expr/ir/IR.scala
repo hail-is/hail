@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.expr.BaseIR
-import is.hail.expr.ir.functions.IRFunction
+import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -51,7 +51,6 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = n
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
-final case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray = TArray(elementType) }
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 final case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean() }
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
@@ -84,4 +83,5 @@ final case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
 
-final case class Apply(function: String, args: Seq[IR], var implementation: IRFunction = null) extends IR { def typ = implementation.returnType }
+final case class Apply(function: String, args: Seq[IR], var implementation: IRFunctionWithoutMissingness = null) extends IR { def typ = implementation.returnType }
+final case class ApplySpecial(function: String, args: Seq[IR], var implementation: IRFunctionWithMissingness = null) extends IR { def typ = implementation.returnType }

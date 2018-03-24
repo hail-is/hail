@@ -43,9 +43,6 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == children.length)
         MakeArray(children, typ)
-      case MakeArrayN(_, elementType) =>
-        val IndexedSeq(len) = children
-        MakeArrayN(len, elementType)
       case ArrayRef(_, _, typ) =>
         val IndexedSeq(a, i) = children
         ArrayRef(a, i, typ)
@@ -109,6 +106,8 @@ object Copy {
         same
       case Apply(fn, args, impl) =>
         Apply(fn, children, impl)
+      case ApplySpecial(fn, args, impl) =>
+        ApplySpecial(fn, children, impl)
     }
   }
 }

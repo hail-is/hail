@@ -1,5 +1,6 @@
 package is.hail.expr.ir.functions
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -58,7 +59,11 @@ object IRFunctionRegistry {
     }
 
     val validMethods = validIR ++ lookupFunction(name, args).map { f =>
-      { args: Seq[IR] => Apply(name, args, f) }
+      { args: Seq[IR] =>
+        f match {
+          case irf: IRFunctionWithoutMissingness => Apply(name, args, irf)
+          case irf: IRFunctionWithMissingness => ApplySpecial(name, args, irf)
+        } }
     }
 
     validMethods match {
@@ -93,7 +98,7 @@ abstract class RegistryFunctions {
     tv(name, _.isInstanceOf[TNumeric])
 
   def registerCode(mname: String, aTypes: Array[Type], rType: Type)(impl: (MethodBuilder, Array[Code[_]]) => Code[_]) {
-    IRFunctionRegistry.addIRFunction(new IRFunction {
+    IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
       override val name: String = mname
 
       override val argTypes: Seq[Type] = aTypes
@@ -101,6 +106,18 @@ abstract class RegistryFunctions {
       override val returnType: Type = rType
 
       override def apply(mb: MethodBuilder, args: Code[_]*): Code[_] = impl(mb, args.toArray)
+    })
+  }
+
+  def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (MethodBuilder, Array[EmitTriplet]) => EmitTriplet) {
+    IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
+      override val name: String = mname
+
+      override val argTypes: Seq[Type] = aTypes
+
+      override val returnType: Type = rType
+
+      override def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet = impl(mb, args.toArray)
     })
   }
 
@@ -141,6 +158,15 @@ abstract class RegistryFunctions {
     (impl: (MethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2, mt3), rt) { case (mb, Array(a1, a2, a3)) => impl(mb, coerce[T1](a1), coerce[T2](a2), coerce[T3](a3)) }
 
+  def registerCodeWithMissingness(mname: String, rt: Type)(impl: MethodBuilder => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array[Type](), rt) { case (mb, Array()) => impl(mb) }
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type)(impl: (MethodBuilder, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1), rt) { case (mb, Array(a1)) => impl(mb, a1) }
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (MethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1, mt2), rt) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
+
   def registerIR(mname: String)(f: () => IR): Unit =
     registerIR(mname, Array[Type]()) { case Seq() => f() }
 
@@ -154,15 +180,58 @@ abstract class RegistryFunctions {
     registerIR(mname, Array(mt1, mt2, mt3)) { case Seq(a1, a2, a3) => f(a1, a2, a3) }
 }
 
-abstract class IRFunction {
+sealed abstract class IRFunction {
+  def name: String
+
+  def argTypes: Seq[Type]
+
+  def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet
+
+  def getAsMethod(fb: FunctionBuilder[_], args: Type*): MethodBuilder = ???
+
+  def returnType: Type
+
+  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+
+}
+
+abstract class IRFunctionWithoutMissingness extends IRFunction {
   def name: String
 
   def argTypes: Seq[Type]
 
   def apply(mb: MethodBuilder, args: Code[_]*): Code[_]
 
+  def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet = {
+    val setup = args.map(_.setup)
+    val missing = args.map(_.m).reduce(_ || _)
+    val value = apply(mb, args.map(_.v): _*)
+
+    EmitTriplet(setup, missing, value)
+  }
+
+  override def getAsMethod(fb: FunctionBuilder[_], args: Type*): MethodBuilder = {
+    argTypes.foreach(_.clear())
+    (argTypes, args).zipped.foreach(_.unify(_))
+    val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
+    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType))
+    methodbuilder.emit(apply(methodbuilder, ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
+    methodbuilder
+  }
+
   def returnType: Type
 
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+}
 
+abstract class IRFunctionWithMissingness extends IRFunction {
+  def name: String
+
+  def argTypes: Seq[Type]
+
+  def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet
+
+  def returnType: Type
+
+  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 }

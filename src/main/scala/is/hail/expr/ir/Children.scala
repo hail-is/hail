@@ -30,8 +30,6 @@ object Children {
       Array(x)
     case MakeArray(args, typ) =>
       args.toIndexedSeq
-    case MakeArrayN(len, elementType) =>
-      Array(len)
     case ArrayRef(a, i, typ) =>
       Array(a, i)
     case ArrayMissingnessRef(a, i) =>
@@ -77,6 +75,8 @@ object Children {
     case Die(message) =>
       none
     case Apply(_, args, _) =>
+      args.toIndexedSeq
+    case ApplySpecial(_, args, _) =>
       args.toIndexedSeq
   }
 }

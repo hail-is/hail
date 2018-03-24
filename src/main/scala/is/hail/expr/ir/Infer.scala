@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.expr.types._
 
 object Infer {
@@ -59,10 +59,6 @@ object Infer {
           args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x.isOfType(t), s"at position $i type mismatch: $t $x") }
           x.typ = TArray(t)
         }
-      case MakeArrayN(len, typ) =>
-        infer(len)
-        assert(len.typ.isOfType(TInt32()))
-        assert(typ != null)
       case x@ArrayRef(a, i, _) =>
         infer(a)
         infer(i)
@@ -178,7 +174,12 @@ object Infer {
       case x@Apply(fn, args, impl) =>
         args.foreach(infer(_))
         if (impl == null)
-          x.implementation = IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get
+          x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithoutMissingness]
+        assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
+      case x@ApplySpecial(fn, args, impl) =>
+        args.foreach(infer(_))
+        if (impl == null)
+          x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithMissingness]
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
     }
   }

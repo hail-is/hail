@@ -52,11 +52,11 @@ object ExtractAggregators {
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
     case x@ApplyAggOp(a, op, args, typ) =>
       val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
-      val (doargs, margs, vargs) = args.map(Emit.toCode(_, constfb, 1)).unzip3
+      val codeArgs = args.map(Emit.toCode(_, constfb, 1))
       constfb.emit(Code(
-        Code(doargs:_*),
+        Code(codeArgs.map(_.setup):_*),
         AggOp.get(op, x.inputType, args.map(_.typ))
-          .stagedNew(vargs.toArray, margs.toArray)))
+          .stagedNew(codeArgs.map(_.v).toArray, codeArgs.map(_.m).toArray)))
       constfb.result()()(Region())
   }
 }
