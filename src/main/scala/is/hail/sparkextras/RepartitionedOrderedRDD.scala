@@ -8,8 +8,6 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-// FIXME(DK): Gotta update this for contextrdd
-
 /**
   * Repartition prev to comply with newPartitioner, using narrow dependencies.
   * Assumes new key type is a prefix of old key type, so no reordering is
@@ -31,7 +29,7 @@ class RepartitionedOrderedRDD(
   typ: OrderedRVDType,
   oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
   newPartitionerBc: Broadcast[OrderedRVDPartitioner]
-) extends RDD[RVDContext => Iterator[RegionValue]](prev.sparkContext, Nil) { // Nil since we implement getDependencies
+) extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.sparkContext, Nil) { // Nil since we implement getDependencies
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
@@ -66,11 +64,11 @@ class RepartitionedOrderedRDD(
   override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
 }
 
-class OrderedDependency(
+class OrderedDependency[T](
   oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
   newPartitionerBc: Broadcast[OrderedRVDPartitioner],
-  rdd: RDD[RVDContext => Iterator[RegionValue]]
-) extends NarrowDependency[RVDContext => Iterator[RegionValue]](rdd) {
+  rdd: RDD[T]
+) extends NarrowDependency[T](rdd) {
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
