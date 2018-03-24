@@ -5,7 +5,10 @@ import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 
 case class BroadcastValue(value: Annotation, t: Type, sc: SparkContext) {
-  lazy val broadcast: Broadcast[Annotation] = sc.broadcast(value)
+
+  lazy val safeValue: Annotation = Annotation.copy(t, value)
+
+  lazy val broadcast: Broadcast[Annotation] = sc.broadcast(safeValue)
 
   lazy val regionValue: RegionValue = {
     val rv = RegionValue(Region())

@@ -261,10 +261,10 @@ class OrderedRVD(
     val newNParts = newRDD.getNumPartitions
     assert(newNParts > 0)
 
-    val newRangeBounds = (0 until newNParts).map(partitioner.rangeBounds)
+    val newRangeBounds = Array.range(0, newNParts).map(partitioner.rangeBounds)
     val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
       partitioner.kType,
-      UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+      newRangeBounds)
 
     OrderedRVD(typ, newPartitioner, newRDD)
   }
@@ -330,14 +330,14 @@ class OrderedRVD(
       if (i == 0)
         partitioner.rangeBounds(keep(i))
       else {
-        partitioner.rangeBounds(keep(i)).asInstanceOf[Interval]
-          .copy(start = partitioner.rangeBounds(keep(i - 1)).asInstanceOf[Interval].end)
+        partitioner.rangeBounds(keep(i))
+          .copy(start = partitioner.rangeBounds(keep(i - 1)).end)
       }
     }
     val newPartitioner = new OrderedRVDPartitioner(
       partitioner.partitionKey,
       partitioner.kType,
-      UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+      newRangeBounds)
 
     OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
   }
@@ -559,7 +559,7 @@ object OrderedRVD {
     }
   }
 
-  def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
+  def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): Array[Interval] = {
     assert(nPartitions > 0)
 
     val pkOrd = typ.pkOrd
@@ -648,7 +648,7 @@ object OrderedRVD {
 
   def rangesAndAdjustments(typ: OrderedRVDType,
     sortedKeyInfo: Array[OrderedRVPartitionInfo],
-    sortedness: Int): (IndexedSeq[Array[Adjustment[RegionValue]]], UnsafeIndexedSeq, Int) = {
+    sortedness: Int): (IndexedSeq[Array[Adjustment[RegionValue]]], Array[Interval], Int) = {
 
     val partitionBounds = new ArrayBuilder[RegionValue]()
     val adjustmentsBuffer = new mutable.ArrayBuffer[Array[Adjustment[RegionValue]]]

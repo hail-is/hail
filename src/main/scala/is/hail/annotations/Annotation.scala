@@ -4,6 +4,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils.{ArrayBuilder, Interval}
 import is.hail.variant._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object Annotation {
@@ -161,18 +162,22 @@ object Annotation {
 
     t match {
       case t: TBaseStruct =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(t)
-        rvb.addAnnotation(t, a)
-        new UnsafeRow(t, region, rvb.end())
+        val r = a.asInstanceOf[Row]
+        Row(Array.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))): _*)
 
-      case t: TContainer =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(t)
-        rvb.addAnnotation(t, a)
-        new UnsafeIndexedSeq(t, region, rvb.end())
+      case t: TArray =>
+        a.asInstanceOf[IndexedSeq[Annotation]].map(Annotation.copy(t.elementType, _))
+
+      case t: TSet =>
+        a.asInstanceOf[Set[Annotation]].map(Annotation.copy(t.elementType, _))
+
+      case t: TDict =>
+        a.asInstanceOf[Map[Annotation, Annotation]]
+          .map { case (k, v) => (Annotation.copy(t.keyType, k), Annotation.copy(t.valueType, v)) }
+
+      case t: TInterval =>
+        val i = a.asInstanceOf[Interval]
+        i.copy(start = Annotation.copy(t.pointType, i.start), end = Annotation.copy(t.pointType, i.end))
 
       case _ => a
     }

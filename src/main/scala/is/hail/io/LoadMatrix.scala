@@ -242,7 +242,7 @@ object LoadMatrix {
         Some(interval)
       }
     }
-    val ranges = UnsafeIndexedSeq(TArray(TInterval(pkType)), rangeBoundIntervals)
+    val ranges = rangeBoundIntervals
     (new OrderedRVDPartitioner(Array(pkType.fieldNames(0)), pkType, ranges), keepPartitions.result())
   }
 

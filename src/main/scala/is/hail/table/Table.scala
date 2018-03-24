@@ -691,7 +691,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val globalsBc = globals.broadcast
 
     // FIXME: delete this when we understand what it's doing
-    ec.set(0, globals.value)
+    ec.set(0, globals.safeValue)
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
       case (ec_, r) =>
         ec_.set(0, globalsBc.value)

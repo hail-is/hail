@@ -1,14 +1,12 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import com.esotericsoftware.kryo.io.{Input, Output}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
-import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{RGBase, Locus}
+import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object UnsafeIndexedSeq {
   def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
@@ -52,7 +50,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] {
 
   var length: Int = t.loadLength(region, aoff)
 
@@ -63,61 +61,6 @@ class UnsafeIndexedSeq(
       UnsafeRow.read(t.elementType, region, t.loadElement(region, aoff, length, i))
     } else
       null
-  }
-
-  override def write(kryo: Kryo, output: Output) {
-    kryo.writeObject(output, t)
-
-    val aos = new ByteArrayOutputStream()
-    val enc = CodecSpec.default.buildEncoder(aos)
-    enc.writeRegionValue(t, region, aoff)
-    enc.flush()
-
-    val a = aos.toByteArray
-    output.writeInt(a.length)
-    output.write(a, 0, a.length)
-  }
-
-  private def writeObject(out: ObjectOutputStream) {
-    out.writeObject(t)
-
-    val aos = new ByteArrayOutputStream()
-    val enc = CodecSpec.default.buildEncoder(aos)
-    enc.writeRegionValue(t, region, aoff)
-    enc.flush()
-
-    val a = aos.toByteArray
-    out.writeInt(a.length)
-    out.write(a, 0, a.length)
-  }
-
-  override def read(kryo: Kryo, input: Input) {
-    t = kryo.readObject(input, classOf[TArray])
-
-    val smallInOff = input.readInt()
-    val a = new Array[Byte](smallInOff)
-    input.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
-
-      region = Region()
-      aoff = dec.readRegionValue(t, region)
-
-      length = region.loadInt(aoff)
-    }
-  }
-
-  private def readObject(in: ObjectInputStream) {
-    t = in.readObject().asInstanceOf[TArray]
-
-    val smallInOff = in.readInt()
-    val a = new Array[Byte](smallInOff)
-    in.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
-      region = Region()
-      aoff = dec.readRegionValue(t, region)
-
-      length = region.loadInt(aoff)
-    }
   }
 }
 
@@ -182,7 +125,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long) extends Row with KryoSerializable {
+  var region: Region, var offset: Long) extends Row {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
@@ -249,56 +192,12 @@ class UnsafeRow(var t: TBaseStruct,
     !t.isFieldDefined(region, offset, i)
   }
 
-  override def write(kryo: Kryo, output: Output) {
-    output.writeBoolean(t.isInstanceOf[TStruct])
-    kryo.writeObject(output, t)
-
-    val aos = new ByteArrayOutputStream()
-    val enc = CodecSpec.default.buildEncoder(aos)
-    enc.writeRegionValue(t, region, offset)
-    enc.flush()
-
-    val a = aos.toByteArray
-    output.writeInt(a.length)
-    output.write(a, 0, a.length)
+  private def writeObject(s: ObjectOutputStream): Unit = {
+    throw new NotImplementedException()
   }
 
-  private def writeObject(out: ObjectOutputStream) {
-    out.writeObject(t)
-
-    val aos = new ByteArrayOutputStream()
-    val enc = CodecSpec.default.buildEncoder(aos)
-    enc.writeRegionValue(t, region, offset)
-    enc.flush()
-
-    val a = aos.toByteArray
-    out.writeInt(a.length)
-    out.write(a, 0, a.length)
-  }
-
-  override def read(kryo: Kryo, input: Input) {
-    val isStruct = input.readBoolean()
-    t = kryo.readObject(input, if (isStruct) classOf[TStruct] else classOf[TTuple])
-
-    val smallInOff = input.readInt()
-    val a = new Array[Byte](smallInOff)
-    input.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
-      region = Region()
-      offset = dec.readRegionValue(t, region)
-    }
-  }
-
-  private def readObject(in: ObjectInputStream) {
-    t = in.readObject().asInstanceOf[TBaseStruct]
-
-    val smallInOff = in.readInt()
-    val a = new Array[Byte](smallInOff)
-    in.readFully(a, 0, smallInOff)
-    using(CodecSpec.default.buildDecoder(new ByteArrayInputStream(a))) { dec =>
-      region = Region()
-      offset = dec.readRegionValue(t, region)
-    }
+  private def readObject(s: ObjectInputStream): Unit = {
+    throw new NotImplementedException()
   }
 }
 
