@@ -314,7 +314,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
-def import_locus_intervals(path, reference_genome='default'):
+def import_locus_intervals(path, reference_genome='default') -> Table:
     """Import an interval list as a :class:`.Table`.
 
     Examples
@@ -383,7 +383,7 @@ def import_locus_intervals(path, reference_genome='default'):
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type))
-def import_bed(path, reference_genome='default'):
+def import_bed(path, reference_genome='default') -> Table:
     """Import a UCSC .bed file as a :class:`.Table`.
 
     Examples
@@ -475,7 +475,7 @@ def import_bed(path, reference_genome='default'):
            quant_pheno=bool,
            delimiter=str,
            missing=str)
-def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
+def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Table:
     """Import a PLINK FAM file into a :class:`.Table`.
 
     Examples
@@ -582,9 +582,13 @@ def grep(regex, path, max_count=100):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric)
-def import_bgen(path, entry_fields, sample_file=None,
-                min_partitions=None, reference_genome='default',
-                contig_recoding=None, tolerance=0.2):
+def import_bgen(path,
+                entry_fields,
+                sample_file=None,
+                min_partitions=None,
+                reference_genome='default',
+                contig_recoding=None,
+                tolerance=0.2) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -721,8 +725,13 @@ def import_bgen(path, entry_fields, sample_file=None,
            chromosome=nullable(str),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
-def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None,
-               reference_genome='default', contig_recoding=None):
+def import_gen(path,
+               sample_file=None,
+               tolerance=0.2,
+               min_partitions=None,
+               chromosome=None,
+               reference_genome='default',
+               contig_recoding=None) -> MatrixTable:
     """
     Import GEN file(s) as a :class:`.MatrixTable`.
 
@@ -824,8 +833,16 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
            missing=str,
            types=dictof(str, hail_type),
            quote=nullable(char))
-def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
-                 comment=None, delimiter="\t", missing="NA", types={}, quote=None):
+def import_table(paths,
+                 key=[],
+                 min_partitions=None,
+                 impute=False,
+                 no_header=False,
+                 comment=None,
+                 delimiter="\t",
+                 missing="NA",
+                 types={},
+                 quote=None) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -991,8 +1008,14 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, missing="NA", min_partitions=None,
-                        no_header=False, force_bgz=False):
+def import_matrix_table(paths,
+                        row_fields={},
+                        row_key=[],
+                        entry_type=tint32,
+                        missing="NA",
+                        min_partitions=None,
+                        no_header=False,
+                        force_bgz=False) -> MatrixTable:
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1175,7 +1198,7 @@ def import_plink(bed, bim, fam,
                  contig_recoding={'23': 'X',
                                   '24': 'Y',
                                   '25': 'X',
-                                  '26': 'MT'}):
+                                  '26': 'MT'}) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
@@ -1294,7 +1317,7 @@ def import_plink(bed, bim, fam,
 @typecheck(path=oneof(str, listof(str)),
            _drop_cols=bool,
            _drop_rows=bool)
-def read_matrix_table(path, _drop_cols=False, _drop_rows=False):
+def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
 
     Parameters
@@ -1376,8 +1399,15 @@ def get_vcf_metadata(path):
            call_fields=oneof(str, listof(str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
-def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-               drop_samples=False, call_fields=[], reference_genome='default', contig_recoding=None):
+def import_vcf(path,
+               force=False,
+               force_bgz=False,
+               header_file=None,
+               min_partitions=None,
+               drop_samples=False,
+               call_fields=[],
+               reference_genome='default',
+               contig_recoding=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1530,7 +1560,7 @@ def index_bgen(path):
 
 
 @typecheck(path=str)
-def read_table(path):
+def read_table(path) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
