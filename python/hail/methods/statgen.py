@@ -1,4 +1,5 @@
 import itertools
+from typing import *
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -22,7 +23,7 @@ from hail.utils.misc import check_collisions
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
-def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
+def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> Table:
     """Compute matrix of identity-by-descent estimates.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -108,7 +109,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None):
            female_threshold=numeric,
            male_threshold=numeric,
            aaf=nullable(str))
-def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
+def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None) -> Table:
     """Impute sex of samples by calculating inbreeding coefficient on the X
     chromosome.
 
@@ -234,7 +235,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=listof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16):
+def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
     """For each row, test a derived input variable for association with
     response variables using linear regression.
 
@@ -349,7 +350,7 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
            x=expr_float64,
            covariates=listof(expr_float64),
            root=str)
-def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
+def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> MatrixTable:
     r"""For each row, test a derived input variable for association with a
     Boolean response variable using logistic regression.
 
@@ -589,7 +590,7 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg'):
            dropped_variance_fraction=(nullable(float)))
 def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
                             row_root="lmmreg", run_assoc=True, use_ml=False, delta=None,
-                            sparsity_threshold=1.0, n_eigenvectors=None, dropped_variance_fraction=None):
+                            sparsity_threshold=1.0, n_eigenvectors=None, dropped_variance_fraction=None) -> MatrixTable:
     r"""Use a kinship-based linear mixed model to estimate the genetic component
     of phenotypic variance (narrow-sense heritability) and optionally test each
     variant for association.
@@ -1091,7 +1092,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
            accuracy=numeric,
            iterations=int)
 def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
-         max_size=46340, accuracy=1e-6, iterations=10000):
+         max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
 
@@ -1277,7 +1278,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
            k=int,
            compute_loadings=bool,
            as_array=bool)
-def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
+def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
     genotype call matrix.
 
@@ -1367,7 +1368,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
            k=int,
            compute_loadings=bool,
            as_array=bool)
-def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
+def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on numeric columns derived from a
     matrix table.
 
@@ -1475,7 +1476,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
            block_size=int,
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
+def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all") -> Table:
     """Compute relatedness estimates between individuals using a variant
     of the PC-Relate method.
 
@@ -1892,7 +1893,7 @@ class SplitMulti(object):
 @typecheck(ds=MatrixTable,
            keep_star=bool,
            left_aligned=bool)
-def split_multi_hts(ds, keep_star=False, left_aligned=False):
+def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
     """Split multiallelic variants for datasets with a standard high-throughput
     sequencing entry schema.
 
@@ -2057,7 +2058,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
 
 @typecheck(dataset=MatrixTable)
-def genetic_relatedness_matrix(dataset):
+def genetic_relatedness_matrix(dataset) -> KinshipMatrix:
     """Compute the Genetic Relatedness Matrix (GRM).
 
     .. include:: ../_templates/req_tvariant.rst
@@ -2148,7 +2149,7 @@ def genetic_relatedness_matrix(dataset):
 
 
 @typecheck(call_expr=CallExpression)
-def realized_relationship_matrix(call_expr):
+def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     """Computes the Realized Relationship Matrix (RRM).
 
     .. include:: ../_templates/req_biallelic.rst
@@ -2260,7 +2261,7 @@ def realized_relationship_matrix(call_expr):
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome='default', mixture=False):
+                          seed=0, reference_genome='default', mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2827,7 +2828,7 @@ def ld_prune(ds, n_cores, r2=0.2, window=1000000, memory_per_core=256):
 
 @typecheck(ds=MatrixTable,
            left_aligned=bool)
-def min_rep(ds, left_aligned=False):
+def min_rep(ds, left_aligned=False) -> MatrixTable:
     """Gives minimal, left-aligned representation of alleles. 
 
     .. include:: ../_templates/req_tvariant.rst

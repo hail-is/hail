@@ -1136,16 +1136,16 @@ _primitive_types = _numeric_types.union({tstr})
 
 
 @typecheck(t=HailType)
-def is_numeric(t):
+def is_numeric(t) -> bool:
     return t in _numeric_types
 
 
 @typecheck(t=HailType)
-def is_primitive(t):
+def is_primitive(t) -> bool:
     return t in _primitive_types
 
 @typecheck(t=HailType)
-def is_container(t):
+def is_container(t) -> bool:
     return (isinstance(t, tarray)
             or isinstance(t, tset)
             or isinstance(t, tdict)
@@ -1153,7 +1153,7 @@ def is_container(t):
             or isinstance(t, tstruct))
 
 
-def types_match(left, right):
+def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
 
