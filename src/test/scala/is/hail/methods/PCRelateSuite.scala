@@ -72,19 +72,17 @@ class PCRelateSuite extends SparkSuite {
 
     hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")
 
-    val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), columns, separator=separator)
+    val rdd = TextTableReader.read(hc)(Array(tmpfile + ".out"), columns, separator = separator).rdd
     rdd.collect()
-      .map(_.value)
-      .map { ann =>
-      val row = ann
-      val id1 = toS(row(0))
-      val id2 = toS(row(1))
-      val kin = toD(row(3))
-      val k0 = toD(row(4))
-      val k1 = toD(row(5))
-      val k2 = toD(row(6))
-      ((id1, id2), (kin, k0, k1, k2))
-    }
+      .map { row =>
+        val id1 = toS(row(0))
+        val id2 = toS(row(1))
+        val kin = toD(row(3))
+        val k0 = toD(row(4))
+        val k1 = toD(row(5))
+        val k2 = toD(row(6))
+        ((id1, id2), (kin, k0, k1, k2))
+      }
       .toMap
   }
 

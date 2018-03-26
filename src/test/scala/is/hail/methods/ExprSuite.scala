@@ -73,6 +73,9 @@ class ExprSuite extends SparkSuite {
 
     assert(run[Int](""""abc".length""").contains(3))
     assert(run[IndexedSeq[String]](""""a,b,c".split(",")""").contains(Array("a", "b", "c"): IndexedSeq[String]))
+    assert(run[IndexedSeq[String]](""" "1:5-100".firstMatchIn("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)") """).contains(Array("1", "5", "100"): IndexedSeq[String]))
+    assert(run[IndexedSeq[String]](""" "".firstMatchIn("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)") """).contains(IndexedSeq(): IndexedSeq[String]))
+    assert(run[IndexedSeq[IndexedSeq[String]]](""" "1:5-100 3:2-78".allMatchesIn("([^:\\s+]*)[:\\t](\\d+)[\\-\\t](\\d+)") """).contains(IndexedSeq(Array("1", "5", "100"), Array("3", "2", "78")): IndexedSeq[IndexedSeq[String]]))
     assert(run[Int]("(3.0).toInt32()").contains(3))
     assert(run[Double]("(3).toFloat64()").contains(3.0))
   }

@@ -95,6 +95,11 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(string.matches('\d+')))
         self.assertFalse(hl.eval_expr(string.matches(r'\\d+')))
 
+    def test_first_match_in(self):
+        string = hl.literal('1:25-100')
+        self.assertTrue(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)").value == ['1', '25', '100'])
+        self.assertIsNone(string.first_match_in("hello (\w+)!").value)
+
     def test_cond(self):
         self.assertEqual(hl.eval_expr('A' + hl.cond(True, 'A', 'B')), 'AA')
 

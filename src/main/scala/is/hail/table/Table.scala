@@ -6,7 +6,7 @@ import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr._
 import is.hail.expr.ir.{MakeTuple, CompileWithAggregators}
 import is.hail.expr.types._
-import is.hail.io.annotators.{BedAnnotator, IntervalList}
+import is.hail.io.annotators.IntervalList
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
@@ -91,18 +91,6 @@ object Table {
     key: IndexedSeq[String], nPartitions: Option[Int] = None): Table = {
     val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
     new Table(hc, TableParallelize(typ, rows, nPartitions))
-  }
-
-  def importIntervalList(hc: HailContext, filename: String,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    skipInvalidIntervals: Boolean = false): Table = {
-    IntervalList.read(hc, filename, rg, skipInvalidIntervals)
-  }
-
-  def importBED(hc: HailContext, filename: String,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    skipInvalidIntervals: Boolean = false): Table = {
-    BedAnnotator.apply(hc, filename, rg, skipInvalidIntervals)
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,

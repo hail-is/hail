@@ -381,48 +381,48 @@ class HailContext private(val sc: SparkContext,
     keyNames: java.util.ArrayList[String],
     nPartitions: java.lang.Integer,
     types: java.util.HashMap[String, Type],
-    commentChar: String,
+    comment: java.util.ArrayList[String],
     separator: String,
     missing: String,
     noHeader: Boolean,
     impute: Boolean,
-    quote: java.lang.Character): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote)
+    quote: java.lang.Character,
+    skipBlankLines: Boolean): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    types.asScala.toMap, comment.asScala.toArray, separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
-    commentChar: Option[String] = None,
+    comment: Array[String] = Array.empty[String],
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null): Table = {
-    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote)
+    quote: java.lang.Character = null,
+    skipBlankLines: Boolean = false): Table = {
+    importTables(List(input), keyNames, nPartitions, types, comment, separator, missing, noHeader, impute, quote, skipBlankLines)
   }
 
   def importTables(inputs: Seq[String],
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
-    commentChar: Option[String] = None,
+    comment: Array[String] = Array.empty[String],
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null): Table = {
+    quote: java.lang.Character = null,
+    skipBlankLines: Boolean = false): Table = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    val (struct, rdd) =
-      TextTableReader.read(sc)(files, types, commentChar, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote)
-
-    Table(this, rdd.map(_.value), struct, keyNames)
+      TextTableReader.read(this)(files, types, comment, separator, missing,
+        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, keyNames, skipBlankLines)
   }
 
   def importPlink(bed: String, bim: String, fam: String,
