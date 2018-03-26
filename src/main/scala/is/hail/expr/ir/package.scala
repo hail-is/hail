@@ -26,18 +26,6 @@ package object ir {
     case ti => throw new RuntimeException(s"unsupported type found: $t whose type info is $ti")
   }
 
-  // FIXME add InsertStruct IR node
-  def insertStruct(s: ir.IR, typ: TStruct, name: String, v: ir.IR): ir.IR = {
-    assert(typ.hasField(name))
-    ir.MakeStruct(typ.fields.zipWithIndex.map { case (f, i) =>
-      (f.name,
-        if (f.name == name)
-          v
-        else
-          ir.GetField(s, f.name))
-    })
-  }
-
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
   def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean, letName: String): ir.IR = {

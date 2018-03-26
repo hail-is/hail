@@ -105,10 +105,10 @@ case class MatrixValue(
     val keepType = TArray(+TInt32())
     val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
       "keep", keepType,
-      body = ir.insertStruct(ir.Ref("row"), rowType, MatrixType.entriesIdentifier,
+      body = InsertFields(ir.Ref("row"), Seq((MatrixType.entriesIdentifier,
         ir.ArrayMap(ir.Ref("keep"), "i",
           ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
-            ir.Ref("i")))))
+            ir.Ref("i")))))))
     assert(rTyp == rowType)
 
     val keepBc = sparkContext.broadcast(keep)
