@@ -4,18 +4,24 @@
 
 [Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
 
-The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Hail has been used for dozens of major studies and is the core analysis platform of large-scale genomics efforts such as [gnomAD](http://gnomad.broadinstitute.org/).
+The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Since then, Hail has expanded to enable analysis of large-scale datasets outside of the field of genomics. 
 
-Starting from genetic data in [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) or [PLINK](https://www.cog-genomics.org/plink2/formats) format, Hail can, for example:
+Here are a couple of projects that have featured Hail:
 
- - load variant and sample annotations from text tables, JSON, VCF, VEP, and locus interval files
+- The [gnomAD](http://gnomad.broadinstitute.org/) team used Hail as its core analysis platform to produce public summary statistics for 40 TB of compressed VCF files.
+- The Neale Lab at the Broad Institute used Hail to perform simultaneous genome-wide associations for 220 phenotypes with 32 million sites and 337,000 samples on the UK Biobank in 24 hours. These results are available on the Neale Lab's [blog](http://www.nealelab.is/blog/).
+
+As a small sampling of Hail's features, Hail can:
+
+ - flexibly import and export to a variety of data and annotation formats, including [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) and [PLINK](https://www.cog-genomics.org/plink2/formats)
  - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - generate new annotations from existing ones as well as genotypes, and use these to filter samples, variants, and genotypes
  - find Mendelian violations in trios, prune variants in linkage disequilibrium, analyze genetic similarity between samples via the GRM and IBD matrix, and compute sample scores and variant loadings using PCA
  - perform variant, gene-burden and eQTL association analyses using linear, logistic, and linear mixed regression, and estimate heritability
+ - interoperate with Python and Spark machine learning libraries
 
-This functionality and more is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](https://spark.apache.org/docs/latest/index.html)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster. 
+Hail's functionality is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](https://spark.apache.org/docs/latest/index.html)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster. 
 
 Users can script pipelines or explore data interactively in [Jupyter notebooks](http://jupyter.org/) by employing Hail's methods for genomics, PySpark's scalable [SQL](https://spark.apache.org/docs/latest/sql-programming-guide.html) and [machine learning algorithms](https://spark.apache.org/docs/latest/ml-guide.html), and [pandas](http://pandas.pydata.org/)'s [scikit-learn](http://scikit-learn.org/stable/) and [Matplotlib](https://matplotlib.org/) libraries to generate results that fit on one machine. Hail also provides a flexible domain language to express complex quality control and analysis pipelines with concise, readable code.
 
