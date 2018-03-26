@@ -2307,42 +2307,35 @@ class MatrixTable(ExprContainer):
                                                               e=entry_fields)
         print(s)
 
-    @typecheck_method(order=listof(str))
-    def reorder_columns(self, order: List[str]) -> 'MatrixTable':
-        """Reorder columns.
-
-        .. include:: _templates/req_tstring.rst
+    @typecheck_method(indices=listof(int))
+    def choose_cols(self, indices: List[int]) -> 'MatrixTable':
+        """Choose a new set of columns from a list of old column indices.
 
         Examples
         --------
 
-        Randomly shuffle order of columns:
+        Randomly shuffle column order:
 
         >>> import random
-        >>> new_sample_order = [x.s for x in dataset.cols().select("s").collect()]
-        >>> random.shuffle(new_sample_order)
-        >>> dataset_reordered = dataset.reorder_columns(new_sample_order)
+        >>> indices = list(range(dataset.count_cols()))
+        >>> random.shuffle(indices)
+        >>> dataset_reordered = dataset.choose_cols(indices)
 
-        Notes
-        -----
+        Take the first ten columns:
 
-        This method requires the keys to be unique. `order` must contain the
-        same set of keys as
-        ``dataset.col_key.collect()``. The
-        order of the keys in `order` determines the column order in the
-        output dataset.
+        >>> dataset_result = dataset.choose_cols(list(range(10)))
 
         Parameters
         ----------
-        order : :obj:`list` of :obj:`str`
-            New ordering of column keys.
+        indices : :obj:`list` of :obj:`int`
+            List of old column indices.
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix table with columns reordered.
+            Matrix table with columns based on .
         """
-        jvds = self._jvds.reorderCols(order)
+        jvds = self._jvds.chooseCols(indices)
         return MatrixTable(jvds)
 
     def n_partitions(self) -> int:

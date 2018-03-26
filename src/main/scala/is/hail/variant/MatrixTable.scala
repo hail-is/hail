@@ -1968,49 +1968,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def reorderCols(newIds: java.util.ArrayList[String]): MatrixTable =
-    reorderCols(newIds.asScala.toArray.map(Annotation(_)))
+  def chooseCols(oldIndices: java.util.ArrayList[Int]): MatrixTable =
+    chooseCols(oldIndices.asScala.toArray)
 
-  def reorderCols(newIds: IndexedSeq[Annotation]): MatrixTable = {
-    require(newIds.length == numCols)
-    requireUniqueSamples("reorder_columns")
-    require(newIds.areDistinct())
-
-    val sampleSet = colKeys.toSet[Annotation]
-    val newSampleSet = newIds.toSet
-
-    val missingSamples = sampleSet -- newSampleSet
-    if (missingSamples.nonEmpty)
-      fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
-        s"@1", missingSamples.truncatable("\n  "))
-
-    val notInDataset = newSampleSet -- sampleSet
-    if (notInDataset.nonEmpty)
-      fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
-        s"@1", notInDataset.truncatable("\n  "))
-
-    val oldIndex = colKeys.zipWithIndex.toMap
-    val newToOld = newIds.map(oldIndex)
-
-    val newColValues = Array.tabulate(numCols) { i =>
-      colValues(newToOld(i))
-    }
-
-    val localNumCols = numCols
-    val localRVRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-
-    insertEntries(noOp, colType, colKey, newColValues.toFastIndexedSeq)(entryType, { case (_, rv, rvb) =>
-      val entriesOffset = localRVRowType.loadField(rv, localEntriesIndex)
-      rvb.startArray(localNumCols)
-      var i = 0
-      while (i < localNumCols) {
-        rvb.addElement(localEntriesType, rv.region, entriesOffset, newToOld(i))
-        i += 1
-      }
-      rvb.endArray()
-    })
+  def chooseCols(oldIndices: Array[Int]): MatrixTable = {
+    require(oldIndices.forall { x => x >= 0 && x < numCols})
+    copyAST(ast = ChooseCols(ast, oldIndices))
   }
 
   def renameFields(oldToNewRows: java.util.HashMap[String, String],

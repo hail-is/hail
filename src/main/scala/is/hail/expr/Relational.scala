@@ -44,10 +44,10 @@ object BaseIR {
 
       // only recons if necessary
       val rewritten =
-      if ((ast.children, newChildren).zipped.forall(_ eq _))
-        ast
-      else
-        ast.copy(newChildren)
+        if ((ast.children, newChildren).zipped.forall(_ eq _))
+          ast
+        else
+          ast.copy(newChildren)
 
       rule.lift(rewritten) match {
         case Some(newAST) if newAST != rewritten =>
@@ -100,7 +100,7 @@ case class MatrixValue(
 
   lazy val colValuesBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(colValues)
 
-  def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
+  def chooseColsWithArray(keep: Array[Int]): MatrixValue = {
     val rowType = typ.rvRowType
     val keepType = TArray(+TInt32())
     val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
@@ -132,7 +132,7 @@ case class MatrixValue(
       .view
       .filter { i => p(colValues(i), i) }
       .toArray
-    filterSamplesKeep(keep)
+    chooseColsWithArray(keep)
   }
 }
 
@@ -385,7 +385,7 @@ case class FilterColsIR(
 
     val localGlobals = prev.globals.broadcast
     val localColType = typ.colType
-    
+
     //
     // Initialize a region containing the globals
     //
@@ -398,7 +398,7 @@ case class FilterColsIR(
 
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "global", typ.globalType,
-      "sa",     typ.colType,
+      "sa", typ.colType,
       pred
     )
     // Note that we don't yet support IR aggregators
@@ -476,7 +476,7 @@ case class FilterRowsIR(
     val prev = child.execute(hc)
 
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
-      "va",     typ.rvRowType,
+      "va", typ.rvRowType,
       "global", typ.globalType,
       pred
     )
@@ -504,6 +504,23 @@ case class FilterRowsIR(
     }
 
     prev.copy(rvd = filteredRDD)
+  }
+}
+
+case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): ChooseCols = {
+    assert(newChildren.length == 1)
+    ChooseCols(newChildren(0).asInstanceOf[MatrixIR], oldIndices)
+  }
+
+  def typ: MatrixType = child.typ
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    prev.chooseColsWithArray(oldIndices)
   }
 }
 
@@ -713,7 +730,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     TableJoin(
       newChildren(0).asInstanceOf[TableIR],
       newChildren(1).asInstanceOf[TableIR],
-      joinType )
+      joinType)
   }
 
   def execute(hc: HailContext): TableValue = {
