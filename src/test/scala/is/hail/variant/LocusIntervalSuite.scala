@@ -58,7 +58,7 @@ class LocusIntervalSuite extends SparkSuite {
     }
 
     assert(vds.annotateRowsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
-      .annotateRowsExpr("foo = va.foo.map(x => x.target)")
+      .annotateRowsExpr("foo" -> "va.foo.map(x => x.target)")
       .rowsTable().query("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
@@ -66,7 +66,7 @@ class LocusIntervalSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .annotateRowsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
         "annot", product = true)
-      .annotateRowsExpr("annot = va.annot.map(x => x.target)")
+      .annotateRowsExpr("annot" -> "va.annot.map(x => x.target)")
 
     val (t, q) = vds.queryVA("va.annot")
     assert(t == TArray(TString()))

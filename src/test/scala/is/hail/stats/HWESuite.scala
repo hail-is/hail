@@ -34,8 +34,8 @@ class HWESuite extends SparkSuite {
       var vds2 = TestUtils.splitMultiHTS(vds)
       vds2 = VariantQC(vds2)
       vds2 = vds2
-        .annotateRowsExpr("hweExpr = hwe(va.qc.n_hom_ref, va.qc.n_het, va.qc.n_hom_var)")
-        .annotateRowsExpr("hweAgg = AGG.map(g => g.GT).hardyWeinberg()")
+        .annotateRowsExpr("hweExpr" -> "hwe(va.qc.n_hom_ref, va.qc.n_het, va.qc.n_hom_var)")
+        .annotateRowsExpr("hweAgg" -> "AGG.map(g => g.GT).hardyWeinberg()")
 
       val (_, q1) = vds2.queryVA("va.qc.r_expected_het_freq")
       val (_, q2) = vds2.queryVA("va.qc.p_hwe")

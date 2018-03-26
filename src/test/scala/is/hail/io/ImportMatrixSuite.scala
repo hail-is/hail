@@ -35,7 +35,8 @@ class ImportMatrixSuite extends SparkSuite {
     tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
 
   def reKeyRows(vsm: MatrixTable): MatrixTable = {
-    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows("va.row_id" +: vsm.rowType.fieldNames.map("va."+_): _*)
+    val newFieldNames = "row_id" +: vsm.rowType.fieldNames
+    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows(s"{${ newFieldNames.map(n => s"$n: va.$n").mkString(",") }}")
   }
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {

@@ -229,8 +229,8 @@ class ImportBgenSuite extends SparkSuite {
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
       includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
-    assert(vds.annotateRowsExpr("cr1 = AGG.fraction(g => isDefined(g.GT))")
-      .annotateRowsExpr("cr2 = AGG.fraction(g => isDefined(g.GT))")
+    assert(vds.annotateRowsExpr(("cr1", "AGG.fraction(g => isDefined(g.GT))"))
+      .annotateRowsExpr(("cr2", "AGG.fraction(g => isDefined(g.GT))"))
       .rowsTable()
       .forall("row.cr1 == row.cr2"))
   }

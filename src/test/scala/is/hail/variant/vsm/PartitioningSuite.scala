@@ -38,7 +38,7 @@ class PartitioningSuite extends SparkSuite {
       orig.write(out)
       val problem = hc.readVDS(out)
 
-      hc.readVDS(out).annotateRowsExpr("va = va").countRows()
+      hc.readVDS(out).annotateRowsExpr("va" -> "va").countRows()
 
       // need to do 2 writes to ensure that the RDD is ordered
       hc.readVDS(out)

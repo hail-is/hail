@@ -891,84 +891,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copy2(colValues = newAnnotations, colType = newSignature, colKey = colKey.filter(newFields.contains))
   }
 
-  def annotateRowsExpr(expr: String): MatrixTable = {
-    val globalsBc = globals.broadcast
-
-    val ec = rowEC
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
-
-    var newRowType = rowType
-    var touchesKeys = false
-    val rowKeySet = rowKey.toSet
-    val inserters = new Array[Inserter](types.length)
-    var i = 0
-    while (i < types.length) {
-      if (rowKeySet.contains(paths(i).head))
-        touchesKeys = true
-      val (newSig, ins) = newRowType.structInsert(types(i), paths(i))
-      inserters(i) = ins
-      newRowType = newSig
-      i += 1
-    }
-
-    val aggregateOption = Aggregators.buildRowAggregations(this, ec)
-
-    val newMatrixType = matrixType.copyParts(rowType = newRowType)
-
-    val fullRowType = rvRowType
-    val newRVType = newMatrixType.rvRowType
-    val localEntriesIndex = entriesIndex
-
-    val mapPartitionsF: (Iterator[RegionValue] => Iterator[RegionValue]) = { it =>
-      val fullRow = new UnsafeRow(fullRowType)
-
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      it.map { rv =>
-        fullRow.set(rv)
-        val row = fullRow.deleteField(localEntriesIndex)
-
-        ec.set(0, globalsBc.value)
-        ec.set(1, row)
-
-        aggregateOption.foreach(f => f(rv))
-
-        rvb.set(rv.region)
-        rvb.start(newRVType)
-        rvb.startStruct()
-
-        var newAnn = row: Annotation
-        var i = 0
-        var newA = f()
-        while (i < newA.length) {
-          newAnn = inserters(i)(newAnn, newA(i))
-          i += 1
-        }
-
-        val newRow = newAnn.asInstanceOf[Row]
-        i = 0
-        while (i < newRow.size) {
-          rvb.addAnnotation(newRowType.types(i), newRow.get(i))
-          i += 1
-        }
-
-        rvb.addField(fullRowType, rv, localEntriesIndex)
-        rvb.endStruct()
-
-        rv2.set(rv.region, rvb.end())
-        rv2
-      }
-    }
-
-    if (touchesKeys) {
-      warn("modified row key, rescanning to compute ordering...")
-      val newRDD = rvd.mapPartitions(mapPartitionsF)
-      copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
-    } else copyMT(matrixType = newMatrixType,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
-  }
-
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
 
@@ -1140,7 +1062,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-
   def selectGlobals(fields: java.util.ArrayList[String]): MatrixTable = selectGlobals(fields.asScala.toArray: _*)
 
   def selectGlobals(fields: String*): MatrixTable = {
@@ -1199,38 +1120,25 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = newMatrixType, colValues = newColValues)
   }
 
-  def selectRows(selectExprs: java.util.ArrayList[String]): MatrixTable = selectRows(selectExprs.asScala.toArray: _*)
-
-  def selectRows(exprs: String*): MatrixTable = {
+  def selectRows(expr: String): MatrixTable = {
     val ec = rowEC
-    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
-    val topLevelFields = mutable.Set.empty[String]
 
-    val finalNames = paths.map {
-      // assignment
-      case Left(name) => name
-      case Right(path) =>
-        assert(path.head == Annotation.ROW_HEAD)
-        path match {
-          case List(Annotation.ROW_HEAD, name) => topLevelFields += name
-          case _ =>
-        }
-        path.last
-    }
+    val rowsAST = Parser.parseToAST(expr, ec)
+    assert(rowsAST.`type`.isInstanceOf[TStruct])
 
-    assert(finalNames.areDistinct())
-    val touchesKeys = rowKey.filter(topLevelFields.contains) != rowKey
-
-    val finalNameSet = finalNames.toSet
-    val newRowType = TStruct(finalNames.zip(types): _*)
-    val newRowKey = rowKey.filter(finalNameSet.contains)
-    val newPartitionKey = rowPartitionKey.filter(finalNameSet.contains)
+    val newRowType = coerce[TStruct](rowsAST.`type`)
+    val namesSet = newRowType.fieldNames.toSet
+    val newRowKey = rowKey.filter(namesSet.contains)
+    val newPartitionKey = rowPartitionKey.filter(namesSet.contains)
 
     val newMatrixType = matrixType.copyParts(rowType = newRowType, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
     val newRVType = newMatrixType.rvRowType
 
+    val (t, f) = Parser.parseExpr(expr, ec)
+    assert(t == newRowType)
+    val touchesKeys = newRowKey.nonEmpty
     val aggregateOption = Aggregators.buildRowAggregations(this, ec)
     val globalsBc = globals.broadcast
     val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
@@ -1243,15 +1151,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         ec.set(0, globalsBc.value)
         ec.set(1, row)
         aggregateOption.foreach(_ (rv))
-        val results = f()
-        assert(results.length == types.length)
+        val results = f().asInstanceOf[Row]
 
         rvb.set(rv.region)
         rvb.start(newRVType)
         rvb.startStruct()
         var i = 0
-        while (i < types.length) {
-          rvb.addAnnotation(types(i), results(i))
+        while (i < newRowType.size) {
+          rvb.addAnnotation(newRowType.types(i), results(i))
           i += 1
         }
         rvb.addField(fullRowType, rv, localEntriesIndex)
