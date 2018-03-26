@@ -149,7 +149,7 @@ object Table {
     globals: Annotation
   ): Table = apply(
     hc,
-    ContextRDD.weaken(rdd, RVDContext.default _),
+    ContextRDD.weaken(rdd),
     signature,
     key,
     globalSignature,
@@ -231,7 +231,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globals: Row
   ) = this(
     hc,
-    ContextRDD.weaken(rdd, RVDContext.default _),
+    ContextRDD.weaken(rdd),
     signature,
     key,
     globalSignature,
