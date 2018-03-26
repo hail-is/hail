@@ -1252,7 +1252,7 @@ class MatrixTable(ExprContainer):
 
         row_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._row_indices]
         if row_fields:
-            m = m._select_rows("MatrixTable.drop_rows", m.rows.drop(*row_fields))
+            m = m._select_rows("MatrixTable.drop_rows", m.row.drop(*row_fields))
 
         if any(self._fields[field]._indices == self._col_indices for field in fields_to_drop):
             # need to drop col fields
@@ -2193,7 +2193,7 @@ class MatrixTable(ExprContainer):
         if row_exprs:
             row_struct = self.row.annotate(**row_exprs)
             analyze("MatrixTable.annotate_rows", row_struct, self._row_indices)
-            jmt = jmt.selectEntries(row_struct._ast.to_hql())
+            jmt = jmt.selectRows(row_struct._ast.to_hql())
         if col_exprs:
             col_strs = []
             for k, v in col_exprs.items():
