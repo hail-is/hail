@@ -11,14 +11,14 @@ import org.apache.spark.storage.StorageLevel
 
 object UnpartitionedRVD {
   def empty(sc: SparkContext, rowType: TStruct): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, ContextRDD.empty[RegionValue](sc, RVDContext.default _))
+    new UnpartitionedRVD(rowType, ContextRDD.empty[RVDContext, RegionValue](sc))
 }
 
 class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
   def this(rowType: TStruct, rdd: RDD[RegionValue]) =
-    this(rowType, ContextRDD.weaken(rdd, RVDContext.default _))
+    this(rowType, ContextRDD.weaken(rdd))
 
   val rdd = crdd.run
 
@@ -48,7 +48,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
     new UnpartitionedRVD(
       rowType,
-      ContextRDD.weaken(rdd.sample(withReplacement, p, seed), RVDContext.default _))
+      ContextRDD.weaken(rdd.sample(withReplacement, p, seed)))
 
   def write(path: String, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)
@@ -61,8 +61,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     new UnpartitionedRVD(
       rowType,
       ContextRDD.weaken(
-        rdd.coalesce(maxPartitions, shuffle = shuffle),
-        RVDContext.default _))
+        rdd.coalesce(maxPartitions, shuffle = shuffle)))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,

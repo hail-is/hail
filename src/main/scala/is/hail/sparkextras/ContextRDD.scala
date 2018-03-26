@@ -16,25 +16,27 @@ object ContextRDD {
   ): ContextRDD[C, T] =
     new ContextRDD(sc.emptyRDD[C => Iterator[T]], mkc)
 
+  def empty[C <: AutoCloseable : Pointed, T: ClassTag](
+    sc: SparkContext
+  ): ContextRDD[C, T] =
+    new ContextRDD(sc.emptyRDD[C => Iterator[T]], point[C])
+
   // this one weird trick permits the caller to specify T without C
   sealed trait Empty[T] {
     def apply[C <: AutoCloseable](
       sc: SparkContext,
       mkc: () => C
     )(implicit tct: ClassTag[T]
-    ): ContextRDD[C, T] = empty[C, T](sc, mkc)
+    ): ContextRDD[C, T] = empty(sc, mkc)
   }
   private[this] object emptyInstance extends Empty[Nothing]
   def empty[T] = emptyInstance.asInstanceOf[Empty[T]]
 
-  def union[C <: AutoCloseable, T: ClassTag](
+  def union[C <: AutoCloseable : Pointed, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
   ): ContextRDD[C, T] = {
-    assert(xs.length > 1)
-    val mkc = xs(0).mkc
-    assert(xs.tail.forall(_ == mkc))
-    union(sc, xs, mkc)
+    union(sc, xs, point[C])
   }
 
   def union[C <: AutoCloseable, T: ClassTag](
@@ -50,6 +52,13 @@ object ContextRDD {
   ): ContextRDD[C, T] =
     new ContextRDD(rdd.mapPartitions(it => Iterator.single((ctx: C) => it)), mkc)
 
+  def weaken[C <: AutoCloseable : Pointed, T: ClassTag](
+    rdd: RDD[T]
+  ): ContextRDD[C, T] =
+    new ContextRDD(
+      rdd.mapPartitions(it => Iterator.single((ctx: C) => it)),
+      point[C])
+
   type ElementType[C, T] = C => Iterator[T]
 }
 
@@ -62,7 +71,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   private[this] def inCtx[U: ClassTag](
     f: C => Iterator[U]
-  ): Iterator[C => Iterator[U]] = Iterator.single { (ctx: C) => f(ctx) }
+  ): Iterator[C => Iterator[U]] = Iterator.single(f)
 
   private[this] def withoutContext[U: ClassTag](
     f: Iterator[T] => Iterator[U]

@@ -27,7 +27,7 @@ class OrderedRVD(
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]
-  ) = this(typ, partitioner, ContextRDD.weaken(rdd, RVDContext.default _))
+  ) = this(typ, partitioner, ContextRDD.weaken(rdd))
 
   val rdd = crdd.run
 
@@ -100,7 +100,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner), RVDContext.default _))
+      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -738,7 +738,7 @@ object OrderedRVD {
     new OrderedRVD(
       typ,
       partitioner,
-      ContextRDD.weaken(rdd, RVDContext.default _)
+      ContextRDD.weaken(rdd)
         .mapPartitionsWithIndex { case (i, it) =>
           val prevK = WritableRegionValue(typ.kType)
           val prevPK = WritableRegionValue(typ.pkType)

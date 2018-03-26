@@ -190,7 +190,7 @@ trait RVD {
       .persist(level)
 
     PersistedRVRDD(persistedRDD,
-      ContextRDD.weaken(persistedRDD, RVDContext.default _)
+      ContextRDD.weaken(persistedRDD)
         .mapPartitions { it =>
           val region = Region()
           val rv2 = RegionValue(region)
