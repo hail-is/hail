@@ -980,6 +980,11 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.locus.contig.take(1), [mt.rows().select('locus').take(1)[0].locus.contig])
         self.assertEqual(mt['s'][0].take(1), [mt.cols().select('s').take(1)[0].s[0]])
 
+    def test_order_by(self):
+        ht = hl.utils.range_table(10)
+        self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
+        self.assertEqual(ht.order_by(hl.asc('idx')).idx.collect(), list(range(10)))
+        self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
 
 class GroupedMatrixTests(unittest.TestCase):
 
