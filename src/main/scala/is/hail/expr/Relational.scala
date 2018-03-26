@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.methods.Aggregators
@@ -594,6 +595,104 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
         val cols = rvb.end()
 
         val off = rowF(region, globals, false, oldRow, false, cols, false)
+
+        newRV.set(region, off)
+        newRV
+      }
+    }
+    prev.copy(typ = typ, rvd = newRVD)
+  }
+}
+
+case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, newRow)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+    assert(newChildren.length == 2)
+    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val newRVRow = InsertFields(newRow, Seq(MatrixType.entriesIdentifier -> GetField(Ref("va"), MatrixType.entriesIdentifier)))
+
+  val tAggElt: Type = child.typ.entryType
+  val aggSymTab = Map(
+    "global" -> (0, child.typ.globalType),
+    "va" -> (1, child.typ.rowType),
+    "g" -> (2, child.typ.entryType),
+    "sa" -> (3, child.typ.colType))
+
+  val tAgg = TAggregable(tAggElt, aggSymTab)
+
+  val typ: MatrixType = {
+    Infer(newRow, None, new Env[Type]()
+      .bind("global", child.typ.globalType)
+      .bind("va", child.typ.rvRowType)
+      .bind("AGG", tAgg)
+    )
+    child.typ.copy(rvRowType = newRVRow.typ)
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localRowType = prev.typ.rvRowType
+    val localEntriesType = prev.typ.entryArrayType
+    val entriesIdx = prev.typ.entriesIdx
+    val localGlobalsType = typ.globalType
+    val localColsType = TArray(typ.colType)
+    val localNCols = prev.nCols
+    val colValuesBc = prev.colValuesBc
+    val globalsBc = prev.globals.broadcast
+
+    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
+      "AGG", tAgg,
+      "global", localGlobalsType,
+      "va", prev.typ.rvRowType,
+      newRow)
+    assert(rTyp == typ.rvRowType)
+
+    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+      val rvb = new RegionValueBuilder()
+      val newRV = RegionValue()
+      val rowF = f()
+
+      it.map { rv =>
+        val region = rv.region
+        val oldRow = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        val entries = localRowType.fieldOffset(oldRow, entriesIdx)
+
+        val aggResults = if (seqOps.nonEmpty) {
+          var i = 0
+          while (i < localNCols) {
+            val eOff = localEntriesType.elementOffset(entries, localNCols, i)
+            val colOff = localColsType.elementOffset(cols, localNCols, i)
+            rvAggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
+              seqOp()(region, rvagg, oldRow, false, globals, false, oldRow, false, eOff, false, colOff, false)
+            }
+            i += 1
+          }
+          rvAggs
+        } else
+          Array.empty[RegionValueAggregator]
+
+        rvb.start(aggResultType)
+        rvb.startStruct()
+        aggResults.foreach(_.result(rvb))
+        rvb.endStruct()
+        val aggResultsOff = rvb.end()
+
+        val off = rowF(region, aggResultsOff, false, globals, false, oldRow, false)
 
         newRV.set(region, off)
         newRV
