@@ -100,7 +100,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner))
+      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner)))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
