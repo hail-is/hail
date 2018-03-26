@@ -1176,60 +1176,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
-  def dropRows(fields: java.util.ArrayList[String]): MatrixTable = dropRows(fields.asScala.toArray: _*)
-
-  def dropRows(fields: String*): MatrixTable = {
-    if (fields.isEmpty)
-      return this
-    assert(fields.areDistinct())
-    val dropSet = fields.toSet
-    val allRowFields = rowType.fieldNames.toSet
-    assert(fields.forall(allRowFields.contains))
-    assert(!dropSet.contains(MatrixType.entriesIdentifier))
-
-    // treat the entries like any other field
-    val keepIndices = rvRowType.fields
-      .filter(f => !dropSet.contains(f.name))
-      .map(f => f.index)
-      .toArray
-    val newRVType = TStruct(keepIndices.map(rvRowType.fields(_)).map(f => f.name -> f.typ): _*)
-
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val newRowKey = rowKey.filter(f => !dropSet.contains(f))
-    val newPartitionKey = rowPartitionKey.filter(f => !dropSet.contains(f))
-    val touchesKeys = newRowKey != rowKey
-    val newMatrixType = matrixType.copy(rvRowType = newRVType,
-      rowKey = newRowKey,
-      rowPartitionKey = newPartitionKey)
-
-    // FIXME: replace with physical type
-    val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
-      val rv2 = RegionValue()
-      val rvb = new RegionValueBuilder()
-      it.map { rv =>
-        rvb.set(rv.region)
-        rvb.start(newRVType)
-        rvb.startStruct()
-        var i = 0
-        while (i < keepIndices.length) {
-          rvb.addField(fullRowType, rv, keepIndices(i))
-          i += 1
-        }
-        rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-        rv2
-      }
-    }
-    if (touchesKeys) {
-      warn("modified row key, rescanning to compute ordering...")
-      val newRDD = rvd.mapPartitions(mapPartitionsF)
-      copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
-    } else copyMT(matrixType = newMatrixType,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
-  }
-
   def selectEntries(expr: String): MatrixTable = {
     val ec = entryEC
 

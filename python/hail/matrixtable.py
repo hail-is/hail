@@ -1250,10 +1250,9 @@ class MatrixTable(ExprContainer):
             new_global_fields = [f for f in m.globals if f not in fields_to_drop]
             m = m.select_globals(*new_global_fields)
 
-        row_fields = [x for x in fields_to_drop if self._fields[x]._indices == self._row_indices]
+        row_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._row_indices]
         if row_fields:
-            # need to drop row fields
-            m = MatrixTable(m._jvds.dropRows(row_fields))
+            m = m._select_entries("MatrixTable.drop_rows", m.entry.drop(*row_fields))
 
         if any(self._fields[field]._indices == self._col_indices for field in fields_to_drop):
             # need to drop col fields
@@ -2584,7 +2583,7 @@ class MatrixTable(ExprContainer):
     @typecheck_method(caller=str, s=expr_struct())
     def _select_rows(self, caller, s):
         base, cleanup = self._process_joins(s)
-        analyze(caller, s, self._row_indices)
+        analyze(caller, s, self._row_indices, {self._col_axis})
         return cleanup(MatrixTable(base._jvds.selectRows(s._ast.to_hql())))
 
     @typecheck(datasets=matrix_table_type)
