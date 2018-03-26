@@ -2335,6 +2335,10 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with columns based on .
         """
+        n_cols = self.count_cols()
+        for i in indices:
+            if not 0 <= i < n_cols:
+                raise ValueError(f"'choose_cols': expect indices between 0 and {n_cols}, found {i}")
         jvds = self._jvds.chooseCols(indices)
         return MatrixTable(jvds)
 
