@@ -1477,7 +1477,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
            min_kinship=numeric,
            statistics=enumeration('phi', 'phik2', 'phik2k0', 'all'),
            block_size=nullable(int))
-def pc_relate(mt, maf, k=None, scores=None, min_kinship=-float("inf"), statistics="all", block_size=None):
+def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statistics="all", block_size=None):
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
