@@ -1252,7 +1252,7 @@ class MatrixTable(ExprContainer):
 
         row_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._row_indices]
         if row_fields:
-            m = m._select_entries("MatrixTable.drop_rows", m.entry.drop(*row_fields))
+            m = m._select_rows("MatrixTable.drop_rows", m.entry.drop(*row_fields))
 
         if any(self._fields[field]._indices == self._col_indices for field in fields_to_drop):
             # need to drop col fields
