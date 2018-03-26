@@ -12,11 +12,17 @@ object StringFunctions extends RegistryFunctions {
 
   def contains(s: String, t: String): Boolean = s.contains(t)
 
+  def startswith(s: String, t: String): Boolean = s.startsWith(t)
+
+  def endswith(s: String, t: String): Boolean = s.endsWith(t)
+
   def registerAll(): Unit = {
     val thisClass = getClass
     registerScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerScalaFunction("lower", TString(), TString())(thisClass, "lower")
     registerScalaFunction("strip", TString(), TString())(thisClass, "strip")
     registerScalaFunction("contains", TString(), TString(), TBoolean())(thisClass, "contains")
+    registerScalaFunction("startswith", TString(), TString(), TBoolean())(thisClass, "startswith")
+    registerScalaFunction("endswith", TString(), TString(), TBoolean())(thisClass, "endswith")
   }
 }
