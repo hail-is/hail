@@ -752,12 +752,24 @@ class MatrixTests(unittest.TestCase):
         for i, struct in enumerate(ds.rows().select('rowidx').collect()):
             self.assertEqual(i, struct.rowidx)
 
-    def test_reorder_columns(self):
+    def test_choose_cols(self):
         ds = self.get_vds()
-        new_sample_order = [x.s for x in ds.cols().select("s").collect()]
-        random.shuffle(new_sample_order)
-        self.assertEqual([x.s for x in ds.reorder_columns(new_sample_order).cols().select("s").collect()],
-                         new_sample_order)
+        indices = list(range(ds.count_cols()))
+        random.shuffle(indices)
+
+        old_order = ds.s.collect()
+        self.assertEqual(ds.choose_cols(indices).s.collect(),
+                         [old_order[i] for i in indices])
+
+        self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
+                         old_order[:10])
+
+    def test_choose_cols_vs_explode(self):
+        ds = self.get_vds()
+
+        ds2 = ds.annotate_cols(foo = [0, 0]).explode_cols('foo').drop('foo')
+
+        self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
 
     def test_computed_key_join_1(self):
         ds = self.get_vds()

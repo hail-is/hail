@@ -140,7 +140,7 @@ class VSMSuite extends SparkSuite {
       .annotateRowsExpr("newGenos = AGG.takeBy(g => sa.colIdx, 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
-    assert(vds.reorderCols(vds.colKeys).same(vds))
+    assert(vds.reorderCols(vds.colKeys.toArray).same(vds))
   }
   
   @Test def testWriteBlockMatrix() {
