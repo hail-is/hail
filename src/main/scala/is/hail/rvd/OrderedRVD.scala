@@ -456,7 +456,7 @@ object OrderedRVD {
     rdd: RDD[RegionValue]
   ): RDD[RegionValue] = getKeys(
     typ,
-    ContextRDD.weaken(rdd, RVDContext.default _)).run
+    ContextRDD.weaken(rdd)).run
 
   def getPartitionKeyInfo(
     typ: OrderedRVDType,
@@ -492,7 +492,7 @@ object OrderedRVD {
     keys: RDD[RegionValue]
   ): Array[OrderedRVPartitionInfo] = getPartitionKeyInfo(
     typ,
-    ContextRDD.weaken(keys, RVDContext.default _))
+    ContextRDD.weaken(keys))
 
   def coerce(
     typ: OrderedRVDType,
@@ -660,7 +660,7 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]
   ): OrderedRVD =
-    shuffle(typ, partitioner, ContextRDD.weaken(rdd, RVDContext.default _))
+    shuffle(typ, partitioner, ContextRDD.weaken(rdd))
 
   def shuffle(
     typ: OrderedRVDType,
@@ -763,7 +763,7 @@ object OrderedRVD {
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]
-  ): OrderedRVD = apply(typ, partitioner, ContextRDD.weaken(rdd, RVDContext.default _))
+  ): OrderedRVD = apply(typ, partitioner, ContextRDD.weaken(rdd))
 
   def apply(
     typ: OrderedRVDType,
