@@ -2120,7 +2120,57 @@ class StringExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("contains", tstr, substr)
+        return self._method("contains", tbool, substr)
+
+    @typecheck_method(substr=expr_str)
+    def startswith(self, substr):
+        """Returns whether `substr` is a prefix of the string.
+
+        Examples
+        --------
+        >>> s.startswith('The').value
+        True
+
+        >>> s.startswith('the').value
+        False
+
+        Note
+        ----
+        This method is case-sensitive.
+
+        Parameters
+        ----------
+        substr : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('startswith', tbool, substr)
+
+
+    @typecheck_method(substr=expr_str)
+    def endswith(self, substr):
+        """Returns whether `substr` is a suffix of the string.
+
+        Examples
+        --------
+        >>> s.endswith('dog').value
+        True
+
+        Note
+        ----
+        This method is case-sensitive.
+
+        Parameters
+        ----------
+        substr : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('endswith', tbool, substr)
 
     @typecheck_method(regex=str)
     def matches(self, regex):

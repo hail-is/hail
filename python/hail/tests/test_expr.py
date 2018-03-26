@@ -307,7 +307,6 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval_expr(hl.bool(s5)))
         self.assertFalse(hl.eval_expr(hl.bool(s6)))
 
-        # lower
         s = hl.literal('abcABC123')
         self.assertEqual(s.lower().value, 'abcabc123')
         self.assertEqual(s.upper().value, 'ABCABC123')
@@ -316,11 +315,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(s_whitespace.strip().value, '1 2 3')
 
         self.assertEqual(s.contains('ABC').value, True)
+        self.assertEqual((~s.contains('ABC')).value, False)
         self.assertEqual(s.contains('a').value, True)
         self.assertEqual(s.contains('C123').value, True)
         self.assertEqual(s.contains('').value, True)
         self.assertEqual(s.contains('C1234').value, False)
         self.assertEqual(s.contains(' ').value, False)
+
+        self.assertTrue(s_whitespace.startswith(' \t').value)
+        self.assertTrue(s_whitespace.endswith('\t\n').value)
+        self.assertFalse(s_whitespace.startswith('a').value)
+        self.assertFalse(s_whitespace.endswith('a').value)
+
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
