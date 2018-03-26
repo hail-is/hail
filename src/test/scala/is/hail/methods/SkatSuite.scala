@@ -273,14 +273,14 @@ class SkatSuite extends SparkSuite {
     val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")
     val vds = vds0
       .annotateRowsTable(kt, "key", product = true)
-      .annotateRowsExpr("key" -> "va.key.map(x => x.target).toSet(), weight = va.locus.position.toFloat64")
+      .annotateRowsExpr("key" -> "va.key.map(x => x.target).toSet()", "weight" -> "va.locus.position.toFloat64")
       .explodeRows("va.key")
       .annotateRowsExpr("key" -> "va.key.toInt32()")
     
     // annotations from expr
     val vds2 = vds0
       .annotateRowsExpr( // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
-        "key" -> "[9, va.locus.position % 2, va.locus.position // 2 + 1].toSet(), weight = va.locus.position.toFloat64")
+        "key" -> "[9, va.locus.position % 2, va.locus.position // 2 + 1].toSet()", "weight" -> "va.locus.position.toFloat64")
       .explodeRows("va.key") // 0 -> {v2}, 1 -> {v1, v3}, 2 -> {v2, v3}, 9 -> {v1, v2, v3}
     
     // table/explode and annotate/explode give same keys

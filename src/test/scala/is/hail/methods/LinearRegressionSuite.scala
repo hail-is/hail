@@ -379,7 +379,7 @@ class LinearRegressionSuite extends SparkSuite {
                  |standard_error: [va.linreg.standard_error[$i]],
                  |t_stat: [va.linreg.t_stat[$i]],
                  |p_value: [va.linreg.p_value[$i]]
-                 |}""".stripMargin),
+                 |})""".stripMargin),
           root = "mlinreg").annotateRowsExpr("mlinreg" -> "va.mlinreg.linreg")
 
       val (t, q) = result.queryVA("va.linreg")

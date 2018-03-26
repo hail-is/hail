@@ -23,7 +23,8 @@ class AggregatorSuite extends SparkSuite {
         """{callrate: AGG.fraction(g => isDefined(g.GT)),
           |AC: AGG.map(g => g.GT.nNonRefAlleles()).sum(),
           |AF: AGG.map(g => g.GT.nNonRefAlleles().toFloat64).stats().sum / AGG.filter(g => isDefined(g.GT)).count().toFloat64 / 2.0,
-          |gqstats: AGG.map(g => g.GQ.toFloat64).stats(), test.gqhetstats = AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats()}
+          |gqstats: AGG.map(g => g.GQ.toFloat64).stats(),
+          |gqhetstats: AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats()}
           """.stripMargin,
         "lowGqGts" -> "AGG.filter(g => g.GQ < 60).collect()")
 
