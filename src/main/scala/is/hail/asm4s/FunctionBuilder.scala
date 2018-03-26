@@ -90,6 +90,11 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
+  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
+
+  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
+    new ClassFieldRef[T](fb, if (name == null) s"field${fb.cn.fields.size()}" else name, tti)
+
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
     assert(i < layout.length)
@@ -158,6 +163,33 @@ class Method5Builder[A, B, C, D, E, R](fb: FunctionBuilder[_], mname: String)
   def apply(a:Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E]): Code[R] = invoke(a, b, c, d, e).asInstanceOf[Code[R]]
 }
 
+class ClassFieldRef[T](fb: FunctionBuilder[_], name: String, fieldTypeInfo: TypeInfo[_]) extends Settable[T] {
+
+  val desc: String = fieldTypeInfo.name
+  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
+
+  fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
+
+  def load(): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        fb.getArg[java.lang.Object](0).emit(il)
+        il += new FieldInsnNode(GETFIELD, fb.name, name, desc)
+      }
+    }
+
+  def store(rhs: Code[T]): Code[Unit] =
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        fb.getArg[java.lang.Object](0).emit(il)
+        rhs.emit(il)
+        il += new FieldInsnNode(PUTFIELD, fb.name, name, desc)
+      }
+    }
+
+  def storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
+}
+
 class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
 
@@ -172,7 +204,8 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   cn.superName = "java/lang/Object"
   cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
 
-  var methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
+  val methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
+  val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
 
   val apply_method = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
@@ -197,6 +230,11 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
       }
     )
   }
+
+  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
+
+  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
+    new ClassFieldRef[T](this, if (name == null) s"field${cn.fields.size()}" else name, tti)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 

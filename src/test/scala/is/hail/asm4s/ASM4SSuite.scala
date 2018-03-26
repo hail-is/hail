@@ -354,4 +354,20 @@ class ASM4SSuite extends TestNGSuite {
     assert(f(1, 1) == 2)
   }
 
+  @Test def checkClassFields(): Unit = {
+    val fb = FunctionBuilder.functionBuilder[Int, Long, Boolean, Int]
+
+    val intField = fb.newField[Int]
+    val longField = fb.newField[Long]
+    val booleanField = fb.newField[Boolean]
+
+    val c = Code(
+      intField.store(fb.getArg[Int](1)),
+      longField.store(fb.getArg[Long](2)),
+      booleanField.store(fb.getArg[Boolean](3)))
+
+    fb.emit(Code(c, intField.load()))
+    val f = fb.result()()
+    assert(f(1, 2L, true) == 1)
+  }
 }

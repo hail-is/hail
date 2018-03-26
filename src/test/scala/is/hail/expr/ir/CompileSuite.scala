@@ -609,4 +609,32 @@ class CompileSuite {
         assert(region.loadBoolean(tout.loadField(region, outOr, 0)) == (l.get || r.get))
     }
   }
+
+  @Test
+  def testStruct() {
+    val region = Region()
+    val rvb = new RegionValueBuilder(region)
+
+    def testStructN(n: Int) {
+      val tin = TStruct((0 until n).map(i => s"field$i" -> TInt32()): _*)
+      val in = In(0, tin)
+      val ir = MakeStruct((0 until n).map(i => s"foo$i" -> GetField(in, s"field$i")))
+
+      val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
+      doit(ir, fb)
+      val f = fb.result()()
+
+      region.clear()
+      val input = Row(Array.fill(n)(n): _*)
+      rvb.start(tin)
+      rvb.addAnnotation(tin, input)
+      val inOff = rvb.end()
+
+      val outOff = f(region, inOff, false)
+
+      assert(new UnsafeRow(tin, region, inOff) == new UnsafeRow(tin, region, outOff))
+    }
+
+    testStructN(5)
+  }
 }

@@ -27,15 +27,15 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   }
 
   private var staticIdx: Int = 0
-  private var idx: LocalRef[Int] = _
-  private var elementsOffset: LocalRef[Long] = _
-  private val startOffset: LocalRef[Long] = mb.newLocal[Long]
+  private var idx: ClassFieldRef[Int] = _
+  private var elementsOffset: ClassFieldRef[Long] = _
+  private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
 
   typ match {
-    case t: TBaseStruct => elementsOffset = mb.newLocal[Long]
+    case t: TBaseStruct => elementsOffset = mb.newField[Long]
     case t: TArray =>
-      elementsOffset = mb.newLocal[Long]
-      idx = mb.newLocal[Int]
+      elementsOffset = mb.newField[Long]
+      idx = mb.newField[Int]
     case _ =>
   }
 
@@ -47,9 +47,9 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def currentOffset: Code[Long] = {
     typ match {
-      case _: TBaseStruct => elementsOffset
-      case _: TArray => elementsOffset
-      case _ => startOffset
+      case _: TBaseStruct => elementsOffset.load()
+      case _: TArray => elementsOffset.load()
+      case _ => startOffset.load()
     }
   }
 
@@ -69,7 +69,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
     val t = typ.asInstanceOf[TArray]
     var c = startOffset.store(region.allocate(t.contentsAlignment, t.contentsByteSize(length)))
     if (pOffset != null) {
-      c = Code(c, region.storeAddress(pOffset, startOffset))
+      c = Code(c, region.storeAddress(pOffset, startOffset.load()))
     }
     if (init)
       c = Code(c, t.initialize(region, startOffset.load(), length, idx))
@@ -85,16 +85,16 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       startOffset.store(pOffset)
     assert(staticIdx == 0)
     if (t.size > 0)
-      c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
+      c = Code(c, elementsOffset := startOffset.load() + t.byteOffsets(0))
     if (init)
-      c = Code(c, t.clearMissingBits(region, startOffset))
+      c = Code(c, t.clearMissingBits(region, startOffset.load()))
     c
   }
 
   def setMissing(): Code[Unit] = {
     typ match {
-      case t: TArray => t.setElementMissing(region, startOffset, idx)
-      case t: TBaseStruct => t.setFieldMissing(region, startOffset, staticIdx)
+      case t: TArray => t.setElementMissing(region, startOffset.load(), idx.load())
+      case t: TBaseStruct => t.setFieldMissing(region, startOffset.load(), staticIdx)
     }
   }
 
@@ -144,16 +144,16 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def advance(): Code[Unit] = {
     typ match {
       case t: TArray => Code(
-        elementsOffset := elementsOffset + t.elementByteSize,
-        idx ++
+        elementsOffset := elementsOffset.load() + t.elementByteSize,
+        idx.store(idx.load() + 1)
       )
       case t: TBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
-          elementsOffset.store(startOffset + t.byteOffsets(staticIdx))
+          elementsOffset := startOffset.load() + t.byteOffsets(staticIdx)
         else _empty
     }
   }
 
-  def end(): Code[Long] = startOffset
+  def end(): Code[Long] = startOffset.load()
 }

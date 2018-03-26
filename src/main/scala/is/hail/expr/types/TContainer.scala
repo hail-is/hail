@@ -143,17 +143,17 @@ abstract class TContainer extends Type {
     clearMissingBits(region, aoff, length)
   }
 
-  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
+  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] = {
     var c = region.storeInt(aoff, length)
     if (elementType.required)
       return c
     Code(
       c,
       a.store((length + 7) >>> 3),
-      Code.whileLoop(a > 0,
+      Code.whileLoop(a.load() > 0,
         Code(
-          a.store(a - 1),
-          region.storeByte(aoff + 4L + a.toL, const(0))
+          a.store(a.load() - 1),
+          region.storeByte(aoff + 4L + a.load().toL, const(0))
         )
       )
     )
