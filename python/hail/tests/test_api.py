@@ -764,6 +764,13 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
                          old_order[:10])
 
+    def test_choose_cols_vs_explode(self):
+        ds = self.get_vds()
+
+        ds2 = ds.annotate_cols(foo = [0, 0]).explode_cols('foo').drop('foo')
+
+        self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
+
     def test_computed_key_join_1(self):
         ds = self.get_vds()
         kt = hl.Table.parallelize(

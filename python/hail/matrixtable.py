@@ -2333,7 +2333,6 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix table with columns based on .
         """
         n_cols = self.count_cols()
         for i in indices:
