@@ -1343,7 +1343,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
-    copyAST(ast = MatrixLiteral(matrixType, value.filterCols(p)))
+    val (newType, filterF) = MatrixIR.filterCols(matrixType)
+    copyAST(ast = MatrixLiteral(newType, filterF(value, p)))
   }
 
   def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
