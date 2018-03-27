@@ -430,10 +430,10 @@ class Tests(unittest.TestCase):
                                     types=types)
         plink_kin = plink_kin.select(i=hl.struct(sample_idx=plink_kin.ID1),
                                      j=hl.struct(sample_idx=plink_kin.ID2),
-                                     kin='kin',
-                                     k0='k0',
-                                     k1='k1',
-                                     k2='k2').key_by('i', 'j')
+                                     kin=plink_kin.kin,
+                                     k0=plink_kin.k0,
+                                     k1=plink_kin.k1,
+                                     k2=plink_kin.k2).key_by('i', 'j')
         return plink_kin
 
     def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
@@ -444,6 +444,9 @@ class Tests(unittest.TestCase):
         hkin = hl.pc_relate(mt.GT, 0.00, k=2)
         hkin_s = hl.pc_relate(mt.GT, 0.00, scores_expr=scores[mt.col_key].scores)
         rkin = self._R_pc_relate(mt, 0.00)
+
+        hkin.show()
+        rkin.show()
 
         self.assertTrue(rkin._same(hkin, tolerance=1e-4))
         self.assertTrue(rkin._same(hkin_s, tolerance=1e-4))
@@ -456,11 +459,11 @@ class Tests(unittest.TestCase):
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
         kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=32)
 
-        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, statistics='kink2', block_size=128)
-        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, statistics='kink2', block_size=16)
+        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kink2', block_size=128).cache()
+        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, min_kinship=0.01, statistics='kink2', block_size=16)
 
-        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, statistics='kink2k0', block_size=64)
-        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, statistics='kink2k0', block_size=32)
+        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kink2k0', block_size=64).cache()
+        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, min_kinship=0.1, statistics='kink2k0', block_size=32)
 
         kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=128)
         kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=16)
@@ -469,6 +472,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
         self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
         self.assertTrue(kin4._same(kin_s4, tolerance=1e-4))
+
+        self.assertTrue(kin1.count() == 50 * 49 / 2)
+
+        self.assertTrue(kin2.count() > 0)
+        self.assertTrue(kin2.filter(kin2.kin < 0.01).count() == 0)
+
+        self.assertTrue(kin3.count() > 0)
+        self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset()  # FIXME - want to rename samples with same id

@@ -34,6 +34,16 @@ object PCRelate {
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
   val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
+  private val sig = TStruct(
+      ("i", TInt32()),
+      ("j", TInt32()),
+      ("kin", TFloat64()),
+      ("k0", TFloat64()),
+      ("k1", TFloat64()),
+      ("k2", TFloat64()))
+  
+  private val keys = Array("i", "j")
+
   def apply(
     hc: HailContext,
     blockedG: M,
@@ -87,10 +97,6 @@ object PCRelate {
     }
     new BDM(nRows, nCols, a)
   }
-
-  private val sig =
-    TStruct(("i", TInt32()), ("j", TInt32()), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
-  private val keys = Array("i", "j")
 
   private def toRowRdd(
     r: Result[M],
