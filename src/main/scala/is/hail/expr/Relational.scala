@@ -175,7 +175,8 @@ object MatrixIR {
 
     val keepF = { (mv: MatrixValue, keep: Array[Int]) =>
       val keepBc = mv.sparkContext.broadcast(keep)
-      mv.copy(colValues = keep.map(mv.colValues),
+      mv.copy(typ = newMatrixType,
+        colValues = keep.map(mv.colValues),
         rvd = mv.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
           val f = makeF()
           val keep = keepBc.value
@@ -523,12 +524,12 @@ case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR 
     ChooseCols(newChildren(0).asInstanceOf[MatrixIR], oldIndices)
   }
 
-  def typ: MatrixType = child.typ
+  val (typ, colsF) = MatrixIR.chooseColsWithArray(child.typ)
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    prev.chooseColsWithArray(oldIndices)
+    colsF(prev, oldIndices)
   }
 }
 
