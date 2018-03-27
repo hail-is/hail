@@ -125,7 +125,7 @@ object CompileWithAggregators {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
-    val env = args.zipWithIndex
+    val env = ((aggName, aggType, TypeToIRIntermediateClassTag(aggType) +: args).zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     val ir = Subst(body, env)
