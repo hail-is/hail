@@ -39,17 +39,17 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
     case _ =>
   }
 
-  def offset: Code[Long] = startOffset.load()
+  def offset: Code[Long] = startOffset
 
   def endOffset: Code[Long] = region.size
 
-  def arrayIdx: Code[Int] = idx.load()
+  def arrayIdx: Code[Int] = idx
 
   def currentOffset: Code[Long] = {
     typ match {
-      case _: TBaseStruct => elementsOffset.load()
-      case _: TArray => elementsOffset.load()
-      case _ => startOffset.load()
+      case _: TBaseStruct => elementsOffset
+      case _: TArray => elementsOffset
+      case _ => startOffset
     }
   }
 
@@ -69,11 +69,11 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
     val t = typ.asInstanceOf[TArray]
     var c = startOffset.store(region.allocate(t.contentsAlignment, t.contentsByteSize(length)))
     if (pOffset != null) {
-      c = Code(c, region.storeAddress(pOffset, startOffset.load()))
+      c = Code(c, region.storeAddress(pOffset, startOffset))
     }
     if (init)
-      c = Code(c, t.initialize(region, startOffset.load(), length, idx))
-    c = Code(c, elementsOffset.store(startOffset.load() + t.elementsOffset(length)))
+      c = Code(c, t.initialize(region, startOffset, length, idx))
+    c = Code(c, elementsOffset.store(startOffset + t.elementsOffset(length)))
     Code(c, idx.store(0))
   }
 
@@ -85,16 +85,16 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       startOffset.store(pOffset)
     assert(staticIdx == 0)
     if (t.size > 0)
-      c = Code(c, elementsOffset := startOffset.load() + t.byteOffsets(0))
+      c = Code(c, elementsOffset := startOffset + t.byteOffsets(0))
     if (init)
-      c = Code(c, t.clearMissingBits(region, startOffset.load()))
+      c = Code(c, t.clearMissingBits(region, startOffset))
     c
   }
 
   def setMissing(): Code[Unit] = {
     typ match {
-      case t: TArray => t.setElementMissing(region, startOffset.load(), idx.load())
-      case t: TBaseStruct => t.setFieldMissing(region, startOffset.load(), staticIdx)
+      case t: TArray => t.setElementMissing(region, startOffset, idx)
+      case t: TBaseStruct => t.setFieldMissing(region, startOffset, staticIdx)
     }
   }
 

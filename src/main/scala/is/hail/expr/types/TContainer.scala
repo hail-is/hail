@@ -150,10 +150,10 @@ abstract class TContainer extends Type {
     Code(
       c,
       a.store((length + 7) >>> 3),
-      Code.whileLoop(a.load() > 0,
+      Code.whileLoop(a > 0,
         Code(
-          a.store(a.load() - 1),
-          region.storeByte(aoff + 4L + a.load().toL, const(0))
+          a.store(a - 1),
+          region.storeByte(aoff + 4L + a.toL, const(0))
         )
       )
     )

@@ -90,10 +90,10 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
-  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
-  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
-    new ClassFieldRef[T](fb, if (name == null) s"field${fb.cn.fields.size()}" else name, tti)
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
+    new ClassFieldRef[T](fb, if (name == null) s"field${fb.cn.fields.size()}" else name)
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
@@ -163,9 +163,8 @@ class Method5Builder[A, B, C, D, E, R](fb: FunctionBuilder[_], mname: String)
   def apply(a:Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E]): Code[R] = invoke(a, b, c, d, e).asInstanceOf[Code[R]]
 }
 
-class ClassFieldRef[T](fb: FunctionBuilder[_], name: String, fieldTypeInfo: TypeInfo[_]) extends Settable[T] {
-
-  val desc: String = fieldTypeInfo.name
+class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String) extends Settable[T] {
+  val desc: String = typeInfo[T].name
   val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
 
   fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
@@ -231,10 +230,10 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     )
   }
 
-  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
-  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
-    new ClassFieldRef[T](this, if (name == null) s"field${cn.fields.size()}" else name, tti)
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
+    new ClassFieldRef[T](this, if (name == null) s"field${cn.fields.size()}" else name)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 
