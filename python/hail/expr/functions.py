@@ -20,7 +20,7 @@ def _func(name, ret_type, *args):
 
 
 @typecheck(t=hail_type)
-def null(t: Union[HailType, str]) -> Expression:
+def null(t: Union[HailType, str]):
     """Creates an expression representing a missing value of a specified type.
 
     Examples
@@ -52,7 +52,7 @@ def null(t: Union[HailType, str]) -> Expression:
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
-def literal(x: Any, dtype: Optional[Union[HailType, str]] = None) -> Expression:
+def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     """Captures and broadcasts a Python variable or object as an expression.
 
     Examples
@@ -143,7 +143,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None) -> Expression:
 def cond(condition,
          consequent,
          alternate,
-         missing_false: bool = False) -> Expression:
+         missing_false: bool = False):
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
@@ -274,7 +274,7 @@ def switch(expr) -> 'hail.expr.builders.SwitchBuilder':
 
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))
-def bind(expr, f: Callable) -> Expression:
+def bind(expr, f: Callable):
     """Bind a temporary variable and use it in a function.
 
     Examples
@@ -1283,7 +1283,7 @@ def log10(x) -> Float64Expression:
 
 
 @typecheck(a=expr_any, b=expr_any)
-def or_else(a, b) -> Expression:
+def or_else(a, b):
     """If `a` is missing, return `b`.
 
     Examples
@@ -1314,7 +1314,7 @@ def or_else(a, b) -> Expression:
 
 
 @typecheck(predicate=expr_bool, value=expr_any)
-def or_missing(predicate, value) -> Expression:
+def or_missing(predicate, value):
     """Returns `value` if `predicate` is ``True``, otherwise returns missing.
 
     Examples
@@ -2309,7 +2309,7 @@ def all(f: Callable, collection) -> BooleanExpression:
 
 @typecheck(f=func_spec(1, expr_bool),
            collection=expr_oneof(expr_set(), expr_array()))
-def find(f: Callable, collection) -> Expression:
+def find(f: Callable, collection):
     """Returns the first element where `f` returns ``True``.
 
     Examples
