@@ -3,12 +3,12 @@
 
     <xsl:import href="template.xslt"/>
 
-    <xsl:template name="page-title">Hail Jobs</xsl:template>
-    <xsl:template name="meta-description"><meta name="description" content="Hail Jobs"/></xsl:template>
+    <xsl:template name="page-title">About Hail</xsl:template>
+    <xsl:template name="meta-description"><meta name="description" content="About Hail"/></xsl:template>
     <xsl:template name="navbar-script">
         <script>
             $(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li")
-            .removeClass("active"); $("#jobs").addClass("active");});});
+            .removeClass("active"); $("#about").addClass("active");});});
         </script>
     </xsl:template>
 

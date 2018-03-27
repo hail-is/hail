@@ -387,6 +387,11 @@ task jobsToHtml(type: Exec, dependsOn: setupDocsDirs) {
             '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/jobs.html'
 }
 
+task aboutToHtml(type: Exec, dependsOn: setupDocsDirs) {
+    commandLine 'pandoc', '-s', 'www/about.md', '-f', 'markdown', '-t', 'html', '--mathjax',
+            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/about.html'
+}
+
 task buildIndex(type: Exec, dependsOn: ['readmeToHtml']) {
     args('--html', '-o', 'build/www/index.html', 'www/readme-to-index.xslt', 'build/tmp/README.html')
     executable 'xsltproc'
@@ -394,6 +399,11 @@ task buildIndex(type: Exec, dependsOn: ['readmeToHtml']) {
 
 task buildJobs(type: Exec, dependsOn: ['jobsToHtml']) {
     args('--html', '-o', 'build/www/jobs.html', 'www/jobs.xslt', 'build/tmp/jobs.html')
+    executable 'xsltproc'
+}
+
+task buildAbout(type: Exec, dependsOn: ['aboutToHtml']) {
+    args('--html', '-o', 'build/www/about.html', 'www/about.xslt', 'build/tmp/about.html')
     executable 'xsltproc'
 }
 
@@ -430,13 +440,13 @@ task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocs
     commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
 }
 
-task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
+task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'buildAbout', 'copyHailDocs'])
 
 task createDocs(dependsOn: createWebsite)
 
-task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
+task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'buildAbout', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
 
-task testDocs(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs'])
+task testDocs(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'buildAbout'])
 
 task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {

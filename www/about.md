@@ -1,0 +1,16 @@
+### The Hail Project
+
+[Cotton Seed](https://www.broadinstitute.org/bios/cotton-seed) and [Jon Bloom](https://www.broadinstitute.org/bios/jonathan-bloom) co-founded the **Hail project** in the [Neale lab](http://www.nealelab.is/) in Fall 2015 to help the genetics community [harness the flood of sequenced genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) in order to unravel the genetic architecture of disease. Our open-source framework is already being used to analyze the largest genetic data sets in existence, to power dozens of major academic studies, and to meet the exploding needs of hospitals, diagnostic labs, and industry.
+
+The Hail Team is embedded inside the world's leading biomedical and genomics research institute, anchoring the [global heart of biotech](http://www.wbur.org/bostonomix/2017/06/19/boston-biotech-success) right across from MIT. We implement **distributed algorithms** on top of our custom-built language, compiler, and run-time system to support querying, aggregation, and linear algebra on hundreds of thousands of human genomes. We thrive on **diverse challenges**: language and compiler design, low-level performance optimization, architecture of distributed systems, scaling of established methods and invention of new ones, visualization, interoperability with other powerful tools, and close collaboration with the scientists around us.
+
+
+### Why Hail? Why now?
+
+Like particle physics, astronomy, and tech before, biology has firmly entered the [fourth paradigm](https://www.microsoft.com/en-us/research/publication/fourth-paradigm-data-intensive-scientific-discovery/) of **data-intensive science** in which we measure everything and run computational experiments on the data. Genetic datasets for disease [association studies](https://en.wikipedia.org/wiki/Genome-wide_association_study) now run in the tens of terabytes, doubling every eight months. RNA-sequencing datasets measuring gene expression at single-cell resolution are measured in gigabytes but doubling far faster in the quest for a [Human Cell Atlas](https://www.broadinstitute.org/research-highlights-human-cell-atlas). Much of this data comes from the [Broad Genomics Platform](https://www.broadinstitute.org/genomics), the largest producer of human genomics information in the world.
+
+With such staggering advances and investment in high-throughput [perturbation](https://www.broadinstitute.org/research-highlights-crispr) and measurement, technical barriers to discovery are rapidly shifting from biological to computational. We believe there is a **unique opportunity** to transform the practice of computational biology by applying deep ideas from computer science and mathematics to build the next generation of modular, scalable tools for analyzing massive genetic and biological data. These tools will drive the development of new treatments and biotechnologies and fundamentally advance our understanding of life itself.
+
+### Models, Inference, and Algorithms Initiative
+
+We run the [Models, Inference & Algorithms Initiative](http://www.broadinstitute.org/mia) to foster community and pedagogy in greater Boston at the interface of computational biology, mathematical theory, and computer science.
