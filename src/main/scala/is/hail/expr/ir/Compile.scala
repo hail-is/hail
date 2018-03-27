@@ -36,7 +36,7 @@ object Compile {
     apply[AsmFunction1[Region, R], R](Seq(), body)
   }
 
-  def apply[T0: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
+  def apply[T0 : ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: Type,
     body: IR): (Type, () => AsmFunction3[Region, T0, Boolean, R]) = {
@@ -44,7 +44,7 @@ object Compile {
     apply[AsmFunction3[Region, T0, Boolean, R], R](Seq((name0, typ0, classTag[T0])), body)
   }
 
-  def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
+  def apply[T0 : ClassTag, T1 : ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: Type,
     name1: String,
@@ -54,14 +54,19 @@ object Compile {
     apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](Seq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body)
   }
 
-  def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, T2: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
-    name0: String,
+  def apply[
+    T0 : TypeInfo : ClassTag,
+    T1 : TypeInfo : ClassTag,
+    T2 : TypeInfo : ClassTag,
+    R: TypeInfo : ClassTag
+  ](name0: String,
     typ0: Type,
     name1: String,
     typ1: Type,
     name2: String,
     typ2: Type,
-    body: IR): (Type, () => AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]) = {
+    body: IR
+  ): (Type, () => AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]) = {
     assert(TypeToIRIntermediateClassTag(typ0) == classTag[T0])
     assert(TypeToIRIntermediateClassTag(typ1) == classTag[T1])
     assert(TypeToIRIntermediateClassTag(typ2) == classTag[T2])
@@ -78,16 +83,22 @@ object Compile {
     (e.typ, fb.result())
   }
 
-  def apply[T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, T2: TypeInfo : ClassTag,
-  T3: TypeInfo : ClassTag, T4: TypeInfo : ClassTag, T5: TypeInfo : ClassTag,
-  R: TypeInfo : ClassTag](
-    name0: String, typ0: Type,
+  def apply[
+    T0 : ClassTag,
+    T1 : ClassTag,
+    T2 : ClassTag,
+    T3 : ClassTag,
+    T4 : ClassTag,
+    T5 : ClassTag,
+    R: TypeInfo : ClassTag
+  ](name0: String, typ0: Type,
     name1: String, typ1: Type,
     name2: String, typ2: Type,
     name3: String, typ3: Type,
     name4: String, typ4: Type,
     name5: String, typ5: Type,
-    body: IR): (Type, () => AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R]) = {
+    body: IR
+  ): (Type, () => AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R]) = {
 
     apply[AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R], R](Seq(
       (name0, typ0, classTag[T0]),
@@ -101,12 +112,16 @@ object Compile {
 }
 
 object CompileWithAggregators {
-  def apply[F1 >: Null : TypeInfo, F2 >: Null : TypeInfo, R: TypeInfo : ClassTag](
-    aggName: String,
+  def apply[
+    F1 >: Null : TypeInfo,
+    F2 >: Null : TypeInfo,
+    R: TypeInfo : ClassTag
+  ](aggName: String,
     aggType: TAggregable,
     args: Seq[(String, Type, ClassTag[_])],
     aggScopeArgs: Seq[(String, Type, ClassTag[_])],
-    body: IR): (Array[RegionValueAggregator], Array[() => F1], Type, () => F2, Type) = {
+    body: IR
+  ): (Array[RegionValueAggregator], Array[() => F1], Type, () => F2, Type) = {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
@@ -138,17 +153,22 @@ object CompileWithAggregators {
     (rvAggs, seqOps, aggResultType, f, t)
   }
 
-  def apply[TAGG: TypeInfo : ClassTag, T0: TypeInfo : ClassTag, S0: TypeInfo : ClassTag, S1: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
-    aggName: String,
+  def apply[
+    TAGG : ClassTag,
+    T0 : ClassTag,
+    S0 : ClassTag,
+    S1 : ClassTag,
+    R: TypeInfo : ClassTag
+  ](aggName: String,
     aggTyp: TAggregable,
     name0: String,
     typ0: Type,
-    body: IR): (
-    Array[RegionValueAggregator],
-      Array[() => AsmFunction8[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, Unit]],
-      Type,
-      () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      Type) = {
+    body: IR
+  ): (Array[RegionValueAggregator],
+    Array[() => AsmFunction8[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, Unit]],
+    Type,
+    () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
+    Type) = {
 
     assert(TypeToIRIntermediateClassTag(aggTyp) == classTag[TAGG])
 
@@ -167,20 +187,27 @@ object CompileWithAggregators {
       R](aggName, aggTyp, args, aggScopeArgs, body)
   }
 
-  def apply[TAGG: TypeInfo : ClassTag, T0: TypeInfo : ClassTag, T1: TypeInfo : ClassTag, S0: TypeInfo : ClassTag,
-  S1: TypeInfo : ClassTag, S2: TypeInfo : ClassTag, S3: TypeInfo : ClassTag, R: TypeInfo : ClassTag](
-    aggName: String,
+  def apply[
+    TAGG : ClassTag,
+    T0 : ClassTag,
+    T1 : ClassTag,
+    S0 : ClassTag,
+    S1 : ClassTag,
+    S2 : ClassTag,
+    S3 : ClassTag,
+    R: TypeInfo : ClassTag
+  ](aggName: String,
     aggTyp: TAggregable,
     name0: String,
     typ0: Type,
     name1: String,
     typ1: Type,
-    body: IR): (
-    Array[RegionValueAggregator],
-      Array[() => AsmFunction12[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit]],
-      Type,
-      () => AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
-      Type) = {
+    body: IR
+  ): (Array[RegionValueAggregator],
+    Array[() => AsmFunction12[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit]],
+    Type,
+    () => AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
+    Type) = {
 
     assert(TypeToIRIntermediateClassTag(aggTyp) == classTag[TAGG])
 
