@@ -15,6 +15,7 @@ import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
+import is.hail.sparkextras.ContextRDD
 import org.apache.hadoop
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -2002,7 +2003,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         OrderedRVD.adjustBoundsAndShuffle(
           that.rvd.typ,
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
-          that.rvd.rdd)
+          that.rvd)
           .rdd) { (it1, it2) =>
         val fullRow1 = new UnsafeRow(leftRVType)
         val fullRow2 = new UnsafeRow(rightRVType)
@@ -2523,8 +2524,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
 
-    def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
-      rvd.mapPartitions { it =>
+    def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
+      rvd.mapPartitions(localRVRowType) { it =>
         var prevLocus: Locus = null
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
