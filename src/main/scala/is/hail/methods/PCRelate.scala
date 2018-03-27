@@ -45,18 +45,11 @@ object PCRelate {
     
     val scoresLocal = scoresTable.collect()
     assert(scoresLocal.length == blockedG.nCols)
-
-    val keyQueriers = scoresTable.key.map(scoresTable.signature.query(_))        
-    val keys = scoresLocal.map(a => Row.fromSeq(keyQueriers.map(q => q(a)))).toArray[Annotation] 
-    val keyType = scoresTable.keySignature
-
-    val scoresQuerier = scoresTable.signature.query("scores")
-    val pcaScores = scoresLocal.map(a => scoresQuerier(a).asInstanceOf[IndexedSeq[Double]])
-    val pcs = rowsToBDM(pcaScores)
+    val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[Double]](0)))
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(blockedG, pcs)
 
-    PCRelate.toTable(hc, result, keys, keyType, blockSize, minKinship, statistics)  
+    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
   }
 
   private[methods] def apply(vds: MatrixTable,
@@ -68,12 +61,14 @@ object PCRelate {
 
     val g = vdsToMeanImputedMatrix(vds)
     val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
-    val keys = vds.stringSampleIds.toArray[Annotation]
-    val keyType = TString()
-    
+    val sampleIds = vds.stringSampleIds.toArray[Annotation]
+    val idType = TString()
+
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(blockedG, pcs)
 
-    PCRelate.toTable(vds.hc, result, keys, keyType, blockSize, minKinship, statistics)  
+    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
+      .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
+      .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, k0: row.k0, k1: row.k1, k2: row.k2}") 
   }
 
   private def rowsToBDM(x: Array[IndexedSeq[Double]]): BDM[Double] = {
@@ -93,13 +88,12 @@ object PCRelate {
     new BDM(nRows, nCols, a)
   }
 
-  private def signature(columnKeyType: Type) =
-    TStruct(("i", columnKeyType), ("j", columnKeyType), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
+  private val sig =
+    TStruct(("i", TInt32()), ("j", TInt32()), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
   private val keys = Array("i", "j")
 
   private def toRowRdd(
     r: Result[M],
-    columnKeys: Array[Annotation],
     blockSize: Int,
     minKinship: Double,
     statistics: StatisticSubset): RDD[Row] = {
@@ -127,7 +121,7 @@ object PCRelate {
               val k0 = if (lmK0 == null) null else lmK0(ii, jj)
               val k1 = if (lmK1 == null) null else lmK1(ii, jj)
               val k2 = if (lmK2 == null) null else lmK2(ii, jj)
-              ab += Annotation(columnKeys(iOffset + ii), columnKeys(jOffset + jj), kin, k0, k1, k2).asInstanceOf[Row]
+              ab += Annotation(iOffset + ii, jOffset + jj, kin, k0, k1, k2).asInstanceOf[Row]
             }
             ii += 1
           }
@@ -151,19 +145,6 @@ object PCRelate {
       case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
         .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
     }
-  }
-
-  def toTable(hc: HailContext,
-    r: Result[M],
-    columnKeys: Array[Annotation],
-    columnKeyType: Type,
-    blockSize: Int,
-    minKinship: Double = defaultMinKinship,
-    statistics: StatisticSubset = defaultStatisticSubset): Table = {
-    
-    val columnKeysBc = hc.sc.broadcast(columnKeys)
-    
-    Table(hc, toRowRdd(r, columnKeysBc.value, blockSize, minKinship, statistics), signature(columnKeyType), keys)
   }
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)

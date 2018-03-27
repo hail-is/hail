@@ -441,8 +441,8 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(sample_idx=hl.str(mt.sample_idx))
         _, scores, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
 
-        hkin = hl.pc_relate(mt, 0.00, k=2)
-        hkin_s = hl.pc_relate(mt, 0.00, scores=scores)
+        hkin = hl.pc_relate(mt.GT, 0.00, k=2)
+        hkin_s = hl.pc_relate(mt.GT, 0.00, scores_expr=scores[mt.col_key].scores)
         rkin = self._R_pc_relate(mt, 0.00)
 
         rkin._same(hkin, tolerance=1e-4)
@@ -453,15 +453,15 @@ class Tests(unittest.TestCase):
         _, scores2, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
         _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
 
-        kin1 = hl.pc_relate(mt, 0.10, k=2, statistics='phi', block_size=64, )
-        kin2 = hl.pc_relate(mt, 0.05, k=2, statistics='phik2', block_size=64)
-        kin3 = hl.pc_relate(mt, 0.02, k=3, statistics='phik2k0', block_size=64)
-        kin4 = hl.pc_relate(mt, 0.01, k=3, statistics='all', block_size=64)
+        kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64, )
+        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, statistics='kink2', block_size=64)
+        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, statistics='kink2k0', block_size=64)
+        kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=64)
 
-        kin_s1 = hl.pc_relate(mt, 0.10, scores=scores2, statistics='phi', block_size=32)
-        kin_s2 = hl.pc_relate(mt, 0.05, scores=scores2, statistics='phik2', block_size=32)
-        kin_s3 = hl.pc_relate(mt, 0.02, scores=scores3, statistics='phik2k0', block_size=32)
-        kin_s4 = hl.pc_relate(mt, 0.01, scores=scores3, statistics='all', block_size=32)
+        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=32)
+        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, statistics='kink2', block_size=32)
+        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, statistics='kink2k0', block_size=32)
+        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=32)
 
         kin1._same(kin_s1, tolerance=1e-5)
         kin2._same(kin_s2, tolerance=1e-5)

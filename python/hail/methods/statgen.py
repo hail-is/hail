@@ -1470,22 +1470,18 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     return jiterable_to_list(r._1()), scores, loadings
 
 
-@typecheck(mt=MatrixTable,
+@typecheck(call_expr=expr_call,
            maf=numeric,
            k=nullable(int),
-           scores=nullable(Table),
+           scores_expr=nullable(expr_array(expr_float64)),
            min_kinship=numeric,
-           statistics=enumeration('phi', 'phik2', 'phik2k0', 'all'),
+           statistics=enumeration('kin', 'kink2', 'kink2k0', 'all'),
            block_size=nullable(int))
-def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statistics="all", block_size=None):
+def pc_relate(call_expr, maf, *, k=None, scores_expr=None, min_kinship=-float("inf"), statistics="all", block_size=None):
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
-
-    .. include:: ../_templates/req_tvariant.rst
-
-    .. include:: ../_templates/req_biallelic.rst
 
     Examples
     --------
@@ -1494,28 +1490,30 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
     allele frequency filter of 0.01 and 10 principal components to control
     for population structure.
 
-    >>> rel = hl.pc_relate(dataset, 0.01, k=10)
+    >>> rel = hl.pc_relate(dataset.GT, 0.01, k=10)
 
     Only compute the kinship statistic. This is more efficient than
     computing all statistics.
 
-    >>> rel = hl.pc_relate(dataset, 0.01, k=10, statistics='phi')
+    >>> rel = hl.pc_relate(dataset.GT, 0.01, k=10, statistics='kin')
 
     Compute all statistics, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     then filtering using :meth:`.Table.filter`.
 
-    >>> rel = hl.pc_relate(dataset, 0.01, k=10, min_kinship=0.1)
+    >>> rel = hl.pc_relate(dataset.GT, 0.01, k=10, min_kinship=0.1)
 
-    One can also pass in principal component scores derived from PCA on the
-    same dataset or an external reference panel. To produce the same results
-    as in the previous example:
+    One can also pass in pre-computed principal component scores.
+    To produce the same results as in the previous example:
 
-    >>> _, scores, _ = hl.hwe_normalized_pca(dataset,
+    >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset.GT,
     ...                                      k=10,
     ...                                      compute_loadings=False,
     ...                                      as_array=True)
-    >>> rel = hl.pc_relate(dataset, 0.01, scores=scores, min_kinship=0.1)
+    >>> rel = hl.pc_relate(dataset.GT,
+    ...                    0.01,
+    ...                    score_expr=scores_table[dataset.col_key].scores,
+    ...                    min_kinship=0.1)
 
     Notes
     -----
@@ -1695,29 +1693,27 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
 
     Parameters
     ----------
-    mt : :class:`.MatrixTable`
-        Variant-keyed, biallelic :class:`.MatrixTable` with unique column keys
-        and an entry field ``GT`` of type :py:data:`.tcall`.
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
     k : :obj:`int`, optional
-        The number of principal components to use.
-        Exactly one of `k` and `scores` must be specified.
-    scores : :class:`Table`, optional
-        Table keyed by a single field of type `:py:data:`.tstr` with values
-        including all column keys of ``mt``, and with a
-        ``scores`` field of type :class:`tarray` of `:py:data:`.tfloat64` with
-        all array values of the same positive length.
-        Exactly one of `k` and `scores` must be specified.
+        If set, `k` principal component scores are computed and used.
+        Exactly one of `k` and `scores_expr` must be specified.
+    scores_expr : :class:`.ArrayNumericExpression`, optional
+        Column-indexed expression of principal component scores, with the same
+        source as `call_expr`. All array values must have the same positive length,
+        corresponding to the number of principal components.
+        Exactly one of `k` and `scores_expr` must be specified.
     min_kinship : :obj:`float`
         Pairs of samples with kinship lower than ``min_kinship`` are excluded
         from the results.
     statistics : :obj:`str`
         Set of statistics to compute.
-        If ``'phi'``, only estimate the kinship statistic.
-        If ``'phik2'``, estimate the above and IBD2.
-        If ``'phik2k0'``, estimate the above and IBD0.
+        If ``'kin'``, only estimate the kinship statistic.
+        If ``'kink2'``, estimate the above and IBD2.
+        If ``'kink2k0'``, estimate the above and IBD0.
         If ``'all'``, estimate the above and IBD1.
     block_size : :obj:`int`, optional
         Block size of block matrices used in the algorithm.
@@ -1728,23 +1724,28 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
     :class:`.Table`
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    mt = require_biallelic(mt, 'pc_relate')
+    source = call_expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    mt = source
+    analyze('pc_relate/call_expr', call_expr, mt._entry_indices)
 
-    if k and not scores:
-        # column order always preserved?
-        _, scores_table, _ = hwe_normalized_pca(mt, k, compute_loadings=False, as_array=True)
-    elif scores and not k:
-        uid = Env.get_uid()
-        mt = mt.annotate_cols(**{uid: scores[mt.col_key].scores})  # FIXME: check that all cols are annotated
-        scores_table = mt.select_cols(*mt.col_key, scores=mt[uid]).cols()
-    elif k and scores:
-        raise ValueError("pc_relate: exactly one of 'k' and 'scores' must be set, found both")
+    if k and scores_expr is None:
+        _, scores, _ = hwe_normalized_pca(mt, k, compute_loadings=False, as_array=True)
+        scores_expr = scores[mt.col_key].scores
+    elif not k and scores_expr is not None:
+        analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
+    elif k and scores_expr is not None:
+        raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found both")
     else:
-        raise ValueError("pc_relate: exactly one of 'k' and 'scores' must be set, found neither")
+        raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
-    mt = mt.select_entries(gt=mt.GT.n_alt_alleles())
-    mt = mt.select_rows(mean_gt=agg.mean(mt.gt))
-    mean_imputed_gt = hl.or_else(hl.float64(mt.gt), mt.mean_gt)
+    scores_table = mt.select_cols(__scores=scores_expr).cols()
+
+    mt = mt.select_entries(gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__mean_gt=agg.mean(mt.gt))
+    mean_imputed_gt = hl.or_else(hl.float64(mt.gt), mt.__mean_gt)
 
     if not block_size:
         block_size = BlockMatrix.default_block_size()
@@ -1752,9 +1753,9 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
     g = BlockMatrix.from_entry_expr(mean_imputed_gt,
                                     block_size=block_size)
 
-    int_statistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
+    int_statistics = {'kin': 0, 'kink2': 1, 'kink2k0': 2, 'all': 3}[statistics]
 
-    return Table(scala_object(Env.hail().methods, 'PCRelate')
+    ht = Table(scala_object(Env.hail().methods, 'PCRelate')
             .apply(Env.hc()._jhc,
                    g._jbm,
                    scores_table._jt,
@@ -1763,6 +1764,15 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
                    min_kinship,
                    int_statistics))
 
+    if statistics == 'kin':
+        ht = ht.drop('k0', 'k1', 'k2')
+    elif statistics == 'kink2':
+        ht = ht.drop('k0', 'k1')
+    elif statistics == 'kink2k0':
+        ht = ht.drop('k1')
+
+    col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
+    return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])
 
 class SplitMulti(object):
     """Split multiallelic variants.
