@@ -29,7 +29,5 @@ class SettableBit(bits: LocalRef[Long], i: Int) extends Settable[Boolean] {
     bits := bits & ~(1L << i) | (b.toI.toL << i)
   }
 
-  def storeInsn: Code[Unit] = ???
-
   def load(): Code[Boolean] = (bits >> i & 1L).toI.toZ
 }
