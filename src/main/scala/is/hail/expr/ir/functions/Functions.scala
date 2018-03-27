@@ -33,7 +33,7 @@ object IRFunctionRegistry {
       }.toSeq match {
         case Seq() => None
         case Seq((_, f)) => Some(f)
-        case _ => fatal(s"Multiple functions found that satisfy $name$args.")
+        case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
       }
     }
   }
@@ -59,7 +59,7 @@ object IRFunctionRegistry {
       case (None, None) => None
       case (None, Some(x)) => Some(x)
       case (Some(x), None) => Some(x)
-      case _ => fatal(s"Multiple methods found that satisfy $name$args.")
+      case _ => fatal(s"Multiple methods found that satisfy $name(${ args.mkString(",") }).")
     }
   }
 
