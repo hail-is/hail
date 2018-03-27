@@ -34,27 +34,27 @@ class OrderedRVD(
   def rowType: TStruct = typ.rowType
 
   def updateType(newTyp: OrderedRVDType): OrderedRVD =
-    OrderedRVD(newTyp, partitioner, rdd)
+    OrderedRVD(newTyp, partitioner, crdd)
 
   def mapPreservesPartitioning(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
-      rdd.map(f))
+      crdd.map(f))
 
   def mapPartitionsWithIndexPreservesPartitioning(newTyp: OrderedRVDType)(f: (Int, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
-      rdd.mapPartitionsWithIndex(f))
+      crdd.mapPartitionsWithIndex(f))
 
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
-      rdd.mapPartitions(f))
+      crdd.mapPartitions(f))
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
-      rdd.filter(p))
+      crdd.filter(p))
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
@@ -129,7 +129,7 @@ class OrderedRVD(
 
     val localTyp = typ
     OrderedRVD(typ, partitioner,
-      rdd.zipPartitions(rdd2.rdd) { case (it, it2) =>
+      crdd.zipPartitions(rdd2.crdd) { case (it, it2) =>
         new Iterator[RegionValue] {
           private val bit = it.buffered
           private val bit2 = it2.buffered
@@ -155,7 +155,7 @@ class OrderedRVD(
 
   def copy(typ: OrderedRVDType = typ,
     orderedPartitioner: OrderedRVDPartitioner = partitioner,
-    rdd: RDD[RegionValue] = rdd): OrderedRVD = {
+    rdd: ContextRDD[RVDContext, RegionValue] = crdd): OrderedRVD = {
     OrderedRVD(typ, orderedPartitioner, rdd)
   }
 
@@ -179,7 +179,7 @@ class OrderedRVD(
 
   override def coalesce(maxPartitions: Int, shuffle: Boolean): OrderedRVD = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
-    val n = rdd.partitions.length
+    val n = crdd.partitions.length
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
@@ -194,7 +194,7 @@ class OrderedRVD(
         shuffled)
     } else {
 
-      val partSize = rdd.context.runJob(rdd, getIteratorSize _)
+      val partSize = crdd.partitionSizes
       log.info(s"partSize = ${ partSize.toSeq }")
 
       val partCumulativeSize = mapAccumulate[Array, Long](partSize, 0L)((s, acc) => (s + acc, s + acc))
@@ -228,7 +228,7 @@ class OrderedRVD(
 
   def filterIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val pkOrdering = typ.pkType.ordering
-    val intervalsBc = rdd.sparkContext.broadcast(intervals)
+    val intervalsBc = crdd.sparkContext.broadcast(intervals)
     val rowType = typ.rowType
     val pkRowFieldIdx = typ.pkRowFieldIdx
 
@@ -261,7 +261,7 @@ class OrderedRVD(
       OrderedRVD.empty(sparkContext, typ)
     else {
       val sub = subsetPartitions(newPartitionIndices)
-      sub.copy(rdd = sub.rdd.filter(pred))
+      sub.copy(rdd = sub.crdd.filter(pred))
     }
   }
 
@@ -292,7 +292,7 @@ class OrderedRVD(
 
     val localType = typ
 
-    val newRDD: RDD[RegionValue] = rdd.mapPartitions { it =>
+    val newCRDD = crdd.mapPartitions { it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
       val outRV = RegionValue(region)
@@ -322,22 +322,22 @@ class OrderedRVD(
       }
     }
 
-    OrderedRVD(newTyp, partitioner, newRDD)
+    OrderedRVD(newTyp, partitioner, newCRDD)
   }
 
   def distinctByKey(): OrderedRVD = {
     val localType = typ
-    val newRVD = rdd.mapPartitions { it =>
+    val newCRDD = crdd.mapPartitions { it =>
       OrderedRVIterator(localType, it)
         .staircase
         .map(_.value)
     }
-    OrderedRVD(typ, partitioner, newRVD)
+    OrderedRVD(typ, partitioner, newCRDD)
   }
 
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {
-    require(keep.length <= rdd.partitions.length, "tried to subset to more partitions than exist")
-    require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < rdd.partitions.length)),
+    require(keep.length <= crdd.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
       "values not sorted or not in range [0, number of partitions)")
 
     val newRangeBounds = Array.tabulate(keep.length) { i =>
@@ -353,7 +353,7 @@ class OrderedRVD(
       partitioner.kType,
       newRangeBounds)
 
-    OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
+    OrderedRVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
   override protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
@@ -498,7 +498,7 @@ object OrderedRVD {
   def coerce(
     typ: OrderedRVDType,
     rvd: RVD,
-    fastKeys: RDD[RegionValue]
+    fastKeys: ContextRDD[RVDContext, RegionValue]
   ): OrderedRVD = coerce(typ, rvd, Some(fastKeys), None)
 
   def coerce(
@@ -510,9 +510,9 @@ object OrderedRVD {
   def coerce(
     typ: OrderedRVDType,
     rvd: RVD,
-    fastKeys: Option[RDD[RegionValue]],
+    fastKeys: Option[ContextRDD[RVDContext, RegionValue]],
     hintPartitioner: Option[OrderedRVDPartitioner]
-  ): OrderedRVD = coerce(typ, rvd.rdd, fastKeys, hintPartitioner)
+  ): OrderedRVD = coerce(typ, rvd.crdd, fastKeys, hintPartitioner)
 
   def coerce(
     typ: OrderedRVDType,
@@ -787,7 +787,7 @@ object OrderedRVD {
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     rvd: RVD
-  ): OrderedRVD = apply(typ, partitioner, rvd.rdd)
+  ): OrderedRVD = apply(typ, partitioner, rvd.crdd)
 
   def apply(
     typ: OrderedRVDType,
@@ -846,7 +846,7 @@ object OrderedRVD {
     val sc = first.sparkContext
     OrderedRVD.coerce(
       first.typ,
-      sc.union(rvds.map(_.rdd)),
+      ContextRDD.union(first.sparkContext, rvds.map(_.crdd)),
       None,
       None)
   }

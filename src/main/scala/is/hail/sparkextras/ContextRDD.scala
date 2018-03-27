@@ -305,6 +305,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       mkc)
   }
 
+  def partitionSizes: Array[Long] =
+    sparkContext.runJob(rdd, { (it: Iterator[ContextRDD.ElementType[C, T]]) =>
+      using(mkc()) { c =>
+        it.map { useCtx =>
+          getIteratorSize(useCtx(c))
+        }.sum
+      }
+    })
+
   def sparkContext: SparkContext = rdd.sparkContext
 
   def getNumPartitions: Int = rdd.getNumPartitions
