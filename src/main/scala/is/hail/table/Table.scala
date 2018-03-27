@@ -350,7 +350,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) => seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false) }
+          rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
+            seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false)
+          }
           rvaggs
         }, { (rvAggs1, rvAggs2) =>
           rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
@@ -374,9 +376,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
       val globalsOffset = rvb.end()
 
       val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
-      val result = UnsafeRow.read(t, region, resultOffset)
+      val resultType = coerce[TTuple](t)
+      val result = UnsafeRow.readBaseStruct(resultType, region, resultOffset)
 
-      result.asInstanceOf[Row].toSeq.zip(t.asInstanceOf[TTuple].types).toArray
+      result.toSeq.zip(resultType.types).toArray
     } else {
       val ts = exprs.map(e => Parser.parseExpr(e, ec))
 

@@ -12,18 +12,18 @@ object Compile {
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](args: Seq[(String, Type, ClassTag[_])], body: IR): (Type, () => F) = {
     assert(args.forall{ case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
-    val argTypeInfo: Array[GenericTypeInfo[_]] =
+    val argTypeInfo: Array[MaybeGenericTypeInfo[_]] =
       GenericTypeInfo[Region]() +:
         args.flatMap { case (_, t, _) =>
-          List[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]()).iterator
+          Seq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
         }.toArray
 
-    val fb = new FunctionBuilder[F](argTypeInfo.asInstanceOf[Array[MaybeGenericTypeInfo[_]]], GenericTypeInfo[R]())
+    val fb = new FunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
     val env = args
       .zipWithIndex
-      .foldLeft(new Env[IR]()) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     ir = Subst(ir, env)
     Infer(ir)
@@ -125,25 +125,23 @@ object CompileWithAggregators {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
-    // the aggregable must be argument 0 to post-aggregated IR, so must have a place holder in env
-    val env = ((aggName, aggType, TypeToIRIntermediateClassTag(aggType)) +: args)
-      .zipWithIndex
-      .foldLeft(new Env[IR]()) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
+    val env = args.zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     val ir = Subst(body, env)
     Infer(ir, Some(aggType))
 
     val (postAggIR, aggResultType, aggregators) = ExtractAggregators(ir, aggType)
 
-    val f1TypeInfo: Array[GenericTypeInfo[_]] =
+    val f1TypeInfo: Array[MaybeGenericTypeInfo[_]] =
       GenericTypeInfo[Region]() +:
         GenericTypeInfo[RegionValueAggregator]() +:
         (aggType +: aggScopeArgs.map(_._2).toArray).flatMap { t =>
-          List[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]()).iterator
+          Seq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
         }
 
     val (rvAggs, seqOps) = aggregators.zipWithIndex.map { case ((ir, agg), i) =>
-      val fb = new FunctionBuilder[F1](f1TypeInfo.asInstanceOf[Array[MaybeGenericTypeInfo[_]]], GenericTypeInfo[Unit]())
+      val fb = new FunctionBuilder[F1](f1TypeInfo, GenericTypeInfo[Unit]())
       Emit(ir, fb, 2, aggType)
       (agg, fb.result())
     }.unzip
