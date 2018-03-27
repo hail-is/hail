@@ -1487,8 +1487,6 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
 
     .. include:: ../_templates/req_biallelic.rst
 
-    .. include:: ../_templates/req_tstring.rst
-
     Examples
     --------
     Estimate kinship, identity-by-descent two, identity-by-descent one, and
@@ -1698,9 +1696,8 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
     Parameters
     ----------
     mt : :class:`.MatrixTable`
-        Variant-keyed, biallelic :class:`.MatrixTable` with a single column
-        key field of type `:py:data:`.tstr` with unique values, and an entry
-        field ``GT`` of type :py:data:`.tcall`.
+        Variant-keyed, biallelic :class:`.MatrixTable` with unique column keys
+        and an entry field ``GT`` of type :py:data:`.tcall`.
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
@@ -1733,12 +1730,6 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
     """
     mt = require_biallelic(mt, 'pc_relate')
     mt = require_unique_samples(mt, 'pc_relate')
-    require_col_key_str(mt, 'pc_relate')  # FIXME relax
-
-    assert len(mt.col_key) == 1
-    ck_name = list(mt.col_key)[0]
-    ck_type = mt.col_key[0].dtype
-    assert ck_type == hl.tstr
 
     if k and not scores:
         # column order always preserved?
@@ -1752,10 +1743,6 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
     else:
         raise ValueError("pc_relate: exactly one of 'k' and 'scores' must be set, found neither")
 
-    scores_local = scores_table.collect()
-    col_key_java = list(map(lambda x: ck_type._convert_to_j(x[ck_name]), scores_local))
-    pcs = list(map(lambda x: x.scores, scores_local))
-
     mt = mt.select_entries(gt=mt.GT.n_alt_alleles())
     mt = mt.select_rows(mean_gt=agg.mean(mt.gt))
     mean_imputed_gt = hl.or_else(hl.float64(mt.gt), mt.mean_gt)
@@ -1767,17 +1754,14 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
 
     int_statistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
 
-    return Table(
-        scala_object(Env.hail().methods, 'PCRelate')
-        .apply(Env.hc()._jhc,
-               g._jbm,
-               jarray(Env.jvm().java.lang.Object, col_key_java),  # FIXME this should be avoidable
-               ck_type._jtype,
-               pcs,
-               maf,
-               block_size,
-               min_kinship,
-               int_statistics))
+    return Table(scala_object(Env.hail().methods, 'PCRelate')
+            .apply(Env.hc()._jhc,
+                   g._jbm,
+                   scores_table._jt,
+                   maf,
+                   block_size,
+                   min_kinship,
+                   int_statistics))
 
 
 class SplitMulti(object):

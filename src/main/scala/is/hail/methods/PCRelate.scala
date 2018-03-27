@@ -48,6 +48,9 @@ object PCRelate {
     storageLevel: StorageLevel,
     statistics: PCRelate.StatisticSubset): Table = {
 
+    println(columnKeyType)
+    println(columnKeys.toIndexedSeq)
+    
     val result = new PCRelate(maf, blockSize, statistics, storageLevel)(blockedG, pcs)
 
     PCRelate.toTable(hc, result, columnKeys, columnKeyType, blockSize, minKinship, statistics)
@@ -57,7 +60,7 @@ object PCRelate {
     blockedG: M,
     columnKeys: Array[Annotation],
     columnKeyType: Type,
-    pcaScores: Array[Array[Double]],
+    pcaScores: Array[IndexedSeq[Double]],
     maf: Double,
     blockSize: Int,
     minKinship: Double,
@@ -71,23 +74,30 @@ object PCRelate {
 
   def apply(hc: HailContext,
     blockedG: M,
-    columnKeys: Array[Annotation],
-    columnKeyType: Type,
-    pcaScores: java.util.ArrayList[java.util.ArrayList[Double]],
+    scoresTable: Table,
     maf: Double,
     blockSize: Int,
     minKinship: Double,
-    statistics: PCRelate.StatisticSubset): Table = apply(hc,
+    statistics: PCRelate.StatisticSubset): Table = {
+
+    val scoresLocal = scoresTable.collect()
+    val columnKeys = scoresLocal.map(_.getAs[Annotation](0))
+    val pcaScores = scoresLocal.map(_.getAs[IndexedSeq[Double]](1))
+    val columnKeyType = scoresTable.keySignature
+        
+    val storageLevel = defaultStorageLevel
+
+    apply(hc,
       blockedG,
       columnKeys,
       columnKeyType,
-      pcaScores.asScala.map(_.asScala.toArray).toArray,
+      pcaScores,
       maf,
       blockSize,
       minKinship,
-      storageLevel = defaultStorageLevel,
+      storageLevel,
       statistics)
-
+  }
 
   def apply(vds: MatrixTable,
     pcaScores: Array[Array[Double]],
@@ -121,7 +131,18 @@ object PCRelate {
     val g = vdsToMeanImputedMatrix(vds)
     val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
 
-    apply(vds.hc, blockedG, vds.stringSampleIds.toArray[Annotation], TString(), pcaScores, maf, blockSize, minKinship, storageLevel, statistics)
+    val pcaScores0: Array[IndexedSeq[Double]] = pcaScores.map(_.toIndexedSeq)
+    
+    apply(vds.hc,
+      blockedG,
+      vds.stringSampleIds.toArray[Annotation],
+      TString(), // FIXME?
+      pcaScores0,
+      maf,
+      blockSize,
+      minKinship,
+      storageLevel,
+      statistics)
   }
 
   // cribbing old tests
@@ -139,7 +160,7 @@ object PCRelate {
     apply(vds.hc, blockedG, vds.stringSampleIds.toArray[Annotation], TString(), pcs, maf, blockSize, minKinship, defaultStorageLevel, statistics)
   }
 
-  private def rowsToBDM(x: Array[Array[Double]]): DenseMatrix[Double] = {
+  private def rowsToBDM(x: Array[IndexedSeq[Double]]): DenseMatrix[Double] = {
     val nRows = x.length
     val nCols = if (x.length == 0) 0 else x(0).length
     val a = new Array[Double](nRows * nCols)
