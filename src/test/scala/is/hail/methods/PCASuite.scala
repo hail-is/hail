@@ -15,7 +15,7 @@ object PCASuite {
     asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
 
     val prePCA = vsm.annotateRowsExpr(
-      "AC = AGG.map(g => g.GT.nNonRefAlleles()).sum(), nCalled = AGG.filter(g => isDefined(g.GT)).count()")
+      "AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()", "nCalled" -> "AGG.filter(g => isDefined(g.GT)).count()")
       .filterRowsExpr("va.AC > 0 && va.AC.toInt64 < 2L * va.nCalled").persist()
     val nVariants = prePCA.countRows()
     val expr = s"let mean = va.AC.toFloat64 / va.nCalled.toFloat64 in if (isDefined(g.GT)) (g.GT.nNonRefAlleles().toFloat64 - mean) / sqrt(mean * (2d - mean) * ${ nVariants }d / 2d) else 0d"

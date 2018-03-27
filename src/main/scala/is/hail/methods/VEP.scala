@@ -356,7 +356,6 @@ object VEP {
     info(s"vep: annotated ${ annotations.count() } variants")
 
     vsm.orderedRVDLeftJoinDistinctAndInsert(vepRVD, "vep", product = false)
-      .annotateRowsExpr("vep = va.vep.vep")
   }
 
   def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =

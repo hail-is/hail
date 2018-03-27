@@ -116,9 +116,9 @@ class AnnotateSuite extends SparkSuite {
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
       .cache()
 
-    val bed1r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "test").annotateRowsExpr("test = isDefined(va.test)")
-    val bed2r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), root = "test").annotateRowsExpr("test = va.test.target")
-    val bed3r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example3.bed"), root = "test").annotateRowsExpr("test = va.test.target")
+    val bed1r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "test").annotateRowsExpr("test" -> "isDefined(va.test)")
+    val bed2r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), root = "test").annotateRowsExpr("test" -> "va.test.target")
+    val bed3r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example3.bed"), root = "test").annotateRowsExpr("test" -> "va.test.target")
 
     val q1 = bed1r.queryVA("va.test")._2
     val q2 = bed2r.queryVA("va.test")._2
@@ -161,10 +161,10 @@ class AnnotateSuite extends SparkSuite {
 
     val int1r = vds.annotateRowsTable(IntervalList.read(hc,
       "src/test/resources/exampleAnnotation1.interval_list"), "test")
-        .annotateRowsExpr("test = isDefined(va.test)")
+        .annotateRowsExpr("test" -> "isDefined(va.test)")
     val int2r = vds.annotateRowsTable(
       IntervalList.read(hc, "src/test/resources/exampleAnnotation2.interval_list"), "test")
-        .annotateRowsExpr("test = va.test.target")
+        .annotateRowsExpr("test" -> "va.test.target")
 
     assert(int1r.same(bed1r))
     assert(int2r.same(bed2r))
@@ -238,35 +238,35 @@ class AnnotateSuite extends SparkSuite {
     val kt1 = hc.importTable(tmpf1, separator = "\\s+", impute = true)
       .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles")
-    val fmt1 = vds.annotateRowsTable(kt1, "table").annotateRowsExpr("table = {Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
+    val fmt1 = vds.annotateRowsTable(kt1, "table").annotateRowsExpr("table" -> "{Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt2 = vds.annotateRowsTable(hc.importTable(tmpf2, separator = "\\s+", impute = true,
       commentChar = Some("#"))
       .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles"),
-      "table").annotateRowsExpr("table = {Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
+      "table").annotateRowsExpr("table" -> "{Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt3 = vds.annotateRowsTable(hc.importTable(tmpf3,
       commentChar = Some("#"), separator = "\\s+", noHeader = true, impute = true)
       .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
-      "table").annotateRowsExpr("table = {Anno1: va.table.f4, Anno2: va.table.f5}")
+      "table").annotateRowsExpr("table" -> "{Anno1: va.table.f4, Anno2: va.table.f5}")
 
     val fmt4 = vds.annotateRowsTable(hc.importTable(tmpf4, separator = ",", noHeader = true, impute = true)
       .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
-      "table").annotateRowsExpr("table = {Anno1: va.table.f4, Anno2: va.table.f5}")
+      "table").annotateRowsExpr("table" -> "{Anno1: va.table.f4, Anno2: va.table.f5}")
 
     val fmt5 = vds.annotateRowsTable(hc.importTable(tmpf5, separator = "\\s+", impute = true, missing = ".")
       .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles"),
-      "table").annotateRowsExpr("table = {Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
+      "table").annotateRowsExpr("table" -> "{Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt6 = vds.annotateRowsTable(hc.importTable(tmpf6,
       noHeader = true, impute = true, separator = ",", commentChar = Some("!"))
       .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
-      "table").annotateRowsExpr("table = {Anno1: va.table.f5, Anno2: va.table.f7}")
+      "table").annotateRowsExpr("table" -> "{Anno1: va.table.f5, Anno2: va.table.f7}")
 
     val vds1 = fmt1.cache()
 
@@ -285,14 +285,14 @@ class AnnotateSuite extends SparkSuite {
       .annotate("locus = Locus(row.Chromosome, row.Position.toInt32())")
       .keyBy("locus")
 
-    val byPosition = vds.annotateRowsTable(kt, "stuff").annotateRowsExpr("stuff = {Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
+    val byPosition = vds.annotateRowsTable(kt, "stuff").annotateRowsExpr("stuff" -> "{Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
 
     val kt2 = hc.importTable("src/test/resources/sample2_va_nomulti.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))
       .annotate("loc = Locus(row.Chromosome, row.Position.toInt32()), alleles = [row.Ref, row.Alt]")
       .keyBy("loc", "alleles")
     val byVariant = vds.annotateRowsTable(kt2,
-      "stuff").annotateRowsExpr("stuff = {Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
+      "stuff").annotateRowsExpr("stuff" -> "{Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
 
     assert(byPosition.same(byVariant))
   }

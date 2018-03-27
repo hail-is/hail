@@ -46,8 +46,8 @@ class ConcordanceSuite extends SparkSuite {
         .keyBy("locus", "alleles"))
     }
   } yield (vds1, vds2.annotateRowsTable(newVariantMapping, "newVariant")
-      .annotateRowsExpr("locus = va.newVariant.locus2, " +
-        "alleles = va.newVariant.alleles2")
+      .annotateRowsExpr("locus" -> "va.newVariant.locus2",
+        "alleles" -> "va.newVariant.alleles2")
       .copy2(colValues = newIds2.map(Annotation(_)), colType = TStruct("s" -> TString())))
 
   // FIXME use SnpSift when it's fixed

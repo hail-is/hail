@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 class ExplodeSuite extends SparkSuite {
   @Test def testExplode() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateRowsExpr("foo = [1, 2, 2], bar = [1, 2, 2].toSet()")
+      .annotateRowsExpr("foo" -> "[1, 2, 2]", "bar" -> "[1, 2, 2].toSet()")
       .annotateColsExpr("foo = [1, 2, 2], bar = [1, 2, 2].toSet()")
         
     assert(vsm.explodeRows("va.foo").countRows() == vsm.countRows() * 3)
@@ -23,7 +23,7 @@ class ExplodeSuite extends SparkSuite {
 
   @Test def testExplodeUnwrap() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateRowsExpr("foo = [1]")
+      .annotateRowsExpr("foo" -> "[1]")
       .annotateColsExpr("foo = [3]")
     
     val exploded = vsm.explodeRows("va.foo")
@@ -35,7 +35,7 @@ class ExplodeSuite extends SparkSuite {
 
   @Test def testNoElements() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateRowsExpr("foo = NA: Array[Int32]")
+      .annotateRowsExpr("foo" -> "NA: Array[Int32]")
       .annotateColsExpr("foo = NA: Array[Int32]")
     
     val exploded = vsm.explodeRows("va.foo")

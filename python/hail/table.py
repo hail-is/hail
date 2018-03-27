@@ -1216,10 +1216,10 @@ class Table(ExprContainer):
                         vt = vt.annotate(values=hl.index(vt.values, k_uid))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
-                        key_expr = '{uid} = va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
+                        key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
                             '{}: {}'.format(u, e._ast.to_hql()) for u, e in
                             zip(uids, exprs)))
-                        jl = jl.annotateRowsExpr(key_expr)
+                        jl = jl.selectRows('annotate(va, {'+key_expr+"})")
                         return MatrixTable(jl)
 
                     return construct_expr(Select(TopLevelReference('va', src._row_indices), uid),

@@ -7,9 +7,9 @@ import is.hail.testUtils._
 class SelectSuite extends SparkSuite {
   @Test def testRows() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-      .annotateRowsExpr("foo = AGG.count()")
+      .annotateRowsExpr("foo" -> "AGG.count()")
 
-    val t1 = vds.selectRows("va.locus", "va.alleles", "va.info.AC", "AF = va.info.AF", "foo2 = AGG.count()").rowsTable()
+    val t1 = vds.selectRows("{locus: va.locus, alleles: va.alleles, AC: va.info.AC, AF: va.info.AF, foo2: AGG.count()}").rowsTable()
 
     val t2 = vds.rowsTable().select(Array("row.locus", "row.alleles", "row.info.AC", "AF = row.info.AF", "foo2 = row.foo"))
 
@@ -19,7 +19,7 @@ class SelectSuite extends SparkSuite {
   @Test def test_key_change_typechecks() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
-    vds.selectRows("va.alleles").typecheck()
+    vds.selectRows("{alleles: va.alleles}").typecheck()
   }
 
   @Test def testCols() {

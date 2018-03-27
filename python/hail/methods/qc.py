@@ -544,7 +544,8 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     """
 
     require_row_key_variant(dataset, 'vep')
-    return MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
+    mt = MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
+    return mt.annotate_rows(vep=mt['vep']['vep'])
 
 
 @typecheck(dataset=MatrixTable,
@@ -805,4 +806,5 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
     """
 
     require_row_key_variant(dataset, 'nirvana')
-    return MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))
+    mt = MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))
+    return mt.annotate_rows(nirvana=mt['nirvana']['nirvana'])
