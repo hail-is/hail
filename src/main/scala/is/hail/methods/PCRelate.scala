@@ -1,13 +1,13 @@
 package is.hail.methods
 
-import breeze.linalg.{*, DenseMatrix}
-import is.hail.annotations.{Annotation, UnsafeRow}
+import breeze.linalg.{DenseMatrix => BDM}
+import is.hail.annotations.Annotation
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Call, HardCallView, MatrixTable, Variant}
+import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
@@ -16,9 +16,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.{higherKinds, implicitConversions}
-import scala.collection.JavaConverters._
-
-import java.util.ArrayList
 
 object PCRelate {
   type M = BlockMatrix
@@ -37,40 +34,6 @@ object PCRelate {
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
   val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
-  private[this] def apply(
-    hc: HailContext,
-    blockedG: M,
-    columnKeys: Array[Annotation],
-    columnKeyType: Type,
-    pcs: DenseMatrix[Double],
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double,
-    storageLevel: StorageLevel,
-    statistics: PCRelate.StatisticSubset): Table = {
-
-    val result = new PCRelate(maf, blockSize, statistics, storageLevel)(blockedG, pcs)
-
-    PCRelate.toTable(hc, result, columnKeys, columnKeyType, blockSize, minKinship, statistics)
-  }
-
-  def apply(
-    hc: HailContext,
-    blockedG: M,
-    columnKeys: Array[Annotation],
-    columnKeyType: Type,
-    pcaScores: Array[IndexedSeq[Double]],
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double,
-    storageLevel: StorageLevel,
-    statistics: PCRelate.StatisticSubset): Table = {
-
-    val pcs = rowsToBDM(pcaScores)
-
-    apply(hc, blockedG, columnKeys, columnKeyType, pcs, maf, blockSize, minKinship, storageLevel, statistics)
-  }
-
   def apply(
     hc: HailContext,
     blockedG: M,
@@ -85,88 +48,35 @@ object PCRelate {
 
     val keyQueriers = scoresTable.key.map(scoresTable.signature.query(_))        
     val keys = scoresLocal.map(a => Row.fromSeq(keyQueriers.map(q => q(a)))).toArray[Annotation] 
-    
     val keyType = scoresTable.keySignature
 
     val scoresQuerier = scoresTable.signature.query("scores")
     val pcaScores = scoresLocal.map(a => scoresQuerier(a).asInstanceOf[IndexedSeq[Double]])
-
-    val storageLevel = defaultStorageLevel
-
-    apply(hc,
-      blockedG,
-      keys,
-      keyType,
-      pcaScores,
-      maf,
-      blockSize,
-      minKinship,
-      storageLevel,
-      statistics)
-  }
-
-  def apply(vds: MatrixTable,
-    pcaScores: Array[Array[Double]],
-    maf: Double,
-    blockSize: Int): Table =
-    apply(vds, pcaScores, maf, blockSize, defaultMinKinship, defaultStorageLevel, defaultStatisticSubset)
-
-  def apply(vds: MatrixTable,
-    pcaScores: Array[Array[Double]],
-    maf: Double,
-    blockSize: Int,
-    statisticSubset: StatisticSubset): Table =
-    apply(vds, pcaScores, maf, blockSize, defaultMinKinship, defaultStorageLevel, statisticSubset)
-
-  def apply(vds: MatrixTable,
-    pcaScores: Array[Array[Double]],
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double): Table =
-    apply(vds, pcaScores, maf, blockSize, minKinship, defaultStorageLevel, defaultStatisticSubset)
-
-  def apply(vds: MatrixTable,
-    pcaScores: Array[Array[Double]],
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double,
-    storageLevel: StorageLevel,
-    statistics: PCRelate.StatisticSubset): Table = {
-
-    vds.requireUniqueSamples("pc_relate")
-    val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
-
-    val pcaScores0: Array[IndexedSeq[Double]] = pcaScores.map(_.toIndexedSeq)
+    val pcs = rowsToBDM(pcaScores)
     
-    apply(vds.hc,
-      blockedG,
-      vds.stringSampleIds.toArray[Annotation],
-      TString(),
-      pcaScores0,
-      maf,
-      blockSize,
-      minKinship,
-      storageLevel,
-      statistics)
+    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(blockedG, pcs)
+
+    PCRelate.toTable(hc, result, keys, keyType, blockSize, minKinship, statistics)  
   }
 
-  // cribbing old tests
   private[methods] def apply(vds: MatrixTable,
-    pcs: DenseMatrix[Double],
+    pcs: BDM[Double],
     maf: Double,
     blockSize: Int,
     minKinship: Double,
     statistics: PCRelate.StatisticSubset): Table = {
 
-    vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
     val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
+    val keys = vds.stringSampleIds.toArray[Annotation]
+    val keyType = TString()
+    
+    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(blockedG, pcs)
 
-    apply(vds.hc, blockedG, vds.stringSampleIds.toArray[Annotation], TString(), pcs, maf, blockSize, minKinship, defaultStorageLevel, statistics)
+    PCRelate.toTable(vds.hc, result, keys, keyType, blockSize, minKinship, statistics)  
   }
 
-  private def rowsToBDM(x: Array[IndexedSeq[Double]]): DenseMatrix[Double] = {
+  private def rowsToBDM(x: Array[IndexedSeq[Double]]): BDM[Double] = {
     val nRows = x.length
     val nCols = if (x.length == 0) 0 else x(0).length
     val a = new Array[Double](nRows * nCols)
@@ -180,7 +90,7 @@ object PCRelate {
       }
       i += 1
     }
-    new DenseMatrix(nRows, nCols, a)
+    new BDM(nRows, nCols, a)
   }
 
   private def signature(columnKeyType: Type) =
@@ -195,10 +105,10 @@ object PCRelate {
     statistics: StatisticSubset): RDD[Row] = {
     
     def fuseBlocks(i: Int, j: Int,
-      lmPhi: DenseMatrix[Double],
-      lmK0: DenseMatrix[Double],
-      lmK1: DenseMatrix[Double],
-      lmK2: DenseMatrix[Double]) = {
+      lmPhi: BDM[Double],
+      lmK0: BDM[Double],
+      lmK1: BDM[Double],
+      lmK2: BDM[Double]) = {
       
       val iOffset = i * blockSize
       val jOffset = j * blockSize
@@ -330,7 +240,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
  private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
     if (statistics >= statisticsLevel) m.persist(storageLevel) else m
 
-  def apply(blockedG: M, pcs: DenseMatrix[Double]): Result[M] = {
+  def apply(blockedG: M, pcs: BDM[Double]): Result[M] = {
     val preMu = this.mu(blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
@@ -365,10 +275,10 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
     * {@code pcs} is sample by numPCs
     *
     **/
-  private[methods] def mu(blockedG: M, pcs: DenseMatrix[Double]): M = {
+  private[methods] def mu(blockedG: M, pcs: BDM[Double]): M = {
     import breeze.linalg._
 
-    val pcsWithIntercept = DenseMatrix.horzcat(DenseMatrix.ones[Double](pcs.rows, 1), pcs)
+    val pcsWithIntercept = BDM.horzcat(BDM.ones[Double](pcs.rows, 1), pcs)
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
