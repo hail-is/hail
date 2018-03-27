@@ -103,17 +103,15 @@ object PCRelate {
       lmK0: BDM[Double],
       lmK1: BDM[Double],
       lmK2: BDM[Double]) = {
-      
-      val iOffset = i * blockSize
-      val jOffset = j * blockSize
-
+            
       if (i <= j) {
-        val size = lmPhi.rows * lmPhi.cols
-        val ab = new ArrayBuilder[Row]()
-        var jj = 1
+        val iOffset = i * blockSize
+        val jOffset = j * blockSize
+
+        val pairs = new ArrayBuilder[Row]()
+        var jj = 0
         while (jj < lmPhi.cols) {
           var ii = 0
-          // assumes square blocks
           val rowsAboveDiagonal = if (i < j) lmPhi.rows else jj
           while (ii < rowsAboveDiagonal) {
             val kin = lmPhi(ii, jj)
@@ -121,20 +119,20 @@ object PCRelate {
               val k0 = if (lmK0 == null) null else lmK0(ii, jj)
               val k1 = if (lmK1 == null) null else lmK1(ii, jj)
               val k2 = if (lmK2 == null) null else lmK2(ii, jj)
-              ab += Annotation(iOffset + ii, jOffset + jj, kin, k0, k1, k2).asInstanceOf[Row]
+              pairs += Row(iOffset + ii, jOffset + jj, kin, k0, k1, k2)
             }
             ii += 1
           }
           jj += 1
         }
-        ab.result()
+        pairs.result()
       } else
         Array.empty[Row]
     }
 
     val Result(phi, k0, k1, k2) = r
 
-    // FIXME replace join with zipPartitions
+    // FIXME replace join with zipPartitions, throw away lower triangular blocks first, avoid the nulls
     statistics match {
       case PhiOnly => phi.blocks
         .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }

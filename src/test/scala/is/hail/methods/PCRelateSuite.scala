@@ -96,7 +96,7 @@ class PCRelateSuite extends SparkSuite {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(genotypeMatrix))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
-    val pcs = new BDM(4,2,pcsArray)
+    val pcs = new BDM(4, 2, pcsArray)
     val us = runPcRelateHail(vds, pcs, maf=0.0).mapValues(quadMap(toD).tupled)
     val truth = PCRelateReferenceImplementation(vds, pcs)._1
     assert(mapSameElements(us, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
@@ -107,7 +107,7 @@ class PCRelateSuite extends SparkSuite {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(genotypeMatrix), Some(Array("s1","s2","s3","s4")))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
-    val pcs = new BDM(4,2,pcsArray)
+    val pcs = new BDM(4, 2, pcsArray)
     val usRef = PCRelateReferenceImplementation(vds, pcs)._1
     val truth = runPcRelateR(vds, maf=0.0, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
     assert(mapSameElements(usRef, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))

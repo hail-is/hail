@@ -454,16 +454,16 @@ class Tests(unittest.TestCase):
         _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
 
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=64)
+        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=32)
 
-        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, statistics='kink2', block_size=64)
-        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, statistics='kink2', block_size=64)
+        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, statistics='kink2', block_size=128)
+        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, statistics='kink2', block_size=16)
 
         kin3 = hl.pc_relate(mt.GT, 0.02, k=3, statistics='kink2k0', block_size=64)
-        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, statistics='kink2k0', block_size=64)
+        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, statistics='kink2k0', block_size=32)
 
-        kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=64)
-        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=64)
+        kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=128)
+        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=16)
 
         self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
         self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
