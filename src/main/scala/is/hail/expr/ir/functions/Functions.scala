@@ -12,10 +12,10 @@ import scala.collection.mutable
 object IRFunctionRegistry {
 
   val irRegistry: mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)] =
-    new mutable.HashMap[String, (Seq[Type], Seq[IR] => IR)] with mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)]
+    new mutable.HashMap[String, mutable.Set[(Seq[Type], Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)]
 
   val codeRegistry: mutable.MultiMap[String, (Seq[Type], IRFunction)] =
-    new mutable.HashMap[String, (Seq[Type], IRFunction)] with mutable.MultiMap[String, (Seq[Type], IRFunction)]
+    new mutable.HashMap[String, mutable.Set[(Seq[Type], IRFunction)]] with mutable.MultiMap[String, (Seq[Type], IRFunction)]
 
   def addIRFunction(f: IRFunction): Unit =
     codeRegistry.addBinding(f.name, (f.argTypes, f))
