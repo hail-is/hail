@@ -630,8 +630,26 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       .bind("va", child.typ.rvRowType)
       .bind("AGG", tAgg)
     )
-    child.typ.copy(rvRowType = newRVRow.typ)
+    val newRVRowSet = newRVRow.typ.fieldNames.toSet
+    val newRowKey = child.typ.rowKey.filter(newRVRowSet.contains)
+    val newPartitionKey = child.typ.rowPartitionKey.filter(newRVRowSet.contains)
+    child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
   }
+
+  val recompute: Boolean = (typ.rowKey != child.typ.rowKey) ||
+    (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
+    newRow match {
+      case MakeStruct(fields, _) =>
+        !fields.filter { case (name, f) => typ.rowKey.contains(name) }.forall { case (name, ir) =>
+            ir match {
+              case GetField(Ref("va", _), n, _) if n == name => false
+              case _ => true
+            }
+        }
+      case InsertFields(Ref("va", _), toIns, _) => toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
+      case _ => true
+    })
+
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -652,7 +670,7 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       newRow)
     assert(rTyp == typ.rvRowType)
 
-    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+    val mapPartitionF = { it: Iterator[RegionValue] =>
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
       val rowF = f()
@@ -698,7 +716,16 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         newRV
       }
     }
-    prev.copy(typ = typ, rvd = newRVD)
+
+    if (recompute) {
+      val newRDD = prev.rvd.mapPartitions(mapPartitionF)
+      prev.copy(typ = typ,
+        rvd = OrderedRVD.coerce(typ.orvdType, newRDD, None, None))
+
+    } else {
+      val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
+      prev.copy(typ = typ, rvd = newRVD)
+    }
   }
 }
 
