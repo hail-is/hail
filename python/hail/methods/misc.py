@@ -25,14 +25,14 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
     respect to a PC-Relate measure of kinship.
 
     >>> pc_rel = hl.pc_relate(dataset.GT, 0.001, k=2)
-    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select(i=i.s, j=j.s)
     >>> related_samples_to_remove = hl.maximal_independent_set(pairs.i, pairs.j, False)
     >>> result = dataset.filter_cols(hl.is_defined(related_samples_to_remove[dataset.s]), keep=False)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
     >>> pc_rel = hl.pc_relate(dataset.GT, 0.001, k=2)
-    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select(i=i.s, j=j.s)
     >>> samples = dataset.cols()
     >>> pairs_with_case = pairs.select(
     ...     i=hl.struct(id=pairs.i, is_case=samples[pairs.i].is_case),

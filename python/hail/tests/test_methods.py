@@ -428,8 +428,8 @@ class Tests(unittest.TestCase):
         plink_kin = hl.import_table(plink_file + '.out',
                                     delimiter=' +',
                                     types=types)
-        plink_kin = plink_kin.select(i='ID1',
-                                     j='ID2',
+        plink_kin = plink_kin.select(i=hl.struct(sample_idx=plink_kin.ID1),
+                                     j=hl.struct(sample_idx=plink_kin.ID2),
                                      kin='kin',
                                      k0='k0',
                                      k1='k1',
@@ -445,28 +445,30 @@ class Tests(unittest.TestCase):
         hkin_s = hl.pc_relate(mt.GT, 0.00, scores_expr=scores[mt.col_key].scores)
         rkin = self._R_pc_relate(mt, 0.00)
 
-        rkin._same(hkin, tolerance=1e-4)
-        rkin._same(hkin_s, tolerance=1e-4)
+        self.assertTrue(rkin._same(hkin, tolerance=1e-4))
+        self.assertTrue(rkin._same(hkin_s, tolerance=1e-4))
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
         _, scores2, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
         _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
 
-        kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64, )
+        kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
+        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=64)
+
         kin2 = hl.pc_relate(mt.GT, 0.05, k=2, statistics='kink2', block_size=64)
+        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, statistics='kink2', block_size=64)
+
         kin3 = hl.pc_relate(mt.GT, 0.02, k=3, statistics='kink2k0', block_size=64)
+        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, statistics='kink2k0', block_size=64)
+
         kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=64)
+        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=64)
 
-        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=32)
-        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, statistics='kink2', block_size=32)
-        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, statistics='kink2k0', block_size=32)
-        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=32)
-
-        kin1._same(kin_s1, tolerance=1e-5)
-        kin2._same(kin_s2, tolerance=1e-5)
-        kin3._same(kin_s3, tolerance=1e-5)
-        kin4._same(kin_s4, tolerance=1e-5)
+        self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
+        self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
+        self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
+        self.assertTrue(kin4._same(kin_s4, tolerance=1e-4))
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset()  # FIXME - want to rename samples with same id
