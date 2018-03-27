@@ -982,7 +982,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ktSignature = kt.signature
     val ktKeyFieldIdx = kt.keyFieldIdx(0)
     val ktValueFieldIdx = kt.valueFieldIdx
-    val partitionKeyedIntervals = kt.rvd.rdd
+    val partitionKeyedIntervals = kt.rvd.crdd
       .flatMap { rv =>
         val ur = new UnsafeRow(ktSignature, rv)
         val interval = ur.getAs[Interval](ktKeyFieldIdx)

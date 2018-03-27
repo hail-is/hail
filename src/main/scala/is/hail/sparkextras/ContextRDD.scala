@@ -311,6 +311,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   def partitions: Array[Partition] = rdd.partitions
 
+  def partitioner: Option[Partitioner] = rdd.partitioner
+
   def iterator(p: Partition, c: TaskContext): Iterator[ElementType] =
     rdd.iterator(p, c)
 

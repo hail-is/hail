@@ -367,13 +367,13 @@ class OrderedRVD(
 
   def zipPartitionsPreservesPartitioning[T: ClassTag](
     newTyp: OrderedRVDType,
-    that: RDD[T]
+    that: ContextRDD[RVDContext, T]
   )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
   ): OrderedRVD =
     OrderedRVD(
       newTyp,
       partitioner,
-      this.rdd.zipPartitions(that, preservesPartitioning = true)(zipper))
+      this.crdd.zipPartitions(that, preservesPartitioning = true)(zipper))
 
   def zipPartitionsPreservesPartitioning(
     newTyp: OrderedRVDType,
@@ -383,7 +383,7 @@ class OrderedRVD(
     OrderedRVD(
       newTyp,
       partitioner,
-      this.rdd.zipPartitions(that.rdd, preservesPartitioning = true)(zipper))
+      this.crdd.zipPartitions(that.crdd, preservesPartitioning = true)(zipper))
 
   def writeRowsSplit(
     path: String,
