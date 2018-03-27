@@ -1124,7 +1124,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = rowEC
 
     val rowsAST = Parser.parseToAST(expr, ec)
-    assert(rowsAST.`type`.isInstanceOf[TStruct])
 
     val newRowType = coerce[TStruct](rowsAST.`type`)
     val namesSet = newRowType.fieldNames.toSet
