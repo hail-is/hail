@@ -362,9 +362,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIR() match {
-      case Some(ir) =>
+      case Some(ir) if ast.`type`.asInstanceOf[TStruct].size < 500 =>
         new Table(hc, TableMapGlobals(tir, ir))
-      case None =>
+      case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val newGlobal = f()
@@ -428,9 +428,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIR() match {
-      case Some(ir) =>
+      case Some(ir) if ast.`type`.asInstanceOf[TStruct].size < 500 =>
         new Table(hc, TableMapRows(tir, ir))
-      case None =>
+      case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast

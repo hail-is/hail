@@ -1330,9 +1330,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(entryAST.`type`.isInstanceOf[TStruct])
 
     entryAST.toIR() match {
-      case Some(ir) =>
+      case Some(ir) if entryAST.`type`.asInstanceOf[TStruct].size < 500 =>
         new MatrixTable(hc, MapEntries(ast, ir))
-      case None =>
+      case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newEntryType = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast
