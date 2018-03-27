@@ -10,7 +10,8 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
-import is.hail.rvd.RVD
+import is.hail.rvd.{RVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
@@ -993,7 +994,7 @@ case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) 
 }
 
 class WriteBlocksRDD(path: String,
-  rdd: RDD[RegionValue],
+  crdd: ContextRDD[RVDContext, RegionValue],
   sc: SparkContext,
   matrixType: MatrixType,
   parentPartStarts: Array[Long],
@@ -1002,7 +1003,7 @@ class WriteBlocksRDD(path: String,
 
   require(gp.nRows == parentPartStarts.last)
 
-  private val parentParts = rdd.partitions
+  private val parentParts = crdd.partitions
   private val blockSize = gp.blockSize
 
   private val d = digitsNeeded(gp.numPartitions)
@@ -1010,7 +1011,7 @@ class WriteBlocksRDD(path: String,
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
-      new NarrowDependency(rdd) {
+      new NarrowDependency(crdd.rdd) {
         def getParents(partitionId: Int): Seq[Int] =
           partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
       }
@@ -1086,51 +1087,53 @@ class WriteBlocksRDD(path: String,
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.foreach { pi =>
-      val it = rdd.iterator(parentParts(pi), context)
+      using(crdd.mkc()) { ctx =>
+        val it = crdd.iterator(parentParts(pi), context, ctx)
 
-      if (pi == start) {
-        var j = 0
-        while (j < writeBlocksPart.skip) {
-          it.next()
-          j += 1
-        }
-      }
-
-      val data = new Array[Double](blockSize)
-
-      var i = 0
-      while (it.hasNext && i < nRowsInBlock) {
-        val rv = it.next()
-        val region = rv.region
-
-        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
-
-        var blockCol = 0
-        var colIdx = 0
-        while (blockCol < gp.nBlockCols) {
-          val n = gp.blockColNCols(blockCol)
+        if (pi == start) {
           var j = 0
-          while (j < n) {
-            if (entryArrayType.isElementDefined(region, entryArrayOffset, colIdx)) {
-              val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
-              if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-                val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-                data(j) = region.loadDouble(fieldOffset)
-              } else {
-                val rowIdx = blockRow * blockSize + i
-                fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")
-              }
-            } else {
-              val rowIdx = blockRow * blockSize + i
-              fatal(s"Cannot create BlockMatrix: missing entry at row $rowIdx and col $colIdx")
-            }
-            colIdx += 1
+          while (j < writeBlocksPart.skip) {
+            it.next()
             j += 1
           }
-          outPerBlockCol(blockCol).writeDoubles(data, 0, n)
-          blockCol += 1
         }
-        i += 1
+
+        val data = new Array[Double](blockSize)
+
+        var i = 0
+        while (it.hasNext && i < nRowsInBlock) {
+          val rv = it.next()
+          val region = rv.region
+
+          val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+
+          var blockCol = 0
+          var colIdx = 0
+          while (blockCol < gp.nBlockCols) {
+            val n = gp.blockColNCols(blockCol)
+            var j = 0
+            while (j < n) {
+              if (entryArrayType.isElementDefined(region, entryArrayOffset, colIdx)) {
+                val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
+                if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
+                  val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+                  data(j) = region.loadDouble(fieldOffset)
+                } else {
+                  val rowIdx = blockRow * blockSize + i
+                  fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")
+                }
+              } else {
+                val rowIdx = blockRow * blockSize + i
+                fatal(s"Cannot create BlockMatrix: missing entry at row $rowIdx and col $colIdx")
+              }
+              colIdx += 1
+              j += 1
+            }
+            outPerBlockCol(blockCol).writeDoubles(data, 0, n)
+            blockCol += 1
+          }
+          i += 1
+        }
       }
     }
 

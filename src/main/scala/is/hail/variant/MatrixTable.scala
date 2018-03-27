@@ -1999,12 +1999,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localColKeys = colKeys
 
     metadataSame &&
-      rvd.rdd.zipPartitions(
+      rvd.crdd.zipPartitions(
         OrderedRVD.adjustBoundsAndShuffle(
           that.rvd.typ,
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
           that.rvd)
-          .rdd) { (it1, it2) =>
+          .crdd) { (it1, it2) =>
         val fullRow1 = new UnsafeRow(leftRVType)
         val fullRow2 = new UnsafeRow(rightRVType)
         var partSame = true
@@ -2047,7 +2047,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         }
 
         Iterator(partSame)
-      }.forall(t => t)
+      }.run.forall(t => t)
   }
 
   def colEC: EvalContext = {
@@ -2745,7 +2745,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
-      new WriteBlocksRDD(dirname, rvd.rdd, sparkContext, matrixType, partStarts, entryField, gp)
+      new WriteBlocksRDD(dirname, rvd.crdd, sparkContext, matrixType, partStarts, entryField, gp)
         .collect()
 
     val blockCount = blockPartFiles.length
