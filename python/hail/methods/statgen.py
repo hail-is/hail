@@ -1675,29 +1675,35 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None, min_kinship=-float("i
        PCRelate are often too noisy to reliably distinguish these pairs from
        higher-degree-relative-pairs or unrelated pairs.
 
-    Note
-    ----
-    The minimum allele frequency filter is applied per-pair: if either of
-    the two individual's individual-specific minor allele frequency is below
-    the threshold, then the variant will not contribute to relatedness estimates.
-
     The resulting table has the first 3, 4, 5, or 6 fields below, depending on
     the `statistics` parameter:
 
-     - `i` (:py:data:`.tstr`) -- First sample. (key field)
-     - `j` (:py:data:`.tstr`) -- Second sample. (key field)
+     - `i` (``col_key.dtype``) -- First sample. (key field)
+     - `j` (``col_key.dtype``) -- Second sample. (key field)
      - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\\widehat{\\phi_{ij}}`.
      - `k2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\\widehat{k^{(2)}_{ij}}`.
      - `k0` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\\widehat{k^{(0)}_{ij}}`.
      - `k1` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\\widehat{k^{(1)}_{ij}}`.
+
+    Here ``col_key`` refers to the column key of the source matrix table,
+    and ``col_key.dtype`` is a struct containing the column key fields.
+
+    There is one row for each pair of distinct samples (columns), where `i`
+    corresponds to the column of smaller column index. In particular, if the
+    same column key value exists for :math:`n` columns, then the resulting
+    table will have :math:`\\binom{n-1}{2}` rows with both key fields equal to
+    that column key value. This may result in unexpected behavior in downstream
+    processing.
 
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
         Entry-indexed call expression.
     maf : :obj:`float`
-        The minimum individual-specific allele frequency for an allele used to
-        measure relatedness.
+        The minimum individual-specific minor allele frequency.
+        If either individual-specific minor allele frequency for a pair of
+        individuals is below this threshold, then the variant will not
+        be used to estimate relatedness for the pair.
     k : :obj:`int`, optional
         If set, `k` principal component scores are computed and used.
         Exactly one of `k` and `scores_expr` must be specified.
