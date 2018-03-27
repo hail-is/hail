@@ -10,7 +10,7 @@ import scala.language.{existentials, postfixOps}
 
 object ExtractAggregators {
 
-  private case class IRAgg(in: In, applyAggOp: ApplyAggOp) { }
+  private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) { }
 
   def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, Array[(IR, RegionValueAggregator)]) = {
     val (ir2, aggs) = extract(ir, tAggIn)
@@ -20,7 +20,7 @@ object ExtractAggregators {
     val resultStruct = TStruct(fields: _*)
     // mutate the type of the input IR node now that we know what the combined
     // struct's type is
-    aggs.foreach(_.in.typ = resultStruct)
+    aggs.foreach(_.ref.typ = resultStruct)
 
     (ir2, resultStruct, rvas)
   }
@@ -40,11 +40,10 @@ object ExtractAggregators {
       case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
         throw new RuntimeException(s"Aggregable manipulations must appear inside the lexical scope of an Aggregation: $ir")
       case x: ApplyAggOp =>
-        val in = In(0, null)
+        val ref = Ref("AGGR", null)
+        ab += IRAgg(ref, x)
 
-        ab += IRAgg(in, x)
-
-        GetField(in, (ab.length - 1).toString, x.typ)
+        GetField(ref, (ab.length - 1).toString, x.typ)
       case _ => Recur(extract)(ir)
     }
   }

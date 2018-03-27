@@ -75,7 +75,12 @@ class ExtractAggregatorsSuite {
     }
 
     val aggResultsOff = packageResults(region, aggResultStruct, seqOps.map(_._1))
-    (post, aggResultsOff)
+
+    val env = Env.empty[IR].bind("AGGR", In(0, aggResultStruct))
+    val postSubst = Subst(post, env)
+    Infer(postSubst)
+
+    (postSubst, aggResultsOff)
   }
 
   private def compileStage0[R: TypeInfo](ir: IR): AsmFunction3[Region, Long, Boolean, R] = {

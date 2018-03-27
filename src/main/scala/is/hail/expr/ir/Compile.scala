@@ -146,8 +146,8 @@ object CompileWithAggregators {
       (agg, fb.result())
     }.unzip
 
-    val args1 = ("AGGR", aggResultType, classTag[Long]) +: args
-    val (t, f) = Compile[F2, R](args1, postAggIR)
+    val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
+    val (t, f) = Compile[F2, R](args2, postAggIR)
     (rvAggs, seqOps, aggResultType, f, t)
   }
 
