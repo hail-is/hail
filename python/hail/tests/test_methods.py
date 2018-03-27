@@ -450,7 +450,6 @@ class Tests(unittest.TestCase):
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
-        mt = mt.annotate_cols(sample_idx=hl.str(mt.sample_idx))
         _, scores2, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
         _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
 

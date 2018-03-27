@@ -37,7 +37,8 @@ object PCRelate {
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
   val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
-  private[this] def apply(hc: HailContext,
+  private[this] def apply(
+    hc: HailContext,
     blockedG: M,
     columnKeys: Array[Annotation],
     columnKeyType: Type,
@@ -48,15 +49,13 @@ object PCRelate {
     storageLevel: StorageLevel,
     statistics: PCRelate.StatisticSubset): Table = {
 
-    println(columnKeyType)
-    println(columnKeys.toIndexedSeq)
-    
     val result = new PCRelate(maf, blockSize, statistics, storageLevel)(blockedG, pcs)
 
     PCRelate.toTable(hc, result, columnKeys, columnKeyType, blockSize, minKinship, statistics)
   }
 
-  def apply(hc: HailContext,
+  def apply(
+    hc: HailContext,
     blockedG: M,
     columnKeys: Array[Annotation],
     columnKeyType: Type,
@@ -72,25 +71,32 @@ object PCRelate {
     apply(hc, blockedG, columnKeys, columnKeyType, pcs, maf, blockSize, minKinship, storageLevel, statistics)
   }
 
-  def apply(hc: HailContext,
+  def apply(
+    hc: HailContext,
     blockedG: M,
     scoresTable: Table,
     maf: Double,
     blockSize: Int,
     minKinship: Double,
     statistics: PCRelate.StatisticSubset): Table = {
-
+    
     val scoresLocal = scoresTable.collect()
-    val columnKeys = scoresLocal.map(_.getAs[Annotation](0))
-    val pcaScores = scoresLocal.map(_.getAs[IndexedSeq[Double]](1))
-    val columnKeyType = scoresTable.keySignature
-        
+    assert(scoresLocal.length == blockedG.nCols)
+
+    val keyQueriers = scoresTable.key.map(scoresTable.signature.query(_))        
+    val keys = scoresLocal.map(a => Row.fromSeq(keyQueriers.map(q => q(a)))).toArray[Annotation] 
+    
+    val keyType = scoresTable.keySignature
+
+    val scoresQuerier = scoresTable.signature.query("scores")
+    val pcaScores = scoresLocal.map(a => scoresQuerier(a).asInstanceOf[IndexedSeq[Double]])
+
     val storageLevel = defaultStorageLevel
 
     apply(hc,
       blockedG,
-      columnKeys,
-      columnKeyType,
+      keys,
+      keyType,
       pcaScores,
       maf,
       blockSize,
@@ -136,7 +142,7 @@ object PCRelate {
     apply(vds.hc,
       blockedG,
       vds.stringSampleIds.toArray[Annotation],
-      TString(), // FIXME?
+      TString(),
       pcaScores0,
       maf,
       blockSize,
@@ -181,8 +187,19 @@ object PCRelate {
     TStruct(("i", columnKeyType), ("j", columnKeyType), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
   private val keys = Array("i", "j")
 
-  private def toRowRdd(r: Result[M], columnKeys: Array[Annotation], blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
-    def fuseBlocks(i: Int, j: Int, lmPhi: DenseMatrix[Double], lmK0: DenseMatrix[Double], lmK1: DenseMatrix[Double], lmK2: DenseMatrix[Double]) = {
+  private def toRowRdd(
+    r: Result[M],
+    columnKeys: Array[Annotation],
+    blockSize: Int,
+    minKinship: Double,
+    statistics: StatisticSubset): RDD[Row] = {
+    
+    def fuseBlocks(i: Int, j: Int,
+      lmPhi: DenseMatrix[Double],
+      lmK0: DenseMatrix[Double],
+      lmK1: DenseMatrix[Double],
+      lmK2: DenseMatrix[Double]) = {
+      
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
@@ -213,6 +230,7 @@ object PCRelate {
 
     val Result(phi, k0, k1, k2) = r
 
+    // FIXME replace join with zipPartitions
     statistics match {
       case PhiOnly => phi.blocks
         .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
@@ -225,8 +243,18 @@ object PCRelate {
     }
   }
 
-  def toTable(hc: HailContext, r: Result[M], columnKeys: Array[Annotation], columnKeyType: Type, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): Table =
-    Table(hc, toRowRdd(r, columnKeys, blockSize, minKinship, statistics), signature(columnKeyType), keys)
+  def toTable(hc: HailContext,
+    r: Result[M],
+    columnKeys: Array[Annotation],
+    columnKeyType: Type,
+    blockSize: Int,
+    minKinship: Double = defaultMinKinship,
+    statistics: StatisticSubset = defaultStatisticSubset): Table = {
+    
+    val columnKeysBc = hc.sc.broadcast(columnKeys)
+    
+    Table(hc, toRowRdd(r, columnKeysBc.value, blockSize, minKinship, statistics), signature(columnKeyType), keys)
+  }
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
 

@@ -1729,7 +1729,7 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
     mt = require_biallelic(mt, 'pc_relate')
-    mt = require_unique_samples(mt, 'pc_relate')
+    # mt = require_unique_samples(mt, 'pc_relate')  # FIXME currently requires string col_key
 
     if k and not scores:
         # column order always preserved?
@@ -1749,6 +1749,7 @@ def pc_relate(mt, maf, *, k=None, scores=None, min_kinship=-float("inf"), statis
 
     if not block_size:
         block_size = BlockMatrix.default_block_size()
+
     g = BlockMatrix.from_entry_expr(mean_imputed_gt,
                                     block_size=block_size)
 
