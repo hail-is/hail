@@ -856,6 +856,11 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(kept.all(hl.is_defined(kept.x2) & (kept.x2 == kept.x * 10)))
         self.assertTrue(removed.all(hl.is_missing(removed.x2)))
 
+    def test_required_entries(self):
+        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt1 = mt1.filter_cols(mt1.col_idx < 3)
+        mt1.entries().show()
+
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
         self.assertEqual(

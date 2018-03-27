@@ -99,41 +99,6 @@ case class MatrixValue(
   }
 
   lazy val colValuesBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(colValues)
-
-  def chooseColsWithArray(keep: Array[Int]): MatrixValue = {
-    val rowType = typ.rvRowType
-    val keepType = TArray(+TInt32())
-    val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
-      "keep", keepType,
-      body = InsertFields(ir.Ref("row"), Seq((MatrixType.entriesIdentifier,
-        ir.ArrayMap(ir.Ref("keep"), "i",
-          ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
-            ir.Ref("i")))))))
-    assert(rTyp == rowType)
-
-    val keepBc = sparkContext.broadcast(keep)
-    copy(colValues = keep.map(colValues),
-      rvd = rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
-        val f = makeF()
-        val keep = keepBc.value
-        var rv2 = RegionValue()
-
-        it.map { rv =>
-          val region = rv.region
-          rv2.set(region,
-            f(region, rv.offset, false, region.appendArrayInt(keep), false))
-          rv2
-        }
-      })
-  }
-
-  def filterCols(p: (Annotation, Int) => Boolean): MatrixValue = {
-    val keep = (0 until nCols)
-      .view
-      .filter { i => p(colValues(i), i) }
-      .toArray
-    chooseColsWithArray(keep)
-  }
 }
 
 object MatrixIR {
@@ -192,6 +157,47 @@ object MatrixIR {
         FilterColsIR(m,
           ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
        */
+    })
+  }
+
+  def chooseColsWithArray(typ: MatrixType): (Type, (MatrixValue, Array[Int]) => MatrixValue) = {
+    val rowType = typ.rvRowType
+    val keepType = TArray(+TInt32())
+    val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
+      "keep", keepType,
+      body = InsertFields(ir.Ref("row"), Seq((MatrixType.entriesIdentifier,
+        ir.ArrayMap(ir.Ref("keep"), "i",
+          ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
+            ir.Ref("i")))))))
+    assert(rTyp.isOfType(rowType))
+
+    val keepF = { (mv: MatrixValue, keep: Array[Int]) =>
+      val keepBc = mv.sparkContext.broadcast(keep)
+      mv.copy(colValues = keep.map(mv.colValues),
+        rvd = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+          val f = makeF()
+          val keep = keepBc.value
+          var rv2 = RegionValue()
+
+          it.map { rv =>
+            val region = rv.region
+            rv2.set(region,
+              f(region, rv.offset, false, region.appendArrayInt(keep), false))
+            rv2
+          }
+        })
+    }
+    (rTyp, keepF)
+  }
+
+  def filterCols(typ: MatrixType): (Type, (MatrixValue, (Annotation, Int) => Boolean) => MatrixValue) = {
+    val (t, keepF) = chooseColsWithArray(typ)
+    (t, {(mv: MatrixValue, p :(Annotation, Int) => Boolean) =>
+      val keep = (0 until mv.nCols)
+        .view
+        .filter { i => p(mv.colValues(i), i) }
+        .toArray
+      keepF(mv, keep)
     })
   }
 }
@@ -345,7 +351,9 @@ case class FilterCols(
     FilterCols(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
-  def typ: MatrixType = child.typ
+  val (rvtyp, filterF) = MatrixIR.filterCols(child.typ)
+
+  def typ: MatrixType = child.typ.copy(rvRowType=coerce[TStruct](rvtyp))
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -363,7 +371,7 @@ case class FilterCols(
       ec.setAll(localGlobals, sa)
       f() == true
     }
-    prev.filterCols(p)
+    filterF(prev, p)
   }
 }
 
@@ -378,7 +386,9 @@ case class FilterColsIR(
     FilterColsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
-  def typ: MatrixType = child.typ
+  val (rvtyp, filterF) = MatrixIR.filterCols(child.typ)
+
+  def typ: MatrixType = child.typ.copy(rvRowType=coerce[TStruct](rvtyp))
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -410,7 +420,7 @@ case class FilterColsIR(
       val colRVoffset = colRVb.end()
       predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false)
     }
-    prev.filterCols(p)
+    filterF(prev, p)
   }
 }
 
