@@ -31,9 +31,5 @@ class SettableBit(bits: LocalRef[Long], i: Int) extends Settable[Boolean] {
 
   def storeInsn: Code[Unit] = ???
 
-  def emit(il: Growable[AbstractInsnNode]): Unit = {
-    ((bits >> i) & 1L).toI.emit(il)
-  }
-
-  def load(): Code[Boolean] = this
+  def load(): Code[Boolean] = (bits >> i & 1L).toI.toZ
 }
