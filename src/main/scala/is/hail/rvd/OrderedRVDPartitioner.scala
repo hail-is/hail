@@ -46,10 +46,11 @@ class OrderedRVDPartitioner(
     * partition.
     */
   def getPartitionPK(row: Any): Int = {
+    require(rangeBounds.nonEmpty)
     val part = rangeTree.queryValues(pkType.ordering, row)
     part match {
       case Array() =>
-        if (range.forall(_.isAbovePosition(pkType.ordering, row)))
+        if (range.get.isAbovePosition(pkType.ordering, row))
           0
         else {
           assert(range.get.isBelowPosition(pkType.ordering, row))
