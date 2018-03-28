@@ -93,13 +93,15 @@ object Table {
   }
 
   def importIntervalList(hc: HailContext, filename: String,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
-    IntervalList.read(hc, filename, rg)
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    skipInvalidIntervals: Boolean = false): Table = {
+    IntervalList.read(hc, filename, rg, skipInvalidIntervals)
   }
 
   def importBED(hc: HailContext, filename: String,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
-    BedAnnotator.apply(hc, filename, rg)
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    skipInvalidIntervals: Boolean = false): Table = {
+    BedAnnotator.apply(hc, filename, rg, skipInvalidIntervals)
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,

@@ -13,7 +13,9 @@ object IntervalList {
 
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
-  def read(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
+  def read(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    skipInvalidIntervals: Boolean = false): Table = {
+
     val hasValue = hc.hadoopConf.readLines(filename) {
       lines =>
         val skipHeader = lines.filter(l => !l.value.isEmpty && l.value(0) != '@')
@@ -44,23 +46,33 @@ object IntervalList {
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(l => !l.value.isEmpty && l.value(0) != '@')
-      .map {
+      .flatMap {
         _.map { line =>
           if (hasValue) {
             val split = line.split("\\s+")
             split match {
               case Array(contig, start, end, dir, target) =>
-                val interval = Interval(Locus.annotation(contig, start.toInt, rg), Locus.annotation(contig, end.toInt, rg),
-                  includesStart = true, includesEnd = true)
-                Row(interval, target)
+                if (skipInvalidIntervals && rg.forall(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
+                  warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
+                  None
+                } else {
+                  val interval = Interval(Locus.annotation(contig, start.toInt, rg), Locus.annotation(contig, end.toInt, rg),
+                    includesStart = true, includesEnd = true)
+                  Some(Row(interval, target))
+                }
               case arr => fatal(s"expected 5 fields, but found ${ arr.length }")
             }
           } else {
             line match {
               case intervalRegex(contig, start, end) =>
-                val interval = Interval(Locus.annotation(contig, start.toInt, rg), Locus.annotation(contig, end.toInt, rg),
-                  includesStart = true, includesEnd = true)
-                Row(interval)
+                if (skipInvalidIntervals && rg.forall(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
+                  warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
+                  None
+                } else {
+                  val interval = Interval(Locus.annotation(contig, start.toInt, rg), Locus.annotation(contig, end.toInt, rg),
+                    includesStart = true, includesEnd = true)
+                  Some(Row(interval))
+                }
               case _ => fatal("invalid interval")
             }
           }

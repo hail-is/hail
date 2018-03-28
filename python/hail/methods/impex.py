@@ -313,8 +313,9 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 
 @typecheck(path=str,
-           reference_genome=nullable(reference_genome_type))
-def import_locus_intervals(path, reference_genome='default') -> Table:
+           reference_genome=nullable(reference_genome_type),
+           skip_invalid_intervals=bool)
+def import_locus_intervals(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
     """Import an interval list as a :class:`.Table`.
 
     Examples
@@ -370,9 +371,11 @@ def import_locus_intervals(path, reference_genome='default') -> Table:
     ----------
     path : :obj:`str`
         Path to file.
-
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
+    skip_invalid_intervals : :obj:`bool`
+        If ``True`` and `reference_genome` is not ``None``, skip lines with
+        intervals that are not consistent with the reference genome.
 
     Returns
     -------
@@ -381,13 +384,15 @@ def import_locus_intervals(path, reference_genome='default') -> Table:
     """
     rg = reference_genome._jrep if reference_genome else None
 
-    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg))
+    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg),
+                                                  skip_invalid_intervals)
     return Table(t)
 
 
 @typecheck(path=str,
-           reference_genome=nullable(reference_genome_type))
-def import_bed(path, reference_genome='default') -> Table:
+           reference_genome=nullable(reference_genome_type),
+           skip_invalid_intervals=bool)
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
     """Import a UCSC .bed file as a :class:`.Table`.
 
     Examples
@@ -454,9 +459,11 @@ def import_bed(path, reference_genome='default') -> Table:
     ----------
     path : :obj:`str`
         Path to .bed file.
-
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
+    skip_invalid_intervals : :obj:`bool`
+        If ``True`` and `reference_genome` is not ``None``, skip lines with
+        intervals that are not consistent with the reference genome.
 
     Returns
     -------
@@ -466,7 +473,8 @@ def import_bed(path, reference_genome='default') -> Table:
 
     rg = reference_genome._jrep if reference_genome else None
 
-    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg))
+    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg),
+                                          skip_invalid_intervals)
     return Table(jt)
 
 
