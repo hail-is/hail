@@ -1,3 +1,4 @@
+from typing import *
 from hail.typecheck import *
 from hail.utils.java import Env
 from hail.matrixtable import MatrixTable
@@ -6,7 +7,7 @@ from .misc import require_biallelic, require_row_key_variant, require_col_key_st
 
 
 @typecheck(dataset=MatrixTable, name=str)
-def sample_qc(dataset, name='sample_qc'):
+def sample_qc(dataset, name='sample_qc') -> MatrixTable:
     """Compute per-sample metrics useful for quality control.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -91,7 +92,7 @@ def sample_qc(dataset, name='sample_qc'):
 
 
 @typecheck(dataset=MatrixTable, name=str)
-def variant_qc(dataset, name='variant_qc'):
+def variant_qc(dataset, name='variant_qc') -> MatrixTable:
     """Compute common variant statistics (quality control metrics).
 
     .. include:: ../_templates/req_biallelic.rst
@@ -166,7 +167,7 @@ def variant_qc(dataset, name='variant_qc'):
 
 @typecheck(left=MatrixTable,
            right=MatrixTable)
-def concordance(left, right):
+def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     """Calculate call concordance with another dataset.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -297,7 +298,7 @@ def concordance(left, right):
            block_size=int,
            name=str,
            csq=bool)
-def vep(dataset, config, block_size=1000, name='vep', csq=False):
+def vep(dataset, config, block_size=1000, name='vep', csq=False) -> MatrixTable:
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -552,7 +553,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
            config=str,
            block_size=int,
            name=str)
-def nirvana(dataset, config, block_size=500000, name='nirvana'):
+def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
     """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
     .. include:: ../_templates/experimental.rst

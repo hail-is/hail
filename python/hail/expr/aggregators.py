@@ -65,7 +65,7 @@ def _check_agg_bindings(expr):
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 @typecheck(expr=agg_expr(expr_any))
-def collect(expr):
+def collect(expr) -> ArrayExpression:
     """Collect records into an array.
 
     Examples
@@ -101,7 +101,7 @@ def collect(expr):
     return _agg_func('collect', expr, tarray(expr.dtype))
 
 @typecheck(expr=agg_expr(expr_any))
-def collect_as_set(expr):
+def collect_as_set(expr) -> SetExpression:
     """Collect records into a set.
 
     Examples
@@ -130,7 +130,7 @@ def collect_as_set(expr):
     return _agg_func('collectAsSet', expr, tarray(expr.dtype))
 
 @typecheck(expr=nullable(agg_expr(expr_any)))
-def count(expr=None):
+def count(expr=None) -> Int64Expression:
     """Count the number of records.
 
     Examples
@@ -174,7 +174,7 @@ def count(expr=None):
         return _agg_func('count', _to_agg(hl.int32(0)), tint64)
 
 @typecheck(condition=expr_bool)
-def count_where(condition):
+def count_where(condition) -> Int64Expression:
     """Count the number of records where a predicate is ``True``.
 
     Examples
@@ -201,7 +201,7 @@ def count_where(condition):
     return _agg_func('count', filter(condition, 0), tint64)
 
 @typecheck(condition=agg_expr(expr_bool))
-def any(condition):
+def any(condition) -> BooleanExpression:
     """Returns ``True`` if `condition` is ``True`` for any record.
 
     Examples
@@ -239,7 +239,7 @@ def any(condition):
     return count(filter(lambda x: x, condition)) > 0
 
 @typecheck(condition=agg_expr(expr_bool))
-def all(condition):
+def all(condition) -> BooleanExpression:
     """Returns ``True`` if `condition` is ``True`` for every record.
 
     Examples
@@ -279,7 +279,7 @@ def all(condition):
     return n_defined == n_true
 
 @typecheck(expr=agg_expr(expr_any))
-def counter(expr):
+def counter(expr) -> DictExpression:
     """Count the occurrences of each unique record and return a dictionary.
 
     Examples
@@ -320,7 +320,7 @@ def counter(expr):
 @typecheck(expr=agg_expr(expr_any),
            n=int,
            ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
-def take(expr, n, ordering=None):
+def take(expr, n, ordering=None) -> ArrayExpression:
     """Take `n` records of `expr`, optionally ordered by `ordering`.
 
     Examples
@@ -406,7 +406,7 @@ def take(expr, n, ordering=None):
                               aggregations.push(Aggregation(expr, lambda_result)), joins)
 
 @typecheck(expr=agg_expr(expr_numeric))
-def min(expr):
+def min(expr) -> NumericExpression:
     """Compute the minimum `expr`.
 
     Examples
@@ -436,7 +436,7 @@ def min(expr):
     return _agg_func('min', expr, expr.dtype)
 
 @typecheck(expr=agg_expr(expr_numeric))
-def max(expr):
+def max(expr) -> NumericExpression:
     """Compute the maximum `expr`.
 
     Examples
@@ -500,7 +500,7 @@ def sum(expr):
     return _agg_func('sum', expr, expr.dtype)
 
 @typecheck(expr=agg_expr(expr_array(expr_numeric)))
-def array_sum(expr):
+def array_sum(expr) -> ArrayExpression:
     """Compute the coordinate-wise sum of all records of `expr`.
 
     Examples
@@ -528,7 +528,7 @@ def array_sum(expr):
     return _agg_func('sum', expr, expr.dtype.element_type)
 
 @typecheck(expr=agg_expr(expr_float64))
-def mean(expr):
+def mean(expr) -> Float64Expression:
     """Compute the mean value of records of `expr`.
 
     Examples
@@ -557,7 +557,7 @@ def mean(expr):
     return stats(expr).mean
 
 @typecheck(expr=agg_expr(expr_float64))
-def stats(expr):
+def stats(expr) -> StructExpression:
     """Compute a number of useful statistics about `expr`.
 
     Examples
@@ -634,7 +634,7 @@ def product(expr):
     return _agg_func('product', expr, expr.dtype)
 
 @typecheck(predicate=agg_expr(expr_bool))
-def fraction(predicate):
+def fraction(predicate) -> Float64Expression:
     """Compute the fraction of records where `predicate` is ``True``.
 
     Examples
@@ -669,7 +669,7 @@ def fraction(predicate):
                           predicate._aggregations.push(Aggregation(predicate)), predicate._joins)
 
 @typecheck(expr=agg_expr(expr_call))
-def hardy_weinberg(expr):
+def hardy_weinberg(expr) -> StructExpression:
     """Compute Hardy-Weinberg Equilbrium (HWE) p-value and heterozygosity ratio.
 
     Examples
@@ -721,7 +721,7 @@ def hardy_weinberg(expr):
 
 
 @typecheck(expr=agg_expr(expr_oneof(expr_array(), expr_set())))
-def explode(expr):
+def explode(expr) -> Aggregable:
     """Explode an array or set expression to aggregate the elements of all records.
 
     Examples
@@ -772,7 +772,7 @@ def explode(expr):
                       expr._type.element_type, expr._indices, expr._aggregations, expr._joins)
 
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
-def filter(condition, expr):
+def filter(condition, expr) -> Aggregable:
     """Filter records according to a predicate.
 
     Examples
@@ -824,7 +824,7 @@ def filter(condition, expr):
 
 
 @typecheck(expr=agg_expr(expr_call), prior=expr_float64)
-def inbreeding(expr, prior):
+def inbreeding(expr, prior) -> StructExpression:
     """Compute inbreeding statistics on calls.
 
     Examples
@@ -901,7 +901,7 @@ def inbreeding(expr, prior):
 
 
 @typecheck(expr=agg_expr(expr_call), alleles=expr_array(expr_str))
-def call_stats(expr, alleles):
+def call_stats(expr, alleles) -> StructExpression:
     """Compute useful call statistics.
 
     Examples
@@ -974,7 +974,7 @@ def call_stats(expr, alleles):
                           aggregations.push(Aggregation(expr, alleles)), joins)
 
 @typecheck(expr=agg_expr(expr_float64), start=expr_float64, end=expr_float64, bins=expr_int32)
-def hist(expr, start, end, bins):
+def hist(expr, start, end, bins) -> StructExpression:
     """Compute binned counts of a numeric expression.
 
     Examples

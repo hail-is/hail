@@ -1,3 +1,4 @@
+from typing import *
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.genetics.pedigree import Pedigree
@@ -10,7 +11,7 @@ from .misc import require_biallelic
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree,
            complete_trios=bool)
-def trio_matrix(dataset, pedigree, complete_trios=False):
+def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     """Builds and returns a matrix where columns correspond to trios and entries contain genotypes for the trio.
 
     .. include:: ../_templates/req_tstring.rst
@@ -63,7 +64,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
-def mendel_errors(dataset, pedigree):
+def mendel_errors(dataset, pedigree) -> Tuple[Table, Table, Table, Table]:
     """Find Mendel errors; count per variant, individual and nuclear family.
 
     .. include:: ../_templates/req_tstring.rst
@@ -208,7 +209,7 @@ def mendel_errors(dataset, pedigree):
 
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
-def transmission_disequilibrium_test(dataset, pedigree):
+def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     """Performs the transmission disequilibrium test on trios.
 
     .. include:: ../_templates/req_tstring.rst
