@@ -360,56 +360,57 @@ case class VSMSubgen(
   tGen: (TStruct, Annotation) => Gen[Annotation]) {
 
   def gen(hc: HailContext): Gen[MatrixTable] =
-    for (size <- Gen.size;
-    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+    for {
+      size <- Gen.size
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8)
 
-    vSig <- vSigGen.resize(3);
-    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-    sSig <- sSigGen.resize(3);
-    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-    globalSig <- globalSigGen.resize(5);
-    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-    global <- globalGen(globalSig).resize(25);
-    nPartitions <- Gen.choose(1, 10);
+      vSig <- vSigGen.resize(3)
+      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
+      sSig <- sSigGen.resize(3)
+      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
+      globalSig <- globalSigGen.resize(5)
+      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3)
+      global <- globalGen(globalSig).resize(25)
+      nPartitions <- Gen.choose(1, 10)
 
-    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-      .map(ids => ids.distinct);
-    nSamples = sampleIds.length;
-    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-    rows <- Gen.buildableOfN[Array](l,
-      for (
-        v <- vGen(vSig).resize(3);
-        va <- vaGen(vaSig).resize(5);
-        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-        yield (v, (va, ts: Iterable[Annotation]))))
-      yield {
-        assert(sampleIds.forall(_ != null))
-        val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
+      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+        .map(ids => ids.distinct)
+      nSamples = sampleIds.length
+      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5))
+      rows <- Gen.buildableOfN[Array](l,
+        for {
+          v <- vGen(vSig).resize(3)
+          va <- vaGen(vaSig).resize(5)
+          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3))
+        } yield (v, (va, ts: Iterable[Annotation])))
+    } yield {
+      assert(sampleIds.forall(_ != null))
+      val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
 
-        val (finalVASig, vaIns, rowPartitionKey, rowKey) =
-          vSig match {
-            case _: TVariant =>
-              val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
-              val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
-              val vaIns = (va: Annotation, v: Annotation) => {
-                val vv = v.asInstanceOf[Variant]
-                (vaIns2(vaIns1(va, vv.locus), vv.alleles))
-              }
-              (finalVASig, vaIns, Array("locus"), Array("locus", "alleles"))
-            case _ =>
-              val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
-              (finalVASig, vaIns, Array("v"), Array("v"))
-          }
+      val (finalVASig, vaIns, rowPartitionKey, rowKey) =
+        vSig match {
+          case _: TVariant =>
+            val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
+            val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
+            val vaIns = (va: Annotation, v: Annotation) => {
+              val vv = v.asInstanceOf[Variant]
+              (vaIns2(vaIns1(va, vv.locus), vv.alleles))
+            }
+            (finalVASig, vaIns, Array("locus"), Array("locus", "alleles"))
+          case _ =>
+            val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
+            (finalVASig, vaIns, Array("v"), Array("v"))
+        }
 
-        MatrixTable.fromLegacy(hc,
-          MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowPartitionKey, rowKey, finalVASig, tSig),
-          global,
-          sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
-          hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
-            (vaIns(va, v), gs)
-          }, nPartitions))
-          .deduplicate()
-      }
+      MatrixTable.fromLegacy(hc,
+        MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowPartitionKey, rowKey, finalVASig, tSig),
+        global,
+        sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
+        hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
+          (vaIns(va, v), gs)
+        }, nPartitions))
+        .deduplicate()
+    }
 }
 
 object VSMSubgen {
