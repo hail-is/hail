@@ -9,7 +9,7 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_col_key_str, require_unique_samples
+from hail.methods.misc import require_biallelic, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
@@ -1356,12 +1356,11 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
     entry_expr = hl.or_else(
         (dataset.GT.n_alt_alleles() - dataset.mean_gt) / dataset.hwe_std_dev,
         0.0)
-    result = pca(entry_expr,
-                 k,
-                 compute_loadings,
-                 as_array)
 
-    return result
+    return pca(entry_expr,
+               k,
+               compute_loadings,
+               as_array)
 
 
 @typecheck(entry_expr=expr_float64,
