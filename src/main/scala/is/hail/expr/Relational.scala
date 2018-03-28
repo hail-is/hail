@@ -359,7 +359,7 @@ case class FilterCols(
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val localGlobals = prev.globals
+    val localGlobals = prev.globals.value
     val sas = typ.colType
     val ec = typ.colEC
 

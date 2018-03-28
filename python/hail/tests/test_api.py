@@ -861,6 +861,12 @@ class MatrixTests(unittest.TestCase):
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
         self.assertEqual(len(mt1.entries().collect()), 30)
 
+    def test_filter_cols_with_global_references(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        s = hl.literal({1, 3, 5, 7})
+        self.assertEqual(mt.filter_cols(s.contains(mt.col_idx)).count_cols(), 4)
+
+
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
         self.assertEqual(
