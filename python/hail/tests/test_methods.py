@@ -526,6 +526,26 @@ class Tests(unittest.TestCase):
 
         men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
+        self.assertEqual(men.row.dtype, hl.tstruct(locus=mt.locus.dtype,
+                                                   alleles=hl.tarray(hl.tstr),
+                                                   s=hl.tstr,
+                                                   fam_id=hl.tstr,
+                                                   mendel_code=hl.tint))
+        self.assertEqual(fam.row.dtype, hl.tstruct(pat_id=hl.tstr,
+                                                   mat_id=hl.tstr,
+                                                   fam_id=hl.tstr,
+                                                   children=hl.tint,
+                                                   errors=hl.tint64,
+                                                   snp_errors=hl.tint64))
+        self.assertEqual(ind.row.dtype, hl.tstruct(s=hl.tstr,
+                                                   fam_id=hl.tstr,
+                                                   errors=hl.tint64,
+                                                   snp_errors=hl.tint64))
+        self.assertEqual(var.row.dtype, hl.tstruct(locus=mt.locus.dtype,
+                                                   alleles=hl.tarray(hl.tstr),
+                                                   errors=hl.tint64))
+
+        self.assertEqual(men.count(), 98)
         self.assertEqual(fam.count(), 2)
         self.assertEqual(ind.count(), 7)
         self.assertEqual(var.count(), mt.count_rows())

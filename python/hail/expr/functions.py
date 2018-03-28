@@ -3569,11 +3569,11 @@ def mendel_error_code(locus, is_female, father, mother, child):
 
     Notes
     -----
-    In the table, the copy state of a locus with respect to a trio is defined
-    as follows, where PAR is the `pseudoautosomal region
+    In the table below, the copy state of a locus with respect to a trio is
+    defined as follows, where PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) of X and Y
     defined by the reference genome and the autosome is defined by
-    :meth:`.LocusExpression.in_autosome`.
+    :meth:`.LocusExpression.in_autosome`:
 
     - Auto -- in autosome or in PAR, or in non-PAR of X and female child
     - HemiX -- in non-PAR of X and male child
@@ -3628,32 +3628,32 @@ def mendel_error_code(locus, is_female, father, mother, child):
     child_n = child.n_alt_alleles()
 
     auto_cond = (hl.case(missing_false=True)
-        .when((father_n == 2) & (mother_n == 2) & (child_n == 1), 1)
-        .when((father_n == 0) & (mother_n == 0) & (child_n == 1), 2)
-        .when((father_n == 0) & (mother_n == 0) & (child_n == 2), 5)
-        .when((father_n == 2) & (mother_n == 2) & (child_n == 0), 8)
-        .when((father_n == 0) & (child_n == 2), 3)
-        .when((mother_n == 0) & (child_n == 2), 4)
-        .when((father_n == 2) & (child_n == 0), 6)
-        .when((mother_n == 2) & (child_n == 0), 7)
-        .or_missing()
-    )
+                 .when((father_n == 2) & (mother_n == 2) & (child_n == 1), 1)
+                 .when((father_n == 0) & (mother_n == 0) & (child_n == 1), 2)
+                 .when((father_n == 0) & (mother_n == 0) & (child_n == 2), 5)
+                 .when((father_n == 2) & (mother_n == 2) & (child_n == 0), 8)
+                 .when((father_n == 0) & (child_n == 2), 3)
+                 .when((mother_n == 0) & (child_n == 2), 4)
+                 .when((father_n == 2) & (child_n == 0), 6)
+                 .when((mother_n == 2) & (child_n == 0), 7)
+                 .or_missing()
+                 )
 
     hemi_x_cond = (hl.case(missing_false=True)
-        .when((mother_n == 2) & (child_n == 0), 9)
-        .when((mother_n == 0) & (child_n > 0), 10)
-        .or_missing()
-    )
+                   .when((mother_n == 2) & (child_n == 0), 9)
+                   .when((mother_n == 0) & (child_n > 0), 10)
+                   .or_missing()
+                   )
 
     hemi_y_cond = (hl.case(missing_false=True)
-        .when((father_n > 0) & (child_n == 0), 11)
-        .when((father_n == 0) & (child_n > 0), 12)
-        .or_missing()
-        )
+                   .when((father_n > 0) & (child_n == 0), 11)
+                   .when((father_n == 0) & (child_n > 0), 12)
+                   .or_missing()
+                   )
 
     return (hl.case()
-        .when(locus.in_autosome_or_par() | is_female, auto_cond)
-        .when(locus.in_x_nonpar() & (~is_female), hemi_x_cond)
-        .when(locus.in_y_nonpar() & (~is_female), hemi_y_cond)
-        .or_missing()
-    )
+            .when(locus.in_autosome_or_par() | is_female, auto_cond)
+            .when(locus.in_x_nonpar() & (~is_female), hemi_x_cond)
+            .when(locus.in_y_nonpar() & (~is_female), hemi_y_cond)
+            .or_missing()
+            )

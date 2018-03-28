@@ -118,8 +118,8 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
         - `mat_id` (:py:data:`.tstr`) -- Maternal ID. (key field)
         - `fam_id` (:py:data:`.tstr`) -- Family ID.
         - `children` (:py:data:`.tint32`) -- Number of children in this nuclear family.
-        - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this nuclear family.
-        - `snp_errors` (:py:data:`.tint32`) -- Number of Mendel errors at SNPs in this
+        - `errors` (:py:data:`.tint64`) -- Number of Mendel errors in this nuclear family.
+        - `snp_errors` (:py:data:`.tint64`) -- Number of Mendel errors at SNPs in this
           nuclear family.
 
     **Third table:** errors per individual. This table contains one row per
@@ -137,7 +137,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
         - `locus` (:class:`.tlocus`) -- Variant locus, key field.
         - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
-        - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this variant.
+        - `errors` (:py:data:`.tint64`) -- Number of Mendel errors in this variant.
 
     This method only considers complete trios (two parents and proband with
     defined sex). The code of each Mendel error is determined by the table
@@ -213,9 +213,9 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
         tm.mother_entry['__GT'],
         tm.proband_entry['__GT']
     ))
-    tm = tm.filter_entries(hl.is_defined(tm.mendel_code))
-
     ck_name = next(iter(source.col_key))
+    tm = tm.filter_entries(hl.is_defined(tm.mendel_code))
+    tm = tm.rename({'id' : ck_name})
 
     entries = tm.entries()
 
@@ -225,10 +225,10 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
         entries
             .group_by(pat_id=entries.father[ck_name], mat_id=entries.mother[ck_name])
             .partition_hint(min(entries.n_partitions(), 8))
-            .aggregate(errors=hl.agg.count_where(hl.is_defined(entries.mendel_code)),
+            .aggregate(children=hl.len(hl.agg.collect_as_set(entries[ck_name])),
+                       errors=hl.agg.count_where(hl.is_defined(entries.mendel_code)),
                        snp_errors=hl.agg.count_where(hl.is_snp(entries.alleles[0], entries.alleles[1]) &
-                                                     hl.is_defined(entries.mendel_code)),
-                       children=hl.len(hl.agg.collect_as_set(entries.id)))
+                                                     hl.is_defined(entries.mendel_code)))
     )
     table2 = tm.cols()
     table2 = table2.select(pat_id=table2.father[ck_name],
@@ -240,7 +240,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
                              snp_errors=hl.or_else(table2.snp_errors, hl.int64(0)))
 
     # in implicated, idx 0 is dad, idx 1 is mom, idx 2 is child
-    implicated = hl.array([
+    implicated = hl.literal([
         [0, 0, 0],  # dummy
         [1, 1, 1],
         [1, 1, 1],
@@ -254,14 +254,14 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
         [0, 1, 1],
         [1, 0, 1],
         [1, 0, 1],
-    ])
+    ], dtype=hl.tarray(hl.tarray(hl.tint64)))
 
-    tm2 = tm.annotate_cols(all_errors=hl.or_else(hl.agg.array_sum(implicated[tm.mendel_code]), [0, 0, 0]),
-                           snp_errors=hl.or_else(hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
-                                                                                implicated[tm.mendel_code])),
-                                                 [0, 0, 0]))
+    table3 = tm.annotate_cols(all_errors=hl.or_else(hl.agg.array_sum(implicated[tm.mendel_code]), [0, 0, 0]),
+                              snp_errors=hl.or_else(
+                                  hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
+                                                                 implicated[tm.mendel_code])),
+                                  [0, 0, 0])).cols()
 
-    table3 = tm2.cols()
     table3 = table3.select(xs=[
         hl.struct(**{ck_name: table3.father[ck_name],
                      'fam_id': table3.fam_id,
@@ -278,14 +278,11 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
     ])
     table3 = table3.explode('xs')
     table3 = table3.select(**table3.xs)
-    table3 = table3.group_by('fam_id', ck_name).aggregate(errors=hl.agg.sum(table3.errors),
+    table3 = table3.group_by(ck_name, 'fam_id').aggregate(errors=hl.agg.sum(table3.errors),
                                                           snp_errors=hl.agg.sum(table3.snp_errors))
 
-    table4 = (
-        tm.select_rows(*tm.row_key,
-
-                       errors=hl.agg.count_where(hl.is_defined(tm.mendel_code)))
-            .rows())
+    table4 = tm.select_rows(*tm.row_key,
+                            errors=hl.agg.count_where(hl.is_defined(tm.mendel_code))).rows()
 
     return table1, table2, table3, table4
 

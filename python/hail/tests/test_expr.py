@@ -1174,11 +1174,11 @@ class Tests(unittest.TestCase):
         locus_y_nonpar = hl.Locus('Y', hl.get_reference('default').lengths['Y'] - 1)
 
         self.assertTrue(hl.all(lambda x: x, hl.array([
-            hl.literal(locus_auto).in_autosome(),
             hl.literal(locus_auto).in_autosome_or_par(),
-            ~hl.literal(locus_x_par).in_autosome(),
+            hl.literal(locus_auto).in_autosome_or_par(),
+            ~hl.literal(locus_x_par).in_autosome_or_par(),
             hl.literal(locus_x_par).in_autosome_or_par(),
-            ~hl.literal(locus_x_nonpar).in_autosome(),
+            ~hl.literal(locus_x_nonpar).in_autosome_or_par(),
             hl.literal(locus_x_nonpar).in_x_nonpar(),
             ~hl.literal(locus_y_nonpar).in_autosome_or_par(),
             hl.literal(locus_y_nonpar).in_y_nonpar()
@@ -1186,7 +1186,7 @@ class Tests(unittest.TestCase):
 
         hr = hl.Call([0, 0])
         het = hl.Call([0, 1])
-        hv  = hl.Call([1, 1])
+        hv = hl.Call([1, 1])
         nocall = None
 
         expected = {
@@ -1195,6 +1195,7 @@ class Tests(unittest.TestCase):
             (locus_x_par, True, hv, hv, het): 1,
             (locus_x_par, False, hv, hv, het): 1,
             (locus_auto, True, hr, hr, het): 2,
+            (locus_auto, None, hr, hr, het): 2,
             (locus_auto, True, hr, het, hv): 3,
             (locus_auto, True, hr, hv, hv): 3,
             (locus_auto, True, hr, nocall, hv): 3,
@@ -1202,6 +1203,7 @@ class Tests(unittest.TestCase):
             (locus_auto, True, hv, hr, hv): 4,
             (locus_auto, True, nocall, hr, hv): 4,
             (locus_auto, True, hr, hr, hv): 5,
+            (locus_auto, None, hr, hr, hv): 5,
             (locus_auto, False, hr, hr, hv): 5,
             (locus_x_par, False, hr, hr, hv): 5,
             (locus_x_par, False, hv, het, hr): 6,
@@ -1213,6 +1215,7 @@ class Tests(unittest.TestCase):
             (locus_auto, True, hv, hv, hr): 8,
             (locus_auto, False, hv, hv, hr): 8,
             (locus_x_par, False, hv, hv, hr): 8,
+            (locus_x_par, None, hv, hv, hr): 8,
             (locus_x_nonpar, False, hr, hv, hr): 9,
             (locus_x_nonpar, False, het, hv, hr): 9,
             (locus_x_nonpar, False, hv, hv, hr): 9,
@@ -1221,6 +1224,7 @@ class Tests(unittest.TestCase):
             (locus_x_nonpar, False, het, hr, hv): 10,
             (locus_x_nonpar, False, hv, hr, hv): 10,
             (locus_x_nonpar, False, nocall, hr, hv): 10,
+            (locus_x_nonpar, None, nocall, hr, hv): 10,
             (locus_y_nonpar, False, hv, hr, hr): 11,
             (locus_y_nonpar, False, hv, het, hr): 11,
             (locus_y_nonpar, False, hv, hv, hr): 11,
@@ -1229,9 +1233,11 @@ class Tests(unittest.TestCase):
             (locus_y_nonpar, False, hr, het, hv): 12,
             (locus_y_nonpar, False, hr, hv, hv): 12,
             (locus_y_nonpar, False, hr, nocall, hv): 12,
+            (locus_y_nonpar, None, hr, nocall, hv): 12,
             (locus_auto, True, het, het, het): None,
             (locus_auto, True, hv, het, het): None,
             (locus_auto, True, het, hr, het): None,
+            (locus_auto, True, hv, hr, het): None,
             (locus_auto, True, hv, hr, het): None,
             (locus_x_nonpar, True, hv, hr, het): None,
             (locus_x_nonpar, False, hv, hr, hr): None,
@@ -1245,7 +1251,8 @@ class Tests(unittest.TestCase):
             (locus_y_nonpar, False, hv, hv, hv): None,
         }
 
-        arg_list = hl.literal(list(expected.keys()), hl.tarray(hl.ttuple(hl.tlocus(), hl.tbool, hl.tcall, hl.tcall, hl.tcall)))
+        arg_list = hl.literal(list(expected.keys()),
+                              hl.tarray(hl.ttuple(hl.tlocus(), hl.tbool, hl.tcall, hl.tcall, hl.tcall)))
         values = arg_list.map(lambda args: hl.mendel_error_code(*args))
         expr = hl.dict(hl.zip(arg_list, values))
         results = expr.value
