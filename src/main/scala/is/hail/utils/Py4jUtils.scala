@@ -103,9 +103,9 @@ trait Py4jUtils {
 
   def mkdir(hc: HailContext, path: String): Boolean = hc.hadoopConf.mkDir(path)
 
-  def copyToTmp(hc: HailContext, path: String): String = {
-    val ext = hc.hadoopConf.getCodec(path)
-    val tmpFile = hc.getTemporaryFile(suffix = Some(ext))
+  def copyToTmp(hc: HailContext, path: String, extension: String): String = {
+    val codecExt = hc.hadoopConf.getCodec(path)
+    val tmpFile = hc.getTemporaryFile(suffix = Some(extension + codecExt))
     hc.hadoopConf.copy(path, tmpFile)
     tmpFile
   }

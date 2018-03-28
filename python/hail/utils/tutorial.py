@@ -63,7 +63,7 @@ def get_1kg(output_dir, overwrite: bool = False):
         info(f'downloading 1KG VCF ...\n'
              f'  Source: {source}')
         urlretrieve(resources['1kg_matrix_table'], tmp_vcf)
-        cluster_readable_vcf = Env.jutils().copyToTmp(jhc, local_path_uri(tmp_vcf))
+        cluster_readable_vcf = Env.jutils().copyToTmp(jhc, local_path_uri(tmp_vcf), 'vcf')
         info('importing VCF and writing to matrix table...')
         hl.import_vcf(cluster_readable_vcf, min_partitions=16).write(matrix_table_path, overwrite=True)
 
@@ -119,9 +119,9 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         assert (os.path.exists(movie_table_path))
         assert (os.path.exists(ratings_table_path))
 
-        user_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(user_table_path))
-        movie_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(movie_table_path))
-        ratings_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(ratings_table_path))
+        user_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(user_table_path), 'txt')
+        movie_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(movie_table_path), 'txt')
+        ratings_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(ratings_table_path), 'txt')
 
         [movies_path, ratings_path, users_path] = paths
 
