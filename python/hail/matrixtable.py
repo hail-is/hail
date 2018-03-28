@@ -1363,10 +1363,16 @@ class MatrixTable(ExprContainer):
         ...                                      (dataset.pheno.age > 50),
         ...                                      keep=True)
 
-        Remove rows where `sample_qc.gq_mean` is less than 20:
+        Remove columns where `sample_qc.gq_mean` is less than 20:
 
         >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_mean < 20,
         ...                                      keep=False)
+
+        Remove columns where `s` is found in a Python set:
+
+        >>> samples_to_remove = {'NA12878', 'NA12891', 'NA12892'}
+        >>> set_to_remove = hl.literal(samples_to_remove)
+        >>> dataset_result = dataset.filter_cols(~set_to_remove.contains(dataset['s']))
 
         Notes
         -----
