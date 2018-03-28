@@ -107,7 +107,7 @@ trait Py4jUtils {
     val ext = hc.hadoopConf.getCodec(path)
     val tmpFile = hc.getTemporaryFile(suffix = Some(ext))
     hc.hadoopConf.copy(path, tmpFile)
-    path
+    tmpFile
   }
 }
 

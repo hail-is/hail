@@ -29,18 +29,23 @@ def _mkdir(jhc, path):
     if not Env.jutils().dirExists(jhc, path):
         r = Env.jutils().mkdir(jhc, path)
         if not r:
-            raise IOError(f'could not mkdir f{path}')
+            raise IOError(f'could not mkdir {path}')
 
 
 def get_1kg(output_dir, overwrite: bool = False):
-    """Download public 1000 genotype data and sample annotations.
+    """Download subset of the `1000 Genomes <http://www.internationalgenome.org/>`__
+    dataset and sample annotations.
+
+    Notes
+    -----
+    The download is about 15M.
 
     Parameters
     ----------
     output_dir
         Directory in which to write data.
     overwrite
-        If ``True``, overwrite existing files/directories at those locations.
+        If ``True``, overwrite any existing files/directories at `output_dir`.
     """
     jhc = Env.hc()._jhc
 
@@ -70,7 +75,7 @@ def get_1kg(output_dir, overwrite: bool = False):
         hl.hadoop_copy(local_path_uri(tmp_annot), annotations_path)
         info('Done!')
     else:
-        info('1KG files found!')
+        info('1KG files found')
 
 
 def get_movie_lens(output_dir, overwrite: bool = False):
@@ -78,6 +83,8 @@ def get_movie_lens(output_dir, overwrite: bool = False):
 
     Notes
     -----
+    The download is about 6M.
+
     See the
     `MovieLens website <https://grouplens.org/datasets/movielens/100k/>`__
     for more information about this dataset.
@@ -129,21 +136,20 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         def field_to_array(ds, field):
             return hl.cond(ds[field] != 0, hl.array([field]), hl.empty_array(hl.tstr))
 
-
         def fields_to_array(ds, fields):
             return hl.flatten(hl.array([field_to_array(ds, f) for f in fields]))
 
         def rename_columns(ht, new_names):
             return ht.rename({k: v for k, v in zip(ht.row, new_names)})
 
-        info(f'importing users and writing to {users_path} ...')
+        info(f'importing users table and writing to {users_path} ...')
 
         users = rename_columns(
             hl.import_table(user_cluster_readable, key=['f0'], no_header=True, impute=True, delimiter='|'),
             ['id', 'age', 'sex', 'occupation', 'zipcode'])
         users.write(users_path, overwrite=True)
 
-        info(f'importing movies and writing to {movies_path} ...')
+        info(f'importing movies table and writing to {movies_path} ...')
 
         movies = hl.import_table(movie_cluster_readable, key=['f0'], no_header=True, impute=True, delimiter='|')
         movies = rename_columns(movies,
@@ -152,7 +158,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         movies = movies.transmute(genres=fields_to_array(movies, genres))
         movies.write(movies_path, overwrite=True)
 
-        info(f'importing ratings and writing to {ratings_path} ...')
+        info(f'importing ratings table and writing to {ratings_path} ...')
 
         ratings = hl.import_table(ratings_cluster_readable, no_header=True, impute=True)
         ratings = rename_columns(ratings,
