@@ -154,6 +154,11 @@ abstract class Type extends BaseType with Serializable {
 
   def unsafeOrdering(missingGreatest: Boolean = false): UnsafeOrdering = ???
 
+  def unsafeOrdering(rightType: Type, missingGreatest: Boolean = false): UnsafeOrdering = {
+    require(this.isOfType(rightType))
+    unsafeOrdering(missingGreatest)
+  }
+
   def getOption(fields: String*): Option[Type] = getOption(fields.toList)
 
   def getOption(path: List[String]): Option[Type] = {
