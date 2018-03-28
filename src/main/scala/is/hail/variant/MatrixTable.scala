@@ -1354,7 +1354,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     pred match {
       case Some(irPred) if ContainsAgg(irPred) =>
         // FIXME: the IR path doesn't yet support aggs
-        info("filterCols: predicate contains aggs - not yet supported in IR")
+        log.info("filterCols: predicate contains aggs - not yet supported in IR")
         pred = None
       case _ =>
     }
@@ -1364,7 +1364,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterCols_pred"))
         )
       case None =>
-        info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterCols(ast, filterAST))
@@ -1386,7 +1386,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     pred match {
       case Some(irPred) if ContainsAgg(irPred) =>
         // FIXME: the IR path doesn't yet support aggs
-        info("filterRows: predicate contains aggs - not yet supported in IR")
+        log.info("filterRows: predicate contains aggs - not yet supported in IR")
         pred = None
       case _ =>
     }
@@ -1396,7 +1396,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
         )
       case _ =>
-        info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterRows(ast, filterAST))
