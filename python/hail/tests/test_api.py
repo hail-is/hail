@@ -389,8 +389,8 @@ class TableTests(unittest.TestCase):
 
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)
-        kt2 = ht.head(0)
-        kt.annotate(foo = hl.is_defined(kt2[ht.idx]))
+        kt2 = kt.head(0)
+        kt.annotate(foo = hl.is_defined(kt2[kt.idx]))
 
     def test_join_with_key(self):
         ht = hl.utils.range_table(10)
