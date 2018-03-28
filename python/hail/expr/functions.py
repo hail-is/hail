@@ -1566,7 +1566,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
 
 
 @typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
-def range(start, stop, step=1) -> ArrayExpression:
+def range(start, stop, step=1) -> ArrayNumericExpression:
     """Returns an array of integers from `start` to `stop` by `step`.
 
     Examples
