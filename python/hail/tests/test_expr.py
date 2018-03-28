@@ -1236,11 +1236,11 @@ class Tests(unittest.TestCase):
             (locus_x_nonpar, True, hv, hr, het): None,
             (locus_x_nonpar, False, hv, hr, hr): None,
             (locus_x_nonpar, False, het, hr, hr): None,
-            (locus_y_nonpar, True, het, hr, hv): None,
+            (locus_y_nonpar, True, het, hr, het): None,
             (locus_y_nonpar, True, het, hr, hr): None,
             (locus_y_nonpar, True, het, hr, het): None,
             (locus_y_nonpar, True, het, het, het): None,
-            (locus_y_nonpar, True, hr, hr, het): None,
+            (locus_y_nonpar, True, hr, hr, hr): None,
             (locus_y_nonpar, False, hr, hv, hr): None,
             (locus_y_nonpar, False, hv, hv, hv): None,
         }
