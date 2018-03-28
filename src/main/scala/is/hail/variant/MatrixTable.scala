@@ -360,56 +360,57 @@ case class VSMSubgen(
   tGen: (TStruct, Annotation) => Gen[Annotation]) {
 
   def gen(hc: HailContext): Gen[MatrixTable] =
-    for (size <- Gen.size;
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+    for {
+      size <- Gen.size
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8)
 
-      vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      globalSig <- globalSigGen.resize(5);
-      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-      global <- globalGen(globalSig).resize(25);
-      nPartitions <- Gen.choose(1, 10);
+      vSig <- vSigGen.resize(3)
+      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
+      sSig <- sSigGen.resize(3)
+      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
+      globalSig <- globalSigGen.resize(5)
+      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3)
+      global <- globalGen(globalSig).resize(25)
+      nPartitions <- Gen.choose(1, 10)
 
       sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-        .map(ids => ids.distinct);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+        .map(ids => ids.distinct)
+      nSamples = sampleIds.length
+      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5))
       rows <- Gen.buildableOfN[Array](l,
-        for (
-          v <- vGen(vSig).resize(3);
-          va <- vaGen(vaSig).resize(5);
-          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-          yield (v, (va, ts: Iterable[Annotation]))))
-      yield {
-        assert(sampleIds.forall(_ != null))
-        val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
+        for {
+          v <- vGen(vSig).resize(3)
+          va <- vaGen(vaSig).resize(5)
+          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3))
+        } yield (v, (va, ts: Iterable[Annotation])))
+    } yield {
+      assert(sampleIds.forall(_ != null))
+      val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
 
-        val (finalVASig, vaIns, rowPartitionKey, rowKey) =
-          vSig match {
-            case _: TVariant =>
-              val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
-              val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
-              val vaIns = (va: Annotation, v: Annotation) => {
-                val vv = v.asInstanceOf[Variant]
-                (vaIns2(vaIns1(va, vv.locus), vv.alleles))
-              }
-              (finalVASig, vaIns, Array("locus"), Array("locus", "alleles"))
-            case _ =>
-              val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
-              (finalVASig, vaIns, Array("v"), Array("v"))
-          }
+      val (finalVASig, vaIns, rowPartitionKey, rowKey) =
+        vSig match {
+          case _: TVariant =>
+            val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
+            val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
+            val vaIns = (va: Annotation, v: Annotation) => {
+              val vv = v.asInstanceOf[Variant]
+              (vaIns2(vaIns1(va, vv.locus), vv.alleles))
+            }
+            (finalVASig, vaIns, Array("locus"), Array("locus", "alleles"))
+          case _ =>
+            val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
+            (finalVASig, vaIns, Array("v"), Array("v"))
+        }
 
-        MatrixTable.fromLegacy(hc,
-          MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowPartitionKey, rowKey, finalVASig, tSig),
-          global,
-          sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
-          hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
-            (vaIns(va, v), gs)
-          }, nPartitions))
-          .deduplicate()
-      }
+      MatrixTable.fromLegacy(hc,
+        MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowPartitionKey, rowKey, finalVASig, tSig),
+        global,
+        sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
+        hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
+          (vaIns(va, v), gs)
+        }, nPartitions))
+        .deduplicate()
+    }
 }
 
 object VSMSubgen {
@@ -1137,7 +1138,21 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val (t, f) = Parser.parseExpr(expr, ec)
     assert(t == newRowType)
-    val touchesKeys = newRowKey.nonEmpty
+    val touchesKeys: Boolean = (newRowKey != rowKey) ||
+      (newPartitionKey != rowPartitionKey) || (
+      rowsAST match {
+        case StructConstructor(_, names, asts) =>
+          names.zip(asts).exists { case (name, node) =>
+            rowKey.contains(name) &&
+              (node match {
+                case Select(_, SymRef(_, "va"), n) => n != name
+                case _ => true
+              })
+          }
+        case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
+          coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
+        case _ => true
+      })
     val aggregateOption = Aggregators.buildRowAggregations(this, ec)
     val globalsBc = globals.broadcast
     val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
@@ -1364,7 +1379,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterCols_pred"))
         )
       case None =>
-        log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterCols(ast, filterAST))
@@ -1396,7 +1411,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
         )
       case _ =>
-        log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterRows(ast, filterAST))
@@ -1825,7 +1840,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     chooseCols(oldIndices.asScala.toArray)
 
   def chooseCols(oldIndices: Array[Int]): MatrixTable = {
-    require(oldIndices.forall { x => x >= 0 && x < numCols})
+    require(oldIndices.forall { x => x >= 0 && x < numCols })
     copyAST(ast = ChooseCols(ast, oldIndices))
   }
 
@@ -2728,7 +2743,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
       new WriteBlocksRDD(dirname, rvd.rdd, sparkContext, matrixType, partStarts, entryField, gp)
-      .collect()
+        .collect()
 
     val blockCount = blockPartFiles.length
     val partFiles = new Array[String](blockCount)
