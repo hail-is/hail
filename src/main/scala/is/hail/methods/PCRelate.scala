@@ -55,7 +55,8 @@ object PCRelate {
     
     val scoresLocal = scoresTable.collect()
     assert(scoresLocal.length == blockedG.nCols)
-    val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[Double]](0)))
+    
+    val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
@@ -82,16 +83,23 @@ object PCRelate {
       .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, k0: row.k0, k1: row.k1, k2: row.k2}") 
   }
 
-  private def rowsToBDM(x: Array[IndexedSeq[Double]]): BDM[Double] = {
+  // FIXME move matrix formation to Python
+  private def rowsToBDM(x: Array[IndexedSeq[java.lang.Double]]): BDM[Double] = {
     val nRows = x.length
-    val nCols = if (x.length == 0) 0 else x(0).length
+    assert(nRows > 0)
+    val nCols = x(0).length
     val a = new Array[Double](nRows * nCols)
     var i = 0
     while (i < nRows) {
       val row = x(i)
+      if (row.length != nCols)
+        fatal(s"pc_relate: column index 0 has $nCols scores but column index $i has ${row.length} scores.")
       var j = 0
       while (j < nCols) {
-        a(j * nRows + i) = row(j)
+        val e = row(j)
+        if (e == null)
+          fatal(s"pc_relate: found missing score at array index $j for column index $i")
+        a(j * nRows + i) = e
         j += 1
       }
       i += 1

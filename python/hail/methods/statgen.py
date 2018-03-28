@@ -1710,8 +1710,8 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None, min_kinship=-float("i
     scores_expr : :class:`.ArrayNumericExpression`, optional
         Column-indexed expression of principal component scores, with the same
         source as `call_expr`. All array values must have the same positive length,
-        corresponding to the number of principal components.
-        Exactly one of `k` and `scores_expr` must be specified.
+        corresponding to the number of principal components, and all scores must
+        be non-missing. Exactly one of `k` and `scores_expr` must be specified.
     min_kinship : :obj:`float`
         Pairs of samples with kinship lower than ``min_kinship`` are excluded
         from the results.
@@ -1748,6 +1748,10 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None, min_kinship=-float("i
         raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
     scores_table = mt.select_cols(__scores=scores_expr).cols()
+
+    n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.scores)))
+    if n_missing > 0:
+        raise ValueError(f'Found {n_missing} columns with missing scores array.')
 
     mt = mt.select_entries(gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__mean_gt=agg.mean(mt.gt))
