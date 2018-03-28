@@ -1107,6 +1107,9 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    def test_or_else_type_conversion(self):
+        self.assertEqual(hl.or_else(0.5, 2).value, 0.5)
+
     def test_tuple_ops(self):
         t0 = hl.literal(())
         t1 = hl.literal((1,))

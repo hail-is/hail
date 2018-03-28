@@ -525,12 +525,19 @@ class Expression(object):
             ``True`` if the two expressions are equal.
         """
         other = to_expr(other)
-        t = unify_types(self._type, other._type)
-        if t is None:
-            raise TypeError("Invalid '==' comparison, cannot compare expressions of type '{}' and '{}'".format(
-                self._type, other._type
-            ))
-        return self._bin_op("==", other, tbool)
+        left = self
+        right = other
+        if left.dtype != right.dtype:
+            left_coercer = expressions.coercer_from_dtype(self.dtype)
+            right_coercer = expressions.coercer_from_dtype(right.dtype)
+            if left_coercer.can_coerce(right.dtype):
+                right = left_coercer.coerce(right)
+            elif right_coercer.can_coerce(left.dtype):
+                left = right_coercer.coerce(left)
+            else:
+                raise NotImplementedError(
+                    f"'==' comparison between expressions of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("==", right, tbool)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
