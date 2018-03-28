@@ -610,7 +610,7 @@ object OrderedRVD {
     val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
     val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
 
-    shuffle(typ, partitioner.enlargeToRange(Some(Interval(min, max, true, true))), rdd)
+    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
   }
 
   def shuffle(

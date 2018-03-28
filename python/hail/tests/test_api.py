@@ -387,6 +387,11 @@ class TableTests(unittest.TestCase):
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
+    def test_join_with_empty(self):
+        kt = hl.utils.range_table(10)
+        kt2 = ht.head(0)
+        kt.annotate(foo = hl.is_defined(kt2[ht.idx]))
+
     def test_join_with_key(self):
         ht = hl.utils.range_table(10)
         ht1 = ht.annotate(foo = 5)
