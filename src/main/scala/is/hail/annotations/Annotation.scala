@@ -182,4 +182,69 @@ object Annotation {
       case _ => a
     }
   }
+
+  private[this] def safeFromArrayRegionValue(
+    t: TArray,
+    region: Region,
+    offset: Long
+  ): Array[Annotation] = {
+    val length = t.loadLength(region, offset)
+    val a = new Array[Annotation](length)
+    var i = 0
+    while (i < length) {
+      a(i) =
+        safeFromRegionValue(
+          t.elementType,
+          region,
+          t.loadElement(region, offset, length, i))
+      i += 1
+    }
+    a
+  }
+
+  def safeFromRegionValue(t: Type, rv: RegionValue): Annotation =
+    safeFromRegionValue(t, rv.region, rv.offset)
+
+  def safeFromRegionValue(t: Type, region: Region, offset: Long): Annotation = t match {
+    case _: TBoolean =>
+      region.loadBoolean(offset)
+    case _: TInt32 | _: TCall => region.loadInt(offset)
+    case _: TInt64 => region.loadLong(offset)
+    case _: TFloat32 => region.loadFloat(offset)
+    case _: TFloat64 => region.loadDouble(offset)
+    case t: TArray =>
+      safeFromArrayRegionValue(t, region, offset)
+    case t: TSet =>
+      safeFromArrayRegionValue(t.fundamentalType, region, offset).toSet
+    case _: TString => UnsafeRow.readString(region, offset)
+    case _: TBinary => UnsafeRow.readBinary(region, offset)
+    case td: TDict =>
+      val a = safeFromArrayRegionValue(td.fundamentalType, region, offset)
+      a.map(r => r.asInstanceOf[Row]).map(r => (r.get(0), r.get(1))).toMap
+    case t: TBaseStruct =>
+      Row(t.fields.map(f => safeFromRegionValue(f.typ, region, t.loadField(region, offset, f.index))).toArray:_*)
+    case t: TLocus =>
+      UnsafeRow.readLocus(region, offset, t.rg)
+    case t: TInterval =>
+      val ft = t.fundamentalType.asInstanceOf[TStruct]
+      val start: Annotation =
+        if (ft.isFieldDefined(region, offset, 0))
+          safeFromRegionValue(t.pointType, region, ft.loadField(region, offset, 0))
+        else
+          null
+      val end =
+        if (ft.isFieldDefined(region, offset, 1))
+          safeFromRegionValue(t.pointType, region, ft.loadField(region, offset, 1))
+        else
+          null
+      val includesStart = safeFromRegionValue(
+        TBooleanRequired,
+        region,
+        ft.loadField(region, offset, 2)).asInstanceOf[Boolean]
+      val includesEnd = safeFromRegionValue(
+        TBooleanRequired,
+        region,
+        ft.loadField(region, offset, 3)).asInstanceOf[Boolean]
+      Interval(start, end, includesStart, includesEnd)
+  }
 }
