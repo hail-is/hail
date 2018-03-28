@@ -42,11 +42,7 @@ abstract class RGBase extends Serializable {
 
   def checkLocus(contig: String, pos: Int): Unit
 
-  def checkInterval(i: Interval): Unit
-
-  def checkInterval(l1: Locus, l2: Locus): Unit
-
-  def checkInterval(contig: String, start: Int, end: Int): Unit
+  def checkLocusInterval(i: Interval): Unit
 
   def contigLength(contig: String): Int
 
@@ -232,7 +228,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!isValidLocus(contig, pos))
       fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
   }
-  
+
   def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
     val v = s"$contig:$start:$ref:$alt"
     if (!isValidContig(contig))
@@ -243,35 +239,38 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
 
-  def checkInterval(i: Interval): Unit = {
+  def checkLocusInterval(i: Interval): Unit = {
     val start = i.start.asInstanceOf[Locus]
     val end = i.end.asInstanceOf[Locus]
+    val includesStart = i.includesStart
+    val includesEnd = i.includesEnd
+
     if (!isValidContig(start.contig))
       fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
     if (!isValidContig(end.contig))
       fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
-    if (!isValidLocus(start.contig, start.position))
+    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1))
       fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
-    if (!isValidLocus(end.contig, end.position))
+    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1))
       fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
   }
 
-  def checkInterval(l1: Locus, l2: Locus): Unit = {
-    val i = s"$l1-$l2"
-    if (!isValidLocus(l1.contig, l1.position))
-      fatal(s"Invalid interval `$i' found. Locus `$l1' is not in the reference genome `$name'.")
-    if (!isValidLocus(l2.contig, l2.position))
-      fatal(s"Invalid interval `$i' found. Locus `$l2' is not in the reference genome `$name'.")
-  }
+  def normalizeLocusInterval(i: Interval): Interval = {
+    var start = i.start.asInstanceOf[Locus]
+    var end = i.end.asInstanceOf[Locus]
+    var includesStart = i.includesStart
+    var includesEnd = i.includesEnd
 
-  def checkInterval(contig: String, start: Int, end: Int): Unit = {
-    val i = s"$contig:$start-$end"
-    if (!isValidContig(contig))
-      fatal(s"Invalid interval `$i' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidLocus(contig, start))
-      fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
-    if (!isValidLocus(contig, end))
-      fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    if (!includesStart && start.position == 0) {
+      start = start.copyChecked(this, position = 1)
+      includesStart = true
+    }
+    if (!includesEnd && end.position == contigLength(end.contig) + 1) {
+      end = end.copyChecked(this, position = contigLength(end.contig))
+      includesEnd = true
+    }
+
+    Interval(start, end, includesStart, includesEnd)
   }
 
   def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
@@ -670,11 +669,7 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
 
   def checkLocus(contig: String, pos: Int): Unit = ???
 
-  def checkInterval(i: Interval): Unit = ???
-
-  def checkInterval(l1: Locus, l2: Locus): Unit = ???
-
-  def checkInterval(contig: String, start: Int, end: Int): Unit = ???
+  def checkLocusInterval(i: Interval): Unit = ???
 
   def contigLength(contig: String): Int = ???
 

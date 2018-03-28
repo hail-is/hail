@@ -320,7 +320,11 @@ def import_locus_intervals(path, reference_genome='default') -> Table:
     Examples
     --------
 
+    Add the row field `capture_region` indicating inclusion in
+    at least one interval from `capture_intervals.txt`:
+
     >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
+    >>> result = dataset.annotate_rows(capture_region = hl.is_defined(intervals[dataset.locus]))
 
     Notes
     -----
@@ -389,10 +393,6 @@ def import_bed(path, reference_genome='default') -> Table:
     Examples
     --------
 
-    >>> bed = hl.import_bed('data/file1.bed')
-
-    >>> bed = hl.import_bed('data/file2.bed')
-
     The file formats are
 
     .. code-block:: text
@@ -409,6 +409,17 @@ def import_bed(path, reference_genome='default') -> Table:
         20    17000000   18000000  cnv2
         ...
 
+    Add the row annotation `cnvRegion` indicating inclusion in
+    at least one interval of the three-column BED file:
+
+    >>> bed = hl.import_bed('data/file1.bed')
+    >>> result = dataset.annotate_rows(cnvRegion = hl.is_defined(bed[dataset.locus]))
+
+    Add a row annotation `cnvID` with the value given by the
+    fourth column of a BED file:
+
+    >>> bed = hl.import_bed('data/file2.bed')
+    >>> result = dataset.annotate_rows(cnvID = bed[dataset.locus].target)
 
     Notes
     -----
@@ -435,9 +446,9 @@ def import_bed(path, reference_genome='default') -> Table:
 
     Warning
     -------
-        UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
-        will contain locus ``5:105`` but not ``5:100``. Details
-        `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
+    UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
+    will contain locus ``5:105`` but not ``5:100``. Details
+    `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
     Parameters
     ----------
@@ -452,18 +463,6 @@ def import_bed(path, reference_genome='default') -> Table:
     :class:`.Table`
         Interval-keyed table.
     """
-    # FIXME: once interval join support is added, add the following examples:
-    # Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
-    # at least one interval of the three-column BED file `file1.bed`:
-
-    # >>> bed = hl.import_bed('data/file1.bed')
-    # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.locus])
-
-    # Add a variant annotation **va.cnvRegion** (*String*) with value given by the
-    # fourth column of ``file2.bed``:
-
-    # >>> bed = hl.import_bed('data/file2.bed')
-    # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
 
     rg = reference_genome._jrep if reference_genome else None
 

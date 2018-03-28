@@ -62,9 +62,9 @@ object BedAnnotator {
           val chrom = spl(0)
           // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
           val start = spl(1).toInt + 1
-          val end = spl(2).toInt + 1
+          val end = spl(2).toInt
 
-          val interval = Interval(Locus.annotation(chrom, start, rg), Locus.annotation(chrom, end, rg), true, false)
+          val interval = Interval(Locus.annotation(chrom, start, rg), Locus.annotation(chrom, end, rg), true, true)
 
           if (hasTarget)
             Row(interval, spl(3))
