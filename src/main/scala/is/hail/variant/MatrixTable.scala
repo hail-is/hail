@@ -1137,7 +1137,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val (t, f) = Parser.parseExpr(expr, ec)
     assert(t == newRowType)
-    val touchesKeys = newRowKey.nonEmpty
+    val touchesKeys: Boolean = (newRowKey != rowKey) ||
+      (newPartitionKey != rowPartitionKey) || (
+      rowsAST match {
+        case StructConstructor(_, names, asts) =>
+          !names.zip(asts).filter { case (name, _) => rowKey.contains(name) }.forall { case (name, node) =>
+            node match {
+              case Select(_, SymRef(_, "va"), n) if n == name => false
+              case _ => true
+            }
+          }
+        case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
+          coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
+        case _ => true
+      })
     val aggregateOption = Aggregators.buildRowAggregations(this, ec)
     val globalsBc = globals.broadcast
     val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
