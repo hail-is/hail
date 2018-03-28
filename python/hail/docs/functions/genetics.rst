@@ -31,6 +31,7 @@ Genetics functions
     pl_dosage
     gp_dosage
     get_sequence
+    mendel_error_code
 
 .. autofunction:: locus
 .. autofunction:: locus_interval
@@ -58,3 +59,4 @@ Genetics functions
 .. autofunction:: pl_dosage
 .. autofunction:: gp_dosage
 .. autofunction:: get_sequence
+.. autofunction:: mendel_error_code

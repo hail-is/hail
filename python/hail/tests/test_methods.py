@@ -521,13 +521,56 @@ class Tests(unittest.TestCase):
             hl.split_multi_hts(ds)
 
     def test_mendel_errors(self):
-        dataset = self.get_dataset()
-        men, fam, ind, var = hl.mendel_errors(dataset, hl.Pedigree.read(resource('sample.fam')))
-        men.select('fam_id', 's', 'code')
-        fam.select('pat_id', 'children')
-        self.assertEqual(list(ind.key), ['s'])
-        self.assertEqual(list(var.key), ['locus', 'alleles'])
-        dataset.annotate_rows(mendel=var[dataset.locus, dataset.alleles]).count_rows()
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
+
+        self.assertEqual(fam.count(), 2)
+        self.assertEqual(ind.count(), 7)
+        self.assertEqual(var.count(), mt.count_rows())
+
+        self.assertEqual(set(fam.select('pat_id', 'mat_id', 'errors', 'snp_errors').collect()),
+                         {
+                             hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', errors=41, snp_errors=39),
+                             hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', errors=0, snp_errors=0)
+                         })
+
+        self.assertEqual(set(ind.select('s', 'errors', 'snp_errors').collect()),
+                         {
+                             hl.utils.Struct(s='Son1', errors=23, snp_errors=22),
+                             hl.utils.Struct(s='Dtr1', errors=18, snp_errors=17),
+                             hl.utils.Struct(s='Dad1', errors=19, snp_errors=18),
+                             hl.utils.Struct(s='Mom1', errors=22, snp_errors=21),
+                             hl.utils.Struct(s='Dad2', errors=0, snp_errors=0),
+                             hl.utils.Struct(s='Mom2', errors=0, snp_errors=0),
+                             hl.utils.Struct(s='Son2', errors=0, snp_errors=0)
+                         })
+
+        to_keep = hl.set([
+            (hl.Locus("1", 1), ['C', 'CT']),
+            (hl.Locus("1", 2), ['C', 'T']),
+            (hl.Locus("X", 1), ['C', 'T']),
+            (hl.Locus("X", 3), ['C', 'T']),
+            (hl.Locus("Y", 1), ['C', 'T']),
+            (hl.Locus("Y", 3), ['C', 'T'])
+        ])
+        self.assertEqual(var.filter(to_keep.contains((var.locus, var.alleles)))
+                         .order_by('locus')
+                         .select('locus', 'alleles', 'errors').collect(),
+                         [
+                             hl.utils.Struct(locus=hl.Locus("1", 1), alleles=['C', 'CT'], errors=2),
+                             hl.utils.Struct(locus=hl.Locus("1", 2), alleles=['C', 'T'], errors=1),
+                             hl.utils.Struct(locus=hl.Locus("X", 1), alleles=['C', 'T'], errors=2),
+                             hl.utils.Struct(locus=hl.Locus("X", 3), alleles=['C', 'T'], errors=1),
+                             hl.utils.Struct(locus=hl.Locus("Y", 1), alleles=['C', 'T'], errors=1),
+                             hl.utils.Struct(locus=hl.Locus("Y", 3), alleles=['C', 'T'], errors=1),
+                         ])
+
+        ped2 = hl.Pedigree.read(resource('mendelWithMissingSex.fam'))
+        men2, _, _, _ = hl.mendel_errors(mt['GT'], ped2)
+
+        self.assertTrue(men2.filter(men2.id == 'Dtr1')._same(men.filter(men.id == 'Dtr1')))
 
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))

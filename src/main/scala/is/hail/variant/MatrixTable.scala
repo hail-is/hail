@@ -1670,15 +1670,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       keyNames)
   }
 
-  def mendelErrors(ped: Pedigree): (Table, Table, Table, Table) = {
-    requireColKeyString("mendel errors")
-    requireRowKeyVariant("mendel errors")
-
-    val men = MendelErrors(this, ped.filterTo(stringSampleIdSet).completeTrios)
-
-    (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
-  }
-
   def aggregateRowsJSON(expr: String): String = {
     val (a, t) = queryRows(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)

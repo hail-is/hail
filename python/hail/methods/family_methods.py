@@ -3,6 +3,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.genetics.pedigree import Pedigree
 from hail.matrixtable import MatrixTable
+from hail.expr import expr_call
 from hail.table import Table
 from hail.typecheck import *
 from .misc import require_biallelic
@@ -36,13 +37,10 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     The new column fields consist of three structs (`proband`, `father`,
     `mother`), a Boolean field, and a string field:
 
-    - proband.id** (:py:data:`.tstr`) - Proband sample ID, same as trio column key.
-    - proband.fields** (:class:`.tstruct`) - Column fields on the proband.
-    - father.id** (:py:data:`.tstr`) - Father sample ID.
-    - father.fields** (:class:`.tstruct`) - Column fields on the father.
-    - mother.id** (:py:data:`.tstr`) - Mother sample ID.
-    - mother.fields** (:class:`.tstruct`) - Column fields on the mother.
-    - is_female** (:py:data:`.tbool`) - Proband is female.
+    - **proband** (:class:`.tstruct`) - Column fields on the proband.
+    - **father** (:class:`.tstruct`) - Column fields on the father.
+    - **mother** (:class:`.tstruct`) - Column fields on the mother.
+    - **is_female** (:py:data:`.tbool`) - Proband is female.
       ``True`` for female, ``False`` for male, missing if unknown.
     - **fam_id** (:py:data:`.tstr`) - Family ID.
 
@@ -62,9 +60,9 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     """
     return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))
 
-@typecheck(dataset=MatrixTable,
+@typecheck(call=expr_call,
            pedigree=Pedigree)
-def mendel_errors(dataset, pedigree) -> Tuple[Table, Table, Table, Table]:
+def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
     """Find Mendel errors; count per variant, individual and nuclear family.
 
     .. include:: ../_templates/req_tstring.rst
@@ -81,7 +79,7 @@ def mendel_errors(dataset, pedigree) -> Tuple[Table, Table, Table, Table]:
     individual, errors by variant):
 
     >>> ped = hl.Pedigree.read('data/trios.fam')
-    >>> all_errors, per_fam, per_sample, per_variant = hl.mendel_errors(dataset, ped)
+    >>> all_errors, per_fam, per_sample, per_variant = hl.mendel_errors(dataset['GT'], ped)
 
     Export all mendel errors to a text file:
 
@@ -107,19 +105,18 @@ def mendel_errors(dataset, pedigree) -> Tuple[Table, Table, Table, Table]:
     **First table:** all Mendel errors. This table contains one row per Mendel
     error, keyed by the variant and proband id.
 
-        - `fam_id` (:py:data:`.tstr`) -- Family ID.
-        - (column key of `dataset`) (:py:data:`.tstr`) -- Proband ID, key field.
         - `locus` (:class:`.tlocus`) -- Variant locus, key field.
         - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Variant alleles, key field.
-        - `code` (:py:data:`.tint32`) -- Mendel error code, see below.
-        - `error` (:py:data:`.tstr`) -- Readable representation of Mendel error.
+        - (column key of `dataset`) (:py:data:`.tstr`) -- Proband ID, key field.
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
+        - `mendel_code` (:py:data:`.tint32`) -- Mendel error code, see below.
 
     **Second table:** errors per nuclear family. This table contains one row
     per nuclear family, keyed by the parents.
 
-        - `fam_id` (:py:data:`.tstr`) -- Family ID.
         - `pat_id` (:py:data:`.tstr`) -- Paternal ID. (key field)
         - `mat_id` (:py:data:`.tstr`) -- Maternal ID. (key field)
+        - `fam_id` (:py:data:`.tstr`) -- Family ID.
         - `children` (:py:data:`.tint32`) -- Number of children in this nuclear family.
         - `errors` (:py:data:`.tint32`) -- Number of Mendel errors in this nuclear family.
         - `snp_errors` (:py:data:`.tint32`) -- Number of Mendel errors at SNPs in this
@@ -188,24 +185,109 @@ def mendel_errors(dataset, pedigree) -> Tuple[Table, Table, Table, Table]:
     |   12 | HomRef  | Any     | HomVar | HemiY      | Dad, Kid      |
     +------+---------+---------+--------+------------+---------------+
 
+    See Also
+    --------
+    :func:`.mendel_error_code`
+
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        Dataset.
     pedigree : :class:`.Pedigree`
-        Sample pedigree.
 
     Returns
     -------
     (:class:`.Table`, :class:`.Table`, :class:`.Table`, :class:`.Table`)
-        Four tables as detailed in notes with Mendel error statistics.
     """
+    source = call._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("'mendel_errors': expected 'call' to be an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
 
-    dataset = require_biallelic(dataset, 'mendel_errors')
+    source = source.select_entries(__GT=call)
+    dataset = require_biallelic(source, 'mendel_errors')
+    tm = trio_matrix(dataset, pedigree, complete_trios=True)
+    tm = tm.select_entries(mendel_code=hl.mendel_error_code(
+        tm.locus,
+        tm.is_female,
+        tm.father_entry['__GT'],
+        tm.mother_entry['__GT'],
+        tm.proband_entry['__GT']
+    ))
+    tm = tm.filter_entries(hl.is_defined(tm.mendel_code))
 
-    kts = dataset._jvds.mendelErrors(pedigree._jrep)
-    return Table(kts._1()), Table(kts._2()), \
-           Table(kts._3()), Table(kts._4())
+    ck_name = next(iter(source.col_key))
+
+    entries = tm.entries()
+
+    table1 = entries.select(*tm.row_key, *tm.col_key, 'fam_id', 'mendel_code')
+
+    fam_counts = (
+        entries
+            .group_by(pat_id=entries.father[ck_name], mat_id=entries.mother[ck_name])
+            .partition_hint(min(entries.n_partitions(), 8))
+            .aggregate(errors=hl.agg.count_where(hl.is_defined(entries.mendel_code)),
+                       snp_errors=hl.agg.count_where(hl.is_snp(entries.alleles[0], entries.alleles[1]) &
+                                                     hl.is_defined(entries.mendel_code)),
+                       children=hl.len(hl.agg.collect_as_set(entries.id)))
+    )
+    table2 = tm.cols()
+    table2 = table2.select(pat_id=table2.father[ck_name],
+                           mat_id=table2.mother[ck_name],
+                           fam_id=table2.fam_id,
+                           **fam_counts[table2.father[ck_name], table2.mother[ck_name]])
+    table2 = table2.key_by('mat_id', 'pat_id').distinct()
+    table2 = table2.annotate(errors=hl.or_else(table2.errors, hl.int64(0)),
+                             snp_errors=hl.or_else(table2.snp_errors, hl.int64(0)))
+
+    # in implicated, idx 0 is dad, idx 1 is mom, idx 2 is child
+    implicated = hl.array([
+        [0, 0, 0],  # dummy
+        [1, 1, 1],
+        [1, 1, 1],
+        [1, 0, 1],
+        [0, 1, 1],
+        [0, 0, 1],
+        [1, 0, 1],
+        [0, 1, 1],
+        [0, 0, 1],
+        [0, 1, 1],
+        [0, 1, 1],
+        [1, 0, 1],
+        [1, 0, 1],
+    ])
+
+    tm2 = tm.annotate_cols(all_errors=hl.or_else(hl.agg.array_sum(implicated[tm.mendel_code]), [0, 0, 0]),
+                           snp_errors=hl.or_else(hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
+                                                                                implicated[tm.mendel_code])),
+                                                 [0, 0, 0]))
+
+    table3 = tm2.cols()
+    table3 = table3.select(xs=[
+        hl.struct(**{ck_name: table3.father[ck_name],
+                     'fam_id': table3.fam_id,
+                     'errors': table3.all_errors[0],
+                     'snp_errors': table3.snp_errors[0]}),
+        hl.struct(**{ck_name: table3.mother[ck_name],
+                     'fam_id': table3.fam_id,
+                     'errors': table3.all_errors[1],
+                     'snp_errors': table3.snp_errors[1]}),
+        hl.struct(**{ck_name: table3.proband[ck_name],
+                     'fam_id': table3.fam_id,
+                     'errors': table3.all_errors[2],
+                     'snp_errors': table3.snp_errors[2]}),
+    ])
+    table3 = table3.explode('xs')
+    table3 = table3.select(**table3.xs)
+    table3 = table3.group_by('fam_id', ck_name).aggregate(errors=hl.agg.sum(table3.errors),
+                                                          snp_errors=hl.agg.sum(table3.snp_errors))
+
+    table4 = (
+        tm.select_rows(*tm.row_key,
+
+                       errors=hl.agg.count_where(hl.is_defined(tm.mendel_code)))
+            .rows())
+
+    return table1, table2, table3, table4
 
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)

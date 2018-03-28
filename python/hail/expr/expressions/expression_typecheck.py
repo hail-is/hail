@@ -307,6 +307,7 @@ class TupleCoercer(ExprCoercer):
         super(TupleCoercer, self).__init__()
         self.elements = elements
 
+    @property
     def str_t(self):
         if self.elements is None:
             return 'tuple'
@@ -339,6 +340,7 @@ class StructCoercer(ExprCoercer):
         super(StructCoercer, self).__init__()
         self.fields = fields
 
+    @property
     def str_t(self) -> str:
         if self.fields is None:
             return 'struct'

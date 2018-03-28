@@ -525,7 +525,7 @@ def array_sum(expr) -> ArrayExpression:
     -------
     :class:`.ArrayNumericExpression`
     """
-    return _agg_func('sum', expr, expr.dtype.element_type)
+    return _agg_func('sum', expr, expr.dtype)
 
 @typecheck(expr=agg_expr(expr_float64))
 def mean(expr) -> Float64Expression:
