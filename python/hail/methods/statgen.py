@@ -1749,7 +1749,7 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None,
 
     scores_table = mt.select_cols(__scores=scores_expr).cols()
 
-    n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.scores)))
+    n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
 
