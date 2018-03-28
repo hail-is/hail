@@ -1350,11 +1350,12 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    dataset = dataset.annotate_rows(mean_gt = dataset.AC / dataset.n_called)
-    dataset = dataset.annotate_rows(hwe_std_dev = hl.sqrt(dataset.mean_gt * (2 - dataset.mean_gt) * n_variants / 2))
+    dataset = dataset.annotate_rows(__mean_gt = dataset.AC / dataset.n_called)
+    dataset = dataset.annotate_rows(
+        __hwe_std_dev = hl.sqrt(dataset.__mean_gt * (2 - dataset.__mean_gt) * n_variants / 2))
 
     entry_expr = hl.or_else(
-        (dataset.GT.n_alt_alleles() - dataset.mean_gt) / dataset.hwe_std_dev,
+        (dataset.GT.n_alt_alleles() - dataset.__mean_gt) / dataset.__hwe_std_dev,
         0.0)
 
     return pca(entry_expr,
@@ -1470,13 +1471,13 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
 
 
 @typecheck(call_expr=expr_call,
-           maf=numeric,
+           min_individual_maf=numeric,
            k=nullable(int),
            scores_expr=nullable(expr_array(expr_float64)),
            min_kinship=numeric,
            statistics=enumeration('kin', 'kink2', 'kink2k0', 'all'),
            block_size=nullable(int))
-def pc_relate(call_expr, maf, *, k=None, scores_expr=None,
+def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
@@ -1699,7 +1700,7 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None,
     ----------
     call_expr : :class:`.CallExpression`
         Entry-indexed call expression.
-    maf : :obj:`float`
+    min_individual_maf : :obj:`float`
         The minimum individual-specific minor allele frequency.
         If either individual-specific minor allele frequency for a pair of
         individuals is below this threshold, then the variant will not
@@ -1753,9 +1754,9 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None,
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
 
-    mt = mt.select_entries(gt=call_expr.n_alt_alleles())
-    mt = mt.annotate_rows(__mean_gt=agg.mean(mt.gt))
-    mean_imputed_gt = hl.or_else(hl.float64(mt.gt), mt.__mean_gt)
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__mean_gt=agg.mean(mt.__gt))
+    mean_imputed_gt = hl.or_else(hl.float64(mt.__gt), mt.__mean_gt)
 
     if not block_size:
         block_size = BlockMatrix.default_block_size()
@@ -1769,7 +1770,7 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None,
             .apply(Env.hc()._jhc,
                    g._jbm,
                    scores_table._jt,
-                   maf,
+                   min_individual_maf,
                    block_size,
                    min_kinship,
                    int_statistics))
