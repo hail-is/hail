@@ -37,7 +37,7 @@ class PCRelateSuite extends SparkSuite {
     maf: Double,
     minKinship: Double = PCRelate.defaultMinKinship,
     statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
-    PCRelate(vds, pcs, maf, blockSize, minKinship, statistics)
+    PCRelate(hc, vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(r => ((r(0), r(1)), (r(2), r(3), r(4), r(5))))
       .toMap

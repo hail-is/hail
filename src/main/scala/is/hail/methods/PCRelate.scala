@@ -57,12 +57,13 @@ object PCRelate {
     assert(scoresLocal.length == blockedG.nCols)
     val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[Double]](0)))
     
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(blockedG, pcs)
+    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
     Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
   }
 
-  private[methods] def apply(vds: MatrixTable,
+  private[methods] def apply(hc: HailContext,
+    vds: MatrixTable,
     pcs: BDM[Double],
     maf: Double,
     blockSize: Int,
@@ -74,7 +75,7 @@ object PCRelate {
     val sampleIds = vds.stringSampleIds.toArray[Annotation]
     val idType = TString()
 
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(blockedG, pcs)
+    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
     Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
@@ -222,10 +223,10 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
     mc.t * mc
   }
 
- private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
+  private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
     if (statistics >= statisticsLevel) m.persist(storageLevel) else m
 
-  def apply(blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def apply(hc: HailContext, blockedG: M, pcs: BDM[Double]): Result[M] = {
     val preMu = this.mu(blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
@@ -235,8 +236,11 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
    } (blockedG, preMu).persist(storageLevel)
     val variance = cacheWhen(PhiK2)(
       mu.map(mu => if (mu.isNaN) 0.0 else mu * (1.0 - mu)))
-    val phi = cacheWhen(PhiK2)(
-      this.phi(mu, variance, blockedG))
+
+    // write phi to cache and increase parallelism of multiplies before phi.diagonal()
+    val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
+    this.phi(mu, variance, blockedG).write(phiFile)
+    val phi = BlockMatrix.read(hc, phiFile)
 
     if (statistics >= PhiK2) {
       val k2 = cacheWhen(PhiK2K0)(

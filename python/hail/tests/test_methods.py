@@ -439,17 +439,13 @@ class Tests(unittest.TestCase):
     def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
         mt = hl.balding_nichols_model(3, 100, 1000)
         mt = mt.annotate_cols(sample_idx=hl.str(mt.sample_idx))
-        _, scores, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
+        hkin = hl.pc_relate(mt.GT, 0.00, k=2).cache()
+        rkin = self._R_pc_relate(mt, 0.00).cache()
 
-        hkin = hl.pc_relate(mt.GT, 0.00, k=2)
-        hkin_s = hl.pc_relate(mt.GT, 0.00, scores_expr=scores[mt.col_key].scores)
-        rkin = self._R_pc_relate(mt, 0.00)
-
-        hkin.show()
-        rkin.show()
-
-        self.assertTrue(rkin._same(hkin, tolerance=1e-4))
-        self.assertTrue(rkin._same(hkin_s, tolerance=1e-4))
+        self.assertTrue(rkin.select("i", "j", "kin")._same(hkin.select("i", "j", "kin"), tolerance=1e-3))
+        self.assertTrue(rkin.select("i", "j", "k0")._same(hkin.select("i", "j", "k0"), tolerance=1e-2))
+        self.assertTrue(rkin.select("i", "j", "k1")._same(hkin.select("i", "j", "k1"), tolerance=1e-1))
+        self.assertTrue(rkin.select("i", "j", "k2")._same(hkin.select("i", "j", "k2"), tolerance=1e-2))
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)

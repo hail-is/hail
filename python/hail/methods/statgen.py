@@ -1506,7 +1506,7 @@ def pc_relate(call_expr, maf, *, k=None, scores_expr=None, min_kinship=-float("i
     One can also pass in pre-computed principal component scores.
     To produce the same results as in the previous example:
 
-    >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset.GT,
+    >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset,
     ...                                      k=10,
     ...                                      compute_loadings=False,
     ...                                      as_array=True)
