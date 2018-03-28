@@ -34,7 +34,7 @@ class OrderedRVDPartitioner(
       (rangeBounds(i), i)
     })
 
-  def range: Interval = rangeTree.root.get.range
+  def range: Option[Interval] = rangeTree.root.map(_.range)
 
   /**
     * Find the partition containing the given Row.
@@ -46,13 +46,14 @@ class OrderedRVDPartitioner(
     * partition.
     */
   def getPartitionPK(row: Any): Int = {
+    require(rangeBounds.nonEmpty)
     val part = rangeTree.queryValues(pkType.ordering, row)
     part match {
       case Array() =>
-        if (range.isAbovePosition(pkType.ordering, row))
+        if (range.get.isAbovePosition(pkType.ordering, row))
           0
         else {
-          assert(range.isBelowPosition(pkType.ordering, row))
+          assert(range.get.isBelowPosition(pkType.ordering, row))
           numPartitions - 1
         }
 
@@ -103,10 +104,17 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
+  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner =
+    enlargeToRange(Some(newRange))
+
   // FIXME Make work if newRange has different point type than pkType
-  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner = {
-    val newStart = pkType.ordering.min(range.start, Annotation.copy(pkType, newRange.start))
-    val newEnd = pkType.ordering.max(range.end, Annotation.copy(pkType, newRange.end))
+  def enlargeToRange(newRange: Option[Interval]): OrderedRVDPartitioner = {
+    if (newRange.isEmpty)
+      return this
+    if (range.isEmpty)
+      return copy(rangeBounds = IndexedSeq(newRange.get))
+    val newStart = pkType.ordering.min(range.get.start, Annotation.copy(pkType, newRange.get.start))
+    val newEnd = pkType.ordering.max(range.get.end, Annotation.copy(pkType, newRange.get.end))
     val newRangeBounds =
       rangeBounds match {
         case IndexedSeq(x) => IndexedSeq(Interval(newStart, newEnd, true, true))
