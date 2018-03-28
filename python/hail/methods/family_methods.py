@@ -40,6 +40,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     - **proband** (:class:`.tstruct`) - Column fields on the proband.
     - **father** (:class:`.tstruct`) - Column fields on the father.
     - **mother** (:class:`.tstruct`) - Column fields on the mother.
+    - **id** (:py:data:`.tstr`) - Column key for the proband.
     - **is_female** (:py:data:`.tbool`) - Proband is female.
       ``True`` for female, ``False`` for male, missing if unknown.
     - **fam_id** (:py:data:`.tstr`) - Family ID.

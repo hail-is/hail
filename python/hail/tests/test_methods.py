@@ -545,7 +545,7 @@ class Tests(unittest.TestCase):
                                                    alleles=hl.tarray(hl.tstr),
                                                    errors=hl.tint64))
 
-        self.assertEqual(men.count(), 98)
+        self.assertEqual(men.count(), 41)
         self.assertEqual(fam.count(), 2)
         self.assertEqual(ind.count(), 7)
         self.assertEqual(var.count(), mt.count_rows())
@@ -590,7 +590,7 @@ class Tests(unittest.TestCase):
         ped2 = hl.Pedigree.read(resource('mendelWithMissingSex.fam'))
         men2, _, _, _ = hl.mendel_errors(mt['GT'], ped2)
 
-        self.assertTrue(men2.filter(men2.id == 'Dtr1')._same(men.filter(men.id == 'Dtr1')))
+        self.assertTrue(men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1')))
 
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
