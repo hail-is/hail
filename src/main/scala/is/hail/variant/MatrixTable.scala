@@ -361,27 +361,27 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
-      vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      globalSig <- globalSigGen.resize(5);
-      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-      global <- globalGen(globalSig).resize(25);
-      nPartitions <- Gen.choose(1, 10);
+    vSig <- vSigGen.resize(3);
+    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    sSig <- sSigGen.resize(3);
+    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    globalSig <- globalSigGen.resize(5);
+    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
+    global <- globalGen(globalSig).resize(25);
+    nPartitions <- Gen.choose(1, 10);
 
-      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-        .map(ids => ids.distinct);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-      rows <- Gen.buildableOfN[Array](l,
-        for (
-          v <- vGen(vSig).resize(3);
-          va <- vaGen(vaSig).resize(5);
-          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-          yield (v, (va, ts: Iterable[Annotation]))))
+    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+      .map(ids => ids.distinct);
+    nSamples = sampleIds.length;
+    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+    rows <- Gen.buildableOfN[Array](l,
+      for (
+        v <- vGen(vSig).resize(3);
+        va <- vaGen(vaSig).resize(5);
+        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
+        yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))
         val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
@@ -1141,11 +1141,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       (newPartitionKey != rowPartitionKey) || (
       rowsAST match {
         case StructConstructor(_, names, asts) =>
-          !names.zip(asts).filter { case (name, _) => rowKey.contains(name) }.forall { case (name, node) =>
-            node match {
-              case Select(_, SymRef(_, "va"), n) if n == name => false
-              case _ => true
-            }
+          names.zip(asts).exists { case (name, node) =>
+            rowKey.contains(name) &&
+              (node match {
+                case Select(_, SymRef(_, "va"), n) => n != name
+                case _ => true
+              })
           }
         case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
           coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
@@ -1377,7 +1378,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterCols_pred"))
         )
       case None =>
-        log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterCols(ast, filterAST))
@@ -1409,7 +1410,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
         )
       case _ =>
-        log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterRows(ast, filterAST))
@@ -1838,7 +1839,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     chooseCols(oldIndices.asScala.toArray)
 
   def chooseCols(oldIndices: Array[Int]): MatrixTable = {
-    require(oldIndices.forall { x => x >= 0 && x < numCols})
+    require(oldIndices.forall { x => x >= 0 && x < numCols })
     copyAST(ast = ChooseCols(ast, oldIndices))
   }
 
@@ -2741,7 +2742,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
       new WriteBlocksRDD(dirname, rvd.rdd, sparkContext, matrixType, partStarts, entryField, gp)
-      .collect()
+        .collect()
 
     val blockCount = blockPartFiles.length
     val partFiles = new Array[String](blockCount)
