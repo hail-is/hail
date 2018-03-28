@@ -275,6 +275,21 @@ def unify_types(*ts):
     else:
         return None
 
+def unify_exprs(*exprs: 'Expression') -> Tuple:
+    assert len(exprs) > 0
+    types = {e.dtype for e in exprs}
+
+    # all types are the same
+    if len(types) == 1:
+        return exprs + (True,)
+
+    for t in types:
+        c = expressions.coercer_from_dtype(t)
+        if all(c.can_coerce(e.dtype) for e in exprs):
+            return tuple([c.coerce(e) for e in exprs]) + (True,)
+
+    # cannot coerce all types to the same type
+    return exprs + (False,)
 
 class Expression(object):
     """Base class for Hail expressions."""
@@ -525,12 +540,11 @@ class Expression(object):
             ``True`` if the two expressions are equal.
         """
         other = to_expr(other)
-        t = unify_types(self._type, other._type)
-        if t is None:
-            raise TypeError("Invalid '==' comparison, cannot compare expressions of type '{}' and '{}'".format(
-                self._type, other._type
-            ))
-        return self._bin_op("==", other, tbool)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '==' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("==", right, tbool)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -566,12 +580,11 @@ class Expression(object):
             ``True`` if the two expressions are not equal.
         """
         other = to_expr(other)
-        t = unify_types(self._type, other._type)
-        if t is None:
-            raise TypeError("Invalid '!=' comparison, cannot compare expressions of type '{}' and '{}'".format(
-                self._type, other._type
-            ))
-        return self._bin_op("!=", other, tbool)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '!=' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("!=", right, tbool)
 
     def _to_table(self, name):
         source = self._indices.source

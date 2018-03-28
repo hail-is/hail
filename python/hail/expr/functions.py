@@ -194,13 +194,16 @@ def cond(condition,
     if missing_false:
         condition = hl.bind(condition, lambda x: hl.is_defined(x) & x)
     indices, aggregations, joins = unify_all(condition, consequent, alternate)
-    t = unify_types_limited(consequent.dtype, alternate.dtype)
-    if t is None:
-        raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
-                        "    consequent: type {}\n"
-                        "    alternate:  type {}".format(consequent._type, alternate._type))
+
+    consequent, alternate, success = unify_exprs(consequent, alternate)
+    if not success:
+        raise TypeError(f"'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+                        f"    consequent: type '{consequent.dtype}'\n"
+                        f"    alternate:  type '{alternate.dtype}'")
+    assert consequent.dtype == alternate.dtype
+
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
-                          t, indices, aggregations, joins)
+                          consequent.dtype, indices, aggregations, joins)
 
 
 def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
@@ -1298,19 +1301,20 @@ def or_else(a, b):
 
     Parameters
     ----------
-    a
-    b
+    a: :class:`.Expression`
+    b: :class:`.Expression`
 
     Returns
     -------
     :class:`.Expression`
     """
-    t = unify_types(a._type, b._type)
-    if t is None:
-        raise TypeError("'or_else' requires the 'a' and 'b' arguments to have the same type\n"
-                        "    a: type {}\n"
-                        "    b:  type {}".format(a._type, b._type))
-    return _func("orElse", t, a, b)
+    a, b, success = unify_exprs(a, b)
+    if not success:
+        raise TypeError(f"'or_else' requires the 'a' and 'b' arguments to have the same type\n"
+                        f"    a: type '{a.dtype}'\n"
+                        f"    b: type '{b.dtype}'")
+    assert a.dtype == b.dtype
+    return _func("orElse", a.dtype, a, b)
 
 
 @typecheck(predicate=expr_bool, value=expr_any)
@@ -1329,8 +1333,9 @@ def or_missing(predicate, value):
 
     Parameters
     ----------
-    predicate : bool or :class:`.BooleanExpression`
-    value : Value to return if `predicate` is true.
+    predicate : :class:`.BooleanExpression`
+    value : :class:`.Expression`
+        Value to return if `predicate` is ``True``.
 
     Returns
     -------
