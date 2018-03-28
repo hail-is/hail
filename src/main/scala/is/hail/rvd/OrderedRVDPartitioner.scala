@@ -103,6 +103,9 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
+  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner =
+    enlargeToRange(Some(newRange))
+
   // FIXME Make work if newRange has different point type than pkType
   def enlargeToRange(newRange: Option[Interval]): OrderedRVDPartitioner = {
     if (newRange.isEmpty)
