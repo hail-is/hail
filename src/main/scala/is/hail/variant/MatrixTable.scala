@@ -1364,7 +1364,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterCols_pred"))
         )
       case None =>
-        info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filter_cols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterCols(ast, filterAST))
@@ -1396,7 +1396,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
         )
       case _ =>
-        info(s"filterCols: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
+        log.info(s"filter_rows: No AST to IR conversion. Fallback for predicate ${PrettyAST(filterAST)}")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterRows(ast, filterAST))
