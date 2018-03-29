@@ -38,12 +38,12 @@ class ReferenceGenome(object):
     _references = {}
 
     @typecheck_method(name=str,
-                      contigs=listof(str),
+                      contigs=sequenceof(str),
                       lengths=dictof(str, int),
-                      x_contigs=oneof(str, listof(str)),
-                      y_contigs=oneof(str, listof(str)),
-                      mt_contigs=oneof(str, listof(str)),
-                      par=listof(sized_tupleof(str, int, int)))
+                      x_contigs=oneof(str, sequenceof(str)),
+                      y_contigs=oneof(str, sequenceof(str)),
+                      mt_contigs=oneof(str, sequenceof(str)),
+                      par=sequenceof(sized_tupleof(str, int, int)))
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
@@ -311,10 +311,10 @@ class ReferenceGenome(object):
     @typecheck_method(name=str,
                       fasta_file=str,
                       index_file=str,
-                      x_contigs=oneof(str, listof(str)),
-                      y_contigs=oneof(str, listof(str)),
-                      mt_contigs=oneof(str, listof(str)),
-                      par=listof(sized_tupleof(str, int, int)))
+                      x_contigs=oneof(str, sequenceof(str)),
+                      y_contigs=oneof(str, sequenceof(str)),
+                      mt_contigs=oneof(str, sequenceof(str)),
+                      par=sequenceof(sized_tupleof(str, int, int)))
     def from_fasta_file(cls, name, fasta_file, index_file,
                         x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         """Create reference genome from a FASTA file.

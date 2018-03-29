@@ -157,7 +157,7 @@ class Literal(AST):
 
 
 class ArrayDeclaration(AST):
-    @typecheck_method(values=listof(AST))
+    @typecheck_method(values=sequenceof(AST))
     def __init__(self, values):
         self.values = values
         super(ArrayDeclaration, self).__init__(*values)
@@ -167,7 +167,7 @@ class ArrayDeclaration(AST):
 
 
 class StructDeclaration(AST):
-    @typecheck_method(keys=listof(str), values=listof(AST))
+    @typecheck_method(keys=sequenceof(str), values=sequenceof(AST))
     def __init__(self, keys, values):
         self.keys = keys
         self.values = values

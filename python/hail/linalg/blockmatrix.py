@@ -229,7 +229,7 @@ class BlockMatrix(object):
     @classmethod
     @typecheck_method(n_rows=int,
                       n_cols=int,
-                      data=listof(float),
+                      data=sequenceof(float),
                       row_major=bool,
                       block_size=int)
     def _create_block_matrix(cls, n_rows, n_cols, data, row_major, block_size):
@@ -332,7 +332,7 @@ class BlockMatrix(object):
             uid = Env.get_uid()
             source.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
 
-    @typecheck_method(rows_to_keep=listof(int))
+    @typecheck_method(rows_to_keep=sequenceof(int))
     def filter_rows(self, rows_to_keep):
         """Filters matrix rows.
 
@@ -347,7 +347,7 @@ class BlockMatrix(object):
         """
         return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
-    @typecheck_method(cols_to_keep=listof(int))
+    @typecheck_method(cols_to_keep=sequenceof(int))
     def filter_cols(self, cols_to_keep):
         """Filters matrix columns.
 
@@ -362,8 +362,8 @@ class BlockMatrix(object):
         """
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
-    @typecheck_method(rows_to_keep=listof(int),
-                      cols_to_keep=listof(int))
+    @typecheck_method(rows_to_keep=sequenceof(int),
+                      cols_to_keep=sequenceof(int))
     def filter(self, rows_to_keep, cols_to_keep):
         """Filters matrix rows and columns.
 

@@ -23,7 +23,7 @@ class Call(object):
             Call._cached_jobject = scala_object(Env.hail().variant, 'Call')
         return Call._cached_jobject
 
-    @typecheck_method(alleles=listof(int),
+    @typecheck_method(alleles=sequenceof(int),
                       phased=bool)
     def __init__(self, alleles, phased=False):
         if len(alleles) > 2:

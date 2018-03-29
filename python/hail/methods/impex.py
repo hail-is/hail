@@ -537,7 +537,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 
 
 @typecheck(regex=str,
-           path=oneof(str, listof(str)),
+           path=oneof(str, sequenceof(str)),
            max_count=int)
 def grep(regex, path, max_count=100):
     """Searches given paths for all lines containing regex matches.
@@ -575,9 +575,9 @@ def grep(regex, path, max_count=100):
     Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
-           entry_fields=listof(str),
+           entry_fields=sequenceof(str),
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
@@ -718,7 +718,7 @@ def import_bgen(path,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
            tolerance=numeric,
            min_partitions=nullable(int),
@@ -823,8 +823,8 @@ def import_gen(path,
     return MatrixTable(jmt)
 
 
-@typecheck(paths=oneof(str, listof(str)),
-           key=oneof(str, listof(str)),
+@typecheck(paths=oneof(str, sequenceof(str)),
+           key=oneof(str, sequenceof(str)),
            min_partitions=nullable(int),
            impute=bool,
            no_header=bool,
@@ -1000,9 +1000,9 @@ def import_table(paths,
     return Table(jt)
 
 
-@typecheck(paths=oneof(str, listof(str)),
+@typecheck(paths=oneof(str, sequenceof(str)),
            row_fields=dictof(str, hail_type),
-           row_key=oneof(str, listof(str)),
+           row_key=oneof(str, sequenceof(str)),
            entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
            missing=str,
            min_partitions=nullable(int),
@@ -1314,7 +1314,7 @@ def import_plink(bed, bim, fam,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            _drop_cols=bool,
            _drop_rows=bool)
 def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
@@ -1390,13 +1390,13 @@ def get_vcf_metadata(path):
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            force=bool,
            force_bgz=bool,
            header_file=nullable(str),
            min_partitions=nullable(int),
            drop_samples=bool,
-           call_fields=oneof(str, listof(str)),
+           call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
 def import_vcf(path,
@@ -1532,7 +1532,7 @@ def import_vcf(path,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)))
+@typecheck(path=oneof(str, sequenceof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.
 

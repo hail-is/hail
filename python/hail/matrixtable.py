@@ -685,7 +685,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.keyColsBy(str_keys))
 
     @typecheck_method(keys=oneof(str, Expression),
-                      partition_key=nullable(oneof(oneof(str, Expression), listof(oneof(str, Expression)))))
+                      partition_key=nullable(oneof(oneof(str, Expression), sequenceof(oneof(str, Expression)))))
     def key_rows_by(self, *keys, partition_key=None) -> 'MatrixTable':
         """Key rows by a new set of fields.
 
@@ -2297,7 +2297,7 @@ class MatrixTable(ExprContainer):
                                                               e=entry_fields)
         print(s)
 
-    @typecheck_method(indices=listof(int))
+    @typecheck_method(indices=sequenceof(int))
     def choose_cols(self, indices: List[int]) -> 'MatrixTable':
         """Choose a new set of columns from a list of old column indices.
 
@@ -2728,12 +2728,12 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(self._jvds.head(n))
 
-    @typecheck_method(parts=listof(int), keep=bool)
+    @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
     @classmethod
-    @typecheck_method(table=Table, partition_key=nullable(oneof(str, listof(str))))
+    @typecheck_method(table=Table, partition_key=nullable(oneof(str, sequenceof(str))))
     def from_rows_table(cls, table: Table, partition_key: Optional[Union[str, List[str]]] = None) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
 
