@@ -486,16 +486,22 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         ast.`type`.asInstanceOf[TStruct].size < 500
 
       case this.rowAxis =>
-        rowType.size < 500 &&
-          (colType.size == 1 &&
-            Set(TInt32(), +TInt32(), TString(), +TString())
-              .contains(colType.types(0)))
+        ast.`type`.asInstanceOf[TStruct].size < 500 &&
+          globalType.size < 3 &&
+          colType.size == 1 &&
+          Set(TInt32(), +TInt32(), TString(), +TString())
+            .contains(colType.types(0))
 
       case this.colAxis =>
         ast.`type`.asInstanceOf[TStruct].size < 500
 
       case this.entryAxis =>
-        ast.`type`.asInstanceOf[TStruct].size < 500
+        ast.`type`.asInstanceOf[TStruct].size < 500 &&
+          globalType.size < 3 &&
+          colType.size == 1 &&
+          Set(TInt32(), +TInt32(), TString(), +TString())
+            .contains(colType.types(0))
+
     }
   }
 
@@ -1158,10 +1164,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = rowEC
 
     val rowsAST = Parser.parseToAST(expr, ec)
-    val useAST = rowType.size < 500 && (colType.size == 1 && Set(TInt32(), +TInt32(), TString(), +TString()).contains(colType.types(0)))
 
     rowsAST.toIR(Some("AGG")) match {
-      case Some(x) if !useAST =>
+      case Some(x) if useIR(this.rowAxis, rowsAST) =>
         new MatrixTable(hc, MapRows(ast, x))
 
       case _ =>
@@ -1247,7 +1252,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val useAST = !hc.forceIR && smallColSchema && entryAST.`type`.asInstanceOf[TStruct].size < 500
 
     entryAST.toIR() match {
-      case Some(ir) if !useAST =>
+      case Some(ir) if useIR(this.entryAxis, entryAST) =>
         new MatrixTable(hc, MapEntries(ast, ir))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
