@@ -1274,18 +1274,18 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     return Table(jt)
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(entry_expr=expr_call,
            k=int,
            compute_loadings=bool,
            as_array=bool)
-def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
+def hwe_normalized_pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
     genotype call matrix.
 
     Examples
     --------
 
-    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset, k=5)
+    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset.GT, k=5)
 
     Notes
     -----
@@ -1323,8 +1323,8 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
-        Matrix table with entry-indexed ``GT`` field of type :py:data:`.tcall`.
+    entry_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
     k : :obj:`int`
         Number of principal components.
     compute_loadings : :obj:`bool`
@@ -1338,10 +1338,13 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    dataset = require_biallelic(dataset, 'hwe_normalized_pca')
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
-                                    n_called=agg.count_where(hl.is_defined(dataset.GT)))
-    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
+    source = entry_expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    dataset = source
+    dataset = dataset.annotate_rows(__af=agg.mean(entry_expr.n_alt_alleles()))
+    dataset = dataset.filter_rows((dataset.__af > 0) & (dataset.__af < 1))
 
     # once count_rows() adds partition_counts we can avoid annotating and filtering twice
     n_variants = dataset.count_rows()
@@ -1351,9 +1354,9 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
     info("Running PCA using {} variants.".format(n_variants))
 
     entry_expr = hl.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.n_alt_alleles() - mean_gt) /
+        dataset.__af,
+        lambda mean_gt: hl.cond(hl.is_defined(entry_expr),
+                                (entry_expr.n_alt_alleles() - mean_gt) /
                                 hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0.0))
     result = pca(entry_expr,
@@ -1729,7 +1732,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     require_col_key_str(dataset, 'pc_relate')
     dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
+    _, scores, _ = hwe_normalized_pca(dataset.GT, k, False, True)
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
             .apply(dataset._jvds,
