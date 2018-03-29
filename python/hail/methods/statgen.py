@@ -230,9 +230,9 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 
 @typecheck(dataset=MatrixTable,
-           ys=oneof(expr_float64, listof(expr_float64)),
+           ys=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
-           covariates=listof(expr_float64),
+           covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
 def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
@@ -348,7 +348,7 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
            test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=expr_float64,
            x=expr_float64,
-           covariates=listof(expr_float64),
+           covariates=sequenceof(expr_float64),
            root=str)
 def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> MatrixTable:
     r"""For each row, test a derived input variable for association with a
@@ -579,7 +579,7 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> Ma
            kinship_matrix=KinshipMatrix,
            y=expr_float64,
            x=expr_float64,
-           covariates=listof(expr_float64),
+           covariates=sequenceof(expr_float64),
            global_root=str,
            row_root=str,
            run_assoc=bool,
@@ -1086,7 +1086,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
            weight_expr=expr_float64,
            y=expr_float64,
            x=expr_float64,
-           covariates=listof(expr_float64),
+           covariates=sequenceof(expr_float64),
            logistic=bool,
            max_size=int,
            accuracy=numeric,
@@ -2253,8 +2253,8 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
            n_samples=int,
            n_variants=int,
            n_partitions=nullable(int),
-           pop_dist=nullable(listof(numeric)),
-           fst=nullable(listof(numeric)),
+           pop_dist=nullable(sequenceof(numeric)),
+           fst=nullable(sequenceof(numeric)),
            af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
            seed=int,
            reference_genome=reference_genome_type,

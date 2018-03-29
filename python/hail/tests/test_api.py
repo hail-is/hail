@@ -897,6 +897,7 @@ class MatrixTests(unittest.TestCase):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
         self.assertEqual(ds._filter_partitions([0, 1, 4]).n_partitions(), 3)
+        self.assertEqual(ds._filter_partitions(range(3)).n_partitions(), 3)
         self.assertEqual(ds._filter_partitions([4, 5, 7], keep=False).n_partitions(), 5)
         self.assertTrue(
             ds._same(hl.MatrixTable.union_rows(

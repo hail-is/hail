@@ -385,7 +385,7 @@ class Table(ExprContainer):
     @classmethod
     @typecheck_method(rows=anytype,
                       schema=tstruct,
-                      key=oneof(str, listof(str)),
+                      key=oneof(str, sequenceof(str)),
                       n_partitions=nullable(int))
     def parallelize(cls, rows, schema, key=[], n_partitions=None):
         rows = to_expr(rows, hl.tarray(schema))
@@ -2085,7 +2085,7 @@ class Table(ExprContainer):
 
     @staticmethod
     @typecheck(df=DataFrame,
-               key=oneof(str, listof(str)))
+               key=oneof(str, sequenceof(str)))
     def from_spark(df, key=[]):
         """Convert PySpark SQL DataFrame to a table.
 

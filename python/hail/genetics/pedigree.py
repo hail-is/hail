@@ -222,7 +222,7 @@ class Pedigree(object):
         """
         return list(filter(lambda t: t.is_complete(), self.trios))
 
-    @typecheck_method(samples=listof(str))
+    @typecheck_method(samples=sequenceof(str))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
 

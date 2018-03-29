@@ -69,7 +69,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b=5, c=10))
         self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b='5', c=10))
 
-        @typecheck(x=int, y=int, args=int, kwargs=oneof(listof(int), str))
+        @typecheck(x=int, y=int, args=int, kwargs=oneof(sequenceof(int), str))
         def good_signature_4(x, y, *args, **kwargs):
             pass
 
@@ -91,7 +91,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_5("1", 2, 2))
         self.assertRaises(TypeError, lambda: good_signature_5(("1", 5, 10), ("2", 10, 20)))
 
-        @typecheck(x=int, y=str, z=listof(sized_tupleof(str, int, int)),
+        @typecheck(x=int, y=str, z=sequenceof(sized_tupleof(str, int, int)),
                    args=int)
         def good_signature_6(x, y, z, *args):
             pass
@@ -143,7 +143,7 @@ class ContextTests(unittest.TestCase):
     def test_nested(self):
         @typecheck(
             x=int,
-            y=oneof(nullable(str), listof(listof(dictof(oneof(str, int), anytype))))
+            y=oneof(nullable(str), sequenceof(sequenceof(dictof(oneof(str, int), anytype))))
         )
         def f(x, y):
             pass
@@ -228,8 +228,8 @@ class ContextTests(unittest.TestCase):
 
         @typecheck(a=transformed((int, lambda x: 'int'),
                                  (str, lambda x: 'str')),
-                   b=listof(dictof(str, transformed((int, lambda x: 'int'),
-                                                    (str, lambda x: 'str')))))
+                   b=sequenceof(dictof(str, transformed((int, lambda x: 'int'),
+                                                        (str, lambda x: 'str')))))
         def foo(a, b):
             return a, b
 

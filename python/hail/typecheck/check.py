@@ -2,6 +2,7 @@ from decorator import decorator
 import re
 import inspect
 import abc
+import collections
 
 
 class TypecheckFailure(Exception):
@@ -61,13 +62,13 @@ class MultipleTypeChecker(TypeChecker):
         return '(' + ' or '.join([c.expects() for c in self.checkers]) + ')'
 
 
-class ListChecker(TypeChecker):
+class SequenceChecker(TypeChecker):
     def __init__(self, element_checker):
         self.ec = element_checker
-        super(ListChecker, self).__init__()
+        super(SequenceChecker, self).__init__()
 
     def check(self, x, caller, param):
-        if not isinstance(x, list):
+        if not isinstance(x, collections.Sequence):
             raise TypecheckFailure
         x_ = []
         tc = self.ec
@@ -77,7 +78,7 @@ class ListChecker(TypeChecker):
         return x_
 
     def expects(self):
-        return 'list[%s]' % (self.ec.expects())
+        return 'Sequence[%s]' % (self.ec.expects())
 
 
 class SetChecker(TypeChecker):
@@ -251,7 +252,7 @@ class CoercionChecker(TypeChecker):
     TypeChecker and a lambda function, e.g.:
 
     ((only(int), lambda x: x * 2),
-     listof(int), lambda x: x[0]))
+     sequenceof(int), lambda x: x[0]))
     """
 
     def __init__(self, *fs):
@@ -332,8 +333,8 @@ def nullable(t):
     return oneof(exactly(None, reference_equality=True), t)
 
 
-def listof(t):
-    return ListChecker(only(t))
+def sequenceof(t):
+    return SequenceChecker(only(t))
 
 
 def tupleof(t):
