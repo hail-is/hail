@@ -276,7 +276,7 @@ class Tests(unittest.TestCase):
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
-        grm = hl.genetic_relatedness_matrix(dataset)
+        grm = hl.genetic_relatedness_matrix(dataset.GT)
         grm.export_id_file(rel_id_file)
 
         ############
@@ -370,7 +370,7 @@ class Tests(unittest.TestCase):
             return rrm
 
         def hail_calculation(ds):
-            rrm = hl.realized_relationship_matrix(ds['GT'])
+            rrm = hl.realized_relationship_matrix(ds.GT)
             fn = utils.new_temp_file(suffix='.tsv')
 
             rrm.export_tsv(fn)
@@ -388,15 +388,27 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(manual, rrm))
 
+    def test_hwe_normalized_pca(self):
+        dataset = hl.balding_nichols_model(3, 100, 50)
+        eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset.GT, k=2, compute_loadings=True)
+
+        self.assertEqual(len(eigenvalues), 2)
+        self.assertTrue(isinstance(scores, hl.Table))
+        self.assertEqual(scores.count(), 100)
+        self.assertTrue(isinstance(loadings, hl.Table))
+
+        _, _, loadings = hl.pca(dataset.GT, k=2, compute_loadings=False)
+        self.assertEqual(loadings, None)
+
     def test_pca(self):
-        dataset = hl.balding_nichols_model(3, 100, 100)
+        dataset = hl.balding_nichols_model(3, 100, 50)
         eigenvalues, scores, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=True)
 
         self.assertEqual(len(eigenvalues), 2)
         self.assertTrue(isinstance(scores, hl.Table))
         self.assertEqual(scores.count(), 100)
         self.assertTrue(isinstance(loadings, hl.Table))
-        self.assertEqual(loadings.count(), 100)
+        self.assertEqual(loadings.count(), 50)
 
         _, _, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
