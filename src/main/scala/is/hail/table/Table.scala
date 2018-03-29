@@ -590,14 +590,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   )
 
-  def select(expr: String): Table = {
+  def select(expr: String, newKey: java.util.ArrayList[String]): Table =
+    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
+
+  def select(expr: String, newKey: Option[IndexedSeq[String]]): Table = {
     val ec = rowEvalContext()
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIR() match {
       case Some(ir) if useIR(ast) =>
-        new Table(hc, TableMapRows(tir, ir))
+        new Table(hc, TableMapRows(tir, ir, newKey))
       case _ =>
         log.warn(s"Table.select found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -609,10 +612,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           f().asInstanceOf[Row]
         }
 
-        val filteredKey = key.map(_.filter(newSignature.fieldNames.toSet))
-        val newKey = if (filteredKey.exists(_.isEmpty)) None else filteredKey
-
-        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
+        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey.orElse(key))
     }
   }
 
@@ -898,12 +898,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-    val newKey = keyFieldIdx.map(_.flatMap { i =>
+    val newKey: Option[IndexedSeq[String]] = keyFieldIdx.map(_.flatMap { i =>
       newFields(i).map { case (n, _) => n }
     })
 
-    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
-      .keyBy(newKey)
+    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey))
   }
 
   // expandTypes must be called before toDF

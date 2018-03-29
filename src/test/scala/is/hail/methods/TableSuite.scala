@@ -115,9 +115,10 @@ class TableSuite extends SparkSuite {
   @Test def testAnnotate() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
-    val kt2 = kt1.annotate("""qPhen2 = row.qPhen.toFloat64 ** 2d, NotStatus = row.Status == "CASE", X = row.qPhen == 5""")
-    val kt3 = kt2.annotate("")
-    val kt4 = kt3.select(kt3.fieldNames.map(n => s"row.$n")).keyBy("qPhen", "NotStatus")
+    val kt2 = kt1.annotate("qPhen2" -> "row.qPhen.toFloat64 ** 2d",
+      "NotStatus" -> """row.Status == "CASE"""",
+      "X" -> "row.qPhen == 5")
+    val kt4 = kt2.select(kt2.fieldNames.map(n => s"row.$n")).keyBy("qPhen", "NotStatus")
 
     val kt1columns = kt1.fieldNames.toSet
     val kt2columns = kt2.fieldNames.toSet
@@ -127,14 +128,13 @@ class TableSuite extends SparkSuite {
     assert(kt1.nColumns == 3 && kt2.nColumns == 6)
     assert(kt1.keyFields.get.zip(kt2.keyFields.get).forall { case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ })
     assert(kt1columns ++ Set("qPhen2", "NotStatus", "X") == kt2columns)
-    assert(kt2 same kt3)
 
     def getDataAsMap(kt: Table) = {
       val columns = kt.fieldNames
       kt.rdd.map { a => columns.zip(a.toSeq).toMap }.collect().toSet
     }
 
-    val kt3data = getDataAsMap(kt3)
+    val kt3data = getDataAsMap(kt2)
     val kt4data = getDataAsMap(kt4)
 
     assert(kt4.key.get.toSet == Set("qPhen", "NotStatus") &&
@@ -374,7 +374,8 @@ class TableSuite extends SparkSuite {
 
     val kt = vds
       .rowsTable()
-      .annotate("locus = str(row.locus), alleles = str(row.alleles), filters = row.filters.toArray()")
+      .keyByExpr("locus" -> "str(row.locus)", "alleles" -> "str(row.alleles)")
+      .annotate("filters" -> "row.filters.toArray()")
       .flatten()
       .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
@@ -454,7 +455,7 @@ class TableSuite extends SparkSuite {
 
   @Test def issue2231() {
     assert(Table.range(hc, 100)
-      .annotate("j = 1.0, i = 1")
+      .annotate("j" -> "1.0", "i" -> "1")
       .keyBy("i").join(Table.range(hc, 100), "inner")
       .signature.fields.map(f => (f.name, f.typ)).toSet
       ===
@@ -468,7 +469,7 @@ class TableSuite extends SparkSuite {
       .annotateGlobalExpr("another = global.foo[1]")
 
     assert(kt.filter("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
-    assert(kt.annotate("baz = global.foo").forall("row.baz == [1,2,3]"))
+    assert(kt.annotate("baz" -> "global.foo").forall("row.baz == [1,2,3]"))
     assert(kt.forall("global.foo == [1,2,3]"))
     assert(kt.exists("global.dict.get(row.idx) == \"bar\""))
 
@@ -482,7 +483,7 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testFlatten() {
-    val table = Table.range(hc, 1).annotate("x = 5").keyBy("x")
+    val table = Table.range(hc, 1).annotate("x" -> "5").keyBy("x")
     table.flatten()
   }
 }

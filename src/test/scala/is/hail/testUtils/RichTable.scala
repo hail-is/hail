@@ -89,33 +89,11 @@ class RichTable(ht: Table) {
     ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature, key = newKey)
   }
 
-  def annotate(code: String): Table = {
-    val ec = ht.rowEvalContext()
+  def keyByExpr(exprs: (String, String)*): Table =
+    ht.select(s"annotate(row, {${ exprs.map { case (n, e) => s"${ prettyIdentifier(n) }: $e" }.mkString(",") }})", Some(exprs.map(_._1).toIndexedSeq))
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-
-    val finalSignature = (paths, types).zipped.foldLeft(ht.signature) { case (vs, (ids, sig)) =>
-      val (s: TStruct, i) = vs.insert(sig, ids)
-      inserterBuilder += i
-      s
-    }
-
-    val inserters = inserterBuilder.result()
-    val globalsBc = ht.globals.broadcast
-
-    val annotF: Row => Row = { r =>
-      ec.setAll(globalsBc.value, r)
-
-      f().zip(inserters)
-        .foldLeft(r) { case (a1, (v, inserter)) =>
-          inserter(a1, v).asInstanceOf[Row]
-        }
-    }
-
-    ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature)
-  }
+  def annotate(exprs: (String, String)*): Table =
+    ht.select(s"annotate(row, {${ exprs.map { case (n, e) => s"${ prettyIdentifier(n) }: $e" }.mkString(",") }})", None)
 
   def selectGlobal(fields: Array[String]): Table = {
     val ec = EvalContext("global" -> ht.globalSignature)

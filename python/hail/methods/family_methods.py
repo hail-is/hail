@@ -220,7 +220,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     entries = tm.entries()
 
-    table1 = entries.select(*tm.row_key, *tm.col_key, 'fam_id', 'mendel_code')
+    table1 = entries.select('fam_id', 'mendel_code')
 
     fam_counts = (
         entries
@@ -231,12 +231,12 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
                        snp_errors=hl.agg.count_where(hl.is_snp(entries.alleles[0], entries.alleles[1]) &
                                                      hl.is_defined(entries.mendel_code)))
     )
-    table2 = tm.cols()
+    table2 = tm.cols().key_by()
     table2 = table2.select(pat_id=table2.father[ck_name],
                            mat_id=table2.mother[ck_name],
                            fam_id=table2.fam_id,
                            **fam_counts[table2.father[ck_name], table2.mother[ck_name]])
-    table2 = table2.key_by('mat_id', 'pat_id').distinct()
+    table2 = table2.key_by('pat_id', 'mat_id').distinct()
     table2 = table2.annotate(errors=hl.or_else(table2.errors, hl.int64(0)),
                              snp_errors=hl.or_else(table2.snp_errors, hl.int64(0)))
 
@@ -261,7 +261,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
                               snp_errors=hl.or_else(
                                   hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
                                                                  implicated[tm.mendel_code])),
-                                  [0, 0, 0])).cols()
+                                  [0, 0, 0])).cols().key_by()
 
     table3 = table3.select(xs=[
         hl.struct(**{ck_name: table3.father[ck_name],
@@ -284,8 +284,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
                          snp_errors=hl.agg.sum(table3.snp_errors))
               .key_by(ck_name))
 
-    table4 = tm.select_rows(*tm.row_key,
-                            errors=hl.agg.count_where(hl.is_defined(tm.mendel_code))).rows()
+    table4 = tm.select_rows(errors=hl.agg.count_where(hl.is_defined(tm.mendel_code))).rows()
 
     return table1, table2, table3, table4
 
@@ -462,7 +461,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
 
     tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
 
-    tab = tri.rows().select('locus', 'alleles', 'counts')
+    tab = tri.rows().select('counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
     tab = tab.annotate(p_value = hl.pchisqtail(tab.chi2, 1.0))
@@ -825,14 +824,14 @@ def de_novo(mt: MatrixTable,
     tm = tm.annotate_entries(__call=de_novo_call)
     tm = tm.filter_entries(hl.is_defined(tm.__call))
     entries = tm.entries()
-    return entries.select('locus',
-                          'alleles',
-                          '__site_freq',
-                          'proband',
-                          'father',
-                          'mother',
-                          'proband_entry',
-                          'father_entry',
-                          'mother_entry',
-                          'is_female',
-                          **entries.__call).rename({'__site_freq': 'prior'})
+    entries = entries.key_by('locus', 'alleles')
+    return (entries.select('__site_freq',
+                           'proband',
+                           'father',
+                           'mother',
+                           'proband_entry',
+                           'father_entry',
+                           'mother_entry',
+                           'is_female',
+                           **entries.__call)
+            .rename({'__site_freq': 'prior'}))

@@ -8,7 +8,7 @@ from hail.expr.types import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_field_uniqueness
+from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_keys, check_field_uniqueness, get_select_exprs, get_annotate_exprs
 
 from collections import OrderedDict
 import itertools
@@ -376,11 +376,25 @@ class Table(ExprContainer):
     def _force_count(self):
         return self._jt.forceCount()
 
-    @typecheck_method(caller=str, s=expr_struct())
-    def _select(self, caller, s):
-        base, cleanup = self._process_joins(s)
-        analyze(caller, s, self._row_indices)
-        return cleanup(Table(base._jt.select(s._ast.to_hql())))
+    @typecheck_method(caller=str, key_struct=nullable(expr_struct()), value_struct=nullable(expr_struct()))
+    def _select(self, caller, key_struct=None, value_struct=None):
+        if key_struct is None:
+            assert value_struct is not None
+            key_struct = self.key
+            new_key = None
+        else:
+            new_key = list(key_struct.keys())
+            if value_struct is None:
+                value_struct = hl.bind(lambda k, v: k.concat(v),
+                                       self.key.drop(*[f for f in new_key if f in list(self.key)]),
+                                       self.row.drop(*[f for f in new_key if f in list(self.row)]))
+
+        row = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct)
+        base, cleanup = self._process_joins(row)
+        analyze(caller, row, self._row_indices)
+
+        t = cleanup(Table(base._jt.select(row._ast.to_hql(), new_key)))
+        return t
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
@@ -403,8 +417,9 @@ class Table(ExprContainer):
                 Env.hc()._jhc, rows.dtype._to_json(rows.value),
                 rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
 
-    @typecheck_method(keys=nullable(oneof(str, Expression)))
-    def key_by(self, *keys) -> 'Table':
+    @typecheck_method(keys=nullable(oneof(str, Expression)),
+                      named_keys=Expression)
+    def key_by(self, *keys, **named_keys) -> 'Table':
         """Change the key.
 
         Examples
@@ -434,23 +449,12 @@ class Table(ExprContainer):
         """
         if len(keys) == 1 and keys[0] is None:
             return Table(self._jt.unkey())
-        str_keys = []
-        for k in keys:
-            if isinstance(k, Expression):
-                if k not in self._fields_inverse:
-                    raise ExpressionException("'key_by' permits only top-level fields of the table")
-                elif k._indices != self._row_indices:
-                    raise ExpressionException("key_by' expects row fields, found index {}"
-                                              .format(list(k._indices.axes)))
-                str_keys.append(self._fields_inverse[k])
-            else:
-                if k not in self._fields:
-                    raise LookupError(get_nice_field_error(self, k))
-                if not self._fields[k]._indices == self._row_indices:
-                    raise ValueError("'{}' is not a row field".format(k))
-                str_keys.append(k)
 
-        return Table(self._jt.keyBy(str_keys))
+        key_fields = get_select_exprs("Table.key_by",
+                                      keys, named_keys, self._row_indices,
+                                      protect_keys=False)
+        return self._select("Table.key_by",
+                            key_struct=hl.struct(**key_fields))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
@@ -601,16 +605,17 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with transmuted fields.
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        caller = "Table.transmute"
+        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
         fields_referenced = set()
-        for k, v in named_exprs.items():
-            check_collisions(self._fields, k, self._row_indices)
+        for k, v in e.items():
             for name, inds in get_refs(v).items():
-                if inds == self._row_indices:
+                if inds == self._row_indices and name not in self.key:
                     fields_referenced.add(name)
+
         fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        return self._select('Table.transmute', self.row.annotate(**named_exprs).drop(*fields_referenced))
+        return self._select(caller, value_struct=self.row.annotate(**e).drop(*fields_referenced))
 
     def annotate(self, **named_exprs):
         """Add new fields.
@@ -637,10 +642,9 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with new fields.
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        for k, v in named_exprs.items():
-            check_collisions(self._fields, k, self._row_indices)
-        return self._select('Table.annotate', self.row.annotate(**named_exprs))
+        caller = "Table.annotate"
+        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
+        return self._select(caller, value_struct=self.row.annotate(**e))
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
@@ -774,22 +778,10 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with specified fields.
         """
-        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        assignments = OrderedDict()
-
-        for e in exprs:
-            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
-                raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
-            assert isinstance(e._ast, Select)
-            assignments[e._ast.name] = e
-
-        for k, e in named_exprs.items():
-            check_collisions(self._fields, k, self._row_indices)
-            assignments[k] = e
-
-        check_field_uniqueness(assignments.keys())
-        return self._select('Table.select', hl.struct(**assignments))
+        row = get_select_exprs('Table.select',
+                               exprs, named_exprs, self._row_indices,
+                               protect_keys=True)
+        return self._select('Table.select', value_struct=hl.struct(**row))
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
@@ -852,6 +844,8 @@ class Table(ExprContainer):
 
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
+            for f in fields_to_drop:
+                check_keys(f, self._row_indices)
             new_row_fields = [f for f in table.row if
                               f not in fields_to_drop]
             table = table.select(*new_row_fields)
@@ -1156,15 +1150,13 @@ class Table(ExprContainer):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
-            right = self
-            right_keys = [right[k] for k in right.key]
-            right = right.select(*right_keys, **{uid: right.row})
+            right = self.select(**{uid: self.row})
             uids = [Env.get_uid() for i in range(len(exprs))]
 
             def joiner(left):
                 left = Table(left._jt.select(ApplyMethod('annotate',
-                                                         left.row._ast,
-                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql())).key_by(*uids)
+                                                         left._row._ast,
+                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None)).key_by(*uids)
                 left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
@@ -1206,7 +1198,7 @@ class Table(ExprContainer):
                         k_uid = Env.get_uid()
 
                         # extract v, key exprs
-                        left2 = left.select_rows(*list(left.row_key), **{uid: e for uid, e in zip(uids, exprs)})
+                        left2 = left.select_rows(**{uid: e for uid, e in zip(uids, exprs)})
                         lrt = (left2.rows()
                             .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
                             .key_by(*uids))
@@ -1214,7 +1206,7 @@ class Table(ExprContainer):
                         vt = lrt.join(right)
                         # group uids
                         vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
-                        vt = vt.drop(*uids)
+                        vt = vt.key_by().drop(*uids)
                         # group by v and index by the key exprs
                         vt = (vt.group_by(*rk_uids)
                             .aggregate(values=agg.collect(
@@ -1225,7 +1217,7 @@ class Table(ExprContainer):
                         key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
                             '{}: {}'.format(u, e._ast.to_hql()) for u, e in
                             zip(uids, exprs)))
-                        jl = jl.selectRows('annotate('+left._row._ast.to_hql()+', {'+key_expr+"})")
+                        jl = jl.selectRows('annotate('+left._row._ast.to_hql()+', {'+key_expr+"})", None)
                         return MatrixTable(jl)
 
                     return construct_expr(Select(TopLevelReference('va', src._row_indices), uid),
@@ -1403,7 +1395,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
+        return hl.tarray(self._row.dtype)._from_json(self._jt.collectJSON())
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1564,7 +1556,7 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        return hl.tarray(self.row.dtype)._from_json(self._jt.takeJSON(n))
+        return hl.tarray(self._row.dtype)._from_json(self._jt.takeJSON(n))
 
     @typecheck_method(n=int)
     def head(self, n):
@@ -1797,7 +1789,8 @@ class Table(ExprContainer):
         """
         seen = {}
 
-        row_map = {}
+        row_key_map = {}
+        row_value_map = {}
         global_map = {}
 
         for k, v in mapping.items():
@@ -1809,16 +1802,20 @@ class Table(ExprContainer):
                 raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                row_map[k] = v
+                if k in list(self.key):
+                    row_key_map[k] = v
+                else:
+                    row_value_map[k] = v
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
         table = self
-        if row_map:
-            remapped_key = [row_map.get(k, k) for k in table.key.keys()] if table.key else None
-            table = table.select(**{row_map.get(k, k): v for k, v in table.row.items()})
-            if remapped_key:
-                table = table.key_by(*remapped_key)
+        if row_key_map or row_value_map:
+            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else None
+            new_values = {row_value_map.get(k, k): v for k, v in table.row.items()}
+            table = table._select("Table.rename",
+                                  key_struct=hl.struct(**new_keys) if new_keys else None,
+                                  value_struct=hl.struct(**new_values))
         if global_map:
             table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
         return table
@@ -2129,26 +2126,26 @@ class Table(ExprContainer):
 
     @property
     def row(self) -> 'StructExpression':
-        """Returns a struct expression including all row-indexed fields.
+        """Returns a struct expression including all non-key row-indexed fields.
 
         Examples
         --------
         The data type of the row struct:
 
         >>> table1.row.dtype
-        dtype('struct{ID: int32, HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
+        dtype('struct{HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
 
         The number of row fields:
 
         >>> len(table1.row)
-        8
+        7
 
         Returns
         -------
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return self._row
+        return self._row.drop(*list(self.key))
 
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,

@@ -31,6 +31,10 @@ class AST(object):
             c.search(f, l)
         return tuple(l)
 
+    @property
+    def is_nested_field(self):
+        return False
+
 
 asttype.set(AST)
 
@@ -56,6 +60,10 @@ class TopLevelReference(_Reference):
     def __init__(self, name: str, indices: Indices):
         self.indices = indices
         super(TopLevelReference, self).__init__(name)
+
+    @property
+    def is_nested_field(self):
+        return True
 
 
 class UnaryOperation(AST):
@@ -92,6 +100,10 @@ class Select(AST):
 
     def to_hql(self):
         return '{}.{}'.format(self.parent.to_hql(), escape_id(self.name))
+
+    @property
+    def is_nested_field(self):
+        return self.parent.is_nested_field
 
 
 class ApplyMethod(AST):

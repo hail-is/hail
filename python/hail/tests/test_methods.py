@@ -101,9 +101,7 @@ class Tests(unittest.TestCase):
                                       hl.null(hl.tbool))),
             f_stat=plink_sex.F).key_by('s')
 
-        sex = sex.select(s=sex.s,
-                         is_female=sex.is_female,
-                         f_stat=sex.f_stat)
+        sex = sex.select('is_female', 'f_stat')
 
         self.assertTrue(plink_sex._same(sex.select_globals(), tolerance=1e-3))
 
@@ -125,20 +123,20 @@ class Tests(unittest.TestCase):
 
         t1 = hl.linear_regression(
             y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[mt.cov.Cov1, mt.cov.Cov2 + 1 - 1]).rows()
-        t1 = t1.select(**t1.key, p=t1.linreg.p_value)
+        t1 = t1.select(p=t1.linreg.p_value)
 
         t2 = hl.linear_regression(
             y=mt.pheno, x=mt.x, covariates=[mt.cov.Cov1, mt.cov.Cov2]).rows()
-        t2 = t2.select(**t2.key, p=t2.linreg.p_value)
+        t2 = t2.select(p=t2.linreg.p_value)
 
         t3 = hl.linear_regression(
             y=[mt.pheno], x=mt.x, covariates=[mt.cov.Cov1, mt.cov.Cov2]).rows()
-        t3 = t3.select(**t3.key, p=t3.linreg.p_value[0])
+        t3 = t3.select(p=t3.linreg.p_value[0])
 
         t4 = hl.linear_regression(
             y=[mt.pheno, mt.pheno], x=mt.x, covariates=[mt.cov.Cov1, mt.cov.Cov2]).rows()
-        t4a = t4.select(**t4.key, p=t4.linreg.p_value[0])
-        t4b = t4.select(**t4.key, p=t4.linreg.p_value[1])
+        t4a = t4.select(p=t4.linreg.p_value[0])
+        t4b = t4.select(p=t4.linreg.p_value[1])
 
         self.assertTrue(t1._same(t2))
         self.assertTrue(t1._same(t3))
@@ -653,9 +651,9 @@ class Tests(unittest.TestCase):
         moms = moms.select(moms.mat_id, is_mom=True).key_by('mat_id')
 
         et = (mt.entries()
-            .key_by('s')
-            .join(dads, how='left')
-            .join(moms, how='left'))
+              .key_by('s')
+              .join(dads, how='left')
+              .join(moms, how='left'))
         et = et.annotate(is_dad=hl.is_defined(et.is_dad),
                          is_mom=hl.is_defined(et.is_mom))
 
@@ -666,16 +664,18 @@ class Tests(unittest.TestCase):
             g=hl.struct(GT=et.GT, AD=et.AD, DP=et.DP, GQ=et.GQ, PL=et.PL)))))
 
         et = et.filter(hl.len(et.data) == 3)
-        et = et.select('locus', 'alleles', 'fam', 'data').explode('data')
+        et = et.select('data').explode('data')
 
-        tt = hl.trio_matrix(mt, ped, complete_trios=True).entries()
+        tt = hl.trio_matrix(mt, ped, complete_trios=True).entries().key_by('locus', 'alleles')
         tt = tt.annotate(fam=tt.proband.fam.fam_id,
                          data=[hl.struct(role=0, g=tt.proband_entry.select('GT', 'AD', 'DP', 'GQ', 'PL')),
                                hl.struct(role=1, g=tt.father_entry.select('GT', 'AD', 'DP', 'GQ', 'PL')),
                                hl.struct(role=2, g=tt.mother_entry.select('GT', 'AD', 'DP', 'GQ', 'PL'))])
-        tt = tt.select('locus', 'alleles', 'fam', 'data').explode('data')
+        tt = tt.select('fam', 'data').explode('data')
         tt = tt.filter(hl.is_defined(tt.data.g)).key_by('locus', 'alleles', 'fam')
 
+        self.assertEqual(et.key.dtype, tt.key.dtype)
+        self.assertEqual(et.row.dtype, tt.row.dtype)
         self.assertTrue(et._same(tt))
 
         # test annotations
@@ -687,17 +687,19 @@ class Tests(unittest.TestCase):
         e_cols = (e_cols.group_by(fam=e_cols.fam.fam_id)
             .aggregate(data=hl.agg.collect(hl.struct(role=hl.case()
                                                      .when(e_cols.is_dad, 1).when(e_cols.is_mom, 2).default(0),
-                                                     sa=e_cols.row.select(*mt.col)))))
-        e_cols = e_cols.filter(hl.len(e_cols.data) == 3).select('fam', 'data').explode('data')
+                                                     sa=hl.struct(**e_cols.key, **e_cols.row.select(*mt.col))))))
+        e_cols = e_cols.filter(hl.len(e_cols.data) == 3).select('data').explode('data')
 
         t_cols = hl.trio_matrix(mt, ped, complete_trios=True).cols()
         t_cols = t_cols.annotate(fam=t_cols.proband.fam.fam_id,
                                  data=[
                                      hl.struct(role=0, sa=t_cols.proband),
                                      hl.struct(role=1, sa=t_cols.father),
-                                     hl.struct(role=2, sa=t_cols.mother)]).select('fam', 'data').explode('data')
-        t_cols = t_cols.filter(hl.is_defined(t_cols.data.sa)).key_by('fam')
+                                     hl.struct(role=2, sa=t_cols.mother)]).key_by('fam').select('data').explode('data')
+        t_cols = t_cols.filter(hl.is_defined(t_cols.data.sa))
 
+        self.assertEqual(e_cols.key.dtype, t_cols.key.dtype)
+        self.assertEqual(e_cols.row.dtype, t_cols.row.dtype)
         self.assertTrue(e_cols._same(t_cols))
 
     def test_sample_qc(self):
@@ -767,7 +769,7 @@ class Tests(unittest.TestCase):
 
         hl.export_plink(dataset, b_file, ind_id=dataset.s)
 
-        sample_ids = [row.s for row in dataset.cols().select('s').collect()]
+        sample_ids = [row.s for row in dataset.cols().select().collect()]
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
@@ -914,7 +916,7 @@ class Tests(unittest.TestCase):
         eigenvalues2 , scores2, loadings2 = hl.pca(
             mt.GT.n_alt_alleles() * hl.literal([1])[0], k=1, compute_loadings=True)
 
-        self.assertAlmostEquals(eigenvalues[0], eigenvalues2[0])
+        self.assertAlmostEqual(eigenvalues[0], eigenvalues2[0])
         self.assertTrue(scores._same(scores2))
         self.assertTrue(loadings._same(loadings2))
 
@@ -947,14 +949,14 @@ class Tests(unittest.TestCase):
 
     def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
         mt = hl.balding_nichols_model(3, 100, 1000)
-        mt = mt.annotate_cols(sample_idx=hl.str(mt.sample_idx))
+        mt = mt.key_cols_by(sample_idx=hl.str(mt.sample_idx))
         hkin = hl.pc_relate(mt.GT, 0.00, k=2).cache()
         rkin = self._R_pc_relate(mt, 0.00).cache()
 
-        self.assertTrue(rkin.select("i", "j", "kin")._same(hkin.select("i", "j", "kin"), tolerance=1e-3, absolute=True))
-        self.assertTrue(rkin.select("i", "j", "ibd0")._same(hkin.select("i", "j", "ibd0"), tolerance=1e-2, absolute=True))
-        self.assertTrue(rkin.select("i", "j", "ibd1")._same(hkin.select("i", "j", "ibd1"), tolerance=2e-2, absolute=True))
-        self.assertTrue(rkin.select("i", "j", "ibd2")._same(hkin.select("i", "j", "ibd2"), tolerance=1e-2, absolute=True))
+        self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3), absolute=True)
+        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1e-2), absolute=True)
+        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2e-2), absolute=True)
+        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1e-2), absolute=True)
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
@@ -991,7 +993,7 @@ class Tests(unittest.TestCase):
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset()  # FIXME - want to rename samples with same id
-        renamed_ids = hl.rename_duplicates(dataset).cols().select('s').collect()
+        renamed_ids = hl.rename_duplicates(dataset).cols().select().collect()
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
     def test_split_multi_hts(self):
@@ -1014,37 +1016,37 @@ class Tests(unittest.TestCase):
 
         men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
-        self.assertEqual(men.row.dtype, hl.tstruct(locus=mt.locus.dtype,
+        self.assertEqual(men.key.dtype, hl.tstruct(locus=mt.locus.dtype,
                                                    alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr,
-                                                   fam_id=hl.tstr,
+                                                   s=hl.tstr))
+        self.assertEqual(men.row.dtype, hl.tstruct(fam_id=hl.tstr,
                                                    mendel_code=hl.tint))
-        self.assertEqual(fam.row.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr,
-                                                   fam_id=hl.tstr,
+        self.assertEqual(fam.key.dtype, hl.tstruct(pat_id=hl.tstr,
+                                                   mat_id=hl.tstr))
+        self.assertEqual(fam.row.dtype, hl.tstruct(fam_id=hl.tstr,
                                                    children=hl.tint,
                                                    errors=hl.tint64,
                                                    snp_errors=hl.tint64))
-        self.assertEqual(ind.row.dtype, hl.tstruct(s=hl.tstr,
-                                                   fam_id=hl.tstr,
+        self.assertEqual(ind.key.dtype, hl.tstruct(s=hl.tstr))
+        self.assertEqual(ind.row.dtype, hl.tstruct(fam_id=hl.tstr,
                                                    errors=hl.tint64,
                                                    snp_errors=hl.tint64))
-        self.assertEqual(var.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   errors=hl.tint64))
+        self.assertEqual(var.key.dtype, hl.tstruct(locus=mt.locus.dtype,
+                                                   alleles=hl.tarray(hl.tstr)))
+        self.assertEqual(var.row.dtype, hl.tstruct(errors=hl.tint64))
 
         self.assertEqual(men.count(), 41)
         self.assertEqual(fam.count(), 2)
         self.assertEqual(ind.count(), 7)
         self.assertEqual(var.count(), mt.count_rows())
 
-        self.assertEqual(set(fam.select('pat_id', 'mat_id', 'errors', 'snp_errors').collect()),
+        self.assertEqual(set(fam.select('errors', 'snp_errors').collect()),
                          {
                              hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', errors=41, snp_errors=39),
                              hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', errors=0, snp_errors=0)
                          })
 
-        self.assertEqual(set(ind.select('s', 'errors', 'snp_errors').collect()),
+        self.assertEqual(set(ind.select('errors', 'snp_errors').collect()),
                          {
                              hl.utils.Struct(s='Son1', errors=23, snp_errors=22),
                              hl.utils.Struct(s='Dtr1', errors=18, snp_errors=17),
@@ -1065,7 +1067,7 @@ class Tests(unittest.TestCase):
         ])
         self.assertEqual(var.filter(to_keep.contains((var.locus, var.alleles)))
                          .order_by('locus')
-                         .select('locus', 'alleles', 'errors').collect(),
+                         .select('errors').collect(),
                          [
                              hl.utils.Struct(locus=hl.Locus("1", 1), alleles=['C', 'CT'], errors=2),
                              hl.utils.Struct(locus=hl.Locus("1", 2), alleles=['C', 'T'], errors=1),
@@ -1142,13 +1144,13 @@ class Tests(unittest.TestCase):
         start = t.interval.start
         end = t.interval.end
         (t
-         .annotate(interval=hl.locus_interval(start.contig, start.position, end.position, True, True))
-         .select('interval')
+         .key_by(interval=hl.locus_interval(start.contig, start.position, end.position, True, True))
+         .select()
          .export(tmp_file, header=False))
 
         t2 = hl.import_locus_intervals(tmp_file)
 
-        self.assertTrue(t.select('interval')._same(t2))
+        self.assertTrue(t.select()._same(t2))
 
     def test_import_locus_intervals_no_reference_specified(self):
         interval_file = resource('annotinterall.interval_list')
@@ -1185,7 +1187,8 @@ class Tests(unittest.TestCase):
         bed_file = resource('example2.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37')
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
-        self.assertTrue(list(t.row.dtype) == ['interval', 'target'])
+        self.assertTrue(list(t.key.dtype) == ['interval'])
+        self.assertTrue(list(t.row.dtype) == ['target'])
 
     def test_import_bed_no_reference_specified(self):
         bed_file = resource('example1.bed')
@@ -1207,11 +1210,13 @@ class Tests(unittest.TestCase):
         bed1 = hl.import_bed(resource('example1.bed'), reference_genome='GRCh37')
         bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
         bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
-        self.assertTrue(list(bed2.row.dtype) == ['interval', 'target'])
+        self.assertTrue(list(bed2.key.dtype) == ['interval'])
+        self.assertTrue(list(bed2.row.dtype) == ['target'])
 
         interval_list1 = hl.import_locus_intervals(resource('exampleAnnotation1.interval_list'))
         interval_list2 = hl.import_locus_intervals(resource('exampleAnnotation2.interval_list'))
-        self.assertTrue(list(interval_list2.row.dtype) == ['interval', 'target'])
+        self.assertTrue(list(interval_list2.key.dtype) == ['interval'])
+        self.assertTrue(list(interval_list2.row.dtype) == ['target'])
 
         ann = ds.annotate_rows(in_interval = bed1[ds.locus]).rows()
         self.assertTrue(ann.all((ann.locus.position <= 14000000) |
@@ -1423,7 +1428,8 @@ class Tests(unittest.TestCase):
         mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
         mis = [row['node'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
-        self.assertEqual(mis_table.row.dtype, hl.tstruct(node=hl.tint64))
+        self.assertEqual(mis_table.row.dtype, hl.tstruct())
+        self.assertEqual(mis_table.key.dtype, hl.tstruct(node=hl.tint64))
 
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
@@ -1915,8 +1921,6 @@ class Tests(unittest.TestCase):
         ped = hl.Pedigree.read(resource('denovo.fam'))
         r = hl.de_novo(mt, ped, mt.info.ESP)
         r = r.select(
-            locus=r.locus,
-            alleles=r.alleles,
             prior = r.prior,
             kid_id=r.proband.s,
             dad_id=r.father.s,

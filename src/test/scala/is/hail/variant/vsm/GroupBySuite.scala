@@ -53,7 +53,7 @@ class GroupBySuite extends SparkSuite {
               "DP = AGG.collect()[0].DP, " +
               "GQ = AGG.collect()[0].GQ, " +
               "PL = AGG.collect()[0].PL")
-        assert(vsm.selectRows("{locus: va.locus, alleles: va.alleles}").same(grouped))
+        assert(vsm.selectRows("{locus: va.locus, alleles: va.alleles}", None).same(grouped))
       }
 
       val uniqueSamples = vsm.stringSampleIds.toSet
@@ -63,7 +63,7 @@ class GroupBySuite extends SparkSuite {
         grouped.numCols == uniqueSamples.size
       } else {
         val grouped = vsm.groupColsBy("s = sa.s", "GT = AGG.collect()[0].GT, AD = AGG.collect()[0].AD, DP = AGG.collect()[0].DP, GQ = AGG.collect()[0].GQ, PL = AGG.collect()[0].PL")
-        assert(vsm.selectCols("{s: sa.s}")
+        assert(vsm.selectCols("{s: sa.s}", None)
           .same(grouped
             .reorderCols(vsm.stringSampleIds.toArray.map(Annotation(_)))
           ))

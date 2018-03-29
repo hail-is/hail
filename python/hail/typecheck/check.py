@@ -165,6 +165,23 @@ class SizedTupleChecker(TypeChecker):
         return 'tuple[' + ','.join(["{}".format(ec.expects()) for ec in self.ec]) + ']'
 
 
+class LinkedListChecker(TypeChecker):
+    def __init__(self, type):
+        self.type = type
+        super(LinkedListChecker, self).__init__()
+
+    def check(self, x, caller, param):
+        from hail.utils import LinkedList
+        if not isinstance(x, LinkedList):
+            raise TypecheckFailure
+        if x.type is not self.type:
+            raise TypecheckFailure
+        return x
+
+    def expects(self):
+        return 'linkedlist[%s]' % self.type
+
+
 class AnyChecker(TypeChecker):
     def __init__(self):
         super(AnyChecker, self).__init__()
@@ -343,6 +360,10 @@ def tupleof(t):
 
 def sized_tupleof(*args):
     return SizedTupleChecker(*[only(x) for x in args])
+
+
+def linked_list(t):
+    return LinkedListChecker(t)
 
 
 def setof(t):

@@ -220,7 +220,6 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     mt = mt.filter_rows((mt[aaf] > aaf_threshold) & (mt[aaf] < (1 - aaf_threshold)))
     mt = mt.annotate_cols(ib=agg.inbreeding(mt.call, mt[aaf]))
     kt = mt.select_cols(
-        *mt.col_key,
         is_female=hl.cond(mt.ib.f_stat < female_threshold,
                           True,
                           hl.cond(mt.ib.f_stat > male_threshold,
@@ -1811,7 +1810,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     else:
         raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
-    scores_table = mt.select_cols(__scores=scores_expr).cols()
+    scores_table = mt.select_cols(__scores=scores_expr).cols().key_by().select('__scores')
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
@@ -1846,7 +1845,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         ht = ht.drop('ibd1')
 
     col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
-    return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])
+    return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
 
 class SplitMulti(object):
     """Split multiallelic variants.
@@ -2239,7 +2238,7 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'genetic_relatedness_matrix')
 
-    col_keys = mt.cols().select(*mt.col_key)
+    col_keys = mt.cols().select()
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
@@ -2322,7 +2321,7 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'realized_relationship_matrix')
 
-    col_keys = mt.cols().select(*mt.col_key)
+    col_keys = mt.cols().select()
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
 

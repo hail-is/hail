@@ -338,9 +338,9 @@ class TableTests(unittest.TestCase):
         self.assertEqual(list(t1.row), ['a', 'e'])
         self.assertEqual(t1.key, None)
 
-        t2 = kt.key_by('d', 'e')
-        t2 = t2.select(*[t2.a, t2.e])
-        self.assertEqual(list(t2.row), ['a', 'e'])
+        t2 = kt.key_by('e')
+        t2 = t2.select(t2.a)
+        self.assertEqual(list(t2.row), ['a'])
         self.assertEqual(list(t2.key), ['e'])
 
         self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ['a', 'foo'])
@@ -366,19 +366,19 @@ class TableTests(unittest.TestCase):
         self.assertRaises(NotImplementedError, f)
 
     def test_joins(self):
-        kt = hl.utils.range_table(1).drop('idx')
+        kt = hl.utils.range_table(1).key_by().drop('idx')
         kt = kt.annotate(a='foo')
 
-        kt1 = hl.utils.range_table(1).drop('idx')
+        kt1 = hl.utils.range_table(1).key_by().drop('idx')
         kt1 = kt1.annotate(a='foo', b='bar').key_by('a')
 
-        kt2 = hl.utils.range_table(1).drop('idx')
+        kt2 = hl.utils.range_table(1).key_by().drop('idx')
         kt2 = kt2.annotate(b='bar', c='baz').key_by('b')
 
-        kt3 = hl.utils.range_table(1).drop('idx')
+        kt3 = hl.utils.range_table(1).key_by().drop('idx')
         kt3 = kt3.annotate(c='baz', d='qux').key_by('c')
 
-        kt4 = hl.utils.range_table(1).drop('idx')
+        kt4 = hl.utils.range_table(1).key_by().drop('idx')
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
@@ -391,7 +391,7 @@ class TableTests(unittest.TestCase):
 
         m = hl.import_vcf(resource('sample.vcf'))
         vkt = m.rows()
-        vkt = vkt.select(vkt.locus, vkt.alleles, vkt.qual)
+        vkt = vkt.select(vkt.qual)
         vkt = vkt.annotate(qual2=m[(vkt.locus, vkt.alleles), :].qual)
         self.assertTrue(vkt.filter(vkt.qual != vkt.qual2).count() == 0)
 
@@ -442,11 +442,11 @@ class TableTests(unittest.TestCase):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
 
-        ktd = kt.drop('idx', 'foo')
+        ktd = kt.drop('idx')
         self.assertEqual(list(ktd.row), ['sq', 'bar'])
         self.assertEqual(ktd.key, None)
 
-        self.assertEqual(list(kt.drop(kt['idx'], kt['foo']).row), ['sq', 'bar'])
+        self.assertEqual(list(kt.drop(kt['idx']).row), ['sq', 'bar'])
 
         d = kt.drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
@@ -576,7 +576,7 @@ class TableTests(unittest.TestCase):
     def test_range_table(self):
         t = hl.utils.range_table(26, n_partitions = 5)
         self.assertEqual(t.globals.dtype, hl.tstruct())
-        self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
+        self.assertEqual(t.row.dtype, hl.tstruct())
         self.assertEqual(list(t.key), ['idx'])
         
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
@@ -603,7 +603,6 @@ class MatrixTests(unittest.TestCase):
 
         self.assertEqual(vds.globals.dtype, hl.tstruct(foo=hl.tint32))
 
-        orig_variant_schema = vds.row.dtype
         vds = vds.annotate_rows(x1=agg.count(),
                                 x2=agg.fraction(False),
                                 x3=agg.count_where(True),
@@ -615,7 +614,7 @@ class MatrixTests(unittest.TestCase):
                                 y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
 
-        expected_schema = hl.tstruct(s=hl.tstr, apple=hl.tint32, y1=hl.tint64, y2=hl.tfloat64, y3=hl.tint64, y4=hl.tint32)
+        expected_schema = hl.tstruct(apple=hl.tint32, y1=hl.tint64, y2=hl.tfloat64, y3=hl.tint64, y4=hl.tint32)
 
         self.assertTrue(schema_eq(vds.col.dtype, expected_schema),
                         "expected: " + str(vds.col.dtype) + "\nactual: " + str(expected_schema))
@@ -714,7 +713,6 @@ class MatrixTests(unittest.TestCase):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
         vds = vds.annotate_cols(bar=5)
-
         vds1 = vds.drop('GT', 'info', 'foo', 'bar')
         self.assertTrue('foo' not in vds1.globals)
         self.assertTrue('info' not in vds1.row)
@@ -776,7 +774,7 @@ class MatrixTests(unittest.TestCase):
         ds1 = ds.select_cols(**exprs)
 
         ds.annotate_rows(**exprs)
-        ds2 = ds.select_rows(*ds.row_key, **exprs)
+        ds2 = ds.select_rows(**exprs)
 
         ds.annotate_entries(**exprs)
         ds.select_entries(**exprs)
@@ -793,9 +791,9 @@ class MatrixTests(unittest.TestCase):
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
     def test_joins(self):
-        vds = self.get_vds().select_rows('locus', 'alleles', x1=1, y1=1)
-        vds2 = vds.select_rows(*vds.row_key, x2=1, y2=2)
-        vds2 = vds2.select_cols('s', c1=1, c2=2)
+        vds = self.get_vds().select_rows(x1=1, y1=1)
+        vds2 = vds.select_rows(x2=1, y2=2)
+        vds2 = vds2.select_cols(c1=1, c2=2)
 
         vds = vds.annotate_rows(y2=vds2[(vds.locus, vds.alleles), :].y2)
         vds = vds.annotate_cols(c2=vds2[:, vds.s].c2)
@@ -1014,7 +1012,7 @@ class MatrixTests(unittest.TestCase):
         ds = hl.import_vcf(resource('sample.vcf'))
         rt = ds.rows()
         rm = hl.MatrixTable.from_rows_table(rt, partition_key='locus')
-        self.assertTrue(rm._same(ds.drop_cols().select_entries().select_cols()))
+        self.assertTrue(rm._same(ds.drop_cols().select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
         ds = self.get_vds()
@@ -1116,14 +1114,14 @@ class MatrixTests(unittest.TestCase):
     def test_to_table_on_various_fields(self):
         mt = self.get_vds()
 
-        self.assertEqual(mt.row.take(1), mt.rows().take(1))
-        self.assertEqual(mt.row_key.take(1), mt.rows().select(*mt.row_key).take(1))
-        self.assertEqual(mt['locus'].take(1), [mt.rows().select('locus').take(1)[0].locus])
-        self.assertEqual(mt['s'].take(1), [mt.cols().select('s').take(1)[0].s])
+        self.assertEqual(mt.row.take(1), mt.rows().key_by().drop(*mt.row_key).take(1))
+        self.assertEqual(mt.row_key.take(1), mt.rows().select().take(1))
+        self.assertEqual(mt['locus'].take(1), [mt.rows().key_by('locus').select().take(1)[0].locus])
+        self.assertEqual(mt['s'].take(1), [mt.cols().key_by('s').select().take(1)[0].s])
         self.assertEqual(mt.annotate_cols(foo=5).foo.take(1), [5])
         self.assertEqual(mt.GQ.take(1), [mt.entries().select('GQ').take(1)[0]['GQ']])
-        self.assertEqual(mt.locus.contig.take(1), [mt.rows().select('locus').take(1)[0].locus.contig])
-        self.assertEqual(mt['s'][0].take(1), [mt.cols().select('s').take(1)[0].s[0]])
+        self.assertEqual(mt.locus.contig.take(1), [mt.rows().key_by('locus').select().take(1)[0].locus.contig])
+        self.assertEqual(mt['s'][0].take(1), [mt.cols().key_by('s').select().take(1)[0].s[0]])
 
     def test_order_by(self):
         ht = hl.utils.range_table(10)
@@ -1151,8 +1149,8 @@ class MatrixTests(unittest.TestCase):
     def test_range_matrix_table(self):
         mt = hl.utils.range_matrix_table(13, 7, n_partitions = 5)
         self.assertEqual(mt.globals.dtype, hl.tstruct())
-        self.assertEqual(mt.row.dtype, hl.tstruct(row_idx=hl.tint32))
-        self.assertEqual(mt.col.dtype, hl.tstruct(col_idx=hl.tint32))
+        self.assertEqual(mt.row.dtype, hl.tstruct())
+        self.assertEqual(mt.col.dtype, hl.tstruct())
         self.assertEqual(mt.entry.dtype, hl.tstruct())
 
         self.assertEqual(list(mt.row_key), ['row_idx'])

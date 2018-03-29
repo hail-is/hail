@@ -28,6 +28,28 @@ class Indices(object):
 
         return Indices(src, axes)
 
+    @property
+    def key(self):
+        from hail import Table, MatrixTable, struct
+        if self.source is None:
+            return None
+        elif isinstance(self.source, Table):
+            if self.source._row_axis in self.axes:
+                return self.source.key
+            else:
+                return None
+        else:
+            assert(isinstance(self.source, MatrixTable))
+            if self.source._row_axis in self.axes:
+                if self.source._col_axis in self.axes:
+                    return struct(**self.source.row_key, **self.source.col_key)
+                else:
+                    return self.source.row_key
+            elif self.source._col_axis in self.axes:
+                return self.source.col_key
+            else:
+                return None
+
     def __str__(self):
         return 'Indices(axes={}, source={})'.format(self.axes, self.source)
 

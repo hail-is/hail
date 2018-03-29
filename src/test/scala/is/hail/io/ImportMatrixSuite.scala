@@ -37,7 +37,7 @@ class ImportMatrixSuite extends SparkSuite {
 
   def reKeyRows(vsm: MatrixTable): MatrixTable = {
     val newFieldNames = "row_id" +: vsm.rowType.fieldNames
-    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows(s"{${ newFieldNames.map(n => s"$n: va.$n").mkString(",") }}")
+    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows(s"{${ newFieldNames.map(n => s"$n: va.$n").mkString(",") }}", None)
   }
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {
