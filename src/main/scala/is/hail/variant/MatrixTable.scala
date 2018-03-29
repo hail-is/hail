@@ -1151,7 +1151,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           }
         case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
           coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
-        case _ => true
+        case x@Apply(_, "drop", Array(SymRef(_, "va"), _*)) =>
+          val rowKeySet = rowKey.toSet
+          x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
+        case _ =>
+          log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
+          true
       })
     val aggregateOption = Aggregators.buildRowAggregations(this, ec)
     val globalsBc = globals.broadcast
