@@ -226,13 +226,6 @@ object Nirvana {
         "scorePercentile" -> TFloat64(),
         "isAlleleSpecific" -> TBoolean()
       )),
-      "mitomap" -> TArray(TStruct( // todo: SV may need to be removed from here
-        "chromosome" -> TString(),
-        "begin" -> TInt32(),
-        "end" -> TInt32(),
-        "variantType" -> TString(),
-        "isAlleleSpecific" -> TBoolean()
-      )),
       "transcripts" -> TStruct(
         "refSeq" -> TArray(TStruct(
           "transcript" -> TString(),
@@ -297,7 +290,7 @@ object Nirvana {
     sb.append("\t.\t")
     sb.append(alleles(0))
     sb += '\t'
-    sb.append(alleles.tail.mkString(","))
+    sb.append(alleles.tail.filter(_ != "*").mkString(","))
     sb += '\t'
     sb.append("\t.\t.\tGT")
     w(sb.result())
@@ -337,7 +330,7 @@ object Nirvana {
     val cmd: List[String] = List[String](dotnet, s"$nirvanaLocation") ++
       List("-c", cache) ++
       supplementaryAnnotationDirectory ++
-      List("-r", reference,
+      List("--disable-recomposition", "-r", reference,
         "-i", "-",
         "-o", "-")
 
