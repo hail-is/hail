@@ -32,9 +32,7 @@ object ContextRDD {
   def union[C <: AutoCloseable : Pointed, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
-  ): ContextRDD[C, T] = {
-    union(sc, xs, point[C])
-  }
+  ): ContextRDD[C, T] = union(sc, xs, point[C])
 
   def union[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
@@ -106,13 +104,13 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     new ContextRDD(rdd.map(useCtx => ctx => f(ctx, useCtx(ctx))), mkc)
 
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
-    withContext((c, it) => it.map(f(c,_)))
+    withContext((c, it) => it.map(f(c, _)))
 
   def cfilter(f: (C, T) => Boolean): ContextRDD[C, T] =
-    withContext((c, it) => it.filter(f(c,_)))
+    withContext((c, it) => it.filter(f(c, _)))
 
   def cflatMap[U: ClassTag](f: (C, T) => TraversableOnce[U]): ContextRDD[C, U] =
-    withContext((c, it) => it.flatMap(f(c,_)))
+    withContext((c, it) => it.flatMap(f(c, _)))
 
   def cmapPartitions[U: ClassTag](
     f: (C, Iterator[T]) => Iterator[U],
@@ -153,7 +151,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     ): Iterator[C => Iterator[T]] => Iterator[C => Iterator[T]] =
       it => inCtx(ctx => f(it.flatMap(useCtx => useCtx(ctx))))
     def contextIgnorantAdjustment(a: Adjustment[T]): Adjustment[C => Iterator[T]] =
-      new Adjustment(a.index, contextIgnorantPartitionFunction(a.f))
+      Adjustment(a.index, contextIgnorantPartitionFunction(a.f))
     val contextIgnorantAdjustments =
       adjustments.map(as => as.map(a => contextIgnorantAdjustment(a)))
     onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
