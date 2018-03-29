@@ -636,7 +636,7 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
   }
 
-  val recompute: Boolean = (typ.rowKey != child.typ.rowKey) ||
+  val touchesKeys: Boolean = (typ.rowKey != child.typ.rowKey) ||
     (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
     newRow match {
       case MakeStruct(fields, _) =>
@@ -693,10 +693,12 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         val aggResults = if (seqOps.nonEmpty) {
           var i = 0
           while (i < localNCols) {
+            val eMissing = localEntriesType.isElementMissing(region, entries, i)
             val eOff = localEntriesType.elementOffset(entries, localNCols, i)
+            val colMissing = localColsType.isElementMissing(region, cols, i)
             val colOff = localColsType.elementOffset(cols, localNCols, i)
             rvAggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
-              seqOp()(region, rvagg, oldRow, false, globals, false, oldRow, false, eOff, false, colOff, false)
+              seqOp()(region, rvagg, oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
             }
             i += 1
           }
@@ -717,11 +719,10 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       }
     }
 
-    if (recompute) {
+    if (touchesKeys) {
       val newRDD = prev.rvd.mapPartitions(mapPartitionF)
       prev.copy(typ = typ,
         rvd = OrderedRVD.coerce(typ.orvdType, newRDD, None, None))
-
     } else {
       val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
       prev.copy(typ = typ, rvd = newRVD)
