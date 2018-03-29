@@ -444,7 +444,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(rkin.select("i", "j", "kin")._same(hkin.select("i", "j", "kin"), tolerance=1e-3))
         self.assertTrue(rkin.select("i", "j", "k0")._same(hkin.select("i", "j", "k0"), tolerance=1e-2))
-        self.assertTrue(rkin.select("i", "j", "k1")._same(hkin.select("i", "j", "k1"), tolerance=1e-1))
+        self.assertTrue(rkin.select("i", "j", "k1")._same(hkin.select("i", "j", "k1"), tolerance=2e-2))
         self.assertTrue(rkin.select("i", "j", "k2")._same(hkin.select("i", "j", "k2"), tolerance=1e-2))
 
     def test_pcrelate_paths(self):
