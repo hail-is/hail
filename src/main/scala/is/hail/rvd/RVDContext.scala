@@ -16,5 +16,5 @@ class RVDContext(r: Region) extends AutoCloseable {
   def partitionRegion: Region = r // lifetime: partition
 
   // frees the memory associated with this context
-  def close: Unit = ()
+  def close(): Unit = ()
 }
