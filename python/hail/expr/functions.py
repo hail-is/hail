@@ -986,6 +986,16 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
 
     ``CHR`` stands for ``CHR:START-CHR:END``
 
+    Note
+    ----
+        The bounds of the interval must be valid loci for the reference genome
+        (contig in reference genome and position is within the range [1-END])
+        except in the case where the position is ``0`` **AND** the interval is
+        **left-exclusive** which is normalized to be ``1`` and left-inclusive.
+        Likewise, in the case where the position is ``END + 1`` **AND**
+        the interval is **right-exclusive** which is normalized to be ``END``
+        and right-inclusive.
+
     Parameters
     ----------
     s : str or :class:`.StringExpression`

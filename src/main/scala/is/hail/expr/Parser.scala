@@ -650,22 +650,41 @@ object Parser extends JavaTokenParsers {
   
   def referenceGenomeDependentFunction: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus" | "getReferenceSequence"
 
-  def intervalWithEndpoints[T](bounds: Parser[(T, T)]): Parser[Interval] = {
+  def intervalWithEndpoints[T](bounds: Parser[(T, T, Boolean, Boolean)]): Parser[Interval] = {
     val start = ("[" ^^^ true) | ("(" ^^^ false)
     val end = ("]" ^^^ true) | (")" ^^^ false)
 
-    start ~ bounds ~ end ^^ {case istart ~ int ~ iend => Interval(int._1, int._2, istart, iend)} |
-      bounds ^^ {int => Interval(int._1, int._2, true, false)}
+    start ~ bounds ~ end ^^ { case istart ~ int ~ iend => Interval(int._1, int._2, istart, iend) } |
+      bounds ^^ { int => Interval(int._1, int._2, int._3, int._4) }
   }
 
-  def locusInterval(rg: RGBase): Parser[Interval] = {
+  def locusInterval(rgBase: RGBase): Parser[Interval] = {
+    val rg = rgBase.asInstanceOf[ReferenceGenome]
     val contig = rg.contigParser
-    val valueParser = locus(rg) ~ "-" ~ locus(rg) ^^ { case l1 ~ _ ~ l2 => (l1, l2) } |
-      locus(rg) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => (l1, l1.copyChecked(rg, position = p2.getOrElse(rg.contigLength(l1.contig)))) } |
-      contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1, rg), Locus(c2, rg.contigLength(c2), rg)) } |
-      contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c))) }
-      intervalWithEndpoints(valueParser)
+
+    val valueParser =
+      locusUnchecked(rg) ~ "-" ~ rg.contigParser ~ ":" ~ pos ^^ { case l1 ~ _ ~ c2 ~ _ ~ p2 => p2 match {
+        case Some(p) => (l1, Locus(c2, p), true, false)
+        case None => (l1, Locus(c2, rg.contigLength(c2)), true, true)
+      }
+      } |
+        locusUnchecked(rg) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => p2 match {
+          case Some(p) => (l1, l1.copy(position = p), true, false)
+          case None => (l1, l1.copy(position = rg.contigLength(l1.contig)), true, true)
+        }
+        } |
+        contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1), Locus(c2, rg.contigLength(c2)), true, true) } |
+        contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c)), true, true) }
+
+    intervalWithEndpoints(valueParser) ^^ { i =>
+      val normInterval = rg.normalizeLocusInterval(i)
+      rg.checkLocusInterval(normInterval)
+      normInterval
+    }
   }
+
+  def locusUnchecked(rg: RGBase): Parser[Locus] =
+    (rg.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(rg.contigLength(c))) }
 
   def locus(rg: RGBase): Parser[Locus] =
     (rg.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(rg.contigLength(c)), rg) }

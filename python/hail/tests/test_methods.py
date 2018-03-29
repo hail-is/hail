@@ -491,6 +491,14 @@ class Tests(unittest.TestCase):
         t = hl.import_locus_intervals(interval_file, reference_genome=None)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
+    def test_import_locus_intervals_badly_defined_intervals(self):
+        interval_file = resource('example3.interval_list')
+        t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37', skip_invalid_intervals=True)
+        self.assertTrue(t.count() == 21)
+
+        t = hl.import_locus_intervals(interval_file, reference_genome=None, skip_invalid_intervals=True)
+        self.assertTrue(t.count() == 22)
+
     def test_import_bed(self):
         bed_file = resource('example1.bed')
         bed = hl.import_bed(bed_file, reference_genome='GRCh37')
@@ -513,6 +521,14 @@ class Tests(unittest.TestCase):
         bed_file = resource('example1.bed')
         t = hl.import_bed(bed_file, reference_genome=None)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
+    def test_import_bed_badly_defined_intervals(self):
+        bed_file = resource('example4.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
+        self.assertTrue(t.count() == 3)
+
+        t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
+        self.assertTrue(t.count() == 4)
 
     def test_import_fam(self):
         fam_file = resource('sample.fam')

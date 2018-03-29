@@ -1,6 +1,5 @@
 from hail.typecheck import *
 from hail.utils.java import *
-from hail.genetics.reference_genome import reference_genome_type
 import hail as hl
 
 interval_type = lazy()

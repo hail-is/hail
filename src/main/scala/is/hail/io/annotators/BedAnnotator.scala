@@ -10,7 +10,8 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object BedAnnotator {
-  def apply(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): Table = {
+  def apply(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    skipInvalidIntervals: Boolean = false): Table = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     val hasTarget = hc.hadoopConf.readLines(filename) { lines =>
@@ -54,7 +55,7 @@ object BedAnnotator {
           line.value.startsWith("track") ||
           line.value.matches("""^\w+=("[\w\d ]+"|\d+).*""") ||
           line.value.isEmpty))
-      .map {
+      .flatMap {
         _.map { line =>
           val spl = line.split("""\s+""")
           if (spl.length < expectedLength)
@@ -62,14 +63,18 @@ object BedAnnotator {
           val chrom = spl(0)
           // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
           val start = spl(1).toInt + 1
-          val end = spl(2).toInt + 1
+          val end = spl(2).toInt
 
-          val interval = Interval(Locus.annotation(chrom, start, rg), Locus.annotation(chrom, end, rg), true, false)
+          if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(chrom) || !rg.isValidLocus(chrom, start) || !rg.isValidLocus(chrom, end)))
+            None
+          else {
+            val interval = Interval(Locus.annotation(chrom, start, rg), Locus.annotation(chrom, end, rg), true, true)
 
-          if (hasTarget)
-            Row(interval, spl(3))
-          else
-            Row(interval)
+            if (hasTarget)
+              Some(Row(interval, spl(3)))
+            else
+              Some(Row(interval))
+          }
         }.value
       }
 

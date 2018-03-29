@@ -313,14 +313,19 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 
 @typecheck(path=str,
-           reference_genome=nullable(reference_genome_type))
-def import_locus_intervals(path, reference_genome='default') -> Table:
+           reference_genome=nullable(reference_genome_type),
+           skip_invalid_intervals=bool)
+def import_locus_intervals(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
     """Import an interval list as a :class:`.Table`.
 
     Examples
     --------
 
+    Add the row field `capture_region` indicating inclusion in
+    at least one interval from `capture_intervals.txt`:
+
     >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
+    >>> result = dataset.annotate_rows(capture_region = hl.is_defined(intervals[dataset.locus]))
 
     Notes
     -----
@@ -357,18 +362,20 @@ def import_locus_intervals(path, reference_genome='default') -> Table:
 
     Warning
     -------
-    The interval parser for these files does not support the full range of
-    formats supported by the python parser
-    :meth:`representation.Interval.parse`. 'k', 'm', 'start', and 'end' are all
-    invalid motifs in the ``contig:start-end`` format here.
+        The interval parser for these files does not support the full range of
+        formats supported by the python parser
+        :meth:`representation.Interval.parse`. 'k', 'm', 'start', and 'end' are
+        all invalid motifs in the ``contig:start-end`` format here.
 
     Parameters
     ----------
     path : :obj:`str`
         Path to file.
-
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
+    skip_invalid_intervals : :obj:`bool`
+        If ``True`` and `reference_genome` is not ``None``, skip lines with
+        intervals that are not consistent with the reference genome.
 
     Returns
     -------
@@ -377,21 +384,19 @@ def import_locus_intervals(path, reference_genome='default') -> Table:
     """
     rg = reference_genome._jrep if reference_genome else None
 
-    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg))
+    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg),
+                                                  skip_invalid_intervals)
     return Table(t)
 
 
 @typecheck(path=str,
-           reference_genome=nullable(reference_genome_type))
-def import_bed(path, reference_genome='default') -> Table:
+           reference_genome=nullable(reference_genome_type),
+           skip_invalid_intervals=bool)
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
     """Import a UCSC .bed file as a :class:`.Table`.
 
     Examples
     --------
-
-    >>> bed = hl.import_bed('data/file1.bed')
-
-    >>> bed = hl.import_bed('data/file2.bed')
 
     The file formats are
 
@@ -409,6 +414,17 @@ def import_bed(path, reference_genome='default') -> Table:
         20    17000000   18000000  cnv2
         ...
 
+    Add the row field `cnv_region` indicating inclusion in
+    at least one interval of the three-column BED file:
+
+    >>> bed = hl.import_bed('data/file1.bed')
+    >>> result = dataset.annotate_rows(cnv_region = hl.is_defined(bed[dataset.locus]))
+
+    Add a row field `cnv_id` with the value given by the
+    fourth column of a BED file:
+
+    >>> bed = hl.import_bed('data/file2.bed')
+    >>> result = dataset.annotate_rows(cnv_id = bed[dataset.locus].target)
 
     Notes
     -----
@@ -424,7 +440,7 @@ def import_bed(path, reference_genome='default') -> Table:
           type :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
 
     If the .bed file has four or more columns, then Hail will store the fourth
-    column as a field in the table:
+    column as a row field in the table:
 
         - *interval* (:class:`.tinterval`) - Row key. Genomic interval. Same schema as above.
         - *target* (:py:data:`.tstr`) - Fourth column of .bed file.
@@ -435,39 +451,30 @@ def import_bed(path, reference_genome='default') -> Table:
 
     Warning
     -------
-        UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
-        will contain locus ``5:105`` but not ``5:100``. Details
-        `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
+    UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
+    will contain locus ``5:105`` but not ``5:100``. Details
+    `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
     Parameters
     ----------
     path : :obj:`str`
         Path to .bed file.
-
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
+    skip_invalid_intervals : :obj:`bool`
+        If ``True`` and `reference_genome` is not ``None``, skip lines with
+        intervals that are not consistent with the reference genome.
 
     Returns
     -------
     :class:`.Table`
         Interval-keyed table.
     """
-    # FIXME: once interval join support is added, add the following examples:
-    # Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
-    # at least one interval of the three-column BED file `file1.bed`:
-
-    # >>> bed = hl.import_bed('data/file1.bed')
-    # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.locus])
-
-    # Add a variant annotation **va.cnvRegion** (*String*) with value given by the
-    # fourth column of ``file2.bed``:
-
-    # >>> bed = hl.import_bed('data/file2.bed')
-    # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
 
     rg = reference_genome._jrep if reference_genome else None
 
-    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg))
+    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg),
+                                          skip_invalid_intervals)
     return Table(jt)
 
 
