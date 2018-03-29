@@ -1,12 +1,9 @@
 package is.hail.sparkextras
 
-import is.hail.io._
-import is.hail.expr.types._
 import is.hail.utils._
-
 import org.apache.spark._
 import org.apache.spark.rdd._
-import org.apache.spark.storage._
+
 import scala.reflect.ClassTag
 
 object ContextRDD {
