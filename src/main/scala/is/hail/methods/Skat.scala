@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
-import is.hail.annotations.{Annotation, UnsafeRow, WritableRegionValue}
+import is.hail.annotations.{Annotation, UnsafeRow}
 import breeze.linalg._
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
@@ -227,9 +227,7 @@ object Skat {
 
     (vsm.rvd.rdd.flatMap { rv =>
       val fullRow = new UnsafeRow(fullRowType, rv)
-      val wrv = WritableRegionValue(localRowType)
-      wrv.setSelect(fullRowType, Array.range(0, fullRowType.size).filter(_ != localEntriesIndex), rv)
-      val row = new UnsafeRow(localRowType, wrv.value)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       (Option(keyQuerier(row)), typedWeightQuerier(row)) match {
         case (Some(key), Some(w)) =>
