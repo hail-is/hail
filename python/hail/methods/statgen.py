@@ -1285,7 +1285,7 @@ def hwe_normalized_pca(entry_expr, k=10, compute_loadings=False, as_array=False)
     Examples
     --------
 
-    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset, k=5)
+    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset.GT, k=5)
 
     Notes
     -----
@@ -1732,7 +1732,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     require_col_key_str(dataset, 'pc_relate')
     dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
+    _, scores, _ = hwe_normalized_pca(dataset.GT, k, False, True)
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
             .apply(dataset._jvds,
