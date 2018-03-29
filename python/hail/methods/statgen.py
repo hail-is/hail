@@ -1567,7 +1567,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
        :math:`i` and :math:`j` have a defined genotype
 
      - :math:`g_{is} \\in {0, 1, 2}` be the number of alternate alleles that
-       individual :math:`i` has at gentic locus :math:`s`
+       individual :math:`i` has at genetic locus :math:`s`
 
      - :math:`\\widehat{\\mu_{is}} \\in [0, 1]` be the individual-specific allele
        frequency for individual :math:`i` at genetic locus :math:`s`
@@ -1675,6 +1675,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
        :math:`2^{-3} = 12.5 %` of their genetic material, the results of
        PCRelate are often too noisy to reliably distinguish these pairs from
        higher-degree-relative-pairs or unrelated pairs.
+
+    Note that :math:`g_{is}` is the number of alternate alleles. Hence, for
+    multi-allelic variants, a value of 2 may indicate two distinct alternative
+    alleles rather than a homozygous variant genotype. To enforce the latter,
+    either filter or split multi-allelic variants first.
 
     The resulting table has the first 3, 4, 5, or 6 fields below, depending on
     the `statistics` parameter:
