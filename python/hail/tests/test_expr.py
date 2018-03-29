@@ -1155,3 +1155,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(li.overlaps(li4).value)
         self.assertFalse(li.overlaps(li3).value)
         self.assertFalse(li.overlaps(li5).value)
+
+    def test_reference_genome_fns(self):
+        self.assertTrue(hl.is_valid_contig('GRCh37', '1').value)
+        self.assertFalse(hl.is_valid_contig('GRCh37', 'chr1').value)
+        self.assertFalse(hl.is_valid_contig('GRCh38', '1').value)
+        self.assertTrue(hl.is_valid_contig('GRCh38', 'chr1').value)
+
+        self.assertTrue(hl.is_valid_locus('GRCh37', '1', 325423).value)
+        self.assertFalse(hl.is_valid_locus('GRCh37', '1', 0).value)
+        self.assertFalse(hl.is_valid_locus('GRCh37', '1', 249250622).value)
+
+        self.assertTrue(hl.is_valid_locus_interval('GRCh37', '1', 325423, '1', 249250622, True, False).value)
+        # self.assertTrue(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, False, False).value)
+        # self.assertFalse(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, True, False).value)
+        # self.assertFalse(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, False, True).value)
+        # self.assertFalse(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, True, True).value)

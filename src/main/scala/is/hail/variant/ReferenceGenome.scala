@@ -220,6 +220,13 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
 
+  def isValidLocusInterval(startContig: String, startPos: Int, endContig: String, endPos: Int, includesStart: Boolean, includesEnd: Boolean): Boolean = {
+    isValidContig(startContig) &&
+      isValidContig(endContig) &&
+      isValidLocus(startContig, if (includesStart) startPos else startPos + 1) &&
+      isValidLocus(endContig, if (includesEnd) endPos else endPos - 1)
+  }
+
   def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
 
   def checkLocus(contig: String, pos: Int): Unit = {
