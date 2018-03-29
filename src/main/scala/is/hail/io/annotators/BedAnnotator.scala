@@ -65,10 +65,9 @@ object BedAnnotator {
           val start = spl(1).toInt + 1
           val end = spl(2).toInt
 
-          if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(chrom) || !rg.isValidLocus(chrom, start) || !rg.isValidLocus(chrom, end))) {
-            warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
+          if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(chrom) || !rg.isValidLocus(chrom, start) || !rg.isValidLocus(chrom, end)))
             None
-          } else {
+          else {
             val interval = Interval(Locus.annotation(chrom, start, rg), Locus.annotation(chrom, end, rg), true, true)
 
             if (hasTarget)

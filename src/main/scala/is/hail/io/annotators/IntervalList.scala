@@ -52,10 +52,9 @@ object IntervalList {
             val split = line.split("\\s+")
             split match {
               case Array(contig, start, end, dir, target) =>
-                if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
-                  warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
+                if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt)))
                   None
-                } else {
+                else {
                   val interval = Interval(Locus.annotation(contig, start.toInt, rg), Locus.annotation(contig, end.toInt, rg),
                     includesStart = true, includesEnd = true)
                   Some(Row(interval, target))
@@ -65,10 +64,9 @@ object IntervalList {
           } else {
             line match {
               case intervalRegex(contig, start, end) =>
-                if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
-                  warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
+                if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt)))
                   None
-                } else {
+                else {
                   val interval = Interval(Locus.annotation(contig, start.toInt, rg), Locus.annotation(contig, end.toInt, rg),
                     includesStart = true, includesEnd = true)
                   Some(Row(interval))
