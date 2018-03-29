@@ -470,8 +470,8 @@ class Tests(unittest.TestCase):
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
-        _, scores2, _ = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False, as_array=True)
-        _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False, as_array=True)
+        _, scores2, _ = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
+        _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
 
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
         kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores,

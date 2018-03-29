@@ -1276,9 +1276,8 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
 @typecheck(call_expr=expr_call,
            k=int,
-           compute_loadings=bool,
-           as_array=bool)
-def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
+           compute_loadings=bool)
+def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
     genotype call matrix.
 
@@ -1289,12 +1288,11 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) 
 
     Notes
     -----
-
-    This is a specialization of :func:`.pca` for the common use case
+    This method specializes  :func:`.pca` for the common use case
     of PCA in statistical genetics, that of projecting samples to a small
     number of ancestry coordinates. Variants that are all homozygous reference
     or all homozygous alternate are unnormalizable and removed before
-    evaluation.
+    evaluation. See :func:`.pca` for more details.
 
     Users of PLINK/GCTA should be aware that Hail computes the GRM slightly
     differently with regard to missing data. In Hail, the
@@ -1329,9 +1327,6 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) 
         Number of principal components.
     compute_loadings : :obj:`bool`
         If ``True``, compute row loadings.
-    as_array : :obj:`bool`
-        If ``True``, return scores and loadings as an array field. If ``False``, return
-        one field per element (`PC1`, `PC2`, ... `PCk`).
 
     Returns
     -------
@@ -1357,15 +1352,13 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) 
 
     return pca(normalized_gt,
                k,
-               compute_loadings,
-               as_array)
+               compute_loadings)
 
 
 @typecheck(entry_expr=expr_float64,
            k=int,
-           compute_loadings=bool,
-           as_array=bool)
-def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
+           compute_loadings=bool)
+def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on numeric columns derived from a
     matrix table.
 
@@ -1420,19 +1413,16 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     default, Hail only computes the loadings if the ``loadings`` parameter is
     specified.
 
-    Scores are stored in a :class:`.Table` with the column keys of the matrix
-    followed by the principal component scores. If `as_array` is ``True``, there
-    is one row field `scores` of type ``array<float64>`` containing the principal
-    component scores. If `as_array` is ``False`` (default), then each principal
-    component score is a new row field of type ``float64`` with the names `PC1`,
-    `PC2`, etc.
+    Scores are stored in a :class:`.Table` with the column key of the matrix
+    table as key and a field `scores` of type ``array<float64>`` containing
+    the principal component scores.
 
-    Loadings are stored in a :class:`.Table` with a structure similar to the
-    scores table except the row keys of the matrix are followed by the loadings.
-    If `as_array` is ``False``, the loadings are stored in one row field
-    `loadings` of type ``array<float64>``. Otherwise, each principal component
-    loading is a new row field of type ``float64`` with the names `PC1`, `PC2`,
-    etc.
+    Loadings are stored in a :class:`.Table` with the row key of the matrix
+    table as key and a field `loadings` of type ``array<float64>`` containing
+    the principal component loadings.
+
+    The eigenvalues are returned in descending order, with scores and loadings
+    given the corresponding array order.
 
     Parameters
     ----------
@@ -1442,9 +1432,6 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
         Number of principal components.
     compute_loadings : :obj:`bool`
         If ``True``, compute row loadings.
-    as_array : :obj:`bool`
-        If ``True``, return scores and loadings as an array field. If ``False``,
-        add one row field per element (`PC1`, `PC2`, ... `PCk`).
 
     Returns
     -------
@@ -1462,8 +1449,8 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
         field = Env.get_uid()
         mt = mt.select_entries(**{field: entry_expr})
 
-    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings, as_array)
-    scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, as_array, r._2()))
+    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings)
+    scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
     loadings = from_option(r._3())
     if loadings:
         loadings = Table(loadings)
@@ -1509,8 +1496,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset.GT,
     ...                                      k=10,
-    ...                                      compute_loadings=False,
-    ...                                      as_array=True)
+    ...                                      compute_loadings=False)
     >>> rel = hl.pc_relate(dataset.GT,
     ...                    0.01,
     ...                    scores_expr=scores_table[dataset.col_key].scores,
@@ -1744,7 +1730,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
-        _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False, as_array=True)
+        _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
         analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
