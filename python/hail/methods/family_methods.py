@@ -279,8 +279,10 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
     ])
     table3 = table3.explode('xs')
     table3 = table3.select(**table3.xs)
-    table3 = table3.group_by(ck_name, 'fam_id').aggregate(errors=hl.agg.sum(table3.errors),
-                                                          snp_errors=hl.agg.sum(table3.snp_errors))
+    table3 = (table3.group_by(ck_name, 'fam_id')
+              .aggregate(errors=hl.agg.sum(table3.errors),
+                         snp_errors=hl.agg.sum(table3.snp_errors))
+              .key_by(ck_name))
 
     table4 = tm.select_rows(*tm.row_key,
                             errors=hl.agg.count_where(hl.is_defined(tm.mendel_code))).rows()
