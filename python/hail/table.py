@@ -635,7 +635,7 @@ class Table(ExprContainer):
             check_collisions(self._fields, k, self._row_indices)
         return self._select('Table.annotate', self.row.annotate(**named_exprs))
 
-    @typecheck_method(expr=anytype,
+    @typecheck_method(expr=expr_bool,
                       keep=bool)
     def filter(self, expr, keep=True):
         """Filter rows.
@@ -680,12 +680,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Filtered table.
         """
-        expr = to_expr(expr)
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
-        if expr.dtype != tbool:
-            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
-                            .format(expr.dtype))
 
         return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
 
