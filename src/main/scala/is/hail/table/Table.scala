@@ -151,6 +151,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
     ))
   }
 
+  private def useIR(ast: AST): Boolean = {
+    if (hc.forceIR)
+      return true
+    ast.`type`.asInstanceOf[TStruct].size < 500
+  }
+
   lazy val value: TableValue = {
     val opt = TableIR.optimize(tir)
     opt.execute(hc)
@@ -405,7 +411,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIR() match {
-      case Some(ir) if ast.`type`.asInstanceOf[TStruct].size < 500 =>
+      case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapGlobals(tir, ir))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -471,7 +477,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIR() match {
-      case Some(ir) if ast.`type`.asInstanceOf[TStruct].size < 500 =>
+      case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapRows(tir, ir))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)

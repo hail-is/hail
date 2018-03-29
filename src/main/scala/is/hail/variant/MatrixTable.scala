@@ -472,6 +472,33 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         matrixType,
         MatrixValue(matrixType, globals, colValues, rvd)))
 
+  private type Axis = Int
+  private val globalAxis: Axis = 0
+  private val rowAxis: Axis = 1
+  private val colAxis: Axis = 2
+  private val entryAxis: Axis = 3
+
+  private def useIR(axis: Axis, ast: AST): Boolean = {
+    if (hc.forceIR)
+      return true
+    axis match {
+      case this.globalAxis =>
+        ast.`type`.asInstanceOf[TStruct].size < 500
+
+      case this.rowAxis =>
+        rowType.size < 500 &&
+          (colType.size == 1 &&
+            Set(TInt32(), +TInt32(), TString(), +TString())
+              .contains(colType.types(0)))
+
+      case this.colAxis =>
+        ast.`type`.asInstanceOf[TStruct].size < 500
+
+      case this.entryAxis =>
+        ast.`type`.asInstanceOf[TStruct].size < 500
+    }
+  }
+
   def requireRowKeyVariant(method: String) {
     rowKey.zip(rowKeyTypes) match {
       case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
