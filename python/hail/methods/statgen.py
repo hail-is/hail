@@ -1274,7 +1274,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     return Table(jt)
 
 
-@typecheck(dataset=expr_call,
+@typecheck(entry_expr=expr_call,
            k=int,
            compute_loadings=bool,
            as_array=bool)
