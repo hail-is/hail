@@ -1324,7 +1324,7 @@ def hwe_normalized_pca(entry_expr, k=10, compute_loadings=False, as_array=False)
     Parameters
     ----------
     entry_expr : :class:`.CallExpression`
-        Call expression in Matrix table.
+        Entry-indexed call expression.
     k : :obj:`int`
         Number of principal components.
     compute_loadings : :obj:`bool`
