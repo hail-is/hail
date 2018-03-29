@@ -21,7 +21,7 @@ class KinshipMatrix(object):
         return cls(Env.hail().methods.KinshipMatrix.apply(
             Env.hc()._jhc,
             bm._jbm,
-            col_keys,
+            col_keys._jt,
             n_rows))
 
     @property

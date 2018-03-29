@@ -397,7 +397,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(scores.count(), 100)
         self.assertTrue(isinstance(loadings, hl.Table))
 
-        _, _, loadings = hl.pca(mt.GT, k=2, compute_loadings=False)
+        _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
     def test_pca(self):

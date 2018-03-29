@@ -1743,11 +1743,10 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     :class:`.Table`
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    source = call_expr._indices.source
-    if not isinstance(source, MatrixTable):
+    mt = call_expr._indices.source
+    if not isinstance(mt, MatrixTable):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-    mt = source
+            "expression of '{}'".format(mt.__class__) if mt is not None else 'scalar expression'))
     analyze('pc_relate/call_expr', call_expr, mt._entry_indices)
 
     if k and scores_expr is None:
