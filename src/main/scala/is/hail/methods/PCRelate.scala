@@ -38,10 +38,10 @@ object PCRelate {
       ("i", TInt32()),
       ("j", TInt32()),
       ("kin", TFloat64()),
-      ("k0", TFloat64()),
-      ("k1", TFloat64()),
-      ("k2", TFloat64()))
-  
+      ("ibd0", TFloat64()),
+      ("ibd1", TFloat64()),
+      ("ibd2", TFloat64()))
+
   private val keys = Array("i", "j")
 
   def apply(
@@ -80,7 +80,7 @@ object PCRelate {
 
     Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, k0: row.k0, k1: row.k1, k2: row.k2}") 
+      .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, ibd0: row.ibd0, ibd1: row.ibd1, ibd2: row.ibd2}") 
   }
 
   // FIXME move matrix formation to Python
@@ -127,8 +127,8 @@ object PCRelate {
         var jj = 0
         while (jj < lmPhi.cols) {
           var ii = 0
-          val rowsAboveDiagonal = if (i < j) lmPhi.rows else jj
-          while (ii < rowsAboveDiagonal) {
+          val nRowsAboveDiagonal = if (i < j) lmPhi.rows else jj // assumes square blocks on diagonal
+          while (ii < nRowsAboveDiagonal) {
             val kin = lmPhi(ii, jj)
             if (kin >= minKinship) {
               val k0 = if (lmK0 == null) null else lmK0(ii, jj)

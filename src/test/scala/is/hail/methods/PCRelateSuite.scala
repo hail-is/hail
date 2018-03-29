@@ -65,9 +65,9 @@ class PCRelateSuite extends SparkSuite {
       ("ID2", TString()),
       ("nsnp", TFloat64()),
       ("kin", TFloat64()),
-      ("k0", TFloat64()),
-      ("k1", TFloat64()),
-      ("k2", TFloat64()))
+      ("ibd0", TFloat64()),
+      ("ibd1", TFloat64()),
+      ("ibd2", TFloat64()))
     val separator = " +"
 
     hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")

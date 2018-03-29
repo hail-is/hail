@@ -1475,7 +1475,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
            k=nullable(int),
            scores_expr=nullable(expr_array(expr_float64)),
            min_kinship=numeric,
-           statistics=enumeration('kin', 'kink2', 'kink2k0', 'all'),
+           statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
            block_size=nullable(int))
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
@@ -1647,6 +1647,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     :func:`.pc_relate` differs from the reference implementation in a few
     ways:
 
+     - if `k` is supplied, samples scores are computed via PCA on all samples,
+       not a specified subset of genetically unrelated samples. The latter
+       can be achieved by filtering samples, computing PCA variant loadings,
+       and using these loadings to compute and pass in scores for all samples.
+
      - the estimators do not perform small sample correction
 
      - the algorithm does not provide an option to use population-wide
@@ -1687,9 +1692,9 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
      - `i` (``col_key.dtype``) -- First sample. (key field)
      - `j` (``col_key.dtype``) -- Second sample. (key field)
      - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\\widehat{\\phi_{ij}}`.
-     - `k2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\\widehat{k^{(2)}_{ij}}`.
-     - `k0` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\\widehat{k^{(0)}_{ij}}`.
-     - `k1` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\\widehat{k^{(1)}_{ij}}`.
+     - `ibd2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\\widehat{k^{(2)}_{ij}}`.
+     - `ibd0` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\\widehat{k^{(0)}_{ij}}`.
+     - `ibd1` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\\widehat{k^{(1)}_{ij}}`.
 
     Here ``col_key`` refers to the column key of the source matrix table,
     and ``col_key.dtype`` is a struct containing the column key fields.
@@ -1724,8 +1729,8 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     statistics : :obj:`str`
         Set of statistics to compute.
         If ``'kin'``, only estimate the kinship statistic.
-        If ``'kink2'``, estimate the above and IBD2.
-        If ``'kink2k0'``, estimate the above and IBD0.
+        If ``'kin2'``, estimate the above and IBD2.
+        If ``'kin20'``, estimate the above and IBD0.
         If ``'all'``, estimate the above and IBD1.
     block_size : :obj:`int`, optional
         Block size of block matrices used in the algorithm.
@@ -1769,7 +1774,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     g = BlockMatrix.from_entry_expr(mean_imputed_gt,
                                     block_size=block_size)
 
-    int_statistics = {'kin': 0, 'kink2': 1, 'kink2k0': 2, 'all': 3}[statistics]
+    int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
 
     ht = Table(scala_object(Env.hail().methods, 'PCRelate')
             .apply(Env.hc()._jhc,
@@ -1781,11 +1786,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
                    int_statistics))
 
     if statistics == 'kin':
-        ht = ht.drop('k0', 'k1', 'k2')
-    elif statistics == 'kink2':
-        ht = ht.drop('k0', 'k1')
-    elif statistics == 'kink2k0':
-        ht = ht.drop('k1')
+        ht = ht.drop('ibd0', 'ibd1', 'ibd2')
+    elif statistics == 'kin2':
+        ht = ht.drop('ibd0', 'ibd1')
+    elif statistics == 'kin20':
+        ht = ht.drop('ibd1')
 
     col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
     return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])

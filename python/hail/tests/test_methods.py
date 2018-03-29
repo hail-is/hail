@@ -428,13 +428,12 @@ class Tests(unittest.TestCase):
         plink_kin = hl.import_table(plink_file + '.out',
                                     delimiter=' +',
                                     types=types)
-        plink_kin = plink_kin.select(i=hl.struct(sample_idx=plink_kin.ID1),
-                                     j=hl.struct(sample_idx=plink_kin.ID2),
-                                     kin=plink_kin.kin,
-                                     k0=plink_kin.k0,
-                                     k1=plink_kin.k1,
-                                     k2=plink_kin.k2).key_by('i', 'j')
-        return plink_kin
+        return plink_kin.select(i=hl.struct(sample_idx=plink_kin.ID1),
+                                j=hl.struct(sample_idx=plink_kin.ID2),
+                                kin=plink_kin.kin,
+                                ibd0=plink_kin.k0,
+                                ibd1=plink_kin.k1,
+                                ibd2=plink_kin.k2).key_by('i', 'j')
 
     def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
         mt = hl.balding_nichols_model(3, 100, 1000)
@@ -443,9 +442,9 @@ class Tests(unittest.TestCase):
         rkin = self._R_pc_relate(mt, 0.00).cache()
 
         self.assertTrue(rkin.select("i", "j", "kin")._same(hkin.select("i", "j", "kin"), tolerance=1e-3))
-        self.assertTrue(rkin.select("i", "j", "k0")._same(hkin.select("i", "j", "k0"), tolerance=1e-2))
-        self.assertTrue(rkin.select("i", "j", "k1")._same(hkin.select("i", "j", "k1"), tolerance=2e-2))
-        self.assertTrue(rkin.select("i", "j", "k2")._same(hkin.select("i", "j", "k2"), tolerance=1e-2))
+        self.assertTrue(rkin.select("i", "j", "ibd0")._same(hkin.select("i", "j", "ibd0"), tolerance=1e-2))
+        self.assertTrue(rkin.select("i", "j", "ibd1")._same(hkin.select("i", "j", "ibd1"), tolerance=2e-2))
+        self.assertTrue(rkin.select("i", "j", "ibd2")._same(hkin.select("i", "j", "ibd2"), tolerance=1e-2))
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
@@ -453,13 +452,16 @@ class Tests(unittest.TestCase):
         _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
 
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores, statistics='kin', block_size=32)
+        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores,
+                              statistics='kin', block_size=32)
 
-        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kink2', block_size=128).cache()
-        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, min_kinship=0.01, statistics='kink2', block_size=16)
+        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
+        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, min_kinship=0.01,
+                              statistics='kin2', block_size=16)
 
-        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kink2k0', block_size=64).cache()
-        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, min_kinship=0.1, statistics='kink2k0', block_size=32)
+        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
+        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, min_kinship=0.1,
+                              statistics='kin20', block_size=32)
 
         kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=128)
         kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=16)
