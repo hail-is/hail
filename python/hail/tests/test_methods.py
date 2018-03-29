@@ -388,6 +388,19 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(manual, rrm))
 
+    def test_hwe_normalized_pca(self):
+        dataset = hl.balding_nichols_model(3, 100, 100)
+        eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset.GT, k=2, compute_loadings=True)
+
+        self.assertEqual(len(eigenvalues), 2)
+        self.assertTrue(isinstance(scores, hl.Table))
+        self.assertEqual(scores.count(), 100)
+        self.assertTrue(isinstance(loadings, hl.Table))
+        self.assertEqual(loadings.count(), 100)
+
+        _, _, loadings = hl.pca(dataset.GT, k=2, compute_loadings=False)
+        self.assertEqual(loadings, None)
+
     def test_pca(self):
         dataset = hl.balding_nichols_model(3, 100, 100)
         eigenvalues, scores, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=True)
