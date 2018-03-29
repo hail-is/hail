@@ -1129,8 +1129,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     rowsAST.toIR(Some("AGG")) match {
       case Some(x) if !useAST =>
+        new MatrixTable(hc, MapRows(ast, x))
 
-      case None =>
+      case _ =>
         val newRowType = coerce[TStruct](rowsAST.`type`)
         val namesSet = newRowType.fieldNames.toSet
         val newRowKey = rowKey.filter(namesSet.contains)

@@ -625,7 +625,7 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   val tAgg = TAggregable(tAggElt, aggSymTab)
 
   val typ: MatrixType = {
-    Infer(newRow, None, new Env[Type]()
+    Infer(newRVRow, Some(tAgg), new Env[Type]()
       .bind("global", child.typ.globalType)
       .bind("va", child.typ.rvRowType)
       .bind("AGG", tAgg)
@@ -640,16 +640,16 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
     newRow match {
       case MakeStruct(fields, _) =>
-        !fields.filter { case (name, f) => typ.rowKey.contains(name) }.forall { case (name, ir) =>
+        fields.exists { case (name, ir) =>
+          typ.rowKey.contains(name) && (
             ir match {
-              case GetField(Ref("va", _), n, _) if n == name => false
+              case GetField(Ref("va", _), n, _) => n != name
               case _ => true
-            }
+            })
         }
       case InsertFields(Ref("va", _), toIns, _) => toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
       case _ => true
     })
-
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -667,8 +667,8 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       "AGG", tAgg,
       "global", localGlobalsType,
       "va", prev.typ.rvRowType,
-      newRow)
-    assert(rTyp == typ.rvRowType)
+      newRVRow)
+    assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
     val mapPartitionF = { it: Iterator[RegionValue] =>
       val rvb = new RegionValueBuilder()
