@@ -1338,8 +1338,6 @@ def hwe_normalized_pca(entry_expr, k=10, compute_loadings=False, as_array=False)
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    if not isinstance(entry_expr, CallExpression):
-        raise ValueError("Expect an expression of 'CallExpression', found {}".format(type(entry_expr)))
     source = entry_expr._indices.source
     if not isinstance(source, MatrixTable):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
