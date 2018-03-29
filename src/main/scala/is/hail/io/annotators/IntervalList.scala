@@ -52,7 +52,7 @@ object IntervalList {
             val split = line.split("\\s+")
             split match {
               case Array(contig, start, end, dir, target) =>
-                if (skipInvalidIntervals && rg.forall(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
+                if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
                   warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
                   None
                 } else {
@@ -65,7 +65,7 @@ object IntervalList {
           } else {
             line match {
               case intervalRegex(contig, start, end) =>
-                if (skipInvalidIntervals && rg.forall(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
+                if (skipInvalidIntervals && rg.exists(rg => !rg.isValidContig(contig) || !rg.isValidLocus(contig, start.toInt) || !rg.isValidLocus(contig, end.toInt))) {
                   warn(s"Interval is not consistent with reference genome '${ rg.get.name }': '$line'.")
                   None
                 } else {

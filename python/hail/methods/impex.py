@@ -362,10 +362,10 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
     Warning
     -------
-    The interval parser for these files does not support the full range of
-    formats supported by the python parser
-    :meth:`representation.Interval.parse`. 'k', 'm', 'start', and 'end' are all
-    invalid motifs in the ``contig:start-end`` format here.
+        The interval parser for these files does not support the full range of
+        formats supported by the python parser
+        :meth:`representation.Interval.parse`. 'k', 'm', 'start', and 'end' are
+        all invalid motifs in the ``contig:start-end`` format here.
 
     Parameters
     ----------
@@ -414,17 +414,17 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
         20    17000000   18000000  cnv2
         ...
 
-    Add the row annotation `cnvRegion` indicating inclusion in
+    Add the row field `cnv_region` indicating inclusion in
     at least one interval of the three-column BED file:
 
     >>> bed = hl.import_bed('data/file1.bed')
-    >>> result = dataset.annotate_rows(cnvRegion = hl.is_defined(bed[dataset.locus]))
+    >>> result = dataset.annotate_rows(cnv_region = hl.is_defined(bed[dataset.locus]))
 
-    Add a row annotation `cnvID` with the value given by the
+    Add a row field `cnv_id` with the value given by the
     fourth column of a BED file:
 
     >>> bed = hl.import_bed('data/file2.bed')
-    >>> result = dataset.annotate_rows(cnvID = bed[dataset.locus].target)
+    >>> result = dataset.annotate_rows(cnv_id = bed[dataset.locus].target)
 
     Notes
     -----
@@ -440,7 +440,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
           type :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
 
     If the .bed file has four or more columns, then Hail will store the fourth
-    column as a field in the table:
+    column as a row field in the table:
 
         - *interval* (:class:`.tinterval`) - Row key. Genomic interval. Same schema as above.
         - *target* (:py:data:`.tstr`) - Fourth column of .bed file.
