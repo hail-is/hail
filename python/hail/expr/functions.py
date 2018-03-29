@@ -3572,10 +3572,10 @@ def is_valid_locus_interval(reference_genome, start_contig, start_position,
 
     .. doctest::
 
-        >>> hl.is_valid_locus_interval('GRCh37', '1', 1, '1', 249250622, true, false)
+        >>> hl.is_valid_locus_interval('GRCh37', '1', 1, '1', 249250622, True, False)
         True
 
-        >>> hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, true, true)
+        >>> hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, True, True)
         False
 
     Parameters
