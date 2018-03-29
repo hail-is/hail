@@ -1338,11 +1338,7 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) 
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    mt = call_expr._indices.source
-    if not isinstance(mt, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(mt.__class__) if mt is not None else 'scalar expression'))
-    analyze('hwe_normalized_pca', call_expr, mt._entry_indices)
+    mt = analyze_entry_expr('hwe_normalized_pca/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
@@ -1456,16 +1452,10 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    source = entry_expr._indices.source
-    if not isinstance(source, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-    dataset = source
-    base, _ = dataset._process_joins(entry_expr)
-    analyze('pca', entry_expr, dataset._entry_indices)
+    mt = analyze_entry_expr('pca/entry_expr', entry_expr)
 
-    r = Env.hail().methods.PCA.apply(dataset._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
-    scores = Table(Env.hail().methods.PCA.scoresTable(dataset._jvds, as_array, r._2()))
+    r = Env.hail().methods.PCA.apply(mt._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
+    scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, as_array, r._2()))
     loadings = from_option(r._3())
     if loadings:
         loadings = Table(loadings)
@@ -1743,11 +1733,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     :class:`.Table`
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    mt = call_expr._indices.source
-    if not isinstance(mt, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(mt.__class__) if mt is not None else 'scalar expression'))
-    analyze('pc_relate/call_expr', call_expr, mt._entry_indices)
+    mt = analyze_entry_expr('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
         _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False, as_array=True)
@@ -2168,12 +2154,8 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     :class:`.genetics.KinshipMatrix`
         Genetic relatedness matrix for all samples.
     """
-    mt = call_expr._indices.source
-    if not isinstance(mt, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(mt.__class__) if mt is not None else 'scalar expression'))
-    analyze('realized_relationship_matrix', call_expr, mt._entry_indices)
-    require_col_key_str(mt, 'realized_relationship_matrix')
+    mt = analyze_entry_expr('genetic_relatedness_matrix/call_expr', call_expr)
+    require_col_key_str(mt, 'genetic_relatedness_matrix')
 
     col_keys = mt.cols().select(*mt.col_key)
 
@@ -2254,11 +2236,7 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     :class:`.genetics.KinshipMatrix`
         Realized relationship matrix for all samples.
     """
-    mt = call_expr._indices.source
-    if not isinstance(mt, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(mt.__class__) if mt is not None else 'scalar expression'))
-    analyze('realized_relationship_matrix', call_expr, mt._entry_indices)
+    mt = analyze_entry_expr('realized_relationship_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'realized_relationship_matrix')
 
     col_keys = mt.cols().select(*mt.col_key)

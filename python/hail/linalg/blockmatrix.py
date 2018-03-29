@@ -1,9 +1,8 @@
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
-from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.expr.expressions import expr_float64
+from hail.expr.expressions import expr_float64, analyze_entry_expr
 import numpy as np
 from enum import IntEnum
 
@@ -387,21 +386,13 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        source = entry_expr._indices.source
-        if not isinstance(source, MatrixTable):
-            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+        mt = analyze_entry_expr('write_from_entry_expr/entry_expr', entry_expr)
 
-        if entry_expr._indices != source._entry_indices:
-            from hail.expr.expressions import ExpressionException
-            raise ExpressionException("from_entry_expr: 'entry_expr' must be entry-indexed,"
-                                      " found indices {}".format(list(entry_expr._indices.axes)))
-
-        if entry_expr in source._fields_inverse:
-            source._jvds.writeBlockMatrix(path, source._fields_inverse[entry_expr], block_size)
+        if entry_expr in mt._fields_inverse:
+            mt._jvds.writeBlockMatrix(path, mt._fields_inverse[entry_expr], block_size)
         else:
             uid = Env.get_uid()
-            source.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
+            mt.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
 
     @typecheck_method(rows_to_keep=sequenceof(int))
     def filter_rows(self, rows_to_keep):
