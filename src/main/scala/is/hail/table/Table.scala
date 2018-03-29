@@ -2,8 +2,9 @@ package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr._
-import is.hail.expr.ir.{IR, InsertFields, MakeStruct, Ref}
+import is.hail.expr.ir.{MakeTuple, CompileWithAggregators}
 import is.hail.expr.types._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -318,30 +319,82 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def queryJSON(expr: String): String = {
-    val (a, t) = query(Array(expr)).head
+    val (a, t) = query(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
 
   def query(expr: String): (Annotation, Type) = query(Array(expr)).head
 
-  def query(exprs: java.util.ArrayList[String]): Array[(Annotation, Type)] = query(exprs.asScala.toArray)
-
   def query(exprs: Array[String]): Array[(Annotation, Type)] = {
-    val ec = aggEvalContext()
-
-    val ts = exprs.map(e => Parser.parseExpr(e, ec))
-
     val globalsBc = globals.broadcast
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
-      case (ec, a) =>
-        ec.setAll(globalsBc.value, a)
-    })
+    val ec = aggEvalContext()
+    val irs = exprs.flatMap(Parser.parseToAST(_, ec).toIR(Some("AGG")))
 
-    val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
-    resultOp(r)
+    if (irs.length == exprs.length) {
+      val ir = MakeTuple(irs)
 
-    ts.map { case (t, f) => (f(), t) }
+      val localGlobalSignature = globalSignature
+      val tAgg = ec.st("AGG")._2.asInstanceOf[TAggregable]
+
+      val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
+        "AGG", tAgg,
+        "global", globalSignature,
+        ir)
+
+      val aggResults = if (seqOps.nonEmpty) {
+        rvd.treeAggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
+          // add globals to region value
+          val rowOffset = rv.offset
+          val rvb = new RegionValueBuilder()
+          rvb.set(rv.region)
+          rvb.start(localGlobalSignature)
+          rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+          val globalsOffset = rvb.end()
+
+          rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
+            seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false)
+          }
+          rvaggs
+        }, { (rvAggs1, rvAggs2) =>
+          rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
+          rvAggs1
+        })
+      } else
+        Array.empty[RegionValueAggregator]
+
+      val region: Region = Region()
+      val rvb: RegionValueBuilder = new RegionValueBuilder()
+      rvb.set(region)
+
+      rvb.start(aggResultType)
+      rvb.startStruct()
+      aggResults.foreach(_.result(rvb))
+      rvb.endStruct()
+      val aggResultsOffset = rvb.end()
+
+      rvb.start(globalSignature)
+      rvb.addAnnotation(globalSignature, globalsBc.value)
+      val globalsOffset = rvb.end()
+
+      val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+      val resultType = coerce[TTuple](t)
+      val result = UnsafeRow.readBaseStruct(resultType, region, resultOffset)
+
+      result.toSeq.zip(resultType.types).toArray
+    } else {
+      val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+      val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
+        case (ec, a) =>
+          ec.setAll(globalsBc.value, a)
+      })
+
+      val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
+      resultOp(r)
+
+      ts.map { case (t, f) => (f(), t) }
+    }
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {

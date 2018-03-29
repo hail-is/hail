@@ -100,7 +100,6 @@ class RegionValueSumDoubleAggregator extends RegionValueAggregator {
   private var sum: Double = 0.0
 
   def seqOp(d: Double, missing: Boolean) {
-    println(s"$d $missing")
     if (!missing)
       sum += d
   }

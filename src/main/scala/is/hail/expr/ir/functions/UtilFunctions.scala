@@ -17,7 +17,7 @@ object UtilFunctions extends RegistryFunctions {
       ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
     }
 
-    registerIR("sum", TAggregable(tv("T")))(ApplyAggOp(_, Sum(), Seq()))
+    registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), Seq()))
 
     registerIR("min", TArray(tnum("T"))) { a =>
       val body = If(IsNA(Ref("min")),

@@ -233,6 +233,22 @@ class TableTests(unittest.TestCase):
         self.assertEqual(set(results.q3), {"hello", "cat", "dog"})
         self.assertEqual(set(results.q4), {"hello", "cat"})
 
+    def test_query_ir(self):
+        kt = hl.utils.range_table(10).annotate_globals(g1 = 5)
+        r = kt.aggregate(hl.struct(x = agg.sum(kt.idx) + kt.g1,
+                                   y = agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1,
+                                   z = agg.sum(kt.g1 + kt.idx) + kt.g1))
+        self.assertEqual(convert_struct_to_dict(r), {u'x': 50, u'y': 40, u'z': 100})
+
+        r = kt.aggregate(5)
+        self.assertEqual(r, 5)
+
+        r = kt.aggregate(hl.null(hl.tint32))
+        self.assertEqual(r, None)
+
+        r = kt.aggregate(agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1)
+        self.assertEqual(r, 40)
+
     def test_filter(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 

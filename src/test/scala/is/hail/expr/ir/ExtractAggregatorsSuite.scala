@@ -53,7 +53,7 @@ class ExtractAggregatorsSuite {
 
     Infer(ir, Some(tAgg))
     // special arguments: region, aggregator, element, element missingness
-    val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg, 2)
+    val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg)
 
     val seqOps = aggregators.map { case (ir, agg) =>
       val fb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator, IN, Boolean, SCOPE0, Boolean, Unit]
@@ -75,7 +75,12 @@ class ExtractAggregatorsSuite {
     }
 
     val aggResultsOff = packageResults(region, aggResultStruct, seqOps.map(_._1))
-    (post, aggResultsOff)
+
+    val env = Env.empty[IR].bind("AGGR", In(0, aggResultStruct))
+    val postSubst = Subst(post, env)
+    Infer(postSubst)
+
+    (postSubst, aggResultsOff)
   }
 
   private def compileStage0[R: TypeInfo](ir: IR): AsmFunction3[Region, Long, Boolean, R] = {

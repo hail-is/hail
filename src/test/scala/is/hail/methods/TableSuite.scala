@@ -483,4 +483,8 @@ class TableSuite extends SparkSuite {
     val kt2 = kt.selectGlobal("{x: 5}").selectGlobal("{y: global.x}")
     assert(kt2.globalSignature == TStruct("y" -> TInt32()) && kt2.globals.value.asInstanceOf[Row].get(0) == 5)
   }
+
+  @Test def testQueryIR() {
+    Table.range(hc, 100).query("AGG.map(x => row.index + 4).sum()")
+  }
 }
