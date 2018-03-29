@@ -60,8 +60,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD =
     new UnpartitionedRVD(
       rowType,
-      ContextRDD.weaken(
-        rdd.coalesce(maxPartitions, shuffle = shuffle)))
+      ContextRDD.weaken(rdd.coalesce(maxPartitions, shuffle = shuffle)))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
