@@ -3,7 +3,7 @@ package is.hail.linalg
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, _}
-import breeze.numerics.{sqrt => breezeSqrt, pow => breezePow}
+import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
@@ -15,6 +15,7 @@ import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark._
+import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -120,7 +121,7 @@ object BlockMatrix {
 
     val gp = GridPartitioner(blockSize, nRows, nCols)
 
-    def readBlock(i: Int, is: InputStream): Iterator[((Int, Int), BDM[Double])] = {
+    def readBlock(i: Int, is: InputStream, metrics: InputMetrics): Iterator[((Int, Int), BDM[Double])] = {
       val bdm = RichDenseMatrixDouble.read(is, bufferSpec)
       is.close()
 

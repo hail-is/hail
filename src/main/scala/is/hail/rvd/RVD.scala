@@ -44,8 +44,7 @@ object RVDSpec {
       val in = hConf.unsafeReader(f)
       HailContext.readRowsPartition(rowType, codecSpec)(0, in)
         .map(rv => new UnsafeRow(rowType, rv.region.copy(), rv.offset))
-    }
-      .toFastIndexedSeq
+    }.toFastIndexedSeq
   }
 }
 
