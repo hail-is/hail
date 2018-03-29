@@ -1350,18 +1350,18 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    entry_expr = hl.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.n_alt_alleles() - mean_gt) /
-                                hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                0.0))
-    result = pca(entry_expr,
-                 k,
-                 compute_loadings,
-                 as_array)
+    dataset = dataset.annotate_rows(__mean_gt = dataset.AC / dataset.n_called)
+    dataset = dataset.annotate_rows(
+        __hwe_std_dev = hl.sqrt(dataset.__mean_gt * (2 - dataset.__mean_gt) * n_variants / 2))
 
-    return result
+    entry_expr = hl.or_else(
+        (dataset.GT.n_alt_alleles() - dataset.__mean_gt) / dataset.__hwe_std_dev,
+        0.0)
+
+    return pca(entry_expr,
+               k,
+               compute_loadings,
+               as_array)
 
 
 @typecheck(entry_expr=expr_float64,
@@ -1467,46 +1467,57 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     loadings = from_option(r._3())
     if loadings:
         loadings = Table(loadings)
-    return (jiterable_to_list(r._1()), scores, loadings)
+    return jiterable_to_list(r._1()), scores, loadings
 
 
-@typecheck(dataset=MatrixTable,
-           k=int,
-           maf=numeric,
-           block_size=int,
+@typecheck(call_expr=expr_call,
+           min_individual_maf=numeric,
+           k=nullable(int),
+           scores_expr=nullable(expr_array(expr_float64)),
            min_kinship=numeric,
-           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all") -> Table:
-    """Compute relatedness estimates between individuals using a variant
-    of the PC-Relate method.
+           statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
+           block_size=nullable(int))
+def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
+              min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
+    """Compute relatedness estimates between individuals using a variant of the
+    PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
 
-    .. include:: ../_templates/req_tvariant.rst
-
-    .. include:: ../_templates/req_biallelic.rst
-
     Examples
     --------
-
     Estimate kinship, identity-by-descent two, identity-by-descent one, and
-    identity-by-descent zero for every pair of samples, using 10 prinicpal
-    components to correct for ancestral populations, and a minimum minor
-    allele frequency filter of 0.01:
+    identity-by-descent zero for every pair of samples, using a minimum minor
+    allele frequency filter of 0.01 and 10 principal components to control
+    for population structure.
 
-    >>> rel = hl.pc_relate(dataset, 10, 0.01)
+    >>> rel = hl.pc_relate(dataset.GT, 0.01, k=10)
 
-    Calculate values as above, but when performing distributed matrix
-    multiplications use a matrix-block-size of 1024 by 1024.
+    Only compute the kinship statistic. This is more efficient than
+    computing all statistics.
 
-    >>> rel = hl.pc_relate(dataset, 10, 0.01, 1024)
+    >>> rel = hl.pc_relate(dataset.GT, 0.01, k=10, statistics='kin')
 
-    Calculate values as above, excluding sample-pairs with kinship less
+    Compute all statistics, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
-    filtering using :meth:`.Table.filter`.
+    then filtering using :meth:`.Table.filter`.
 
-    >>> rel = hl.pc_relate(dataset, 5, 0.01, min_kinship=0.1)
+    >>> rel = hl.pc_relate(dataset.GT, 0.01, k=10, min_kinship=0.1)
 
+    One can also pass in pre-computed principal component scores.
+    To produce the same results as in the previous example:
+
+    >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset,
+    ...                                      k=10,
+    ...                                      compute_loadings=False,
+    ...                                      as_array=True)
+    >>> rel = hl.pc_relate(dataset.GT,
+    ...                    0.01,
+    ...                    scores_expr=scores_table[dataset.col_key].scores,
+    ...                    min_kinship=0.1)
+
+    Notes
+    -----
     The traditional estimator for kinship between a pair of individuals
     :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
     single-nucleotide variants, from a population with allele frequencies
@@ -1518,7 +1529,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         \\frac{1}{|S_{ij}|}
         \\sum_{s \\in S_{ij}}
           \\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
-                {4 * \\sum_{s \\in S_{ij} p_s (1 - p_s)}}
+                {4 \\sum_{s \\in S_{ij} p_s (1 - p_s)}}
 
     This estimator is true under the model that the sharing of common
     (relative to the population) alleles is not very informative to
@@ -1556,7 +1567,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
        :math:`i` and :math:`j` have a defined genotype
 
      - :math:`g_{is} \\in {0, 1, 2}` be the number of alternate alleles that
-       individual :math:`i` has at gentic locus :math:`s`
+       individual :math:`i` has at genetic locus :math:`s`
 
      - :math:`\\widehat{\\mu_{is}} \\in [0, 1]` be the individual-specific allele
        frequency for individual :math:`i` at genetic locus :math:`s`
@@ -1627,19 +1638,19 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
       \\widehat{k^{(1)}_{ij}} :=
         1 - \\widehat{k^{(2)}_{ij}} - \\widehat{k^{(0)}_{ij}}
 
-    Notes
-    -----
     The PC-Relate method is described in "Model-free Estimation of Recent
     Genetic Relatedness". Conomos MP, Reiner AP, Weir BS, Thornton TA. in
     American Journal of Human Genetics. 2016 Jan 7. The reference
     implementation is available in the `GENESIS Bioconductor package
     <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
 
-    :func:`.pc_relate` differs from the reference
-    implementation in a couple key ways:
+    :func:`.pc_relate` differs from the reference implementation in a few
+    ways:
 
-     - the principal components analysis does not use an unrelated set of
-       individuals
+     - if `k` is supplied, samples scores are computed via PCA on all samples,
+       not a specified subset of genetically unrelated samples. The latter
+       can be achieved by filtering samples, computing PCA variant loadings,
+       and using these loadings to compute and pass in scores for all samples.
 
      - the estimators do not perform small sample correction
 
@@ -1649,25 +1660,6 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
      - the algorithm does not provide an option to not use "overall
        standardization" (see R ``pcrelate`` documentation)
 
-    Note
-    ----
-    The `block_size` controls memory usage and parallelism. If it is large
-    enough to hold an entire sample-by-sample matrix of 64-bit doubles in
-    memory, then only one Spark worker node can be used to compute matrix
-    operations. If it is too small, communication overhead will begin to
-    dominate the computation's time. The author has found that on Google
-    Dataproc (where each core has about 3.75GB of memory), setting `block_size`
-    larger than 512 tends to cause memory exhaustion errors.
-
-    Note
-    ----
-    The minimum allele frequency filter is applied per-pair: if either of
-    the two individual's individual-specific minor allele frequency is below
-    the threshold, then the variant's contribution to relatedness estimates
-    is zero.
-
-    Note
-    ----
     Under the PC-Relate model, kinship, :math:`\\phi_{ij}`, ranges from 0 to
     0.5, and is precisely half of the
     fraction-of-genetic-material-shared. Listed below are the statistics for
@@ -1689,57 +1681,119 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
        PCRelate are often too noisy to reliably distinguish these pairs from
        higher-degree-relative-pairs or unrelated pairs.
 
+    Note that :math:`g_{is}` is the number of alternate alleles. Hence, for
+    multi-allelic variants, a value of 2 may indicate two distinct alternative
+    alleles rather than a homozygous variant genotype. To enforce the latter,
+    either filter or split multi-allelic variants first.
+
+    The resulting table has the first 3, 4, 5, or 6 fields below, depending on
+    the `statistics` parameter:
+
+     - `i` (``col_key.dtype``) -- First sample. (key field)
+     - `j` (``col_key.dtype``) -- Second sample. (key field)
+     - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\\widehat{\\phi_{ij}}`.
+     - `ibd2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\\widehat{k^{(2)}_{ij}}`.
+     - `ibd0` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\\widehat{k^{(0)}_{ij}}`.
+     - `ibd1` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\\widehat{k^{(1)}_{ij}}`.
+
+    Here ``col_key`` refers to the column key of the source matrix table,
+    and ``col_key.dtype`` is a struct containing the column key fields.
+
+    There is one row for each pair of distinct samples (columns), where `i`
+    corresponds to the column of smaller column index. In particular, if the
+    same column key value exists for :math:`n` columns, then the resulting
+    table will have :math:`\\binom{n-1}{2}` rows with both key fields equal to
+    that column key value. This may result in unexpected behavior in downstream
+    processing.
+
     Parameters
     ----------
-    ds : :class:`.MatrixTable`
-        A variant-keyed :class:`.MatrixTable` containing
-        genotype information.
-    k : :obj:`int`
-        The number of principal components to use to distinguish ancestries.
-    maf : :obj:`float`
-        The minimum individual-specific allele frequency for an allele used to
-        measure relatedness.
-    block_size : :obj:`int`
-        the side length of the blocks of the block-distributed matrices; this
-        should be set such that at least three of these matrices fit in memory
-        (in addition to all other objects necessary for Spark and Hail).
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
+    min_individual_maf : :obj:`float`
+        The minimum individual-specific minor allele frequency.
+        If either individual-specific minor allele frequency for a pair of
+        individuals is below this threshold, then the variant will not
+        be used to estimate relatedness for the pair.
+    k : :obj:`int`, optional
+        If set, `k` principal component scores are computed and used.
+        Exactly one of `k` and `scores_expr` must be specified.
+    scores_expr : :class:`.ArrayNumericExpression`, optional
+        Column-indexed expression of principal component scores, with the same
+        source as `call_expr`. All array values must have the same positive length,
+        corresponding to the number of principal components, and all scores must
+        be non-missing. Exactly one of `k` and `scores_expr` must be specified.
     min_kinship : :obj:`float`
         Pairs of samples with kinship lower than ``min_kinship`` are excluded
         from the results.
     statistics : :obj:`str`
-        the set of statistics to compute, `phi` will only compute the
-        kinship statistic, `phik2` will compute the kinship and
-        identity-by-descent two statistics, `phik2k0` will compute the
-        kinship statistics and both identity-by-descent two and zero, `all`
-        computes the kinship statistic and all three identity-by-descent
-        statistics.
+        Set of statistics to compute.
+        If ``'kin'``, only estimate the kinship statistic.
+        If ``'kin2'``, estimate the above and IBD2.
+        If ``'kin20'``, estimate the above and IBD0.
+        If ``'all'``, estimate the above and IBD1.
+    block_size : :obj:`int`, optional
+        Block size of block matrices used in the algorithm.
+        Default given by :meth:`.BlockMatrix.default_block_size`.
 
     Returns
     -------
     :class:`.Table`
-        A :class:`.Table` mapping pairs of samples to estimations of their
-        kinship and identity-by-descent zero, one, and two.
-
-        The fields of the resulting :class:`.Table` entries are of types: `i`:
-        :py:data:`.tstr`, `j`: :py:data:`.tstr`, `kin`: :py:data:`.tfloat64`, `k2`:
-        :py:data:`.tfloat64`, `k1`: :py:data:`.tfloat64`, `k0`:
-        :py:data:`.tfloat64`. The table is keyed by `i` and `j`.
-
+        A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    require_col_key_str(dataset, 'pc_relate')
-    dataset = require_biallelic(dataset, 'pc_relate')
-    intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
-    return Table(
-        scala_object(Env.hail().methods, 'PCRelate')
-            .apply(dataset._jvds,
-                   k,
-                   scores._jt,
-                   maf,
+    source = call_expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    mt = source
+    analyze('pc_relate/call_expr', call_expr, mt._entry_indices)
+
+    if k and scores_expr is None:
+        _, scores, _ = hwe_normalized_pca(mt, k, compute_loadings=False, as_array=True)
+        scores_expr = scores[mt.col_key].scores
+    elif not k and scores_expr is not None:
+        analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
+    elif k and scores_expr is not None:
+        raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found both")
+    else:
+        raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
+
+    scores_table = mt.select_cols(__scores=scores_expr).cols()
+
+    n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
+    if n_missing > 0:
+        raise ValueError(f'Found {n_missing} columns with missing scores array.')
+
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__mean_gt=agg.mean(mt.__gt))
+    mean_imputed_gt = hl.or_else(hl.float64(mt.__gt), mt.__mean_gt)
+
+    if not block_size:
+        block_size = BlockMatrix.default_block_size()
+
+    g = BlockMatrix.from_entry_expr(mean_imputed_gt,
+                                    block_size=block_size)
+
+    int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
+
+    ht = Table(scala_object(Env.hail().methods, 'PCRelate')
+            .apply(Env.hc()._jhc,
+                   g._jbm,
+                   scores_table._jt,
+                   min_individual_maf,
                    block_size,
                    min_kinship,
-                   intstatistics))
+                   int_statistics))
 
+    if statistics == 'kin':
+        ht = ht.drop('ibd0', 'ibd1', 'ibd2')
+    elif statistics == 'kin2':
+        ht = ht.drop('ibd0', 'ibd1')
+    elif statistics == 'kin20':
+        ht = ht.drop('ibd1')
+
+    col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
+    return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])
 
 class SplitMulti(object):
     """Split multiallelic variants.
@@ -2144,9 +2198,8 @@ def genetic_relatedness_matrix(dataset) -> KinshipMatrix:
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             grm,
-                                            [row.s for row in dataset.cols().select('s').collect()],
+                                            dataset.col_key[0].collect(),
                                             n_variants)
-
 
 @typecheck(call_expr=CallExpression)
 def realized_relationship_matrix(call_expr) -> KinshipMatrix:

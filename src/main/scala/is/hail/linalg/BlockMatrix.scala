@@ -256,6 +256,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     multiply(BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize))
   }
 
+  def leftMultiply(lm: BDM[Double]): M = {
+    require(lm.cols == nRows,
+      s"incompatible matrix dimensions: ${ lm.rows } x ${ lm.cols } and ${ nRows } x ${ nCols } ")
+    BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize).multiply(this)
+  }
+
   def unary_+(): M = this
 
   def unary_-(): M = blockMap(-_)
