@@ -217,6 +217,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
+    rdd.map { rv => Annotation.copy(localRowType, new UnsafeRow(localRowType, rv.region, rv.offset)).asInstanceOf[Row] }
   }
 }
