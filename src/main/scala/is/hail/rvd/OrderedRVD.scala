@@ -19,8 +19,18 @@ import scala.reflect.ClassTag
 class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
-  val rdd: RDD[RegionValue]) extends RVD {
+  val crdd: ContextRDD[RVDContext, RegionValue]
+) extends RVD {
   self =>
+
+  def this(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    rdd: RDD[RegionValue]
+  ) = this(typ, partitioner, ContextRDD.weaken(rdd))
+
+  val rdd = crdd.run
+
   def rowType: TStruct = typ.rowType
 
   def updateType(newTyp: OrderedRVDType): OrderedRVD =
@@ -90,7 +100,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      rdd = RepartitionedOrderedRDD(this, newPartitioner))
+      crdd = ContextRDD.weaken(RepartitionedOrderedRDD(this, newPartitioner)))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -725,37 +735,40 @@ object OrderedRVD {
     val partitionerBc = partitioner.broadcast(sc)
     val localType = typ
 
-    new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
-      val prevK = WritableRegionValue(typ.kType)
-      val prevPK = WritableRegionValue(typ.pkType)
-      val pkUR = new UnsafeRow(typ.pkType)
+    new OrderedRVD(
+      typ,
+      partitioner,
+      ContextRDD.weaken(rdd)
+        .mapPartitionsWithIndex { case (i, it) =>
+          val prevK = WritableRegionValue(typ.kType)
+          val prevPK = WritableRegionValue(typ.pkType)
+          val pkUR = new UnsafeRow(typ.pkType)
 
-      new Iterator[RegionValue] {
-        var first = true
+          new Iterator[RegionValue] {
+            var first = true
 
-        def hasNext: Boolean = it.hasNext
+            def hasNext: Boolean = it.hasNext
 
-        def next(): RegionValue = {
-          val rv = it.next()
+            def next(): RegionValue = {
+              val rv = it.next()
 
-          if (first)
-            first = false
-          else {
-            assert(localType.pkRowOrd.compare(prevPK.value, rv) <= 0 && localType.kRowOrd.compare(prevK.value, rv) <= 0)
+              if (first)
+                first = false
+              else {
+                assert(localType.pkRowOrd.compare(prevPK.value, rv) <= 0 && localType.kRowOrd.compare(prevK.value, rv) <= 0)
+              }
+
+              prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+              prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
+
+              pkUR.set(prevPK.value)
+              assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(localType.pkType.ordering, pkUR))
+
+              assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
+              rv
+            }
           }
-
-          prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-          prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
-
-          pkUR.set(prevPK.value)
-          assert(partitionerBc.value.rangeBounds(i).asInstanceOf[Interval].contains(localType.pkType.ordering, pkUR))
-
-          assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
-
-          rv
-        }
-      }
-    })
+      })
   }
 
   def union(rvds: Array[OrderedRVD]): OrderedRVD = {

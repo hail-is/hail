@@ -571,13 +571,15 @@ package object utils extends Logging
   def optMatch[T, S](a: T)(pf : PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
 
-  def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
+  def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
     try {
       consume(r)
     } finally {
       r.close()
     }
   }
+
+  def point[T]()(implicit t: Pointed[T]): T = t.point
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

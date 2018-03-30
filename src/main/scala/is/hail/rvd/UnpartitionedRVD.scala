@@ -2,6 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations.{KeyedRow, RegionValue, UnsafeRow}
 import is.hail.expr.types.TStruct
+import is.hail.sparkextras._
 import is.hail.io.CodecSpec
 import is.hail.utils._
 import org.apache.spark.SparkContext
@@ -9,13 +10,19 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 object UnpartitionedRVD {
-  def empty(sc: SparkContext, rowType: TStruct): UnpartitionedRVD = new UnpartitionedRVD(rowType, sc.emptyRDD[RegionValue])
+  def empty(sc: SparkContext, rowType: TStruct): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, ContextRDD.empty[RVDContext, RegionValue](sc))
 }
 
-class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends RVD {
+class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
-  def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, rdd.filter(f))
+  def this(rowType: TStruct, rdd: RDD[RegionValue]) =
+    this(rowType, ContextRDD.weaken(rdd))
+
+  val rdd = crdd.run
+
+  def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, crdd.filter(f))
 
   def persist(level: StorageLevel): UnpartitionedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
@@ -39,7 +46,9 @@ class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends 
   }
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, rdd.sample(withReplacement, p, seed))
+    new UnpartitionedRVD(
+      rowType,
+      ContextRDD.weaken(rdd.sample(withReplacement, p, seed)))
 
   def write(path: String, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)
@@ -48,7 +57,10 @@ class UnpartitionedRVD(val rowType: TStruct, val rdd: RDD[RegionValue]) extends 
     partitionCounts
   }
 
-  def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, rdd.coalesce(maxPartitions, shuffle = shuffle))
+  def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD =
+    new UnpartitionedRVD(
+      rowType,
+      ContextRDD.weaken(rdd.coalesce(maxPartitions, shuffle = shuffle)))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,

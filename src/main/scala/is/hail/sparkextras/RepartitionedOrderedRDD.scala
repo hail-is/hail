@@ -8,6 +8,8 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
+// FIXME(DK): Gotta update this for contextrdd
+
 /**
   * Repartition prev to comply with newPartitioner, using narrow dependencies.
   * Assumes new key type is a prefix of old key type, so no reordering is
