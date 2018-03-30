@@ -1165,9 +1165,3 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.is_valid_locus('GRCh37', '1', 325423).value)
         self.assertFalse(hl.is_valid_locus('GRCh37', '1', 0).value)
         self.assertFalse(hl.is_valid_locus('GRCh37', '1', 249250622).value)
-
-        self.assertTrue(hl.is_valid_locus_interval('GRCh37', '1', 325423, '1', 249250622, True, False).value)
-        # self.assertTrue(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, False, False).value)
-        # self.assertFalse(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, True, False).value)
-        # self.assertFalse(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, False, True).value)
-        # self.assertFalse(hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, True, True).value)

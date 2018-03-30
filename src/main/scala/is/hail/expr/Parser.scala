@@ -649,7 +649,7 @@ object Parser extends JavaTokenParsers {
   }
   
   def referenceGenomeDependentFunction: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus" |
-    "getReferenceSequence" | "isValidContig" | "isValidLocusInterval" | "isValidLocus"
+    "getReferenceSequence" | "isValidContig" | "isValidLocus"
 
   def intervalWithEndpoints[T](bounds: Parser[(T, T, Boolean, Boolean)]): Parser[Interval] = {
     val start = ("[" ^^^ true) | ("(" ^^^ false)

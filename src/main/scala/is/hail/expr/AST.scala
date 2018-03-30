@@ -209,23 +209,6 @@ object AST extends Positional {
           Code(std, dc.ifNull(Code._null,
             Code(ste, ec.ifNull(Code._null, gc)
             )))))))))
-
-  def evalComposeCodeM[T, U, V, W, X, Y](a: AST, b: AST, c: AST, d: AST, e: AST, f: AST)(g: (Code[T], Code[U], Code[V], Code[W], Code[X], Code[Y]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
-    (sta, ac) <- CM.memoize(a.compile());
-    (stb, bc) <- CM.memoize(b.compile());
-    (stc, cc) <- CM.memoize(c.compile());
-    (std, dc) <- CM.memoize(d.compile());
-    (ste, ec) <- CM.memoize(e.compile());
-    (stf, fc) <- CM.memoize(f.compile());
-    gc <- g(ac.asInstanceOf[Code[T]], bc.asInstanceOf[Code[U]], cc.asInstanceOf[Code[V]], dc.asInstanceOf[Code[W]], ec.asInstanceOf[Code[X]], fc.asInstanceOf[Code[Y]])
-  ) yield
-    Code(sta, ac.ifNull(Code._null,
-      Code(stb, bc.ifNull(Code._null,
-        Code(stc, cc.ifNull(Code._null,
-          Code(std, dc.ifNull(Code._null,
-            Code(ste, ec.ifNull(Code._null,
-              Code(stf, fc.ifNull(Code._null, gc)
-            )))))))))))
 }
 
 case class Positioned[T](x: T) extends Positional
@@ -453,7 +436,7 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
     case "LocusInterval" => rg.intervalType
     case "LocusAlleles" => TStruct("locus" -> rg.locusType, "alleles" -> TArray(TString()))
     case "getReferenceSequence" => TString()
-    case "isValidContig" | "isValidLocus" | "isValidLocusInterval" => TBoolean()
+    case "isValidContig" | "isValidLocus" => TBoolean()
     case _ => throw new UnsupportedOperationException
   }
 
@@ -470,10 +453,6 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
       case "isValidLocus" =>
         (args.map(_.`type`): @unchecked) match {
           case Array(TString(_), TInt32(_)) =>
-        }
-      case "isValidLocusInterval" =>
-        (args.map(_.`type`): @unchecked) match {
-          case Array(TString(_), TInt32(_), TString(_), TInt32(_), TBoolean(_), TBoolean(_)) =>
         }
       case _ =>
     }
@@ -496,19 +475,16 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
     case "isValidContig" =>
       val localRG = rg
       val f: (String) => Boolean = { contig => localRG.isValidContig(contig) }
-      AST.evalComposeCodeM(args(0))(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
+      for {
+        b <- AST.evalComposeCodeM(args(0))(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
+      } yield Code.checkcast[java.lang.Boolean](b)
 
     case "isValidLocus" =>
       val localRG = rg
       val f: (String, Int) => Boolean = { (contig, pos) => localRG.isValidLocus(contig, pos) }
-      AST.evalComposeCodeM(args(0), args(1))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
-
-    case "isValidLocusInterval" =>
-      val localRG = rg
-      val f: (String, Int, String, Int, Boolean, Boolean) => Boolean = { (startContig, startPos, endContig, endPos, includesStart, includesEnd) =>
-        localRG.isValidLocusInterval(startContig, startPos, endContig, endPos, includesStart, includesEnd)
-      }
-      AST.evalComposeCodeM(args(0), args(1), args(2), args(3), args(4), args(5))(CM.invokePrimitive6(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
+      for {
+        b <- AST.evalComposeCodeM(args(0), args(1))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+      } yield Code.checkcast[java.lang.Boolean](b)
 
     case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
   }

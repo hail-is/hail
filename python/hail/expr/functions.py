@@ -3458,7 +3458,7 @@ def get_sequence(reference_genome, contig, position, before=0, after=0) -> Strin
     .. doctest::
         :options: +SKIP
 
-        >>> hl.get_sequence('GRCh37', '1', 45323)
+        >>> hl.eval_expr(hl.get_sequence('GRCh37', '1', 45323))
         "T"
 
     Notes
@@ -3498,18 +3498,16 @@ def get_sequence(reference_genome, contig, position, before=0, after=0) -> Strin
 @typecheck(reference_genome=reference_genome_type,
            contig=expr_str)
 def is_valid_contig(reference_genome, contig) -> BooleanExpression:
-    """Returns True if `contig` is a valid contig name in `reference_genome`.
+    """Returns ``True`` if `contig` is a valid contig name in `reference_genome`.
 
     Examples
     --------
 
-    .. doctest::
+    >>> hl.eval_expr(hl.is_valid_contig('GRCh37', '1'))
+    True
 
-        >>> hl.is_valid_contig('GRCh37', '1')
-        True
-
-        >>> hl.is_valid_contig('GRCh37', 'chr1')
-        False
+    >>> hl.eval_expr(hl.is_valid_contig('GRCh37', 'chr1'))
+    False
 
     Parameters
     ----------
@@ -3528,18 +3526,16 @@ def is_valid_contig(reference_genome, contig) -> BooleanExpression:
            contig=expr_str,
            position=expr_int32)
 def is_valid_locus(reference_genome, contig, position) -> BooleanExpression:
-    """Returns True if `contig` and `position` is a valid site in `reference_genome`.
+    """Returns ``True`` if `contig` and `position` is a valid site in `reference_genome`.
 
     Examples
     --------
 
-    .. doctest::
+    >>> hl.eval_expr(hl.is_valid_locus('GRCh37', '1', 324254))
+    True
 
-        >>> hl.is_valid_locus('GRCh37', '1', 324254)
-        True
-
-        >>> hl.is_valid_locus('GRCh37', 'chr1', 324254)
-        False
+    >>> hl.eval_expr(hl.is_valid_locus('GRCh37', 'chr1', 324254))
+    False
 
     Parameters
     ----------
@@ -3555,50 +3551,3 @@ def is_valid_locus(reference_genome, contig, position) -> BooleanExpression:
     :class:`.Expression` of type :py:data:`.tbool`
     """
     return _func("isValidLocus({})".format(reference_genome.name), tbool, contig, position)
-
-@typecheck(reference_genome=reference_genome_type,
-           start_contig=expr_str,
-           start_position=expr_int32,
-           end_contig=expr_str,
-           end_position=expr_int32,
-           includes_start=expr_bool,
-           includes_end=expr_bool)
-def is_valid_locus_interval(reference_genome, start_contig, start_position,
-                            end_contig, end_position, includes_start, includes_end) -> BooleanExpression:
-    """Returns True if the inputs compose a valid interval in `reference_genome`.
-
-    Examples
-    --------
-
-    .. doctest::
-
-        >>> hl.is_valid_locus_interval('GRCh37', '1', 1, '1', 249250622, True, False)
-        True
-
-        >>> hl.is_valid_locus_interval('GRCh37', '1', 0, '1', 249250622, True, True)
-        False
-
-    Parameters
-    ----------
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
-        Reference genome to use.
-    start_contig : :class:`.Expression` of type :py:data:`.tstr`
-        Start contig name to test.
-    start_position : :class:`.Expression` of type :py:data:`.tint`
-        Start position to test.
-    end_contig : :class:`.Expression` of type :py:data:`.tstr`
-        End contig name to test.
-    end_position : :class:`.Expression` of type :py:data:`.tint`
-        End position to test.
-    includes_start : :class:`.Expression` of type :py:data:`.tbool`
-        If ``True``, interval includes the start.
-    includes_end : :class:`.Expression` of type :py:data:`.tbool`
-        If ``True``, interval includes the end.
-
-    Returns
-    -------
-    :class:`.Expression` of type :py:data:`.tbool`
-    """
-    return _func("isValidLocusInterval({})".format(reference_genome.name), tbool,
-                 start_contig, start_position, end_contig, end_position,
-                 includes_start, includes_end)

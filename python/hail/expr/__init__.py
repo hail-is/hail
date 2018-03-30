@@ -126,6 +126,5 @@ __all__ = ['HailType',
            'get_sequence',
            'builders',
            'is_valid_contig',
-           'is_valid_locus',
-           'is_valid_locus_interval'
+           'is_valid_locus'
            ]
