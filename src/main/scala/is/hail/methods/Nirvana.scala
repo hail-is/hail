@@ -336,11 +336,6 @@ object Nirvana {
           "siftPrediction" -> TString()
         ))
       ),
-      "regulatoryRegions" -> TArray(TStruct(
-        "id" -> TString(),
-        "type" -> TString(),
-        "consequence" -> TArray(TString())
-      )),
       "overlappingGenes" -> TArray(TString())
     )),
     "genes" -> TArray(TStruct(
