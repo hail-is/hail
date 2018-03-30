@@ -20,6 +20,7 @@ import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyCon
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark._
+import org.apache.spark.executor.InputMetrics
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -177,14 +178,15 @@ object HailContext {
     ProgressBarBuilder.build(sc)
   }
 
-  def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream): Iterator[RegionValue] = {
+  def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream, metrics: InputMetrics = null): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       private val region = Region()
       private val rv = RegionValue(region)
 
+      private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
         try {
-          codecSpec.buildDecoder(in)
+          codecSpec.buildDecoder(trackedIn)
         } catch {
           case e: Exception =>
             in.close()
@@ -206,6 +208,10 @@ object HailContext {
         try {
           region.clear()
           rv.setOffset(dec.readRegionValue(t, region))
+          if (metrics != null) {
+            ExposedMetrics.incrementRecord(metrics)
+            ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
+          }
 
           cont = dec.readByte()
           if (cont == 0)
@@ -464,7 +470,7 @@ class HailContext private(val sc: SparkContext,
   def readPartitions[T: ClassTag](
     path: String,
     partFiles: Array[String],
-    read: (Int, InputStream) => Iterator[T],
+    read: (Int, InputStream, InputMetrics) => Iterator[T],
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
@@ -478,7 +484,7 @@ class HailContext private(val sc: SparkContext,
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
         val in = sHadoopConfBc.value.value.unsafeReader(filename)
-        read(p.index, in)
+        read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
       @transient override val partitioner: Option[Partitioner] = optPartitioner
