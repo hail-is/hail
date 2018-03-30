@@ -14,13 +14,13 @@ object PCASuite {
   def samplePCA(vsm: MatrixTable, k: Int = 10, computeLoadings: Boolean = false,
     asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
 
-    val prePCA = vsm.annotateRowsExpr(
+    var prePCA = vsm.annotateRowsExpr(
       "AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()", "nCalled" -> "AGG.filter(g => isDefined(g.GT)).count()")
       .filterRowsExpr("va.AC > 0 && va.AC.toInt64 < 2L * va.nCalled").persist()
     val nVariants = prePCA.countRows()
-    val expr = s"let mean = va.AC.toFloat64 / va.nCalled.toFloat64 in if (isDefined(g.GT)) (g.GT.nNonRefAlleles().toFloat64 - mean) / sqrt(mean * (2d - mean) * ${ nVariants }d / 2d) else 0d"
+    prePCA = prePCA.selectEntries(s"{__gt: let mean = va.AC.toFloat64 / va.nCalled.toFloat64 in if (isDefined(g.GT)) (g.GT.nNonRefAlleles().toFloat64 - mean) / sqrt(mean * (2d - mean) * ${ nVariants }d / 2d) else 0d}")
     
-    PCA(prePCA, expr, k, computeLoadings, asArray)
+    PCA(prePCA, "__gt", k, computeLoadings, asArray)
   }
 }
 
@@ -78,7 +78,7 @@ class PCASuite extends SparkSuite {
   @Test def testExpr() {
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf")
         .filterRowsExpr("va.alleles.length() == 2")
-    val (eigenvalues, scores, loadings) =
-      PCA(vds, "if (isDefined(g.GT)) g.GT.nNonRefAlleles().toFloat64 else 0.0", 3, true, true)
+        .selectEntries("{__gt: if (isDefined(g.GT)) g.GT.nNonRefAlleles().toFloat64 else 0.0}")
+    val (eigenvalues, scores, loadings) = PCA(vds, "__gt", 3, computeLoadings = true, asArray = true)
   }
 }

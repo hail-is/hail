@@ -56,14 +56,14 @@ object PCA {
   }
 
   // returns (eigenvalues, sample scores, optional variant loadings)
-  def apply(vsm: MatrixTable, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
+  def apply(vsm: MatrixTable, entryField: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
     if (k < 1)
       fatal(
         s"""requested invalid number of components: $k
            |  Expect componenents >= 1""".stripMargin)
 
     val sc = vsm.sparkContext
-    val irm = vsm.toIndexedRowMatrix(expr)
+    val irm = vsm.toIndexedRowMatrix(entryField)
 
     info(s"Running PCA with $k components...")
 

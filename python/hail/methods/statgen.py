@@ -1338,8 +1338,7 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) 
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    mt = analyze_entry_expr('hwe_normalized_pca/call_expr', call_expr)
-
+    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
                           __n_called=agg.count_where(hl.is_defined(mt.__gt)))
@@ -1453,9 +1452,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
         List of eigenvalues, table with column scores, table with row loadings.
     """
     mt = matrix_table_source('pca/entry_expr', entry_expr)
-    mt.select_entries(__gt = entry_expr)
+    mt.select_entries(__gt=entry_expr)
 
-    r = Env.hail().methods.PCA.apply(mt._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
+    r = Env.hail().methods.PCA.apply(mt._jvds, '__gt', k, compute_loadings, as_array)
     scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, as_array, r._2()))
     loadings = from_option(r._3())
     if loadings:
@@ -1734,7 +1733,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     :class:`.Table`
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    mt = analyze_entry_expr('pc_relate/call_expr', call_expr)
+    mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
         _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False, as_array=True)
@@ -2155,7 +2154,7 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     :class:`.genetics.KinshipMatrix`
         Genetic relatedness matrix for all samples.
     """
-    mt = analyze_entry_expr('genetic_relatedness_matrix/call_expr', call_expr)
+    mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'genetic_relatedness_matrix')
 
     col_keys = mt.cols().select(*mt.col_key)
@@ -2237,7 +2236,7 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     :class:`.genetics.KinshipMatrix`
         Realized relationship matrix for all samples.
     """
-    mt = analyze_entry_expr('realized_relationship_matrix/call_expr', call_expr)
+    mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'realized_relationship_matrix')
 
     col_keys = mt.cols().select(*mt.col_key)
