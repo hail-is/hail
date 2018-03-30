@@ -216,25 +216,29 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isValidContig(contig: String): Boolean = contigsSet.contains(contig)
 
-  def isValidLocus(contig: String, pos: Int): Boolean = pos > 0 && pos <= contigLength(contig)
+  def isValidLocus(contig: String, pos: Int): Boolean = isValidContig(contig) && pos > 0 && pos <= contigLength(contig)
 
   def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
-  
+
   def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
 
   def checkLocus(contig: String, pos: Int): Unit = {
-    if (!isValidContig(contig))
-      fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidLocus(contig, pos))
-      fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    if (!isValidLocus(contig, pos)) {
+      if (!isValidContig(contig))
+        fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    }
   }
 
   def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
     val v = s"$contig:$start:$ref:$alt"
-    if (!isValidContig(contig))
-      fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidLocus(contig, start))
-      fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    if (!isValidLocus(contig, start)) {
+      if (!isValidContig(contig))
+        fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    }
   }
 
   def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
@@ -245,14 +249,19 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val includesStart = i.includesStart
     val includesEnd = i.includesEnd
 
-    if (!isValidContig(start.contig))
-      fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
-    if (!isValidContig(end.contig))
-      fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
-    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1))
-      fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
-    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1))
-      fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
+    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
+      if (!isValidContig(start.contig))
+        fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
+    }
+
+    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
+      if (!isValidContig(end.contig))
+        fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
+    }
   }
 
   def normalizeLocusInterval(i: Interval): Interval = {
