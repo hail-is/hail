@@ -59,6 +59,7 @@ Methods
     impute_sex
     ld_prune
     mendel_errors
+    de_novo
     min_rep
     nirvana
     pc_relate
