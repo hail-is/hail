@@ -2685,53 +2685,44 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def toIndexedRowMatrix(expr: String): IndexedRowMatrix = {
+  def toIndexedRowMatrix(entryField: String): IndexedRowMatrix = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
-    val fullRowType = rvRowType
-    val localColValuesBc = colValuesBc
-    val localEntriesIndex = entriesIndex
-    val localRKF = rowKeysF
+    val rvRowType = matrixType.rvRowType
+    val entryArrayType = matrixType.entryArrayType
+    val entryType = matrixType.entryType
+    val fieldType = entryType.field(entryField).typ
 
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rowType),
-      "sa" -> (2, colType),
-      "g" -> (3, entryType)))
-    val f = RegressionUtils.parseFloat64Expr(expr, ec)
-    val globalsBc = globals.broadcast
+    assert(fieldType.isOfType(TFloat64()))
 
-    val indexedRows = rvd.mapPartitionsWithIndex { case (i, it) =>
-      val start = partStartsBc.value(i)
-      var j = 0
-      val fullRow = new UnsafeRow(fullRowType)
+    val entryArrayIdx = matrixType.entriesIdx
+    val fieldIdx = entryType.fieldIdx(entryField)
+    val numColsLocal = numCols
+
+    val indexedRows = rvd.mapPartitionsWithIndex { case (pi, it) =>
+      var i = partStartsBc.value(pi)
       it.map { rv =>
-        fullRow.set(rv)
-        val row = fullRow.deleteField(localEntriesIndex)
-        val entries = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
-        val ns = entries.length
-        val a = new Array[Double](ns)
-        var k = 0
-        ec.set(0, globalsBc.value)
-        ec.set(1, row)
-        while (k < ns) {
-          ec.set(2, localColValuesBc.value(k))
-          ec.set(3, entries(k))
-          a(k) = f() match {
-            case null => fatal(s"entry_expr must be non-missing. Found missing value for col $k and row ${ localRKF(row) }")
-            case t =>
-              val td = t.toDouble
-              if (td.isNaN || td.isInfinite)
-                fatal(s"entry_expr cannot be NaN or infinite. Found ${ if (td.isNaN) "NaN" else "infinite" } value for col $k and row ${ localRKF(row) }")
-              td
-          }
-          k += 1
+        val region = rv.region
+        val data = new Array[Double](numColsLocal)
+        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+        var j = 0
+        while (j < numColsLocal) {
+          if (entryArrayType.isElementDefined(region, entryArrayOffset, j)) {
+            val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, j)
+            if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
+              val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+              data(j) = region.loadDouble(fieldOffset)
+            } else
+              fatal(s"Cannot create IndexedRowMatrix: missing value at row $i and col $j")
+          } else
+            fatal(s"Cannot create IndexedRowMatrix: missing entry at row $i and col $j")
+          j += 1
         }
-        val r = IndexedRow(start + j, Vectors.dense(a))
-        j += 1
-        r
+        val row = IndexedRow(i, Vectors.dense(data))
+        i += 1
+        row
       }
     }
 

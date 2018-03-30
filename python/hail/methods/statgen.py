@@ -1452,7 +1452,8 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    mt = analyze_entry_expr('pca/entry_expr', entry_expr)
+    mt = matrix_table_source('pca/entry_expr', entry_expr)
+    mt.select_entries(__gt = entry_expr)
 
     r = Env.hail().methods.PCA.apply(mt._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
     scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, as_array, r._2()))

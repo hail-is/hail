@@ -197,11 +197,12 @@ def get_refs(*exprs: Union[Expression, Aggregable]) -> List[Tuple[str, Indices]]
 
 @typecheck(caller=str,
            expr=Expression)
-def analyze_entry_expr(caller, expr):
+def matrix_table_source(caller, expr):
     from hail import MatrixTable
-    mt = expr._indices.source
-    if not isinstance(mt, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(mt.__class__) if mt is not None else 'scalar expression'))
-    analyze(caller, expr, mt._entry_indices)
-    return mt
+    source = expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError(
+            "{}: Expect an expression of 'MatrixTable', found {}".format(
+                caller,
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    return source
