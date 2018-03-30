@@ -210,7 +210,7 @@ object PCRelate {
   }
 
   def k1(k2: M, k0: M): M = {
-    1.0 - (k2 +:+ k0)
+    1.0 - (k2 + k0)
   }
 }
 
@@ -228,7 +228,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
   private def gram(m: M): M = {
     val mc = m.persist(storageLevel)
-    mc.t * mc
+    mc.T.dot(mc)
   }
 
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
@@ -257,7 +257,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
         val k0 = cacheWhen(PhiK2K0K1)(
           this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)))
         if (statistics >= PhiK2K0K1) {
-          val k1 = 1.0 - (k2 +:+ k0)
+          val k1 = 1.0 - (k2 + k0)
           Result(phi, k0, k1, k2)
         } else
           Result(phi, k0, null, k2)
@@ -279,9 +279,9 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val halfBeta = blockedG.t.leftMultiply(inv(2.0 * r) * q.t)
+    val halfBeta = (inv(2.0 * r) * q.t).matrixMultiply(blockedG.T)
 
-    halfBeta.leftMultiply(pcsWithIntercept).t
+    pcsWithIntercept.matrixMultiply(halfBeta).T
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
@@ -291,7 +291,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
     val stddev = variance.sqrt()
 
-    (gram(centeredG) /:/ gram(stddev)) / 4.0
+    (gram(centeredG) / gram(stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
@@ -305,9 +305,9 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
         if (mu.isNaN || g != 0.0) 0.0 else 1.0
       } (g, mu)
 
-    val temp = (homalt.t * homref).persist(storageLevel)
+    val temp = homalt.T.dot(homref).persist(storageLevel)
 
-    temp +:+ temp.t
+    temp + temp.T
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
@@ -324,7 +324,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
       }
     })
 
-    gram(normalizedGD) /:/ gram(variance)
+    gram(normalizedGD) / gram(variance)
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
@@ -334,8 +334,8 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
     val oneMinusMu2 =
       mu.map(mu => if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu))
 
-    val temp = mu2.t * oneMinusMu2
-    val denom = temp +:+ temp.t
+    val temp = mu2.T.dot(oneMinusMu2)
+    val denom = temp + temp.T
 
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)

@@ -22,7 +22,7 @@ object ComputeGramian {
   def withBlock(A: IndexedRowMatrix): IndexedRowMatrix = {
     val n = A.numCols().toInt
     val B = A.toHailBlockMatrix().cache()
-    val G = B.t * B
+    val G = B.T.dot(B)
     B.blocks.unpersist()
     G.toIndexedRowMatrix()
   }

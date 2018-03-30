@@ -1,6 +1,7 @@
 package is.hail.linalg
 
 import org.apache.spark.Partitioner
+import breeze.linalg.{DenseVector => BDV}
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Partitioner {
   require(nRows > 0 && nRows <= Int.MaxValue.toLong * blockSize)
@@ -39,6 +40,16 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
   }
   
   def transpose: GridPartitioner = GridPartitioner(this.blockSize, this.nCols, this.nRows)
+
+  def vectorOnBlockRow(v: BDV[Double], i: Int): BDV[Double] = {
+    val firstRow = i * blockSize
+    v(firstRow until firstRow + blockRowNRows(i))
+  }
+  
+  def vectorOnBlockCol(v: BDV[Double], j: Int): BDV[Double] = {
+    val firstCol = j * blockSize
+    v(firstCol until firstCol + blockColNCols(j))
+  }
   
   // returns increasing array of all blocks intersecting the diagonal band consisting of
   //   all entries with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth

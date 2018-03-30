@@ -71,7 +71,7 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     assert(m.toBreezeMatrix() == convertDistributedMatrixToBreeze(irm))
     assert(m.blocks.count() == 5)
 
-    (m * m.t).toBreezeMatrix() // assert no exception
+    (m.dot(m.T)).toBreezeMatrix() // assert no exception
 
     assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix() ===
       new BDM[Double](nRows, nCols, Array[Double](

@@ -1,12 +1,45 @@
-from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, storage_level
-from hail.utils.java import Env, jarray, joption, FatalError
+from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
+from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.expressions import expr_float64
 import numpy as np
+from enum import IntEnum
 
 block_matrix_type = lazy()
+
+
+class Form(IntEnum):
+    SCALAR = 0
+    COLUMN = 1
+    ROW = 2
+    MATRIX = 3
+
+    @classmethod
+    def of(cls, shape):
+        assert len(shape) == 2
+        if shape[0] == 1 and shape[1] == 1:
+            return Form.SCALAR
+        elif shape[1] == 1:
+            return Form.COLUMN
+        elif shape[0] == 1:
+            return Form.ROW
+        else:
+            return Form.MATRIX
+
+    @staticmethod
+    def compatible(shape_a, shape_b, op):
+        form_a = Form.of(shape_a)
+        form_b = Form.of(shape_b)
+        if (form_a == Form.SCALAR or
+                form_b == Form.SCALAR or
+                form_a == form_b and shape_a == shape_b or
+                {form_a, form_b} == {Form.MATRIX, Form.COLUMN} and shape_a[0] == shape_b[0] or
+                {form_a, form_b} == {Form.MATRIX, Form.ROW} and shape_a[1] == shape_b[1]):
+            return form_a, form_b
+        else:
+            raise ValueError(f'incompatible shapes for {op}: {shape_a} and {shape_b}')
 
 
 class BlockMatrix(object):
@@ -16,18 +49,46 @@ class BlockMatrix(object):
 
     Notes
     -----
-    Use ``+``, ``-``, ``*``, and ``/`` for element-wise addition, subtraction,
-    multiplication, and division. Each operand may be a block matrix or a scalar
-    or type :obj:`int` or :obj:`float`. Block matrix operands must have the same
-    shape.
+    A block matrix is a distributed analogue of a two-dimensional
+    `NumPy ndarray
+    <https://docs.scipy.org/doc/numpy/reference/arrays.ndarray.html>`__ with
+    shape ``(n_rows, n_cols)`` and dtype ``float64``. The core operations are
+    consistent with NumPy: ``+``, ``-``, ``*``, and ``/`` for element-wise
+    addition, subtraction, multiplication, and division; ``@`` for matrix
+    multiplication; and ``**`` for element-wise exponentiation to a scalar
+    power.
 
-    Use ``**`` for element-wise exponentiation of a block matrix using a power
-    of type :obj:`int` or :obj:`float`.
+    For element-wise binary operations, each operand may be a block matrix, an
+    ndarray, or a scalar (:obj:`int` or :obj:`float`). For matrix
+    multiplication, each operand may be a block matrix or an ndarray. If either
+    operand is a block matrix, the result is a block matrix.
 
-    Use ``@`` for matrix multiplication of block matrices.
+    To interoperate with block matrices, ndarray operands must be one or two
+    dimensional with dtype convertible to ``float64``. One-dimensional ndarrays
+    of shape ``(n)`` are promoted to two-dimensional ndarrays of shape ``(1,
+    n)``, i.e. a single row.
 
-    Blocks are square with side length a common block size.
-    Blocks in the final block row or block column may be truncated.
+    Block matrices support broadcasting of ``+``, ``-``, ``*``, and ``/``
+    between matrices of different shapes, consistent with the NumPy
+    `broadcasting rules
+    <https://docs.scipy.org/doc/numpy/user/basics.broadcasting.html>`__.
+    There is one exception: block matrices do not currently support element-wise
+    "outer product" of a single row and a single column, although the same
+    effect can be achieved for ``*`` by using ``@``.
+
+    Under the hood, block matrices are partitioned like a checkerboard into
+    square blocks with side length a common block size (blocks in the final row
+    or column of blocks may be truncated). Block size defaults to the value
+    given by :meth:`default_block_size`. Binary operations between block
+    matrices require that both operands have the same block size.
+
+    Warning
+    -------
+    For binary operations, if the first operand is an ndarray and the second
+    operand is a block matrix, the result will be a ndarray of block matrices.
+    To achieve the desired behavior for ``+`` and ``*``, place the block matrix
+    operand first; for ``-``, ``/``, and ``@``, first convert the ndarray to a
+    block matrix using :meth:`.from_numpy`.
     """
 
     def __init__(self, jbm):
@@ -47,9 +108,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        hc = Env.hc()
-        return cls(Env.hail().linalg.BlockMatrix.read(
-            hc._jhc, path))
+        return cls(Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, path))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -112,12 +171,11 @@ class BlockMatrix(object):
             block_size = BlockMatrix.default_block_size()
 
         n_entries = n_rows * n_cols
-        if n_entries >= 2 << 31:
-            raise FatalError('Number of entries must be less than 2^31, found {}'.format(n_entries))
+        if n_entries >= 1 << 31:
+            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
 
         hc = Env.hc()
         bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(hc._jhc, uri, n_rows, n_cols, True)
-
         return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
 
     @classmethod
@@ -155,19 +213,16 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        if ndarray.ndim != 2:
-            raise FatalError("from_numpy: ndarray must have two axes, found shape {}".format(ndarray.shape))
-        n_rows, n_cols = ndarray.shape
-        if n_rows == 0 or n_cols == 0:
-            raise FatalError("from_numpy: ndarray dimensions must be non-zero, found shape {}".format(ndarray.shape))
-        if ndarray.dtype != np.float64:
-            ndarray = ndarray.astype(np.float64)
+        if any(i == 0 for i in ndarray.shape):
+            raise ValueError(f'from_numpy: ndarray dimensions must be non-zero, found shape {ndarray.shape}')
 
-        local_temp_dir = new_local_temp_dir()
-        path = local_temp_dir + '/binary'
+        nd = _ndarray_as_2d(ndarray)
+        nd = _ndarray_as_float64(nd)
+        n_rows, n_cols = nd.shape
+
+        path = new_local_temp_file()
         uri = local_path_uri(path)
-
-        ndarray.tofile(path)
+        nd.tofile(path)
         return cls.fromfile(uri, n_rows, n_cols, block_size)
 
     @classmethod
@@ -221,10 +276,7 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-
-        hc = Env.hc()
-        return cls(Env.hail().linalg.BlockMatrix.random(
-            hc._jhc, n_rows, n_cols, block_size, seed, uniform))
+        return cls(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, uniform))
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -232,15 +284,14 @@ class BlockMatrix(object):
                       data=sequenceof(float),
                       row_major=bool,
                       block_size=int)
-    def _create_block_matrix(cls, n_rows, n_cols, data, row_major, block_size):
+    def _create(cls, n_rows, n_cols, data, row_major, block_size):
         """Private method for creating small test matrices."""
 
         bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.apply(n_rows,
                                                                      n_cols,
                                                                      jarray(Env.jvm().double, data),
                                                                      row_major)
-        hc = Env.hc()
-        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
+        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(Env.hc()._jsc, bdm, block_size))
 
     @staticmethod
     def default_block_size():
@@ -268,6 +319,17 @@ class BlockMatrix(object):
         return self._jbm.nCols()
 
     @property
+    def shape(self):
+        """Shape of matrix.
+
+        Returns
+        -------
+        (:obj:`int`, :obj:`int`)
+           Number of rows and number of columns.
+        """
+        return self.n_rows, self.n_cols
+
+    @property
     def block_size(self):
         """Block size.
 
@@ -276,6 +338,15 @@ class BlockMatrix(object):
         :obj:`int`
         """
         return self._jbm.blockSize()
+
+    @property
+    def _jdata(self):
+        return self._jbm.toBreezeMatrix().data()
+
+    @property
+    def _as_scalar(self):
+        assert self.n_rows == 1 and self.n_cols == 1
+        return self._jbm.toBreezeMatrix().apply(0, 0)
 
     @typecheck_method(path=str,
                       force_row_major=bool)
@@ -432,11 +503,10 @@ class BlockMatrix(object):
         """
         n_entries = self.n_rows * self.n_cols
         if n_entries >= 2 << 31:
-            raise FatalError('Number of entries must be less than 2^31, found {}'.format(n_entries))
+            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
 
         bdm = self._jbm.toBreezeMatrix()
-        hc = Env.hc()
-        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.exportToDoubles(hc._jhc, uri, bdm, True)
+        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.exportToDoubles(Env.hc()._jhc, uri, bdm, True)
         assert row_major
 
     def to_numpy(self):
@@ -460,12 +530,9 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-
-        local_temp_dir = new_local_temp_dir()
-        path = local_temp_dir + '/binary'
+        path = new_local_temp_file()
         uri = local_path_uri(path)
         self.tofile(uri)
-
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
     @property
@@ -553,103 +620,200 @@ class BlockMatrix(object):
         op = getattr(self._jbm, "unary_$minus")
         return BlockMatrix(op())
 
-    @typecheck_method(b=oneof(numeric, block_matrix_type))
+    def _promote(self, b, op, reverse=False):
+        a = self
+        form_a, form_b = Form.compatible(a.shape, _shape(b), op)
+
+        if form_b > form_a:
+            if isinstance(b, np.ndarray):
+                b = BlockMatrix.from_numpy(b, a.block_size)
+            return b._promote(a, op, reverse=True)
+
+        assert form_a >= form_b
+
+        if form_b == Form.SCALAR:
+            if isinstance(b, int) or isinstance(b, float):
+                b = float(b)
+            elif isinstance(b, np.ndarray):
+                b = _ndarray_as_float64(b).item()
+            else:
+                b = b._as_scalar
+        elif form_a > form_b:
+            if isinstance(b, np.ndarray):
+                b = _jarray_from_ndarray(b)
+            else:
+                assert isinstance(b, BlockMatrix)
+                b = b._jdata
+        else:
+            assert form_a == form_b
+            if not isinstance(b, BlockMatrix):
+                assert isinstance(b, np.ndarray)
+                b = BlockMatrix.from_numpy(b, a.block_size)
+
+        assert (isinstance(a, BlockMatrix) and 
+                (isinstance(b, BlockMatrix) or isinstance(b, float) or b.getClass().isArray()) and
+                (not (isinstance(b, BlockMatrix) and reverse)))
+
+        return a, b, form_b, reverse
+
+    @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
         """Addition: a + b.
 
         Parameters
         ----------
-        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
+        b: :obj:`int` or :obj:`float` or :class:`numpy.ndarray` or :class:`BlockMatrix`
 
         Returns
         -------
         :class:`.BlockMatrix`
         """
-        if isinstance(b, int) or isinstance(b, float):
-            return BlockMatrix(self._jbm.scalarAdd(float(b)))
+        new_a, new_b, form_b, _ = self._promote(b, 'addition')
+
+        if isinstance(new_b, float):
+            return BlockMatrix(new_a._jbm.scalarAdd(new_b))
+        elif isinstance(new_b, BlockMatrix):
+            return BlockMatrix(new_a._jbm.add(new_b._jbm))
         else:
-            return BlockMatrix(self._jbm.add(b._jbm))
+            assert new_b.getClass().isArray()
+            if form_b == Form.COLUMN:
+                return BlockMatrix(new_a._jbm.colVectorAdd(new_b))
+            else:
+                assert form_b == Form.ROW
+                return BlockMatrix(new_a._jbm.rowVectorAdd(new_b))
 
-    @typecheck_method(b=numeric)
-    def __radd__(self, b):
-        return self + b
-
-    @typecheck_method(b=oneof(numeric, block_matrix_type))
+    @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
         """Subtraction: a - b.
 
         Parameters
         ----------
-        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
+        b: :obj:`int` or :obj:`float` or :class:`numpy.ndarray` or :class:`BlockMatrix`
 
         Returns
         -------
         :class:`.BlockMatrix`
         """
-        if isinstance(b, int) or isinstance(b, float):
-            return BlockMatrix(self._jbm.scalarSubtract(float(b)))
+        new_a, new_b, form_b, reverse = self._promote(b, 'subtraction')
+
+        if isinstance(new_b, float):
+            if reverse:
+                return BlockMatrix(new_a._jbm.reverseScalarSub(new_b))
+            else:
+                return BlockMatrix(new_a._jbm.scalarSub(new_b))
+        elif isinstance(new_b, BlockMatrix):
+            assert not reverse
+            return BlockMatrix(new_a._jbm.sub(new_b._jbm))
         else:
-            return BlockMatrix(self._jbm.subtract(b._jbm))
+            assert new_b.getClass().isArray()
+            if form_b == Form.COLUMN:
+                if reverse:
+                    return BlockMatrix(new_a._jbm.reverseColVectorSub(new_b))
+                else:
+                    return BlockMatrix(new_a._jbm.colVectorSub(new_b))
+            else:
+                assert form_b == Form.ROW
+                if reverse:
+                    return BlockMatrix(new_a._jbm.reverseRowVectorSub(new_b))
+                else:
+                    return BlockMatrix(new_a._jbm.rowVectorSub(new_b))
 
-    @typecheck_method(b=numeric)
-    def __rsub__(self, b):
-        return BlockMatrix(self._jbm.reverseScalarSubtract(float(b)))
-
-    @typecheck_method(b=oneof(numeric, block_matrix_type))
+    @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
         """Element-wise multiplication: a * b.
 
         Parameters
         ----------
-        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
+        b: :obj:`int` or :obj:`float` or :class:`numpy.ndarray` or :class:`BlockMatrix`
 
         Returns
         -------
         :class:`.BlockMatrix`
         """
-        if isinstance(b, int) or isinstance(b, float):
-            return BlockMatrix(self._jbm.scalarMultiply(float(b)))
+        new_a, new_b, form_b, _ = self._promote(b, 'element-wise multiplication')
+
+        if isinstance(new_b, float):
+            return BlockMatrix(new_a._jbm.scalarMul(new_b))
+        elif isinstance(new_b, BlockMatrix):
+            return BlockMatrix(new_a._jbm.mul(new_b._jbm))
         else:
-            return BlockMatrix(self._jbm.pointwiseMultiply(b._jbm))
+            assert new_b.getClass().isArray()
+            if form_b == Form.COLUMN:
+                return BlockMatrix(new_a._jbm.colVectorMul(new_b))
+            else:
+                assert form_b == Form.ROW
+                return BlockMatrix(new_a._jbm.rowVectorMul(new_b))
 
-    @typecheck_method(b=numeric)
-    def __rmul__(self, b):
-        return self * b
-
-    @typecheck_method(b=oneof(numeric, block_matrix_type))
+    @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
         """Element-wise division: a / b.
 
         Parameters
         ----------
-        b: :class:`BlockMatrix` or :obj:`int` or :obj:`float`
+        b: :obj:`int` or :obj:`float` or :class:`numpy.ndarray` or :class:`BlockMatrix`
 
         Returns
         -------
         :class:`.BlockMatrix`
         """
-        if isinstance(b, int) or isinstance(b, float):
-            return BlockMatrix(self._jbm.scalarDivide(float(b)))
+        new_a, new_b, form_b, reverse = self._promote(b, 'element-wise division')
+
+        if isinstance(new_b, float):
+            if reverse:
+                return BlockMatrix(new_a._jbm.reverseScalarDiv(new_b))
+            else:
+                return BlockMatrix(new_a._jbm.scalarDiv(new_b))
+        elif isinstance(new_b, BlockMatrix):
+            assert not reverse
+            return BlockMatrix(new_a._jbm.div(new_b._jbm))
         else:
-            return BlockMatrix(self._jbm.pointwiseDivide(b._jbm))
+            assert new_b.getClass().isArray()
+            if form_b == Form.COLUMN:
+                if reverse:
+                    return BlockMatrix(new_a._jbm.reverseColVectorDiv(new_b))
+                else:
+                    return BlockMatrix(new_a._jbm.colVectorDiv(new_b))
+            else:
+                assert form_b == Form.ROW
+                if reverse:
+                    return BlockMatrix(new_a._jbm.reverseRowVectorDiv(new_b))
+                else:
+                    return BlockMatrix(new_a._jbm.rowVectorDiv(new_b))
+
+    @typecheck_method(b=numeric)
+    def __radd__(self, b):
+        return self + b
+
+    @typecheck_method(b=numeric)
+    def __rsub__(self, b):
+        return BlockMatrix(self._jbm.reverseScalarSub(float(b)))
+
+    @typecheck_method(b=numeric)
+    def __rmul__(self, b):
+        return self * b
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return BlockMatrix(self._jbm.reverseScalarDivide(float(b)))
+        return BlockMatrix(self._jbm.reverseScalarDiv(float(b)))
 
-    @typecheck_method(b=block_matrix_type)
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
         """Matrix multiplication: a @ b.
 
         Parameters
         ----------
-        b: :class:`BlockMatrix`
+        b: :class:`numpy.ndarray` or :class:`BlockMatrix`
 
         Returns
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.multiply(b._jbm))
+        if isinstance(b, np.ndarray):
+            return self @ BlockMatrix.from_numpy(b, self.block_size)
+        else:
+            if self.n_cols != b.n_rows:
+                raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+            return BlockMatrix(self._jbm.dot(b._jbm))
 
     @typecheck_method(x=numeric)
     def __pow__(self, x):
@@ -674,6 +838,15 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return BlockMatrix(self._jbm.sqrt())
+
+    def diagonal(self):
+        """Extracts diagonal elements as ndarray.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        return _ndarray_from_jarray(self._jbm.diagonal())
 
     def entries(self):
         """Returns a table with the coordinates and numeric value of each block matrix entry.
@@ -707,8 +880,52 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        hc = Env.hc()
-        return Table(self._jbm.entriesTable(hc._jhc))
+        return Table(self._jbm.entriesTable(Env.hc()._jhc))
 
 
 block_matrix_type.set(BlockMatrix)
+
+
+def _shape(b):
+    if isinstance(b, int) or isinstance(b, float):
+        return 1, 1
+    if isinstance(b, np.ndarray):
+        b = _ndarray_as_2d(b)
+    else:
+        isinstance(b, BlockMatrix)
+    return b.shape
+
+
+def _ndarray_as_2d(nd):
+    if nd.ndim == 1:
+        nd = nd.reshape(1, nd.shape[0])
+    elif nd.ndim > 2:
+        raise ValueError(f'ndarray must have one or two axes, found shape {nd.shape}')
+    return nd
+
+
+def _ndarray_as_float64(nd):
+    if nd.dtype != np.float64:
+        try:
+            nd = nd.astype(np.float64)
+        except ValueError as e:
+            raise TypeError(f"ndarray elements of dtype {nd.dtype} cannot be converted to type 'float64'") from e
+    return nd
+
+
+def _jarray_from_ndarray(nd):
+    if nd.size >= (1 << 31):
+        raise ValueError(f'size of ndarray must be less than 2^31, found {nd.size}')
+
+    nd = _ndarray_as_float64(nd)
+    path = new_local_temp_file()
+    uri = local_path_uri(path)
+    nd.tofile(path)
+    return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.hc()._jhc, uri, nd.size)
+
+
+def _ndarray_from_jarray(ja):
+    path = new_local_temp_file()
+    uri = local_path_uri(path)
+    Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.hc()._jhc, uri, ja)
+    return np.fromfile(path)
