@@ -33,6 +33,65 @@ object Nirvana {
     "copyNumber" -> TInt32(),
     "strandBias" -> TFloat64(),
     "recalibratedQuality" -> TFloat64(),
+    "clingen" -> TArray(TStruct(
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "id" -> TString(),
+      "clinicalInterpretation" -> TString(),
+      "observedGains" -> TInt32(),
+      "observedLosses" -> TInt32(),
+      "validated" -> TBoolean(),
+      "phenotypes" -> TArray(TString()),
+      "phenotypeIds" -> TArray(TString()),
+      "reciprocalOverlap" -> TFloat64()
+    )),
+    "dgv" -> TArray(TStruct(
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "id" -> TString(),
+      "variantFreqAll" -> TFloat64(),
+      "sampleSize" -> TInt32(),
+      "observedGains" -> TInt32(),
+      "observedLosses" -> TInt32(),
+      "reciprocalOverlap" -> TFloat64()
+    )),
+    "oneKg" -> TArray(TStruct(
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "id" -> TString(),
+      "variantFreqAll" -> TFloat64(),
+      "variantFreqAfr" -> TFloat64(),
+      "variantFreqAmr" -> TFloat64(),
+      "variantFreqEas" -> TFloat64(),
+      "variantFreqEur" -> TFloat64(),
+      "variantFreqSas" -> TFloat64(),
+      "sampleSize" -> TInt32(),
+      "sampleSizeAfr" -> TInt32(),
+      "sampleSizeAmr" -> TInt32(),
+      "sampleSizeEas" -> TInt32(),
+      "sampleSizeEur" -> TInt32(),
+      "sampleSizeSas" -> TInt32(),
+      "observedGains" -> TInt32(),
+      "observedLosses" -> TInt32(),
+      "reciprocalOverlap" -> TFloat64()
+    )),
+    "cosmic" -> TArray(TStruct(
+      "id" -> TInt32(),
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "copyNumber" -> TInt32(),
+      "cancerTypes" -> TArray(TTuple(TString(),TInt32())),
+      "tissues" -> TArray(TTuple(TString(),TInt32())),
+      "reciprocalOverlap" -> TFloat64()
+    )),
     "variants" -> TArray(TStruct(
       "altAllele" -> TString(),
       "refAllele" -> TString(),
@@ -225,7 +284,11 @@ object Nirvana {
         "status" -> TString(),
         "clinicalSignificance" -> TString(),
         "scorePercentile" -> TFloat64(),
-        "isAlleleSpecific" -> TBoolean()
+        "isAlleleSpecific" -> TBoolean(),
+        "chromosome" -> TString(),
+        "begin" -> TInt32(),
+        "end" -> TInt32(),
+        "variantType" -> TString()
       )),
       "transcripts" -> TStruct(
         "refSeq" -> TArray(TStruct(
@@ -272,6 +335,31 @@ object Nirvana {
           "siftScore" -> TFloat64(),
           "siftPrediction" -> TString()
         ))
+      ),
+      "regulatoryRegions" -> TArray(TStruct(
+        "id" -> TString(),
+        "type" -> TString(),
+        "consequence" -> TArray(TString())
+      )),
+      "overlappingGenes" -> TArray(TString())
+    )),
+    "genes" -> TArray(TStruct(
+      "name" -> TString(),
+      "omim" -> TArray(TStruct(
+        "mimNumber" -> TInt32(),
+        "hgnc" -> TString(),
+        "description" -> TString(),
+        "phenotypes" -> TArray(TStruct(
+          "mimNumber" -> TInt32(),
+          "phenotype" -> TString(),
+          "mapping" -> TString(),
+          "inheritance" -> TArray(TString())
+        ))
+      )),
+    "exac" -> TStruct(
+      "pLi" -> TFloat64(),
+      "pRec" -> TFloat64(),
+      "pNull" -> TFloat64()
       )
     ))
   )
