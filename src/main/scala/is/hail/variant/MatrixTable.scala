@@ -602,16 +602,16 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def unsafeRowRDD(): RDD[UnsafeRow] = {
+  def rowRDD(): RDD[Row] = {
     val localRVRowType = rvRowType
     rvd.map { rv =>
-      new UnsafeRow(localRVRowType, rv.region.copy(), rv.offset)
+      new UnsafeRow(localRVRowType, rv.region, rv.offset).toSafeRow
     }
   }
 
-  def collect(): Array[UnsafeRow] = unsafeRowRDD().collect()
+  def collect(): Array[Row] = rowRDD().collect()
 
-  def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
+  def take(n: Int): Array[Row] = rowRDD().take(n)
 
   def groupColsBy(keyExpr: String, aggExpr: String): MatrixTable = {
     val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),

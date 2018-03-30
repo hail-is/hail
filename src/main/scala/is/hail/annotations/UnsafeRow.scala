@@ -199,6 +199,10 @@ class UnsafeRow(var t: TBaseStruct,
   private def readObject(s: ObjectInputStream): Unit = {
     throw new NotImplementedException()
   }
+
+  def toSafeRow: Row = {
+    Row(t.types.zipWithIndex.map{ case (tf, i) => Annotation.copy(tf, get(i)) }: _*)
+  }
 }
 
 class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {

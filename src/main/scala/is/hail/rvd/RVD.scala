@@ -43,7 +43,7 @@ object RVDSpec {
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
       HailContext.readRowsPartition(rowType, codecSpec)(0, in)
-        .map(rv => new UnsafeRow(rowType, rv.region.copy(), rv.offset))
+        .map(rv => new UnsafeRow(rowType, rv.region.copy(), rv.offset).toSafeRow)
     }.toFastIndexedSeq
   }
 }
@@ -217,6 +217,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    rdd.map { rv => Annotation.copy(localRowType, new UnsafeRow(localRowType, rv.region, rv.offset)).asInstanceOf[Row] }
+    rdd.map { rv => new UnsafeRow(localRowType, rv.region, rv.offset).toSafeRow }
   }
 }
