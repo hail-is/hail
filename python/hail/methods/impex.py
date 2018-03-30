@@ -11,18 +11,21 @@ from hail.methods.misc import require_biallelic, require_row_key_variant
 import hail as hl
 
 
-def locus_interval_expr(contig, start, end, includes_start, includes_end, reference_genome, skip_invalid_intervals):
+def locus_interval_expr(contig, start, end, includes_start, includes_end,
+                        reference_genome, skip_invalid_intervals):
     if reference_genome:
         if skip_invalid_intervals:
-            is_valid_locus_interval = (hl.is_valid_contig(reference_genome, contig) &
-                                       (hl.is_valid_locus(reference_genome, contig, start) | (~includes_start & (start == 0))) &
-                                       (hl.is_valid_locus(reference_genome, contig, end) | (~includes_end & hl.is_valid_locus(reference_genome, contig, end - 1))))
+            is_valid_locus_interval = (
+                (hl.is_valid_contig(reference_genome, contig) &
+                 (hl.is_valid_locus(reference_genome, contig, start) |
+                  (~includes_start & (start == 0))) &
+                 (hl.is_valid_locus(reference_genome, contig, end) |
+                  (~includes_end & hl.is_valid_locus(reference_genome, contig, end - 1)))))
 
-            return hl.cond(is_valid_locus_interval,
-                           hl.locus_interval(contig, start, end,
-                                             includes_start, includes_end,
-                                             reference_genome),
-                           hl.null(tinterval(tlocus(reference_genome))))
+            return hl.or_missing(is_valid_locus_interval,
+                                 hl.locus_interval(contig, start, end,
+                                                   includes_start, includes_end,
+                                                   reference_genome))
         else:
             return hl.locus_interval(contig, start, end, includes_start,
                                      includes_end, reference_genome)
@@ -411,37 +414,59 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
     if t.row.dtype == tstruct(f0=tstr):
         if reference_genome:
-            t = t.select(interval=hl.parse_locus_interval(t['f0'], reference_genome))
+            t = t.select(interval=hl.parse_locus_interval(t['f0'], 
+                                                          reference_genome))
         else:
-            interval_regex = "([^:]*):(\\d+)\\-(\\d+)"
+            interval_regex = r"([^:]*):(\d+)\-(\d+)"
 
             def checked_match_interval_expr(match):
-                return hl.cond(hl.len(match) == 3,
-                               locus_interval_expr(match[0], hl.int32(match[1]), hl.int32(match[2]), hl.bool(True), hl.bool(True),
-                                                   reference_genome, skip_invalid_intervals),
-                               hl.null(tinterval(tstruct(contig=tstr, position=tint32))))
+                return hl.or_missing(hl.len(match) == 3,
+                                     locus_interval_expr(match[0],
+                                                         hl.int32(match[1]),
+                                                         hl.int32(match[2]),
+                                                         True,
+                                                         True,
+                                                         reference_genome,
+                                                         skip_invalid_intervals))
 
-            expr = hl.bind(t['f0'].first_match_in(interval_regex),
-                           lambda match: hl.cond(hl.bool(skip_invalid_intervals),
-                                                 checked_match_interval_expr(match),
-                                                 locus_interval_expr(match[0], hl.int32(match[1]),
-                                                                     hl.int32(match[2]), hl.bool(True), hl.bool(True),
-                                                                     reference_genome, skip_invalid_intervals)))
+            expr = (
+                hl.bind(t['f0'].first_match_in(interval_regex),
+                        lambda match: hl.cond(hl.bool(skip_invalid_intervals),
+                                              checked_match_interval_expr(match),
+                                              locus_interval_expr(match[0],
+                                                                  hl.int32(match[1]),
+                                                                  hl.int32(match[2]),
+                                                                  True,
+                                                                  True,
+                                                                  reference_genome,
+                                                                  skip_invalid_intervals))))
 
             t = t.select(interval=expr)
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'], t['f1'], t['f2'], hl.bool(True), hl.bool(True), reference_genome, skip_invalid_intervals))
+        t = t.select(interval=locus_interval_expr(t['f0'],
+                                                  t['f1'],
+                                                  t['f2'],
+                                                  True,
+                                                  True,
+                                                  reference_genome,
+                                                  skip_invalid_intervals))
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr, f4=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'], t['f1'], t['f2'], hl.bool(True), hl.bool(True), reference_genome, skip_invalid_intervals),
+        t = t.select(interval=locus_interval_expr(t['f0'], 
+                                                  t['f1'], 
+                                                  t['f2'], 
+                                                  True, 
+                                                  True, 
+                                                  reference_genome, 
+                                                  skip_invalid_intervals),
                      target=t['f4'])
 
     else:
         raise FatalError("""invalid interval format.  Acceptable formats:
-              `chr:start-end'
-              `chr  start  end' (tab-separated)
-              `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')""")
+              'chr:start-end'
+              'chr  start  end' (tab-separated)
+              'chr  start  end  strand  target' (tab-separated, strand is '+' or '-')""")
 
     if skip_invalid_intervals and reference_genome:
         t = t.filter(hl.is_defined(t.interval))
@@ -534,17 +559,29 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     t = import_table(path, no_header=True, delimiter="\s+", impute=False,
-                     skip_blank_lines=True, types={'f0': tstr, 'f1': tint32, 'f2': tint32, 'f3': tstr, 'f4': tstr},
+                     skip_blank_lines=True, types={'f0': tstr, 'f1': tint32, 
+                                                   'f2': tint32, 'f3': tstr, 
+                                                   'f4': tstr},
                      comment=["""^browser.*""", """^track.*""",
-                              """^\\w+=("[\\w\\d ]+"|\\d+).*"""])
+                              r"""^\w+=("[\w\d ]+"|\d+).*"""])
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'], t['f1'] + 1, t['f2'],
-                                                  hl.bool(True), hl.bool(True), reference_genome, skip_invalid_intervals))
+        t = t.select(interval=locus_interval_expr(t['f0'], 
+                                                  t['f1'] + 1, 
+                                                  t['f2'],
+                                                  True, 
+                                                  True, 
+                                                  reference_genome, 
+                                                  skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'], t['f1'] + 1, t['f2'],
-                                                  hl.bool(True), hl.bool(True), reference_genome, skip_invalid_intervals),
+        t = t.select(interval=locus_interval_expr(t['f0'], 
+                                                  t['f1'] + 1, 
+                                                  t['f2'],
+                                                  True, 
+                                                  True, 
+                                                  reference_genome, 
+                                                  skip_invalid_intervals),
                      target=t['f3'])
 
     else:
@@ -920,11 +957,11 @@ def import_gen(path,
            quote=nullable(char),
            skip_blank_lines=bool)
 def import_table(paths,
-                 key=[],
+                 key=(),
                  min_partitions=None,
                  impute=False,
                  no_header=False,
-                 comment=[],
+                 comment=(),
                  delimiter="\t",
                  missing="NA",
                  types={},
@@ -1030,9 +1067,9 @@ def import_table(paths,
     with the given string(s). For example, passing ``comment='#'`` will skip any
     line beginning in a pound sign. If the string given is a single character,
     Hail will skip any line beginning with the character. Otherwise if the
-    length of the string is greater than 1, Hail will expect the string is a
+    length of the string is greater than 1, Hail will interpret the string as a
     regex and will filter out lines matching the regex. For example, passing
-    ``comment=['#', '^track']`` will filter out lines beginning in a pound sign
+    ``comment=['#', '^track.*']`` will filter out lines beginning in a pound sign
     and any lines that match the regex ``'^track.*'``.
 
     The `missing` parameter defines the representation of missing data in the table.

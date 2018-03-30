@@ -1019,7 +1019,7 @@ object FunctionRegistry {
   registerMethod("contains", (s: String, t: String) => s.contains(t))
   registerMethod("startswith", (s: String, t: String) => s.startsWith(t))
   registerMethod("endswith", (s: String, t: String) => s.endsWith(t))
-  registerMethod("firstMatchIn", (s: String, regex: String) => regex.r.findFirstMatchIn(s).map(_.subgroups.toIndexedSeq).orNull : IndexedSeq[String])
+  registerMethod("firstMatchIn", (s: String, regex: String) => regex.r.findFirstMatchIn(s).map(_.subgroups.toArray.toFastIndexedSeq).orNull : IndexedSeq[String])
 
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
     str.replaceAll(pattern1, pattern2))

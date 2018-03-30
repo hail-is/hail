@@ -2183,6 +2183,9 @@ class StringExpression(Expression):
         >>> s.first_match_in("The quick (\\w+) fox").value
         ["brown"]
 
+        >>> s.first_match_in("The (\\w+) (\\w+) (\\w+)").value
+        ["quick", "brown", "fox"]
+
         >>> s.first_match_in("(\\w+) (\\w+)").value
         None
 
