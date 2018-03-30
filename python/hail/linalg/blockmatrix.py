@@ -642,10 +642,12 @@ class BlockMatrix(object):
             if isinstance(b, np.ndarray):
                 b = _jarray_from_ndarray(b)
             else:
+                assert isinstance(b, BlockMatrix)
                 b = b._jdata
         else:
             assert form_a == form_b
-            if isinstance(b, np.ndarray):
+            if not isinstance(b, BlockMatrix):
+                assert isinstance(b, np.ndarray)
                 b = BlockMatrix.from_numpy(b, a.block_size)
 
         assert (isinstance(a, BlockMatrix) and 
@@ -667,8 +669,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         new_a, new_b, form_b, _ = self._promote(b, 'addition')
-
-        print(new_a, new_b, form_b)
 
         if isinstance(new_b, float):
             return BlockMatrix(new_a._jbm.scalarAdd(new_b))
