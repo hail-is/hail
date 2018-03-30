@@ -3565,7 +3565,8 @@ def mendel_error_code(locus, is_female, father, mother, child):
 
     Note
     ----
-    Ignores call phasing, and assumes diploid and biallelic.
+    Ignores call phasing, and assumes diploid and biallelic. Haploid calls for
+    hemiploid samples on sex chromosomes also are acceptable input.
 
     Notes
     -----
