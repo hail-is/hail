@@ -285,13 +285,13 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
-    val centeredG = BlockMatrix.map2 { (g, mu) =>
-      if (mu.isNaN) 0.0 else g - mu * 2.0
+    val centeredAF = BlockMatrix.map2 { (g, mu) =>
+      if (mu.isNaN) 0.0 else g / 2 - mu
     } (g, mu)
 
     val stddev = variance.sqrt()
 
-    (gram(centeredG) / gram(stddev)) / 4.0
+    gram(centeredAF) / gram(stddev)
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
