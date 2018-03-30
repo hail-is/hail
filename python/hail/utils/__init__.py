@@ -4,6 +4,7 @@ from .struct import Struct
 from .linkedlist import LinkedList
 from .interval import Interval
 from .java import error, warn, info, FatalError
+from .tutorial import get_1kg, get_movie_lens
 
 __all__ = ['hadoop_open',
            'hadoop_copy',
@@ -22,4 +23,6 @@ __all__ = ['hadoop_open',
            'FatalError',
            'range_table',
            'range_matrix_table',
-           'LinkedList']
+           'LinkedList',
+           'get_1kg',
+           'get_movie_lens']
