@@ -2,7 +2,7 @@ from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, stora
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
 from hail.table import Table
-from hail.expr.expressions import expr_float64, analyze_entry_expr
+from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 import numpy as np
 from enum import IntEnum
 
@@ -386,9 +386,10 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        mt = analyze_entry_expr('write_from_entry_expr/entry_expr', entry_expr)
+        mt = matrix_table_source('write_from_entry_expr/entry_expr', entry_expr)
 
         if entry_expr in mt._fields_inverse:
+            check_entry_indexed('write_from_entry_expr/entry_expr', entry_expr)
             mt._jvds.writeBlockMatrix(path, mt._fields_inverse[entry_expr], block_size)
         else:
             uid = Env.get_uid()

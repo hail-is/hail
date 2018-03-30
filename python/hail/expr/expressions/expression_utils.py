@@ -206,3 +206,11 @@ def matrix_table_source(caller, expr):
                 caller,
                 "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     return source
+
+
+@typecheck(caller=str,
+           expr=Expression)
+def check_entry_indexed(caller, expr):
+    if expr._indices != expr._indices.source._entry_indices:
+        raise ExpressionException("{}: expression must be entry-indexed,"
+                                  " found indices {}".format(caller, list(expr._indices.axes)))
