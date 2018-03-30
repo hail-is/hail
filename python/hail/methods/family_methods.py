@@ -499,7 +499,7 @@ def de_novo(mt: MatrixTable,
 
     Call de novo events:
 
-    >>> pedigree = Pedigree.read('data/myStudy.fam')
+    >>> pedigree = hl.Pedigree.read('data/myStudy.fam')
     >>> priors = hl.import_table('data/gnomadFreq.tsv', impute=True)
     >>> priors = priors.transmute(**hl.parse_variant(priors.Variant)).key_by('locus', 'alleles')
     >>> de_novo_results = hl.de_novo(dataset, pedigree, pop_frequency_prior=priors[dataset.row_key].gnomAD)
