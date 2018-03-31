@@ -38,7 +38,7 @@ class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends
 }
 
 class ImportBgenSuite extends SparkSuite {
-  val contigRecoding = Some(Map("01" -> "1"))
+  private val contigRecoding = Some((1 to 9).map(i => s"0$i" -> i.toString).toMap)
 
   def getNumberOfLinesInFile(file: String): Long = {
     hadoopConf.readFile(file) { s =>
@@ -73,7 +73,8 @@ class ImportBgenSuite extends SparkSuite {
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- MatrixTable.gen(hc,
       VSMSubgen.callAndProbabilities.copy(
-        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(ReferenceGenome.defaultReference, "1")).gen,
+        // qctool recodes other GRCh37 contigs as "NA"
+        vGen = _ => VariantSubgen.plinkCompatibleBiallelic(ReferenceGenome.defaultReference).genLocusAlleles,
         sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countRows > 0);
       nPartitions <- choose(1, 10))

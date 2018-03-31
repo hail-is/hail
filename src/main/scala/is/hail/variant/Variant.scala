@@ -14,16 +14,6 @@ import scala.collection.JavaConverters._
 
 object Contig {
   def gen(rg: ReferenceGenome): Gen[(String, Int)] = Gen.oneOfSeq(rg.lengths.toSeq)
-
-  def gen(rg: ReferenceGenome, contig: String): Gen[(String, Int)] = {
-    assert(rg.isValidContig(contig), s"Contig $contig not found in reference genome.")
-    Gen.const((contig, rg.contigLength(contig)))
-  }
-
-  def gen(nameGen: Gen[String] = Gen.identifier, lengthGen: Gen[Int] = Gen.choose(1000000, 500000000)): Gen[(String, Int)] = for {
-    name <- nameGen
-    length <- lengthGen
-  } yield (name, length)
 }
 
 object Variant {
@@ -83,10 +73,6 @@ object Variant {
     nAlleles * (nAlleles + 1) / 2
   }
 
-  def gen: Gen[Variant] = VariantSubgen.random.gen
-
-  implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
-
   def fromLocusAlleles(a: Annotation): Variant = {
     val r = a.asInstanceOf[Row]
     val l = r.getAs[Locus](0)
@@ -102,19 +88,26 @@ object Variant {
 }
 
 object VariantSubgen {
-  val random = VariantSubgen(
-    contigGen = Contig.gen(),
+  def random(rg: ReferenceGenome): VariantSubgen = VariantSubgen(
+    contigGen = Contig.gen(rg),
     nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
     refGen = genDNAString,
     altGen = Gen.frequency((10, genDNAString),
       (1, Gen.const("*"))))
 
-  val plinkCompatible = random.copy(contigGen = Contig.gen(nameGen = Gen.choose(1, 22).map(_.toString)))
+  def plinkCompatible(rg: ReferenceGenome): VariantSubgen = {
+    val r = random(rg)
+    val compatible = (1 until 22).map(_.toString).toSet
+    r.copy(
+      contigGen = r.contigGen.filter { case (contig, len) =>
+        compatible.contains(contig)
+      })
+  }
 
-  val biallelic = random.copy(nAllelesGen = Gen.const(2))
+  def biallelic(rg: ReferenceGenome): VariantSubgen = random(rg).copy(nAllelesGen = Gen.const(2))
 
-  def fromGenomeRef(rg: ReferenceGenome): VariantSubgen =
-    random.copy(contigGen = Contig.gen(rg))
+  def plinkCompatibleBiallelic(rg: ReferenceGenome): VariantSubgen =
+    plinkCompatible(rg).copy(nAllelesGen = Gen.const(2))
 }
 
 case class VariantSubgen(
@@ -123,16 +116,18 @@ case class VariantSubgen(
   refGen: Gen[String],
   altGen: Gen[String]) {
 
-  def gen: Gen[Variant] =
-    for ((contig, length) <- contigGen;
-      start <- Gen.choose(1, length);
-      nAlleles <- nAllelesGen;
-      ref <- refGen;
+  def genLocusAlleles: Gen[Annotation] =
+    for {
+      (contig, length) <- contigGen
+      start <- Gen.choose(1, length)
+      nAlleles <- nAllelesGen
+      ref <- refGen
       altAlleles <- Gen.distinctBuildableOfN[Array](
         nAlleles - 1,
         altGen)
-        .filter(!_.contains(ref))) yield
-      Variant(contig, start, ref, altAlleles.map(alt => AltAllele(ref, alt)))
+        .filter(!_.contains(ref))
+    } yield
+      Annotation(Locus(contig, start), (ref +: altAlleles).toFastIndexedSeq)
 }
 
 trait IVariant { self =>

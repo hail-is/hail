@@ -6,22 +6,23 @@ import is.hail.check.{Gen, Properties}
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.TestUtils
-import is.hail.variant.{AltAllele, MatrixTable, VSMSubgen, Variant}
+import is.hail.annotations.Annotation
+import is.hail.variant._
 import org.testng.annotations.Test
 
 class SplitSuite extends SparkSuite {
 
   object Spec extends Properties("MultiSplit") {
-    val splittableVariantGen = for {
+    val splittableLocusAllelesGen = for {
       contig <- Gen.const("1")
       start <- Gen.choose(1, 100)
       motif <- Gen.oneOf("AT", "AC", "CT", "GA", "GT", "CCA", "CAT", "CCT")
       ref <- Gen.choose(1, 10).map(motif * _)
-      alts <- Gen.distinctBuildableOf[Array](Gen.choose(1, 10).map(motif * _).filter(_ != ref).map(a => AltAllele(ref, a)))
-    } yield Variant(contig, start, ref, alts)
+      alts <- Gen.distinctBuildableOf[Array](Gen.choose(1, 10).map(motif * _).filter(_ != ref))
+    } yield Annotation(Locus(contig, start), (ref +: alts).toFastIndexedSeq)
 
     property("splitMulti maintains variants") = forAll(MatrixTable.gen(hc,
-      VSMSubgen.random.copy(vGen = _ => splittableVariantGen))) { vds =>
+      VSMSubgen.random.copy(vGen = _ => splittableLocusAllelesGen))) { vds =>
       val method1 = TestUtils.splitMultiHTS(vds).variants.collect().toSet
       val method2 = vds.variants.flatMap { v =>
         v.altAlleles.iterator
