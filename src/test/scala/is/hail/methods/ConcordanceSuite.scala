@@ -16,9 +16,8 @@ import scala.language._
 
 class ConcordanceSuite extends SparkSuite {
   def gen(sc: SparkContext) = for {
-    rg <- ReferenceGenome.gen
-    vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(rg))))
-    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(rg))))
+    vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
+    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
     scrambledIds1 <- Gen.shuffle(vds1.stringSampleIds).map(_.iterator)
     newIds2 <- Gen.parameterized { p =>
       Gen.const(vds2.stringSampleIds.map { id =>
@@ -39,9 +38,9 @@ class ConcordanceSuite extends SparkSuite {
         } else
           Row(locus, alleles, locus, alleles)
       },
-        TStruct("locus" -> TLocus(rg),
+        TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
         "alleles" -> TArray(TString()),
-        "locus2" -> TLocus(rg),
+        "locus2" -> TLocus(ReferenceGenome.GRCh37),
         "alleles2" -> TArray(TString())), Array.empty[String], None)
         .keyBy("locus", "alleles"))
     }

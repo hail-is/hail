@@ -290,7 +290,6 @@ abstract class Type extends BaseType with Serializable {
       case t: TArray => t.copy(required = required)
       case t: TSet => t.copy(required = required)
       case t: TDict => t.copy(required = required)
-      case t: TVariant => t.copy(required = required)
       case t: TLocus => t.copy(required = required)
       case t: TInterval => t.copy(required = required)
       case t: TStruct => t.copy(required = required)
@@ -312,7 +311,6 @@ abstract class Type extends BaseType with Serializable {
       case TString(_) => t == TStringOptional || t == TStringRequired
       case TCall(_) => t == TCallOptional || t == TCallRequired
       case t2: TLocus => t == t2 || t == +t2
-      case t2: TVariant => t == t2 || t == +t2
       case t2: TInterval => t == t2 || t == +t2
       case t2: TStruct =>
         t.isInstanceOf[TStruct] &&

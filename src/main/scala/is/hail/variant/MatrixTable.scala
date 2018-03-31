@@ -220,22 +220,6 @@ object MatrixTable {
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
 
-  def genGeneric(hc: HailContext): Gen[MatrixTable] =
-    VSMSubgen(
-      sSigGen = Type.genArb,
-      saSigGen = Type.genInsertableStruct,
-      vSigGen = ReferenceGenome.gen.map(TVariant(_)),
-      vaSigGen = Type.genInsertableStruct,
-      globalSigGen = Type.genInsertableStruct,
-      tSigGen = Type.genInsertableStruct,
-      sGen = (t: Type) => t.genNonmissingValue,
-      saGen = (t: Type) => t.genValue,
-      vaGen = (t: Type) => t.genValue,
-      globalGen = (t: Type) => t.genNonmissingValue,
-      vGen = (t: Type) => t.genNonmissingValue,
-      tGen = (t: Type, v: Annotation) => t.genValue.resize(20))
-      .gen(hc)
-
   def checkDatasetSchemasCompatible(datasets: Array[MatrixTable]) {
     val first = datasets(0)
     val vaSchema = first.rowType
@@ -349,6 +333,7 @@ case class VSMSubgen(
   sSigGen: Gen[Type],
   saSigGen: Gen[TStruct],
   vSigGen: Gen[Type],
+  rowPartitionKeyGen: (Type) => Gen[Array[String]],
   vaSigGen: Gen[TStruct],
   globalSigGen: Gen[TStruct],
   tSigGen: Gen[TStruct],
@@ -365,6 +350,7 @@ case class VSMSubgen(
       (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8)
 
       vSig <- vSigGen.resize(3)
+      rowPartitionKey <- rowPartitionKeyGen(vSig)
       vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
       sSig <- sSigGen.resize(3)
       saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
@@ -387,23 +373,18 @@ case class VSMSubgen(
       assert(sampleIds.forall(_ != null))
       val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
 
-      val (finalVASig, vaIns, rowPartitionKey, rowKey) =
+      val (finalVASig, vaIns, finalRowPartitionKey, rowKey) =
         vSig match {
-          case _: TVariant =>
-            val (vaSig2, vaIns1) = vaSig.structInsert(vSig.asInstanceOf[TVariant].rg.locusType, List("locus"))
-            val (finalVASig, vaIns2) = vaSig2.structInsert(TArray(TString()), List("alleles"))
-            val vaIns = (va: Annotation, v: Annotation) => {
-              val vv = v.asInstanceOf[Variant]
-              (vaIns2(vaIns1(va, vv.locus), vv.alleles))
-            }
-            (finalVASig, vaIns, Array("locus"), Array("locus", "alleles"))
+          case vSig: TStruct =>
+            val (finalVASig, vaIns) = vaSig.annotate(vSig)
+            (finalVASig, vaIns, rowPartitionKey, vSig.fieldNames)
           case _ =>
             val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
             (finalVASig, vaIns, Array("v"), Array("v"))
         }
 
       MatrixTable.fromLegacy(hc,
-        MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowPartitionKey, rowKey, finalVASig, tSig),
+        MatrixType.fromParts(globalSig, Array("s"), finalSASig, finalRowPartitionKey, rowKey, finalVASig, tSig),
         global,
         sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
         hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
@@ -417,7 +398,11 @@ object VSMSubgen {
   val random = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = ReferenceGenome.gen.map(TVariant(_)),
+    vSigGen = ReferenceGenome.gen.map(rg =>
+      TStruct(
+        "locus" -> TLocus(rg),
+        "alleles" -> TArray(TString()))),
+    rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(Genotype.htsGenotypeType),
@@ -425,19 +410,34 @@ object VSMSubgen {
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genNonmissingValue,
-    vGen = (t: Type) => t.genNonmissingValue,
-    tGen = (t: Type, v: Annotation) => Genotype.genExtreme(v.asInstanceOf[Variant].nAlleles))
+    vGen = (t: Type) => {
+      val rg = t.asInstanceOf[TStruct]
+        .field("locus")
+        .typ
+        .asInstanceOf[TLocus]
+        .rg.asInstanceOf[ReferenceGenome]
+      VariantSubgen.random(rg).genLocusAlleles
+    },
+    tGen = (t: Type, v: Annotation) => Genotype.genExtreme(
+      v.asInstanceOf[Row]
+        .getAs[IndexedSeq[String]](1)
+        .length))
 
-  val plinkSafeBiallelic = random.copy(
-    vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37)),
+  val plinkSafeBiallelic: VSMSubgen = random.copy(
+    vSigGen = Gen.const(TStruct(
+      "locus" -> TLocus(ReferenceGenome.GRCh37),
+      "alleles" -> TArray(TString()))),
     sGen = (t: Type) => Gen.plinkSafeIdentifier,
-    vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2),
-      contigGen = Contig.gen(t.asInstanceOf[TVariant].rg.asInstanceOf[ReferenceGenome])).gen)
+    vGen = (t: Type) => VariantSubgen.plinkCompatibleBiallelic(ReferenceGenome.GRCh37).genLocusAlleles)
 
   val callAndProbabilities = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Type.genInsertable,
-    vSigGen = Gen.const(TVariant(ReferenceGenome.defaultReference)),
+    vSigGen = Gen.const(
+      TStruct(
+        "locus" -> TLocus(ReferenceGenome.defaultReference),
+        "alleles" -> TArray(TString()))),
+    rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(TStruct(
@@ -447,11 +447,17 @@ object VSMSubgen {
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genValue,
-    vGen = (t: Type) => t.genNonmissingValue,
-    tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(v.asInstanceOf[Variant].nAlleles))
+    vGen = (t: Type) => VariantSubgen.random(ReferenceGenome.defaultReference).genLocusAlleles,
+    tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(
+      v.asInstanceOf[Row]
+        .getAs[IndexedSeq[String]](1)
+        .length))
 
   val realistic = random.copy(
-    tGen = (t: Type, v: Annotation) => Genotype.genRealistic(v.asInstanceOf[Variant].nAlleles))
+    tGen = (t: Type, v: Annotation) => Genotype.genRealistic(
+      v.asInstanceOf[Row]
+        .getAs[IndexedSeq[String]](1)
+        .length))
 }
 
 class MatrixTable(val hc: HailContext, val ast: MatrixIR) {

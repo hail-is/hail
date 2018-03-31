@@ -298,10 +298,4 @@ object Genotype {
       (100, gg),
       (1, Gen.const(null)))
   }
-
-  def genNonmissingValue: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtremeNonmissing(v.nAlleles), genRealisticNonmissing(v.nAlleles)))
-
-  def genArb: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles)))
-
-  implicit def arbGenotype = Arbitrary(genArb)
 }

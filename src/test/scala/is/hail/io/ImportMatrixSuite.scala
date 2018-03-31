@@ -23,6 +23,7 @@ class ImportMatrixSuite extends SparkSuite {
     sSigGen = Gen.const(TString()),
     saSigGen = Gen.const(TStruct.empty()),
     vSigGen = Gen.oneOf[Type](TInt32(), TInt64(), TString()),
+    rowPartitionKeyGen = (t: Type) => Gen.const(Array("v")),
     vaSigGen = Type.preGenStruct(required=false, genValidImportType),
     globalSigGen = Gen.const(TStruct.empty()),
     tSigGen = Gen.zip(genValidImportType, Gen.coin(0.2))
