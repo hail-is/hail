@@ -393,7 +393,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
            reference_genome=nullable(reference_genome_type),
            skip_invalid_intervals=bool)
 def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
-    """Import a UCSC .bed file as a :class:`.Table`.
+    """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
     --------
