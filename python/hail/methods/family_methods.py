@@ -502,7 +502,7 @@ def de_novo(mt: MatrixTable,
     >>> pedigree = hl.Pedigree.read('data/trios.fam')
     >>> priors = hl.import_table('data/gnomadFreq.tsv', impute=True)
     >>> priors = priors.transmute(**hl.parse_variant(priors.Variant)).key_by('locus', 'alleles')
-    >>> de_novo_results = hl.de_novo(dataset, pedigree, pop_frequency_prior=priors[dataset.row_key].gnomAD)
+    >>> de_novo_results = hl.de_novo(dataset, pedigree, pop_frequency_prior=priors[dataset.row_key].AF)
 
     Notes
     -----
