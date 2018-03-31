@@ -2,7 +2,7 @@ package is.hail.annotations
 
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Locus, Variant}
+import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 
 class RegionValueBuilder(var region: Region) {

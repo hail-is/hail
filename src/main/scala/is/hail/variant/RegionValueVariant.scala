@@ -61,8 +61,4 @@ class RegionValueVariant(rowType: TStruct) extends View {
     }
     cachedLocus
   }
-
-  def variantObject(): Variant = {
-    Variant(contig(), position(), alleles()(0), alleles().tail)
-  }
 }

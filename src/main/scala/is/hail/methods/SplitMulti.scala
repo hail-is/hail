@@ -1,8 +1,8 @@
 package is.hail.methods
 
 import is.hail.annotations._
-import is.hail.asm4s.{AsmFunction13, FunctionBuilder}
-import is.hail.expr.{BaseIR, _}
+import is.hail.asm4s.AsmFunction13
+import is.hail.expr._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
@@ -87,7 +87,7 @@ class SplitMultiPartitionContextIR(
   private val locusType = matrixType.rowType.fieldByName("locus").typ
   val f = rowF()
 
-  def constructSplitRow(splitVariants: Iterator[(Variant, Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
+  def constructSplitRow(splitVariants: Iterator[(Locus, IndexedSeq[String], Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
     if (!globalsCopied)
       copyGlobals()
     splitRegion.clear(globalsEnd)
@@ -95,15 +95,15 @@ class SplitMultiPartitionContextIR(
     rvb.addRegionValue(matrixType.rvRowType, rv)
     val oldRow = rvb.end()
     val oldEnd = splitRegion.size
-    splitVariants.map { case (sjv, aIndex) =>
+    splitVariants.map { case (svjLocus, svjAlleles, aIndex) =>
       splitRegion.clear(oldEnd)
 
       rvb.start(locusType)
-      rvb.addAnnotation(locusType, sjv.locus)
+      rvb.addAnnotation(locusType, svjLocus)
       val locusOff = rvb.end()
 
       rvb.start(allelesType)
-      rvb.addAnnotation(allelesType, sjv.alleles)
+      rvb.addAnnotation(allelesType, svjAlleles)
       val allelesOff = rvb.end()
 
       val off = f(splitRegion, globals, false, locusOff, false, allelesOff, false, oldRow, false, aIndex, false, wasSplit, false)
@@ -124,24 +124,21 @@ class SplitMultiPartitionContextAST(
   val (t2, allelesInserter) = vAnnotator.newT.insert(matrixType.rowType.fieldByName("alleles").typ, "alleles")
   assert(t2 == vAnnotator.newT)
 
-  def constructSplitRow(splitVariants: Iterator[(Variant, Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
+  def constructSplitRow(splitVariants: Iterator[(Locus, IndexedSeq[String], Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
     val row = fullRow.deleteField(matrixType.entriesIdx)
     val gs = fullRow.getAs[IndexedSeq[Any]](matrixType.entriesIdx)
-    splitVariants.map { case (svj, i) =>
+    splitVariants.map { case (newLocus, newAlleles, i) =>
       splitRegion.clear()
       rvb.set(splitRegion)
       rvb.start(newRVRowType)
       rvb.startStruct()
 
-      val newLocus = svj.locus
-      val newAlleles = svj.alleles
-
       vAnnotator.ec.setAll(globalAnnotation, newLocus, newAlleles, row, i, wasSplit)
       val newRow = allelesInserter(
         locusInserter(
           vAnnotator.insert(row),
-          svj.locus),
-        Array(svj.ref, svj.alt).toFastIndexedSeq
+          newLocus),
+        newAlleles
       ).asInstanceOf[Row]
       var fdIdx = 0
       while (fdIdx < newRow.length) {
@@ -177,14 +174,9 @@ abstract class SplitMultiPartitionContext(
   val splitRegion = Region()
   val rvb = new RegionValueBuilder()
   val splitrv = RegionValue()
-  val variantOrdering = matrixType.rowType
-    .fieldByName("locus")
-    .typ
-    .asInstanceOf[TLocus]
-    .rg
-    .variantOrdering
+  val locusAllelesOrdering = matrixType.rowKeyStruct.ordering
 
-  def constructSplitRow(splitVariants: Iterator[(Variant, Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue]
+  def constructSplitRow(splitVariants: Iterator[(Locus, IndexedSeq[String], Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue]
 
   def splitRow(rv: RegionValue, sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): Iterator[RegionValue] = {
     require(!(removeMoving && verifyLeftAligned))
@@ -199,13 +191,15 @@ abstract class SplitMultiPartitionContext(
     var splitVariants = alts.iterator.zipWithIndex
       .filter(keepStar || _._1 != "*")
       .map { case (aa, aai) =>
-        val splitv = Variant(rvv.contig(), rvv.position(), ref, aa)
-        val minsplitv = splitv.minRep
+        val splitLocus = rvv.locus()
+        val splitAlleles: IndexedSeq[String] = Array(ref, aa)
 
-        if (splitv.locus != minsplitv.locus)
+        val (minLocus, minAlleles) = VariantMethods.minRep(splitLocus, splitAlleles)
+
+        if (splitLocus != minLocus)
           isLeftAligned = false
 
-        (minsplitv, aai + 1)
+        (minLocus, minAlleles, aai + 1)
       }.toArray
 
     if (splitVariants.isEmpty)
@@ -224,10 +218,10 @@ abstract class SplitMultiPartitionContext(
     }
 
     if (sortAlleles)
-      splitVariants = splitVariants.sortBy { case (svj, i) => svj }(variantOrdering)
+      splitVariants = splitVariants.sortBy { case (svjLocus, svjAlleles, i) => Annotation(svjLocus, svjAlleles) }(locusAllelesOrdering.toOrdering)
 
     val nAlleles = 1 + alts.length
-    val nGenotypes = Variant.nGenotypes(nAlleles)
+    val nGenotypes = VariantMethods.nGenotypes(nAlleles)
     constructSplitRow(splitVariants.iterator, rv, wasSplit)
   }
 }

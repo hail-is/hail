@@ -1,8 +1,8 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix, inv}
-import is.hail.variant.{Call, Genotype, MatrixTable, Variant}
-import is.hail.testUtils._
+import is.hail.variant.{Call, Genotype, MatrixTable}
+import is.hail.testUtils.{Variant, _}
 
 object PCRelateReferenceImplementation {
   def apply(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], DenseMatrix[Double], DenseMatrix[Double], DenseMatrix[Double]) = {

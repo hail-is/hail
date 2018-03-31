@@ -2514,6 +2514,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
 
+    val locusIndex = rvRowType.fieldIdx("locus")
+    val allelesIndex = rvRowType.fieldIdx("alleles")
+
     def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
       rvd.mapPartitions { it =>
         var prevLocus: Locus = null
@@ -2522,24 +2525,27 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         it.flatMap { rv =>
           val ur = new UnsafeRow(localRVRowType, rv.region, rv.offset)
-          val v = Variant.fromLocusAlleles(ur)
-          val minv = v.minRep
 
-          var isLeftAligned = (prevLocus == null || prevLocus != v.locus) &&
-            (v.locus == minv.locus)
+          val locus = ur.getAs[Locus](locusIndex)
+          val alleles = ur.getAs[IndexedSeq[String]](allelesIndex)
+
+          val (minLocus, minAlleles) = VariantMethods.minRep(locus, alleles)
+
+          var isLeftAligned = (prevLocus == null || prevLocus != locus) &&
+            (locus == minLocus)
 
           if (isLeftAligned && removeLeftAligned)
             None
           else if (!isLeftAligned && removeMoving)
             None
           else if (!isLeftAligned && verifyLeftAligned)
-            fatal(s"found non-left aligned variant $v")
+            fatal(s"found non-left aligned variant ${ VariantMethods.locusAllelesToString(locus, alleles) }")
           else {
             rvb.set(rv.region)
             rvb.start(localRVRowType)
             rvb.startStruct()
-            rvb.addAnnotation(localRVRowType.types(0), minv.locus)
-            rvb.addAnnotation(localRVRowType.types(1), minv.alleles)
+            rvb.addAnnotation(localRVRowType.types(0), minLocus)
+            rvb.addAnnotation(localRVRowType.types(1), minAlleles)
             var i = 2
             while (i < localRVRowType.size) {
               rvb.addField(localRVRowType, rv, i)

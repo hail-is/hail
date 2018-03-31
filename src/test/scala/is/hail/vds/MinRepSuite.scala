@@ -1,7 +1,8 @@
 package is.hail.vds
 
 import is.hail.SparkSuite
-import is.hail.variant.{ReferenceGenome, Variant}
+import is.hail.testUtils.Variant
+import is.hail.variant.ReferenceGenome
 import org.testng.annotations.Test
 
 class MinRepSuite extends SparkSuite {

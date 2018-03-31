@@ -7,7 +7,7 @@ import is.hail.check.Prop._
 import is.hail.expr.types._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
-import is.hail.variant.{MatrixTable, VSMSubgen, Variant}
+import is.hail.variant.{Locus, MatrixTable, VSMSubgen}
 import org.testng.annotations.Test
 import is.hail.testUtils._
 
@@ -40,13 +40,13 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
-    implicit val variantOrd = vdsNew.referenceGenome.variantOrdering
+    implicit val locusAlllesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
 
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')
-        .map(line => line.split("\t")).take(5).map(a => Variant(a(0), a(1).toInt, a(3), a(4))).toArray
+        .map(line => line.split("\t")).take(5).map(a => Annotation(Locus(a(0), a(1).toInt), Array(a(3), a(4)).toFastIndexedSeq)).toArray
     }.isSorted)
   }
 
