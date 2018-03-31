@@ -1,8 +1,5 @@
-import itertools
-
 from pyspark.sql import DataFrame
 
-import hail
 import hail as hl
 from hail.expr.expr_ast import *
 from hail.expr.expressions import *
@@ -91,7 +88,7 @@ class ExprContainer(object):
         self._fields_inverse = other._fields_inverse
 
 class GroupedTable(ExprContainer):
-    """Table that has been grouped.
+    """Table grouped by row that can be aggregated into a new table.
 
     There are only two operations on a grouped table, :meth:`.GroupedTable.partition_hint`
     and :meth:`.GroupedTable.aggregate`.
@@ -190,9 +187,13 @@ class GroupedTable(ExprContainer):
 
 class Table(ExprContainer):
     """Hail's distributed implementation of a dataframe or SQL table.
-    
+
     Use :func:`.read_table` to read a table that was written with
-    :meth:`.Table.write`.
+    :meth:`.Table.write`. Use :meth:`.to_spark` and :meth:`.Table.from_spark`
+    to inter-operate with PySpark's
+    `SQL <https://spark.apache.org/docs/latest/sql-programming-guide.html>`__ and
+    `machine learning <https://spark.apache.org/docs/latest/ml-guide.html>`__
+    functionality.
 
     Examples
     --------
