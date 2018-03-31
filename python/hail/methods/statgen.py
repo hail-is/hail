@@ -1452,10 +1452,15 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
         List of eigenvalues, table with column scores, table with row loadings.
     """
     mt = matrix_table_source('pca/entry_expr', entry_expr)
-    uid = Env.get_uid()
-    mt = mt.select_entries(**{uid: entry_expr})
 
-    r = Env.hail().methods.PCA.apply(mt._jvds, uid, k, compute_loadings, as_array)
+    if entry_expr in mt._fields_inverse:
+        check_entry_indexed('pca/entry_expr', entry_expr)
+        field = mt._fields_inverse[entry_expr]
+    else:
+        field = Env.get_uid()
+        mt = mt.select_entries(**{field: entry_expr})
+
+    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings, as_array)
     scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, as_array, r._2()))
     loadings = from_option(r._3())
     if loadings:

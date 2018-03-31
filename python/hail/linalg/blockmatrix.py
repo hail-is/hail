@@ -390,10 +390,11 @@ class BlockMatrix(object):
 
         if entry_expr in mt._fields_inverse:
             check_entry_indexed('write_from_entry_expr/entry_expr', entry_expr)
-            mt._jvds.writeBlockMatrix(path, mt._fields_inverse[entry_expr], block_size)
+            field = mt._fields_inverse[entry_expr]
+            mt._jvds.writeBlockMatrix(path, field, block_size)
         else:
-            uid = Env.get_uid()
-            mt.select_entries(**{uid: entry_expr})._jvds.writeBlockMatrix(path, uid, block_size)
+            field = Env.get_uid()
+            mt.select_entries(**{field: entry_expr})._jvds.writeBlockMatrix(path, field, block_size)
 
     @typecheck_method(rows_to_keep=sequenceof(int))
     def filter_rows(self, rows_to_keep):
