@@ -1045,7 +1045,7 @@ class KeyTable(object):
     @handle_py4j
     @typecheck(path=strlike)
     def import_bed(path):
-        """Import a UCSC .bed file as a key table.
+        """Import a UCSC BED file as a key table.
 
         **Examples**
 
