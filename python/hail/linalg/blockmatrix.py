@@ -386,10 +386,12 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
+        check_entry_indexed('write_from_entry_expr/entry_expr', entry_expr)
+
         mt = matrix_table_source('write_from_entry_expr/entry_expr', entry_expr)
 
+        #  FIXME: remove once select_entries on a field is free
         if entry_expr in mt._fields_inverse:
-            check_entry_indexed('write_from_entry_expr/entry_expr', entry_expr)
             field = mt._fields_inverse[entry_expr]
             mt._jvds.writeBlockMatrix(path, field, block_size)
         else:

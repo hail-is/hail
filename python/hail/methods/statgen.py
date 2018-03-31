@@ -1451,10 +1451,12 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
+    check_entry_indexed('pca/entry_expr', entry_expr)
+
     mt = matrix_table_source('pca/entry_expr', entry_expr)
 
+    #  FIXME: remove once select_entries on a field is free
     if entry_expr in mt._fields_inverse:
-        check_entry_indexed('pca/entry_expr', entry_expr)
         field = mt._fields_inverse[entry_expr]
     else:
         field = Env.get_uid()
@@ -2168,7 +2170,8 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
                           __n_called=agg.count_where(hl.is_defined(mt.__gt)))
-    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called)).persist()
+    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
+    mt = mt.persist()
 
     n_variants = mt.count_rows()
     if n_variants == 0:
@@ -2256,7 +2259,8 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     mt = mt.filter_rows((mt.__AC > 0) &
                         (mt.__AC < 2 * mt.__n_called) &
                         ((mt.__AC != mt.__n_called) |
-                        (mt.__ACsq != mt.__n_called))).persist()
+                        (mt.__ACsq != mt.__n_called)))
+    mt = mt.persist()
 
     n_variants, n_samples = mt.count()
 
