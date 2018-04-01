@@ -684,14 +684,34 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
+        print(self._show(n, width, truncate, types))
+
+    def _show(self, n=10, width=90, truncate=None, types=True):
         name = '<expr>'
         source = self._indices.source
+        if isinstance(source, hl.Table):
+            if self is source.row:
+                return source._show(n, width, truncate, types)
+            elif self is source.key:
+                return source.select(*source.key)._show(n, width, truncate, types)
+        elif isinstance(source, hl.MatrixTable):
+            if self is source.row:
+                return source.rows()._show(n, width, truncate, types)
+            elif self is source.row_key:
+                return source.rows().select(*source.row_key)._show(n, width, truncate, types)
+            if self is source.col:
+                return source.cols()._show(n, width, truncate, types)
+            elif self is source.col_key:
+                return source.cols().select(*source.col_key)._show(n, width, truncate, types)
+            if self is source.entry:
+                return source.entries()._show(n, width, truncate, types)
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
         if name in t.key:
             t = t.select(name)
-        t.show(n, width, truncate, types)
+        return t._show(n, width, truncate, types)
+
 
     @typecheck_method(n=int)
     def take(self, n):

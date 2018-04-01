@@ -1092,8 +1092,10 @@ class Table(ExprContainer):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        to_print = self._jt.showString(n, joption(truncate), types, width)
-        print(to_print)
+        print(self._show(n,width, truncate, types))
+
+    def _show(self, n=10, width=90, truncate=None, types=True):
+        return self._jt.showString(n, joption(truncate), types, width)
 
     def index(self, *exprs):
         exprs = tuple(exprs)
@@ -2273,5 +2275,9 @@ class Table(ExprContainer):
         :class:`.Table`
         """
         return Table(self._jt.distinctByKey())
+
+    def interact(self):
+        from .vis.interact import interact_table
+        interact_table(self)
 
 table_type.set(Table)
