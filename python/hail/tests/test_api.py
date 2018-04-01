@@ -624,6 +624,8 @@ class MatrixTests(unittest.TestCase):
         qs = vds.aggregate_cols(agg.count())
         qg = vds.aggregate_entries(agg.count())
 
+        self.assertIsNotNone(vds.aggregate_entries(hl.agg.take(vds.s, 1)[0]))
+
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)
         self.assertEqual(qg, qv * qs)
