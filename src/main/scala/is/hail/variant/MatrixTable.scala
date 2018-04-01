@@ -1739,7 +1739,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         var i = 0
         ec.set(2, row)
         gs.foreach { g =>
-          ec.set(4, localColValuesBc.value(i))
+          ec.set(3, localColValuesBc.value(i))
           seqOp(zv, g)
           i += 1
         }
