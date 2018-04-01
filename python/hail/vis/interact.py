@@ -2,7 +2,7 @@ from bokeh.io import push_notebook, show, output_notebook, output_file, save, ex
 from bokeh.plotting import figure
 from bokeh.resources import CDN
 from bokeh.embed import file_html
-from ipywidgets import widgets
+from ipywidgets import widgets, link
 from IPython.display import display
 import hail as hl
 from IPython.display import display
@@ -21,18 +21,84 @@ def interact_table(ht: hl.Table):
     tab.set_title(0, 'globals')
     tab.set_title(1, 'row')
     tab.selected_index = 1
-    display(tab)
 
+    glob = widgets.Button(description='globals',
+                          layout=widgets.Layout(width='200px', height='30px'))
+    rows = widgets.Button(description='rows',
+                          layout=widgets.Layout(width='200px', height='200px'))
+    base_style = glob.style
+    selected_style = widgets.ButtonStyle(button_color='#DDFFDD')
+    rows.style = selected_style
+
+    selection_handler = widgets.IntText(1)
+
+    buttons = [glob, rows]
+    button_idx = dict(zip(buttons, range(len(buttons))))
+
+    def handle_selection(x):
+        if x['name'] == 'value' and x['type'] == 'change':
+            buttons[x['old']].style = base_style
+            selection = x['new']
+            buttons[selection].style = selected_style
+            tab.selected_index = selection
+
+    selection_handler.observe(handle_selection)
+    link((tab, 'selected_index'), (selection_handler, 'value'))
+
+    def button_action(b):
+        selection_handler.value = button_idx[b]
+
+    for button in button_idx:
+        button.on_click(button_action)
+
+    box = widgets.VBox([glob, rows])
+    display(box, tab)
 
 def interact_matrix_table(mt: hl.MatrixTable):
+    glob = widgets.Button(description='globals',
+                          layout=widgets.Layout(width='65px', height='30px'))
+    cols = widgets.Button(description='cols',
+                          layout=widgets.Layout(width='200px', height='30px'))
+    rows = widgets.Button(description='rows',
+                          layout=widgets.Layout(width='65px', height='200px'))
+    entries = widgets.Button(description='entries',
+                             layout=widgets.Layout(width='200px', height='200px'))
+
+    base_style = glob.style
+    selected_style = widgets.ButtonStyle(button_color='#DDFFDD')
+    entries.style = selected_style
+
     tab = widgets.Tab()
     tab.children = [recursive_build(t) for t in [mt.globals, mt.row, mt.col, mt.entry]]
     tab.set_title(0, 'globals')
     tab.set_title(1, 'row')
     tab.set_title(2, 'col')
     tab.set_title(3, 'entry')
-    tab.selected_index = 1
-    display(tab)
+    tab.selected_index = 3
+
+    selection_handler = widgets.IntText(3)
+
+    buttons = [glob, rows, cols, entries]
+    button_idx = dict(zip(buttons, range(len(buttons))))
+
+    def handle_selection(x):
+        if x['name'] == 'value' and x['type'] == 'change':
+            buttons[x['old']].style = base_style
+            selection = x['new']
+            buttons[selection].style = selected_style
+            tab.selected_index = selection
+
+    selection_handler.observe(handle_selection)
+    link((tab, 'selected_index'), (selection_handler, 'value'))
+
+    def button_action(b):
+        selection_handler.value = button_idx[b]
+
+    for button in button_idx:
+        button.on_click(button_action)
+
+    box = widgets.VBox([widgets.HBox([glob, cols]), widgets.HBox([rows, entries])])
+    display(box, tab)
 
 
 def format_type(t):
