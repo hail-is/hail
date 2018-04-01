@@ -27,7 +27,7 @@ def interact_table(ht: hl.Table):
     rows = widgets.Button(description='rows',
                           layout=widgets.Layout(width='200px', height='200px'))
     base_style = glob.style
-    selected_style = widgets.ButtonStyle(button_color='#DDFFDD')
+    selected_style = widgets.ButtonStyle(button_color='#DDFFDD', font_weight='bold')
     rows.style = selected_style
 
     selection_handler = widgets.IntText(1)
@@ -65,7 +65,7 @@ def interact_matrix_table(mt: hl.MatrixTable):
                              layout=widgets.Layout(width='200px', height='200px'))
 
     base_style = glob.style
-    selected_style = widgets.ButtonStyle(button_color='#DDFFDD')
+    selected_style = widgets.ButtonStyle(button_color='#DDFFDD', font_weight='bold')
     entries.style = selected_style
 
     tab = widgets.Tab()
