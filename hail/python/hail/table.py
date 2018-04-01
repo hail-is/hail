@@ -1548,8 +1548,22 @@ class Table(ExprContainer):
         """
         return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
 
-    def describe(self, handler=print):
-        """Print information about the fields in the table."""
+    def describe(self, handler=print, widget=False):
+        """Print information about the fields in the table.
+
+        Note
+        ----
+        The `widget` argument is **experimental**.
+
+        Parameters
+        ----------
+        handler : Callable[[str], None]
+            Handler function for returned string.
+        widget : bool
+            [Experimental] create an interactive IPython widget.
+        """
+        if widget:
+            return hl.experimental.interact(self)
 
         def format_type(typ):
             return typ.pretty(indent=4)
