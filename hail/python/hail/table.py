@@ -1832,8 +1832,22 @@ class Table(ExprContainer):
         else:
             return e
 
-    def describe(self, handler=print):
-        """Print information about the fields in the table."""
+    def describe(self, handler=print, widget=False):
+        """Print information about the fields in the table.
+
+        Note
+        ----
+        The `widget` argument is **experimental**.
+
+        Parameters
+        ----------
+        handler : Callable[[str], None]
+            Handler function for returned string.
+        widget : bool
+            [Experimental] create an interactive IPython widget.
+        """
+        if widget:
+            return hl.experimental.interact(self)
 
         def format_type(typ):
             return typ.pretty(indent=4).lstrip()
@@ -3274,5 +3288,9 @@ class Table(ExprContainer):
             raise TypeError('All input tables to multi_way_zip_join must have the same global type')
         return Table(TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
+
+    def interact(self):
+        from .vis.interact import interact
+        interact(self)
 
 table_type.set(Table)
