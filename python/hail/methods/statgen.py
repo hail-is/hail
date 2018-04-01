@@ -1274,18 +1274,18 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     return Table(jt)
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(call_expr=expr_call,
            k=int,
            compute_loadings=bool,
            as_array=bool)
-def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
+def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
     genotype call matrix.
 
     Examples
     --------
 
-    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset, k=5)
+    >>> eigenvalues, scores, loadings = hl.hwe_normalized_pca(dataset.GT, k=5)
 
     Notes
     -----
@@ -1323,8 +1323,8 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
-        Matrix table with entry-indexed ``GT`` field of type :py:data:`.tcall`.
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
     k : :obj:`int`
         Number of principal components.
     compute_loadings : :obj:`bool`
@@ -1338,27 +1338,24 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False) ->
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    dataset = require_biallelic(dataset, 'hwe_normalized_pca')
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
-                                    n_called=agg.count_where(hl.is_defined(dataset.GT)))
-    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
+    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
-    # once count_rows() adds partition_counts we can avoid annotating and filtering twice
-    n_variants = dataset.count_rows()
+    n_variants = mt.count_rows()
     if n_variants == 0:
-        raise FatalError(
-            "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
+        raise FatalError("Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    dataset = dataset.annotate_rows(__mean_gt = dataset.AC / dataset.n_called)
-    dataset = dataset.annotate_rows(
-        __hwe_std_dev = hl.sqrt(dataset.__mean_gt * (2 - dataset.__mean_gt) * n_variants / 2))
+    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(
+        __hwe_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
 
-    entry_expr = hl.or_else(
-        (dataset.GT.n_alt_alleles() - dataset.__mean_gt) / dataset.__hwe_std_dev,
-        0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_std_dev, 0.0)
 
-    return pca(entry_expr,
+    return pca(normalized_gt,
                k,
                compute_loadings,
                as_array)
@@ -1454,16 +1451,19 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False) -> Tuple[List[
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    source = entry_expr._indices.source
-    if not isinstance(source, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-    dataset = source
-    base, _ = dataset._process_joins(entry_expr)
-    analyze('pca', entry_expr, dataset._entry_indices)
+    check_entry_indexed('pca/entry_expr', entry_expr)
 
-    r = Env.hail().methods.PCA.apply(dataset._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
-    scores = Table(Env.hail().methods.PCA.scoresTable(dataset._jvds, as_array, r._2()))
+    mt = matrix_table_source('pca/entry_expr', entry_expr)
+
+    #  FIXME: remove once select_entries on a field is free
+    if entry_expr in mt._fields_inverse:
+        field = mt._fields_inverse[entry_expr]
+    else:
+        field = Env.get_uid()
+        mt = mt.select_entries(**{field: entry_expr})
+
+    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings, as_array)
+    scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, as_array, r._2()))
     loadings = from_option(r._3())
     if loadings:
         loadings = Table(loadings)
@@ -1507,7 +1507,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     One can also pass in pre-computed principal component scores.
     To produce the same results as in the previous example:
 
-    >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset,
+    >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset.GT,
     ...                                      k=10,
     ...                                      compute_loadings=False,
     ...                                      as_array=True)
@@ -1741,15 +1741,10 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     :class:`.Table`
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    source = call_expr._indices.source
-    if not isinstance(source, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-    mt = source
-    analyze('pc_relate/call_expr', call_expr, mt._entry_indices)
+    mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
-        _, scores, _ = hwe_normalized_pca(mt, k, compute_loadings=False, as_array=True)
+        _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False, as_array=True)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
         analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
@@ -2111,21 +2106,17 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
     return sm.result()
 
 
-@typecheck(dataset=MatrixTable)
-def genetic_relatedness_matrix(dataset) -> KinshipMatrix:
-    """Compute the Genetic Relatedness Matrix (GRM).
-
-    .. include:: ../_templates/req_tvariant.rst
-    .. include:: ../_templates/req_biallelic.rst
+@typecheck(call_expr=expr_call)
+def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
+    """Compute the genetic relatedness matrix (GRM).
 
     Examples
     --------
-
-    >>> km = hl.genetic_relatedness_matrix(dataset)
+    
+    >>> grm = hl.genetic_relatedness_matrix(dataset.GT)
 
     Notes
     -----
-
     The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation
     between each pair of samples. It is defined by :math:`G = MM^T` where
     :math:`M` is a standardized version of the genotype matrix, computed as
@@ -2158,64 +2149,62 @@ def genetic_relatedness_matrix(dataset) -> KinshipMatrix:
 
         G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
-    Warning
-    -------
-    Since Hardy-Weinberg normalization cannot be applied to variants that
-    contain only reference alleles or only alternate alleles, all such variants
-    are removed prior to calcularing the GRM.
+    Note that variants for which the alternate allele frequency is zero or one are not
+    normalizable, and therefore removed prior to calculating the GRM.
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
-        Dataset to sample from.
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
 
     Returns
     -------
     :class:`.genetics.KinshipMatrix`
-        Genetic Relatedness Matrix for all samples.
+        Genetic relatedness matrix for all samples.
     """
-    require_col_key_str(dataset, 'genetic_relatedness_matrix')
-    dataset = require_biallelic(dataset, "genetic_relatedness_matrix")
-    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
-                                    n_called=agg.count_where(hl.is_defined(dataset.GT)))
-    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
+    mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
+    require_col_key_str(mt, 'genetic_relatedness_matrix')
 
-    n_variants = dataset.count_rows()
+    col_keys = mt.cols().select(*mt.col_key)
+
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
+    mt = mt.persist()
+
+    n_variants = mt.count_rows()
     if n_variants == 0:
         raise FatalError("Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing GRM using {} variants.".format(n_variants))
 
-    normalized_genotype_expr = hl.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.n_alt_alleles() - mean_gt) /
-                                hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                0))
+    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(
+        __hwe_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
 
-    bm = BlockMatrix.from_entry_expr(normalized_genotype_expr)
-    dataset.unpersist()
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_std_dev, 0.0)
+
+    bm = BlockMatrix.from_entry_expr(normalized_gt)
+    mt.unpersist()
     grm = bm.T @ bm
 
-    return KinshipMatrix._from_block_matrix(tstr,
-                                            grm,
-                                            dataset.col_key[0].collect(),
+    return KinshipMatrix._from_block_matrix(grm,
+                                            col_keys,
                                             n_variants)
 
-@typecheck(call_expr=CallExpression)
-def realized_relationship_matrix(call_expr) -> KinshipMatrix:
-    """Computes the Realized Relationship Matrix (RRM).
 
-    .. include:: ../_templates/req_biallelic.rst
+@typecheck(call_expr=expr_call)
+def realized_relationship_matrix(call_expr) -> KinshipMatrix:
+    """Computes the realized relationship matrix (RRM).
 
     Examples
     --------
 
-    >>> kinship_matrix = hl.realized_relationship_matrix(dataset['GT'])
+    >>> rrm = hl.realized_relationship_matrix(dataset.GT)
 
     Notes
     -----
-
-    The Realized Relationship Matrix is defined as follows. Consider the
+    The realized relationship matrix (RRM) is defined as follows. Consider the
     :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by
     :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal
     variants; :math:`C_{ij}` is the number of alternate alleles of variant
@@ -2240,65 +2229,59 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
 
         K = MM^T
 
-    Note that the only difference between the Realized Relationship Matrix and
-    the Genetic Relationship Matrix (GRM) used in
+    Note that the only difference between the realized relationship matrix and
+    the genetic relatedness matrix (GRM) used in
     :func:`.realized_relationship_matrix` is the variant (column) normalization:
     where RRM uses empirical variance, GRM uses expected variance under
     Hardy-Weinberg Equilibrium.
 
-
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Expression on a :class:`.MatrixTable` that gives the genotype call.
+        Entry-indexed call expression.
 
     Returns
-        :return: Realized Relationship Matrix for all samples.
-        :rtype: :class:`.KinshipMatrix`
+    -------
+    :class:`.genetics.KinshipMatrix`
+        Realized relationship matrix for all samples.
     """
-    source = call_expr._indices.source
-    if not isinstance(source, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-    dataset = source
-    analyze('realized_relationship_matrix', call_expr, dataset._entry_indices)
-    require_col_key_str(dataset, 'realized_relationship_matrix')
-    dataset = dataset.annotate_entries(call=call_expr)
-    dataset = require_biallelic(dataset, 'rrm')
+    mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
+    require_col_key_str(mt, 'realized_relationship_matrix')
 
-    gt_expr = dataset.call.n_alt_alleles()
-    dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
-                                    ACsq=agg.sum(gt_expr * gt_expr),
-                                    n_called=agg.count_where(hl.is_defined(dataset.call)))
+    col_keys = mt.cols().select(*mt.col_key)
 
-    dataset = dataset.filter_rows((dataset.AC > 0) &
-                                  (dataset.AC < 2 * dataset.n_called) &
-                                  ((dataset.AC != dataset.n_called) |
-                                   (dataset.ACsq != dataset.n_called)))
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
 
-    n_samples = dataset.count_cols()
-    n_variants = dataset.count_rows()
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                          __ACsq=agg.sum(mt.__gt * mt.__gt),
+                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+
+    mt = mt.filter_rows((mt.__AC > 0) &
+                        (mt.__AC < 2 * mt.__n_called) &
+                        ((mt.__AC != mt.__n_called) |
+                        (mt.__ACsq != mt.__n_called)))
+    mt = mt.persist()
+
+    n_variants, n_samples = mt.count()
+
+    # once count_rows() adds partition_counts we can avoid annotating and filtering twice
     if n_variants == 0:
         raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing RRM using {} variants.".format(n_variants))
 
-    gt_expr = dataset.call.n_alt_alleles()
-    normalized_genotype_expr = hl.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: hl.bind(
-            hl.sqrt((dataset.ACsq +
-                     (n_samples - dataset.n_called) * mean_gt ** 2) /
-                    n_samples - mean_gt ** 2),
-            lambda stddev: hl.cond(hl.is_defined(dataset.call),
-                                   (gt_expr - mean_gt) / stddev, 0)))
+    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(__std_dev=hl.sqrt((mt.__ACsq + (n_samples - mt.__n_called) * mt.__mean_gt ** 2) /
+                                              n_samples - mt.__mean_gt ** 2))
 
-    bm = BlockMatrix.from_entry_expr(normalized_genotype_expr)
-    dataset.unpersist()
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__std_dev, 0.0)
+
+    bm = BlockMatrix.from_entry_expr(normalized_gt)
+    mt.unpersist()
+
     rrm = (bm.T @ bm) / n_variants
 
-    return KinshipMatrix._from_block_matrix(tstr,
-                                            rrm,
-                                            dataset.col_key[0].collect(),
+    return KinshipMatrix._from_block_matrix(rrm,
+                                            col_keys,
                                             n_variants)
 
 

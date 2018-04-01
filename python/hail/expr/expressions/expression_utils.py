@@ -1,11 +1,11 @@
-from hail.typecheck import *
 from hail.utils import warn, error
 from .indices import *
 from ..expressions import Expression, Aggregable, ExpressionException, expr_any
 from typing import *
 
 
-@typecheck(caller=str, expr=Expression,
+@typecheck(caller=str,
+           expr=Expression,
            expected_indices=Indices,
            aggregation_axes=setof(str))
 def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregation_axes: Set = set()):
@@ -193,3 +193,24 @@ def get_refs(*exprs: Union[Expression, Aggregable]) -> List[Tuple[str, Indices]]
     for e in exprs:
         _get_refs(e, builder)
     return builder
+
+
+@typecheck(caller=str,
+           expr=Expression)
+def matrix_table_source(caller, expr):
+    from hail import MatrixTable
+    source = expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError(
+            "{}: Expect an expression of 'MatrixTable', found {}".format(
+                caller,
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    return source
+
+
+@typecheck(caller=str,
+           expr=Expression)
+def check_entry_indexed(caller, expr):
+    if expr._indices != expr._indices.source._entry_indices:
+        raise ExpressionException("{}: expression must be entry-indexed,"
+                                  " found indices {}".format(caller, list(expr._indices.axes)))

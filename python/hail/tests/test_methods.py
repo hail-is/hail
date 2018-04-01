@@ -276,7 +276,7 @@ class Tests(unittest.TestCase):
         n_variants = dataset.count_rows()
         self.assertGreater(n_variants, 0)
 
-        grm = hl.genetic_relatedness_matrix(dataset)
+        grm = hl.genetic_relatedness_matrix(dataset.GT)
         grm.export_id_file(rel_id_file)
 
         ############
@@ -370,7 +370,7 @@ class Tests(unittest.TestCase):
             return rrm
 
         def hail_calculation(ds):
-            rrm = hl.realized_relationship_matrix(ds['GT'])
+            rrm = hl.realized_relationship_matrix(ds.GT)
             fn = utils.new_temp_file(suffix='.tsv')
 
             rrm.export_tsv(fn)
@@ -388,18 +388,40 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(manual, rrm))
 
-    def test_pca(self):
-        dataset = hl.balding_nichols_model(3, 100, 100)
-        eigenvalues, scores, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=True)
+    def test_hwe_normalized_pca(self):
+        mt = hl.balding_nichols_model(3, 100, 50)
+        eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
 
         self.assertEqual(len(eigenvalues), 2)
         self.assertTrue(isinstance(scores, hl.Table))
         self.assertEqual(scores.count(), 100)
         self.assertTrue(isinstance(loadings, hl.Table))
-        self.assertEqual(loadings.count(), 100)
 
-        _, _, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=False)
+        _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
+
+    def test_pca(self):
+        mt = hl.balding_nichols_model(3, 100, 50)
+        eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=2, compute_loadings=True)
+
+        self.assertEqual(len(eigenvalues), 2)
+        self.assertTrue(isinstance(scores, hl.Table))
+        self.assertEqual(scores.count(), 100)
+        self.assertTrue(isinstance(loadings, hl.Table))
+        self.assertEqual(loadings.count(), 50)
+
+        _, _, loadings = hl.pca(mt.GT.n_alt_alleles(), k=2, compute_loadings=False)
+        self.assertEqual(loadings, None)
+        
+    def test_pca_join(self):
+        mt = hl.balding_nichols_model(2, 10, 20)
+        eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=1, compute_loadings=True)
+        eigenvalues2 , scores2, loadings2 = hl.pca(
+            mt.GT.n_alt_alleles() * hl.literal([1])[0], k=1, compute_loadings=True)
+
+        self.assertAlmostEquals(eigenvalues[0], eigenvalues2[0])
+        self.assertTrue(scores._same(scores2))
+        self.assertTrue(loadings._same(loadings2))
 
     def _R_pc_relate(self, mt, maf):
         import subprocess as sp
@@ -448,8 +470,8 @@ class Tests(unittest.TestCase):
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
-        _, scores2, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
-        _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
+        _, scores2, _ = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False, as_array=True)
+        _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False, as_array=True)
 
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
         kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores,

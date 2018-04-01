@@ -17,12 +17,11 @@ class KinshipMatrix(object):
         self._jkm = jkm
 
     @classmethod
-    def _from_block_matrix(cls, sample_schema, bm, sample_ids, n_rows):
+    def _from_block_matrix(cls, bm, col_keys, n_rows):
         return cls(Env.hail().methods.KinshipMatrix.apply(
             Env.hc()._jhc,
-            sample_schema._jtype,
             bm._jbm,
-            sample_ids,
+            col_keys._jt,
             n_rows))
 
     @property
