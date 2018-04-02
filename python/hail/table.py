@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 
 import hail as hl
-from hail.expr.expr_ast import f*
+from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.typecheck import *
