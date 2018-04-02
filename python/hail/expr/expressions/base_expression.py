@@ -704,7 +704,9 @@ class Expression(object):
             elif self is source.col_key:
                 return source.cols().select(*source.col_key)._show(n, width, truncate, types)
             if self is source.entry:
-                return source.entries()._show(n, width, truncate, types)
+                return (source.entries()
+                        .select(*source.row_key, *source.col_key, *source.entry)
+                        ._show(n, width, truncate, types))
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)

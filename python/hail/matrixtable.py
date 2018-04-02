@@ -2858,7 +2858,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
 
     def interact(self):
-        from .vis.interact import interact_matrix_table
-        interact_matrix_table(self)
+        from .vis.interact import interact
+        interact(self)
 
 matrix_table_type.set(MatrixTable)
