@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 
 import hail as hl
-from hail.expr.expr_ast import *
+from hail.expr.expr_ast import f*
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.typecheck import *
@@ -2137,17 +2137,16 @@ class Table(ExprContainer):
         Parameters
         ----------
         expand : :obj:`bool`
-            If True, expand_types before converting to Pandas DataFrame.
+            If ``True``, :meth:`expand_types` before converting to Spark DataFrame.
 
         flatten : :obj:`bool`
-            If True, flatten before converting to Pandas DataFrame.
-            If `expand` and `flatten` are True, flatten is run after
+            If ``True``, :meth:`flatten` before converting to Spark DataFrame.
+            If `expand` and `flatten` are ``True``, flatten is run after
             expand so that expanded types are flattened.
 
         Returns
         -------
         :class:`.pyspark.sql.DataFrame`
-            Spark DataFrame constructed from the table.
         """
         jt = self._jt
         if expand:
@@ -2159,22 +2158,21 @@ class Table(ExprContainer):
     @typecheck_method(expand=bool,
                       flatten=bool)
     def to_pandas(self, expand=True, flatten=True):
-        """Converts this table into a Pandas DataFrame.
+        """Converts this table to a Pandas DataFrame.
 
         Parameters
         ----------
         expand : :obj:`bool`
-            If True, expand_types before converting to Pandas DataFrame.
+            If ``True``, :meth:`expand_types` before converting to Pandas DataFrame.
 
         flatten : :obj:`bool`
-            If True, flatten before converting to Pandas DataFrame.
-            If `expand` and `flatten` are True, flatten is run after
+            If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
+            If `expand` and `flatten` are ``True``, flatten is run after
             expand so that expanded types are flattened.
 
         Returns
         -------
         :class:`.pandas.DataFrame`
-            Pandas DataFrame constructed from the table.
         """
         return self.to_spark(expand, flatten).toPandas()
 
