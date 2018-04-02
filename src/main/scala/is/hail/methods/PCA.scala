@@ -62,7 +62,7 @@ object PCA {
     val sc = vsm.sparkContext
     val irm = vsm.toIndexedRowMatrix(entryField)
 
-    info(s"Running PCA with $k components...")
+    info(s"pca: running PCA with $k components...")
 
     val svd = irm.computeSVD(k, computeLoadings)
     if (svd.s.size < k)

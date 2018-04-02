@@ -1341,8 +1341,8 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
 
     n_variants = mt.count_rows()
     if n_variants == 0:
-        raise FatalError("Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
-    info("Running PCA using {} variants.".format(n_variants))
+        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
+    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
