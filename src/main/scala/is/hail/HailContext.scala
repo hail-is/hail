@@ -11,6 +11,7 @@ import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
+import is.hail.rvd.RVDContext
 import is.hail.table.Table
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
@@ -178,56 +179,60 @@ object HailContext {
     ProgressBarBuilder.build(sc)
   }
 
-  def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream, metrics: InputMetrics = null): Iterator[RegionValue] = {
-    new Iterator[RegionValue] {
-      private val region = Region()
-      private val rv = RegionValue(region)
+  def readRowsPartition(
+    t: TStruct,
+    codecSpec: CodecSpec
+  )(ctx: RVDContext,
+    in: InputStream,
+    metrics: InputMetrics = null
+  ): Iterator[RegionValue] = new Iterator[RegionValue] {
+    private val region = ctx.freshRegion()
+    private val rv = RegionValue(region)
 
-      private val trackedIn = new ByteTrackingInputStream(in)
-      private val dec =
-        try {
-          codecSpec.buildDecoder(trackedIn)
-        } catch {
-          case e: Exception =>
-            in.close()
-            throw e
-        }
-
-      private var cont: Byte = dec.readByte()
-      if (cont == 0)
-        dec.close()
-
-      // can't throw
-      def hasNext: Boolean = cont != 0
-
-      def next(): RegionValue = {
-        // !hasNext => cont == 0 => dec has been closed
-        if (!hasNext)
-          throw new NoSuchElementException("next on empty iterator")
-
-        try {
-          region.clear()
-          rv.setOffset(dec.readRegionValue(t, region))
-          if (metrics != null) {
-            ExposedMetrics.incrementRecord(metrics)
-            ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
-          }
-
-          cont = dec.readByte()
-          if (cont == 0)
-            dec.close()
-
-          rv
-        } catch {
-          case e: Exception =>
-            dec.close()
-            throw e
-        }
+    private val trackedIn = new ByteTrackingInputStream(in)
+    private val dec =
+      try {
+        codecSpec.buildDecoder(trackedIn)
+      } catch {
+        case e: Exception =>
+          in.close()
+          throw e
       }
 
-      override def finalize(): Unit = {
-        dec.close()
+    private var cont: Byte = dec.readByte()
+    if (cont == 0)
+      dec.close()
+
+    // can't throw
+    def hasNext: Boolean = cont != 0
+
+    def next(): RegionValue = {
+      // !hasNext => cont == 0 => dec has been closed
+      if (!hasNext)
+        throw new NoSuchElementException("next on empty iterator")
+
+      try {
+        region.clear()
+        rv.setOffset(dec.readRegionValue(t, region))
+        if (metrics != null) {
+          ExposedMetrics.incrementRecord(metrics)
+          ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
+        }
+
+        cont = dec.readByte()
+        if (cont == 0)
+          dec.close()
+
+        rv
+      } catch {
+        case e: Exception =>
+          dec.close()
+          throw e
       }
+    }
+
+    override def finalize(): Unit = {
+      dec.close()
     }
   }
 }

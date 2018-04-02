@@ -12,9 +12,15 @@ object Region {
   def apply(sizeHint: Long = 128): Region = {
     new Region(new Array[Byte](sizeHint.toInt))
   }
+
+  def scoped[T](f: Region => T): T =
+    using(Region())(f)
 }
 
-final class Region(private var mem: Array[Byte], private var end: Long = 0) extends KryoSerializable with Serializable {
+final class Region(
+  private var mem: Array[Byte],
+  private var end: Long = 0
+) extends KryoSerializable with Serializable with AutoCloseable {
   def size: Long = end
 
   def capacity: Long = mem.length

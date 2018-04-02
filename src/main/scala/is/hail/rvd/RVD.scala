@@ -42,8 +42,8 @@ object RVDSpec {
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
-      HailContext.readRowsPartition(rowType, codecSpec)(0, in)
-        .map(rv => new UnsafeRow(rowType, rv.region.copy(), rv.offset))
+      HailContext.readRowsPartition(rowType, codecSpec)(RVDContext.default, in)
+        .map(rv => Annotation.safeFromRegionValue(rowType, rv.region, rv.offset))
     }.toFastIndexedSeq
   }
 }

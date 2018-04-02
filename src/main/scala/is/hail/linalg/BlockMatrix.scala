@@ -615,11 +615,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def entriesTable(hc: HailContext): Table = {
     val rvRowType = TStruct("i" -> TInt64Required, "j" -> TInt64Required, "entry" -> TFloat64Required)
-    val entriesRDD = blocks.flatMap { case ((blockRow, blockCol), block) =>
+    val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
 
-      val region = Region()
+      val region = ctx.freshRegion
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 

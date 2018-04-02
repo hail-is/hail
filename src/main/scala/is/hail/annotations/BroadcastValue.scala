@@ -10,8 +10,8 @@ case class BroadcastValue(value: Annotation, t: Type, sc: SparkContext) {
 
   lazy val broadcast: Broadcast[Annotation] = sc.broadcast(safeValue)
 
-  lazy val regionValue: RegionValue = {
-    val rv = RegionValue(Region())
+  def regionValue(region: Region): RegionValue = {
+    val rv = RegionValue(region)
     val rvb = new RegionValueBuilder()
     rvb.set(rv.region)
     rvb.start(t)
