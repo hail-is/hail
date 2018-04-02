@@ -18,8 +18,7 @@ import scala.collection.JavaConverters._
 
 object Nirvana {
 
-  //NOTE THIS SCHEMA IS FOR NIRVANA 1.6.2 as of JUNE 19th
-  //todo: Update the schema
+  //For Nirnava v2.0.5
 
   val nirvanaSignature = TStruct(
     "chromosome" -> TString(),
