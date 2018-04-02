@@ -199,9 +199,11 @@ class UnsafeRow(var t: TBaseStruct,
   private def readObject(s: ObjectInputStream): Unit = {
     throw new NotImplementedException()
   }
+}
 
-  def toSafeRow: Row = {
-    Row(t.types.zipWithIndex.map{ case (tf, i) => Annotation.copy(tf, get(i)) }: _*)
+object SafeRow {
+  def apply(t: TBaseStruct, region: Region, off: Long): Row = {
+    Annotation.copy(t, new UnsafeRow(t, region, off)).asInstanceOf[Row]
   }
 }
 

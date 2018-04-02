@@ -605,7 +605,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def rowRDD(): RDD[Row] = {
     val localRVRowType = rvRowType
     rvd.map { rv =>
-      new UnsafeRow(localRVRowType, rv.region, rv.offset).toSafeRow
+      SafeRow(localRVRowType, rv.region, rv.offset)
     }
   }
 
