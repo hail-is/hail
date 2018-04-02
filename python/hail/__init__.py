@@ -25,7 +25,9 @@ from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
+from . import genetics
 from .methods import *
+from . import methods
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open
 
