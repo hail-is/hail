@@ -12,9 +12,11 @@ object RVDContext {
 // NB: must be *Auto*Closeable because calling close twice is undefined behavior
 // (see AutoCloseable javadoc)
 class RVDContext(r: Region) extends AutoCloseable {
-  private[this] val children: mutable.ArrayBuffer[RVDContext] = new mutable.ArrayBuffer()
+  private[this] val children: mutable.ArrayBuffer[AutoCloseable] = new mutable.ArrayBuffer()
 
-  private[this] def own(child: RVDContext): Unit = children += child
+  private[this] def own(child: AutoCloseable): Unit = children += child
+
+  own(r)
 
   def freshContext: RVDContext = {
     val ctx = RVDContext.default
@@ -27,5 +29,23 @@ class RVDContext(r: Region) extends AutoCloseable {
   def partitionRegion: Region = r // lifetime: partition
 
   // frees the memory associated with this context
-  def close(): Unit = ()
+  def close(): Unit = {
+    var e: Exception = null
+    var i = 0
+    while (i < children.size) {
+      try {
+        children(i).close()
+      } catch {
+        case e2: Exception =>
+          if (e == null)
+            e = e2
+          else
+            e.addSuppressed(e2)
+      }
+      i += 1
+    }
+
+    if (e != null)
+      throw e
+  }
 }
