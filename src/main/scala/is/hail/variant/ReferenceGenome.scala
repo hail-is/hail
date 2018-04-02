@@ -425,7 +425,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def removeLiftover(destRGName: String): Unit = {
     if (!hasLiftover(destRGName))
-      fatal(s"liftOver does not exist from reference genome '$name' to '$destRGName'.")
+      fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
     liftoverMaps -= destRGName
   }
 

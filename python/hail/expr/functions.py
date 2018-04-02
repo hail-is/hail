@@ -3730,7 +3730,7 @@ def liftover(x, dest_reference_genome, min_match=0.95):
         rtype = tinterval(tlocus(dest_reference_genome))
 
     if not rg.has_liftover(dest_reference_genome.name):
-        raise TypeError("""Reference genome '{}' does not have liftOver to '{}'.
-        Use 'add_liftover' to load a liftOver chain file.""".format(rg.name, dest_reference_genome.name))
+        raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
+        Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
     return _func(method_name, rtype, to_expr(dest_reference_genome.name, tstr), x, to_expr(min_match, tfloat))

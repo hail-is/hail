@@ -128,5 +128,5 @@ __all__ = ['HailType',
            'builders',
            'is_valid_contig',
            'is_valid_locus',
-           'liftover'
+           'liftover',
            ]

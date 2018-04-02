@@ -356,7 +356,7 @@ class ReferenceGenome(object):
 
     @typecheck_method(dest_reference_genome=reference_genome_type)
     def has_liftover(self, dest_reference_genome):
-        """``True`` if a liftOver chain file is available from this reference
+        """``True`` if a liftover chain file is available from this reference
         genome to the destination reference.
 
         Parameters
@@ -371,7 +371,7 @@ class ReferenceGenome(object):
 
     @typecheck_method(dest_reference_genome=reference_genome_type)
     def remove_liftover(self, dest_reference_genome):
-        """Remove liftOver to `dest_reference_genome`.
+        """Remove liftover to `dest_reference_genome`.
 
         Parameters
         ----------
@@ -386,7 +386,7 @@ class ReferenceGenome(object):
     @typecheck_method(chain_file=str,
                       dest_reference_genome=reference_genome_type)
     def add_liftover(self, chain_file, dest_reference_genome):
-        """Register a chain file for liftOver.
+        """Register a chain file for liftover.
 
         Notes
         -----

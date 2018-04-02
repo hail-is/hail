@@ -2715,51 +2715,6 @@ class LocusExpression(Expression):
         return hl.get_sequence(self.contig, self.position, before, after, rg)
 
 
-    @typecheck_method(dest_reference_genome=reference_genome_type,
-                      min_match=float)
-    def liftover(self, dest_reference_genome, min_match=0.95):
-        """Liftover the locus coordinates to a different reference genome.
-
-        Examples
-        --------
-
-        Liftover the locus coordinates from reference genome ``'GRCh37'`` to
-        ``'GRCh38'``:
-
-        .. doctest::
-            :options: +SKIP
-
-            >>> locus.liftover('GRCh38').value
-            Locus(contig='chr1', position=1098865, reference_genome='GRCh38')
-
-        Notes
-        -----
-        This function requires the locus's reference genome has a chain file loaded
-        for `dest_reference_genome`. Use :meth:`.ReferenceGenome.add_liftover` to
-        load and attach a chain file to a reference genome.
-
-        Returns ``None`` if `locus` could not be converted.
-
-        Warning
-        -------
-            Before using the result of :meth:`~LocusExpression.liftover` as a
-            new row key or column key, be sure to filter out missing values.
-
-        Parameters
-        ----------
-        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
-            Reference genome to convert to.
-        min_match : :class:`.Expression` of type :py:data:`.tfloat64`
-            Minimum ratio of bases that must remap.
-
-        Returns
-        -------
-        :class:`.LocusExpression`
-            A locus converted to `dest_reference_genome`.
-        """
-        return hl.liftover(self, dest_reference_genome, min_match)
-
-
 class IntervalExpression(Expression):
     """Expression of type :class:`.tinterval`.
 

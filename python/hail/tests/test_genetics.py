@@ -175,7 +175,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(grch37.has_liftover('GRCh38') and grch38.has_liftover('GRCh37'))
 
         ds = hl.import_vcf(resource('sample.vcf'))
-        t = ds.annotate_rows(liftover = ds.locus.liftover('GRCh38').liftover('GRCh37')).rows()
+        t = ds.annotate_rows(liftover = hl.liftover(hl.liftover(ds.locus, 'GRCh38'), 'GRCh37')).rows()
         self.assertTrue(t.all(t.locus == t.liftover))
         
         null_locus = hl.null(hl.tlocus('GRCh38'))
@@ -196,7 +196,7 @@ class Tests(unittest.TestCase):
         ]
         schema = hl.tstruct(l37=hl.tlocus(grch37), l38=hl.tlocus(grch38))
         t = hl.Table.parallelize(rows, schema)
-        self.assertTrue(t.all(t.l37.liftover('GRCh38') == t.l38))
+        self.assertTrue(t.all(hl.liftover(t.l37, 'GRCh38') == t.l38))
 
         t = t.filter(hl.is_defined(t.l38))
         self.assertTrue(t.count() == 6)
