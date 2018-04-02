@@ -16,11 +16,11 @@ def locus_interval_expr(contig, start, end, includes_start, includes_end,
     if reference_genome:
         if skip_invalid_intervals:
             is_valid_locus_interval = (
-                (hl.is_valid_contig(reference_genome, contig) &
-                 (hl.is_valid_locus(reference_genome, contig, start) |
-                  (~includes_start & (start == 0))) &
-                 (hl.is_valid_locus(reference_genome, contig, end) |
-                  (~includes_end & hl.is_valid_locus(reference_genome, contig, end - 1)))))
+                (hl.is_valid_contig(contig, reference_genome) &
+                 (hl.is_valid_locus(contig, start, reference_genome) |
+                  (~hl.bool(includes_start) & (start == 0))) &
+                 (hl.is_valid_locus(contig, end, reference_genome) |
+                  (~hl.bool(includes_end) & hl.is_valid_locus(contig, end - 1, reference_genome)))))
 
             return hl.or_missing(is_valid_locus_interval,
                                  hl.locus_interval(contig, start, end,

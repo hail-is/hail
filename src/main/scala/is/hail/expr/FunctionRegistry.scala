@@ -2199,21 +2199,6 @@ object FunctionRegistry {
   registerSpecialCode("&&", (a: Code[java.lang.Boolean], b: Code[java.lang.Boolean]) =>
     CM.ret(nullableBooleanCode(false)(a, b)))
 
-  registerSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
-    val v = f1()
-    if (v == null)
-      f2()
-    else
-      v
-  })(TTHr, TTHr, TTHr)
-
-  register("orMissing", { (predicate: Boolean, value: Any) =>
-    if (predicate)
-      value
-    else
-      null
-  })(boolHr, TTHr, TTHr)
-
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));
     size = a.invoke[Int]("size")
