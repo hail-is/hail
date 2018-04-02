@@ -167,6 +167,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     is_indel
     is_star
     is_complex
+    is_valid_contig
+    is_valid_locus
     allele_type
     pl_dosage
     gp_dosage

@@ -2711,7 +2711,7 @@ class LocusExpression(Expression):
         rg = self.dtype.reference_genome
         if not rg.has_sequence():
             raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(rg.name))
-        return hl.get_sequence(rg, self.contig, self.position, before, after)
+        return hl.get_sequence(self.contig, self.position, before, after, rg)
 
 
 class IntervalExpression(Expression):

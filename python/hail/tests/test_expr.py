@@ -1155,3 +1155,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(li.overlaps(li4).value)
         self.assertFalse(li.overlaps(li3).value)
         self.assertFalse(li.overlaps(li5).value)
+
+    def test_reference_genome_fns(self):
+        self.assertTrue(hl.is_valid_contig('1', 'GRCh37').value)
+        self.assertFalse(hl.is_valid_contig('chr1', 'GRCh37').value)
+        self.assertFalse(hl.is_valid_contig('1', 'GRCh38').value)
+        self.assertTrue(hl.is_valid_contig('chr1', 'GRCh38').value)
+
+        self.assertTrue(hl.is_valid_locus('1', 325423, 'GRCh37').value)
+        self.assertFalse(hl.is_valid_locus('1', 0, 'GRCh37').value)
+        self.assertFalse(hl.is_valid_locus('1', 249250622, 'GRCh37').value)
+        self.assertFalse(hl.is_valid_locus('chr1', 2645, 'GRCh37').value)

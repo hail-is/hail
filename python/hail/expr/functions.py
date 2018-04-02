@@ -3442,12 +3442,12 @@ def bool(x) -> BooleanExpression:
         return x._method("toBoolean", tbool)
 
 
-@typecheck(reference_genome=reference_genome_type,
-           contig=expr_str,
+@typecheck(contig=expr_str,
            position=expr_int32,
            before=expr_int32,
-           after=expr_int32)
-def get_sequence(reference_genome, contig, position, before=0, after=0) -> StringExpression:
+           after=expr_int32,
+           reference_genome=reference_genome_type)
+def get_sequence(contig, position, before=0, after=0, reference_genome='default') -> StringExpression:
     """Return the reference sequence at a given locus.
 
     Examples
@@ -3458,7 +3458,7 @@ def get_sequence(reference_genome, contig, position, before=0, after=0) -> Strin
     .. doctest::
         :options: +SKIP
 
-        >>> hl.get_sequence('GRCh37', '1', 45323)
+        >>> hl.get_sequence('1', 45323, 'GRCh37').value
         "T"
 
     Notes
@@ -3472,8 +3472,6 @@ def get_sequence(reference_genome, contig, position, before=0, after=0) -> Strin
 
     Parameters
     ----------
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
-        Reference genome to use. Must have a reference sequence available.
     contig : :class:`.Expression` of type :py:data:`.tstr`
         Locus contig.
     position : :class:`.Expression` of type :py:data:`.tint32`
@@ -3484,13 +3482,67 @@ def get_sequence(reference_genome, contig, position, before=0, after=0) -> Strin
     after : :class:`.Expression` of type :py:data:`.tint32`, optional
         Number of bases to include after the locus of interest. Truncates at
         contig boundary.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use. Must have a reference sequence available.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tstr`
+    :class:`.StringExpression`
     """
 
     if not reference_genome.has_sequence():
         raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(reference_genome.name))
     return _func("getReferenceSequence({})".format(reference_genome.name), tstr,
                  contig, position, before, after)
+
+@typecheck(contig=expr_str,
+           reference_genome=reference_genome_type)
+def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
+    """Returns ``True`` if `contig` is a valid contig name in `reference_genome`.
+
+    Examples
+    --------
+
+    >>> hl.eval_expr(hl.is_valid_contig('1', 'GRCh37'))
+    True
+
+    >>> hl.eval_expr(hl.is_valid_contig('chr1', 'GRCh37'))
+    False
+
+    Parameters
+    ----------
+    contig : :class:`.Expression` of type :py:data:`.tstr`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("isValidContig({})".format(reference_genome.name), tbool, contig)
+
+@typecheck(contig=expr_str,
+           position=expr_int32,
+           reference_genome=reference_genome_type)
+def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpression:
+    """Returns ``True`` if `contig` and `position` is a valid site in `reference_genome`.
+
+    Examples
+    --------
+
+    >>> hl.eval_expr(hl.is_valid_locus('1', 324254, 'GRCh37'))
+    True
+
+    >>> hl.eval_expr(hl.is_valid_locus('chr1', 324254, 'GRCh37'))
+    False
+
+    Parameters
+    ----------
+    contig : :class:`.Expression` of type :py:data:`.tstr`
+    position : :class:`.Expression` of type :py:data:`.tint`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("isValidLocus({})".format(reference_genome.name), tbool, contig, position)

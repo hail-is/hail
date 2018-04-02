@@ -134,7 +134,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(gr4.x_contigs == ["a"])
 
         t = hl.import_table(resource("fake_reference.tsv"), impute=True)
-        self.assertTrue(t.all(hl.get_sequence(gr4, t.contig, t.pos) == t.base))
+        self.assertTrue(t.all(hl.get_sequence(t.contig, t.pos, reference_genome=gr4) == t.base))
 
         l = hl.locus("a", 7, gr4)
         self.assertTrue(l.sequence_context(before=3, after=3).value == "TTTCGAA")
