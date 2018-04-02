@@ -185,13 +185,14 @@ class Head(SummaryAction):
 
     def build(self, expr, handle):
         b = widgets.Button(description='Head', tooltip='Show first few values')
+        n_to_show = widgets.IntText(value=10, layout=widgets.Layout(width='60px'), sync=True)
 
         def compute(b):
-            r = expr._show(types=False, width=100)
+            r = expr._show(n=n_to_show.value, types=False, width=100)
             handle.value = format_html(r)
 
         b.on_click(compute)
-        return b
+        return widgets.HBox(children=[b, n_to_show])
 
 
 class AggregationAction(SummaryAction):
@@ -247,11 +248,13 @@ class Hist(AggregationAction):
 
     def build(self, expr, handle):
         b = widgets.Button(description='Histogram', tooltip='Plot histogram')
+        n_bins = widgets.IntText(value=50, layout=widgets.Layout(width='60px'), sync=True)
+
         aggr = get_aggr(expr)
 
         def compute(b):
             stats = aggr(hl.agg.stats(expr))
-            hist = aggr(hl.agg.hist(expr, stats.min, stats.max, 50))
+            hist = aggr(hl.agg.hist(expr, stats.min, stats.max, n_bins.value))
             p = figure(background_fill_color='#EEEEEE')
             p.quad(bottom=0, top=hist.bin_freq,
                    left=hist.bin_edges[:-1], right=hist.bin_edges[1:],
@@ -261,7 +264,7 @@ class Hist(AggregationAction):
             handle.value = f'<a href="{html_path}" target="_blank"><big>Link to plot</big></a>'
 
         b.on_click(compute)
-        return b
+        return widgets.HBox([b, n_bins])
 
 
 class Counter(AggregationAction):
@@ -374,9 +377,11 @@ class TakeBy(AggregationAction):
 
     def build(self, expr, handle):
         if self.ascending:
-            b = widgets.Button(description='Ten Largest', tooltip='Largest ten values with key')
+            b = widgets.Button(description='N Largest', tooltip='Largest N values with key')
         else:
-            b = widgets.Button(description='Ten Smallest', tooltip='Smallest ten values with key')
+            b = widgets.Button(description='N Smallest', tooltip='Smallest N values with key')
+
+        n_to_take = widgets.IntText(value=10, layout=widgets.Layout(width='60px'), sync=True)
 
         def compute(b):
             src = expr._indices.source
@@ -397,12 +402,13 @@ class TakeBy(AggregationAction):
             if self.ascending:
                 ord = -ord
             to_take = hl.struct(**key, value=expr)
-            result = get_aggr(expr)(hl.agg.take(to_take, 10, ordering=ord))
-            s = hl.Table.parallelize(result, to_take.dtype)._show(width=100)
+            n = n_to_take.value
+            result = get_aggr(expr)(hl.agg.take(to_take, n, ordering=ord))
+            s = hl.Table.parallelize(result, to_take.dtype)._show(n, width=100)
             handle.value = format_html(s)
 
         b.on_click(compute)
-        return b
+        return widgets.HBox([b, n_to_take])
 
 
 class FractionNonZero(AggregationAction):
