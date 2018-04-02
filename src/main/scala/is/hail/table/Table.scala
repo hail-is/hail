@@ -82,15 +82,16 @@ object Table {
     new Table(hc, TableRead(path, spec, dropRows = false))
   }
 
-  def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
+  def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
     keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): Table = {
-    parallelize(hc, rows.asScala.toArray, signature, keyNames.asScala.toArray, nPartitions)
+    parallelize(hc, rowsJSON, signature, keyNames.asScala.toArray, nPartitions)
   }
 
-  def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
+  def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
     key: IndexedSeq[String], nPartitions: Option[Int] = None): Table = {
     val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
-    new Table(hc, TableParallelize(typ, rows, nPartitions))
+    val parsedRows = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(rowsJSON), TArray(signature))
+    new Table(hc, TableParallelize(typ, parsedRows.asInstanceOf[IndexedSeq[Row]], nPartitions))
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,

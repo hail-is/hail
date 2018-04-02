@@ -14,7 +14,9 @@ __all__ = [
 ]
 
 
-def interact(obj):
+def interact(obj, cache=True):
+    if cache:
+        obj = obj.cache()
     tab = widgets.Tab()
     base_style = widgets.ButtonStyle()
     selected_style = widgets.ButtonStyle(button_color='#DDFFDD', font_weight='bold')
@@ -276,9 +278,10 @@ class Counter(AggregationAction):
 
         def compute(b):
             c = collections.Counter(get_aggr(expr)(hl.agg.counter(expr)))
-            emit = []
+            emit = [f'{"Count".rjust(9)} | Value',
+                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
             for k, v in c.most_common():
-                emit.append('{} | {}'.format(str(v).rjust(6), repr(k)))
+                emit.append('{} | {}'.format(str(v).rjust(9), repr(k)))
             handle.value = format_html('\n'.join(emit))
 
         b.on_click(compute)
@@ -315,9 +318,10 @@ class LengthCounter(AggregationAction):
 
         def compute(b):
             c = collections.Counter(get_aggr(expr)(hl.agg.counter(hl.len(expr))))
-            emit = []
+            emit = [f'{"Count".rjust(9)} | Value',
+                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
             for k, v in c.most_common():
-                emit.append('{} | {}'.format(str(v).rjust(6), repr(k)))
+                emit.append('{} | {}'.format(str(v).rjust(9), repr(k)))
             handle.value = format_html('\n'.join(emit))
 
         b.on_click(compute)
@@ -339,9 +343,10 @@ class ElementCounter(AggregationAction):
         def compute(b):
             from collections import Counter
             c = Counter(get_aggr(expr)(hl.agg.counter(hl.agg.explode(expr))))
-            emit = []
+            emit = [f'{"Count".rjust(9)} | Value',
+                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
             for k, v in c.most_common():
-                emit.append('{} | {}'.format(str(v).rjust(6), repr(k)))
+                emit.append('{} | {}'.format(str(v).rjust(9), repr(k)))
             handle.value = format_html('\n'.join(emit))
 
         b.on_click(compute)
@@ -358,10 +363,11 @@ class ContigCounter(AggregationAction):
         def compute(b):
             result = get_aggr(expr)(hl.agg.counter(expr.contig))
             rg = expr.dtype.reference_genome
-            emit = []
+            emit = [f'{"Count".rjust(9)} | Value',
+                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
             for contig in rg.contigs:
                 if contig in result:
-                    emit.append(f'{str(result[contig]).rjust(6)} | {repr(contig)}')
+                    emit.append(f'{str(result[contig]).rjust(9)} | {repr(contig)}')
             handle.value = format_html('\n'.join(emit))
 
         b.on_click(compute)
