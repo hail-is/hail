@@ -330,8 +330,8 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
         localMatrixType, localSplitRow, newRowType, region)
     }
 
-    vsm.rvd.mapPartitions(newRowType, { (ctx, it) =>
-      val context = makeContext(ctx.freshRegion())
+    vsm.rvd.mapPartitionsWithContextBoundary(newRowType, { (ctx, it) =>
+      val context = makeContext(ctx.region)
       println(s"SplitMulti's region will be ${ctx.region}")
       it.flatMap { rv =>
         val splitit = context.splitRow(rv, sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)

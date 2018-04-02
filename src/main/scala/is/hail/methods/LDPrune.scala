@@ -439,32 +439,33 @@ object LDPrune {
     val typ = vsm.rvd.typ
 
     val standardizedRDD = vsm.rvd
-      .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType), { (ctx, it) =>
-        val hcView = HardCallView(fullRowType)
-        val region = ctx.freshRegion()
-        val rvb = new RegionValueBuilder(region)
-        val rv2 = RegionValue(region)
+      .mapPartitionsPreservesPartitioningWithContextBoundary(
+        new OrderedRVDType(typ.partitionKey, typ.key, bpvType), { (ctx, it) =>
+          val hcView = HardCallView(fullRowType)
+          val region = ctx.region
+          val rvb = new RegionValueBuilder(region)
+          val rv2 = RegionValue(region)
 
-        it.flatMap { rv =>
-          region.clear()
-          hcView.setRegion(rv)
-          rvb.set(region)
-          rvb.start(bpvType)
-          rvb.startStruct()
-          rvb.addField(fullRowType, rv, locusIndex)
-          rvb.addField(fullRowType, rv, allelesIndex)
+          it.flatMap { rv =>
+            region.clear()
+            hcView.setRegion(rv)
+            rvb.set(region)
+            rvb.start(bpvType)
+            rvb.startStruct()
+            rvb.addField(fullRowType, rv, locusIndex)
+            rvb.addField(fullRowType, rv, allelesIndex)
 
-          val keep = addBitPackedVector(rvb, hcView, nSamples) // add bit packed genotype vector with metadata
+            val keep = addBitPackedVector(rvb, hcView, nSamples) // add bit packed genotype vector with metadata
 
-          if (keep) {
-            rvb.endStruct()
-            rv2.setOffset(rvb.end())
-            Some(rv2)
+            if (keep) {
+              rvb.endStruct()
+              rv2.setOffset(rvb.end())
+              Some(rv2)
+            }
+            else
+              None
           }
-          else
-            None
-        }
-      })
+        })
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
       val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)

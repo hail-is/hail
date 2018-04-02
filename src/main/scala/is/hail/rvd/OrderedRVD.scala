@@ -58,6 +58,17 @@ class OrderedRVD(
       partitioner,
       crdd.cmapPartitions(f))
 
+  def mapPartitionsPreservesPartitioningWithContextBoundary(
+    newTyp: OrderedRVDType,
+    f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
+      val producerCtx = consumerCtx.freshContext
+      f(consumerCtx, part.flatMap(_(producerCtx)))
+    })
+
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
@@ -299,13 +310,15 @@ class OrderedRVD(
 
     val localType = typ
 
-    val newCRDD = crdd.cmapPartitions { (ctx, it) =>
-      val region = ctx.freshRegion()
+    val newCRDD = crdd.cmapPartitionsAndContext { (consumerCtx, it) =>
+      val region = consumerCtx.region
       val rvb = new RegionValueBuilder(region)
       val outRV = RegionValue(region)
       val buffer = new RegionValueArrayBuffer(localType.valueType)
+      val producerCtx = RVDContext.default
+      val producerIt = it.flatMap(_(producerCtx))
       val stepped: FlipbookIterator[FlipbookIterator[RegionValue]] =
-        OrderedRVIterator(localType, it).staircase
+        OrderedRVIterator(localType, producerIt).staircase
 
       stepped.map { stepIt =>
         region.clear()

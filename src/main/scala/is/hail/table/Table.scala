@@ -789,8 +789,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRVType = matrixType.rvRowType
     val orderedRKStruct = matrixType.rowKeyStruct
 
-    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType, { (ctx, it) =>
-      val region = ctx.freshRegion()
+    val newRVD = ordered.mapPartitionsPreservesPartitioningWithContextBoundary(matrixType.orvdType, { (ctx, it) =>
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val outRV = RegionValue(region)
 

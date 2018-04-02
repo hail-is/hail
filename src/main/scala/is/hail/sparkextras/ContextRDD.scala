@@ -289,6 +289,14 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
     mkc)
 
+  def cmapPartitionsAndContext[U: ClassTag](
+    f: (C, (Iterator[C => Iterator[T]])) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] =
+    onRDD(_.mapPartitions(
+      part => inCtx(ctx => f(ctx, part)),
+      preservesPartitioning))
+
   def subsetPartitions(keptPartitionIndices: Array[Int]): ContextRDD[C, T] =
     onRDD(_.subsetPartitions(keptPartitionIndices))
 

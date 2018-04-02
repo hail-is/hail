@@ -681,49 +681,50 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val selectIdx = matrixType.orvdType.kRowFieldIdx
     val keyOrd = matrixType.orvdType.kRowOrd
 
-    val newRVD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
-      new Iterator[RegionValue] {
-        var isEnd = false
-        var current: RegionValue = null
-        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
-        val region = ctx.freshRegion()
-        val rvb = new RegionValueBuilder(region)
-        val newRV = RegionValue(region)
+    val newRVD = rvd.mapPartitionsPreservesPartitioningWithContextBoundary(
+      newMatrixType.orvdType, { (ctx, it) =>
+        new Iterator[RegionValue] {
+          var isEnd = false
+          var current: RegionValue = null
+          val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
+          val region = ctx.region
+          val rvb = new RegionValueBuilder(region)
+          val newRV = RegionValue(region)
 
-        def hasNext: Boolean = {
-          if (isEnd || (current == null && !it.hasNext)) {
-            isEnd = true
-            return false
+          def hasNext: Boolean = {
+            if (isEnd || (current == null && !it.hasNext)) {
+              isEnd = true
+              return false
+            }
+            if (current == null)
+              current = it.next()
+            true
           }
-          if (current == null)
-            current = it.next()
-          true
-        }
 
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new java.util.NoSuchElementException()
-          rvRowKey.setSelect(localRVType, selectIdx, current)
-          var aggs = zero()
-          while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-            aggs = seqOp(aggs, current)
-            current = null
+          def next(): RegionValue = {
+            if (!hasNext)
+              throw new java.util.NoSuchElementException()
+            rvRowKey.setSelect(localRVType, selectIdx, current)
+            var aggs = zero()
+            while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
+              aggs = seqOp(aggs, current)
+              current = null
+            }
+            region.clear()
+            rvb.start(newRVType)
+            rvb.startStruct()
+            var i = 0
+            while (i < newRowType.size) {
+              rvb.addField(newRowType, rvRowKey.value, i)
+              i += 1
+            }
+            resultOp(aggs, rvb)
+            rvb.endStruct()
+            newRV.setOffset(rvb.end())
+            newRV
           }
-          region.clear()
-          rvb.start(newRVType)
-          rvb.startStruct()
-          var i = 0
-          while (i < newRowType.size) {
-            rvb.addField(newRowType, rvRowKey.value, i)
-            i += 1
-          }
-          resultOp(aggs, rvb)
-          rvb.endStruct()
-          newRV.setOffset(rvb.end())
-          newRV
         }
-      }
-    })
+      })
 
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
