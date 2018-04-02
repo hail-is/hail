@@ -181,7 +181,7 @@ class Pedigree(object):
     @classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
-    def read(cls, fam_path, delimiter='\\s+'):
+    def read(cls, fam_path, delimiter='\\s+') -> 'Pedigree':
         """Read a PLINK .fam file and return a pedigree object.
 
         **Examples**

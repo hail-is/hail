@@ -3546,3 +3546,115 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     :class:`.BooleanExpression`
     """
     return _func("isValidLocus({})".format(reference_genome.name), tbool, contig, position)
+
+@typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)
+def mendel_error_code(locus, is_female, father, mother, child):
+    """Compute a Mendelian violation code for genotypes.
+
+    >>> father = hl.call(0, 0)
+    >>> mother = hl.call(1, 1)
+    >>> child1 = hl.call(0, 1)  # consistent
+    >>> child2 = hl.call(0, 0)  # Mendel error
+    >>> locus = hl.locus('2', 2000000)
+
+    >>> hl.mendel_error_code(locus, True, father, mother, child1).value
+    None
+
+    >>> hl.mendel_error_code(locus, True, father, mother, child2).value
+    7
+
+    Note
+    ----
+    Ignores call phasing, and assumes diploid and biallelic. Haploid calls for
+    hemiploid samples on sex chromosomes also are acceptable input.
+
+    Notes
+    -----
+    In the table below, the copy state of a locus with respect to a trio is
+    defined as follows, where PAR is the `pseudoautosomal region
+    <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) of X and Y
+    defined by the reference genome and the autosome is defined by
+    :meth:`.LocusExpression.in_autosome`:
+
+    - Auto -- in autosome or in PAR, or in non-PAR of X and female child
+    - HemiX -- in non-PAR of X and male child
+    - HemiY -- in non-PAR of Y and male child
+
+    `Any` refers to the set \{ HomRef, Het, HomVar, NoCall \} and `~`
+    denotes complement in this set.
+
+    +------+---------+---------+--------+----------------------------+
+    | Code | Dad     | Mom     | Kid    | Copy State | Implicated    |
+    +======+=========+=========+========+============+===============+
+    |    1 | HomVar  | HomVar  | Het    | Auto       | Dad, Mom, Kid |
+    +------+---------+---------+--------+------------+---------------+
+    |    2 | HomRef  | HomRef  | Het    | Auto       | Dad, Mom, Kid |
+    +------+---------+---------+--------+------------+---------------+
+    |    3 | HomRef  | ~HomRef | HomVar | Auto       | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    4 | ~HomRef | HomRef  | HomVar | Auto       | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    5 | HomRef  | HomRef  | HomVar | Auto       | Kid           |
+    +------+---------+---------+--------+------------+---------------+
+    |    6 | HomVar  | ~HomVar | HomRef | Auto       | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    7 | ~HomVar | HomVar  | HomRef | Auto       | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    8 | HomVar  | HomVar  | HomRef | Auto       | Kid           |
+    +------+---------+---------+--------+------------+---------------+
+    |    9 | Any     | HomVar  | HomRef | HemiX      | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |   10 | Any     | HomRef  | HomVar | HemiX      | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |   11 | HomVar  | Any     | HomRef | HemiY      | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |   12 | HomRef  | Any     | HomVar | HemiY      | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+
+
+    Parameters
+    ----------
+    locus : :class:`.LocusExpression`
+    is_female : :class:`.BooleanExpression`
+    father : :class:`.CallExpression`
+    mother : :class:`.CallExpression`
+    child : :class:`.CallExpression`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    father_n = father.n_alt_alleles()
+    mother_n = mother.n_alt_alleles()
+    child_n = child.n_alt_alleles()
+
+    auto_cond = (hl.case(missing_false=True)
+                 .when((father_n == 2) & (mother_n == 2) & (child_n == 1), 1)
+                 .when((father_n == 0) & (mother_n == 0) & (child_n == 1), 2)
+                 .when((father_n == 0) & (mother_n == 0) & (child_n == 2), 5)
+                 .when((father_n == 2) & (mother_n == 2) & (child_n == 0), 8)
+                 .when((father_n == 0) & (child_n == 2), 3)
+                 .when((mother_n == 0) & (child_n == 2), 4)
+                 .when((father_n == 2) & (child_n == 0), 6)
+                 .when((mother_n == 2) & (child_n == 0), 7)
+                 .or_missing()
+                 )
+
+    hemi_x_cond = (hl.case(missing_false=True)
+                   .when((mother_n == 2) & (child_n == 0), 9)
+                   .when((mother_n == 0) & (child_n > 0), 10)
+                   .or_missing()
+                   )
+
+    hemi_y_cond = (hl.case(missing_false=True)
+                   .when((father_n > 0) & (child_n == 0), 11)
+                   .when((father_n == 0) & (child_n > 0), 12)
+                   .or_missing()
+                   )
+
+    return (hl.case()
+            .when(locus.in_autosome_or_par() | is_female, auto_cond)
+            .when(locus.in_x_nonpar() & (~is_female), hemi_x_cond)
+            .when(locus.in_y_nonpar() & (~is_female), hemi_y_cond)
+            .or_missing()
+            )

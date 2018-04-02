@@ -75,7 +75,7 @@ class Call(object):
         """
 
         if self._alleles is None:
-            self._alleles = Call._call_jobject().alleles(self._call)
+            self._alleles = jarray_to_list(Call._call_jobject().alleles(self._call))
         return self._alleles
 
     @property

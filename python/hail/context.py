@@ -178,7 +178,7 @@ def default_reference():
     """
     return Env.hc().default_reference
 
-def get_reference(name):
+def get_reference(name) -> 'hail.ReferenceGenome':
     """Returns the reference genome corresponding to `name`.
 
     Notes

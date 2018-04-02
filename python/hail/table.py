@@ -109,7 +109,7 @@ class GroupedTable(ExprContainer):
 
 
     @typecheck_method(n=int)
-    def partition_hint(self, n):
+    def partition_hint(self, n) -> 'GroupedTable':
         """Set the target number of partitions for aggregation.
 
         Examples
@@ -886,7 +886,7 @@ class Table(ExprContainer):
 
         self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
-    def group_by(self, *exprs, **named_exprs):
+    def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
 
         Examples
