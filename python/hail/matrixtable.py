@@ -15,7 +15,7 @@ from hail.utils.misc import get_nice_field_error, wrap_to_tuple, check_collision
 
 
 class GroupedMatrixTable(ExprContainer):
-    """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
+    """Matrix table grouped by row or column that can be aggregated into a new matrix table.
 
     There are only two operations on a grouped matrix table, :meth:`.GroupedMatrixTable.partition_hint`
     and :meth:`.GroupedMatrixTable.aggregate`.
