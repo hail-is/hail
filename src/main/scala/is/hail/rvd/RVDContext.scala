@@ -33,11 +33,11 @@ class RVDContext(var active: Region) extends AutoCloseable {
   // freshRegion as the active region. They may call freshRegion again,
   // continuing the cycle.
   def freshRegion(): Region = {
-    val r2 = Region()
-    println(s"creating a freshRegion: $r2 was $active")
-    regions += r2
-    active = r2
-    r2
+    val old = active
+    active = Region()
+    println(s"creating a freshRegion: $active was $old")
+    regions += active
+    old
   }
 
   def region: Region = active // lifetime: element
