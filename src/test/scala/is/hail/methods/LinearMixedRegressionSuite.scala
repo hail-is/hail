@@ -9,7 +9,8 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, Variant}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.SparkSuite
+import is.hail.TestUtils
 import org.testng.annotations.Test
 
 class LinearMixedRegressionSuite extends SparkSuite {
@@ -116,7 +117,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateCols(vds0.stringSampleIds.map(Annotation(_)).zip(cov2).toMap, TFloat64(), "cov2")
     val kinshipVDS = assocVDS.filterRowsExpr("va.locus.position <= 2")
 
-    val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles().toFloat64",
+    val vds = assocVDS.lmmreg(TestUtils.computeRRM(hc, kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles().toFloat64",
       covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
@@ -151,7 +152,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateCols(vds0.colKeys.zip(pheno).toMap, TFloat64(), "pheno")
       .annotateCols(vds0.colKeys.zip(cov1).toMap, TFloat64(), "cov1")
       .annotateCols(vds0.colKeys.zip(cov2).toMap, TFloat64(), "cov2")
-      .lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "dosage(g.GP)", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), optDroppedVarianceFraction = Some(0))
+      .lmmreg(TestUtils.computeRRM(hc, kinshipVDS), "sa.pheno", "dosage(g.GP)", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), optDroppedVarianceFraction = Some(0))
     
     val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
     
@@ -270,7 +271,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateCols(covData, covSchema, "covs")
     val kinshipVDS = assocVDS.filterRowsExpr(s"va.locus.position <= $mW")
 
-    val vds = assocVDS.lmmreg(ComputeRRM(kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles().toFloat64",
+    val vds = assocVDS.lmmreg(TestUtils.computeRRM(hc, kinshipVDS), "sa.pheno", "g.GT.nNonRefAlleles().toFloat64",
       covariates = covExpr, delta = Some(delta), optDroppedVarianceFraction = Some(0))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
@@ -309,11 +310,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
     .annotateColsTable(phenotypes, root = "pheno").annotateColsExpr("pheno = sa.pheno.f2")
 
   lazy val vdsChr1 = vdsFastLMM.filterRowsExpr("""va.locus.contig == "1"""")
-    .lmmreg(ComputeRRM(vdsFastLMM.filterRowsExpr("""va.locus.contig != "1"""")), "sa.pheno",
+    .lmmreg(TestUtils.computeRRM(hc, vdsFastLMM.filterRowsExpr("""va.locus.contig != "1"""")), "sa.pheno",
       "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov"), runAssoc = false)
 
   lazy val vdsChr3 = vdsFastLMM.filterRowsExpr("""va.locus.contig == "3"""")
-    .lmmreg(ComputeRRM(vdsFastLMM.filterRowsExpr("""va.locus.contig != "3"""")), "sa.pheno",
+    .lmmreg(TestUtils.computeRRM(hc, vdsFastLMM.filterRowsExpr("""va.locus.contig != "3"""")), "sa.pheno",
       "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov"), runAssoc = false)
 
   @Test def fastLMMTest() {
@@ -436,7 +437,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsKinship = vdsAssoc.filterRowsExpr("va.locus.position < 4")
 
-    vdsAssoc = vdsAssoc.lmmreg(ComputeRRM(vdsKinship), "sa.pheno.PhenoLMM", "g.GT.nNonRefAlleles().toFloat64",
+    vdsAssoc = vdsAssoc.lmmreg(TestUtils.computeRRM(hc, vdsKinship), "sa.pheno.PhenoLMM", "g.GT.nNonRefAlleles().toFloat64",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), runAssoc = false)
 
     vdsAssoc.count()
@@ -448,7 +449,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val notChr1VDSDownsampled = vdsFastLMM.filterRowsExpr("""va.locus.contig == "3" && va.locus.position < 2242""")
 
-    val rrm = ComputeRRM(notChr1VDSDownsampled)
+    val rrm = TestUtils.computeRRM(hc, notChr1VDSDownsampled)
 
     //REML TESTS
     val vdsChr1FullRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov"),
@@ -501,7 +502,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     .annotateGlobal(randomNorms, TArray(TFloat64()), "randNorms")
     .annotateColsExpr("pheno = sa.culprit.toFloat64 + global.randNorms[sa.s.toInt32()]")
 
-  lazy val vdsSmallRRM = ComputeRRM(vdsSmall)
+  lazy val vdsSmallRRM = TestUtils.computeRRM(hc, vdsSmall)
   
   @Test def testSmall() {
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", "g.GT.nNonRefAlleles().toFloat64")

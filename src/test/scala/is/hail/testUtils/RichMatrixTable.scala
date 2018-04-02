@@ -1,11 +1,11 @@
-package is.hail.utils
+package is.hail.testUtils
 
-import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
-import is.hail.expr.{EvalContext, Parser}
+import is.hail.annotations.{Annotation, Querier, UnsafeRow}
 import is.hail.expr.types._
+import is.hail.expr.{EvalContext, Parser}
+import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 
