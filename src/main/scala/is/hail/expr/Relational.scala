@@ -414,7 +414,6 @@ case class FilterColsIR(
         val globalRVend = rvb.currentOffset()
         val globalRVoffset = rvb.end()
 
-        colRegion.clear(globalRVend)
         val colRVb = new RegionValueBuilder(colRegion)
         colRVb.start(localColType)
         colRVb.addAnnotation(localColType, sa)

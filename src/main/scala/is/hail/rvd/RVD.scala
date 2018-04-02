@@ -193,6 +193,7 @@ trait RVD {
       it.map { rv =>
         baos.reset()
         enc.writeRegionValue(localRowType, rv.region, rv.offset)
+        enc.flush()
         baos.toByteArray
       }
     }.run.persist(level)
@@ -203,6 +204,7 @@ trait RVD {
           val region = ctx.region
           val rv2 = RegionValue(region)
           it.map { bytes =>
+            region.clear()
             val bais = new ByteArrayInputStream(bytes)
             val dec = persistCodec.buildDecoder(bais)
             rv2.setOffset(dec.readRegionValue(localRowType, region))

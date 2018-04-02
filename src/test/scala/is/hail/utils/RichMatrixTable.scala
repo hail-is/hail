@@ -85,7 +85,7 @@ class RichMatrixTable(vsm: MatrixTable) {
     val fullRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
     val rowKeyF = vsm.rowKeysF
-    vsm.rvd.rdd.map { rv =>
+    vsm.rvd.map { rv =>
       val rvc = rv.copy()
       val fullRow = new UnsafeRow(fullRowType, rvc)
       val row = fullRow.deleteField(localEntriesIndex)
