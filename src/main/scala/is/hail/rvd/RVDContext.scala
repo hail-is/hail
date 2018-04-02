@@ -34,6 +34,7 @@ class RVDContext(var active: Region) extends AutoCloseable {
   // continuing the cycle.
   def freshRegion(): Region = {
     val r2 = Region()
+    println(s"creating a freshRegion: $r2 was $active")
     regions += r2
     active = r2
     r2

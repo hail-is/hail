@@ -107,14 +107,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): Iterator[C => Iterator[U]] = Iterator.single(f)
 
   private[this] def withoutContext[U: ClassTag](
-    f: Iterator[T] => Iterator[U]
-  ): ContextRDD[C, U] = new ContextRDD(rdd.map(_.andThen(f)), mkc)
+    f: Iterator[T] => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] = cmapPartitions((_, it) => f(it), preservesPartitioning)
 
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
-    withoutContext(_.map(f))
+    withoutContext(_.map(f), true)
 
   def filter(f: T => Boolean): ContextRDD[C, T] =
-    withoutContext(_.filter(f))
+    withoutContext(_.filter(f), true)
 
   def flatMap[U: ClassTag](f: T => TraversableOnce[U]): ContextRDD[C, U] =
     withoutContext(_.flatMap(f))
@@ -254,19 +255,14 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       .getOrElse(throw new RuntimeException("nothing in the RDD!"))
   }
 
-  private[this] def withContext[U: ClassTag](
-    f: (C, Iterator[T]) => Iterator[U]
-  ): ContextRDD[C, U] =
-    new ContextRDD(rdd.map(useCtx => ctx => f(ctx, useCtx(ctx))), mkc)
-
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
-    withContext((c, it) => it.map(f(c, _)))
+    cmapPartitions((c, it) => it.map(f(c, _)), true)
 
   def cfilter(f: (C, T) => Boolean): ContextRDD[C, T] =
-    withContext((c, it) => it.filter(f(c, _)))
+    cmapPartitions((c, it) => it.filter(f(c, _)), true)
 
   def cflatMap[U: ClassTag](f: (C, T) => TraversableOnce[U]): ContextRDD[C, U] =
-    withContext((c, it) => it.flatMap(f(c, _)))
+    cmapPartitions((c, it) => it.flatMap(f(c, _)))
 
   def cmapPartitions[U: ClassTag](
     f: (C, Iterator[T]) => Iterator[U],

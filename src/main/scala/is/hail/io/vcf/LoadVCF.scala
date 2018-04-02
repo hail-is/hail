@@ -701,8 +701,10 @@ object LoadVCF {
     contigRecoding: Map[String, String]
   ): ContextRDD[RVDContext, RegionValue] = {
     lines.cmapPartitions { (ctx, it) =>
+      val capturedRegion = ctx.region
+      println(s"LoadVCF's region will be $capturedRegion")
       new Iterator[RegionValue] {
-        val region = ctx.region
+        val region = capturedRegion
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
@@ -831,8 +833,6 @@ object LoadVCF {
 
     val headerLinesBc = sc.broadcast(headerLines1)
 
-    val lines = ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions)
-
     val matrixType: MatrixType = MatrixType.fromParts(
       TStruct.empty(true),
       colType = TStruct("s" -> TString()),
@@ -846,7 +846,13 @@ object LoadVCF {
     val rowType = matrixType.rvRowType
 
     // nothing after the key
-    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, rg, contigRecoding)
+    val justVariants = parseLines(
+      () => ()
+    )((c, l, rvb) => ()
+    )(ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions),
+      kType,
+      rg,
+      contigRecoding)
 
     val rdd = OrderedRVD.coerce(
       matrixType.orvdType,
@@ -880,8 +886,12 @@ object LoadVCF {
           }
         }
         rvb.endArray()
-      }(lines, rowType, rg, contigRecoding),
-      Some(justVariants), None)
+      }(ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions),
+        rowType,
+        rg,
+        contigRecoding),
+      Some(justVariants),
+      None)
 
     new MatrixTable(hc,
       matrixType,
