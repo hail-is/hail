@@ -1288,7 +1288,7 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
 
     Notes
     -----
-    This method specializes  :func:`.pca` for the common use case
+    This method specializes :func:`.pca` for the common use case
     of PCA in statistical genetics, that of projecting samples to a small
     number of ancestry coordinates. Variants that are all homozygous reference
     or all homozygous alternate are unnormalizable and removed before
