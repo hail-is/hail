@@ -3,6 +3,8 @@ package is.hail.methods
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.rvd.RVDContext
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -24,8 +26,8 @@ object PCA {
     val scoresBc = sc.broadcast(scores)
     val localSSignature = vsm.colKeyTypes
 
-    val scoresRDD = sc.parallelize(vsm.colKeys.zipWithIndex).mapPartitions[RegionValue] { it =>
-      val region = Region()
+    val scoresRDD = ContextRDD.weaken[RVDContext](sc.parallelize(vsm.colKeys.zipWithIndex)).cmapPartitions { (ctx, it) =>
+      val region = ctx.region
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
       val localRowType = rowTypeBc.value
@@ -93,8 +95,8 @@ object PCA {
       val rowKeysBc = vsm.sparkContext.broadcast(collectRowKeys())
       val localRowKeySignature = vsm.rowKeyTypes
 
-      val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
-        val region = Region()
+      val rdd = ContextRDD.weaken[RVDContext](svd.U.rows).cmapPartitions { (ctx, it) =>
+        val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>

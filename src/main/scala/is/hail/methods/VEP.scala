@@ -6,7 +6,8 @@ import java.util.Properties
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
 import org.apache.spark.sql.Row
@@ -336,22 +337,25 @@ object VEP {
     val vepRVD: OrderedRVD = OrderedRVD(
       vepORVDType,
       vsm.rvd.partitioner,
-      annotations.mapPartitions { it =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
+      ContextRDD.weaken[RVDContext](annotations)
+        .cmapPartitions { (ctx, it) =>
+          val region = ctx.region
+          val rvb = new RegionValueBuilder(region)
+          val rv = RegionValue(region)
 
-        it.map { case (v, vep) =>
-          rvb.start(vepRowType)
-          rvb.startStruct()
-          rvb.addAnnotation(vepRowType.types(0), v.asInstanceOf[Row].get(0))
-          rvb.addAnnotation(vepRowType.types(1), v.asInstanceOf[Row].get(1))
-          rvb.addAnnotation(vepRowType.types(2), vep)
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
+          it.map { case (v, vep) =>
+            region.clear()
+            rvb.start(vepRowType)
+            rvb.startStruct()
+            rvb.addAnnotation(vepRowType.types(0), v.asInstanceOf[Row].get(0))
+            rvb.addAnnotation(vepRowType.types(1), v.asInstanceOf[Row].get(1))
+            rvb.addAnnotation(vepRowType.types(2), vep)
+            rvb.endStruct()
+            rv.setOffset(rvb.end())
 
-          rv
-      }})
+            rv
+          }
+        })
 
     info(s"vep: annotated ${ annotations.count() } variants")
 

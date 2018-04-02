@@ -5,7 +5,8 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
@@ -103,8 +104,10 @@ object LoadBgen {
     val kType = matrixType.orvdType.kType
     val rowType = matrixType.rvRowType
 
-    val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
-      val region = Region()
+    val crdds = results.map(x => ContextRDD.weaken[RVDContext](x.rdd))
+
+    val fastKeys = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
@@ -132,8 +135,8 @@ object LoadBgen {
       }
     }))
 
-    val rdd2 = sc.union(results.map(_.rdd.mapPartitions { it =>
-      val region = Region()
+    val rdd2 = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 

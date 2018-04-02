@@ -375,4 +375,6 @@ final class Region(
     visit(t, off, v)
     v.result()
   }
+
+  def close(): Unit = ()
 }

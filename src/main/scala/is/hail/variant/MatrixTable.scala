@@ -146,8 +146,8 @@ object MatrixTable {
 
     var ds = new MatrixTable(hc, matrixType, BroadcastValue(globals, matrixType.globalType, hc.sc), colValues,
       OrderedRVD.coerce(matrixType.orvdType,
-        rdd.mapPartitions { it =>
-          val region = Region()
+        ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+          val region = ctx.region
           val rvb = new RegionValueBuilder(region)
           val rv = RegionValue(region)
 
@@ -187,9 +187,9 @@ object MatrixTable {
       entryType = TStruct.empty(required = true)
     )
     val localRVType = mt.rvRowType
-    val rdd = hc.sc.parallelize(0 until nRows, nPartitions.getOrElse(hc.sc.defaultMinPartitions))
-      .mapPartitions { it =>
-        val rv = RegionValue(Region())
+    val rdd = ContextRDD.weaken(hc.sc.parallelize(0 until nRows, nPartitions.getOrElse(hc.sc.defaultMinPartitions)))
+      .cmapPartitions { (ctx, it) =>
+        val rv = RegionValue(ctx.region)
         val rvb = new RegionValueBuilder()
         it.map { idx =>
           rvb.set(rv.region)
@@ -681,12 +681,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val selectIdx = matrixType.orvdType.kRowFieldIdx
     val keyOrd = matrixType.orvdType.kRowOrd
 
-    val newRVD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+    val newRVD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
       new Iterator[RegionValue] {
         var isEnd = false
         var current: RegionValue = null
         val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
-        val region = Region()
+        val region = ctx.freshRegion()
         val rvb = new RegionValueBuilder(region)
         val newRV = RegionValue(region)
 
@@ -723,7 +723,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           newRV
         }
       }
-    }
+    })
 
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }

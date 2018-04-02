@@ -51,6 +51,13 @@ class OrderedRVD(
       partitioner,
       crdd.mapPartitions(f))
 
+  def mapPartitionsPreservesPartitioning(
+    newTyp: OrderedRVDType,
+    f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
+    OrderedRVD(newTyp,
+      partitioner,
+      crdd.cmapPartitions(f))
+
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
@@ -292,8 +299,8 @@ class OrderedRVD(
 
     val localType = typ
 
-    val newCRDD = crdd.mapPartitions { it =>
-      val region = Region()
+    val newCRDD = crdd.cmapPartitions { (ctx, it) =>
+      val region = ctx.freshRegion()
       val rvb = new RegionValueBuilder(region)
       val outRV = RegionValue(region)
       val buffer = new RegionValueArrayBuffer(localType.valueType)

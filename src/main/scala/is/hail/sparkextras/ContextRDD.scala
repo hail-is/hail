@@ -63,6 +63,33 @@ object ContextRDD {
   private[this] object weakenInstance extends Weaken[Nothing]
   def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
 
+  def textFilesLines[C <: AutoCloseable](
+      sc: SparkContext,
+      files: Array[String],
+      nPartitions: Option[Int] = None
+    )(implicit c: Pointed[C]
+    ): ContextRDD[C, WithContext[String]] =
+      ContextRDD.weaken[C](
+        sc.textFilesLines(
+          files,
+          nPartitions.getOrElse(sc.defaultMinPartitions)))
+
+
+  // this one weird trick permits the caller to specify C without T
+  sealed trait Parallelize[C <: AutoCloseable] {
+    def apply[T : ClassTag](
+      sc: SparkContext,
+      data: Seq[T],
+      nPartitions: Option[Int] = None
+    )(implicit c: Pointed[C]
+    ): ContextRDD[C, T] = ContextRDD.weaken[C](
+      sc.parallelize(
+        data,
+        nPartitions.getOrElse(sc.defaultMinPartitions)))
+  }
+  private[this] object parallelizeInstance extends Parallelize[Nothing]
+  def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
+
   type ElementType[C, T] = C => Iterator[T]
 }
 
@@ -331,7 +358,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def iterator(p: Partition, tc: TaskContext, ctx: C): Iterator[T] =
     rdd.iterator(p, tc).flatMap(_(ctx))
 
-  private[this] def onRDD(
-    f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
-  ): ContextRDD[C, T] = new ContextRDD(f(rdd), mkc)
+  private[this] def onRDD[U: ClassTag](
+    f: RDD[C => Iterator[T]] => RDD[C => Iterator[U]]
+  ): ContextRDD[C, U] = new ContextRDD(f(rdd), mkc)
 }

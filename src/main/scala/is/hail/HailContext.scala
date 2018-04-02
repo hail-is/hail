@@ -13,6 +13,7 @@ import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
 import is.hail.rvd.RVDContext
 import is.hail.table.Table
+import is.hail.sparkextras.ContextRDD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
@@ -186,7 +187,7 @@ object HailContext {
     in: InputStream,
     metrics: InputMetrics = null
   ): Iterator[RegionValue] = new Iterator[RegionValue] {
-    private val region = ctx.freshRegion()
+    private val region = ctx.region()
     private val rv = RegionValue(region)
 
     private val trackedIn = new ByteTrackingInputStream(in)
@@ -476,7 +477,8 @@ class HailContext private(val sc: SparkContext,
     path: String,
     partFiles: Array[String],
     read: (Int, InputStream, InputMetrics) => Iterator[T],
-    optPartitioner: Option[Partitioner] = None): RDD[T] = {
+    optPartitioner: Option[Partitioner] = None
+  ): RDD[T] = {
     val nPartitions = partFiles.length
 
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
@@ -496,8 +498,19 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def readRows(path: String, t: TStruct, codecSpec: CodecSpec, partFiles: Array[String]): RDD[RegionValue] =
-    readPartitions(path, partFiles, HailContext.readRowsPartition(t, codecSpec))
+  def readRows(
+    path: String,
+    t: TStruct,
+    codecSpec: CodecSpec,
+    partFiles: Array[String]
+  ): ContextRDD[RVDContext, RegionValue] =
+    ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is) => Iterator.single(is)))
+      .cmapPartitions { (ctx, it) =>
+        assert(it.hasNext)
+        val is = it.next
+        assert(!it.hasNext)
+        HailContext.readRowsPartition(t, codecSpec)(ctx, is)
+      }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)
@@ -625,30 +638,30 @@ class HailContext private(val sc: SparkContext,
     val ast = Parser.parseToAST(expr, ec)
     ast.toIR() match {
       case Some(body) =>
-        val region = Region()
-        val t = ast.`type`
-        t match {
-          case _: TBoolean =>
-            val (_, f) = ir.Compile[Boolean](body)
-            (f()(region), t)
-          case _: TInt32 =>
-            val (_, f) = ir.Compile[Int](body)
-            (f()(region), t)
-          case _: TInt64 =>
-            val (_, f) = ir.Compile[Long](body)
-            (f()(region), t)
-          case _: TFloat32 =>
-            val (_, f) = ir.Compile[Float](body)
-            (f()(region), t)
-          case _: TFloat64 =>
-            val (_, f) = ir.Compile[Double](body)
-            (f()(region), t)
-          case _ =>
-            val (_, f) = ir.Compile[Long](body)
-            val off = f()(region)
-            val v2 = UnsafeRow.read(t, region, off)
-            val v3 = Annotation.copy(t, v2)
-            (v3, t)
+        Region.scoped { region =>
+          val t = ast.`type`
+          t match {
+            case _: TBoolean =>
+              val (_, f) = ir.Compile[Boolean](body)
+              (f()(region), t)
+            case _: TInt32 =>
+              val (_, f) = ir.Compile[Int](body)
+              (f()(region), t)
+            case _: TInt64 =>
+              val (_, f) = ir.Compile[Long](body)
+              (f()(region), t)
+            case _: TFloat32 =>
+              val (_, f) = ir.Compile[Float](body)
+              (f()(region), t)
+            case _: TFloat64 =>
+              val (_, f) = ir.Compile[Double](body)
+              (f()(region), t)
+            case _ =>
+              val (_, f) = ir.Compile[Long](body)
+              val off = f()(region)
+              val v2 = Annotation.safeFromRegionValue(t, region, off)
+              (v2, t)
+          }
         }
       case None =>
         val (t, f) = Parser.eval(ast, ec)

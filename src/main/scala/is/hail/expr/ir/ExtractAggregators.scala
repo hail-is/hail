@@ -56,6 +56,6 @@ object ExtractAggregators {
         Code(codeArgs.map(_.setup):_*),
         AggOp.get(op, x.inputType, args.map(_.typ))
           .stagedNew(codeArgs.map(_.v).toArray, codeArgs.map(_.m).toArray)))
-      Region.scoped(constfb.result()()(_)
+      Region.scoped(constfb.result()()(_))
   }
 }

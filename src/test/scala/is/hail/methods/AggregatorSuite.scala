@@ -163,7 +163,7 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testHist() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
 
     assert(vds.annotateRowsExpr(
         "hist" -> "AGG.map(g => g.GQ.toFloat64).hist(0.0, 100.0, 20)",

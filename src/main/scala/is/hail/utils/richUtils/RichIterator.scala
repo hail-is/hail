@@ -99,8 +99,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 }
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
-  def toRegionValueIterator(rowTyp: TStruct): Iterator[RegionValue] = {
-    val region = Region()
+  def toRegionValueIterator(region: Region, rowTyp: TStruct): Iterator[RegionValue] = {
     val rvb = new RegionValueBuilder(region)
     val rv = RegionValue(region)
     it.map { row =>

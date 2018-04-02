@@ -619,7 +619,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
 
-      val region = ctx.freshRegion
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 

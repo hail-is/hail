@@ -134,7 +134,7 @@ object BaldingNicholsModel {
 
     val rdd = ContextRDD.weaken[RVDContext](sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions))
       .cmapPartitions { (ctx, it) =>
-        val region = ctx.freshRegion()
+        val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
 

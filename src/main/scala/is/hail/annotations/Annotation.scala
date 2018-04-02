@@ -183,25 +183,6 @@ object Annotation {
     }
   }
 
-  private[this] def safeFromArrayRegionValue(
-    t: TArray,
-    region: Region,
-    offset: Long
-  ): Array[Annotation] = {
-    val length = t.loadLength(region, offset)
-    val a = new Array[Annotation](length)
-    var i = 0
-    while (i < length) {
-      a(i) =
-        safeFromRegionValue(
-          t.elementType,
-          region,
-          t.loadElement(region, offset, length, i))
-      i += 1
-    }
-    a
-  }
-
   def safeFromRegionValue(t: Type, rv: RegionValue): Annotation =
     safeFromRegionValue(t, rv.region, rv.offset)
 
@@ -222,7 +203,7 @@ object Annotation {
       val a = safeFromArrayRegionValue(td.fundamentalType, region, offset)
       a.map(r => r.asInstanceOf[Row]).map(r => (r.get(0), r.get(1))).toMap
     case t: TBaseStruct =>
-      Row(t.fields.map(f => safeFromRegionValue(f.typ, region, t.loadField(region, offset, f.index))).toArray:_*)
+      safeFromBaseStructRegionValue(t, region, offset)
     case t: TLocus =>
       UnsafeRow.readLocus(region, offset, t.rg)
     case t: TInterval =>
@@ -247,4 +228,35 @@ object Annotation {
         ft.loadField(region, offset, 3)).asInstanceOf[Boolean]
       Interval(start, end, includesStart, includesEnd)
   }
+
+  def safeFromArrayRegionValue(
+    t: TArray,
+    region: Region,
+    offset: Long
+  ): Array[Annotation] = {
+    val length = t.loadLength(region, offset)
+    val a = new Array[Annotation](length)
+    var i = 0
+    while (i < length) {
+      a(i) =
+        safeFromRegionValue(
+          t.elementType,
+          region,
+          t.loadElement(region, offset, length, i))
+      i += 1
+    }
+    a
+  }
+
+  def safeFromBaseStructRegionValue(
+    t: TBaseStruct,
+    region: Region,
+    offset: Long
+  ): Row =
+    Row(t.fields.map(f =>
+      safeFromRegionValue(
+        f.typ,
+        region,
+        t.loadField(region, offset, f.index))
+    ).toArray: _*)
 }

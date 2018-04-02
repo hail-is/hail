@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.methods.Aggregators
 import is.hail.rvd._
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.variant.MatrixTableSpec
 import org.apache.spark.rdd.RDD
@@ -398,13 +399,6 @@ case class FilterColsIR(
     //
     // Initialize a region containing the globals
     //
-    val colRegion = Region()
-    val rvb = new RegionValueBuilder(colRegion)
-    rvb.start(typ.globalType)
-    rvb.addAnnotation(typ.globalType, localGlobals.value)
-    val globalRVend = rvb.currentOffset()
-    val globalRVoffset = rvb.end()
-
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "global", typ.globalType,
       "sa", typ.colType,
@@ -412,12 +406,21 @@ case class FilterColsIR(
     )
     // Note that we don't yet support IR aggregators
     val p = (sa: Annotation, i: Int) => {
-      colRegion.clear(globalRVend)
-      val colRVb = new RegionValueBuilder(colRegion)
-      colRVb.start(localColType)
-      colRVb.addAnnotation(localColType, sa)
-      val colRVoffset = colRVb.end()
-      predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false)
+      Region.scoped { colRegion =>
+        // FIXME: it would be nice to only load the globals once per matrix
+        val rvb = new RegionValueBuilder(colRegion)
+        rvb.start(typ.globalType)
+        rvb.addAnnotation(typ.globalType, localGlobals.value)
+        val globalRVend = rvb.currentOffset()
+        val globalRVoffset = rvb.end()
+
+        colRegion.clear(globalRVend)
+        val colRVb = new RegionValueBuilder(colRegion)
+        colRVb.start(localColType)
+        colRVb.addAnnotation(localColType, sa)
+        val colRVoffset = colRVb.end()
+        predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false)
+      }
     }
     filterF(prev, p)
   }
@@ -690,8 +693,8 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
 
   def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
-    val rvd = hc.sc.parallelize(rows, nPartitions.getOrElse(hc.sc.defaultParallelism))
-      .mapPartitions(_.toRegionValueIterator(rowTyp))
+    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
+      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastValue(Annotation.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
   }
 }

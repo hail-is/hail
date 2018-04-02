@@ -178,7 +178,7 @@ object Table {
     globalSignature: TStruct,
     globals: Annotation
   ): Table = {
-    val crdd2 = crdd.mapPartitions(_.toRegionValueIterator(signature))
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
         BroadcastValue(globals, globalSignature, hc.sc),
@@ -245,11 +245,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globalSignature: TStruct
   ) = this(hc, rdd, signature, key, globalSignature, Row.empty)
 
-  lazy val value: TableValue = {
-    val opt = TableIR.optimize(tir)
-    opt.execute(hc)
-  }
-
   def this(
     hc: HailContext,
     rdd: RDD[RegionValue],
@@ -262,6 +257,32 @@ class Table(val hc: HailContext, val tir: TableIR) {
     rdd: RDD[RegionValue],
     signature: TStruct
   ) = this(hc, rdd, signature, Array.empty[String])
+
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct
+  ) = this(hc, crdd, signature, key, globalSignature, Row.empty)
+
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext,RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String]
+  ) = this(hc, crdd, signature, key, TStruct.empty())
+
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    signature: TStruct
+  ) = this(hc, crdd, signature, Array.empty[String])
+
+  lazy val value: TableValue = {
+    val opt = TableIR.optimize(tir)
+    opt.execute(hc)
+  }
 
   lazy val TableValue(ktType, globals, rvd) = value
 
@@ -458,25 +479,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
       } else
         Array.empty[RegionValueAggregator]
 
-      val region: Region = Region()
-      val rvb: RegionValueBuilder = new RegionValueBuilder()
-      rvb.set(region)
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(aggResultType)
+        rvb.startStruct()
+        aggResults.foreach(_.result(rvb))
+        rvb.endStruct()
+        val aggResultsOffset = rvb.end()
 
-      rvb.start(aggResultType)
-      rvb.startStruct()
-      aggResults.foreach(_.result(rvb))
-      rvb.endStruct()
-      val aggResultsOffset = rvb.end()
+        rvb.start(globalSignature)
+        rvb.addAnnotation(globalSignature, globalsBc.value)
+        val globalsOffset = rvb.end()
 
-      rvb.start(globalSignature)
-      rvb.addAnnotation(globalSignature, globalsBc.value)
-      val globalsOffset = rvb.end()
+        val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+        val resultType = coerce[TTuple](t)
+        val result = Annotation.safeFromBaseStructRegionValue(resultType, region, resultOffset)
 
-      val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
-      val resultType = coerce[TTuple](t)
-      val result = UnsafeRow.readBaseStruct(resultType, region, resultOffset)
-
-      result.toSeq.zip(resultType.types).toArray
+        result.toSeq.zip(resultType.types).toArray
+      }
     } else {
       val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -769,8 +789,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRVType = matrixType.rvRowType
     val orderedRKStruct = matrixType.rowKeyStruct
 
-    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
-      val region = Region()
+    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType, { (ctx, it) =>
+      val region = ctx.freshRegion()
       val rvb = new RegionValueBuilder(region)
       val outRV = RegionValue(region)
 
@@ -812,7 +832,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         outRV.setOffset(rvb.end())
         outRV
       }
-    }
+    })
     new MatrixTable(hc,
       matrixType,
       globals,
