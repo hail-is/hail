@@ -2,6 +2,8 @@ package is.hail.annotations
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
@@ -125,7 +127,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long) extends Row {
+  var region: Region, var offset: Long) extends Row with KryoSerializable {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
@@ -190,6 +192,14 @@ class UnsafeRow(var t: TBaseStruct,
     if (i < 0 || i >= t.size)
       throw new IndexOutOfBoundsException(i.toString)
     !t.isFieldDefined(region, offset, i)
+  }
+
+  def write(kryo: Kryo, output: Output): Unit = {
+    throw new NotImplementedException()
+  }
+
+  def read(kryo: Kryo, input: Input): Unit = {
+    throw new NotImplementedException()
   }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
