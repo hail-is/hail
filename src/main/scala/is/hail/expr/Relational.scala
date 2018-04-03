@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.methods.Aggregators
@@ -600,6 +601,132 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
       }
     }
     prev.copy(typ = typ, rvd = newRVD)
+  }
+}
+
+case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = Array(child, newRow)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+    assert(newChildren.length == 2)
+    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val newRVRow = InsertFields(newRow, Seq(MatrixType.entriesIdentifier -> GetField(Ref("va"), MatrixType.entriesIdentifier)))
+
+  val tAggElt: Type = child.typ.entryType
+  val aggSymTab = Map(
+    "global" -> (0, child.typ.globalType),
+    "va" -> (1, child.typ.rowType),
+    "g" -> (2, child.typ.entryType),
+    "sa" -> (3, child.typ.colType))
+
+  val tAgg = TAggregable(tAggElt, aggSymTab)
+
+  val typ: MatrixType = {
+    Infer(newRVRow, Some(tAgg), new Env[Type]()
+      .bind("global", child.typ.globalType)
+      .bind("va", child.typ.rvRowType)
+      .bind("AGG", tAgg)
+    )
+    val newRVRowSet = newRVRow.typ.fieldNames.toSet
+    val newRowKey = child.typ.rowKey.filter(newRVRowSet.contains)
+    val newPartitionKey = child.typ.rowPartitionKey.filter(newRVRowSet.contains)
+    child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+  }
+
+  val touchesKeys: Boolean = (typ.rowKey != child.typ.rowKey) ||
+    (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
+    newRow match {
+      case MakeStruct(fields, _) =>
+        fields.exists { case (name, ir) =>
+          typ.rowKey.contains(name) && (
+            ir match {
+              case GetField(Ref("va", _), n, _) => n != name
+              case _ => true
+            })
+        }
+      case InsertFields(Ref("va", _), toIns, _) => toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
+      case _ => true
+    })
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localRowType = prev.typ.rvRowType
+    val localEntriesType = prev.typ.entryArrayType
+    val entriesIdx = prev.typ.entriesIdx
+    val localGlobalsType = typ.globalType
+    val localColsType = TArray(typ.colType)
+    val localNCols = prev.nCols
+    val colValuesBc = prev.colValuesBc
+    val globalsBc = prev.globals.broadcast
+
+    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
+      "AGG", tAgg,
+      "global", localGlobalsType,
+      "va", prev.typ.rvRowType,
+      newRVRow)
+    assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
+
+    val mapPartitionF = { it: Iterator[RegionValue] =>
+      val rvb = new RegionValueBuilder()
+      val newRV = RegionValue()
+      val rowF = f()
+
+      it.map { rv =>
+        val region = rv.region
+        val oldRow = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        val entries = localRowType.fieldOffset(oldRow, entriesIdx)
+
+        val aggResults = if (seqOps.nonEmpty) {
+          var i = 0
+          while (i < localNCols) {
+            val eMissing = localEntriesType.isElementMissing(region, entries, i)
+            val eOff = localEntriesType.elementOffset(entries, localNCols, i)
+            val colMissing = localColsType.isElementMissing(region, cols, i)
+            val colOff = localColsType.elementOffset(cols, localNCols, i)
+            rvAggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
+              seqOp()(region, rvagg, oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+            }
+            i += 1
+          }
+          rvAggs
+        } else
+          Array.empty[RegionValueAggregator]
+
+        rvb.start(aggResultType)
+        rvb.startStruct()
+        aggResults.foreach(_.result(rvb))
+        rvb.endStruct()
+        val aggResultsOff = rvb.end()
+
+        val off = rowF(region, aggResultsOff, false, globals, false, oldRow, false)
+
+        newRV.set(region, off)
+        newRV
+      }
+    }
+
+    if (touchesKeys) {
+      val newRDD = prev.rvd.mapPartitions(mapPartitionF)
+      prev.copy(typ = typ,
+        rvd = OrderedRVD.coerce(typ.orvdType, newRDD, None, None))
+    } else {
+      val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
+      prev.copy(typ = typ, rvd = newRVD)
+    }
   }
 }
 

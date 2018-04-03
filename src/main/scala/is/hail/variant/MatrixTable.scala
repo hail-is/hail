@@ -608,16 +608,16 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def unsafeRowRDD(): RDD[UnsafeRow] = {
+  def rowRDD(): RDD[Row] = {
     val localRVRowType = rvRowType
     rvd.map { rv =>
-      new UnsafeRow(localRVRowType, rv.region.copy(), rv.offset)
+      SafeRow(localRVRowType, rv.region, rv.offset)
     }
   }
 
-  def collect(): Array[UnsafeRow] = unsafeRowRDD().collect()
+  def collect(): Array[Row] = rowRDD().collect()
 
-  def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
+  def take(n: Int): Array[Row] = rowRDD().take(n)
 
   def groupColsBy(keyExpr: String, aggExpr: String): MatrixTable = {
     val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
@@ -1131,74 +1131,82 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = rowEC
 
     val rowsAST = Parser.parseToAST(expr, ec)
+    val useAST = rowType.size < 500 && (colType.size == 1 && Set(TInt32(), +TInt32(), TString(), +TString()).contains(colType.types(0)))
 
-    val newRowType = coerce[TStruct](rowsAST.`type`)
-    val namesSet = newRowType.fieldNames.toSet
-    val newRowKey = rowKey.filter(namesSet.contains)
-    val newPartitionKey = rowPartitionKey.filter(namesSet.contains)
+    rowsAST.toIR(Some("AGG")) match {
+      case Some(x) if !useAST =>
+        new MatrixTable(hc, MapRows(ast, x))
 
-    val newMatrixType = matrixType.copyParts(rowType = newRowType, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val newRVType = newMatrixType.rvRowType
+      case _ =>
+        val newRowType = coerce[TStruct](rowsAST.`type`)
+        val namesSet = newRowType.fieldNames.toSet
+        val newRowKey = rowKey.filter(namesSet.contains)
+        val newPartitionKey = rowPartitionKey.filter(namesSet.contains)
 
-    val (t, f) = Parser.parseExpr(expr, ec)
-    assert(t == newRowType)
-    val touchesKeys: Boolean = (newRowKey != rowKey) ||
-      (newPartitionKey != rowPartitionKey) || (
-      rowsAST match {
-        case StructConstructor(_, names, asts) =>
-          names.zip(asts).exists { case (name, node) =>
-            rowKey.contains(name) &&
-              (node match {
-                case Select(_, SymRef(_, "va"), n) => n != name
-                case _ => true
-              })
+        val touchesKeys: Boolean = (newRowKey != rowKey) ||
+          (newPartitionKey != rowPartitionKey) || (
+          rowsAST match {
+            case StructConstructor(_, names, asts) =>
+              names.zip(asts).exists { case (name, node) =>
+                rowKey.contains(name) &&
+                  (node match {
+                    case Select(_, SymRef(_, "va"), n) => n != name
+                    case _ => true
+                  })
+              }
+            case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
+              coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
+            case x@Apply(_, "drop", Array(SymRef(_, "va"), _*)) =>
+              val rowKeySet = rowKey.toSet
+              x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
+            case _ =>
+              log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
+              true
+          })
+
+        val newMatrixType = matrixType.copyParts(rowType = newRowType, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+        val fullRowType = rvRowType
+        val localEntriesIndex = entriesIndex
+        val newRVType = newMatrixType.rvRowType
+
+        val (t, f) = Parser.parseExpr(expr, ec)
+        assert(t == newRowType)
+        val aggregateOption = Aggregators.buildRowAggregations(this, ec)
+        val globalsBc = globals.broadcast
+        val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
+          val fullRow = new UnsafeRow(fullRowType)
+          val row = fullRow.deleteField(localEntriesIndex)
+          val rv2 = RegionValue()
+          val rvb = new RegionValueBuilder()
+          it.map { rv =>
+            fullRow.set(rv)
+            ec.set(0, globalsBc.value)
+            ec.set(1, row)
+            aggregateOption.foreach(_ (rv))
+            val results = f().asInstanceOf[Row]
+
+            rvb.set(rv.region)
+            rvb.start(newRVType)
+            rvb.startStruct()
+            var i = 0
+            while (i < newRowType.size) {
+              rvb.addAnnotation(newRowType.types(i), results(i))
+              i += 1
+            }
+            rvb.addField(fullRowType, rv, localEntriesIndex)
+            rvb.endStruct()
+            rv2.set(rv.region, rvb.end())
+            rv2
           }
-        case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
-          coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
-        case x@Apply(_, "drop", Array(SymRef(_, "va"), _*)) =>
-          val rowKeySet = rowKey.toSet
-          x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
-        case _ =>
-          log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
-          true
-      })
-    val aggregateOption = Aggregators.buildRowAggregations(this, ec)
-    val globalsBc = globals.broadcast
-    val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      val rv2 = RegionValue()
-      val rvb = new RegionValueBuilder()
-      it.map { rv =>
-        fullRow.set(rv)
-        ec.set(0, globalsBc.value)
-        ec.set(1, row)
-        aggregateOption.foreach(_ (rv))
-        val results = f().asInstanceOf[Row]
-
-        rvb.set(rv.region)
-        rvb.start(newRVType)
-        rvb.startStruct()
-        var i = 0
-        while (i < newRowType.size) {
-          rvb.addAnnotation(newRowType.types(i), results(i))
-          i += 1
         }
-        rvb.addField(fullRowType, rv, localEntriesIndex)
-        rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-        rv2
-      }
+        if (touchesKeys) {
+          warn("modified row key, rescanning to compute ordering...")
+          val newRDD = rvd.mapPartitions(mapPartitionsF)
+          copyMT(matrixType = newMatrixType,
+            rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
+        } else copyMT(matrixType = newMatrixType,
+          rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
     }
-    if (touchesKeys) {
-      warn("modified row key, rescanning to compute ordering...")
-      val newRDD = rvd.mapPartitions(mapPartitionsF)
-      copyMT(matrixType = newMatrixType,
-        rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
-    } else copyMT(matrixType = newMatrixType,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType)(mapPartitionsF))
   }
 
   def selectEntries(expr: String): MatrixTable = {
