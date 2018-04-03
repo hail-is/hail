@@ -36,6 +36,8 @@ if role == 'Master':
         'jupyter',
         'lxml',
         'jupyter-spark',
+        'bokeh',
+        'ipywidgets',
         'jgscm'
     ]
 
