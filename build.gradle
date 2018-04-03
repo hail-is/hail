@@ -53,12 +53,16 @@ String scalaMajorVersion = '2.11'
 
 String elasticsearchLibVersion
 if (sparkVersion ==~ /^2\.[1,2].*/) {
-    py4jVersion = '0.10.4'
-    breezeVersion = '0.12'
+    if (py4jVersion == null)
+        py4jVersion = '0.10.4'
+    if (breezeVersion == null)
+        breezeVersion = '0.12'
     elasticsearchLibVersion = '5.5.1'
 } else {
-    py4jVersion = '0.10.3'
-    breezeVersion = '0.11.2'
+    if (py4jVersion == null)
+        py4jVersion = '0.10.3'
+    if (breezeVersion == null)
+        breezeVersion = '0.11.2'
     elasticsearchLibVersion = '5.1.2'
 }
 
