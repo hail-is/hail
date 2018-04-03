@@ -3658,3 +3658,79 @@ def mendel_error_code(locus, is_female, father, mother, child):
             .when(locus.in_y_nonpar() & (~is_female), hemi_y_cond)
             .or_missing()
             )
+
+@typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
+           dest_reference_genome=reference_genome_type,
+           min_match=builtins.float)
+def liftover(x, dest_reference_genome, min_match=0.95):
+    """Lift over coordinates to a different reference genome.
+
+    Examples
+    --------
+
+    Lift over the locus coordinates from reference genome ``'GRCh37'`` to
+    ``'GRCh38'``:
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> hl.liftover(hl.locus('1', 1034245, 'GRCh37'), 'GRCh38').value
+        Locus(contig='chr1', position=1098865, reference_genome='GRCh38')
+
+    Lift over the locus interval coordinates from reference genome ``'GRCh37'``
+    to ``'GRCh38'``:
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> hl.liftover(hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'GRCh38').value
+        Interval(Locus(contig='chr20', position=79360, reference_genome='GRCh38'),
+                 Locus(contig='chr20', position=101815, reference_genome='GRCh38'),
+                 True,
+                 True)
+
+    Notes
+    -----
+    This function requires the reference genome of `x` has a chain file loaded
+    for `dest_reference_genome`. Use :meth:`.ReferenceGenome.add_liftover` to
+    load and attach a chain file to a reference genome.
+
+    Returns ``None`` if `x` could not be converted.
+
+    Warning
+    -------
+        Before using the result of :func:`.liftover` as a new row key or column
+        key, be sure to filter out missing values.
+
+    Parameters
+    ----------
+    x : :class:`.Expression` of type :py:data:`.tlocus` or :py:data:`.tinterval` of :py:data:`.tlocus`
+        Locus or locus interval to lift over.
+    dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to convert to.
+    min_match : :class:`.Expression` of type :py:data:`.tfloat64`
+        Minimum ratio of bases that must remap.
+
+    Returns
+    -------
+    :class:`.Expression`
+        A locus or locus interval converted to `dest_reference_genome`.
+    """
+
+    if not 0.0 <= min_match <= 1.0:
+        raise TypeError("'liftover' requires 'min_match' is in the range [0, 1]. Got {}".format(min_match))
+
+    if isinstance(x.dtype, tlocus):
+        rg = x.dtype.reference_genome
+        method_name = "liftoverLocus({})".format(rg.name)
+        rtype = tlocus(dest_reference_genome)
+    else:
+        rg = x.dtype.point_type.reference_genome
+        method_name = "liftoverLocusInterval({})".format(rg.name)
+        rtype = tinterval(tlocus(dest_reference_genome))
+
+    if not rg.has_liftover(dest_reference_genome.name):
+        raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
+        Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
+
+    return _func(method_name, rtype, to_expr(dest_reference_genome.name, tstr), x, to_expr(min_match, tfloat))

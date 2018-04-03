@@ -96,6 +96,31 @@ class Tests(unittest.TestCase):
                                Call,
                                [1, 1, 1, 1])
 
+
+    def test_pedigree(self):
+
+        ped = Pedigree.read(resource('sample.fam'))
+        ped.write('/tmp/sample_out.fam')
+        ped2 = Pedigree.read('/tmp/sample_out.fam')
+        self.assertEqual(ped, ped2)
+        print(ped.trios[:5])
+        print(ped.complete_trios())
+
+        t1 = Trio('kid1', pat_id='dad1', is_female=True)
+        t2 = Trio('kid1', pat_id='dad1', is_female=True)
+
+        self.assertEqual(t1, t2)
+
+        self.assertEqual(t1.fam_id, None)
+        self.assertEqual(t1.s, 'kid1')
+        self.assertEqual(t1.pat_id, 'dad1')
+        self.assertEqual(t1.mat_id, None)
+        self.assertEqual(t1.is_female, True)
+        self.assertEqual(t1.is_complete(), False)
+        self.assertEqual(t1.is_female, True)
+        self.assertEqual(t1.is_male, False)
+
+    def test_reference_genome(self):
         rg = hl.get_reference('GRCh37')
         self.assertEqual(rg.name, "GRCh37")
         self.assertEqual(rg.contigs[0], "1")
@@ -124,6 +149,7 @@ class Tests(unittest.TestCase):
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
 
+    def test_reference_genome_sequence(self):
         gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
         self.assertEqual(gr3.name, "my_reference_genome")
         self.assertFalse(gr3.has_sequence())
@@ -139,25 +165,51 @@ class Tests(unittest.TestCase):
         l = hl.locus("a", 7, gr4)
         self.assertTrue(l.sequence_context(before=3, after=3).value == "TTTCGAA")
 
-    def test_pedigree(self):
+    def test_reference_genome_liftover(self):
+        grch37 = hl.get_reference('GRCh37')
+        grch38 = hl.get_reference('GRCh38')
 
-        ped = Pedigree.read(resource('sample.fam'))
-        ped.write('/tmp/sample_out.fam')
-        ped2 = Pedigree.read('/tmp/sample_out.fam')
-        self.assertEqual(ped, ped2)
-        print(ped.trios[:5])
-        print(ped.complete_trios())
+        self.assertTrue(not grch37.has_liftover('GRCh38') and not grch38.has_liftover('GRCh37'))
+        grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
+        grch38.add_liftover(resource('grch38_to_grch37_chr20.over.chain.gz'), 'GRCh37')
+        self.assertTrue(grch37.has_liftover('GRCh38') and grch38.has_liftover('GRCh37'))
 
-        t1 = Trio('kid1', pat_id='dad1', is_female=True)
-        t2 = Trio('kid1', pat_id='dad1', is_female=True)
+        ds = hl.import_vcf(resource('sample.vcf'))
+        t = ds.annotate_rows(liftover = hl.liftover(hl.liftover(ds.locus, 'GRCh38'), 'GRCh37')).rows()
+        self.assertTrue(t.all(t.locus == t.liftover))
+        
+        null_locus = hl.null(hl.tlocus('GRCh38'))
 
-        self.assertEqual(t1, t2)
+        rows = [
+            {'l37': hl.locus('20', 1, 'GRCh37'), 'l38': null_locus},
+            {'l37': hl.locus('20', 60000, 'GRCh37'), 'l38': null_locus},
+            {'l37': hl.locus('20', 60001, 'GRCh37'), 'l38': hl.locus('chr20', 79360, 'GRCh38')},
+            {'l37': hl.locus('20', 278686, 'GRCh37'), 'l38': hl.locus('chr20', 298045, 'GRCh38')},
+            {'l37': hl.locus('20', 278687, 'GRCh37'), 'l38': hl.locus('chr20', 298046, 'GRCh38')},
+            {'l37': hl.locus('20', 278688, 'GRCh37'), 'l38': null_locus},
+            {'l37': hl.locus('20', 278689, 'GRCh37'), 'l38': null_locus},
+            {'l37': hl.locus('20', 278690, 'GRCh37'), 'l38': null_locus},
+            {'l37': hl.locus('20', 278691, 'GRCh37'), 'l38': hl.locus('chr20', 298047, 'GRCh38')},
+            {'l37': hl.locus('20', 37007586, 'GRCh37'), 'l38': hl.locus('chr12', 32563117, 'GRCh38')},
+            {'l37': hl.locus('20', 62965520, 'GRCh37'), 'l38': hl.locus('chr20', 64334167, 'GRCh38')},
+            {'l37': hl.locus('20', 62965521, 'GRCh37'), 'l38': null_locus}
+        ]
+        schema = hl.tstruct(l37=hl.tlocus(grch37), l38=hl.tlocus(grch38))
+        t = hl.Table.parallelize(rows, schema)
+        self.assertTrue(t.all(hl.liftover(t.l37, 'GRCh38') == t.l38))
 
-        self.assertEqual(t1.fam_id, None)
-        self.assertEqual(t1.s, 'kid1')
-        self.assertEqual(t1.pat_id, 'dad1')
-        self.assertEqual(t1.mat_id, None)
-        self.assertEqual(t1.is_female, True)
-        self.assertEqual(t1.is_complete(), False)
-        self.assertEqual(t1.is_female, True)
-        self.assertEqual(t1.is_male, False)
+        t = t.filter(hl.is_defined(t.l38))
+        self.assertTrue(t.count() == 6)
+
+        t = t.key_by('l38')
+        t.count()
+        self.assertTrue(list(t.key) == ['l38'])
+
+        null_locus_interval = hl.null(hl.tinterval(hl.tlocus('GRCh38')))
+        rows = [
+            {'i37': hl.locus_interval('20', 1, 60000, True, False, 'GRCh37'), 'i38': null_locus_interval},
+            {'i37': hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'i38': hl.locus_interval('chr20', 79360, 101815, True, True, 'GRCh38')}
+        ]
+        schema = hl.tstruct(i37=hl.tinterval(hl.tlocus(grch37)), i38=hl.tinterval(hl.tlocus(grch38)))
+        t = hl.Table.parallelize(rows, schema)
+        self.assertTrue(t.all(hl.liftover(t.i37, 'GRCh38') == t.i38))

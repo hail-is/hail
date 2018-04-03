@@ -4,6 +4,9 @@ from hail.utils.java import jiterable_to_list, Env, joption
 from hail.typecheck import oneof, transformed
 import hail as hl
 
+rg_type = lazy()
+reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), rg_type)
+
 
 class ReferenceGenome(object):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
@@ -280,7 +283,6 @@ class ReferenceGenome(object):
         - FASTA file: ``gs://hail-common/references/human_g1k_v37.fasta.gz``
         - Index file: ``gs://hail-common/references/human_g1k_v37.fasta.fai``
 
-
         **GRCh38**
 
         - FASTA file: ``gs://hail-common/references/Homo_sapiens_assembly38.fasta.gz``
@@ -306,6 +308,15 @@ class ReferenceGenome(object):
         :obj:`bool`
         """
         return self._jrep.hasSequence()
+
+    def remove_sequence(self):
+        """Remove the reference sequence.
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        return self._jrep.removeSequence()
 
     @classmethod
     @typecheck_method(name=str,
@@ -343,6 +354,70 @@ class ReferenceGenome(object):
         return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFASTAFile(Env.hc()._jhc, name, fasta_file, index_file,
                                                                                            x_contigs, y_contigs, mt_contigs, par))
 
+    @typecheck_method(dest_reference_genome=reference_genome_type)
+    def has_liftover(self, dest_reference_genome):
+        """``True`` if a liftover chain file is available from this reference
+        genome to the destination reference.
+
+        Parameters
+        ----------
+        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        return self._jrep.hasLiftover(dest_reference_genome.name)
+
+    @typecheck_method(dest_reference_genome=reference_genome_type)
+    def remove_liftover(self, dest_reference_genome):
+        """Remove liftover to `dest_reference_genome`.
+
+        Parameters
+        ----------
+        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        return self._jrep.removeLiftover(dest_reference_genome.name)
+
+    @typecheck_method(chain_file=str,
+                      dest_reference_genome=reference_genome_type)
+    def add_liftover(self, chain_file, dest_reference_genome):
+        """Register a chain file for liftover.
+
+        Notes
+        -----
+        This method can only be run once per reference genome. Use
+        :meth:`~has_liftover` to test whether a chain file has been registered.
+
+        The chain file format is described
+        `here <https://genome.ucsc.edu/goldenpath/help/chain.html>`__.
+
+        Chain files are hosted on google cloud for Hail's built-in
+        references:
+
+        **GRCh37 to GRCh38**
+        gs://hail-common/references/grch37_to_grch38.over.chain.gz
+
+        **GRCh38 to GRCh37**
+        gs://hail-common/references/grch38_to_grch37.over.chain.gz
+
+        Public download links are available
+        `here <https://console.cloud.google.com/storage/browser/hail-common/references/>`__.
+
+        Parameters
+        ----------
+        chain_file : :obj:`str`
+            Path to chain file. Can be compressed (GZIP) or uncompressed.
+        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+            Reference genome to convert to.
+        """
+
+        self._jrep.addLiftover(Env.hc()._jhc, chain_file, dest_reference_genome.name)
+
     def _init_from_java(self, jrep):
         self._jrep = jrep
 
@@ -368,4 +443,4 @@ class ReferenceGenome(object):
     def _check_interval(self, interval_jrep):
         self._jrep.checkInterval(interval_jrep)
 
-reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), ReferenceGenome)
+rg_type.set(ReferenceGenome)

@@ -16,6 +16,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
+import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
@@ -155,7 +156,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       (!xContigs.contains(end.contig) && !yContigs.contains(end.contig)))
       fatal(s"The contig name for PAR interval `$start-$end' was not found in xContigs `${ xContigs.mkString(",") }' or in yContigs `${ yContigs.mkString(",") }'.")
 
-    Interval(start, end, true, false)
+    Interval(start, end, includesStart = true, includesEnd = false)
   }
 
   private var fastaReader: FASTAReader = _
@@ -219,6 +220,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def isValidLocus(contig: String, pos: Int): Boolean = isValidContig(contig) && pos > 0 && pos <= contigLength(contig)
 
   def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
+
+  def checkContig(contig: String): Unit = {
+    if (!isValidContig(contig))
+      fatal(s"Contig '$contig' is not in the reference genome '$name'.")
+  }
 
   def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
 
@@ -363,7 +369,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Contig sizes in FASTA `$fastaFile' do not match expected sizes for reference genome `$name':\n  " +
         s"@1", invalidLengths.truncatable("\n  "))
 
-    fastaReader = FASTAReader(hc, this, fastaFile, indexFile)
+    val fastaPath = hConf.fileStatus(fastaFile).getPath.toString
+    val indexPath = hConf.fileStatus(indexFile).getPath.toString
+    fastaReader = FASTAReader(hc, this, fastaPath, indexPath)
   }
 
   def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
@@ -379,6 +387,56 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!hasSequence)
       fatal(s"FASTA file has not been loaded for reference genome '$name'.")
     fastaReader.lookup(i)
+  }
+
+  def removeSequence(): Unit = {
+    if (!hasSequence)
+      fatal(s"Reference genome '$name' does not have sequence loaded.")
+    fastaReader = null
+  }
+
+  private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
+
+  def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
+
+  def addLiftover(hc: HailContext, chainFile: String, destRGName: String): Unit = {
+    if (name == destRGName)
+      fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
+    if (hasLiftover(destRGName))
+      fatal(s"Chain file already exists for source reference '$name' and destination reference '$destRGName'.")
+    val hConf = hc.hadoopConf
+    if (!hConf.exists(chainFile))
+      fatal(s"Chain file '$chainFile' does not exist.")
+
+    val chainFilePath = hConf.fileStatus(chainFile).getPath.toString
+    val lo = LiftOver(hc, chainFilePath)
+
+    val destRG = ReferenceGenome.getReference(destRGName)
+    lo.checkChainFile(this, destRG)
+
+    liftoverMaps += destRGName -> lo
+  }
+
+  def getLiftover(destRGName: String): LiftOver = {
+    if (!hasLiftover(destRGName))
+      fatal(s"Chain file has not been loaded for source reference '$name' and destination reference '$destRGName'.")
+    liftoverMaps(destRGName)
+  }
+
+  def removeLiftover(destRGName: String): Unit = {
+    if (!hasLiftover(destRGName))
+      fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
+    liftoverMaps -= destRGName
+  }
+
+  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): Locus = {
+    val lo = getLiftover(destRGName)
+    lo.queryLocus(l, minMatch)
+  }
+
+  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double): Interval = {
+    val lo = getLiftover(destRGName)
+    lo.queryInterval(interval, minMatch)
   }
 
   override def equals(other: Any): Boolean = {

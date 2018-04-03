@@ -8,6 +8,7 @@ from hail.typecheck import *
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
+from hail.genetics.reference_genome import reference_genome_type
 
 
 class CollectionExpression(Expression):
@@ -2492,7 +2493,7 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.tlocus`.
 
-    >>> locus = hl.locus('1', 100000)
+    >>> locus = hl.locus('1', 1034245)
     """
 
     @property
@@ -2522,7 +2523,7 @@ class LocusExpression(Expression):
         .. doctest::
 
             >>> hl.eval_expr(locus.position)
-            100000
+            1034245
 
         Returns
         -------
@@ -2677,16 +2678,16 @@ class LocusExpression(Expression):
         .. doctest::
             :options: +SKIP
 
-            >>> hl.eval_expr(locus.sequence_context())
-            "C"
+            >>> locus.sequence_context().value
+            "G"
 
         Get the reference sequence at a locus including the previous 5 bases:
 
         .. doctest::
             :options: +SKIP
 
-            >>> hl.eval_expr(locus.sequence_context(before=5))
-            "ACACTC"
+            >>> locus.sequence_context(before=5).value
+            "ACTCGG"
 
         Notes
         -----
