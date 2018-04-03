@@ -7,6 +7,8 @@ import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable}
 import org.apache.spark.rdd.RDD
 
+import org.apache.spark.sql.Row
+
 import scala.reflect.ClassTag
 
 class RichMatrixTable(vsm: MatrixTable) {
