@@ -3,7 +3,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.genetics.pedigree import Pedigree
 from hail.matrixtable import MatrixTable
-from hail.expr import expr_call
+from hail.expr import expr_call, expr_float64
 from hail.table import Table
 from hail.typecheck import *
 from .misc import require_biallelic
@@ -449,9 +449,9 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
 
     # this filter removes mendel error of het father in x_nonpar. It also avoids
     #   building and looking up config in common case that neither parent is het
-    parent_is_valid_het = hl.bind(tri.father_entry.GT.is_het(),
-        lambda father_is_het: (father_is_het & tri.auto_or_x_par) |
-                              (tri.mother_entry.GT.is_het() & ~father_is_het))
+    father_is_het = tri.father_entry.GT.is_het()
+    parent_is_valid_het = ((father_is_het & tri.auto_or_x_par) |
+                           (tri.mother_entry.GT.is_het() & ~father_is_het))
 
     copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
 
@@ -468,3 +468,365 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     tab = tab.annotate(p_value = hl.pchisqtail(tab.chi2, 1.0))
 
     return tab.cache()
+
+@typecheck(mt=MatrixTable,
+           pedigree=Pedigree,
+           pop_frequency_prior=expr_float64,
+           min_gq=int,
+           min_p=numeric,
+           max_parent_ab=numeric,
+           min_child_ab=numeric,
+           min_dp_ratio=numeric)
+def de_novo(mt: MatrixTable,
+            pedigree: Pedigree,
+            pop_frequency_prior,
+            *,
+            min_gq: int = 20,
+            min_p: float = 0.05,
+            max_parent_ab: float = 0.05,
+            min_child_ab: float = 0.20,
+            min_dp_ratio: float = 0.10) -> Table:
+    """Call putative *de novo* events from trio data.
+
+    .. include:: ../_templates/req_tstring.rst
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+
+    Call de novo events:
+
+    >>> pedigree = hl.Pedigree.read('data/trios.fam')
+    >>> priors = hl.import_table('data/gnomadFreq.tsv', impute=True)
+    >>> priors = priors.transmute(**hl.parse_variant(priors.Variant)).key_by('locus', 'alleles')
+    >>> de_novo_results = hl.de_novo(dataset, pedigree, pop_frequency_prior=priors[dataset.row_key].AF)
+
+    Notes
+    -----
+    This method assumes the GATK high-throughput sequencing fields exist:
+    `GT`, `AD`, `DP`, `GQ`, `PL`.
+
+    This method replicates the functionality of `Kaitlin Samocha's de novo
+    caller <https://github.com/ksamocha/de_novo_scripts>`__. The version
+    corresponding to git commit ``bde3e40`` is implemented in Hail with her
+    permission and assistance.
+
+    This method produces a :class:`.Table` with the following fields:
+
+     - `locus` (``locus``) -- Variant locus.
+     - `alleles` (``array<str>``) -- Variant alleles.
+     - `prior` (``float64``) -- Site frequency prior. It is the maximum of:
+       the computed dataset alternate allele frequency, the
+       `pop_frequency_prior` parameter, and the global prior
+       ``1 / 3e7``.
+     - `proband` (``struct``) -- Proband column fields from `mt`.
+     - `father` (``struct``) -- Father column fields from `mt`.
+     - `mother` (``struct``) -- Mother column fields from `mt`.
+     - `proband_entry` (``struct``) -- Proband entry fields from `mt`.
+     - `father_entry` (``struct``) -- Father entry fields from `mt`.
+     - `proband_entry` (``struct``) -- Mother entry fields from `mt`.
+     - `is_female` (``bool``) -- ``True`` if proband is female.
+     - `p_de_novo` (``float64``) -- Unfiltered posterior probability
+       that the event is *de novo* rather than a missed heterozygous
+       event in a parent.
+     - `confidence` (``str``) Validation confidence. One of: ``'HIGH'``,
+       ``'MEDIUM'``, ``'LOW'``.
+
+    The model looks for de novo events in which both parents are homozygous
+    reference and the proband is a heterozygous. The model makes the simplifying
+    assumption that when this configuration ``x = (AA, AA, AB)`` of calls
+    occurs, exactly one of the following is true:
+
+     - ``d``: a de novo mutation occurred in the proband and all calls are
+       accurate.
+     - ``m``: at least one parental allele is actually heterozygous and
+       the proband call is accurate.
+
+    We can then estimate the posterior probability of a de novo mutation as:
+
+    .. math::
+
+        \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+
+    Applying Bayes rule to the numerator and denominator yields
+
+    .. math::
+
+        \\frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
+        \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
+
+    The prior on de novo mutation is estimated from the rate in the literature:
+
+    .. math::
+
+        \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
+
+    The prior used for at least one alternate allele between the parents
+    depends on the alternate allele frequency:
+
+    .. math::
+
+        \\mathrm{P}(m) = 1 - (1 - AF)^4
+
+    The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)`
+    are computed from the PL (genotype likelihood) fields using these
+    factorizations:
+
+    .. math::
+
+        \\mathrm{P}(x = (AA, AA, AB) \,|\,d) = \\Big(
+        &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA) \\\\
+        \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} =
+        AA) \\\\ \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\,
+        \\mathrm{proband} = AB) \\Big)
+
+    .. math::
+
+        \\mathrm{P}(x = (AA, AA, AB) \,|\,m) = \\Big( &
+        \\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AB)
+        \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} =
+        AA) \\\\ + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\,
+        \\mathrm{father} = AA) \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA
+        \,|\, \\mathrm{mother} = AB) \\Big) \\\\ \\cdot \,
+        &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB)
+
+    (Technically, the second factorization assumes there is exactly (rather
+    than at least) one alternate allele among the parents, which may be
+    justified on the grounds that it is typically the most likely case by far.)
+
+    While this posterior probability is a good metric for grouping putative de
+    novo mutations by validation likelihood, there exist error modes in
+    high-throughput sequencing data that are not appropriately accounted for by
+    the phred-scaled genotype likelihoods. To this end, a number of hard filters
+    are applied in order to assign validation likelihood.
+
+    These filters are different for SNPs and insertions/deletions. In the below
+    rules, the following variables are used:
+
+     - ``DR`` refers to the ratio of the read depth in the proband to the
+       combined read depth in the parents.
+     - ``AB`` refers to the read allele balance of the proband (number of
+       alternate reads divided by total reads).
+     - ``AC`` refers to the count of alternate alleles across all individuals
+       in the dataset at the site.
+     - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+     - ``min_p`` refers to the ``min_p`` function parameter.
+
+    HIGH-quality SNV:
+
+    .. code-block:: text
+
+        p > 0.99 && AB > 0.3 && DR > 0.2
+            or
+        p > 0.99 && AB > 0.3 && AC == 1
+
+    MEDIUM-quality SNV:
+
+    .. code-block:: text
+
+        p > 0.5 && AB > 0.3
+            or
+        p > 0.5 && AB > 0.2 && AC == 1
+
+    LOW-quality SNV:
+
+    .. code-block:: text
+
+        p > min_p && AB > 0.2
+
+    HIGH-quality indel:
+
+    .. code-block:: text
+
+        p > 0.99 && AB > 0.3 && DR > 0.2
+            or
+        p > 0.99 && AB > 0.3 && AC == 1
+
+    MEDIUM-quality indel:
+
+    .. code-block:: text
+
+        p > 0.5 && AB > 0.3
+            or
+        p > 0.5 && AB > 0.2 and AC == 1
+
+    LOW-quality indel:
+
+    .. code-block:: text
+
+        p > min_p && AB > 0.2
+
+    Additionally, de novo candidates are not considered if the proband GQ is
+    smaller than the ``min_gq`` parameter, if the proband allele balance is
+    lower than the ``min_child_ab`` parameter, if the depth ratio between the
+    proband and parents is smaller than the ``min_depth_ratio`` parameter, or if
+    the allele balance in a parent is above the ``max_parent_ab`` parameter.
+
+    Parameters
+    ----------
+    mt : :class:`.MatrixTable`
+        High-throughput sequencing dataset.
+    pedigree : :class:`.Pedigree`
+        Sample pedigree.
+    pop_frequency_prior : :class:`.Float64Expression`
+        Expression for population alternate allele frequency prior.
+    min_gq
+        Minimum proband GQ to be considered for *de novo* calling.
+    min_p
+        Minimum posterior probability to be considered for *de novo* calling.
+    max_parent_ab
+        Maximum parent allele balance.
+    min_child_ab
+        Minimum proband allele balance/
+    min_dp_ratio
+        Minimum ratio between proband read depth and parental read depth.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+    DE_NOVO_PRIOR = 1 / 30000000
+    MIN_POP_PRIOR = 100 / 30000000
+
+    mt = mt.annotate_rows(__prior=pop_frequency_prior,
+                          __alt_alleles=hl.agg.sum(mt.GT.n_alt_alleles()),
+                          __total_alleles=2 * hl.agg.sum(hl.is_defined(mt.GT)))
+    # subtract 1 from __alt_alleles to correct for the observed genotype
+    mt = mt.annotate_rows(__site_freq=hl.max((mt.__alt_alleles - 1) / mt.__total_alleles, mt.__prior, MIN_POP_PRIOR))
+    mt = require_biallelic(mt, 'de_novo')
+
+    # FIXME check that __site_freq is between 0 and 1 when possible in expr
+    tm = trio_matrix(mt, pedigree, complete_trios=True)
+
+    autosomal = tm.locus.in_autosome_or_par() | (tm.locus.in_x_nonpar() & tm.is_female)
+    hemi_x = tm.locus.in_x_nonpar() & ~tm.is_female
+    hemi_y = tm.locus.in_y_nonpar() & ~tm.is_female
+    hemi_mt = tm.locus.in_mito() & tm.is_female
+
+    is_snp = hl.is_snp(tm.alleles[0], tm.alleles[1])
+    n_alt_alleles = tm.__alt_alleles
+    prior = tm.__site_freq
+    het_hom_hom = tm.proband_entry.GT.is_het() & tm.father_entry.GT.is_hom_ref() & tm.mother_entry.GT.is_hom_ref()
+    kid_ad_fail = tm.proband_entry.AD[1] / hl.sum(tm.proband_entry.AD) < min_child_ab
+
+    failure = hl.null(hl.tstruct(p_de_novo=hl.tfloat64, confidence=hl.tstr))
+
+    kid = tm.proband_entry
+    dad = tm.father_entry
+    mom = tm.mother_entry
+
+    kid_linear_pl = 10 ** (-kid.PL / 10)
+    kid_pp = hl.bind(lambda x: x / hl.sum(x), kid_linear_pl)
+
+    dad_linear_pl = 10 ** (-dad.PL / 10)
+    dad_pp = hl.bind(lambda x: x / hl.sum(x), dad_linear_pl)
+
+    mom_linear_pl = 10 ** (-mom.PL / 10)
+    mom_pp = hl.bind(lambda x: x / hl.sum(x), mom_linear_pl)
+
+    kid_ad_ratio = kid.AD[1] / hl.sum(kid.AD)
+    dp_ratio = kid.DP / (dad.DP + mom.DP)
+
+    def call_auto(kid_pp, dad_pp, mom_pp, kid_ad_ratio):
+        p_data_given_dn = dad_pp[0] * mom_pp[0] * kid_pp[1] * DE_NOVO_PRIOR
+        p_het_in_parent = 1 - (1 - prior) ** 4
+        p_data_given_missed_het = (dad_pp[1] * mom_pp[0] + dad_pp[0] * mom_pp[1]) * kid_pp[1] * p_het_in_parent
+        p_de_novo = p_data_given_dn / (p_data_given_dn + p_data_given_missed_het)
+
+        def solve(p_de_novo):
+            return (
+                hl.case()
+                    .when(kid.GQ < min_gq, failure)
+                    .when((kid.DP / (dad.DP + mom.DP) < min_dp_ratio) |
+                          ~(kid_ad_ratio >= min_child_ab), failure)
+                    .when((hl.sum(mom.AD) == 0) | (hl.sum(dad.AD) == 0), failure)
+                    .when((mom.AD[1] / hl.sum(mom.AD) > max_parent_ab) |
+                          (dad.AD[1] / hl.sum(dad.AD) > max_parent_ab), failure)
+                    .when(p_de_novo < min_p, failure)
+                    .when(~is_snp, hl.case()
+                          .when((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1),
+                                hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
+                          .when((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles <= 5),
+                                hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
+                          .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.2),
+                                hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
+                          .or_missing())
+                    .default(hl.case()
+                             .when(((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (dp_ratio > 0.2)) |
+                                   ((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1)) |
+                                   ((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles < 10) & (kid.DP > 10)),
+                                   hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
+                             .when((p_de_novo > 0.5) & ((kid_ad_ratio > 0.3) | (n_alt_alleles == 1)),
+                                   hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
+                             .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.2),
+                                   hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
+                             .or_missing()
+                             )
+            )
+
+        return hl.bind(solve, p_de_novo)
+
+    def call_hemi(kid_pp, parent, parent_pp, kid_ad_ratio):
+        p_data_given_dn = parent_pp[0] * kid_pp[1] * DE_NOVO_PRIOR
+        p_het_in_parent = 1 - (1 - prior) ** 4
+        p_data_given_missed_het = (parent_pp[1] + parent_pp[2]) * kid_pp[2] * p_het_in_parent
+        p_de_novo = p_data_given_dn / (p_data_given_dn + p_data_given_missed_het)
+
+        def solve(p_de_novo):
+            return (
+                hl.case()
+                    .when(kid.GQ < min_gq, failure)
+                    .when((kid.DP / (parent.DP) < min_dp_ratio) |
+                          (kid_ad_ratio < min_child_ab), failure)
+                    .when((hl.sum(parent.AD) == 0), failure)
+                    .when(parent.AD[1] / hl.sum(parent.AD) > max_parent_ab, failure)
+                    .when(p_de_novo < min_p, failure)
+                    .when(~is_snp, hl.case()
+                          .when((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1),
+                                hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
+                          .when((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles <= 5),
+                                hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
+                          .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.3),
+                                hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
+                          .or_missing())
+                    .default(hl.case()
+                             .when(((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (dp_ratio > 0.2)) |
+                                   ((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1)) |
+                                   ((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles < 10) & (kid.DP > 10)),
+                                   hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
+                             .when((p_de_novo > 0.5) & ((kid_ad_ratio > 0.3) | (n_alt_alleles == 1)),
+                                   hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
+                             .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.2),
+                                   hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
+                             .or_missing()
+                             )
+            )
+
+        return hl.bind(solve, p_de_novo)
+
+    de_novo_call = (
+        hl.case()
+            .when(~het_hom_hom | kid_ad_fail, failure)
+            .when(autosomal, hl.bind(call_auto, kid_pp, dad_pp, mom_pp, kid_ad_ratio))
+            .when(hemi_x | hemi_mt, hl.bind(call_hemi, kid_pp, mom, mom_pp, kid_ad_ratio))
+            .when(hemi_y, hl.bind(call_hemi, kid_pp, dad, dad_pp, kid_ad_ratio))
+            .or_missing()
+    )
+
+    tm = tm.annotate_entries(__call=de_novo_call)
+    tm = tm.filter_entries(hl.is_defined(tm.__call))
+    entries = tm.entries()
+    return entries.select('locus',
+                          'alleles',
+                          '__site_freq',
+                          'proband',
+                          'father',
+                          'mother',
+                          'proband_entry',
+                          'father_entry',
+                          'mother_entry',
+                          'is_female',
+                          **entries.__call).rename({'__site_freq': 'prior'})

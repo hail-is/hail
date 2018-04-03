@@ -192,7 +192,8 @@ def cond(condition,
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     if missing_false:
-        condition = hl.bind(condition, lambda x: hl.is_defined(x) & x)
+        condition = hl.bind(lambda x: hl.is_defined(x) & x,
+                            condition)
     indices, aggregations, joins = unify_all(condition, consequent, alternate)
 
     consequent, alternate, success = unify_exprs(consequent, alternate)
@@ -276,8 +277,8 @@ def switch(expr) -> 'hail.expr.builders.SwitchBuilder':
     return SwitchBuilder(expr)
 
 
-@typecheck(expr=expr_any, f=func_spec(1, expr_any))
-def bind(expr, f: Callable):
+@typecheck(f=anytype, exprs=expr_any)
+def bind(f: Callable, *exprs):
     """Bind a temporary variable and use it in a function.
 
     Examples
@@ -291,51 +292,58 @@ def bind(expr, f: Callable):
     Note that evaluating `x` multiple times returns different results.
     The value of evaluating `x` is unknown when the expression is defined.
 
-    .. doctest::
+    >>> hl.eval_expr(x)
+    0.3189309481038456
 
-        >>> hl.eval_expr(x)
-        0.3189309481038456
-
-        >>> hl.eval_expr(x)
-        0.20842918568366375
+    >>> hl.eval_expr(x)
+    0.20842918568366375
 
     What if we evaluate `x` multiple times in the same invocation of
     :meth:`~hail.expr.eval_expr`?
 
-    .. doctest::
-
-        >>> hl.eval_expr([x, x, x])
-        [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
+    >>> hl.eval_expr([x, x, x])
+    [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
 
     The random number generator is called separately for each inclusion
-    of `x`. This method, `bind`, is the solution to this problem!
+    of `x`. This method, :func:`.bind`, is the solution to this problem!
 
-    .. doctest::
+    >>> hl.eval_expr(hl.bind(lambda y: [y, y, y],
+    ...                      x))
+    [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
 
-        >>> hl.eval_expr(hl.bind(x, lambda y: [y, y, y]))
-        [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
+    :func:`.bind` also can take multiple arguments:
+
+    >>> hl.bind(lambda x, y: x / y,
+    ...         x, x).value
+    1.0
 
     Parameters
     ----------
-    expr : :class:`.Expression`
-        Expression to bind.
-    f : function ( (arg) -> :class:`.Expression`)
-        Function of `expr`.
+    f : function ( (args) -> :class:`.Expression`)
+        Function of `exprs`.
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
 
     Returns
     -------
     :class:`.Expression`
-        Result of evaluating `f` with `expr` as an argument.
+        Result of evaluating `f` with `exprs` as arguments.
     """
-    uid = Env.get_uid()
-    expr = to_expr(expr)
+    args = []
+    uids = []
+    asts = []
 
-    f_input = construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins)
-    lambda_result = to_expr(f(f_input))
+    for expr in exprs:
+        uid = Env.get_uid()
+        args.append(construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins))
+        uids.append(uid)
+        asts.append(expr._ast)
 
-    indices, aggregations, joins = unify_all(expr, lambda_result)
-    ast = Bind(uid, expr._ast, lambda_result._ast)
-    return construct_expr(ast, lambda_result._type, indices, aggregations, joins)
+
+    lambda_result = to_expr(f(*args))
+    indices, aggregations, joins = unify_all(*exprs, lambda_result)
+    ast = Bind(uids, asts, lambda_result._ast)
+    return construct_expr(ast, lambda_result.dtype, indices, aggregations, joins)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -2478,14 +2486,14 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
                 hl.cond(i < array_lens[j], arrays[j][i], hl.null(arrays[j].dtype.element_type))
                 for j in builtins.range(n_arrays)), indices)
 
-        return bind([hl.len(a) for a in arrays], _)
+        return bind(_, [hl.len(a) for a in arrays])
     else:
         def _(array_lens):
             result_len = hl.min(array_lens)
             indices = hl.range(0, result_len)
             return hl.map(lambda i: builtins.tuple(arrays[j][i] for j in builtins.range(n_arrays)), indices)
 
-        return bind([hl.len(a) for a in arrays], _)
+        return bind(_, [hl.len(a) for a in arrays])
 
 
 @typecheck(f=func_spec(1, expr_any),
