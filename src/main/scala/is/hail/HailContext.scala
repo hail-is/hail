@@ -421,8 +421,8 @@ class HailContext private(val sc: SparkContext,
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-      TextTableReader.read(this)(files, types, comment, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, keyNames, skipBlankLines)
+    TextTableReader.read(this)(files, types, comment, separator, missing,
+      noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, keyNames, skipBlankLines)
   }
 
   def importPlink(bed: String, bim: String, fam: String,

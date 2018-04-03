@@ -843,7 +843,6 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
           (readerOpts.noHeader || readerOpts.header != line.value) &&
           !(readerOpts.skipBlankLines && line.value.isEmpty)
       }.mapPartitions { it =>
-
       val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)

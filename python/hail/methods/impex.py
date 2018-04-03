@@ -378,10 +378,9 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
      - **interval** (:class:`.tinterval`) - Row key. Same schema as above.
      - **target** (:py:data:`.tstr`)
 
-    Note
-    ----
-    Files with one field **AND** `reference_genome` is defined are parsed with
-    :func:`.parse_locus_interval`. See the documentation for valid inputs.
+    If `reference_genome` is defined **AND** the file has one field, intervals
+    are parsed with :func:`.parse_locus_interval`. See the documentation for
+    valid inputs.
 
     If `reference_genome` is **NOT** defined and the file has one field,
     intervals are parsed with the regex ```"([^:]*):(\\d+)\\-(\\d+)"``
