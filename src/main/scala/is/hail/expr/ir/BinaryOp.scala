@@ -77,7 +77,7 @@ object BinaryOp {
         case Subtract() => ll - rr
         case Multiply() => ll * rr
         case FloatingPointDivide() => ll / rr
-        case RoundToNegInfDivide() => Code.invokeStatic[Math, Float, Float]("floor", ll / rr)
+        case RoundToNegInfDivide() => Code.invokeStatic[Math, Double, Double]("floor", ll.toD / rr.toD).toF
         case GT() => ll > rr
         case GTEQ() => ll >= rr
         case LTEQ() => ll <= rr

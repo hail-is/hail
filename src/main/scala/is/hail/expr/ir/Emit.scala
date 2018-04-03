@@ -217,6 +217,7 @@ private class Emit(
         val codeR = emit(r)
         EmitTriplet(Code(codeL.setup, codeR.setup),
           codeL.m || codeR.m,
+
           BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v))
       case ApplyUnaryPrimOp(op, x, typ) =>
         val v = emit(x)
