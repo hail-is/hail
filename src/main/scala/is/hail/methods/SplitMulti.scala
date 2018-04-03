@@ -95,15 +95,15 @@ class SplitMultiPartitionContextIR(
     rvb.addRegionValue(matrixType.rvRowType, rv)
     val oldRow = rvb.end()
     val oldEnd = splitRegion.size
-    splitVariants.map { case (svjLocus, svjAlleles, aIndex) =>
+    splitVariants.map { case (newLocus, newAlleles, aIndex) =>
       splitRegion.clear(oldEnd)
 
       rvb.start(locusType)
-      rvb.addAnnotation(locusType, svjLocus)
+      rvb.addAnnotation(locusType, newLocus)
       val locusOff = rvb.end()
 
       rvb.start(allelesType)
-      rvb.addAnnotation(allelesType, svjAlleles)
+      rvb.addAnnotation(allelesType, newAlleles)
       val allelesOff = rvb.end()
 
       val off = f(splitRegion, globals, false, locusOff, false, allelesOff, false, oldRow, false, aIndex, false, wasSplit, false)

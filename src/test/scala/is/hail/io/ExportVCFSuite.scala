@@ -40,7 +40,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
-    implicit val locusAlllesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
+    implicit val locusAllelesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
 
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
