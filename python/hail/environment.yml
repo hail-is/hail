@@ -6,6 +6,7 @@ dependencies:
 - pandas
 - matplotlib
 - seaborn
+- bokeh
 - pip
 - pip:
     - parsimonious

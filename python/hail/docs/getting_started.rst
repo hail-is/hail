@@ -8,7 +8,7 @@ You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
 - `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_. Hail should work with other versions of Spark 2, see below.
-- Python 3.6 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
+- The Python 3 `Anaconda distribution <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------
 Running Hail locally with a pre-compiled distribution
@@ -32,7 +32,14 @@ Here, fill in the path to the **unzipped** Hail distribution.
 
     export HAIL_HOME=???
     export PATH=$PATH:$HAIL_HOME/bin/
-    
+
+To install Python dependencies, create a conda environment for Hail:
+
+.. code-block:: text
+
+    conda env create -n hail -f $HAIL_HOME/python/hail/environment.yml
+    source activate hail
+
 Once you've set up Hail, we recommend that you run the Python tutorials to get an overview of Hail
 functionality and learn about the powerful query language. To try Hail out, run the below commands
 to start a Jupyter Notebook server in the tutorials directory.
@@ -42,7 +49,7 @@ to start a Jupyter Notebook server in the tutorials directory.
     cd $HAIL_HOME/tutorials
     jhail
 
-You can now click on the "hail-overview" notebook to get started!
+You can now click on the "01-genome-wide-association-study" notebook to get started!
 
 In the future, if you want to run:
 
