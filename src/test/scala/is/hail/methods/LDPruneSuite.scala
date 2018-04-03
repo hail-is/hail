@@ -6,7 +6,6 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
-import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -245,11 +244,11 @@ class LDPruneSuite extends SparkSuite {
 
         val rv1 = LDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
-        val sgs1 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs1 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         val rv2 = LDPruneSuite.makeRV(v2Ann)
         view.setRegion(rv2)
-        val sgs2 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>

@@ -4,7 +4,10 @@ import java.net.URI
 import java.nio.file.{Files, Paths}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.methods.SplitMulti
+import is.hail.annotations.Annotation
+import is.hail.expr.types.{TFloat64, TString}
+import is.hail.linalg.BlockMatrix
+import is.hail.methods.{KinshipMatrix, SplitMulti}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -151,5 +154,87 @@ object TestUtils {
           g.DP = g.DP,
       g.PL = $pl,
       g.GQ = gqFromPL($pl)""")
+  }
+  
+  // !useHWE: mean 0, norm exactly sqrt(n), variance 1
+  // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
+  // missing gt are mean imputed, constant variants return None, only HWE uses nVariants
+  def normalizedHardCalls(view: HardCallView, nSamples: Int, useHWE: Boolean = false, nVariants: Int = -1): Option[Array[Double]] = {
+    require(!(useHWE && nVariants == -1))
+    val vals = Array.ofDim[Double](nSamples)
+    var nMissing = 0
+    var sum = 0
+    var sumSq = 0
+
+    var row = 0
+    while (row < nSamples) {
+      view.setGenotype(row)
+      if (view.hasGT) {
+        val gt = Call.unphasedDiploidGtIndex(view.getGT)
+        vals(row) = gt
+        (gt: @unchecked) match {
+          case 0 =>
+          case 1 =>
+            sum += 1
+            sumSq += 1
+          case 2 =>
+            sum += 2
+            sumSq += 4
+        }
+      } else {
+        vals(row) = -1
+        nMissing += 1
+      }
+      row += 1
+    }
+
+    val nPresent = nSamples - nMissing
+    val nonConstant = !(sum == 0 || sum == 2 * nPresent || sum == nPresent && sumSq == nPresent)
+
+    if (nonConstant) {
+      val mean = sum.toDouble / nPresent
+      val stdDev = math.sqrt(
+        if (useHWE)
+          mean * (2 - mean) * nVariants / 2
+        else {
+          val meanSq = (sumSq + nMissing * mean * mean) / nSamples
+          meanSq - mean * mean
+        })
+
+      val gtDict = Array(0, -mean / stdDev, (1 - mean) / stdDev, (2 - mean) / stdDev)
+      var i = 0
+      while (i < nSamples) {
+        vals(i) = gtDict(vals(i).toInt + 1)
+        i += 1
+      }
+
+      Some(vals)
+    } else
+      None
+  }
+  
+  def computeRRM(hc: HailContext, vds: MatrixTable): KinshipMatrix = {
+    var mt = vds
+    mt = mt.selectEntries("{gt: g.GT.nNonRefAlleles()}")
+      .annotateRowsExpr("AC" -> "AGG.map(g => g.gt).sum()",
+                        "ACsq" -> "AGG.map(g => g.gt * g.gt).sum()",
+                        "nCalled" -> "AGG.filter(g => isDefined(g.gt)).count().toInt32")
+      .filterRowsExpr("(va.AC > 0) && (va.AC < 2 * va.nCalled) && ((va.AC != va.nCalled) || (va.ACsq != va.nCalled))")
+    
+    val (nVariants, nSamples) = mt.count()
+    require(nVariants > 0, "Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
+
+    mt = mt.annotateGlobal(nSamples.toDouble, TFloat64(), "nSamples")
+      .annotateRowsExpr("meanGT" -> "va.AC.toFloat64 / va.nCalled.toFloat64")
+    mt = mt.annotateRowsExpr("stdDev" ->
+      "((va.ACsq.toFloat64 + (global.nSamples - va.nCalled.toFloat64).toFloat64 * va.meanGT * va.meanGT) / global.nSamples - va.meanGT * va.meanGT).sqrt()")
+
+    val normalizedGT = "orElse((g.gt.toFloat64 - va.meanGT) / va.stdDev, 0.0)"
+    val path = TempDir(hc.hadoopConf).createTempFile()
+    mt.selectEntries(s"{x: $normalizedGT}").writeBlockMatrix(path, "x")
+    val X = BlockMatrix.read(hc, path)
+    val rrm = X.transpose().dot(X).scalarDiv(nVariants).toIndexedRowMatrix()
+
+    KinshipMatrix(vds.hc, TString(), rrm, vds.stringSampleIds.map(s => s: Annotation).toArray, nVariants)
   }
 }
