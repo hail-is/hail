@@ -522,13 +522,13 @@ def de_novo(mt: MatrixTable,
        the computed dataset alternate allele frequency, the
        `pop_frequency_prior` parameter, and the global prior
        ``1 / 3e7``.
-     - `proband` (``struct``) -- Proband column fields.
-     - `father` (``struct``) -- Father column fields.
-     - `mother` (``struct``) -- Mother column fields.
-     - `proband_entry` (``struct``) -- Proband entry fields.
-     - `father_entry` (``struct``) -- Father entry fields.
-     - `proband_entry` (``struct``) -- Mother entry fields.
-     - `is_female` (``bool``) -- Proband is female.
+     - `proband` (``struct``) -- Proband column fields from `mt`.
+     - `father` (``struct``) -- Father column fields from `mt`.
+     - `mother` (``struct``) -- Mother column fields from `mt`.
+     - `proband_entry` (``struct``) -- Proband entry fields from `mt`.
+     - `father_entry` (``struct``) -- Father entry fields from `mt`.
+     - `proband_entry` (``struct``) -- Mother entry fields from `mt`.
+     - `is_female` (``bool``) -- ``True`` if proband is female.
      - `p_de_novo` (``float64``) -- Unfiltered posterior probability
        that the event is *de novo* rather than a missed heterozygous
        event in a parent.

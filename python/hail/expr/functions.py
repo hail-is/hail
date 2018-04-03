@@ -319,10 +319,10 @@ def bind(f: Callable, *exprs):
 
     Parameters
     ----------
-    expr : variable-length args of :class:`.Expression`
-        Expressions to bind.
     f : function ( (args) -> :class:`.Expression`)
         Function of `exprs`.
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
 
     Returns
     -------
