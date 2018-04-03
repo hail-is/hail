@@ -43,11 +43,7 @@ object RVDSpec {
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
       HailContext.readRowsPartition(rowType, codecSpec)(0, in)
-<<<<<<< HEAD
         .map(rv => SafeRow(rowType, rv.region, rv.offset))
-=======
-        .map(rv => Annotation.copy(rowType, new UnsafeRow(rowType, rv.region, rv.offset)).asInstanceOf[Row])
->>>>>>> fix places where it breaks
     }.toFastIndexedSeq
   }
 }
