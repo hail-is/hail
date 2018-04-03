@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Querier, UnsafeRow}
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, Variant}
+import is.hail.variant.{Locus, MatrixTable}
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag

@@ -2,7 +2,7 @@ package is.hail.io.gen
 
 import is.hail.annotations.{Querier, UnsafeRow}
 import is.hail.expr.types.TString
-import is.hail.variant.{ArrayGenotypeView, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{ArrayGenotypeView, MatrixTable, RegionValueVariant, VariantMethods}
 import is.hail.utils._
 
 object ExportGen {
@@ -56,7 +56,7 @@ object ExportGen {
           sb.clear()
           sb.append(rvv.contig())
           sb += ' '
-          sb.append(Option(varidQuery(row)).getOrElse(Variant.locusAllelesToString(rvv.locus(), rvv.alleles())))
+          sb.append(Option(varidQuery(row)).getOrElse(VariantMethods.locusAllelesToString(rvv.locus(), rvv.alleles())))
           sb += ' '
           sb.append(Option(rsidQuery(row)).getOrElse("."))
           sb += ' '

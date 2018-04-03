@@ -27,17 +27,11 @@ abstract class RGBase extends Serializable {
 
   def name: String
 
-  def variantOrdering: Ordering[Variant]
-
   def locusOrdering: Ordering[Locus]
 
   def contigParser: Parser[String]
 
   def isValidContig(contig: String): Boolean
-
-  def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit
-
-  def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit
 
   def checkLocus(l: Locus): Unit
 
@@ -66,8 +60,6 @@ abstract class RGBase extends Serializable {
   def inYPar(locus: Locus): Boolean
 
   def compare(c1: String, c2: String): Int
-
-  def compare(v1: IVariant, v2: IVariant): Int
 
   def compare(l1: Locus, l2: Locus): Int
 
@@ -135,10 +127,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   val xContigIndices = xContigs.map(contigsIndex)
   val yContigIndices = yContigs.map(contigsIndex)
   val mtContigIndices = mtContigs.map(contigsIndex)
-
-  val variantOrdering = new Ordering[Variant] {
-    def compare(x: Variant, y: Variant): Int = ReferenceGenome.compare(contigsIndex, x, y)
-  }
 
   val locusOrdering = new Ordering[Locus] {
     def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(contigsIndex, x, y)
@@ -237,18 +225,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
-    val v = s"$contig:$start:$ref:$alt"
-    if (!isValidLocus(contig, start)) {
-      if (!isValidContig(contig))
-        fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
-      else
-        fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
-    }
-  }
-
-  def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
-
   def checkLocusInterval(i: Interval): Unit = {
     val start = i.start.asInstanceOf[Locus]
     val end = i.end.asInstanceOf[Locus]
@@ -318,8 +294,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
   def compare(contig1: String, contig2: String): Int = ReferenceGenome.compare(contigsIndex, contig1, contig2)
-
-  def compare(v1: IVariant, v2: IVariant): Int = ReferenceGenome.compare(contigsIndex, v1, v2)
 
   def compare(l1: Locus, l2: Locus): Int = ReferenceGenome.compare(contigsIndex, l1, l2)
 
@@ -622,22 +596,6 @@ object ReferenceGenome {
     }
   }
 
-  def compare(contigsIndex: Map[String, Int], v1: IVariant, v2: IVariant): Int = {
-    var c = compare(contigsIndex, v1.contig(), v2.contig())
-    if (c != 0)
-      return c
-
-    c = v1.start().compare(v2.start())
-    if (c != 0)
-      return c
-
-    c = v1.ref().compare(v2.ref())
-    if (c != 0)
-      return c
-
-    Ordering.Iterable[AltAllele].compare(v1.altAlleles(), v2.altAlleles())
-  }
-
   def compare(contigsIndex: Map[String, Int], l1: Locus, l2: Locus): Int = {
     val c = compare(contigsIndex, l1.contig, l2.contig)
     if (c != 0)
@@ -714,11 +672,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
 
   def name: String = ???
 
-  def variantOrdering: Ordering[Variant] =
-    new Ordering[Variant] {
-      def compare(x: Variant, y: Variant): Int = throw new UnsupportedOperationException("RGVariable.variantOrdering unimplemented")
-    }
-
   def locusOrdering: Ordering[Locus] =
     new Ordering[Locus] {
       def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("RGVariable.locusOrdering unimplemented")
@@ -727,10 +680,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
   def contigParser: Parser[String] = ???
 
   def isValidContig(contig: String): Boolean = ???
-
-  def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit = ???
-
-  def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit = ???
 
   def checkLocus(l: Locus): Unit = ???
 
@@ -759,8 +708,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
   def inYPar(locus: Locus): Boolean = ???
 
   def compare(c1: String, c2: String): Int = ???
-
-  def compare(v1: IVariant, v2: IVariant): Int = ???
 
   def compare(l1: Locus, l2: Locus): Int = ???
 }
