@@ -1351,9 +1351,9 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False, as_array=False) 
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
-        __hwe_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     return pca(normalized_gt,
                k,
@@ -2180,9 +2180,9 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
-        __hwe_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     bm = BlockMatrix.from_entry_expr(normalized_gt)
     mt.unpersist()
@@ -2270,10 +2270,10 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     info("Computing RRM using {} variants.".format(n_variants))
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(__std_dev=hl.sqrt((mt.__ACsq + (n_samples - mt.__n_called) * mt.__mean_gt ** 2) /
+    mt = mt.annotate_rows(__scaled_std_dev=hl.sqrt((mt.__ACsq + (n_samples - mt.__n_called) * mt.__mean_gt ** 2) /
                                               n_samples - mt.__mean_gt ** 2))
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__scaled_std_dev, 0.0)
 
     bm = BlockMatrix.from_entry_expr(normalized_gt)
     mt.unpersist()
