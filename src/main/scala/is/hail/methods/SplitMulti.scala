@@ -218,7 +218,7 @@ abstract class SplitMultiPartitionContext(
     }
 
     if (sortAlleles)
-      splitVariants = splitVariants.sortBy { case (svjLocus, svjAlleles, i) => Annotation(svjLocus, svjAlleles) }(locusAllelesOrdering.toOrdering)
+      splitVariants = splitVariants.sortBy { case (newLocus, newAlleles, i) => Annotation(newLocus, newAlleles) }(locusAllelesOrdering.toOrdering)
 
     val nAlleles = 1 + alts.length
     val nGenotypes = VariantMethods.nGenotypes(nAlleles)
