@@ -16,8 +16,8 @@ class ExplodeSuite extends SparkSuite {
     assert(vsm.explodeCols("sa.foo").numCols == vsm.numCols * 3)
     assert(vsm.explodeCols("sa.bar").numCols == vsm.numCols * 2)
 
-    val key = vsm.colValues(0).asInstanceOf[Row].get(1)
-    val explodedKey = vsm.explodeCols("sa.foo").colValues.take(3).asInstanceOf[IndexedSeq[Row]].map(_.get(1))
+    val key = vsm.colValues.value(0).asInstanceOf[Row].get(1)
+    val explodedKey = vsm.explodeCols("sa.foo").colValues.value.take(3).asInstanceOf[IndexedSeq[Row]].map(_.get(1))
     assert(key == explodedKey)    
   }
 

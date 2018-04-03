@@ -82,8 +82,8 @@ abstract class BaseIR {
 
 case class MatrixValue(
   typ: MatrixType,
-  globals: BroadcastValue,
-  colValues: IndexedSeq[Annotation],
+  globals: BroadcastRow,
+  colValues: BroadcastIndexedSeq,
   rvd: OrderedRVD) {
 
   assert(rvd.typ == typ.orvdType)
@@ -92,14 +92,12 @@ case class MatrixValue(
 
   def nPartitions: Int = rvd.partitions.length
 
-  def nCols: Int = colValues.length
+  def nCols: Int = colValues.value.length
 
   def sampleIds: IndexedSeq[Row] = {
     val queriers = typ.colKey.map(field => typ.colType.query(field))
-    colValues.map(a => Row.fromSeq(queriers.map(_ (a))))
+    colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
   }
-
-  lazy val colValuesBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(colValues)
 }
 
 object MatrixIR {
@@ -177,7 +175,7 @@ object MatrixIR {
     val keepF = { (mv: MatrixValue, keep: Array[Int]) =>
       val keepBc = mv.sparkContext.broadcast(keep)
       mv.copy(typ = newMatrixType,
-        colValues = keep.map(mv.colValues),
+        colValues = mv.colValues.copy(value = keep.map(mv.colValues.value)),
         rvd = mv.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
           val f = makeF()
           val keep = keepBc.value
@@ -199,7 +197,7 @@ object MatrixIR {
     (t, {(mv: MatrixValue, p :(Annotation, Int) => Boolean) =>
       val keep = (0 until mv.nCols)
         .view
-        .filter { i => p(mv.colValues(i), i) }
+        .filter { i => p(mv.colValues.value(i), i) }
         .toArray
       keepF(mv, keep)
     })
@@ -249,13 +247,13 @@ case class MatrixRead(
   def execute(hc: HailContext): MatrixValue = {
     val hConf = hc.hadoopConf
 
-    val globals = spec.globalsComponent.readLocal(hc, path)(0)
+    val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path)(0)).asInstanceOf[Row]
 
     val colAnnotations =
       if (dropCols)
         IndexedSeq.empty[Annotation]
       else
-        spec.colsComponent.readLocal(hc, path)
+        Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path)).asInstanceOf[IndexedSeq[Annotation]]
 
     val rvd =
       if (dropRows)
@@ -336,8 +334,8 @@ case class MatrixRead(
 
     MatrixValue(
       typ,
-      BroadcastValue(globals, typ.globalType, hc.sc),
-      colAnnotations,
+      BroadcastRow(globals, typ.globalType, hc.sc),
+      BroadcastIndexedSeq(colAnnotations, TArray(typ.colType), hc.sc),
       rvd)
   }
 
@@ -566,7 +564,7 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 
     val localGlobalsType = typ.globalType
     val localColsType = TArray(typ.colType)
-    val colValuesBc = prev.colValuesBc
+    val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
@@ -660,7 +658,7 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     val localGlobalsType = typ.globalType
     val localColsType = TArray(typ.colType)
     val localNCols = prev.nCols
-    val colValuesBc = prev.colValuesBc
+    val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
 
     val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
@@ -730,7 +728,7 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   }
 }
 
-case class TableValue(typ: TableType, globals: BroadcastValue, rvd: RVD) {
+case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def rdd: RDD[Row] =
     rvd.toRows
 
@@ -798,7 +796,7 @@ case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends T
   def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path)(0)
     TableValue(typ,
-      BroadcastValue(globals, typ.globalType, hc.sc),
+      BroadcastRow(globals, typ.globalType, hc.sc),
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
@@ -819,7 +817,7 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
     val rowTyp = typ.rowType
     val rvd = hc.sc.parallelize(rows, nPartitions.getOrElse(hc.sc.defaultParallelism))
       .mapPartitions(_.toRegionValueIterator(rowTyp))
-    TableValue(typ, BroadcastValue(Annotation.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
   }
 }
 
@@ -1074,12 +1072,13 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
       newRow)
     assert(rTyp == gType)
 
-    val rv = tv.globals.regionValue
-    val offset = f()(rv.region, rv.offset, false)
+    val globalRegion = Region()
+    val globalOff = tv.globals.toRegion(globalRegion)
+    val newOff = f()(globalRegion, globalOff, false)
 
     val newGlobals = tv.globals.copy(
-      value = UnsafeRow.read(rTyp, rv.region, offset),
-      t = rTyp)
+      value = Annotation.copy(rTyp, UnsafeRow.read(rTyp, globalRegion, newOff)).asInstanceOf[Row],
+      t = rTyp.asInstanceOf[TStruct])
 
     TableValue(typ, newGlobals, tv.rvd)
   }

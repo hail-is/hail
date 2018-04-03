@@ -1,22 +1,38 @@
 package is.hail.annotations
 
-import is.hail.expr.types.Type
+import is.hail.expr.types.{TArray, TBaseStruct, Type}
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.Row
 
-case class BroadcastValue(value: Annotation, t: Type, sc: SparkContext) {
+import scala.reflect.ClassTag
 
-  lazy val safeValue: Annotation = Annotation.copy(t, value)
+abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) {
 
-  lazy val broadcast: Broadcast[Annotation] = sc.broadcast(safeValue)
+  def safeValue: T
 
-  lazy val regionValue: RegionValue = {
-    val rv = RegionValue(Region())
-    val rvb = new RegionValueBuilder()
-    rvb.set(rv.region)
+  lazy val broadcast: Broadcast[T] = sc.broadcast(value)
+
+  def toRegion(region: Region): Long = {
+    val rvb = new RegionValueBuilder(region)
     rvb.start(t)
     rvb.addAnnotation(t, value)
-    rv.set(rv.region, rvb.end())
-    rv
+    rvb.end()
   }
+}
+
+case class BroadcastRow(value: Row,
+  t: TBaseStruct,
+  sc: SparkContext) extends BroadcastValue[Row](value, t, sc) {
+  require(Annotation.isSafe(t, value))
+
+  lazy val safeValue: Row = value
+}
+
+case class BroadcastIndexedSeq(value: IndexedSeq[Annotation],
+  t: TArray,
+  sc: SparkContext) extends BroadcastValue[IndexedSeq[Annotation]](value, t, sc) {
+  require(Annotation.isSafe(t, value))
+
+  lazy val safeValue: IndexedSeq[Annotation] = value
 }

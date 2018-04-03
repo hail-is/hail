@@ -182,4 +182,31 @@ object Annotation {
       case _ => a
     }
   }
+
+  def isSafe(typ: Type, a: Annotation): Boolean = {
+    if (a == null)
+      return true
+
+    typ match {
+      case t: TBaseStruct =>
+        val r = a.asInstanceOf[Row]
+        !r.isInstanceOf[UnsafeRow] && Array.range(0, t.size).forall(i => Annotation.isSafe(t.types(i), r(i)))
+
+      case t: TArray =>
+        !a.isInstanceOf[UnsafeIndexedSeq] && a.asInstanceOf[IndexedSeq[Annotation]].forall(Annotation.isSafe(t.elementType, _))
+
+      case t: TSet =>
+        a.asInstanceOf[Set[Annotation]].forall(Annotation.isSafe(t.elementType, _))
+
+      case t: TDict =>
+        a.asInstanceOf[Map[Annotation, Annotation]]
+          .forall { case (k, v) => Annotation.isSafe(t.keyType, k) && Annotation.isSafe(t.valueType, v) }
+
+      case t: TInterval =>
+        val i = a.asInstanceOf[Interval]
+        Annotation.isSafe(t.pointType, i.start) && Annotation.isSafe(t.pointType, i.end)
+
+      case _ => true
+    }
+  }
 }

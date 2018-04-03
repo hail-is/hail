@@ -1,7 +1,7 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
-import is.hail.annotations.{Annotation, BroadcastValue}
+import is.hail.annotations.{Annotation, BroadcastRow, BroadcastValue}
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.{TableLiteral, TableValue}
 import is.hail.expr.types._
@@ -66,7 +66,7 @@ class PartitioningSuite extends SparkSuite {
     val t = new Table(hc,
       TableLiteral(TableValue(
         TableType(TStruct("tidx"->TInt32()), Array("tidx"), TStruct.empty()),
-        BroadcastValue(Annotation.empty, TStruct.empty(), sc),
+        BroadcastRow(Row.empty, TStruct.empty(), sc),
         UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32())))))
     mt.annotateRowsTable(t, "foo").forceCountRows()
   }

@@ -10,6 +10,16 @@ import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
+trait UnKryoSerializable extends KryoSerializable {
+  def write(kryo: Kryo, output: Output): Unit = {
+    throw new NotImplementedException()
+  }
+
+  def read(kryo: Kryo, input: Input): Unit = {
+    throw new NotImplementedException()
+  }
+}
+
 object UnsafeIndexedSeq {
   def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
     val region = Region()
@@ -52,7 +62,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
   var length: Int = t.loadLength(region, aoff)
 
@@ -127,7 +137,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long) extends Row with KryoSerializable {
+  var region: Region, var offset: Long) extends Row with UnKryoSerializable {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
@@ -192,14 +202,6 @@ class UnsafeRow(var t: TBaseStruct,
     if (i < 0 || i >= t.size)
       throw new IndexOutOfBoundsException(i.toString)
     !t.isFieldDefined(region, offset, i)
-  }
-
-  def write(kryo: Kryo, output: Output): Unit = {
-    throw new NotImplementedException()
-  }
-
-  def read(kryo: Kryo, input: Input): Unit = {
-    throw new NotImplementedException()
   }
 
   private def writeObject(s: ObjectOutputStream): Unit = {

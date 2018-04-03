@@ -74,7 +74,7 @@ class ExportSuite extends SparkSuite {
     val (t, qcQuerier) = readBackAnnotated.querySA("sa.qc")
     val (t2, rbQuerier) = readBackAnnotated.querySA("sa.readBackQC")
     assert(t == t2)
-    readBackAnnotated.colValues.foreach { annotation =>
+    readBackAnnotated.colValues.value.foreach { annotation =>
       t.valuesSimilar(qcQuerier(annotation), rbQuerier(annotation))
     }
   }

@@ -41,7 +41,6 @@ object LinearRegression {
 
     val sc = vsm.sparkContext
     val completeColIdxBc = sc.broadcast(completeColIdx)
-    
     val yBc = sc.broadcast(y)
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
