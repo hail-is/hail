@@ -11,7 +11,7 @@ object RegionValue {
 }
 
 final class RegionValue(var region: Region,
-  var offset: Long) extends Serializable {
+  var offset: Long) {
   def set(newRegion: Region, newOffset: Long) {
     region = newRegion
     offset = newOffset
