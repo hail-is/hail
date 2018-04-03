@@ -229,20 +229,19 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     return kt
 
 
-@typecheck(dataset=MatrixTable,
-           ys=oneof(expr_float64, sequenceof(expr_float64)),
+@typecheck(ys=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
-    """For each row, test a derived input variable for association with
+def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
+    """For each row, test an input variable for association with
     response variables using linear regression.
 
     Examples
     --------
 
-    >>> dataset_result = hl.linear_regression(dataset, [dataset.pheno.height], dataset.GT.n_alt_alleles(),
+    >>> dataset_result = hl.linear_regression([dataset.pheno.height], dataset.GT.n_alt_alleles(),
     ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
@@ -297,10 +296,10 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
 
     Parameters
     ----------
-    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+    ys : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
         One or more column-indexed response expressions.
     x : :class:`.Float64Expression`
-        Row- and column-indexed expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     root : :obj:`str`
@@ -312,56 +311,57 @@ def linear_regression(dataset, ys, x, covariates=[], root='linreg', block_size=1
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset with regression results in a new row-indexed field.
+        Matrix table with regression results in a new row-indexed field.
     """
+    mt = matrix_table_source('linear_regression/x', x)
+    check_entry_indexed('linear_regression/x', x)
 
-    all_exprs = [x]
-
-    ys = wrap_to_list(ys)
-
-    # x is entry-indexed
-    analyze('linear_regression/x', x, dataset._entry_indices)
-
-    # ys and covariates are col-indexed
+    all_exprs = []
     ys = wrap_to_list(ys)
     for e in ys:
         all_exprs.append(e)
-        analyze('linear_regression/ys', e, dataset._col_indices)
+        analyze('linear_regression/ys', e, mt._col_indices)
     for e in covariates:
         all_exprs.append(e)
-        analyze('linear_regression/covariates', e, dataset._col_indices)
+        analyze('linear_regression/covariates', e, mt._col_indices)
 
-    base, cleanup = dataset._process_joins(*all_exprs)
+    #  FIXME: remove once select_entries on a field is free
+    if x in mt._fields_inverse:
+        x_field = mt._fields_inverse[x]
+        fields_to_drop = []
+    else:
+        x_field = Env.get_uid()
+        fields_to_drop = [x_field]
+        mt = mt.annotate_entries(**{x_field: x})
+
+    base, cleanup = mt._process_joins(*all_exprs)
 
     jm = base._jvds.linreg(
         jarray(Env.jvm().java.lang.String, [y._ast.to_hql() for y in ys]),
-        x._ast.to_hql(),
+        x_field,
         jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
         root,
         block_size
     )
 
-    return cleanup(MatrixTable(jm))
+    return cleanup(MatrixTable(jm)).drop(*fields_to_drop)
 
 
-@typecheck(dataset=MatrixTable,
-           test=enumeration('wald', 'lrt', 'score', 'firth'),
+@typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str)
-def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> MatrixTable:
-    r"""For each row, test a derived input variable for association with a
-    Boolean response variable using logistic regression.
+def logistic_regression(test, y, x, covariates=[], root='logreg') -> MatrixTable:
+    r"""For each row, test an input variable for association with a
+    binary response variable using logistic regression.
 
     Examples
     --------
-
     Run the logistic regression Wald test per variant using a Boolean
     phenotype and two covariates stored in column-indexed fields:
 
     >>> ds_result = hl.logistic_regression(
-    ...     dataset,
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
@@ -369,7 +369,6 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> Ma
 
     Notes
     -----
-
     This method performs, for each row, a significance test of the input
     variable in predicting a binary (case-control) response variable based on
     the logistic regression model. The response variable type must either be
@@ -539,7 +538,7 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> Ma
         Note that a :class:`.BooleanExpression` will be implicitly converted to
         a :class:`.Float64Expression` with this property.
     x : :class:`.Float64Expression`
-        Row- and column-indexed expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     root : :obj:`str`, optional
@@ -548,35 +547,41 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> Ma
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset with regression results in a new row-indexed field.
+        Matrix table with regression results in a new row-indexed field.
     """
+    mt = matrix_table_source('logistic_regression/x', x)
+    check_entry_indexed('logistic_regression/x', x)
 
-    # x is entry-indexed
-    analyze('logistic_regression/x', x, dataset._entry_indices)
+    analyze('logistic_regression/y', y, mt._col_indices)
 
-    # y and covariates are col-indexed
-    analyze('logistic_regression/y', y, dataset._col_indices)
-
-    all_exprs = [x, y]
+    all_exprs = [y]
     for e in covariates:
         all_exprs.append(e)
-        analyze('logistic_regression/covariates', e, dataset._col_indices)
+        analyze('logistic_regression/covariates', e, mt._col_indices)
 
-    base, cleanup = dataset._process_joins(*all_exprs)
+    #  FIXME: remove once select_entries on a field is free
+    if x in mt._fields_inverse:
+        x_field = mt._fields_inverse[x]
+        fields_to_drop = []
+    else:
+        x_field = Env.get_uid()
+        fields_to_drop = [x_field]
+        mt = mt.annotate_entries(**{x_field: x})
+
+    base, cleanup = mt._process_joins(*all_exprs)
 
     jds = base._jvds.logreg(
         test,
         y._ast.to_hql(),
-        x._ast.to_hql(),
+        x_field,
         jarray(Env.jvm().java.lang.String,
                [cov._ast.to_hql() for cov in covariates]),
         root)
 
-    return cleanup(MatrixTable(jds))
+    return cleanup(MatrixTable(jds)).drop(*fields_to_drop)
 
 
-@typecheck(ds=MatrixTable,
-           kinship_matrix=KinshipMatrix,
+@typecheck(kinship_matrix=KinshipMatrix,
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
@@ -588,12 +593,16 @@ def logistic_regression(dataset, test, y, x, covariates=[], root='logreg') -> Ma
            sparsity_threshold=numeric,
            n_eigenvectors=nullable(int),
            dropped_variance_fraction=(nullable(float)))
-def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
+def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
                             row_root="lmmreg", run_assoc=True, use_ml=False, delta=None,
                             sparsity_threshold=1.0, n_eigenvectors=None, dropped_variance_fraction=None) -> MatrixTable:
     r"""Use a kinship-based linear mixed model to estimate the genetic component
     of phenotypic variance (narrow-sense heritability) and optionally test each
     variant for association.
+
+    **We plan to change the interface to this method in Hail 0.2 while maintaining its functionality.**
+
+    .. include:: ../_templates/req_tstring.rst
 
     Examples
     --------
@@ -608,11 +617,9 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
         lmmreg_ds = lmmreg_ds.annotate_rows(use_in_kinship = lmmreg_ds.variant_qc.AF > 0.05)
         lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
 
-
     >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
     >>> kinship_matrix = hl.realized_relationship_matrix(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
-    >>> lmm_ds = hl.linear_mixed_regression(lmm_ds,
-    ...                                     kinship_matrix,
+    >>> lmm_ds = hl.linear_mixed_regression(kinship_matrix,
     ...                                     lmm_ds.pheno,
     ...                                     lmm_ds.GT.n_alt_alleles(),
     ...                                     [lmm_ds.cov1, lmm_ds.cov2])
@@ -1023,7 +1030,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     y : :class:`.Float64Expression`
         Column-indexed response expression.
     x : :class:`.Float64Expression`
-        Row- and column-indexed expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     global_root : :obj:`str`
@@ -1048,25 +1055,33 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
     Returns
     -------
     :class:`.MatrixTable`
-        Variant dataset with linear mixed regression annotations.
+        Matrix table with regression results in new global and (optionally) row-indexed fields.
     """
 
-    # x is entry-indexed
-    analyze('linear_mixed_regression/x', x, ds._entry_indices)
+    mt = matrix_table_source('linear_mixed_regression/x', x)
+    check_entry_indexed('linear_mixed_regression/x', x)
 
-    # y and covariates are col-indexed
-    analyze('linear_mixed_regression/y', y, ds._col_indices)
+    analyze('linear_mixed_regression/y', y, mt._col_indices)
 
-    all_exprs = [x, y]
+    all_exprs = [y]
     for e in covariates:
         all_exprs.append(e)
-        analyze('linear_mixed_regression/covariates', e, ds._col_indices)
+        analyze('linear_mixed_regression/covariates', e, mt._col_indices)
 
-    base, cleanup = ds._process_joins(*all_exprs)
+    #  FIXME: remove once select_entries on a field is free
+    if x in mt._fields_inverse:
+        x_field = mt._fields_inverse[x]
+        fields_to_drop = []
+    else:
+        x_field = Env.get_uid()
+        fields_to_drop = [x_field]
+        mt = mt.annotate_entries(**{x_field: x})
+
+    base, cleanup = mt._process_joins(*all_exprs)
 
     jds = base._jvds.lmmreg(kinship_matrix._jkm,
                             y._ast.to_hql(),
-                            x._ast.to_hql(),
+                            x_field,
                             jarray(Env.jvm().java.lang.String,
                                    [cov._ast.to_hql() for cov in covariates]),
                             use_ml,
@@ -1078,11 +1093,10 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
                             joption(n_eigenvectors),
                             joption(dropped_variance_fraction))
 
-    return cleanup(MatrixTable(jds))
+    return cleanup(MatrixTable(jds)).drop(*fields_to_drop)
 
 
-@typecheck(dataset=MatrixTable,
-           key_expr=expr_any,
+@typecheck(key_expr=expr_any,
            weight_expr=expr_float64,
            y=expr_float64,
            x=expr_float64,
@@ -1091,7 +1105,7 @@ def linear_mixed_regression(ds, kinship_matrix, y, x, covariates=[], global_root
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
+def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
@@ -1114,8 +1128,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
         burden_ds.write('data/example_burden.vds', overwrite=True)
 
     >>> burden_ds = hl.read_matrix_table('data/example_burden.vds')
-    >>> skat_table = hl.skat(burden_ds,
-    ...                      key_expr=burden_ds.gene,
+    >>> skat_table = hl.skat(key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
     ...                      x=burden_ds.GT.n_alt_alleles(),
@@ -1225,7 +1238,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     y : :class:`.Float64Expression`
         Column-indexed response expression.
     x : :class:`.Float64Expression`
-        Row- and column-indexed expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
     logistic : :obj:`bool`
@@ -1242,28 +1255,32 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     :class:`.Table`
         Table of SKAT results.
     """
-    all_exprs = [key_expr, weight_expr, x, y]
+    mt = matrix_table_source('skat/x', x)
+    check_entry_indexed('skat/x', x)
 
-    # key_expr and weight_expr are row_indexed
-    analyze('skat/key_expr', key_expr, dataset._row_indices)
-    analyze('skat/weight_expr', weight_expr, dataset._row_indices)
+    analyze('skat/key_expr', key_expr, mt._row_indices)
+    analyze('skat/weight_expr', weight_expr, mt._row_indices)
+    analyze('skat/y', y, mt._col_indices)
 
-    # x is entry-indexed
-    analyze('skat/x', x, dataset._entry_indices)
-
-    # y and covariates are col-indexed
-    analyze('skat/y', y, dataset._col_indices)
+    all_exprs = [key_expr, weight_expr, y]
     for e in covariates:
         all_exprs.append(e)
-        analyze('skat/covariates', e, dataset._col_indices)
+        analyze('skat/covariates', e, mt._col_indices)
 
-    base, _ = dataset._process_joins(*all_exprs)
+    #  FIXME: remove once select_entries on a field is free
+    if x in mt._fields_inverse:
+        x_field = mt._fields_inverse[x]
+    else:
+        x_field = Env.get_uid()
+        mt = mt.select_entries(**{x_field: x})
+
+    base, _ = mt._process_joins(*all_exprs)
 
     jt = base._jvds.skat(
         key_expr._ast.to_hql(),
         weight_expr._ast.to_hql(),
         y._ast.to_hql(),
-        x._ast.to_hql(),
+        x_field,
         jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
         logistic,
         max_size,

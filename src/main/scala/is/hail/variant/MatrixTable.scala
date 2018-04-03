@@ -2479,20 +2479,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
-    LinearRegression(this, ysExpr, xExpr, covExpr, root, rowBlockSize)
+  def linreg(ysExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
+    LinearRegression(this, ysExpr, xField, covExpr, root, rowBlockSize)
   }
 
   def logreg(test: String,
-    y: String, x: String, covariates: Array[String] = Array.empty[String],
+    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
     root: String = "logreg"): MatrixTable = {
-    LogisticRegression(this, test, y, x, covariates, root)
+    LogisticRegression(this, test, yExpr, xField, covExpr, root)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
-    y: String,
-    x: String,
-    covariates: Array[String] = Array.empty[String],
+    yExpr: String,
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
     useML: Boolean = false,
     rootGA: String = "lmmreg",
     rootVA: String = "lmmreg",
@@ -2501,20 +2501,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     sparsityThreshold: Double = 1.0,
     nEigs: Option[Int] = None,
     optDroppedVarianceFraction: Option[Double] = None): MatrixTable = {
-    LinearMixedRegression(this, kinshipMatrix, y, x, covariates, useML, rootGA, rootVA,
+    LinearMixedRegression(this, kinshipMatrix, yExpr, xField, covExpr, useML, rootGA, rootVA,
       runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
   }
 
   def skat(keyExpr: String,
     weightExpr: String,
-    y: String,
-    x: String,
-    covariates: Array[String] = Array.empty[String],
+    yExpr: String,
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
     logistic: Boolean = false,
     maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
     accuracy: Double = 1e-6,
     iterations: Int = 10000): Table = {
-    Skat(this, keyExpr, weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+    Skat(this, keyExpr, weightExpr, yExpr, xField, covExpr, logistic, maxSize, accuracy, iterations)
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {

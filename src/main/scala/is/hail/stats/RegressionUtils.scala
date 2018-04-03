@@ -1,57 +1,52 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.annotations.Annotation
+import is.hail.annotations.RegionValue
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{Call, HardCallView, MatrixTable}
+import is.hail.variant.MatrixTable
 
-object RegressionUtils {
-  def inputVector(x: DenseVector[Double],
-    globalAnnotation: Annotation, sampleAnnotations: IndexedSeq[Annotation],
-    row: Annotation,
-    entries: IndexedSeq[Annotation],
-    ec: EvalContext,
-    xf: () => java.lang.Double,
-    completeSampleIndex: Array[Int],
-    missingSamples: ArrayBuilder[Int]) {
-    require(x.length == completeSampleIndex.length)
+object RegressionUtils {  
+  def setMeanImputedDoubles(data: Array[Double],
+    offset: Int,
+    completeColIdx: Array[Int],
+    missingCompleteCols: ArrayBuilder[Int],
+    rv: RegionValue,
+    rvRowType: TStruct,
+    entryArrayType: TArray,
+    entryType: TStruct,
+    entryArrayIdx: Int,
+    fieldIdx: Int) : Unit = {
 
-    ec.set(0, globalAnnotation)
-    ec.set(1, row)
+    missingCompleteCols.clear()
+    val n = completeColIdx.length
+    var sum = 0.0
+    val region = rv.region
+    val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
 
-    missingSamples.clear()
-    val n = completeSampleIndex.length
-    val git = entries.iterator
-    var i = 0
     var j = 0
-    var sum = 0d
     while (j < n) {
-      while (i < completeSampleIndex(j)) {
-        git.next()
-        i += 1
-      }
-      assert(completeSampleIndex(j) == i)
-
-      val g = git.next()
-      ec.set(2, sampleAnnotations(i))
-      ec.set(3, g)
-      val e = xf()
-      if (e != null) {
-        sum += e
-        x(j) = e
+      val k = completeColIdx(j)
+      if (entryArrayType.isElementDefined(region, entryArrayOffset, k)) {
+        val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, k)
+        if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
+          val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+          val e = region.loadDouble(fieldOffset)
+          sum += e
+          data(offset + j) = e
+        } else
+          missingCompleteCols += j
       } else
-        missingSamples += j
-      i += 1
+        missingCompleteCols += j// fatal(s"missing entry in col $j")
       j += 1
     }
-
-    val nMissing = missingSamples.size
-    val meanValue = sum / (n - nMissing)
-    i = 0
+    
+    val nMissing = missingCompleteCols.size
+    val mean = sum / (n - nMissing)
+    var i = 0
     while (i < nMissing) {
-      x(missingSamples(i)) = meanValue
+      data(offset + missingCompleteCols(i)) = mean
       i += 1
     }
   }

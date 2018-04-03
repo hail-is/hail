@@ -130,8 +130,7 @@ class Tests(unittest.TestCase):
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
-        dataset = hl.linear_regression(dataset,
-                                       ys=dataset.pheno,
+        dataset = hl.linear_regression(ys=dataset.pheno,
                                        x=dataset.GT.n_alt_alleles(),
                                        covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
@@ -917,16 +916,14 @@ class Tests(unittest.TestCase):
                                                     True,
                                                     hl.null(hl.tbool))))
 
-        hl.skat(ds,
-                key_expr=ds.gene,
+        hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[ds.cov.Cov1, ds.cov.Cov2],
                 logistic=False).count()
 
-        hl.skat(ds,
-                key_expr=ds.gene,
+        hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=hl.pl_dosage(ds.PL),
