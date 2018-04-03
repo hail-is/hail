@@ -163,7 +163,11 @@ class OrderedRVD(
 
     val localTyp = typ
     OrderedRVD(typ, partitioner,
-      crdd.zipPartitions(rdd2.crdd) { case (it, it2) =>
+      crdd.czipPartitionsAndContext(rdd2.crdd) { (ctx, leftProducer, rightProducer) =>
+        val leftCtx = ctx.freshContext
+        val rightCtx = ctx.freshContext
+        val it = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
+        val it2 = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
         new Iterator[RegionValue] {
           private val bit = it.buffered
           private val bit2 = it2.buffered
@@ -217,7 +221,7 @@ class OrderedRVD(
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
-      val shuffled = crdd.coalesce(maxPartitions, shuffle = true)
+      val shuffled = stably(_.coalesce(maxPartitions, shuffle = true))
       val ranges = OrderedRVD.calculateKeyRanges(
         typ,
         OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)),
@@ -400,6 +404,10 @@ class OrderedRVD(
         partitioner.rangeBounds,
         partitioner.rangeBoundsType))
 
+  // FIXME: this is dangerous because the context is reused for left and
+  // right and will be reset based on when zipper's return value calls next
+  // but zipper might depend on one of the two children's next values not
+  // being erased
   def zipPartitionsPreservesPartitioning[T: ClassTag](
     newTyp: OrderedRVDType,
     that: ContextRDD[RVDContext, T]
@@ -410,15 +418,15 @@ class OrderedRVD(
       partitioner,
       this.crdd.zipPartitions(that, preservesPartitioning = true)(zipper))
 
-  def zipPartitionsPreservesPartitioning(
+  def zip(
     newTyp: OrderedRVDType,
     that: RVD
-  )(zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  )(zipper: (RVDContext, RegionValue, RegionValue) => RegionValue
   ): OrderedRVD =
     OrderedRVD(
       newTyp,
       partitioner,
-      this.crdd.zipPartitions(that.crdd, preservesPartitioning = true)(zipper))
+      this.crdd.czip(that.crdd, preservesPartitioning = true)(zipper))
 
   def writeRowsSplit(
     path: String,
@@ -472,22 +480,13 @@ object OrderedRVD {
     crdd: ContextRDD[RVDContext, RegionValue]
   ): ContextRDD[RVDContext, RegionValue] = {
     val localType = typ
-    crdd.mapPartitions { it =>
-      val wrv = WritableRegionValue(localType.kType)
-      it.map { rv =>
-        wrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-        wrv.value
-      }
+    crdd.cmap { (c, rv) =>
+      c.rvb.start(localType.kType)
+      c.rvb.selectRegionValue(localType.rowType, localType.kRowFieldIdx, rv)
+      rv.setOffset(c.rvb.end())
+      rv
     }
   }
-
-  // FIXME: delete when I've removed all need for RDDs
-  def getKeys(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue]
-  ): RDD[RegionValue] = getKeys(
-    typ,
-    ContextRDD.weaken(rdd)).run
 
   def getPartitionKeyInfo(
     typ: OrderedRVDType,
@@ -515,15 +514,6 @@ object OrderedRVD {
 
     pkis.sortBy(_.min)(typ.pkOrd)
   }
-
-  // FIXME: delete when I've removed all need for RDDs
-  def getPartitionKeyInfo[C](
-    typ: OrderedRVDType,
-    // keys: RDD[kType]
-    keys: RDD[RegionValue]
-  ): Array[OrderedRVPartitionInfo] = getPartitionKeyInfo(
-    typ,
-    ContextRDD.weaken(keys))
 
   def coerce(
     typ: OrderedRVDType,
@@ -704,7 +694,7 @@ object OrderedRVD {
   ): OrderedRVD = {
     val pkType = partitioner.pkType
     val pkOrdUnsafe = pkType.unsafeOrdering(true)
-    val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, crdd))
+    val pkis = getPartitionKeyInfo(typ, getKeys(typ, crdd))
 
     if (pkis.isEmpty)
       return OrderedRVD(typ, partitioner, crdd)
@@ -737,6 +727,7 @@ object OrderedRVD {
     OrderedRVD(typ,
       partitioner,
       crdd.mapPartitions { it =>
+        // FIXME: can I use stablize here?
         val wrv = WritableRegionValue(typ.rowType)
         val wkrv = WritableRegionValue(typ.kType)
         it.map { rv =>

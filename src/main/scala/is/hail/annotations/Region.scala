@@ -36,7 +36,7 @@ final class Region(
 
   def loadInt(off: Long): Int = {
     assert(size <= capacity)
-    assert(off >= 0 && off + 4 <= size)
+    assert(off >= 0 && off + 4 <= size, s"$off, $size")
     Memory.loadInt(mem, off)
   }
 

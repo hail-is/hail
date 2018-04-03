@@ -50,7 +50,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     UnpartitionedRVDSpec(rowType, codecSpec, partFiles)
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.coalesce(maxPartitions, shuffle = shuffle))
+    new UnpartitionedRVD(rowType, stably(_.coalesce(maxPartitions, shuffle = shuffle)))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,

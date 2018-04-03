@@ -6,6 +6,7 @@ import org.apache.spark.rdd._
 import org.apache.spark.storage._
 import org.apache.spark.util.random._
 import org.apache.spark.util.Utils
+
 import scala.reflect.ClassTag
 
 object ContextRDD {
@@ -99,10 +100,14 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[C, T]
 
+  // WARNING: this resets the context, when this method is called, the value of
+  // type `T` must already be "stable" i.e. not dependent on the region
   private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
     it.flatMap { useCtx =>
-      c.reset()
-      useCtx(c)
+      useCtx(c).map { t =>
+        c.reset()
+        t
+      }
     }
 
   def run[U >: T : ClassTag]: RDD[U] =
@@ -136,6 +141,8 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     f: (Int, Iterator[T]) => Iterator[U]
   ): ContextRDD[C, U] = cmapPartitionsWithIndex((i, _, part) => f(i, part))
 
+  // FIXME: also not safe because it uses samea region for both
+  // but clears region for each call to f's return value's next
   def zipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
@@ -168,7 +175,11 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     // SparkContext, wtf...
     val aggregatePartition = { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
-        serialize(decontextualize(c, it).aggregate(zeroValue)(seqOp, combOp)) } }
+        serialize(it.flatMap(_(c)).aggregate(zeroValue)({ (t, u) =>
+          val u2 = seqOp(t, u)
+          c.reset()
+          u2
+        }, combOp)) } }
     var result = makeZero()
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
@@ -212,7 +223,11 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     val aggregatePartitionOfContextTs = { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
-          decontextualize(c, it).aggregate(deserialize(zeroValue))(seqOp, combOp)) } }
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))({ (t, u) =>
+            val u2 = seqOp(t, u)
+            c.reset()
+            u2
+          }, combOp)) } }
     val aggregatePartitionOfVs = { (it: Iterator[V]) =>
       using(mkc()) { c =>
         serialize(
@@ -295,6 +310,26 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
       (i, part) => inCtx(ctx => f(i, ctx, part)),
       preservesPartitioning))
 
+  def czip[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (C, T, U) => V
+  ): ContextRDD[C, V] = czipPartitions(that, preservesPartitioning) { (ctx, l, r) =>
+    new Iterator[V] {
+      def hasNext = {
+        val lhn = l.hasNext
+        val rhn = r.hasNext
+        assert(lhn == rhn)
+        lhn
+      }
+      def next(): V = {
+        f(ctx, l.next(), r.next())
+      }
+    }
+  }
+
+  // FIXME: not safe because same context goes to both but will
+  // clear on every call to f's return value
   def czipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
@@ -302,6 +337,29 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   ): ContextRDD[C, V] = new ContextRDD(
     rdd.zipPartitions(that.rdd, preservesPartitioning)(
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
+    mkc)
+
+//  def safeCZipPartitions[U: ClassTag, V: ClassTag](
+//    that: ContextRDD[C, U],
+//    preservesPartitioning: Boolean = false
+//  )(f: (C, Iterator[T], Iterator[U]) => Iterator[V]
+//  ): ContextRDD[C, V] = new ContextRDD(
+//    czipPartitionsAndContext(that, preservesPartitioning) { (ctx, leftProducer, rightProducer) =>
+//      val leftCtx = mkc()
+//      val rightCtx = mkc()
+//      val l = new SetupIterator(leftProducer.flatMap(_ (leftCtx)), () => leftCtx.reset())
+//      val r = new SetupIterator(rightProducer.flatMap(_ (rightCtx)), () => rightCtx.reset())
+//      f(ctx, l, r)
+//    },
+//    mkc)
+
+  def czipPartitionsAndContext[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (C, Iterator[C => Iterator[T]], Iterator[C => Iterator[U]]) => Iterator[V]
+  ): ContextRDD[C, V] = new ContextRDD(
+    rdd.zipPartitions(that.rdd, preservesPartitioning)(
+      (l, r) => inCtx(ctx => f(ctx, l, r))),
     mkc)
 
   def cmapPartitionsAndContext[U: ClassTag](
@@ -355,9 +413,16 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   }
 
   def partitionSizes: Array[Long] =
-    sparkContext.runJob(rdd, { (it: Iterator[ContextRDD.ElementType[C, T]]) =>
+    sparkContext.runJob(rdd, { (it: Iterator[ElementType]) =>
       using(mkc()) { c =>
-        getIteratorSize(decontextualize(c, it))
+        val it2 = it.flatMap(_(c))
+        var count = 0L
+        while (it2.hasNext) {
+          it2.next()
+          c.reset()
+          count += 1
+        }
+        count
       }
     })
 

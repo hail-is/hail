@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.sparkextras.ResettableContext
 
 import scala.collection.mutable
@@ -29,6 +29,9 @@ class RVDContext(r: Region) extends ResettableContext {
   def region: Region = r // lifetime: element
 
   def partitionRegion: Region = r // lifetime: partition
+
+  private[this] val theRvb = new RegionValueBuilder(r)
+  def rvb = theRvb
 
   def reset(): Unit = r.clear()
 

@@ -103,6 +103,7 @@ class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
     val rvb = new RegionValueBuilder(region)
     val rv = RegionValue(region)
     it.map { row =>
+      region.clear()
       rvb.start(rowTyp)
       rvb.addAnnotation(rowTyp, row)
       rv.setOffset(rvb.end())

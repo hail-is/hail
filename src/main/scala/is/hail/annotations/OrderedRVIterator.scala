@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.{OrderedRVDType, RVDContext}
 import is.hail.utils._
 
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {

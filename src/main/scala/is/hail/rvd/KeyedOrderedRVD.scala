@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.sparkextras._
-import is.hail.utils.fatal
+import is.hail.utils.{SetupIterator, fatal}
 import org.apache.spark.rdd.RDD
 
 class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
@@ -43,11 +43,14 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "outer" => _.outerJoin(_)
       }
     val joinedRDD =
-      repartitionedLeft.crdd.zipPartitions(repartitionedRight.crdd, true) {
-        (leftIt, rightIt) =>
-          joiner(compute(
-            OrderedRVIterator(lTyp, leftIt),
-            OrderedRVIterator(rTyp, rightIt)))
+      repartitionedLeft.crdd.czipPartitionsAndContext(repartitionedRight.crdd, true) { (ctx, leftProducer, rightProducer) =>
+        val leftCtx = ctx.freshContext
+        val rightCtx = ctx.freshContext
+        val leftIt = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
+        val rightIt = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
+        joiner(compute(
+          OrderedRVIterator(lTyp, leftIt),
+          OrderedRVIterator(rTyp, rightIt)))
     }
 
     new OrderedRVD(joinedType, newPartitioner, joinedRDD)
@@ -72,8 +75,12 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "left" => _.leftJoinDistinct(_)
       }
     val joinedRDD =
-      this.rvd.crdd.zipPartitions(repartitionedRight.crdd, true) {
-        (leftIt, rightIt) =>
+      this.rvd.crdd.czipPartitionsAndContext(repartitionedRight.crdd, true) {
+        (ctx, leftProducer, rightProducer) =>
+          val leftCtx = ctx.freshContext
+          val rightCtx = ctx.freshContext
+          val leftIt = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
+          val rightIt = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
           joiner(compute(
             OrderedRVIterator(rekeyedLTyp, leftIt),
             OrderedRVIterator(rekeyedRTyp, rightIt)))
@@ -90,7 +97,11 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
 
     val leftType = this.typ
     val rightType = right.typ
-    repartitionedLeft.crdd.zipPartitions(repartitionedRight.crdd, true){ (leftIt, rightIt) =>
+    repartitionedLeft.crdd.czipPartitionsAndContext(repartitionedRight.crdd, true){ (ctx, leftProducer, rightProducer) =>
+      val leftCtx = ctx.freshContext
+      val rightCtx = ctx.freshContext
+      val leftIt = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
+      val rightIt = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
       OrderedRVIterator(leftType, leftIt).zipJoin(OrderedRVIterator(rightType, rightIt))
     }
   }

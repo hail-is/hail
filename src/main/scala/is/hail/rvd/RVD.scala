@@ -135,7 +135,29 @@ trait RVD {
 
   def crdd: ContextRDD[RVDContext, RegionValue]
 
-  def rdd: RDD[RegionValue] = crdd.run
+  private[rvd] def stabilize(
+    unstable: ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = {
+    val localRowType = rowType
+    unstable.map { rv =>
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(localRowType)
+      rvb.addRegionValue(localRowType, rv)
+      RegionValue(region, rvb.end())
+    }
+  }
+
+  private[rvd] def stably(
+    f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = f(stabilize(crdd))
+
+  private[rvd] def stably(
+    unstable: ContextRDD[RVDContext, RegionValue],
+    f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = f(stabilize(unstable))
+
+  def rdd: RDD[RegionValue] = stabilize(crdd).run
 
   def sparkContext: SparkContext = crdd.sparkContext
 
@@ -153,9 +175,6 @@ trait RVD {
       val c = makeContext()
       it.map { rv => f(c, rv) }
     })
-
-  // FIXME: just make user call run
-  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
@@ -176,10 +195,13 @@ trait RVD {
       })
     })
 
-  // FIXME: just make user call run
+  def find(p: (RegionValue) => Boolean): Option[RegionValue] =
+    stabilize(crdd.filter(p)).run.take(1).headOption
+
+  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
+
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitionsWithIndex(f).run
 
-  // FIXME: just make user call run
   def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitions(f).run
 
   def constrainToOrderedPartitioner(
@@ -253,6 +275,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    crdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }.run
+    stabilize(crdd).map { rv => new UnsafeRow(localRowType, rv.region, rv.offset) }.run
   }
 }

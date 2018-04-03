@@ -306,7 +306,7 @@ object MatrixTable {
 
     val oldRowType = kt.signature
 
-    val rdd = kt.rvd.mapPartitions { it =>
+    val rdd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -325,7 +325,7 @@ object MatrixTable {
 
     new MatrixTable(kt.hc, matrixType, BroadcastValue(Annotation.empty, matrixType.globalType, kt.hc.sc),
       Array.empty[Annotation],
-      OrderedRVD.coerce(matrixType.orvdType, rdd, None, None))
+      OrderedRVD.coerce(matrixType.orvdType, rdd))
   }
 }
 
@@ -983,16 +983,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ktValueFieldIdx = kt.valueFieldIdx
     val partitionKeyedIntervals = kt.rvd.crdd
       .flatMap { rv =>
+        // FIXME: can I use stablize here instead?
+        val region = Region()
+        val rv2 = RegionValue(region)
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(ktSignature)
+        rvb.addRegionValue(ktSignature, rv)
+        rv2.setOffset(rvb.end())
         val ur = new UnsafeRow(ktSignature, rv)
         val interval = ur.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
           val pkOrd = partBc.value.pkType.ordering
           val wrappedInterval = interval.copy(start = Row(interval.start), end = Row(interval.end))
-          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv))
+          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv2))
         } else
           Iterator()
       }
+
 
     val nParts = rvd.partitions.length
     val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
@@ -1194,7 +1202,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
     if (touchesKeys) {
       warn("modified row key, rescanning to compute ordering...")
-      val newRDD = rvd.mapPartitions(mapPartitionsF)
+      val newRDD = rvd.mapPartitions(newMatrixType.rvRowType)(mapPartitionsF)
       copyMT(matrixType = newMatrixType,
         rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
     } else copyMT(matrixType = newMatrixType,
@@ -1997,54 +2005,44 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localColKeys = colKeys
 
     metadataSame &&
-      rvd.crdd.zipPartitions(
+      rvd.crdd.czip(
         OrderedRVD.adjustBoundsAndShuffle(
           that.rvd.typ,
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
           that.rvd)
-          .crdd) { (it1, it2) =>
+          .crdd) { (ctx, rv1, rv2) =>
         val fullRow1 = new UnsafeRow(leftRVType)
         val fullRow2 = new UnsafeRow(rightRVType)
         var partSame = true
-        while (it1.hasNext && it2.hasNext) {
-          val rv1 = it1.next()
-          val rv2 = it2.next()
 
-          fullRow1.set(rv1)
-          fullRow2.set(rv2)
-          val row1 = fullRow1.deleteField(localLeftEntriesIndex)
-          val row2 = fullRow2.deleteField(localRightEntriesIndex)
+        fullRow1.set(rv1)
+        fullRow2.set(rv2)
+        val row1 = fullRow1.deleteField(localLeftEntriesIndex)
+        val row2 = fullRow2.deleteField(localRightEntriesIndex)
 
-          if (!localRowType.valuesSimilar(row1, row2, tolerance)) {
-            println(
-              s"""row fields not the same:
-                 |  $row1
-                 |  $row2""".stripMargin)
-            partSame = false
-          }
-
-          val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
-          val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
-
-          var i = 0
-          while (partSame && i < gs1.length) {
-            if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance)) {
-              partSame = false
-              println(
-                s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
-                   |  ${ gs1(i) }
-                   |  ${ gs2(i) }""".stripMargin)
-            }
-            i += 1
-          }
-        }
-
-        if ((it1.hasNext || it2.hasNext) && partSame) {
-          println("partition has different number of rows")
+        if (!localRowType.valuesSimilar(row1, row2, tolerance)) {
+          println(
+            s"""row fields not the same:
+                |  $row1
+                |  $row2""".stripMargin)
           partSame = false
         }
 
-        Iterator(partSame)
+        val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
+        val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
+
+        var i = 0
+        while (partSame && i < gs1.length) {
+          if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance)) {
+            partSame = false
+            println(
+              s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
+                  |  ${ gs1(i) }
+                  |  ${ gs2(i) }""".stripMargin)
+          }
+          i += 1
+        }
+        partSame
       }.run.forall(t => t)
   }
 
@@ -2139,17 +2137,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
 
     val localRVRowType = rvRowType
-    rvd.map { rv =>
-      new UnsafeRow(localRVRowType, rv)
-    }.find(ur => !localRVRowType.typeCheck(ur))
-      .foreach { ur =>
 
-        foundError = true
-        warn(
-          s"""found violation in row
-             |Schema: $localRVRowType
-             |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
-      }
+    rvd.find { rv =>
+      val ur = new UnsafeRow(localRVRowType, rv)
+      !localRVRowType.typeCheck(ur)
+    }.foreach { rv =>
+      val ur = new UnsafeRow(localRVRowType, rv)
+      foundError = true
+      warn(
+        s"""found violation in row
+            |Schema: $localRVRowType
+            |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
+    }
 
     if (foundError)
       fatal("found one or more type check errors")
