@@ -72,35 +72,21 @@ class SplitMultiPartitionContextIR(
 ) extends
   SplitMultiPartitionContext(keepStar, nSamples, globalAnnotation, matrixType, newRVRowType, region) {
 
-  private var globalsCopied = false
-  private var globals: Long = 0
-  private var globalsEnd: Long = 0
-
-  private def copyGlobals() {
-    splitRegion.clear()
-    rvb.set(splitRegion)
-    rvb.start(matrixType.globalType)
-    rvb.addAnnotation(matrixType.globalType, globalAnnotation)
-    globals = rvb.end()
-    globalsEnd = splitRegion.size
-    globalsCopied = true
-  }
-
   private val allelesType = matrixType.rowType.fieldByName("alleles").typ
   private val locusType = matrixType.rowType.fieldByName("locus").typ
   val f = rowF()
 
   def constructSplitRow(splitVariants: Iterator[(Variant, Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
-    if (!globalsCopied)
-      copyGlobals()
-    splitRegion.clear(globalsEnd)
+    rvb.set(splitRegion)
+    rvb.start(matrixType.globalType)
+    rvb.addAnnotation(matrixType.globalType, globalAnnotation)
+    val globals = rvb.end()
+
     rvb.start(matrixType.rvRowType)
     rvb.addRegionValue(matrixType.rvRowType, rv)
     val oldRow = rvb.end()
     val oldEnd = splitRegion.size
     splitVariants.map { case (sjv, aIndex) =>
-      splitRegion.clear(oldEnd)
-
       rvb.start(locusType)
       rvb.addAnnotation(locusType, sjv.locus)
       val locusOff = rvb.end()
@@ -137,7 +123,6 @@ class SplitMultiPartitionContextAST(
     val row = fullRow.deleteField(matrixType.entriesIdx)
     val gs = fullRow.getAs[IndexedSeq[Any]](matrixType.entriesIdx)
     splitVariants.map { case (svj, i) =>
-      splitRegion.clear()
       rvb.set(splitRegion)
       rvb.start(newRVRowType)
       rvb.startStruct()

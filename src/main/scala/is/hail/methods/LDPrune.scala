@@ -447,7 +447,6 @@ object LDPrune {
           val rv2 = RegionValue(region)
 
           it.flatMap { rv =>
-            region.clear()
             hcView.setRegion(rv)
             rvb.set(region)
             rvb.start(bpvType)

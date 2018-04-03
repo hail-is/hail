@@ -178,7 +178,6 @@ object LoadGDB {
         .asScala
         .map { vc =>
           rvb.clear()
-          region.clear()
           rvb.start(localRowType)
           reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags)
           Annotation.safeFromRegionValue(localRowType, region, rvb.end())

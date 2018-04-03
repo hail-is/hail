@@ -33,7 +33,6 @@ object PCA {
       val localRowType = rowTypeBc.value
 
       it.map { case (s, i) =>
-        region.clear()
         rvb.start(localRowType)
         rvb.startStruct()
         var j = 0
@@ -100,7 +99,6 @@ object PCA {
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>
-          region.clear()
           rvb.start(rowTypeBc.value)
           rvb.startStruct()
 

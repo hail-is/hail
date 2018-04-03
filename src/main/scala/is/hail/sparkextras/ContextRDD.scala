@@ -9,24 +9,24 @@ import org.apache.spark.util.Utils
 import scala.reflect.ClassTag
 
 object ContextRDD {
-  def apply[C <: AutoCloseable : Pointed, T: ClassTag](
+  def apply[C <: ResettableContext : Pointed, T: ClassTag](
     rdd: RDD[C => Iterator[T]]
   ): ContextRDD[C, T] = new ContextRDD(rdd, point[C])
 
-  def empty[C <: AutoCloseable, T: ClassTag](
+  def empty[C <: ResettableContext, T: ClassTag](
     sc: SparkContext,
     mkc: () => C
   ): ContextRDD[C, T] =
     new ContextRDD(sc.emptyRDD[C => Iterator[T]], mkc)
 
-  def empty[C <: AutoCloseable : Pointed, T: ClassTag](
+  def empty[C <: ResettableContext : Pointed, T: ClassTag](
     sc: SparkContext
   ): ContextRDD[C, T] =
     new ContextRDD(sc.emptyRDD[C => Iterator[T]], point[C])
 
   // this one weird trick permits the caller to specify T without C
   sealed trait Empty[T] {
-    def apply[C <: AutoCloseable](
+    def apply[C <: ResettableContext](
       sc: SparkContext,
       mkc: () => C
     )(implicit tct: ClassTag[T]
@@ -35,35 +35,35 @@ object ContextRDD {
   private[this] object emptyInstance extends Empty[Nothing]
   def empty[T] = emptyInstance.asInstanceOf[Empty[T]]
 
-  def union[C <: AutoCloseable : Pointed, T: ClassTag](
+  def union[C <: ResettableContext : Pointed, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
   ): ContextRDD[C, T] = union(sc, xs, point[C])
 
-  def union[C <: AutoCloseable, T: ClassTag](
+  def union[C <: ResettableContext, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]],
     mkc: () => C
   ): ContextRDD[C, T] =
     new ContextRDD(sc.union(xs.map(_.rdd)), mkc)
 
-  def weaken[C <: AutoCloseable, T: ClassTag](
+  def weaken[C <: ResettableContext, T: ClassTag](
     rdd: RDD[T],
     mkc: () => C
   ): ContextRDD[C, T] =
     new ContextRDD(rdd.mapPartitions(it => Iterator.single((ctx: C) => it)), mkc)
 
   // this one weird trick permits the caller to specify C without T
-  sealed trait Weaken[C <: AutoCloseable] {
+  sealed trait Weaken[C <: ResettableContext] {
     def apply[T : ClassTag](
       rdd: RDD[T]
     )(implicit c: Pointed[C]
     ): ContextRDD[C, T] = weaken(rdd, c.point _)
   }
   private[this] object weakenInstance extends Weaken[Nothing]
-  def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
+  def weaken[C <: ResettableContext] = weakenInstance.asInstanceOf[Weaken[C]]
 
-  def textFilesLines[C <: AutoCloseable](
+  def textFilesLines[C <: ResettableContext](
       sc: SparkContext,
       files: Array[String],
       nPartitions: Option[Int] = None
@@ -76,7 +76,7 @@ object ContextRDD {
 
 
   // this one weird trick permits the caller to specify C without T
-  sealed trait Parallelize[C <: AutoCloseable] {
+  sealed trait Parallelize[C <: ResettableContext] {
     def apply[T : ClassTag](
       sc: SparkContext,
       data: Seq[T],
@@ -88,19 +88,25 @@ object ContextRDD {
         nPartitions.getOrElse(sc.defaultMinPartitions)))
   }
   private[this] object parallelizeInstance extends Parallelize[Nothing]
-  def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
+  def parallelize[C <: ResettableContext] = parallelizeInstance.asInstanceOf[Parallelize[C]]
 
   type ElementType[C, T] = C => Iterator[T]
 }
 
-class ContextRDD[C <: AutoCloseable, T: ClassTag](
+class ContextRDD[C <: ResettableContext, T: ClassTag](
   val rdd: RDD[C => Iterator[T]],
   val mkc: () => C
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[C, T]
 
+  private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
+    it.flatMap { useCtx =>
+      c.reset()
+      useCtx(c)
+    }
+
   def run[U >: T : ClassTag]: RDD[U] =
-    rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
+    rdd.mapPartitions { part => using(mkc()) { cc => decontextualize(cc, part) } }
 
   private[this] def inCtx[U: ClassTag](
     f: C => Iterator[U]
@@ -162,8 +168,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     // SparkContext, wtf...
     val aggregatePartition = { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
-        serialize(
-          it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
+        serialize(decontextualize(c, it).aggregate(zeroValue)(seqOp, combOp)) } }
     var result = makeZero()
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
@@ -207,7 +212,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val aggregatePartitionOfContextTs = { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
-          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp, combOp)) } }
+          decontextualize(c, it).aggregate(deserialize(zeroValue))(seqOp, combOp)) } }
     val aggregatePartitionOfVs = { (it: Iterator[V]) =>
       using(mkc()) { c =>
         serialize(
@@ -274,11 +279,21 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     mkc)
 
   def cmapPartitionsWithIndex[U: ClassTag](
-    f: (Int, C, Iterator[T]) => Iterator[U]
+    f: (Int, C, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
   ): ContextRDD[C, U] = new ContextRDD(
     rdd.mapPartitionsWithIndex(
-      (i, part) => inCtx(ctx => f(i, ctx, part.flatMap(_(ctx))))),
+      (i, part) => inCtx(ctx => f(i, ctx, part.flatMap(_(ctx)))),
+      preservesPartitioning),
     mkc)
+
+  def cmapPartitionsAndContextWithIndex[U: ClassTag](
+    f: (Int, C, Iterator[C => Iterator[T]]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] =
+    onRDD(_.mapPartitionsWithIndex(
+      (i, part) => inCtx(ctx => f(i, ctx, part)),
+      preservesPartitioning))
 
   def czipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
@@ -342,9 +357,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def partitionSizes: Array[Long] =
     sparkContext.runJob(rdd, { (it: Iterator[ContextRDD.ElementType[C, T]]) =>
       using(mkc()) { c =>
-        it.map { useCtx =>
-          getIteratorSize(useCtx(c))
-        }.sum
+        getIteratorSize(decontextualize(c, it))
       }
     })
 

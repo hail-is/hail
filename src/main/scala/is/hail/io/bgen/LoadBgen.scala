@@ -115,7 +115,6 @@ object LoadBgen {
         val (contig, pos, alleles) = record.getKey
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
-        region.clear()
         rvb.start(kType)
         rvb.startStruct()
         rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
@@ -146,7 +145,6 @@ object LoadBgen {
 
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
-        region.clear()
         rvb.start(rowType)
         rvb.startStruct()
         rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))

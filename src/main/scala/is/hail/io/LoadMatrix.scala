@@ -376,7 +376,6 @@ object LoadMatrix {
           val fileRowNum = partitionStartInFile + row
           val line = v.value
 
-          region.clear()
           rvb.start(matrixType.rvRowType)
           rvb.startStruct()
           if (useIndex) {

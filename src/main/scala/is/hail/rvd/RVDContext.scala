@@ -1,6 +1,8 @@
 package is.hail.rvd
 
 import is.hail.annotations.Region
+import is.hail.sparkextras.ResettableContext
+
 import scala.collection.mutable
 
 object RVDContext {
@@ -11,7 +13,7 @@ object RVDContext {
 
 // NB: must be *Auto*Closeable because calling close twice is undefined behavior
 // (see AutoCloseable javadoc)
-class RVDContext(r: Region) extends AutoCloseable {
+class RVDContext(r: Region) extends ResettableContext {
   private[this] val children: mutable.ArrayBuffer[AutoCloseable] = new mutable.ArrayBuffer()
 
   private[this] def own(child: AutoCloseable): Unit = children += child
@@ -27,6 +29,8 @@ class RVDContext(r: Region) extends AutoCloseable {
   def region: Region = r // lifetime: element
 
   def partitionRegion: Region = r // lifetime: partition
+
+  def reset(): Unit = r.clear()
 
   // frees the memory associated with this context
   def close(): Unit = {

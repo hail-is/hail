@@ -187,7 +187,7 @@ object HailContext {
     in: InputStream,
     metrics: InputMetrics = null
   ): Iterator[RegionValue] = new Iterator[RegionValue] {
-    private val region = ctx.region()
+    private val region = ctx.region
     private val rv = RegionValue(region)
 
     private val trackedIn = new ByteTrackingInputStream(in)
@@ -213,7 +213,6 @@ object HailContext {
         throw new NoSuchElementException("next on empty iterator")
 
       try {
-        region.clear()
         rv.setOffset(dec.readRegionValue(t, region))
         if (metrics != null) {
           ExposedMetrics.incrementRecord(metrics)

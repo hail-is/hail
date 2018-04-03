@@ -46,8 +46,12 @@ object RVDSpec {
       val in = hConf.unsafeReader(f)
       using(RVDContext.default) { ctx =>
         HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
-          .map(rv => Annotation.safeFromBaseStructRegionValue(rowType, rv.region, rv.offset))
-      }
+<         .map { rv =>
+            val a = Annotation.safeFromBaseStructRegionValue(rowType, rv.region, rv.offset)
+            ctx.reset()
+            a
+          }
+>      }
     }.toFastIndexedSeq
   }
 }
@@ -131,7 +135,7 @@ trait RVD {
 
   def crdd: ContextRDD[RVDContext, RegionValue]
 
-  def rdd: RDD[RegionValue]
+  def rdd: RDD[RegionValue] = crdd.run
 
   def sparkContext: SparkContext = crdd.sparkContext
 
@@ -166,7 +170,10 @@ trait RVD {
     newRowType,
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
-      f(consumerCtx, part.flatMap(_(producerCtx)))
+      f(consumerCtx, part.flatMap { producer =>
+        producerCtx.reset()
+        producer(producerCtx)
+      })
     })
 
   // FIXME: just make user call run
@@ -187,9 +194,11 @@ trait RVD {
     // FIXME: 1) need real copyable zeroValue
     crdd.treeAggregate(() => zeroValue, seqOp, combOp, depth)
 
-  def count(): Long = rdd.count()
+  def count(): Long =
+    crdd.mapPartitions(x => Iterator.single(getIteratorSize(x))).run.fold(0L)(_ + _)
 
-  def countPerPartition(): Array[Long] = rdd.countPerPartition()
+  def countPerPartition(): Array[Long] =
+    crdd.mapPartitions(x => Iterator.single(getIteratorSize(x))).run.collect
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
@@ -214,7 +223,6 @@ trait RVD {
           val region = ctx.region
           val rv2 = RegionValue(region)
           it.map { bytes =>
-            region.clear()
             val bais = new ByteArrayInputStream(bytes)
             val dec = persistCodec.buildDecoder(bais)
             rv2.setOffset(dec.readRegionValue(localRowType, region))

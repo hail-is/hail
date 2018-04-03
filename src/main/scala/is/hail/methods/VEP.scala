@@ -344,7 +344,6 @@ object VEP {
           val rv = RegionValue(region)
 
           it.map { case (v, vep) =>
-            region.clear()
             rvb.start(vepRowType)
             rvb.startStruct()
             rvb.addAnnotation(vepRowType.types(0), v.asInstanceOf[Row].get(0))

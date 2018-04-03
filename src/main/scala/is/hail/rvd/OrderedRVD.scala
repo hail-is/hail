@@ -29,8 +29,6 @@ class OrderedRVD(
     rdd: RDD[RegionValue]
   ) = this(typ, partitioner, ContextRDD.weaken(rdd))
 
-  val rdd = crdd.run
-
   def rowType: TStruct = typ.rowType
 
   def updateType(newTyp: OrderedRVDType): OrderedRVD =
@@ -45,6 +43,21 @@ class OrderedRVD(
     OrderedRVD(newTyp,
       partitioner,
       crdd.mapPartitionsWithIndex(f))
+
+  def mapPartitionsWithIndexPreservesPartitioningWithContextBoundary(
+    newTyp: OrderedRVDType,
+    f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD =
+    OrderedRVD(
+      newTyp,
+      partitioner,
+      crdd.cmapPartitionsAndContextWithIndex { (i, consumerCtx, part) =>
+        val producerCtx = consumerCtx.freshContext
+        f(i, consumerCtx, part.flatMap { producer =>
+          producerCtx.reset()
+          producer(producerCtx)
+        })
+      })
 
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
@@ -66,7 +79,10 @@ class OrderedRVD(
     partitioner,
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
-      f(consumerCtx, part.flatMap(_(producerCtx)))
+      f(consumerCtx, part.flatMap { producer =>
+        producerCtx.region.close()
+        producer(producerCtx)
+      })
     })
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
@@ -321,7 +337,6 @@ class OrderedRVD(
         OrderedRVIterator(localType, producerIt).staircase
 
       stepped.map { stepIt =>
-        region.clear()
         buffer.clear()
         rvb.start(newRowType)
         rvb.startStruct()
@@ -722,13 +737,13 @@ object OrderedRVD {
     OrderedRVD(typ,
       partitioner,
       crdd.mapPartitions { it =>
-          val wrv = WritableRegionValue(typ.rowType)
-          val wkrv = WritableRegionValue(typ.kType)
-          it.map { rv =>
-            wrv.set(rv)
-            wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-            (wkrv.value, wrv.value)
-          }
+        val wrv = WritableRegionValue(typ.rowType)
+        val wkrv = WritableRegionValue(typ.kType)
+        it.map { rv =>
+          wrv.set(rv)
+          wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+          (wkrv.value, wrv.value)
+        }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
         .mapPartitionsWithIndex { case (i, it) =>
           it.map { case (k, v) =>

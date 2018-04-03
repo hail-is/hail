@@ -798,7 +798,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
         new OrderedRVDType(partitionKeys, rowKeys, rowEntryStruct),
         it
       ).staircase.map { rowIt =>
-        region.clear()
         rvb.start(newRVType)
         rvb.startStruct()
         var i = 0

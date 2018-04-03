@@ -152,7 +152,6 @@ object LoadPlink {
       it.map { case (_, record) =>
         val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        region.clear()
         rvb.start(kType)
         rvb.startStruct()
         rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
@@ -175,7 +174,6 @@ object LoadPlink {
       it.map { case (_, record) =>
         val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        region.clear()
         rvb.start(rvRowType)
         rvb.startStruct()
         rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))

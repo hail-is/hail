@@ -285,7 +285,13 @@ class AnnotateSuite extends SparkSuite {
       .annotate("locus = Locus(row.Chromosome, row.Position.toInt32())")
       .keyBy("locus")
 
+    vds.forceCountRows()
+
+    kt.forceCount()
+
     val byPosition = vds.annotateRowsTable(kt, "stuff").annotateRowsExpr("stuff" -> "{Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
+
+    byPosition.forceCountRows()
 
     val kt2 = hc.importTable("src/test/resources/sample2_va_nomulti.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))
@@ -293,6 +299,8 @@ class AnnotateSuite extends SparkSuite {
       .keyBy("loc", "alleles")
     val byVariant = vds.annotateRowsTable(kt2,
       "stuff").annotateRowsExpr("stuff" -> "{Rand1: va.stuff.Rand1, Rand2: va.stuff.Rand2}")
+
+    byVariant.forceCountRows()
 
     assert(byPosition.same(byVariant))
   }

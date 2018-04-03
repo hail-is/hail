@@ -155,7 +155,6 @@ object MatrixTable {
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
 
-            region.clear()
             rvb.start(localRVRowType)
             rvb.startStruct()
             var i = 0
@@ -710,7 +709,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               aggs = seqOp(aggs, current)
               current = null
             }
-            region.clear()
             rvb.start(newRVType)
             rvb.startStruct()
             var i = 0
@@ -1284,8 +1282,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localEntriesIndex = entriesIndex
 
-    val explodedRDD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
-      val region2 = Region()
+    val explodedRDD = rvd.mapPartitionsPreservesPartitioningWithContextBoundary(newMatrixType.orvdType, { (ctx, it) =>
+      val region2 = ctx.region
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
       val ur = new UnsafeRow(oldRVType)
@@ -1296,7 +1294,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           None
         else
           keys.iterator.map { explodedElement =>
-            region2.clear()
             rv2b.start(newRVType)
             inserter(rv.region, rv.offset, rv2b,
               () => rv2b.addAnnotation(keyType, explodedElement))
@@ -1304,7 +1301,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rv2
           }
       }
-    }
+    })
     copyMT(matrixType = newMatrixType, rvd = explodedRDD)
   }
 
@@ -2242,7 +2239,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.flatMap { rv =>
-        val rvEnd = rv.region.size
         rv2b.set(rv.region)
         val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
         (0 until localNSamples).iterator
@@ -2250,7 +2246,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             localEntriesType.isElementDefined(rv.region, gsOffset, i)
           }
           .map { i =>
-            rv.region.clear(rvEnd)
             rv2b.clear()
             rv2b.start(resultStruct)
             rv2b.startStruct()
@@ -2772,15 +2767,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val partStarts = partitionStarts()
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType) { case (i, it) =>
-      val region2 = Region()
+    val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioningWithContextBoundary(newMatrixType.orvdType, { (i, ctx, it) =>
+      val region2 = ctx.region
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
 
       var idx = partStarts(i)
 
       it.map { rv =>
-        region2.clear()
         rv2b.start(newRVType)
 
         inserter(rv.region, rv.offset, rv2b,
@@ -2790,7 +2784,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2.setOffset(rv2b.end())
         rv2
       }
-    }
+    })
     copyMT(matrixType = newMatrixType, rvd = indexedRVD)
   }
 

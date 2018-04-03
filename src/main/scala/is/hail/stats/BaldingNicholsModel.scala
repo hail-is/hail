@@ -151,7 +151,6 @@ object BaldingNicholsModel {
                 .draw()
           })
 
-          region.clear()
           rvb.start(rvType)
           rvb.startStruct()
 

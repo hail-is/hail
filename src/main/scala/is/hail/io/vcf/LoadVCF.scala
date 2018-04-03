@@ -718,7 +718,6 @@ object LoadVCF {
             val line = lwc.value
             try {
               val vcfLine = new VCFLine(line)
-              region.clear()
               rvb.start(t)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rg, contigRecoding)

@@ -285,7 +285,6 @@ object IBD {
         eibd = calculateIBDInfo(ibses(idx * 3), ibses(idx * 3 + 1), ibses(idx * 3 + 2), ibse, bounded)
         if min.forall(eibd.ibd.PI_HAT >= _) && max.forall(eibd.ibd.PI_HAT <= _)
       } yield {
-        region.clear()
         rvb.start(ibdSignature)
         rvb.startStruct()
         rvb.addString(sampleIds(i))
