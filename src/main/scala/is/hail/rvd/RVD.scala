@@ -182,14 +182,13 @@ trait RVD {
   def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
-  def mapPartitionsWithContextBoundary(
+  def mapPartitionsAndContext(
     newRowType: TStruct,
-    f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
+    f: (RVDContext, Iterator[RVDContext => Iterator[RegionValue]]) => Iterator[RegionValue]
   ): RVD = new UnpartitionedRVD(
     newRowType,
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
-      val producerCtx = consumerCtx.freshContext
-      f(consumerCtx, new SetupIterator(part.flatMap(_(producerCtx)), () => producerCtx.reset()))
+      f(consumerCtx, part)
     })
 
   def find(p: (RegionValue) => Boolean): Option[RegionValue] =

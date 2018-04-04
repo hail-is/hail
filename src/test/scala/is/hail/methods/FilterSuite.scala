@@ -82,8 +82,12 @@ class FilterSuite extends SparkSuite {
   }
 
   @Test def filterRegexTest() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/multipleChromosomes.vcf"))
+    val vds0 = hc.importVCF("src/test/resources/multipleChromosomes.vcf")
+    vds0.typecheck()
+    val vds = TestUtils.splitMultiHTS(vds0)
+    vds.typecheck()
     val vds2 = vds.filterRowsExpr(""" "^\\d+$" ~ va.locus.contig """)
+    vds2.typecheck()
     assert(vds.countRows() == vds2.countRows())
   }
 

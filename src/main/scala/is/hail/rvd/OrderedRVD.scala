@@ -458,11 +458,22 @@ object OrderedRVD {
         if (q.isEmpty) {
           do {
             val rv = bit.next()
+            println(s"got a value from ${rv.region}")
             // FIXME ugh, no good answer here
-            q.enqueue(RegionValue(
+            assert(rv.region.size != 0, s"${rv.offset} ${rv.region.size} ${rv.region}")
+            val rv2 = RegionValue(
               rv.region.copy(),
-              rv.offset))
-          } while (bit.hasNext && typ.pkInRowOrd.compare(q.head, bit.head) == 0)
+              rv.offset)
+            assert(rv.region.size != 0)
+            assert(rv.offset == rv2.offset)
+            assert(rv.region.size == rv2.region.size)
+            q.enqueue(rv2)
+            if (q.head.region.size == 0)
+              throw new RuntimeException(s"boom")
+          } while (bit.hasNext && {
+//            println(q.head.pretty(typ.rowType))
+//            println(bit.head.pretty(typ.rowType))
+            typ.pkInRowOrd.compare(q.head, bit.head) == 0 })
         }
 
         val rv = q.dequeue()
@@ -610,8 +621,8 @@ object OrderedRVD {
         rangeBounds)
 
       val adjustedRDD = crdd
-        .reorderPartitions(pkis.map(_.partitionIndex))
-        .adjustPartitions(adjustedPartitions)
+//        .reorderPartitions(pkis.map(_.partitionIndex))
+//        .adjustPartitions(adjustedPartitions)
       (adjSortedness: @unchecked) match {
         case OrderedRVPartitionInfo.KSORTED =>
           info("Coerced sorted dataset")
@@ -783,12 +794,18 @@ object OrderedRVD {
         // In the first partition, drop elements that should go in the last if necessary
           if (index == 0)
             if (adjustmentsBuffer.nonEmpty && typ.pkOrd.equiv(min, sortedKeyInfo(adjustmentsBuffer.last.head.index).max))
-              _.dropWhile(rv => typ.pkRowOrd.compare(min.region, min.offset, rv) == 0)
+              _.dropWhile(rv => typ.pkRowOrd.compare(min.region, min.offset, rv) == 0).map { rv =>
+                println(rv.pretty(typ.rowType))
+                rv
+              }
             else
               identity
           else
           // In every subsequent partition, only take elements that are the max of the last
-            _.takeWhile(rv => typ.pkRowOrd.compare(max.region, max.offset, rv) == 0)
+            _.takeWhile(rv => typ.pkRowOrd.compare(max.region, max.offset, rv) == 0).map { rv =>
+              println(rv.pretty(typ.rowType))
+              rv
+            }
         Adjustment(partitionIndex, f)
       }
 

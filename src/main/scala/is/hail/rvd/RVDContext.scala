@@ -33,7 +33,10 @@ class RVDContext(r: Region) extends ResettableContext {
   private[this] val theRvb = new RegionValueBuilder(r)
   def rvb = theRvb
 
-  def reset(): Unit = r.clear()
+  def reset(): Unit = {
+    println(s"resetting $this ${Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")}")
+    r.clear()
+  }
 
   // frees the memory associated with this context
   def close(): Unit = {

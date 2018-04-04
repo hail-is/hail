@@ -30,7 +30,7 @@ class WritableRegionValue private (val t: Type) {
   def setSelect(fromT: TStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
     (t: @unchecked) match {
       case t: TStruct =>
-        //region.clear()
+        region.clear()
         rvb.start(t)
         rvb.startStruct()
         var i = 0

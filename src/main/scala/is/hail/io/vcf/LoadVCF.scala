@@ -701,10 +701,8 @@ object LoadVCF {
     contigRecoding: Map[String, String]
   ): ContextRDD[RVDContext, RegionValue] = {
     lines.cmapPartitions { (ctx, it) =>
-      val capturedRegion = ctx.region
-      println(s"LoadVCF's region will be $capturedRegion")
       new Iterator[RegionValue] {
-        val region = capturedRegion
+        val region = ctx.region
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
@@ -757,6 +755,7 @@ object LoadVCF {
           if (!hasNext)
             throw new java.util.NoSuchElementException()
           present = false
+          assert(rv.region.size != 0)
           rv
         }
       }
