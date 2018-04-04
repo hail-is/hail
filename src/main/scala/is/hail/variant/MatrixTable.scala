@@ -2479,20 +2479,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
-    LinearRegression(this, ysExpr, xExpr, covExpr, root, rowBlockSize)
+  def linreg(ysExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
+    LinearRegression(this, ysExpr, xField, covExpr, root, rowBlockSize)
   }
 
   def logreg(test: String,
-    y: String, x: String, covariates: Array[String] = Array.empty[String],
+    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
     root: String = "logreg"): MatrixTable = {
-    LogisticRegression(this, test, y, x, covariates, root)
+    LogisticRegression(this, test, yExpr, xField, covExpr, root)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
-    y: String,
-    x: String,
-    covariates: Array[String] = Array.empty[String],
+    yExpr: String,
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
     useML: Boolean = false,
     rootGA: String = "lmmreg",
     rootVA: String = "lmmreg",
@@ -2501,20 +2501,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     sparsityThreshold: Double = 1.0,
     nEigs: Option[Int] = None,
     optDroppedVarianceFraction: Option[Double] = None): MatrixTable = {
-    LinearMixedRegression(this, kinshipMatrix, y, x, covariates, useML, rootGA, rootVA,
+    LinearMixedRegression(this, kinshipMatrix, yExpr, xField, covExpr, useML, rootGA, rootVA,
       runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
   }
 
   def skat(keyExpr: String,
     weightExpr: String,
-    y: String,
-    x: String,
-    covariates: Array[String] = Array.empty[String],
+    yExpr: String,
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
     logistic: Boolean = false,
     maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
     accuracy: Double = 1e-6,
     iterations: Int = 10000): Table = {
-    Skat(this, keyExpr, weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+    Skat(this, keyExpr, weightExpr, yExpr, xField, covExpr, logistic, maxSize, accuracy, iterations)
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {
@@ -2690,8 +2690,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def toIndexedRowMatrix(entryField: String): IndexedRowMatrix = {
-    val partStarts = partitionStarts()
+  def toRowMatrix(entryField: String): RowMatrix = {
+    val partCounts = partitionCounts()
+    val partStarts = partCounts.scanLeft(0L)(_ + _) // FIXME: use partitionStarts once partitionCounts is durable
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
@@ -2706,7 +2707,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = numCols
 
-    val indexedRows = rvd.mapPartitionsWithIndex { case (pi, it) =>
+    val rows = rvd.mapPartitionsWithIndex { case (pi, it) =>
       var i = partStartsBc.value(pi)
       it.map { rv =>
         val region = rv.region
@@ -2720,19 +2721,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
               data(j) = region.loadDouble(fieldOffset)
             } else
-              fatal(s"Cannot create IndexedRowMatrix: missing value at row $i and col $j")
+              fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
           } else
-            fatal(s"Cannot create IndexedRowMatrix: missing entry at row $i and col $j")
+            fatal(s"Cannot create RowMatrix: missing entry at row $i and col $j")
           j += 1
         }
-        val row = IndexedRow(i, Vectors.dense(data))
+        val row = (i, data)
         i += 1
         row
       }
     }
 
-    // caching is critical before use in computeSVD in PCA
-    new IndexedRowMatrix(indexedRows.cache(), partStarts.last, numCols)
+    new RowMatrix(hc, rows, numCols, Some(partStarts.last), Some(partCounts))
   }
 
   def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {

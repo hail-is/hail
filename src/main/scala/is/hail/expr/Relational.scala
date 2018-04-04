@@ -823,6 +823,68 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
   }
 }
 
+case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableReaderOptions) extends TableIR {
+  assert(typ.globalType.size == 0)
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableImport = {
+    assert(newChildren.isEmpty)
+    this
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val rowTyp = typ.rowType
+    val nField = rowTyp.fields.length
+    val rowFields = rowTyp.fields
+
+    val rvd = hc.sc.textFilesLines(paths, readerOpts.nPartitions)
+      .filter { line =>
+        !readerOpts.isComment(line.value) &&
+          (readerOpts.noHeader || readerOpts.header != line.value) &&
+          !(readerOpts.skipBlankLines && line.value.isEmpty)
+      }.mapPartitions { it =>
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      it.map {
+        _.map { line =>
+          region.clear()
+
+          val split = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
+          if (split.length != nField)
+            fatal(s"expected $nField fields, but found ${ split.length } fields")
+          rvb.set(region)
+          rvb.start(rowTyp)
+          rvb.startStruct()
+
+          var i = 0
+          while (i < nField) {
+            val Field(name, t, _) = rowFields(i)
+            val field = split(i)
+            try {
+              if (field == readerOpts.missing)
+                rvb.setMissing()
+              else
+                rvb.addAnnotation(t, TableAnnotationImpex.importAnnotation(field, t))
+            } catch {
+              case e: Exception =>
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
+            }
+            i += 1
+          }
+
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }.value
+      }
+    }
+
+    TableValue(typ, BroadcastValue(Annotation.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
+  }
+}
+
 case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, pred)
 

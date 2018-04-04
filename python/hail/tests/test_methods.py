@@ -130,9 +130,7 @@ class Tests(unittest.TestCase):
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
-        dataset = hl.linear_regression(dataset,
-                                       ys=dataset.pheno,
-                                       x=dataset.GT.n_alt_alleles(),
+        dataset = hl.linear_regression(ys=dataset.pheno, x=dataset.GT.n_alt_alleles(),
                                        covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
         dataset.count_rows()
@@ -629,8 +627,8 @@ class Tests(unittest.TestCase):
 
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
-        intervals = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
-        nint = intervals.count()
+        t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
+        nint = t.count()
 
         i = 0
         with open(interval_file) as f:
@@ -638,12 +636,24 @@ class Tests(unittest.TestCase):
                 if len(line.strip()) != 0:
                     i += 1
         self.assertEqual(nint, i)
+        self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
 
-        self.assertEqual(intervals.interval.dtype.point_type, hl.tlocus('GRCh37'))
+        tmp_file = utils.new_temp_file(prefix="test", suffix="interval_list")
+        start = t.interval.start
+        end = t.interval.end
+        (t
+         .annotate(interval=hl.locus_interval(start.contig, start.position, end.position, True, True))
+         .select('interval')
+         .export(tmp_file, header=False))
+
+        t2 = hl.import_locus_intervals(tmp_file)
+
+        self.assertTrue(t.select('interval')._same(t2))
 
     def test_import_locus_intervals_no_reference_specified(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome=None)
+        self.assertTrue(t.count() == 2)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_locus_intervals_badly_defined_intervals(self):
@@ -672,9 +682,15 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(bed.interval.dtype.point_type, hl.tlocus('GRCh37'))
 
+        bed_file = resource('example2.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37')
+        self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
+        self.assertTrue(list(t.row.dtype) == ['interval', 'target'])
+
     def test_import_bed_no_reference_specified(self):
         bed_file = resource('example1.bed')
         t = hl.import_bed(bed_file, reference_genome=None)
+        self.assertTrue(t.count() == 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_bed_badly_defined_intervals(self):
@@ -684,6 +700,37 @@ class Tests(unittest.TestCase):
 
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
         self.assertTrue(t.count() == 4)
+
+    def test_annotate_intervals(self):
+        ds = self.get_dataset()
+
+        bed1 = hl.import_bed(resource('example1.bed'), reference_genome='GRCh37')
+        bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
+        bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
+        self.assertTrue(list(bed2.row.dtype) == ['interval', 'target'])
+
+        interval_list1 = hl.import_locus_intervals(resource('exampleAnnotation1.interval_list'))
+        interval_list2 = hl.import_locus_intervals(resource('exampleAnnotation2.interval_list'))
+        self.assertTrue(list(interval_list2.row.dtype) == ['interval', 'target'])
+
+        ann = ds.annotate_rows(in_interval = bed1[ds.locus]).rows()
+        self.assertTrue(ann.all((ann.locus.position <= 14000000) |
+                                (ann.locus.position >= 17000000) |
+                                (hl.is_missing(ann.in_interval))))
+
+        for bed in [bed2, bed3]:
+            ann = ds.annotate_rows(target = bed[ds.locus].target).rows()
+            expr = (hl.case()
+                    .when(ann.locus.position <= 14000000, ann.target == 'gene1')
+                    .when(ann.locus.position >= 17000000, ann.target == 'gene2')
+                    .default(ann.target == hl.null(hl.tstr)))
+            self.assertTrue(ann.all(expr))
+
+        self.assertTrue(ds.annotate_rows(in_interval = interval_list1[ds.locus]).rows()
+                        ._same(ds.annotate_rows(in_interval = bed1[ds.locus]).rows()))
+
+        self.assertTrue(ds.annotate_rows(target = interval_list2[ds.locus].target).rows()
+                        ._same(ds.annotate_rows(target = bed2[ds.locus].target).rows()))
 
     def test_import_fam(self):
         fam_file = resource('sample.fam')
@@ -891,42 +938,40 @@ class Tests(unittest.TestCase):
     def test_skat(self):
         ds2 = hl.import_vcf(resource('sample2.vcf'))
 
-        covariatesSkat = (hl.import_table(resource("skat.cov"), impute=True)
+        covariates = (hl.import_table(resource("skat.cov"), impute=True)
             .key_by("Sample"))
 
-        phenotypesSkat = (hl.import_table(resource("skat.pheno"),
+        phenotypes = (hl.import_table(resource("skat.pheno"),
                                           types={"Pheno": hl.tfloat64},
                                           missing="0")
             .key_by("Sample"))
 
-        intervalsSkat = (hl.import_locus_intervals(resource("skat.interval_list")))
+        intervals = (hl.import_locus_intervals(resource("skat.interval_list")))
 
-        weightsSkat = (hl.import_table(resource("skat.weights"),
+        weights = (hl.import_table(resource("skat.weights"),
                                        types={"locus": hl.tlocus(),
                                               "weight": hl.tfloat64})
             .key_by("locus"))
 
         ds = hl.split_multi_hts(ds2)
-        ds = ds.annotate_rows(gene=intervalsSkat[ds.locus],
-                              weight=weightsSkat[ds.locus].weight)
-        ds = ds.annotate_cols(pheno=phenotypesSkat[ds.s].Pheno,
-                              cov=covariatesSkat[ds.s])
+        ds = ds.annotate_rows(gene=intervals[ds.locus],
+                              weight=weights[ds.locus].weight)
+        ds = ds.annotate_cols(pheno=phenotypes[ds.s].Pheno,
+                              cov=covariates[ds.s])
         ds = ds.annotate_cols(pheno=hl.cond(ds.pheno == 1.0,
                                             False,
                                             hl.cond(ds.pheno == 2.0,
                                                     True,
                                                     hl.null(hl.tbool))))
 
-        hl.skat(ds,
-                key_expr=ds.gene,
+        hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[ds.cov.Cov1, ds.cov.Cov2],
                 logistic=False).count()
 
-        hl.skat(ds,
-                key_expr=ds.gene,
+        hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=hl.pl_dosage(ds.PL),

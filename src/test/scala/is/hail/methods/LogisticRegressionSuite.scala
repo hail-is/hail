@@ -46,9 +46,10 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .logreg("wald", "sa.pheno.isCase.toFloat64", "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno.isCase.toFloat64", "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.standard_error")._2
@@ -109,9 +110,10 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .selectEntries("{x: plDosage(g.PL)}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .logreg("wald", "sa.pheno.isCase.toFloat64", "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno.isCase.toFloat64", "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.standard_error")._2
@@ -171,9 +173,10 @@ class LogisticRegressionSuite extends SparkSuite {
     // .gen and .sample files created from regressionLogistic.vcf
     // dosages are derived from PLs so results should agree with testWithTwoCovPhred
     val vds =  hc.importGen("src/test/resources/regressionLogistic.gen", "src/test/resources/regressionLogistic.sample")
+      .selectEntries("{x: dosage(g.GP)}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .logreg("wald", "sa.pheno.isCase.toFloat64", "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno.isCase.toFloat64", "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.standard_error")._2
@@ -232,9 +235,10 @@ class LogisticRegressionSuite extends SparkSuite {
 
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .logreg("lrt", "sa.pheno.isCase.toFloat64", "g.GT.nNonRefAlleles().toFloat64",
+      .logreg("lrt", "sa.pheno.isCase.toFloat64", "x",
         Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
 
@@ -294,9 +298,10 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .logreg("score", "sa.pheno.isCase.toFloat64", "g.GT.nNonRefAlleles().toFloat64",
+      .logreg("score", "sa.pheno.isCase.toFloat64", "x",
         Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qChi2 = vds.queryVA("va.logreg.chi_sq_stat")._2
@@ -347,16 +352,13 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("PC1" -> TFloat64(), "PC2" -> TFloat64()), missing = "0").keyBy("IND_ID")
 
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(Table.importFam(hc, "src/test/resources/regressionLogisticEpacts.fam"), root = "fam")
       .annotateColsTable(covariates, root = "pc")
-      .logreg("wald", "sa.fam.is_case.toFloat64", "g.GT.nNonRefAlleles().toFloat64",
-        Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "wald")
-      .logreg("lrt", "sa.fam.is_case.toFloat64", "g.GT.nNonRefAlleles().toFloat64",
-        Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "lrt")
-      .logreg("score", "sa.fam.is_case.toFloat64", "g.GT.nNonRefAlleles().toFloat64",
-        Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "score")
-      .logreg("firth", "sa.fam.is_case.toFloat64", "g.GT.nNonRefAlleles().toFloat64",
-        Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "firth")
+      .logreg("wald", "sa.fam.is_case.toFloat64", "x", Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "wald")
+      .logreg("lrt", "sa.fam.is_case.toFloat64", "x", Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "lrt")
+      .logreg("score", "sa.fam.is_case.toFloat64", "x", Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "score")
+      .logreg("firth", "sa.fam.is_case.toFloat64", "x", Array("sa.fam.is_female.toFloat64", "sa.pc.PC1", "sa.pc.PC2"), "firth")
 
     // 2535 samples from 1K Genomes Project
     val v1 = Variant("22", 16060511, "T", "TTC")

@@ -18,22 +18,6 @@ class LocusIntervalSuite extends SparkSuite {
   def genomicInterval(contig: String, start: Int, end: Int): Interval =
     Interval(Locus(contig, start), Locus(contig, end), true, false)
 
-  @Test def testIntervalList() {
-    val ex1 = IntervalList.read(hc, "src/test/resources/example1.interval_list")
-
-    val f = tmpDir.createTempFile("example", extension = "interval_list")
-
-    ex1.annotate("""interval = "[" + row.interval.start.contig + ":" + row.interval.start.position + "-" + row.interval.end.position + "]"""")
-      .export(f)
-
-    val ex1wr = hc.importTable(f).annotate("interval = LocusInterval(row.interval)").keyBy("interval")
-
-    assert(ex1wr.same(ex1))
-
-    val ex2 = IntervalList.read(hc, "src/test/resources/example2.interval_list")
-    assert(ex1.select(Array("row.interval")).same(ex2))
-  }
-
   @Test def testAnnotateVariantsTable() {
     val vds = MatrixTable.fromLegacy[Annotation](hc,
       MatrixType.fromParts(

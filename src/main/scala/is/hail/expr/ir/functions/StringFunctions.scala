@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.expr.types._
+import is.hail.utils._
 
 object StringFunctions extends RegistryFunctions {
 
@@ -16,6 +17,8 @@ object StringFunctions extends RegistryFunctions {
 
   def endswith(s: String, t: String): Boolean = s.endsWith(t)
 
+  def firstMatchIn(s: String, regex: String): IndexedSeq[String] = regex.r.findFirstMatchIn(s).map(_.subgroups.toArray.toFastIndexedSeq).orNull
+
   def registerAll(): Unit = {
     val thisClass = getClass
     registerScalaFunction("upper", TString(), TString())(thisClass, "upper")
@@ -24,5 +27,6 @@ object StringFunctions extends RegistryFunctions {
     registerScalaFunction("contains", TString(), TString(), TBoolean())(thisClass, "contains")
     registerScalaFunction("startswith", TString(), TString(), TBoolean())(thisClass, "startswith")
     registerScalaFunction("endswith", TString(), TString(), TBoolean())(thisClass, "endswith")
+    registerScalaFunction("firstMatchIn", TString(), TString(), TArray(TString()))(thisClass, "firstMatchIn")
   }
 }
