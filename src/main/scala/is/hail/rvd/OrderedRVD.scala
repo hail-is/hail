@@ -503,7 +503,7 @@ object OrderedRVD {
 
     val localType = typ
 
-    val pkis = keys.mapPartitionsWithIndex { case (i, it) =>
+    val pkis = keys.mapPartitionsWithIndex { (i, it) =>
       if (it.hasNext)
         Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else

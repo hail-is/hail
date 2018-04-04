@@ -387,6 +387,8 @@ class RegionValueBuilder(var region: Region) {
 
   def selectRegionValue(fromT: TStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
     val t = fromT.typeAfterSelect(fromFieldIdx)
+    assert(currentType() == t.fundamentalType)
+    assert(t.size == fromFieldIdx.length)
     startStruct()
     var i = 0
     while (i < t.size) {
