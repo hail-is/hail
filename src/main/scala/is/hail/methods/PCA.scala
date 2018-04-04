@@ -6,6 +6,8 @@ import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.MatrixTable
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
 
 object PCA {
@@ -55,12 +57,13 @@ object PCA {
   // returns (eigenvalues, sample scores, optional variant loadings)
   def apply(vsm: MatrixTable, entryField: String, k: Int, computeLoadings: Boolean): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
     if (k < 1)
-      fatal(
-        s"""requested invalid number of components: $k
-           |  Expect componenents >= 1""".stripMargin)
+      fatal(s"""requested invalid number of components: $k
+               |  Expect componenents >= 1""".stripMargin)
 
-    val sc = vsm.sparkContext
-    val irm = vsm.toIndexedRowMatrix(entryField)
+    val rowMatrix = vsm.toRowMatrix(entryField)
+    val indexedRows = rowMatrix.rows.map { case (i, a) => IndexedRow(i, Vectors.dense(a)) }
+      .cache()
+    val irm = new IndexedRowMatrix(indexedRows, rowMatrix.nRows, rowMatrix.nCols)
 
     info(s"pca: running PCA with $k components...")
 
