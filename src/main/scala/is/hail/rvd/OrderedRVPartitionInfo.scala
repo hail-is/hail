@@ -1,15 +1,15 @@
 package is.hail.rvd
 
-import is.hail.annotations.{RegionValue, WritableRegionValue}
+import is.hail.annotations.{RegionValue, SerializedRegionValue, WritableRegionValue}
 import is.hail.expr.types.Type
 
 case class OrderedRVPartitionInfo(
   partitionIndex: Int,
   size: Int,
-  min: RegionValue,
-  max: RegionValue,
+  min: SerializedRegionValue,
+  max: SerializedRegionValue,
   // min, max: RegionValue[pkType]
-  samples: Array[RegionValue],
+  samples: Array[SerializedRegionValue],
   sortedness: Int) {
   def pretty(t: Type): String = {
     s"partitionIndex=$partitionIndex,size=$size,min=${min.pretty(t)},max=${max.pretty(t)},samples=${samples.map(_.pretty(t)).mkString(",")},sortedness=$sortedness"
@@ -73,9 +73,11 @@ object OrderedRVPartitionInfo {
       i += 1
     }
 
+    val serializer = SerializedRegionValue.getRVSerializer(typ.pkType)
+
     OrderedRVPartitionInfo(partitionIndex, i,
-      minF.value, maxF.value,
-      Array.tabulate[RegionValue](math.min(i, sampleSize))(i => samples(i).value),
+      serializer(minF.value), serializer(maxF.value),
+      Array.tabulate[SerializedRegionValue](math.min(i, sampleSize))(i => serializer(samples(i).value)),
       sortedness)
   }
 }

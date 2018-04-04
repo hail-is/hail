@@ -479,7 +479,8 @@ object OrderedRVD {
         Iterator()
     }.run.collect()
 
-    pkis.sortBy(_.min)(typ.pkOrd)
+    val region = Region()
+    pkis.sortBy(_.min.toRegionValue(typ.pkType, region))(typ.pkOrd)
   }
 
   // FIXME: delete when I've removed all need for RDDs
@@ -548,8 +549,10 @@ object OrderedRVD {
     if (pkis.isEmpty)
       return empty(sc, typ)
 
+    val region = Region()
+
     val partitionsSorted = (pkis, pkis.tail).zipped.forall { case (p, pnext) =>
-      val r = typ.pkOrd.lteq(p.max, pnext.min)
+      val r = typ.pkOrd.lteq(p.max.toRegionValue(typ.pkType, region), pnext.min.toRegionValue(typ.pkType, region))
       if (!r)
         log.info(s"not sorted: p = $p, pnext = $pnext")
       r
@@ -597,12 +600,13 @@ object OrderedRVD {
     assert(nPartitions > 0)
 
     val pkOrd = typ.pkOrd
+    val region = Region()
     var keys = pkis
-      .flatMap(_.samples)
+      .flatMap(_.samples.map(s => s.toRegionValue(typ.pkType, region)))
       .sorted(pkOrd)
 
-    val min = pkis.map(_.min).min(pkOrd)
-    val max = pkis.map(_.max).max(pkOrd)
+    val min = pkis.map(pk => pk.min.toRegionValue(typ.pkType, region)).min(pkOrd)
+    val max = pkis.map(pk => pk.max.toRegionValue(typ.pkType, region)).max(pkOrd)
 
     val ab = new ArrayBuilder[RegionValue]()
     ab += min
@@ -641,8 +645,10 @@ object OrderedRVD {
     if (pkis.isEmpty)
       return OrderedRVD(typ, partitioner, rdd)
 
-    val min = new UnsafeRow(pkType, pkis.map(_.min).min(pkOrdUnsafe))
-    val max = new UnsafeRow(pkType, pkis.map(_.max).max(pkOrdUnsafe))
+    val region = Region()
+
+    val min = SafeRow(pkType, pkis.map(k => k.min.toRegionValue(typ.pkType, region)).min(pkOrdUnsafe))
+    val max = SafeRow(pkType, pkis.map(k => k.max.toRegionValue(typ.pkType, region)).max(pkOrdUnsafe))
 
     shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
   }
@@ -697,7 +703,8 @@ object OrderedRVD {
 
     val it = sortedKeyInfo.indices.iterator.buffered
 
-    partitionBounds += sortedKeyInfo(0).min
+    val region = Region()
+    partitionBounds += sortedKeyInfo(0).min.toRegionValue(typ.pkType, region)
 
     while (it.nonEmpty) {
       indicesBuilder.clear()
@@ -706,12 +713,15 @@ object OrderedRVD {
       val min = thisP.min
       val max = thisP.max
 
+      val rvMin = min.toRegionValue(typ.pkType, region)
+      val rvMax = max.toRegionValue(typ.pkType, region)
+
       indicesBuilder += i
 
       var continue = true
-      while (continue && it.hasNext && typ.pkOrd.equiv(sortedKeyInfo(it.head).min, max)) {
+      while (continue && it.hasNext && typ.pkOrd.equiv(sortedKeyInfo(it.head).min.toRegionValue(typ.pkType, region), rvMax)) {
         anyOverlaps = true
-        if (typ.pkOrd.equiv(sortedKeyInfo(it.head).max, max))
+        if (typ.pkOrd.equiv(sortedKeyInfo(it.head).max.toRegionValue(typ.pkType, region), rvMax))
           indicesBuilder += it.next()
         else {
           indicesBuilder += it.head
@@ -724,18 +734,30 @@ object OrderedRVD {
         val f: (Iterator[RegionValue]) => Iterator[RegionValue] =
         // In the first partition, drop elements that should go in the last if necessary
           if (index == 0)
-            if (adjustmentsBuffer.nonEmpty && typ.pkOrd.equiv(min, sortedKeyInfo(adjustmentsBuffer.last.head.index).max))
-              _.dropWhile(rv => typ.pkRowOrd.compare(min.region, min.offset, rv) == 0)
+            if (adjustmentsBuffer.nonEmpty && typ.pkOrd.equiv(min.toRegionValue(typ.pkType, region), sortedKeyInfo(adjustmentsBuffer.last.head.index).max.toRegionValue(typ.pkType, region)))
+              { it: Iterator[RegionValue] =>
+                val itRegion = Region()
+                val rvMin = min.toRegionValue(typ.pkType, itRegion)
+                it.dropWhile { rv =>
+                  typ.pkRowOrd.compare(rvMin, rv) == 0
+                }
+              }
             else
               identity
           else
           // In every subsequent partition, only take elements that are the max of the last
-            _.takeWhile(rv => typ.pkRowOrd.compare(max.region, max.offset, rv) == 0)
+          { it: Iterator[RegionValue] =>
+            val itRegion = Region()
+            val rvMax = max.toRegionValue(typ.pkType, itRegion)
+            it.takeWhile { rv =>
+              typ.pkRowOrd.compare(rvMax, rv) == 0
+            }
+          }
         Adjustment(partitionIndex, f)
       }
 
       adjustmentsBuffer += adjustments
-      partitionBounds += max
+      partitionBounds += rvMax
     }
 
     val pBounds = partitionBounds.result()
