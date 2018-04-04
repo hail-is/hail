@@ -1247,10 +1247,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val entryAST = Parser.parseToAST(expr, ec)
     assert(entryAST.`type`.isInstanceOf[TStruct])
 
-    val smallColSchema = colType.size == 1 &&
-      Set(TInt32(), +TInt32(), TString(), +TString()).contains(colType.types(0))
-    val useAST = !hc.forceIR && smallColSchema && entryAST.`type`.asInstanceOf[TStruct].size < 500
-
     entryAST.toIR() match {
       case Some(ir) if useIR(this.entryAxis, entryAST) =>
         new MatrixTable(hc, MapEntries(ast, ir))
