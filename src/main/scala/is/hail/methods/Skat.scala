@@ -227,7 +227,7 @@ object Skat {
 
     (vsm.rvd.rdd.flatMap { rv =>
       val fullRow = new UnsafeRow(fullRowType, rv)
-      val row = new UnsafeRow(localRowType, rv)
+      val row = fullRow.deleteField(localEntriesIndex)
 
       (Option(keyQuerier(row)), typedWeightQuerier(row)) match {
         case (Some(key), Some(w)) =>

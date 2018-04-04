@@ -85,6 +85,10 @@ class Tests(unittest.TestCase):
     def test_floating_point(self):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
+    def test_bind_multiple(self):
+        self.assertEqual(hl.bind(lambda x, y: x * y, 2, 3).value, 6)
+        self.assertEqual(hl.bind(lambda y: y * 2, 3).value, 6)
+
     def test_matches(self):
         self.assertEqual(hl.eval_expr('\d+'), '\d+')
         string = hl.literal('12345')

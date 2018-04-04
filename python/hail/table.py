@@ -400,7 +400,7 @@ class Table(ExprContainer):
                 schema._jtype, wrap_to_list(key), joption(n_partitions)))
 
     @typecheck_method(keys=oneof(str, Expression))
-    def key_by(self, *keys):
+    def key_by(self, *keys) -> 'Table':
         """Change the key.
 
         Examples
@@ -688,7 +688,7 @@ class Table(ExprContainer):
 
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
-    def select(self, *exprs, **named_exprs):
+    def select(self, *exprs, **named_exprs) -> 'Table':
         """Select existing fields or create new fields by name, dropping the rest.
 
         Examples
@@ -1630,7 +1630,7 @@ class Table(ExprContainer):
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'))
-    def join(self, right, how='inner'):
+    def join(self, right, how='inner') -> 'Table':
         """Join two tables together.
 
         Examples

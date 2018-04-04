@@ -71,7 +71,7 @@ class SwitchBuilder(ConditionalBuilder):
                 expr = cond(condition, then, expr)
             return expr
 
-        return bind(self._base, f)
+        return bind(f, self._base)
 
     @typecheck_method(value=expr_any, then=expr_any)
     def when(self, value, then) -> 'SwitchBuilder':

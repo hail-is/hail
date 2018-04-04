@@ -5,7 +5,7 @@ import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.rvd.{OrderedRVD, RVD}
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object FilterAlleles {
@@ -57,10 +57,10 @@ object FilterAlleles {
     def filter(rdd: RVD,
       removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
 
-      def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
+      def filterAllelesInVariant(locus: Locus, alleles: IndexedSeq[String], va: Annotation): Option[(Locus, IndexedSeq[String], IndexedSeq[Int], IndexedSeq[Int])] = {
         var alive = 0
-        val oldToNew = new Array[Int](v.nAlleles)
-        for (aai <- v.altAlleles.indices) {
+        val oldToNew = new Array[Int](alleles.length)
+        for (aai <- alleles.tail.indices) {
           val index = aai + 1
           conditionEC.setAll(globalsBc.value, va, index)
           oldToNew(index) =
@@ -80,17 +80,18 @@ object FilterAlleles {
           .map(_._2)
           .toArray
 
+        val ref = alleles(0)
         val altAlleles = oldToNew.iterator
           .zipWithIndex
           .filter { case (newIdx, _) => newIdx != 0 }
-          .map { case (_, idx) => v.altAlleles(idx - 1) }
+          .map { case (_, idx) => alleles(idx) }
           .toArray
 
-        if (altAlleles.forall(_.isStar) && !keepStar)
+        if (altAlleles.forall(a => AltAlleleMethods.isStar(ref, a)) && !keepStar)
           return None
 
-        val filtv = v.copy(altAlleles = altAlleles).minRep
-        Some((filtv, newToOld, oldToNew))
+        val (filtLocus, filtAlleles) = VariantMethods.minRep(locus, ref +: altAlleles)
+        Some((filtLocus, filtAlleles, newToOld, oldToNew))
       }
 
       val fullRowType = vsm.matrixType.rvRowType
@@ -114,15 +115,15 @@ object FilterAlleles {
 
           val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
-          filterAllelesInVariant(rvv.variantObject(), row)
-            .flatMap { case (newV, newToOld, oldToNew) =>
-              val isLeftAligned = (prevLocus == null || prevLocus != newV.locus) &&
-                newV.locus == rvv.locus
+          filterAllelesInVariant(rvv.locus(), rvv.alleles(), row)
+            .flatMap { case (newLocus, newAlleles, newToOld, oldToNew) =>
+              val isLeftAligned = (prevLocus == null || prevLocus != newLocus) &&
+                newLocus == rvv.locus
 
-              prevLocus = newV.locus
+              prevLocus = newLocus
 
               if (verifyLeftAligned && !isLeftAligned)
-                fatal(s"found non-left aligned variant: ${rvv.variantObject()}")
+                fatal(s"found non-left aligned variant: ${ rvv.locus() }:${ rvv.alleles()(0) }:${ rvv.alleles().tail.mkString(",") } ")
 
               if ((isLeftAligned && removeLeftAligned)
                 || (!isLeftAligned && removeMoving))
@@ -132,8 +133,6 @@ object FilterAlleles {
                 rvb.start(newRVType)
                 rvb.startStruct()
 
-                val newLocus = newV.locus
-                val newAlleles = IndexedSeq(newV.ref) ++ newV.altAlleles.map(_.alt)
                 vAnnotator.ec.setAll(globalsBc.value, row, newLocus, newAlleles, oldToNew, newToOld)
                 var newVA = vAnnotator.insert(row)
                 newVA = insertLocus(newVA, newLocus)

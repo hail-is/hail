@@ -73,7 +73,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     }
 
     val nAlleles = vc.getNAlleles
-    val nGenotypes = Variant.nGenotypes(nAlleles)
+    val nGenotypes = VariantMethods.nGenotypes(nAlleles)
     val haploidPL = new Array[Int](nGenotypes)
 
     val nCanonicalFields = Integer.bitCount(canonicalFlags)

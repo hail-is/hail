@@ -864,8 +864,8 @@ object FunctionRegistry {
   registerDependent("LocusAlleles", { () =>
     val rg = RG.rg
     (s: String) => {
-      val v = Variant.parse(s, rg)
-      Annotation(v.locus, IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
+      val (locus, alleles) = VariantMethods.parse(s, rg)
+      Annotation(locus, alleles)
     }
   })(stringHr, locusAllelesHr)
 

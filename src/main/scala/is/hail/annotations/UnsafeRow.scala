@@ -201,6 +201,12 @@ class UnsafeRow(var t: TBaseStruct,
   }
 }
 
+object SafeRow {
+  def apply(t: TBaseStruct, region: Region, off: Long): Row = {
+    Annotation.copy(t, new UnsafeRow(t, region, off)).asInstanceOf[Row]
+  }
+}
+
 class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {
   def length: Int = row.size
   def get(i: Int): Any = row.get(keyFields(i))

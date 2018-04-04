@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.{Row, RowFactory}
 
 import scala.collection.mutable
@@ -437,6 +437,12 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
     case "LocusAlleles" => TStruct("locus" -> rg.locusType, "alleles" -> TArray(TString()))
     case "getReferenceSequence" => TString()
     case "isValidContig" | "isValidLocus" => TBoolean()
+    case "liftoverLocus" | "liftoverLocusInterval" =>
+      val destRG = args.head match {
+        case Const(_, name, TString(_)) => ReferenceGenome.getReference(name.asInstanceOf[String])
+        case _ => fatal(s"invalid arguments to '$fName'.")
+      }
+      if (fName == "liftoverLocus") destRG.locusType else destRG.intervalType
     case _ => throw new UnsupportedOperationException
   }
 
@@ -453,6 +459,14 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
       case "isValidLocus" =>
         (args.map(_.`type`): @unchecked) match {
           case Array(TString(_), TInt32(_)) =>
+        }
+      case "liftoverLocus" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TString(_), TLocus(rg, _), TFloat64(_)) =>
+        }
+      case "liftoverLocusInterval" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TString(_), TInterval(TLocus(rg, _), _), TFloat64(_)) =>
         }
       case _ =>
     }
@@ -485,6 +499,18 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
       for {
         b <- AST.evalComposeCodeM(args(0), args(1))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
       } yield Code.checkcast[java.lang.Boolean](b)
+
+    case "liftoverLocus" =>
+      val localRG = rg
+      val destRGName = args(0).asInstanceOf[Const].value.asInstanceOf[String]
+      val f: (Locus, Double) => Locus = { (l, minMatch) => localRG.liftoverLocus(destRGName, l, minMatch) }
+      AST.evalComposeCodeM(args(1), args(2))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+
+    case "liftoverLocusInterval" =>
+      val localRG = rg
+      val destRGName = args(0).asInstanceOf[Const].value.asInstanceOf[String]
+      val f: (Interval, Double) => Interval = { (li, minMatch) => localRG.liftoverLocusInterval(destRGName, li, minMatch) }
+      AST.evalComposeCodeM(args(1), args(2))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
 
     case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
   }

@@ -1,4 +1,4 @@
-from .family_methods import trio_matrix, mendel_errors, transmission_disequilibrium_test
+from .family_methods import trio_matrix, mendel_errors, transmission_disequilibrium_test, de_novo
 from .impex import export_cassandra, export_gen, export_plink, export_solr, export_vcf, \
     import_locus_intervals, import_bed, import_fam, grep, import_bgen, import_gen, import_table, \
     import_plink, read_matrix_table, read_table, get_vcf_metadata, import_vcf, index_bgen, \
@@ -56,4 +56,6 @@ __all__ = ['trio_matrix',
            'FilterAlleles',
            'ld_prune',
            'min_rep',
-           'filter_intervals']
+           'filter_intervals',
+           'de_novo',
+           ]

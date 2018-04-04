@@ -1346,9 +1346,9 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
-        __hwe_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     return pca(normalized_gt,
                k,
@@ -2166,9 +2166,9 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
-        __hwe_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     bm = BlockMatrix.from_entry_expr(normalized_gt)
     mt.unpersist()
@@ -2256,10 +2256,10 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     info("Computing RRM using {} variants.".format(n_variants))
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(__std_dev=hl.sqrt((mt.__ACsq + (n_samples - mt.__n_called) * mt.__mean_gt ** 2) /
+    mt = mt.annotate_rows(__scaled_std_dev=hl.sqrt((mt.__ACsq + (n_samples - mt.__n_called) * mt.__mean_gt ** 2) /
                                               n_samples - mt.__mean_gt ** 2))
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__scaled_std_dev, 0.0)
 
     bm = BlockMatrix.from_entry_expr(normalized_gt)
     mt.unpersist()
@@ -2482,8 +2482,8 @@ class FilterAlleles(object):
     ...     hl.is_defined(dataset.PL),
     ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
     ...         lambda newi: hl.bind(
-    ...             hl.unphased_diploid_gt_index_call(newi),
-    ...             lambda newc: dataset.PL[hl.call(fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
+    ...             lambda newc: dataset.PL[hl.call(fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()],
+    ...             hl.unphased_diploid_gt_index_call(newi))),
     ...     hl.null(hl.tarray(hl.tint32)))
     >>> fa.annotate_entries(
     ...     GT = hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
@@ -2686,12 +2686,13 @@ class FilterAlleles(object):
         ds = self._ds
         newPL = hl.cond(
             hl.is_defined(ds.PL),
-            hl.bind(hl.range(0, hl.triangle(self.new_alleles.length())).map(
-                lambda newi: hl.bind(
-                    hl.unphased_diploid_gt_index_call(newi),
-                    lambda newc: ds.PL[hl.call(self.new_to_old[newc[0]],
-                                               self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
-                lambda unnorm: unnorm - hl.min(unnorm)),
+            hl.bind(
+                lambda unnorm: unnorm - hl.min(unnorm),
+                hl.range(0, hl.triangle(self.new_alleles.length())).map(
+                    lambda newi: hl.bind(
+                        lambda newc: ds.PL[hl.call(self.new_to_old[newc[0]],
+                                                   self.new_to_old[newc[1]]).unphased_diploid_gt_index()],
+                        hl.unphased_diploid_gt_index_call(newi)))),
             hl.null(tarray(tint32)))
         self.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
@@ -2783,9 +2784,9 @@ class FilterAlleles(object):
             (hl.range(0, hl.triangle(hl.len(self.new_alleles)))
                 .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(ds.alleles)))
                                          .filter(lambda oldi: hl.bind(
-                hl.unphased_diploid_gt_index_call(oldi),
                 lambda oldc: hl.call(self.old_to_new[oldc[0]],
-                                     self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi)))
+                                     self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
+                hl.unphased_diploid_gt_index_call(oldi)))
                                          .map(lambda oldi: ds.PL[oldi])))),
             hl.null(tarray(tint32)))
         self.annotate_entries(

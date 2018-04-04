@@ -1064,3 +1064,31 @@ class Tests(unittest.TestCase):
                      row_fields=row_fields,
                      no_header=True,
                      row_key=['foo'])
+
+    def test_de_novo(self):
+        mt = hl.import_vcf(resource('denovo.vcf'))
+        mt = mt.filter_rows(mt.locus.in_y_par(), keep=False)  # de_novo_finder doesn't know about y PAR
+        ped = hl.Pedigree.read(resource('denovo.fam'))
+        r = hl.de_novo(mt, ped, mt.info.ESP)
+        r = r.select(
+            locus=r.locus,
+            alleles=r.alleles,
+            prior = r.prior,
+            kid_id=r.proband.s,
+            dad_id=r.father.s,
+            mom_id=r.mother.s,
+            p_de_novo=r.p_de_novo,
+            confidence=r.confidence).key_by('locus', 'alleles', 'kid_id', 'dad_id', 'mom_id')
+
+        truth = hl.import_table(resource('denovo.out'), impute=True, comment='#')
+        truth = truth.select(
+            locus=hl.locus(truth['Chr'], truth['Pos']),
+            alleles=[truth['Ref'], truth['Alt']],
+            kid_id=truth['Child_ID'],
+            dad_id=truth['Dad_ID'],
+            mom_id=truth['Mom_ID'],
+            p_de_novo=truth['Prob_dn'],
+            confidence=truth['Validation_Likelihood'].split('_')[0]).key_by('locus', 'alleles', 'kid_id', 'dad_id', 'mom_id')
+
+        j = r.join(truth, how='outer')
+        self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))

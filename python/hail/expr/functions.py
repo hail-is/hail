@@ -192,7 +192,8 @@ def cond(condition,
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     if missing_false:
-        condition = hl.bind(condition, lambda x: hl.is_defined(x) & x)
+        condition = hl.bind(lambda x: hl.is_defined(x) & x,
+                            condition)
     indices, aggregations, joins = unify_all(condition, consequent, alternate)
 
     consequent, alternate, success = unify_exprs(consequent, alternate)
@@ -276,8 +277,8 @@ def switch(expr) -> 'hail.expr.builders.SwitchBuilder':
     return SwitchBuilder(expr)
 
 
-@typecheck(expr=expr_any, f=func_spec(1, expr_any))
-def bind(expr, f: Callable):
+@typecheck(f=anytype, exprs=expr_any)
+def bind(f: Callable, *exprs):
     """Bind a temporary variable and use it in a function.
 
     Examples
@@ -291,51 +292,58 @@ def bind(expr, f: Callable):
     Note that evaluating `x` multiple times returns different results.
     The value of evaluating `x` is unknown when the expression is defined.
 
-    .. doctest::
+    >>> hl.eval_expr(x)
+    0.3189309481038456
 
-        >>> hl.eval_expr(x)
-        0.3189309481038456
-
-        >>> hl.eval_expr(x)
-        0.20842918568366375
+    >>> hl.eval_expr(x)
+    0.20842918568366375
 
     What if we evaluate `x` multiple times in the same invocation of
     :meth:`~hail.expr.eval_expr`?
 
-    .. doctest::
-
-        >>> hl.eval_expr([x, x, x])
-        [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
+    >>> hl.eval_expr([x, x, x])
+    [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
 
     The random number generator is called separately for each inclusion
-    of `x`. This method, `bind`, is the solution to this problem!
+    of `x`. This method, :func:`.bind`, is the solution to this problem!
 
-    .. doctest::
+    >>> hl.eval_expr(hl.bind(lambda y: [y, y, y],
+    ...                      x))
+    [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
 
-        >>> hl.eval_expr(hl.bind(x, lambda y: [y, y, y]))
-        [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
+    :func:`.bind` also can take multiple arguments:
+
+    >>> hl.bind(lambda x, y: x / y,
+    ...         x, x).value
+    1.0
 
     Parameters
     ----------
-    expr : :class:`.Expression`
-        Expression to bind.
-    f : function ( (arg) -> :class:`.Expression`)
-        Function of `expr`.
+    f : function ( (args) -> :class:`.Expression`)
+        Function of `exprs`.
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
 
     Returns
     -------
     :class:`.Expression`
-        Result of evaluating `f` with `expr` as an argument.
+        Result of evaluating `f` with `exprs` as arguments.
     """
-    uid = Env.get_uid()
-    expr = to_expr(expr)
+    args = []
+    uids = []
+    asts = []
 
-    f_input = construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins)
-    lambda_result = to_expr(f(f_input))
+    for expr in exprs:
+        uid = Env.get_uid()
+        args.append(construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins))
+        uids.append(uid)
+        asts.append(expr._ast)
 
-    indices, aggregations, joins = unify_all(expr, lambda_result)
-    ast = Bind(uid, expr._ast, lambda_result._ast)
-    return construct_expr(ast, lambda_result._type, indices, aggregations, joins)
+
+    lambda_result = to_expr(f(*args))
+    indices, aggregations, joins = unify_all(*exprs, lambda_result)
+    ast = Bind(uids, asts, lambda_result._ast)
+    return construct_expr(ast, lambda_result.dtype, indices, aggregations, joins)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -2478,14 +2486,14 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
                 hl.cond(i < array_lens[j], arrays[j][i], hl.null(arrays[j].dtype.element_type))
                 for j in builtins.range(n_arrays)), indices)
 
-        return bind([hl.len(a) for a in arrays], _)
+        return bind(_, [hl.len(a) for a in arrays])
     else:
         def _(array_lens):
             result_len = hl.min(array_lens)
             indices = hl.range(0, result_len)
             return hl.map(lambda i: builtins.tuple(arrays[j][i] for j in builtins.range(n_arrays)), indices)
 
-        return bind([hl.len(a) for a in arrays], _)
+        return bind(_, [hl.len(a) for a in arrays])
 
 
 @typecheck(f=func_spec(1, expr_any),
@@ -3658,3 +3666,79 @@ def mendel_error_code(locus, is_female, father, mother, child):
             .when(locus.in_y_nonpar() & (~is_female), hemi_y_cond)
             .or_missing()
             )
+
+@typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
+           dest_reference_genome=reference_genome_type,
+           min_match=builtins.float)
+def liftover(x, dest_reference_genome, min_match=0.95):
+    """Lift over coordinates to a different reference genome.
+
+    Examples
+    --------
+
+    Lift over the locus coordinates from reference genome ``'GRCh37'`` to
+    ``'GRCh38'``:
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> hl.liftover(hl.locus('1', 1034245, 'GRCh37'), 'GRCh38').value
+        Locus(contig='chr1', position=1098865, reference_genome='GRCh38')
+
+    Lift over the locus interval coordinates from reference genome ``'GRCh37'``
+    to ``'GRCh38'``:
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> hl.liftover(hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'GRCh38').value
+        Interval(Locus(contig='chr20', position=79360, reference_genome='GRCh38'),
+                 Locus(contig='chr20', position=101815, reference_genome='GRCh38'),
+                 True,
+                 True)
+
+    Notes
+    -----
+    This function requires the reference genome of `x` has a chain file loaded
+    for `dest_reference_genome`. Use :meth:`.ReferenceGenome.add_liftover` to
+    load and attach a chain file to a reference genome.
+
+    Returns ``None`` if `x` could not be converted.
+
+    Warning
+    -------
+        Before using the result of :func:`.liftover` as a new row key or column
+        key, be sure to filter out missing values.
+
+    Parameters
+    ----------
+    x : :class:`.Expression` of type :py:data:`.tlocus` or :py:data:`.tinterval` of :py:data:`.tlocus`
+        Locus or locus interval to lift over.
+    dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to convert to.
+    min_match : :class:`.Expression` of type :py:data:`.tfloat64`
+        Minimum ratio of bases that must remap.
+
+    Returns
+    -------
+    :class:`.Expression`
+        A locus or locus interval converted to `dest_reference_genome`.
+    """
+
+    if not 0.0 <= min_match <= 1.0:
+        raise TypeError("'liftover' requires 'min_match' is in the range [0, 1]. Got {}".format(min_match))
+
+    if isinstance(x.dtype, tlocus):
+        rg = x.dtype.reference_genome
+        method_name = "liftoverLocus({})".format(rg.name)
+        rtype = tlocus(dest_reference_genome)
+    else:
+        rg = x.dtype.point_type.reference_genome
+        method_name = "liftoverLocusInterval({})".format(rg.name)
+        rtype = tinterval(tlocus(dest_reference_genome))
+
+    if not rg.has_liftover(dest_reference_genome.name):
+        raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
+        Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
+
+    return _func(method_name, rtype, to_expr(dest_reference_genome.name, tstr), x, to_expr(min_match, tfloat))
