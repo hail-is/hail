@@ -613,7 +613,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
 
   def entriesTable(hc: HailContext): Table = {
-    val rvRowType = TStruct("i" -> TInt64Required, "j" -> TInt64Required, "entry" -> TFloat64Required)
+    val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     val entriesRDD = blocks.flatMap { case ((blockRow, blockCol), block) =>
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
