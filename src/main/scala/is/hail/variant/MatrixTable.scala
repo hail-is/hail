@@ -2690,8 +2690,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def toIndexedRowMatrix(entryField: String): IndexedRowMatrix = {
-    val partStarts = partitionStarts()
+  def toRowMatrix(entryField: String): RowMatrix = {
+    val partCounts = partitionCounts()
+    val partStarts = partCounts.scanLeft(0L)(_ + _) // FIXME: use partitionStarts once partitionCounts is durable
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
@@ -2706,7 +2707,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = numCols
 
-    val indexedRows = rvd.mapPartitionsWithIndex { case (pi, it) =>
+    val rows = rvd.mapPartitionsWithIndex { case (pi, it) =>
       var i = partStartsBc.value(pi)
       it.map { rv =>
         val region = rv.region
@@ -2720,19 +2721,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
               data(j) = region.loadDouble(fieldOffset)
             } else
-              fatal(s"Cannot create IndexedRowMatrix: missing value at row $i and col $j")
+              fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
           } else
-            fatal(s"Cannot create IndexedRowMatrix: missing entry at row $i and col $j")
+            fatal(s"Cannot create RowMatrix: missing entry at row $i and col $j")
           j += 1
         }
-        val row = IndexedRow(i, Vectors.dense(data))
+        val row = (i, data)
         i += 1
         row
       }
     }
 
-    // caching is critical before use in computeSVD in PCA
-    new IndexedRowMatrix(indexedRows.cache(), partStarts.last, numCols)
+    new RowMatrix(hc, rows, numCols, Some(partStarts.last), Some(partCounts))
   }
 
   def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
