@@ -1077,7 +1077,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
     val newOff = f()(globalRegion, globalOff, false)
 
     val newGlobals = tv.globals.copy(
-      value = Annotation.copy(rTyp, UnsafeRow.read(rTyp, globalRegion, newOff)).asInstanceOf[Row],
+      value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
       t = rTyp.asInstanceOf[TStruct])
 
     TableValue(typ, newGlobals, tv.rvd)

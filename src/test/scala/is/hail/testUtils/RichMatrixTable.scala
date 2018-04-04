@@ -1,12 +1,11 @@
 package is.hail.testUtils
 
-import is.hail.annotations.{Annotation, Querier, UnsafeRow}
+import is.hail.annotations.{Annotation, Querier, SafeRow, UnsafeRow}
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable}
 import org.apache.spark.rdd.RDD
-
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -90,8 +89,8 @@ class RichMatrixTable(vsm: MatrixTable) {
     val rowKeyF = vsm.rowKeysF
     vsm.rvd.rdd.map { rv =>
       val unsafeFullRow = new UnsafeRow(fullRowType, rv)
-      val fullRow = Annotation.copy(fullRowType, unsafeFullRow).asInstanceOf[Row]
-      val row = Annotation.copy(localRowType, unsafeFullRow.deleteField(localEntriesIndex))
+      val fullRow = SafeRow(fullRowType, rv.region, rv.offset)
+      val row = fullRow.deleteField(localEntriesIndex)
       (rowKeyF(fullRow), (row, fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)))
     }
   }

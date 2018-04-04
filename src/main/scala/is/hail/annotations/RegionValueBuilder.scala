@@ -536,8 +536,7 @@ class RegionValueBuilder(var region: Region) {
         setMissing()
         i += 1
       }
-    }
-    else {
+    } else {
       while(i < t.size) {
         addAnnotation(t.types(i), a(i))
         i += 1
