@@ -150,19 +150,13 @@ object BlockMatrix {
 
     implicit class Shim(l: M) {
       def +(r: M): M = l.add(r)
-
       def -(r: M): M = l.sub(r)
-
       def *(r: M): M = l.mul(r)
-
       def /(r: M): M = l.div(r)
-
+      
       def +(r: Double): M = l.scalarAdd(r)
-
       def -(r: Double): M = l.scalarSub(r)
-
       def *(r: Double): M = l.scalarMul(r)
-
       def /(r: Double): M = l.scalarDiv(r)
 
       def T: M = l.transpose()
@@ -170,16 +164,11 @@ object BlockMatrix {
 
     implicit class ScalarShim(l: Double) {
       def +(r: M): M = r.scalarAdd(l)
-
       def -(r: M): M = r.reverseScalarSub(l)
-
       def *(r: M): M = r.scalarMul(l)
-
       def /(r: M): M = r.reverseScalarDiv(l)
     }
-
   }
-
 }
 
 // must be top-level for Jackson to serialize correctly
@@ -201,51 +190,35 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   // element-wise ops
   def unary_+(): M = this
-
   def unary_-(): M = blockMap(-_)
 
   def add(that: M): M = blockMap2(that, _ + _)
-
   def sub(that: M): M = blockMap2(that, _ - _)
-
   def mul(that: M): M = blockMap2(that, _ *:* _)
-
   def div(that: M): M = blockMap2(that, _ /:/ _)
 
   def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv)(a)
-
   def rowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) - lv)(a)
-
   def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv)(a)
-
   def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv)(a)
 
-  def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _))(a)
-
+  def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _))(a)  
   def reverseRowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv /:/ _))(a)
-
+  
   def colVectorAdd(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) + lv)(a)
-
   def colVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) - lv)(a)
-
   def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv)(a)
-
   def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv)(a)
 
   def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _))(a)
-
   def reverseColVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv /:/ _))(a)
 
   def scalarAdd(i: Double): M = blockMap(_ + i)
-
   def scalarSub(i: Double): M = blockMap(_ - i)
-
   def scalarMul(i: Double): M = blockMap(_ *:* i)
-
   def scalarDiv(i: Double): M = blockMap(_ /:/ i)
 
   def reverseScalarSub(i: Double): M = blockMap(i - _)
-
   def reverseScalarDiv(i: Double): M = blockMap(i /:/ _)
 
   def sqrt(): M = blockMap(breezeSqrt(_))
@@ -362,7 +335,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def blockMap(op: BDM[Double] => BDM[Double]): M =
     new BlockMatrix(blocks.mapValues(op), blockSize, nRows, nCols)
-
+  
   def blockMapWithIndex(op: ((Int, Int), BDM[Double]) => BDM[Double]): M =
     new BlockMatrix(blocks.mapValuesWithKey(op), blockSize, nRows, nCols)
 
@@ -579,8 +552,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def colVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
-    a =>
-      val v = BDV(a)
+    a => val v = BDV(a)
       require(v.length == nRows, s"vector length must equal nRows: ${ v.length }, $nRows")
       val vBc = blocks.sparkContext.broadcast(v)
       blockMapWithIndex { case ((i, _), lm) =>
@@ -590,8 +562,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def rowVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
-    a =>
-      val v = BDV(a)
+    a => val v = BDV(a)
       require(v.length == nCols, s"vector length must equal nCols: ${ v.length }, $nCols")
       val vBc = blocks.sparkContext.broadcast(v)
       blockMapWithIndex { case ((_, j), lm) =>
@@ -671,7 +642,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     new Table(hc, entriesRDD, rvRowType)
   }
-
 }
 
 case class BlockMatrixFilterRDDPartition(index: Int,

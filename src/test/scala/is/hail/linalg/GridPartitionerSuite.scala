@@ -77,7 +77,7 @@ class GridPartitionerSuite extends TestNGSuite {
       assert(gp.bandedBlocks(1000, 1000) sameElements (0 until 12))
     }
   }
-
+  
   @Test
   def rectangularBlocksTest() {
     // 0  3  6  9
@@ -94,7 +94,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
       assert(gp.rectangularBlocks(9, 10, 9, 10) sameElements Array(0, 1, 3, 4))
       assert(gp.rectangularBlocks(Array(Array(9, 10, 9, 10))) sameElements Array(0, 1, 3, 4))
-
+      
       assert(gp.rectangularBlocks(10, 19, 10, 29) sameElements Array(4, 7))
 
       assert(gp.rectangularBlocks(Array(

@@ -6,12 +6,11 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
+import is.hail.sparkextras._
 import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, UnpartitionedRVD}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.sql.Row
-
-
 
 object BitPackedVectorView {
   val bpvEltSize = TInt64Required.byteSize
@@ -300,7 +299,7 @@ object LDPrune {
     def computeDependencies(partitionId: Int): Array[Int] = {
       val startLocus = rangeBounds(partitionId).start.asInstanceOf[Row].getAs[Locus](0)
       val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
-
+      
       val minPart = partitioner.getPartitionPK(Annotation(minLocus))
       Array.range(minPart, partitionId + 1).reverse
     }

@@ -329,7 +329,7 @@ class BlockMatrixSuite extends SparkSuite {
       1, 2, 3, 4,
       5, 6, 7, 8,
       9, 10, 11, 12))
-
+    
     val m = toBM(lm, blockSize = 2)
 
     assert(m.diagonal().toSeq == Seq(1, 6, 11))
@@ -732,7 +732,7 @@ class BlockMatrixSuite extends SparkSuite {
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
   }
-
+  
   @Test
   def writeSubsetTest() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
@@ -751,7 +751,7 @@ class BlockMatrixSuite extends SparkSuite {
           bm2.nCols == 10 &&
           bm2.blockSize == blockSize)
       }
-
+      
       bm.write(allFile)
       verifyMetadata(allFile)
 
@@ -787,13 +787,12 @@ class BlockMatrixSuite extends SparkSuite {
     }
   }
 
-
   @Test
   def testEntriesTableWhenKeepingOnlySomeBlocks(): Unit = {
     val data = (0 until 50).map(_.toDouble).toArray
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
-
+    
     assert(bm.entriesTable(hc, Some(Array(0, 1, 6))).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
       Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
   }
@@ -803,7 +802,7 @@ class BlockMatrixSuite extends SparkSuite {
     val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
     val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize = 2)
     val expected = new BDM[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
-
+    
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
     TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
