@@ -8,7 +8,7 @@ import is.hail.check.Prop._
 import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.expr.types.{TFloat64Required, TInt64Required, TStruct}
+import is.hail.expr.types._
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -776,7 +776,7 @@ class BlockMatrixSuite extends SparkSuite {
     val data = (0 until 90).map(_.toDouble).toArray
     val lm = new BDM[Double](9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
-    val expectedSignature = TStruct("i" -> TInt64Required, "j" -> TInt64Required, "entry" -> TFloat64Required)
+    val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
 
     for {blockSize <- Seq(1, 4, 10)} {
       val entriesTable = toBM(lm, blockSize).entriesTable(hc)
