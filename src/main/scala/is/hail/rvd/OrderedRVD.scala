@@ -478,11 +478,12 @@ object OrderedRVD {
     crdd: ContextRDD[RVDContext, RegionValue]
   ): ContextRDD[RVDContext, RegionValue] = {
     val localType = typ
-    crdd.cmap { (c, rv) =>
-      c.rvb.start(localType.kType)
-      c.rvb.selectRegionValue(localType.rowType, localType.kRowFieldIdx, rv)
-      rv.setOffset(c.rvb.end())
-      rv
+    crdd.mapPartitions { it =>
+      val wrv = WritableRegionValue(localType.kType)
+      it.map { rv =>
+        wrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+        wrv.value
+      }
     }
   }
 
