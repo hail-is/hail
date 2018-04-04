@@ -879,7 +879,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       }
     }
 
-    TableValue(typ, BroadcastRow(Annotation.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
   }
 }
 
