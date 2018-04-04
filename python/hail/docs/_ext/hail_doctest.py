@@ -26,7 +26,7 @@ import sphinx
 from sphinx.builders import Builder
 from sphinx.util import force_decode
 from sphinx.util.nodes import set_source_info
-from sphinx.util.compat import Directive
+from sphinx.directives import Directive
 from sphinx.util.console import bold
 from sphinx.util.osutil import fs_encoding
 
