@@ -2174,6 +2174,32 @@ class StringExpression(Expression):
         return self._method('endswith', tbool, substr)
 
     @typecheck_method(regex=str)
+    def first_match_in(self, regex):
+        """Returns an array containing the capture groups of the first match of
+        `regex` in the given character sequence.
+
+        Examples
+        --------
+        >>> s.first_match_in("The quick (\\w+) fox").value
+        ["brown"]
+
+        >>> s.first_match_in("The (\\w+) (\\w+) (\\w+)").value
+        ["quick", "brown", "fox"]
+
+        >>> s.first_match_in("(\\w+) (\\w+)").value
+        None
+
+        Parameters
+        ----------
+        regex : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.ArrayExpression` with element type :py:data:`.tstr`
+        """
+        return self._method('firstMatchIn', tarray(tstr), regex)
+
+    @typecheck_method(regex=str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
 

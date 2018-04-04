@@ -1332,8 +1332,7 @@ def or_else(a, b):
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
     assert a.dtype == b.dtype
-    return _func("orElse", a.dtype, a, b)
-
+    return hl.cond(hl.is_defined(a), a, b)
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
@@ -1360,8 +1359,8 @@ def or_missing(predicate, value):
     :class:`.Expression`
         This expression has the same type as `b`.
     """
-    predicate = to_expr(predicate)
-    return _func("orMissing", value._type, predicate, value)
+
+    return hl.cond(predicate, value, hl.null(value.dtype))
 
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_float64,

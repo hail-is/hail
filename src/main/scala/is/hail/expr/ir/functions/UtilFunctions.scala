@@ -30,8 +30,6 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
 
-    registerIR("orMissing", TBoolean(), tv("T")) { (cond, a) => If(cond, a, NA(tv("T").t)) }
-
     registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
 
     registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }

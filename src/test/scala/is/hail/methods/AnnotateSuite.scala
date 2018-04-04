@@ -4,7 +4,6 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.LoadPlink
 import is.hail.table.Table
 import is.hail.utils._
@@ -112,64 +111,6 @@ class AnnotateSuite extends SparkSuite {
 
   }
 
-  @Test def testBedIntervalAnnotator() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
-      .cache()
-
-    val bed1r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "test").annotateRowsExpr("test" -> "isDefined(va.test)")
-    val bed2r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), root = "test").annotateRowsExpr("test" -> "va.test.target")
-    val bed3r = vds.annotateRowsTable(BedAnnotator(hc, "src/test/resources/example3.bed"), root = "test").annotateRowsExpr("test" -> "va.test.target")
-
-    val q1 = bed1r.queryVA("va.test")._2
-    val q2 = bed2r.queryVA("va.test")._2
-    val q3 = bed3r.queryVA("va.test")._2
-
-    bed1r.variantsAndAnnotations
-      .collect()
-      .foreach { case (v1, va) =>
-        val v = v1.asInstanceOf[Variant]
-        assert(v.start <= 14000000 ||
-          v.start >= 17000000 ||
-          q1(va) == false)
-      }
-
-    bed2r.variantsAndAnnotations
-      .collect()
-      .foreach { case (v1, va) =>
-        val v = v1.asInstanceOf[Variant]
-        if (v.start <= 14000000)
-          assert(q2(va) == "gene1")
-        else if (v.start >= 17000000)
-          assert(q2(va) == "gene2")
-        else
-          assert(q2(va) == null)
-      }
-
-    bed3r.variantsAndAnnotations
-      .collect()
-      .foreach { case (v1, va) =>
-        val v = v1.asInstanceOf[Variant]
-        if (v.start <= 14000000)
-          assert(q3(va) == "gene1", v)
-        else if (v.start >= 17000000)
-          assert(q3(va) == "gene2", v)
-        else
-          assert(q3(va) == null, v)
-      }
-
-    assert(bed3r.same(bed2r))
-
-    val int1r = vds.annotateRowsTable(IntervalList.read(hc,
-      "src/test/resources/exampleAnnotation1.interval_list"), "test")
-        .annotateRowsExpr("test" -> "isDefined(va.test)")
-    val int2r = vds.annotateRowsTable(
-      IntervalList.read(hc, "src/test/resources/exampleAnnotation2.interval_list"), "test")
-        .annotateRowsExpr("test" -> "va.test.target")
-
-    assert(int1r.same(bed1r))
-    assert(int2r.same(bed2r))
-  }
-
   @Test def testTables() {
 
     val format1 =
@@ -241,13 +182,13 @@ class AnnotateSuite extends SparkSuite {
     val fmt1 = vds.annotateRowsTable(kt1, "table").annotateRowsExpr("table" -> "{Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt2 = vds.annotateRowsTable(hc.importTable(tmpf2, separator = "\\s+", impute = true,
-      commentChar = Some("#"))
+      comment = Array("#"))
       .annotate("locus = Locus(str(row.Chr), row.Pos), alleles = [row.Ref, row.Alt]")
       .keyBy("locus", "alleles"),
       "table").annotateRowsExpr("table" -> "{Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt3 = vds.annotateRowsTable(hc.importTable(tmpf3,
-      commentChar = Some("#"), separator = "\\s+", noHeader = true, impute = true)
+      comment = Array("#"), separator = "\\s+", noHeader = true, impute = true)
       .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
       "table").annotateRowsExpr("table" -> "{Anno1: va.table.f4, Anno2: va.table.f5}")
@@ -263,7 +204,7 @@ class AnnotateSuite extends SparkSuite {
       "table").annotateRowsExpr("table" -> "{Anno1: va.table.Anno1, Anno2: va.table.Anno2}")
 
     val fmt6 = vds.annotateRowsTable(hc.importTable(tmpf6,
-      noHeader = true, impute = true, separator = ",", commentChar = Some("!"))
+      noHeader = true, impute = true, separator = ",", comment = Array("!"))
       .annotate("locus = Locus(str(row.f0), row.f1), alleles = [row.f2, row.f3]")
       .keyBy("locus", "alleles"),
       "table").annotateRowsExpr("table" -> "{Anno1: va.table.f5, Anno2: va.table.f7}")

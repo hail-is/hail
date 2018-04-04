@@ -229,7 +229,7 @@ object TestUtils {
     mt = mt.annotateRowsExpr("stdDev" ->
       "((va.ACsq.toFloat64 + (global.nSamples - va.nCalled.toFloat64).toFloat64 * va.meanGT * va.meanGT) / global.nSamples - va.meanGT * va.meanGT).sqrt()")
 
-    val normalizedGT = "orElse((g.gt.toFloat64 - va.meanGT) / va.stdDev, 0.0)"
+    val normalizedGT = "let norm_gt = (g.gt.toFloat64 - va.meanGT) / va.stdDev in if (isDefined(norm_gt)) norm_gt else 0.0"
     val path = TempDir(hc.hadoopConf).createTempFile()
     mt.selectEntries(s"{x: $normalizedGT}").writeBlockMatrix(path, "x")
     val X = BlockMatrix.read(hc, path)
