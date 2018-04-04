@@ -38,10 +38,10 @@ object RegressionUtils {
         } else
           missingCompleteCols += j
       } else
-        missingCompleteCols += j// fatal(s"missing entry in col $j")
+        missingCompleteCols += j
       j += 1
     }
-    
+
     val nMissing = missingCompleteCols.size
     val mean = sum / (n - nMissing)
     var i = 0

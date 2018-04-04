@@ -43,7 +43,7 @@ object LinearMixedRegression {
         fatal(s"delta must be positive, got ${ delta }"))
 
     val covNames = "intercept" +: covExpr
-    
+
     val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeColIds)
       kinshipMatrix
     else {

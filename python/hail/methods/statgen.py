@@ -241,7 +241,7 @@ def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> Mat
     Examples
     --------
 
-    >>> dataset_result = hl.linear_regression([dataset.pheno.height], dataset.GT.n_alt_alleles(),
+    >>> dataset_result = hl.linear_regression(ys=dataset.pheno.height, x=dataset.GT.n_alt_alleles(),
     ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
@@ -620,9 +620,9 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
     >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
     >>> kinship_matrix = hl.realized_relationship_matrix(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
     >>> lmm_ds = hl.linear_mixed_regression(kinship_matrix,
-    ...                                     lmm_ds.pheno,
-    ...                                     lmm_ds.GT.n_alt_alleles(),
-    ...                                     [lmm_ds.cov1, lmm_ds.cov2])
+    ...                                     y=lmm_ds.pheno,
+    ...                                     x=lmm_ds.GT.n_alt_alleles(),
+    ...                                     covariates=[lmm_ds.cov1, lmm_ds.cov2])
 
     Notes
     -----

@@ -130,8 +130,7 @@ class Tests(unittest.TestCase):
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
-        dataset = hl.linear_regression(ys=dataset.pheno,
-                                       x=dataset.GT.n_alt_alleles(),
+        dataset = hl.linear_regression(ys=dataset.pheno, x=dataset.GT.n_alt_alleles(),
                                        covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
         dataset.count_rows()
