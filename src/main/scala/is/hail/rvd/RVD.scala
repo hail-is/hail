@@ -189,11 +189,7 @@ trait RVD {
     newRowType,
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
-      f(consumerCtx, part.flatMap { producer =>
-        producerCtx.reset()
-        // FIXME: Setup iterator
-        producer(producerCtx)
-      })
+      f(consumerCtx, new SetupIterator(part.flatMap(_(producerCtx)), () => producerCtx.reset()))
     })
 
   def find(p: (RegionValue) => Boolean): Option[RegionValue] =

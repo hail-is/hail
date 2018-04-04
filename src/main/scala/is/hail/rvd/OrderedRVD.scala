@@ -53,10 +53,8 @@ class OrderedRVD(
       partitioner,
       crdd.cmapPartitionsAndContextWithIndex { (i, consumerCtx, part) =>
         val producerCtx = consumerCtx.freshContext
-        f(i, consumerCtx, part.flatMap { producer =>
-          producerCtx.reset()
-          producer(producerCtx)
-        })
+        f(i, consumerCtx,
+          new SetupIterator(part.flatMap(_ (producerCtx)), () => producerCtx.reset()))
       })
 
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =

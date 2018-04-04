@@ -103,12 +103,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   // WARNING: this resets the context, when this method is called, the value of
   // type `T` must already be "stable" i.e. not dependent on the region
   private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
-    it.flatMap { useCtx =>
-      useCtx(c).map { t =>
-        c.reset()
-        t
-      }
-    }
+    new SetupIterator(it.flatMap(_(c)), () => c.reset())
 
   def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => decontextualize(cc, part) } }
@@ -413,6 +408,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   }
 
   def partitionSizes: Array[Long] =
+    // FIXME: rewrite back to getPartitionCounts but with a setupiterator
     sparkContext.runJob(rdd, { (it: Iterator[ElementType]) =>
       using(mkc()) { c =>
         val it2 = it.flatMap(_(c))
