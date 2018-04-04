@@ -1,7 +1,7 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
-import is.hail.annotations.{Annotation, BroadcastRow, BroadcastValue}
+import is.hail.annotations.BroadcastRow
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.{TableLiteral, TableValue}
 import is.hail.expr.types._
