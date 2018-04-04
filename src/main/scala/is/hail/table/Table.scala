@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr._
-import is.hail.expr.ir.{CompileWithAggregators, MakeTuple}
+import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.io.annotators.IntervalList
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -216,7 +216,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def count(): Long = partitionCounts().sum
+  def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
 
   def forceCount(): Long = rvd.count()
 
@@ -319,82 +319,27 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def queryJSON(expr: String): String = {
-    val (a, t) = query(expr)
-    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
-    JsonMethods.compact(jv)
-  }
-
-  def query(expr: String): (Annotation, Type) = query(Array(expr)).head
-
-  def query(exprs: Array[String]): Array[(Annotation, Type)] = {
+  def query(expr: String): Any = {
     val globalsBc = globals.broadcast
     val ec = aggEvalContext()
-    val irs = exprs.flatMap(Parser.parseToAST(_, ec).toIR(Some("AGG")))
 
-    if (irs.length == exprs.length) {
-      val ir = MakeTuple(irs)
-
-      val localGlobalSignature = globalSignature
-      val tAgg = ec.st("AGG")._2.asInstanceOf[TAggregable]
-
-      val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
-        "AGG", tAgg,
-        "global", globalSignature,
-        ir)
-
-      val aggResults = if (seqOps.nonEmpty) {
-        rvd.treeAggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
-          // add globals to region value
-          val rowOffset = rv.offset
-          val rvb = new RegionValueBuilder()
-          rvb.set(rv.region)
-          rvb.start(localGlobalSignature)
-          rvb.addAnnotation(localGlobalSignature, globalsBc.value)
-          val globalsOffset = rvb.end()
-
-          rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
-            seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false)
-          }
-          rvaggs
-        }, { (rvAggs1, rvAggs2) =>
-          rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
-          rvAggs1
+    Parser.parseToAST(expr, ec).toIR(Some("AGG")) match {
+      case Some(convertedIR) =>
+        ir.Interpret(ir.TableAggregate(tir, convertedIR),
+          ir.Env.empty,
+          IndexedSeq(),
+          Some(tir.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable] -> null))
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
+          case (ec, a) =>
+            ec.setAll(globalsBc.value, a)
         })
-      } else
-        Array.empty[RegionValueAggregator]
 
-      val region: Region = Region()
-      val rvb: RegionValueBuilder = new RegionValueBuilder()
-      rvb.set(region)
+        val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
+        resultOp(r)
 
-      rvb.start(aggResultType)
-      rvb.startStruct()
-      aggResults.foreach(_.result(rvb))
-      rvb.endStruct()
-      val aggResultsOffset = rvb.end()
-
-      rvb.start(globalSignature)
-      rvb.addAnnotation(globalSignature, globalsBc.value)
-      val globalsOffset = rvb.end()
-
-      val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
-      val resultType = coerce[TTuple](t)
-      val result = UnsafeRow.readBaseStruct(resultType, region, resultOffset)
-
-      result.toSeq.zip(resultType.types).toArray
-    } else {
-      val ts = exprs.map(e => Parser.parseExpr(e, ec))
-
-      val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
-        case (ec, a) =>
-          ec.setAll(globalsBc.value, a)
-      })
-
-      val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
-      resultOp(r)
-
-      ts.map { case (t, f) => (f(), t) }
+        f()
     }
   }
 
@@ -846,43 +791,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
 
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
-    val codecSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = RVDSpec.formats
-        val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-        codecSpecJSON.extract[CodecSpec]
-      } else
-        CodecSpec.default
-
-    if (overwrite)
-      hc.hadoopConf.delete(path, recursive = true)
-    else if (hc.hadoopConf.exists(path))
-      fatal(s"file already exists: $path")
-
-    hc.hadoopConf.mkDir(path)
-
-    val globalsPath = path + "/globals"
-    hc.hadoopConf.mkDir(globalsPath)
-    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, codecSpec, Array(globals.value))
-
-    val partitionCounts = rvd.write(path + "/rows", codecSpec)
-
-    val referencesPath = path + "/references"
-    hc.hadoopConf.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(hc, referencesPath, signature)
-    ReferenceGenome.exportReferences(hc, referencesPath, globalSignature)
-
-    val spec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "references",
-      tir.typ,
-      Map("globals" -> RVDComponentSpec("globals"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hc, path)
-
-    hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+    ir.Interpret(ir.TableWrite(tir, path, overwrite, codecSpecJSONStr))
   }
 
   def cache(): Table = persist("MEMORY_ONLY")

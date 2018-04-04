@@ -25,7 +25,7 @@ class gqDpStatsSuite extends SparkSuite {
       .filterRowsExpr("va.alleles.length() == 2"))
       .rowsTable()
       .query("index(AGG.map(r => {pos: row.locus.position - 1, dp_mean: row.qc.dp_mean, dp_stdev: row.qc.dp_stdev}).collect(), pos)")
-      ._1.asInstanceOf[Map[Int, Row]]
+      .asInstanceOf[Map[Int, Row]]
 
     val dpSampleR = dpVds.stringSampleIds.zip(SampleQC.results(dpVds)).toMap
 
@@ -53,7 +53,7 @@ class gqDpStatsSuite extends SparkSuite {
       .filterRowsExpr("va.alleles.length() == 2"))
       .rowsTable()
       .query("index(AGG.map(r => {pos: row.locus.position - 1, gq_mean: row.qc.gq_mean, gq_stdev: row.qc.gq_stdev}).collect(), pos)")
-      ._1.asInstanceOf[Map[Int, Row]]
+      .asInstanceOf[Map[Int, Row]]
     val gqSampleR = gqVds.stringSampleIds.zip(SampleQC.results(gqVds)).toMap
 
     gqVariantR.foreach {

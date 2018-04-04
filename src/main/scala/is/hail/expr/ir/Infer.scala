@@ -181,6 +181,11 @@ object Infer {
         if (impl == null)
           x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithMissingness]
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
+      case x@TableAggregate(child, query, _) =>
+        infer(query, child.typ.aggEnv)
+        x.typ = query.typ
+      case TableWrite(_, _, _, _) =>
+      case TableCount(_) =>
     }
   }
 

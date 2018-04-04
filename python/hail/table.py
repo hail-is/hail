@@ -1026,7 +1026,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        result_json = base._jt.queryJSON(expr._ast.to_hql())
+        result_json = Env.jutils().makeJSON(expr.dtype._jtype, base._jt.query(expr._ast.to_hql()))
         return expr.dtype._from_json(result_json)
 
     @typecheck_method(output=str,
