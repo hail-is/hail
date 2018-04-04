@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
-import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness}
 import is.hail.expr.types._
 import is.hail.methods._
 import is.hail.utils._
@@ -57,7 +56,6 @@ object Interpret {
             case (_: TFloat64, _: TFloat32) => vValue.asInstanceOf[Double].toFloat
           }
       case NA(_) => null
-      case MapNA(name, value, body, typ) => ???
       case IsNA(value) => interpret(value, env, args, agg) == null
       case If(cond, cnsq, altr, _) =>
         val condValue = interpret(cond, env, args, agg)
@@ -148,7 +146,6 @@ object Interpret {
                 case NEQ() => lValue != rValue
               }
           }
-
       case ApplyUnaryPrimOp(op, x, _) =>
         op match {
           case Bang() =>
@@ -180,14 +177,6 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].apply(iValue.asInstanceOf[Int])
-      case ArrayMissingnessRef(a, i) =>
-        val aValue = interpret(a, env, args, agg)
-        val iValue = interpret(i, env, args, agg)
-        if (aValue == null || iValue == null)
-          null
-        else
-          aValue.asInstanceOf[IndexedSeq[Any]].apply(iValue.asInstanceOf[Int]) == null
-
       case ArrayLen(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
@@ -245,11 +234,6 @@ object Interpret {
           }
           zeroValue
         }
-
-      case AggIn(_) => ???
-      case AggMap(a, name, body, _) => ???
-      case AggFilter(a, name, body, _) => ???
-      case AggFlatMap(a, name, body, _) => ???
       case x@ApplyAggOp(a, op, aggArgs, _) =>
         val aValue = interpretAgg(a, agg._2)
         val aggType = a.typ.asInstanceOf[TAggregable].elementType
@@ -257,9 +241,6 @@ object Interpret {
         assert(AggOp.getType(op, x.inputType, aggArgs.map(_.typ)) == x.typ)
         val aggregator = op match {
           case Collect() => new CollectAggregator(aggType)
-          // case Fraction() =>  // FIXME: Can't support until this no longer takes a lambda
-          // val f: Any => Any = { value => }
-          // new FractionAggregator()
           case Sum() =>
             aggType match {
               case TInt32(_) => new SumAggregator[Int]()
@@ -274,13 +255,6 @@ object Interpret {
               case TFloat32(_) => new MaxAggregator[Float, java.lang.Float]()
               case TFloat64(_) => new MaxAggregator[Double, java.lang.Double]()
             }
-          //          case Min() =>
-          //            aggType match {
-          //              case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
-          //              case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
-          //              case TFloat32(_) => new MinAggregator[Float, java.lang.Float]()
-          //              case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
-          //            }
           case Take() =>
             val Seq(n) = aggArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
@@ -305,6 +279,10 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
         }
+        aValue.foreach { case (element, _) =>
+            aggregator.seqOp(element)
+        }
+        aggregator.result
       case MakeStruct(fields, _) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, agg) })
       case InsertFields(old, fields, _) =>
@@ -324,15 +302,6 @@ object Interpret {
           val oType = o.typ.asInstanceOf[TStruct]
           val fieldIndex = oType.fieldIdx(name)
           oValue.asInstanceOf[Row].get(fieldIndex)
-        }
-      case GetFieldMissingness(o, name) =>
-        val oValue = interpret(o, env, args, agg)
-        if (oValue == null)
-          null
-        else {
-          val oType = o.typ.asInstanceOf[TStruct]
-          val fieldIndex = oType.fieldIdx(name)
-          oValue.asInstanceOf[Row].isNullAt(fieldIndex)
         }
       case MakeTuple(types, _) =>
         Row.fromSeq(types.map(x => interpret(x, env, args, agg)))

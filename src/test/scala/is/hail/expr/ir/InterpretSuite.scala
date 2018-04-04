@@ -222,11 +222,6 @@ class InterpretSuite {
     check(ArrayRef(arr, I32(1)))
   }
 
-  @Test def testArrayMissingnessRef() {
-    check(ArrayMissingnessRef(arr, I32(0)))
-    check(ArrayMissingnessRef(arr, I32(3)))
-  }
-
   @Test def testArrayLen() {
     check(ArrayLen(arr))
   }
@@ -266,10 +261,6 @@ class InterpretSuite {
     check(GetField(struct, "a"))
   }
 
-  @Test def testGetFieldMissingness() {
-    check(GetFieldMissingness(struct, "a"))
-  }
-
   @Test def testMakeTuple() {
     check(tuple)
   }
@@ -291,4 +282,16 @@ class InterpretSuite {
     check(ApplySpecial("&&", List(f, f)))
   }
 
+  @Test def testAggregator() {
+    val aggT = TAggregable(TInt32(), Map("a" -> (0 -> TInt32())))
+    val agg = aggT -> IndexedSeq(
+      5 -> Env.empty[Any].bind("a" -> 10),
+      10 -> Env.empty[Any].bind("a" -> 20),
+      15 -> Env.empty[Any].bind("a" -> 30)
+    )
+
+    val result = Interpret(ApplyAggOp(AggFilter(AggIn(), "x", ApplyBinaryPrimOp(LT(), Ref("a"), I32(21))),
+      Sum(), List()), env, IndexedSeq(), Some(agg))
+    assert(result == 15)
+  }
 }
