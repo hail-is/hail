@@ -114,7 +114,7 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testSum() {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      print(vds.matrixType)
+      vds.typecheck()
       var vds2 = TestUtils.splitMultiHTS(vds)
       vds2.typecheck()
       vds2 = VariantQC(vds2, "qc")

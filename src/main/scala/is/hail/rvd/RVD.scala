@@ -191,6 +191,7 @@ trait RVD {
       val producerCtx = consumerCtx.freshContext
       f(consumerCtx, part.flatMap { producer =>
         producerCtx.reset()
+        // FIXME: Setup iterator
         producer(producerCtx)
       })
     })

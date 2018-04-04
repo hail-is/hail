@@ -77,16 +77,16 @@ class SplitMultiPartitionContextIR(
   val f = rowF()
 
   def constructSplitRow(splitVariants: Iterator[(Variant, Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
-    rvb.set(splitRegion)
-    rvb.start(matrixType.globalType)
-    rvb.addAnnotation(matrixType.globalType, globalAnnotation)
-    val globals = rvb.end()
-
-    rvb.start(matrixType.rvRowType)
-    rvb.addRegionValue(matrixType.rvRowType, rv)
-    val oldRow = rvb.end()
-    val oldEnd = splitRegion.size
     splitVariants.map { case (sjv, aIndex) =>
+      rvb.set(splitRegion)
+      rvb.start(matrixType.globalType)
+      rvb.addAnnotation(matrixType.globalType, globalAnnotation)
+      val globals = rvb.end()
+
+      rvb.start(matrixType.rvRowType)
+      rvb.addRegionValue(matrixType.rvRowType, rv)
+      val oldRow = rvb.end()
+
       rvb.start(locusType)
       rvb.addAnnotation(locusType, sjv.locus)
       val locusOff = rvb.end()

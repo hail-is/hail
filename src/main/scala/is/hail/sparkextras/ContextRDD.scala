@@ -141,7 +141,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     f: (Int, Iterator[T]) => Iterator[U]
   ): ContextRDD[C, U] = cmapPartitionsWithIndex((i, _, part) => f(i, part))
 
-  // FIXME: also not safe because it uses samea region for both
+  // FIXME: not safe because it uses same region for both
   // but clears region for each call to f's return value's next
   def zipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
