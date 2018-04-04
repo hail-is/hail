@@ -34,9 +34,10 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .linreg(Array("sa.pheno.Pheno"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -98,9 +99,10 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .selectEntries("{x: plDosage(g.PL)}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .linreg(Array("sa.pheno.Pheno"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2
@@ -155,9 +157,10 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
+      .selectEntries("{x: dosage(g.GP)}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .linreg(Array("sa.pheno.Pheno"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2
@@ -210,8 +213,9 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(phenotypes, root = "pheno")
-      .linreg(Array("sa.pheno.Pheno"), "g.GT.nNonRefAlleles().toFloat64", Array.empty[String])
+      .linreg(Array("sa.pheno.Pheno"), "x", Array.empty[String])
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2
@@ -256,9 +260,10 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(Table.importFam(hc, "src/test/resources/regressionLinear.fam"), root = "fam")
-      .linreg(Array("sa.fam.is_case.toFloat64"), "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .linreg(Array("sa.fam.is_case.toFloat64"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2
@@ -306,9 +311,10 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(Table.importFam(hc, "src/test/resources/regressionLinear.fam", isQuantPheno = true, missingValue = "0"), root = "fam")
-      .linreg(Array("sa.fam.quant_pheno"), "g.GT.nNonRefAlleles().toFloat64", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .linreg(Array("sa.fam.quant_pheno"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.standard_error")._2
@@ -363,14 +369,14 @@ class LinearRegressionSuite extends SparkSuite {
 
     for (i <- Seq(0, 1);
       d <- Seq(false, true)) {
+      val entryExpr = if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64"      
       val result = inputVDS
-        .linreg(Array("sa.pheno.Pheno"),
-          if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64",
-          Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        .selectEntries(s"{x: $entryExpr}")
+        .linreg(Array("sa.pheno.Pheno"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
         .annotateRowsVDS(
-          inputVDS.linreg(Array("sa.pheno.Pheno", "sa.pheno.Pheno"),
-            if (d) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64",
-            Array("sa.cov.Cov1", "sa.cov.Cov2"))
+          inputVDS
+            .selectEntries(s"{x: $entryExpr}").
+            linreg(Array("sa.pheno.Pheno", "sa.pheno.Pheno"), "x", Array("sa.cov.Cov1", "sa.cov.Cov2"))
             .annotateRowsExpr("linreg" ->
               s"""annotate(va.linreg, {
                  |y_transpose_x: [va.linreg.y_transpose_x[$i]],

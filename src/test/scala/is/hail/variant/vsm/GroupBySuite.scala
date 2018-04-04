@@ -96,7 +96,7 @@ class GroupBySuite extends SparkSuite {
       .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum()")
       .annotateColsExpr("pheno = sa.pheno.Pheno")
 
-    val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select(Array("row.genes", "row.linreg.beta",
       "row.linreg.standard_error", "row.linreg.t_stat", "row.linreg.p_value"))
       .rdd.map { r => (r.getAs[String](0), (1 to 4).map{ i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }

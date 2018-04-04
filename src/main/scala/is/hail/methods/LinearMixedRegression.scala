@@ -1,12 +1,10 @@
 package is.hail.methods
 
-import breeze.linalg._
+import breeze.linalg.{DenseVector => BDV, DenseMatrix => BDM, _}
 import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.stats._
-import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.commons.math3.analysis.UnivariateFunction
@@ -26,7 +24,7 @@ object LinearMixedRegression {
     assocVSM: MatrixTable,
     kinshipMatrix: KinshipMatrix,
     yExpr: String,
-    xExpr: String,
+    xField: String,
     covExpr: Array[String],
     useML: Boolean,
     rootGA: String,
@@ -37,11 +35,8 @@ object LinearMixedRegression {
     optNEigs: Option[Int],
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
-    val ec = assocVSM.matrixType.genotypeEC
-    val xf = RegressionUtils.parseFloat64Expr(xExpr, ec)
-
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yExpr, covExpr)
-    val completeSampleIds = completeSampleIndex.map(assocVSM.stringSampleIds)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yExpr, covExpr)
+    val completeColIds = completeColIdx.map(assocVSM.stringSampleIds)
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -49,13 +44,13 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covExpr
 
-    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSampleIds)
+    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeColIds)
       kinshipMatrix
     else {
-      val fkm = kinshipMatrix.filterSamples(completeSampleIds.toSet)
-      if (!(fkm.sampleIds sameElements completeSampleIds))
-        fatal("Array of sample IDs in 'ds' and array of sample IDs in 'kinship_matrix' (with both filtered to complete " +
-          "samples in 'ds') do not agree. This should not happen when 'kinship_matrix' is computed from a filtered version of 'ds'.")
+      val fkm = kinshipMatrix.filterSamples(completeColIds.toSet)
+      if (!(fkm.sampleIds sameElements completeColIds))
+        fatal("Array of sample IDs in dataset and array of sample IDs in 'kinship_matrix' (with both filtered to complete " +
+          "samples in dataset) do not agree.")
       fkm
     }
 
@@ -153,11 +148,7 @@ object LinearMixedRegression {
 
     if (runAssoc) {
       val sc = assocVSM.sparkContext
-
-      val globalsBc = assocVSM.globals.broadcast
-      val sampleAnnotationsBc = assocVSM.colValuesBc
-
-      val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
+      val completeColIdxBc = sc.broadcast(completeColIdx)
 
       info(s"linear_mixed_regression: Computing statistics for each variant...")
 
@@ -174,31 +165,29 @@ object LinearMixedRegression {
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
       val fullRowType = vds2.rvRowType
-      val localEntriesIndex = vds2.entriesIndex
+      val entryArrayType = vds2.matrixType.entryArrayType
+      val entryType = vds2.entryType
+      val fieldType = entryType.field(xField).typ
 
-      val nComplete = completeSampleIndex.length
-      vds2.insertIntoRow(() => new DenseVector[Double](nComplete))(LinearMixedRegression.schema, rootVA, { case (x, rv, rvb) =>
-        val n = completeSampleIndexBc.value.length
-        val fullRow = new UnsafeRow(fullRowType, rv)
-        val row = fullRow.deleteField(localEntriesIndex)
+      assert(fieldType.isOfType(TFloat64()))
+  
+      val entryArrayIdx = vds2.entriesIndex
+      val fieldIdx = entryType.fieldIdx(xField)
+      
+      vds2.insertIntoRow(() => (new BDV[Double](n), new ArrayBuilder[Int]()))(
+        LinearMixedRegression.schema, rootVA, { case ((x, missingCompleteCols), rv, rvb) =>
 
-        val missingSamples = new ArrayBuilder[Int]()
-
-        RegressionUtils.inputVector(x,
-          globalsBc.value,
-          sampleAnnotationsBc.value,
-          row,
-          fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex),
-          ec, xf,
-          completeSampleIndexBc.value, missingSamples)
-
-        scalerLMMBc.value.likelihoodRatioTest(x, rvb)
-      })
+          RegressionUtils.setMeanImputedDoubles(x.data, 0, completeColIdxBc.value, missingCompleteCols, 
+            rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+  
+          scalerLMMBc.value.likelihoodRatioTest(x, rvb)
+        }
+      )
     } else
       vds2
   }
 
-  def computeNEigsDVF(S: DenseVector[Double], droppedVarianceFraction: Double): Int = {
+  def computeNEigsDVF(S: BDV[Double], droppedVarianceFraction: Double): Int = {
     require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1)
 
     val trace = sum(S)
@@ -220,12 +209,12 @@ trait ScalerLMM {
 
 // Handles full-rank case
 class FullRankScalerLMM(
-  y: DenseVector[Double],
+  y: BDV[Double],
   yy: Double,
-  Qt: DenseMatrix[Double],
-  Qty: DenseVector[Double],
+  Qt: BDM[Double],
+  Qty: BDV[Double],
   yQty: Double,
-  T: DenseMatrix[Double],
+  T: BDM[Double],
   logNullS2: Double,
   useML: Boolean) extends ScalerLMM {
 
@@ -278,20 +267,20 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
 
   def likelihoodRatioTest(x: Vector[Double], rvb: RegionValueBuilder): Unit = {
 
-    val CtC = DenseMatrix.zeros[Double](d + 1, d + 1)
+    val CtC = BDM.zeros[Double](d + 1, d + 1)
     CtC(0, 0) = x dot x
     CtC(r1, r2) := covt * x
     CtC(r2, r1) := CtC(r1, r2).t
     CtC(r2, r2) := con.CtC
 
     val Utx = Ut * x
-    val UtC = DenseMatrix.horzcat(Utx.toDenseMatrix.t, Utcov)
+    val UtC = BDM.horzcat(Utx.toDenseMatrix.t, Utcov)
     val ZUtx = Utx *:* Z
 
-    val Cty = DenseVector.vertcat(DenseVector(x dot y), covty)
+    val Cty = BDV.vertcat(BDV(x dot y), covty)
     val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
 
-    val CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
+    val CzC = BDM.zeros[Double](d + 1, d + 1)
     CzC(0, 0) = Utx dot ZUtx
     CzC(r1, r2) := Utcov.t * ZUtx
     CzC(r2, r1) := CzC(r1, r2).t
@@ -340,7 +329,6 @@ object DiagLMM {
           val delta = FastMath.exp(logDelta)
           val invDelta = 1 / delta
           val D = S + delta
-          val dy = Uty /:/ D
           val Z = D.map(1 / _ - invDelta)
 
           val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
@@ -363,7 +351,6 @@ object DiagLMM {
           val delta = FastMath.exp(logDelta)
           val invDelta = 1 / delta
           val D = S + delta
-          val dy = Uty /:/ D
           val Z = D.map(1 / _ - invDelta)
 
           val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
@@ -458,7 +445,6 @@ object DiagLMM {
     def fitUsingDelta(delta: Double, optGlobalFit: Option[GlobalFitLMM]): DiagLMM = {
       val invDelta = 1 / delta
       val invD = (S + delta).map(1 / _)
-      val dy = Uty *:* invD
 
       val Z = invD - invDelta
 
@@ -478,10 +464,9 @@ object DiagLMM {
 
     val (delta, optGlobalFit) = optDelta match {
       case Some(delta0) => (delta0, None)
-      case None => {
+      case None =>
         val (delta0, gf) = fitDelta()
         (delta0, Some(gf))
-      }
     }
 
     fitUsingDelta(delta, optGlobalFit)
@@ -491,20 +476,20 @@ object DiagLMM {
 case class GlobalFitLMM(maxLogLkhd: Double, gridLogLkhd: IndexedSeq[(Double, Double)], sigmaH2: Double, h2NormLkhd: IndexedSeq[Double])
 
 case class DiagLMM(
-  globalB: DenseVector[Double],
+  globalB: BDV[Double],
   globalS2: Double,
   logNullS2: Double,
   delta: Double,
   optGlobalFit: Option[GlobalFitLMM],
-  sqrtInvD: DenseVector[Double],
-  TC: DenseMatrix[Double],
-  Ty: DenseVector[Double],
+  sqrtInvD: BDV[Double],
+  TC: BDM[Double],
+  Ty: BDV[Double],
   TyTy: Double,
   useML: Boolean)
 
 object LMMConstants {
-  def apply(y: DenseVector[Double], C: DenseMatrix[Double],
-    S: DenseVector[Double], Ut: DenseMatrix[Double]): LMMConstants = {
+  def apply(y: BDV[Double], C: BDM[Double],
+    S: BDV[Double], Ut: BDM[Double]): LMMConstants = {
     val UtC = Ut * C
     val Uty = Ut * y
 
@@ -519,6 +504,6 @@ object LMMConstants {
   }
 }
 
-case class LMMConstants(y: DenseVector[Double], C: DenseMatrix[Double], S: DenseVector[Double], Ut: DenseMatrix[Double],
-  Uty: DenseVector[Double], UtC: DenseMatrix[Double], Cty: DenseVector[Double],
-  CtC: DenseMatrix[Double], yty: Double, n: Int, d: Int)
+case class LMMConstants(y: BDV[Double], C: BDM[Double], S: BDV[Double], Ut: BDM[Double],
+  Uty: BDV[Double], UtC: BDM[Double], Cty: BDV[Double],
+  CtC: BDM[Double], yty: Double, n: Int, d: Int)
