@@ -159,8 +159,11 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   def coalesce(numPartitions: Int, shuffle: Boolean = false): ContextRDD[C, T] =
     // NB: the run marks the end of a context lifetime, the next one starts
-    // after the coalesce/shuffle
-    ContextRDD.weaken(run.coalesce(numPartitions, shuffle), mkc)
+    // after the shuffle
+    if (shuffle)
+      ContextRDD.weaken(run.coalesce(numPartitions, shuffle), mkc)
+    else
+      onRDD(_.coalesce(numPartitions, shuffle))
 
   def sparkContext: SparkContext = rdd.sparkContext
 
