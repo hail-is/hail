@@ -46,12 +46,12 @@ object RVDSpec {
       val in = hConf.unsafeReader(f)
       using(RVDContext.default) { ctx =>
         HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
-<         .map { rv =>
+         .map { rv =>
             val a = Annotation.safeFromBaseStructRegionValue(rowType, rv.region, rv.offset)
             ctx.reset()
             a
           }
->      }
+      }
     }.toFastIndexedSeq
   }
 }
