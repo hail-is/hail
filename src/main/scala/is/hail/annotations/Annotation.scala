@@ -254,9 +254,12 @@ object Annotation {
     offset: Long
   ): Row =
     Row(t.fields.map(f =>
-      safeFromRegionValue(
-        f.typ,
-        region,
-        t.loadField(region, offset, f.index))
+      if (t.isFieldDefined(region, offset, f.index))
+        safeFromRegionValue(
+          f.typ,
+          region,
+          t.loadField(region, offset, f.index))
+      else
+        null
     ).toArray: _*)
 }
