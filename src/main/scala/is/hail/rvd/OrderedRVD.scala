@@ -624,8 +624,8 @@ object OrderedRVD {
         rangeBounds)
 
       val adjustedRDD = crdd
-//        .reorderPartitions(pkis.map(_.partitionIndex))
-//        .adjustPartitions(adjustedPartitions)
+        .reorderPartitions(pkis.map(_.partitionIndex))
+        .adjustPartitions(adjustedPartitions)
       (adjSortedness: @unchecked) match {
         case OrderedRVPartitionInfo.KSORTED =>
           info("Coerced sorted dataset")
