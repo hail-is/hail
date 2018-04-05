@@ -7,7 +7,6 @@ dependencies:
 - matplotlib
 - seaborn
 - bokeh
-- ipywidgets
 - pip
 - pip:
     - parsimonious
