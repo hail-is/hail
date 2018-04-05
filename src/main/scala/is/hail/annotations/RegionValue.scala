@@ -15,7 +15,6 @@ final class RegionValue(var region: Region,
 
   def set(newRegion: Region, newOffset: Long) {
     region = newRegion
-    assert(region.size != 0, s"$region")
     offset = newOffset
   }
 
@@ -24,7 +23,6 @@ final class RegionValue(var region: Region,
   }
 
   def setOffset(newOffset: Long) {
-    assert(region.size != 0, s"$region")
     offset = newOffset
   }
 
