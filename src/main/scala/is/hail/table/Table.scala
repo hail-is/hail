@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr._
-import is.hail.expr.ir.{MakeTuple, CompileWithAggregators}
+import is.hail.expr.ir.{CompileWithAggregators, MakeTuple}
 import is.hail.expr.types._
 import is.hail.io.annotators.IntervalList
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -89,9 +89,15 @@ object Table {
 
   def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
     key: IndexedSeq[String], nPartitions: Option[Int] = None): Table = {
-    val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
     val parsedRows = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(rowsJSON), TArray(signature))
-    new Table(hc, TableParallelize(typ, parsedRows.asInstanceOf[IndexedSeq[Row]], nPartitions))
+      .asInstanceOf[IndexedSeq[Row]]
+    parallelize(hc, parsedRows, signature, key, nPartitions)
+  }
+
+  def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
+    key: IndexedSeq[String], nPartitions: Option[Int]): Table = {
+    val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
+    new Table(hc, TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions))
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
