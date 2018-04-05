@@ -21,7 +21,8 @@ class HailContext(object):
                       min_block_size=int,
                       branching_factor=int,
                       tmp_dir=nullable(str),
-                      default_reference=str)
+                      default_reference=str,
+                      force_ir=bool)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
@@ -117,7 +118,8 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'))
+           default_reference=enumeration('GRCh37', 'GRCh38'),
+           force_ir=bool)
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
