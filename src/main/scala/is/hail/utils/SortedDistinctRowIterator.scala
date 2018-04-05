@@ -9,7 +9,7 @@ object SortedDistinctRowIterator {
 }
 
 class SortedDistinctRowIterator(ort: OrderedRVDType, it: Iterator[RegionValue]) extends Iterator[RegionValue] {
-  private val bit = it.buffered
+  private val bit = new StableBufferedIterator(ort.rowType, it)
   private val wrv: WritableRegionValue = WritableRegionValue(ort.rowType)
 
   override def hasNext: Boolean = bit.hasNext

@@ -167,8 +167,8 @@ class OrderedRVD(
         val it = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
         val it2 = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
         new Iterator[RegionValue] {
-          private val bit = it.buffered
-          private val bit2 = it2.buffered
+          private val bit = new StableBufferedIterator(localTyp.rowType, it)
+          private val bit2 = new StableBufferedIterator(localTyp.rowType, it2)
 
           def hasNext: Boolean = bit.hasNext || bit2.hasNext
 

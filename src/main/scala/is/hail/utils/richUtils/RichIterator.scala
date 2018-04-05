@@ -12,6 +12,7 @@ import org.apache.spark.sql.Row
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def toStagingIterator: StagingIterator[T] = {
+    // FIXME: need a way to talk about stable vs non-stable values
     val bit = it.buffered
     StagingIterator(
       new StateMachine[T] {
