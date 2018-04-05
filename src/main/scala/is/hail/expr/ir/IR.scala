@@ -12,6 +12,13 @@ sealed trait IR extends BaseIR {
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
     Copy(this, newChildren)
+
+  def size: Int = 1 + children.map {
+      case x: IR => x.size
+      case _ => 1
+    }.sum
+
+  def estimatedBytecode: Int = size * 20
 }
 
 object Literal {
