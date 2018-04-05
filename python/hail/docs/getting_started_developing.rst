@@ -114,7 +114,7 @@ Several Hail tests have additional dependencies:
 
  - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
 
- - `R 3.3.4 <http://www.r-project.org/>`_ or higher with CRAN packages ``jsonlite``, ``SKAT`` and ``logistf``, as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__ from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package. This can be installed within R using:
+ - `R 3.3.4 <http://www.r-project.org/>`_ with CRAN packages ``jsonlite``, ``SKAT`` and ``logistf``, as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__ from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package. The latter can be installed within R using:
  
    .. code-block:: R
 
@@ -122,8 +122,6 @@ Several Hail tests have additional dependencies:
       biocLite("GENESIS")
       biocLite("SNPRelate")
       biocLite("GWASTools")
-      
-   Newer verisons of R do not provide the ``ncdf`` dependency. If the above commands fail and mention ``ncdf`` or ``netcdf``, then you must install the netCDF package using your system's package manager. The name of the package is often ``ncdf`` or ``netcdf``.
 
 Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 
