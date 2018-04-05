@@ -114,7 +114,7 @@ Several Hail tests have additional dependencies:
 
  - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
 
- - `R 3.3.1 <http://www.r-project.org/>`_ with the normal R packages ``jsonlite``, ``SKAT`` and ``logistf``, as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__ from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package. This can be installed within R using:
+ - `R 3.3.4 <http://www.r-project.org/>`_ with the normal R packages ``jsonlite``, ``SKAT`` and ``logistf``, as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__ from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package. This can be installed within R using:
  
    .. code-block:: R
 
