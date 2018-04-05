@@ -42,18 +42,16 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "right" => _.rightJoin(_)
         case "outer" => _.outerJoin(_)
       }
-    val joinedRDD =
-      repartitionedLeft.crdd.czipPartitionsAndContext(repartitionedRight.crdd, true) { (ctx, leftProducer, rightProducer) =>
-        val leftCtx = ctx.freshContext
-        val rightCtx = ctx.freshContext
-        val leftIt = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
-        val rightIt = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
-        joiner(compute(
-          OrderedRVIterator(lTyp, leftIt),
-          OrderedRVIterator(rTyp, rightIt)))
-    }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    repartitionedLeft.zipPartitions(
+      joinedType,
+      newPartitioner,
+      repartitionedRight,
+      (l, r) =>
+        joiner(
+          compute(
+            OrderedRVIterator(lTyp, l),
+            OrderedRVIterator(rTyp, r))))
   }
 
   def orderedJoinDistinct(
@@ -74,19 +72,16 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "inner" => _.innerJoinDistinct(_)
         case "left" => _.leftJoinDistinct(_)
       }
-    val joinedRDD =
-      this.rvd.crdd.czipPartitionsAndContext(repartitionedRight.crdd, true) {
-        (ctx, leftProducer, rightProducer) =>
-          val leftCtx = ctx.freshContext
-          val rightCtx = ctx.freshContext
-          val leftIt = new SetupIterator(leftProducer.flatMap(_(leftCtx)), () => leftCtx.reset())
-          val rightIt = new SetupIterator(rightProducer.flatMap(_(rightCtx)), () => rightCtx.reset())
-          joiner(compute(
-            OrderedRVIterator(rekeyedLTyp, leftIt),
-            OrderedRVIterator(rekeyedRTyp, rightIt)))
-    }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    this.rvd.zipPartitions(
+      joinedType,
+      newPartitioner,
+      repartitionedRight,
+      (l, r) =>
+        joiner(
+          compute(
+            OrderedRVIterator(rekeyedLTyp, l),
+            OrderedRVIterator(rekeyedRTyp, r))))
   }
 
   def orderedZipJoin(right: KeyedOrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] = {

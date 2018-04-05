@@ -325,7 +325,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
 
   // FIXME: not safe because same context goes to both but will
   // clear on every call to f's return value
-  def czipPartitions[U: ClassTag, V: ClassTag](
+  def czipPartitionsUnsafe[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
   )(f: (C, Iterator[T], Iterator[U]) => Iterator[V]
@@ -334,7 +334,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
     mkc)
 
-//  def safeCZipPartitions[U: ClassTag, V: ClassTag](
+  //  def safeCZipPartitions[U: ClassTag, V: ClassTag](
 //    that: ContextRDD[C, U],
 //    preservesPartitioning: Boolean = false
 //  )(f: (C, Iterator[T], Iterator[U]) => Iterator[V]

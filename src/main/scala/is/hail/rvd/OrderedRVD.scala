@@ -152,7 +152,7 @@ class OrderedRVD(
   ): OrderedRVD =
     keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
 
-  def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
+  def orderedZipJoin(right: OrderedRVD): OrderedRVD =
     keyBy().orderedZipJoin(right.keyBy())
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
@@ -406,7 +406,7 @@ class OrderedRVD(
   // right and will be reset based on when zipper's return value calls next
   // but zipper might depend on one of the two children's next values not
   // being erased
-  def zipPartitionsPreservesPartitioning[T: ClassTag](
+  def zipPartitionsPreservesPartitioningUnsafe[T: ClassTag](
     newTyp: OrderedRVDType,
     that: ContextRDD[RVDContext, T]
   )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
@@ -415,6 +415,25 @@ class OrderedRVD(
       newTyp,
       partitioner,
       this.crdd.zipPartitions(that, preservesPartitioning = true)(zipper))
+
+  def zipPartitions(
+    newTyp: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner,
+    that: OrderedRVD,
+    zipper: (Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    newPartitioner,
+    crdd.czipPartitionsAndContext(
+      that.crdd,
+      true
+    ) { (ctx, leftProducer, rightProducer) =>
+      val leftCtx = ctx.freshContext
+      val rightCtx = ctx.freshContext
+      val leftIt = new SetupIterator(leftProducer.flatMap(_ (leftCtx)), () => leftCtx.reset())
+      val rightIt = new SetupIterator(rightProducer.flatMap(_ (rightCtx)), () => rightCtx.reset())
+      zipper(leftIt, rightIt)
+    })
 
   def zip(
     newTyp: OrderedRVDType,
