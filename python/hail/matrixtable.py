@@ -454,8 +454,10 @@ class MatrixTable(ExprContainer):
 
         self._globals = construct_expr(TopLevelReference('global', self._global_indices), self._global_type,
                                        indices=self._global_indices)
-        self._row = construct_expr(TopLevelReference('va', self._row_indices), self._row_type,
+        self._rvrow = construct_expr(TopLevelReference('va', self._row_indices), HailType._from_java(jvds.rvRowType()),
                                    indices=self._row_indices)
+        self._row = hail.struct(
+            **{k: self._rvrow[k] for k in self._row_type.keys()})
         self._col = construct_expr(TopLevelReference('sa', self._col_indices), self._col_type,
                                    indices=self._col_indices)
         self._entry = construct_expr(TopLevelReference('g', self._entry_indices), self._entry_type,
