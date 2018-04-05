@@ -144,16 +144,16 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def advance(): Code[Unit] = {
     typ match {
       case t: TArray => Code(
-        elementsOffset := elementsOffset.load() + t.elementByteSize,
-        idx.store(idx.load() + 1)
+        elementsOffset := elementsOffset + t.elementByteSize,
+        idx := idx + 1
       )
       case t: TBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
-          elementsOffset := startOffset.load() + t.byteOffsets(staticIdx)
+          elementsOffset := startOffset + t.byteOffsets(staticIdx)
         else _empty
     }
   }
 
-  def end(): Code[Long] = startOffset.load()
+  def end(): Code[Long] = startOffset
 }
