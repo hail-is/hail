@@ -143,7 +143,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     preservesPartitioning: Boolean = false
   )(f: (Iterator[T], Iterator[U]) => Iterator[V]
   ): ContextRDD[C, V] =
-    czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
+    czipPartitionsUnsafe[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
 
   // FIXME: this should disappear when region values become non-serializable
   def aggregate[U: ClassTag](
@@ -309,7 +309,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
   )(f: (C, T, U) => V
-  ): ContextRDD[C, V] = czipPartitions(that, preservesPartitioning) { (ctx, l, r) =>
+  ): ContextRDD[C, V] = czipPartitionsUnsafe(that, preservesPartitioning) { (ctx, l, r) =>
     new Iterator[V] {
       def hasNext = {
         val lhn = l.hasNext
@@ -333,20 +333,6 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
     rdd.zipPartitions(that.rdd, preservesPartitioning)(
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
     mkc)
-
-  //  def safeCZipPartitions[U: ClassTag, V: ClassTag](
-//    that: ContextRDD[C, U],
-//    preservesPartitioning: Boolean = false
-//  )(f: (C, Iterator[T], Iterator[U]) => Iterator[V]
-//  ): ContextRDD[C, V] = new ContextRDD(
-//    czipPartitionsAndContext(that, preservesPartitioning) { (ctx, leftProducer, rightProducer) =>
-//      val leftCtx = mkc()
-//      val rightCtx = mkc()
-//      val l = new SetupIterator(leftProducer.flatMap(_ (leftCtx)), () => leftCtx.reset())
-//      val r = new SetupIterator(rightProducer.flatMap(_ (rightCtx)), () => rightCtx.reset())
-//      f(ctx, l, r)
-//    },
-//    mkc)
 
   def czipPartitionsAndContext[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],

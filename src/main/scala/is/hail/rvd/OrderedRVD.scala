@@ -152,7 +152,7 @@ class OrderedRVD(
   ): OrderedRVD =
     keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
 
-  def orderedZipJoin(right: OrderedRVD): OrderedRVD =
+  def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
     keyBy().orderedZipJoin(right.keyBy())
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
