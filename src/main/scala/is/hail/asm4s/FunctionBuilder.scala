@@ -90,10 +90,9 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
-  def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField[T]()
 
-  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
-    new ClassFieldRef[T](fb, if (name == null) s"field${fb.cn.fields.size()}" else name)
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
@@ -161,32 +160,6 @@ class Method5Builder[A, B, C, D, E, R](fb: FunctionBuilder[_], mname: String)
   (implicit  ati: TypeInfo[A], bti: TypeInfo[B], cti: TypeInfo[C], dti: TypeInfo[D], eti: TypeInfo[E], rti: TypeInfo[R])
   extends MethodBuilder(fb, mname, Array[TypeInfo[_]](ati, bti, cti, dti, eti), rti) {
   def apply(a:Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E]): Code[R] = invoke(a, b, c, d, e).asInstanceOf[Code[R]]
-}
-
-class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String) extends Settable[T] {
-  val desc: String = typeInfo[T].name
-  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
-
-  fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
-
-  def load(): Code[T] =
-    new Code[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        fb.getArg[java.lang.Object](0).emit(il)
-        il += new FieldInsnNode(GETFIELD, fb.name, name, desc)
-      }
-    }
-
-  def store(rhs: Code[T]): Code[Unit] =
-    new Code[Unit] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        fb.getArg[java.lang.Object](0).emit(il)
-        rhs.emit(il)
-        il += new FieldInsnNode(PUTFIELD, fb.name, name, desc)
-      }
-    }
-
-  def storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
 }
 
 class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
