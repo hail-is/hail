@@ -321,8 +321,6 @@ def linear_regression(y, x, covariates=[], root='linreg', block_size=16) -> Matr
 
     y_is_list = isinstance(y, list)
 
-    print(y, y_is_list)
-
     all_exprs = []
     y = wrap_to_list(y)
     for e in y:
