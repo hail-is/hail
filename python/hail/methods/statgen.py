@@ -229,19 +229,20 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     return kt
 
 
-@typecheck(ys=oneof(expr_float64, sequenceof(expr_float64)),
+@typecheck(y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
+def linear_regression(y, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
     """For each row, test an input variable for association with
     response variables using linear regression.
 
     Examples
     --------
 
-    >>> dataset_result = hl.linear_regression(ys=dataset.pheno.height, x=dataset.GT.n_alt_alleles(),
+    >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
+    ...                                       x=dataset.GT.n_alt_alleles(),
     ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
@@ -253,22 +254,24 @@ def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> Mat
 
     Notes
     -----
-    With the default root, the following row-indexed fields are added. The
-    indexing of the array fields corresponds to that of `ys`.
+    With the default root and `y` a single expression, the following row-indexed
+    fields are added.
 
-    - **linreg.n_complete_samples** (:py:data:`.tint32`) -- Number of columns used.
+    - **linreg.n** (:py:data:`.tint32`) -- Number of columns used.
     - **linreg.sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
-    - **linreg.y_transpose_x** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
-      dot products of each response vector `y` with the input vector `x`.
-    - **linreg.beta** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
-      fit effect coefficients of `x`, :math:`\hat\\beta_1` below.
-    - **linreg.standard_error** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array of
-      estimated standard errors, :math:`\widehat{\mathrm{se}}_1`.
-    - **linreg.t_stat** (:class:`.tarray` of :py:data:`.tfloat64`) -- Array
-      of :math:`t`-statistics, equal to
+    - **linreg.y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
+      vector `y` with the input vector `x`.
+    - **linreg.beta** (:py:data:`.tfloat64`) --
+      Fit effect coefficient of `x`, :math:`\hat\\beta_1` below.
+    - **linreg.standard_error** (:py:data:`.tfloat64`) --
+      Estimated standard error, :math:`\widehat{\mathrm{se}}_1`.
+    - **linreg.t_stat** (:py:data:`.tfloat64`) -- :math:`t`-statistic, equal to
       :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
-    - **linreg.p_value** (:class:`.tarray` of :py:data:`.tfloat64`) -- array
-      of :math:`p`-values.
+    - **linreg.p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
+
+    If `y` is a list of expressions, then the last five fields instead have type
+    :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
+    the list and each array.
 
     In the statistical genetics example above, the input variable `x` encodes
     genotype as the number of alternate alleles (0, 1, or 2). For each variant
@@ -296,7 +299,7 @@ def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> Mat
 
     Parameters
     ----------
-    ys : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
         One or more column-indexed response expressions.
     x : :class:`.Float64Expression`
         Entry-indexed expression for input variable.
@@ -316,11 +319,13 @@ def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> Mat
     mt = matrix_table_source('linear_regression/x', x)
     check_entry_indexed('linear_regression/x', x)
 
+    y_is_list = isinstance(y, list)
+
     all_exprs = []
-    ys = wrap_to_list(ys)
-    for e in ys:
+    y = wrap_to_list(y)
+    for e in y:
         all_exprs.append(e)
-        analyze('linear_regression/ys', e, mt._col_indices)
+        analyze('linear_regression/y', e, mt._col_indices)
     for e in covariates:
         all_exprs.append(e)
         analyze('linear_regression/covariates', e, mt._col_indices)
@@ -337,14 +342,22 @@ def linear_regression(ys, x, covariates=[], root='linreg', block_size=16) -> Mat
     base, cleanup = mt._process_joins(*all_exprs)
 
     jm = base._jvds.linreg(
-        jarray(Env.jvm().java.lang.String, [y._ast.to_hql() for y in ys]),
+        jarray(Env.jvm().java.lang.String, [yi._ast.to_hql() for yi in y]),
         x_field,
         jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
         root,
         block_size
     )
 
-    return cleanup(MatrixTable(jm)).drop(*fields_to_drop)
+    mt_result = cleanup(MatrixTable(jm)).drop(*fields_to_drop)
+
+    if not y_is_list:
+        fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+        linreg = mt_result[root]
+        mt_result = mt_result.annotate_rows(
+            **{root: linreg.annotate(**{f: linreg[f][0] for f in fields})})
+
+    return mt_result
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),

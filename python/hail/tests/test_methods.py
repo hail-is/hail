@@ -120,8 +120,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
     def test_linreg(self):
-        dataset = hl.import_vcf(resource('regressionLinear.vcf'))
-
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
                                  key='Sample')
@@ -129,11 +127,31 @@ class Tests(unittest.TestCase):
                                types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
                                key='Sample')
 
-        dataset = dataset.annotate_cols(pheno=phenos[dataset.s].Pheno, cov=covs[dataset.s])
-        dataset = hl.linear_regression(ys=dataset.pheno, x=dataset.GT.n_alt_alleles(),
-                                       covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
+        mt = mt.annotate_entries(x = mt.GT.n_alt_alleles()).cache()
 
-        dataset.count_rows()
+        t1 = hl.linear_regression(
+            y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[mt.cov.Cov1, mt.cov.Cov2 + 1 - 1]).rows()
+        t1 = t1.select(**t1.key, p=t1.linreg.p_value)
+
+        t2 = hl.linear_regression(
+            y=mt.pheno, x=mt.x, covariates=[mt.cov.Cov1, mt.cov.Cov2]).rows()
+        t2 = t2.select(**t2.key, p=t2.linreg.p_value)
+
+        t3 = hl.linear_regression(
+            y=[mt.pheno], x=mt.x, covariates=[mt.cov.Cov1, mt.cov.Cov2]).rows()
+        t3 = t3.select(**t3.key, p=t3.linreg.p_value[0])
+
+        t4 = hl.linear_regression(
+            y=[mt.pheno, mt.pheno], x=mt.x, covariates=[mt.cov.Cov1, mt.cov.Cov2]).rows()
+        t4a = t4.select(**t4.key, p=t4.linreg.p_value[0])
+        t4b = t4.select(**t4.key, p=t4.linreg.p_value[1])
+
+        self.assertTrue(t1._same(t2))
+        self.assertTrue(t1._same(t3))
+        self.assertTrue(t1._same(t4a))
+        self.assertTrue(t1._same(t4b))
 
     def test_trio_matrix(self):
         """
