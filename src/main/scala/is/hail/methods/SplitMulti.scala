@@ -315,10 +315,9 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
         localMatrixType, localSplitRow, newRowType, region)
     }
 
-    vsm.rvd.mapPartitionsAndContext(newRowType, { (ctx, it) =>
+    vsm.rvd.mapPartitionsWithBoundary(newRowType, { (ctx, it) =>
       val splitMultiContext = makeContext(ctx.region)
-      val producerRVDContext = ctx.freshContext
-      new SetupIterator(it.flatMap(_(producerRVDContext)), () => producerRVDContext.reset()).flatMap { rv =>
+      it.flatMap { rv =>
         val splitit = splitMultiContext.splitRow(rv, sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)
         splitMultiContext.prevLocus = splitMultiContext.fullRow.getAs[Locus](locusIndex)
         splitit

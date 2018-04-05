@@ -340,7 +340,7 @@ object VEP {
       ContextRDD.weaken[RVDContext](annotations)
         .cmapPartitions { (ctx, it) =>
           val region = ctx.region
-          val rvb = new RegionValueBuilder(region)
+          val rvb = ctx.rvb
           val rv = RegionValue(region)
 
           it.map { case (v, vep) =>

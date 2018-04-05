@@ -194,16 +194,6 @@ trait RVD {
     }
   )
 
-  // FIXME: try to replace with mapPartitionsWithBoundary
-  def mapPartitionsAndContext(
-    newRowType: TStruct,
-    f: (RVDContext, Iterator[RVDContext => Iterator[RegionValue]]) => Iterator[RegionValue]
-  ): RVD = new UnpartitionedRVD(
-    newRowType,
-    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
-      f(consumerCtx, part)
-    })
-
   def find(p: (RegionValue) => Boolean): Option[RegionValue] =
     stabilize(crdd.filter(p)).run.take(1).headOption
 
