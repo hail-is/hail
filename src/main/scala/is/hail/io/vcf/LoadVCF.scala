@@ -756,6 +756,7 @@ object LoadVCF {
             throw new java.util.NoSuchElementException()
           present = false
           assert(rv.region.size != 0)
+          println(s"producing a value in $region, $rv")
           rv
         }
       }

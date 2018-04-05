@@ -21,6 +21,7 @@ final class Region(
   private var mem: Array[Byte],
   private var end: Long = 0
 ) extends KryoSerializable with Serializable with AutoCloseable {
+  println(s"allocating $this, ${Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")}")
   def size: Long = end
 
   def capacity: Long = mem.length
@@ -262,6 +263,11 @@ final class Region(
   }
 
   def clear() {
+//    println(s"aww hell no $this ${Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")}")
+    fizzbuzz()
+  }
+
+  def fizzbuzz() {
     end = 0
   }
 

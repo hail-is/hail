@@ -446,9 +446,11 @@ object OrderedRVD {
     */
   def localKeySort(typ: OrderedRVDType,
     // it: Iterator[RegionValue[rowType]]
-    it: Iterator[RegionValue]): Iterator[RegionValue] = {
+    it: Iterator[RegionValue],
+    provenance2: String): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
-      private val bit = it.buffered
+      private val provenance = Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")
+      private val bit = new StableBufferedIterator(typ.rowType, it)
 
       private val q = new mutable.PriorityQueue[RegionValue]()(typ.kInRowOrd.reverse)
 
@@ -458,7 +460,8 @@ object OrderedRVD {
         if (q.isEmpty) {
           do {
             val rv = bit.next()
-            println(s"got a value from ${rv.region}")
+//            println(s"got a value from ${rv.region} $rv $provenance")
+//            println(s"  $provenance2")
             // FIXME ugh, no good answer here
             assert(rv.region.size != 0, s"${rv.offset} ${rv.region.size} ${rv.region}")
             val rv2 = RegionValue(
@@ -632,10 +635,11 @@ object OrderedRVD {
 
         case OrderedRVPartitionInfo.TSORTED =>
           info("Coerced almost-sorted dataset")
+          val provenance = Thread.currentThread().getStackTrace.mkString(" ")
           OrderedRVD(typ,
             partitioner,
             adjustedRDD.mapPartitions { it =>
-              localKeySort(typ, it)
+              localKeySort(typ, it, provenance)
             })
       }
     } else {

@@ -34,8 +34,8 @@ class RVDContext(r: Region) extends ResettableContext {
   def rvb = theRvb
 
   def reset(): Unit = {
-    println(s"resetting $this ${Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")}")
-    r.clear()
+//    println(s"resetting $this $r ${Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")}")
+    r.fizzbuzz()
   }
 
   // frees the memory associated with this context
