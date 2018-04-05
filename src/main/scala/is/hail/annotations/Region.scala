@@ -262,11 +262,6 @@ final class Region(
   }
 
   def clear() {
-//    println(s"aww hell no $this ${Thread.currentThread().getStackTrace.map(_.toString).mkString(" ")}")
-    fizzbuzz()
-  }
-
-  def fizzbuzz() {
     end = 0
   }
 
