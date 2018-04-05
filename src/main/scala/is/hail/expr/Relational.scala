@@ -297,7 +297,6 @@ case class MatrixRead(
           rowsRVD.zip(typ.orvdType, entriesRVD) { (ctx, rv1, rv2) =>
             val rvb = ctx.rvb
             val region = ctx.region
-            rvb.set(region)
             rvb.start(fullRowType)
             rvb.startStruct()
             var i = 0
