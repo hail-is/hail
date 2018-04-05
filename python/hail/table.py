@@ -2276,8 +2276,4 @@ class Table(ExprContainer):
         """
         return Table(self._jt.distinctByKey())
 
-    def interact(self):
-        from .vis.interact import interact
-        interact(self)
-
 table_type.set(Table)
