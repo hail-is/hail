@@ -2231,14 +2231,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val tableType = TableType(resultStruct, rowKey ++ colKey, globalType)
     val localColValuesBc = colValuesBc
-    new Table(hc, TableLiteral(TableValue(tableType, globals, rvd.mapPartitions(resultStruct) { it =>
-
+    new Table(hc, TableLiteral(TableValue(tableType, globals, rvd.mapPartitionsWithBoundary(resultStruct, { (ctx, it) =>
       val colValues = localColValuesBc.value
 
-      val rv2b = new RegionValueBuilder()
-      val rv2 = RegionValue()
+      val rv2b = new RegionValueBuilder(ctx.region)
+      val rv2 = RegionValue(ctx.region)
       it.flatMap { rv =>
-        rv2b.set(rv.region)
         val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
         (0 until localNSamples).iterator
           .filter { i =>
@@ -2263,11 +2261,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
             rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
             rv2b.endStruct()
-            rv2.set(rv.region, rv2b.end())
+            rv2.setOffset(rv2b.end())
             rv2
           }
       }
-    })))
+    }))))
   }
 
   def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))

@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations._
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.{OrderedRVDType, StableBufferedIterator}
 
 object SortedDistinctRowIterator {
   def transformer(ort: OrderedRVDType): Iterator[RegionValue] => SortedDistinctRowIterator =
