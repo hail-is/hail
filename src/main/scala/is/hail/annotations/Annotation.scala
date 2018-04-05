@@ -196,11 +196,11 @@ object Annotation {
     case t: TArray =>
       safeFromArrayRegionValue(t, region, offset)
     case t: TSet =>
-      safeFromArrayRegionValue(t.fundamentalType, region, offset).toSet
+      safeFromArrayRegionValue(t, region, offset).toSet
     case _: TString => UnsafeRow.readString(region, offset)
     case _: TBinary => UnsafeRow.readBinary(region, offset)
     case td: TDict =>
-      val a = safeFromArrayRegionValue(td.fundamentalType, region, offset)
+      val a = safeFromArrayRegionValue(td, region, offset)
       a.map(r => r.asInstanceOf[Row]).map(r => (r.get(0), r.get(1))).toMap
     case t: TBaseStruct =>
       safeFromBaseStructRegionValue(t, region, offset)
@@ -230,10 +230,10 @@ object Annotation {
   }
 
   def safeFromArrayRegionValue(
-    t: TArray,
+    t: TContainer,
     region: Region,
     offset: Long
-  ): Array[Annotation] = {
+  ): IndexedSeq[Annotation] = {
     val length = t.loadLength(region, offset)
     val a = new Array[Annotation](length)
     var i = 0
@@ -245,7 +245,7 @@ object Annotation {
           t.loadElement(region, offset, length, i))
       i += 1
     }
-    a
+    a.toFastIndexedSeq
   }
 
   def safeFromBaseStructRegionValue(
