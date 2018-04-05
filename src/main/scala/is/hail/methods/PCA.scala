@@ -88,7 +88,7 @@ object PCA {
       }.collect()
     }
 
-    val optionLoadings = someIf(computeLoadings, {
+    val optionLoadings = if (computeLoadings) {
       val rowType = TStruct(vsm.rowKey.zip(vsm.rowKeyTypes): _*) ++ (if (asArray) TStruct("loadings" -> TArray(TFloat64())) else pcSchema(k))
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
       val rowKeysBc = vsm.sparkContext.broadcast(collectRowKeys())
@@ -123,8 +123,10 @@ object PCA {
           rv
         }
       }
-      new Table(vsm.hc, rdd, rowType, vsm.rowKey)
-    })
+      Some(new Table(vsm.hc, rdd, rowType, vsm.rowKey))
+    } else {
+      None
+    }
 
     val data =
       if (!svd.V.isTransposed)
