@@ -36,7 +36,7 @@ final class Region(
 
   def loadInt(off: Long): Int = {
     assert(size <= capacity)
-    assert(off >= 0 && off + 4 <= size, s"$off, $size")
+    assert(off >= 0 && off + 4 <= size)
     Memory.loadInt(mem, off)
   }
 
@@ -66,8 +66,7 @@ final class Region(
 
   def loadByte(off: Long): Byte = {
     assert(size <= capacity)
-    if (!(off >= 0 && off + 1 <= size))
-      throw new RuntimeException(s"$off, $size")
+    assert(off >= 0 && off + 1 <= size)
     Memory.loadByte(mem, off)
   }
 
