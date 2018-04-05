@@ -138,9 +138,7 @@ object VariantQC {
 
     vsm.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
       root, { (view, rv, rvb) =>
-        try {
-          view.setRegion(rv.region, rv.offset)
-        } catch { case e: Throwable => throw new RuntimeException(s"rv.offset was ${rv.offset}", e) }
+        view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
         var i = 0
         while (i < localNSamples) {
