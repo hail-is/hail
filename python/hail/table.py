@@ -388,7 +388,7 @@ class Table(ExprContainer):
                       schema=tstruct,
                       key=oneof(str, sequenceof(str)),
                       n_partitions=nullable(int))
-    def parallelize(cls, rows, schema, key=[], n_partitions=None):
+    def parallelize(cls, rows, schema, key=(), n_partitions=None):
         rows = to_expr(rows, hl.tarray(schema))
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
@@ -396,7 +396,7 @@ class Table(ExprContainer):
         rows = rows.value
         return Table(
             Env.hail().table.Table.parallelize(
-                Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
+                Env.hc()._jhc, hl.tarray(schema)._to_json(rows),
                 schema._jtype, wrap_to_list(key), joption(n_partitions)))
 
     @typecheck_method(keys=oneof(str, Expression))
@@ -1092,8 +1092,10 @@ class Table(ExprContainer):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        to_print = self._jt.showString(n, joption(truncate), types, width)
-        print(to_print)
+        print(self._show(n,width, truncate, types))
+
+    def _show(self, n=10, width=90, truncate=None, types=True):
+        return self._jt.showString(n, joption(truncate), types, width)
 
     def index(self, *exprs):
         exprs = tuple(exprs)

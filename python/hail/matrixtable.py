@@ -2857,5 +2857,4 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
 
-
 matrix_table_type.set(MatrixTable)
