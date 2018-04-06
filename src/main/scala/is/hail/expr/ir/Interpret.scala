@@ -4,14 +4,9 @@ import is.hail.HailContext
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.expr.types._
-import is.hail.io.CodecSpec
 import is.hail.methods._
-import is.hail.rvd.{RVD, RVDSpec}
-import is.hail.table.TableSpec
 import is.hail.utils._
-import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
 
 object Interpret {
   type AggElement = (Any, Env[Any])
@@ -371,45 +366,8 @@ object Interpret {
       case TableWrite(child, path, overwrite, codecSpecJSONStr) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)
-        val codecSpec =
-          if (codecSpecJSONStr != null) {
-            implicit val formats = RVDSpec.formats
-            val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-            codecSpecJSON.extract[CodecSpec]
-          } else
-            CodecSpec.default
-
-        if (overwrite)
-          hc.hadoopConf.delete(path, recursive = true)
-        else if (hc.hadoopConf.exists(path))
-          fatal(s"file already exists: $path")
-
-        hc.hadoopConf.mkDir(path)
-
-        val globalsPath = path + "/globals"
-        hc.hadoopConf.mkDir(globalsPath)
-        RVD.writeLocalUnpartitioned(hc, globalsPath, child.typ.globalType, codecSpec, Array(tableValue.globals.value))
-
-        val partitionCounts = tableValue.rvd.write(path + "/rows", codecSpec)
-
-        val referencesPath = path + "/references"
-        hc.hadoopConf.mkDir(referencesPath)
-        ReferenceGenome.exportReferences(hc, referencesPath, child.typ.rowType)
-        ReferenceGenome.exportReferences(hc, referencesPath, child.typ.globalType)
-
-        val spec = TableSpec(
-          FileFormat.version.rep,
-          hc.version,
-          "references",
-          child.typ,
-          Map("globals" -> RVDComponentSpec("globals"),
-            "rows" -> RVDComponentSpec("rows"),
-            "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-        spec.write(hc, path)
-
-        hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+        tableValue.write(path, overwrite, codecSpecJSONStr)
       case TableAggregate(child, query, _) =>
-
         val localGlobalSignature = child.typ.globalType
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
 

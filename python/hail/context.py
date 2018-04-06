@@ -100,6 +100,7 @@ class HailContext(object):
         return self._default_ref
 
     def stop(self):
+        Env.hail().HailContext.clear()
         self.sc.stop()
         self.sc = None
         Env._jvm = None

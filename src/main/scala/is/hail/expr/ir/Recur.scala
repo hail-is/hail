@@ -26,8 +26,8 @@ object Recur {
     case ArrayFilter(a, name, cond) => ArrayFilter(f(a), name, f(cond))
     case ArrayFlatMap(a, name, body) => ArrayFlatMap(f(a), name, f(body))
     case ArrayFold(a, zero, accumName, valueName, body, typ) => ArrayFold(f(a), f(zero), accumName, valueName, f(body), typ)
-    case MakeStruct(fields, _) => MakeStruct(fields map { case (n,a) => (n,f(a)) })
-    case InsertFields(old, fields, _) => InsertFields(f(old), fields map { case (n,a) => (n,f(a)) } )
+    case MakeStruct(fields, _) => MakeStruct(fields map { case (n, a) => (n, f(a)) })
+    case InsertFields(old, fields, _) => InsertFields(f(old), fields map { case (n, a) => (n, f(a)) })
     case GetField(o, name, typ) => GetField(f(o), name, typ)
     case GetFieldMissingness(o, name) => GetFieldMissingness(f(o), name)
     case AggIn(typ) => ir
@@ -42,5 +42,9 @@ object Recur {
     case Die(message) => ir
     case Apply(fn, args, impl) => Apply(fn, args.map(f), impl)
     case ApplySpecial(fn, args, impl) => ApplySpecial(fn, args.map(f), impl)
+    // from TableIR
+    case TableCount(_) => ir
+    case TableAggregate(child, query, typ) => TableAggregate(child, query, typ)
+    case TableWrite(_, _, _, _) => ir
   }
 }

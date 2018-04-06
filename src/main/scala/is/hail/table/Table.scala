@@ -319,16 +319,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
+  def queryJSON(expr: String): String = {
+    val (value, t) = queryTyped(expr)
+    makeJSON(t, value)
+  }
+
   def query(expr: String): Any = {
+    val (value, _) = queryTyped(expr)
+    value
+  }
+
+  def queryTyped(expr: String): (Any, Type) = {
     val globalsBc = globals.broadcast
     val ec = aggEvalContext()
 
     Parser.parseToAST(expr, ec).toIR(Some("AGG")) match {
       case Some(convertedIR) =>
-        ir.Interpret(ir.TableAggregate(tir, convertedIR),
-          ir.Env.empty,
-          IndexedSeq(),
-          Some(tir.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable] -> null))
+        val t = ir.TableAggregate(tir, convertedIR)
+        (ir.Interpret(t, ir.Env.empty, IndexedSeq(), None), t.typ)
       case None =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
@@ -339,7 +347,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
         resultOp(r)
 
-        f()
+        (f(), t)
     }
   }
 

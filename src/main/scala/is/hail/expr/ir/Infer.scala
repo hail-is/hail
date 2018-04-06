@@ -7,7 +7,7 @@ object Infer {
   def apply(ir: IR, tAgg: Option[TAggregable] = None) { apply(ir, tAgg, new Env[Type]()) }
 
   def apply(ir: IR, tAgg: Option[TAggregable], env: Env[Type]) {
-    def infer(ir: IR, env: Env[Type] = env) { apply(ir, tAgg, env) }
+    def infer(ir: IR, tAgg: Option[TAggregable] = tAgg, env: Env[Type] = env) { apply(ir, tAgg, env) }
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -182,7 +182,7 @@ object Infer {
           x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithMissingness]
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
       case x@TableAggregate(child, query, _) =>
-        infer(query, child.typ.aggEnv)
+        infer(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)
         x.typ = query.typ
       case TableWrite(_, _, _, _) =>
       case TableCount(_) =>
