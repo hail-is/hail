@@ -290,7 +290,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def getNumPartitions: Int = rdd.getNumPartitions
 
   private[this] def clean[T <: AnyRef](value: T): T =
-    ExposedUtils.clean(sc, value)
+    ExposedUtils.clean(value, sc)
 
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
