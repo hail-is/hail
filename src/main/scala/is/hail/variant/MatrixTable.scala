@@ -1164,23 +1164,30 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val newRowKey = rowKey.filter(namesSet.contains)
         val newPartitionKey = rowPartitionKey.filter(namesSet.contains)
 
+        def structSelectChangesRowKeys(names: Array[String], asts: Array[AST]): Boolean = {
+          names.zip(asts).exists { case (name, node) =>
+            rowKey.contains(name) &&
+              (node match {
+                case Select(_, SymRef(_, "va"), n) => n != name
+                case _ => true
+              })
+          }
+        }
+
         val touchesKeys: Boolean = (newRowKey != rowKey) ||
           (newPartitionKey != rowPartitionKey) || (
           rowsAST match {
             case StructConstructor(_, names, asts) =>
-              names.zip(asts).exists { case (name, node) =>
-                rowKey.contains(name) &&
-                  (node match {
-                    case Select(_, SymRef(_, "va"), n) => n != name
-                    case _ => true
-                  })
-              }
-            case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
-              coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
-            case x@Apply(_, "drop", Array(SymRef(_, "va"), _*)) =>
+              structSelectChangesRowKeys(names, asts)
+            case Apply(_, "annotate", Array(StructConstructor(_, names, asts), newstruct)) =>
+              structSelectChangesRowKeys(names, asts) ||
+                coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
+            case x@Apply(_, "drop", Array(StructConstructor(_, names, asts), _*)) =>
               val rowKeySet = rowKey.toSet
-              x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
+              structSelectChangesRowKeys(names, asts) ||
+                x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
             case _ =>
+              fatal(s"unexpected AST: ${ PrettyAST(rowsAST) }")
               log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
               true
           })
@@ -2201,7 +2208,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array.empty[String])
   }
 
-  private def rowFieldsRVD: OrderedRVD = {
+  private def rowFieldsRVD: OrderedRVD
+
+  = {
     val localRowType = rowType
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
