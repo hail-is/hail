@@ -3590,7 +3590,7 @@ def mendel_error_code(locus, is_female, father, mother, child):
     `Any` refers to the set \{ HomRef, Het, HomVar, NoCall \} and `~`
     denotes complement in this set.
 
-    +------+---------+---------+--------+----------------------------+
+    +------+---------+---------+--------+------------+---------------+
     | Code | Dad     | Mom     | Kid    | Copy State | Implicated    |
     +======+=========+=========+========+============+===============+
     |    1 | HomVar  | HomVar  | Het    | Auto       | Dad, Mom, Kid |
