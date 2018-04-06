@@ -652,7 +652,7 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         makeStructChangesKeys(fields)
       case InsertFields(MakeStruct(fields, _), toIns, _) =>
         makeStructChangesKeys(fields) || toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
-      case _ => fatal(s"invalid IR: $newRow")
+      case _ => true
     })
 
   def execute(hc: HailContext): MatrixValue = {

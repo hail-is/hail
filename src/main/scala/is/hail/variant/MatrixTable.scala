@@ -1187,7 +1187,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               structSelectChangesRowKeys(names, asts) ||
                 x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
             case _ =>
-              fatal(s"unexpected AST: ${ PrettyAST(rowsAST) }")
               log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
               true
           })
