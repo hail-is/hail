@@ -151,16 +151,13 @@ trait RVD {
       it.map { rv => f(c, rv) }
     })
 
-  // FIXME: just make user call run
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
 
-  // FIXME: just make user call run
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitionsWithIndex(f).run
 
-  // FIXME: just make user call run
   def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitions(f).run
 
   def constrainToOrderedPartitioner(
