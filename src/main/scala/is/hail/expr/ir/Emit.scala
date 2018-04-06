@@ -81,7 +81,7 @@ private class Emit(
       for (ir <- irs) yield {
         val EmitTriplet(setup, m, v) = emitWrapper.emit(ir, env)
         val missing = newMB.newClassBit()
-        val value = newMB.newField()(typeToTypeInfo(ir.typ))
+        val value = newMB.newField()(typeToTypeInfo(ir.typ)).asInstanceOf[Settable[Any]]
         mb.emit(setup)
         mb.emit(missing := m)
         mb.emit(value := missing.mux(defaultValue(ir.typ), v))

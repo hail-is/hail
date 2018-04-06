@@ -10,7 +10,7 @@ import is.hail.asm4s.FunctionBuilder._
 class StagedBitSetSuite extends TestNGSuite {
   def withOneBit(f : SettableBit => Code[Boolean]): Boolean = {
     val fb = functionBuilder[Boolean]
-    val bs = new StagedBitSet(fb)
+    val bs = new LocalBitSet(fb)
     val x = bs.newBit()
     fb.emit(f(x))
     fb.result()()()
@@ -18,7 +18,7 @@ class StagedBitSetSuite extends TestNGSuite {
 
   def withTwoBits(f : (SettableBit, SettableBit) => Code[Boolean]): Boolean = {
     val fb = functionBuilder[Boolean]
-    val bs = new StagedBitSet(fb)
+    val bs = new LocalBitSet(fb)
     val x = bs.newBit()
     val y = bs.newBit()
     fb.emit(f(x, y))
@@ -27,7 +27,7 @@ class StagedBitSetSuite extends TestNGSuite {
 
   def withNBits(n: Int)(f: Array[SettableBit] => Code[Boolean]): Boolean = {
     val fb = functionBuilder[Boolean]
-    val bs = new StagedBitSet(fb)
+    val bs = new LocalBitSet(fb)
     val x = Array.tabulate(n)(i => bs.newBit())
     fb.emit(f(x))
     fb.result()()()

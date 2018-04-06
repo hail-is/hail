@@ -95,7 +95,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
-  def newField[T: TypeInfo](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField[T]()
+  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField[T]()(tti)
 
   def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] = fb.newField[T](name)
 
