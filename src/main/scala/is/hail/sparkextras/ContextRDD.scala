@@ -123,36 +123,37 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       using(mkc()) { c =>
         serialize(
           it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
-    var result = ExposedUtils.clone(zero, sparkContext)
+    var result = zero
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
     sparkContext.runJob(rdd, aggregatePartition, localCombiner)
     result
   }
 
+  // FIXME: delete when region values are non-serializable
   def treeAggregate[U: ClassTag](
-    makeZero: () => U,
+    zero: U,
     seqOp: (U, T) => U,
     combOp: (U, U) => U
-  ): U = treeAggregate(makeZero, seqOp, combOp, 2)
+  ): U = treeAggregate(zero, seqOp, combOp, 2)
 
   def treeAggregate[U: ClassTag](
-    makeZero: () => U,
+    zero: U,
     seqOp: (U, T) => U,
     combOp: (U, U) => U,
     depth: Int
-  ): U = treeAggregate[U, U](makeZero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
+  ): U = treeAggregate[U, U](zero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
 
   def treeAggregate[U: ClassTag, V: ClassTag](
-    makeZero: () => U,
+    zero: U,
     seqOp: (U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
     deserialize: V => U
-  ): V = treeAggregate(makeZero, seqOp, combOp, serialize, deserialize, 2)
+  ): V = treeAggregate(zero, seqOp, combOp, serialize, deserialize, 2)
 
   def treeAggregate[U: ClassTag, V: ClassTag](
-    makeZero: () => U,
+    zero: U,
     seqOp: (U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
@@ -160,7 +161,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     depth: Int
   ): V = {
     require(depth > 0)
-    val zeroValue = serialize(makeZero())
+    val zeroValue = serialize(zero)
     val aggregatePartitionOfContextTs = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
