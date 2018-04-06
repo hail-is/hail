@@ -184,7 +184,7 @@ object Annotation {
   }
 
   def isSafe(typ: Type, a: Annotation): Boolean = {
-    a == null | (typ match {
+    a == null || (typ match {
       case t: TBaseStruct =>
         val r = a.asInstanceOf[Row]
         !r.isInstanceOf[UnsafeRow] && Array.range(0, t.size).forall(i => Annotation.isSafe(t.types(i), r(i)))
