@@ -273,7 +273,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), addElement(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), treeWrapToMethod(args, env)(addElts), srvb.offset))
+        present(Code(srvb.start(args.size, init = true), treeWrapToMethod(args, env)(addElts), srvb.offset))
 
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
