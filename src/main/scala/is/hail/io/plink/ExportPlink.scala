@@ -79,7 +79,7 @@ object ExportPlink {
     ).writeTable(path + ".bim", vsm.hc.tmpDir)
 
     val famRows = vsm
-      .colValues
+      .colValues.value
       .map { sa =>
         ec.set(0, sa)
         val a = f().map(Option(_))

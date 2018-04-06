@@ -61,7 +61,7 @@ object RegressionUtils {
   def getSampleAnnotations(vds: MatrixTable, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val aQs = annots.map(parseFloat64Expr(_, ec))
 
-    vds.colValues.map { sa =>
+    vds.colValues.value.map { sa =>
       ec.set(0, sa)
       aQs.map { aQ =>
         val a = aQ()

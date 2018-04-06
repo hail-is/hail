@@ -12,6 +12,7 @@ import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.annotation.switch
 import scala.collection.JavaConversions._
@@ -878,8 +879,8 @@ object LoadVCF {
 
     new MatrixTable(hc,
       matrixType,
-      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
-      sampleIds.map(x => Annotation(x)),
+      BroadcastRow(Row.empty, matrixType.globalType, sc),
+      BroadcastIndexedSeq(sampleIds.map(x => Annotation(x)), TArray(matrixType.globalType), sc),
       rdd)
   }
 

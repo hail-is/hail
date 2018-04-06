@@ -167,8 +167,8 @@ object LoadBgen {
     }))
 
     new MatrixTable(hc, matrixType,
-      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
-      sampleIds.map(x => Annotation(x)),
+      BroadcastRow(Row.empty, matrixType.globalType, sc),
+      BroadcastIndexedSeq(sampleIds.map(x => Annotation(x)), TArray(matrixType.colType), sc),
       OrderedRVD.coerce(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 

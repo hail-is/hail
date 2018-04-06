@@ -7,8 +7,9 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{Call2, ReferenceGenome, MatrixTable}
+import is.hail.variant.{Call2, MatrixTable, ReferenceGenome}
 import org.apache.commons.math3.random.JDKRandomGenerator
+import org.apache.spark.sql.Row
 
 object BaldingNicholsModel {
 
@@ -102,7 +103,7 @@ object BaldingNicholsModel {
       case TruncatedBetaDist(a, b, min, max) => Annotation("TruncatedBetaDist", a, b, min, max)
     }
     val globalAnnotation =
-      Annotation(K, N, M, popDistArray: IndexedSeq[Double], FstOfPopArray: IndexedSeq[Double], ancestralAFAnnotation, seed, mixture)
+      Row(K, N, M, popDistArray: IndexedSeq[Double], FstOfPopArray: IndexedSeq[Double], ancestralAFAnnotation, seed, mixture)
 
     val ancestralAFAnnotationSignature = af_dist match {
       case UniformDist(min, max) => TStruct("type" -> TString(), "min" -> TFloat64(), "max" -> TFloat64())
@@ -220,8 +221,8 @@ object BaldingNicholsModel {
 
     new MatrixTable(hc,
       matrixType,
-      BroadcastValue(globalAnnotation, matrixType.globalType, hc.sc),
-      sampleAnnotations,
+      BroadcastRow(globalAnnotation, matrixType.globalType, hc.sc),
+      BroadcastIndexedSeq(sampleAnnotations, TArray(matrixType.colType), hc.sc),
       ordrdd)
   }
 }

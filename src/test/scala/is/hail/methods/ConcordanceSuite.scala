@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, BroadcastIndexedSeq}
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types._
 import is.hail.table.Table
@@ -47,7 +47,8 @@ class ConcordanceSuite extends SparkSuite {
   } yield (vds1, vds2.annotateRowsTable(newVariantMapping, "newVariant")
       .annotateRowsExpr("locus" -> "va.newVariant.locus2",
         "alleles" -> "va.newVariant.alleles2")
-      .copy2(colValues = newIds2.map(Annotation(_)), colType = TStruct("s" -> TString())))
+      .copy2(colValues = BroadcastIndexedSeq(newIds2.map(Annotation(_)), TArray(TStruct("s" -> TString())), sc),
+        colType = TStruct("s" -> TString())))
 
   // FIXME use SnpSift when it's fixed
   def readSampleConcordance(file: String): Map[String, IndexedSeq[IndexedSeq[Int]]] = {

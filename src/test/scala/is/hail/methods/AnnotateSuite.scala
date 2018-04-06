@@ -62,7 +62,7 @@ class AnnotateSuite extends SparkSuite {
     def qMap(query: String, vds: MatrixTable): Map[Annotation, Option[Any]] = {
       val q = vds.querySA(query)._2
       vds.stringSampleIds
-        .zip(vds.colValues)
+        .zip(vds.colValues.value)
         .map { case (id, sa) => (id, Option(q(sa))) }
         .toMap
     }

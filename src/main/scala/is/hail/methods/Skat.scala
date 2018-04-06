@@ -233,11 +233,11 @@ object Skat {
             fatal(s"Variant weights must be non-negative, got $w")
 
           val data = new Array[Double](n)
-          
+
           RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](), 
             rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
           
-          Option((key, (BDV(data), w)))
+          Option((Annotation.copy(keyType, key), (BDV(data), w)))
         case _ => None
       }
     }.groupByKey(), keyType)

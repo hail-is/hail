@@ -111,7 +111,7 @@ object Table {
     val rdd2 = rdd.mapPartitions(_.toRegionValueIterator(signature))
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
-        BroadcastValue(globals, globalSignature, hc.sc),
+        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
         new UnpartitionedRVD(signature, rdd2))
     ))
   }
@@ -146,7 +146,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globalSignature: TStruct = TStruct.empty(),
     globals: Row = Row.empty) = {
     this(hc, TableLiteral(
-      TableValue(TableType(signature, key, globalSignature), BroadcastValue(globals, globalSignature, hc.sc),
+      TableValue(TableType(signature, key, globalSignature), BroadcastRow(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, rdd))
     ))
   }
@@ -388,7 +388,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     val (newT, i) = globalSignature.insert(t, name)
     copy2(globalSignature = newT.asInstanceOf[TStruct],
-      globals = globals.copy(value = i(globals.value, a), t = newT))
+      globals = globals.copy(value = i(globals.value, a).asInstanceOf[Row], t = newT.asInstanceOf[TStruct]))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
@@ -410,7 +410,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
-        val newGlobal = f()
+        val newGlobal = f().asInstanceOf[Row]
 
         copy2(globalSignature = newSignature,
           globals = globals.copy(value = newGlobal, t = newSignature))
@@ -709,7 +709,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new MatrixTable(hc,
       matrixType,
       globals,
-      colDataConcat,
+      BroadcastIndexedSeq(colDataConcat, TArray(matrixType.colType), hc.sc),
       newRVD)
   }
 
@@ -1174,7 +1174,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: BroadcastValue = globals): Table = {
+    globals: BroadcastRow = globals): Table = {
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))

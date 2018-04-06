@@ -529,5 +529,20 @@ class RegionValueBuilder(var region: Region) {
 
   }
 
+  def addInlineRow(t: TBaseStruct, a: Row) {
+    var i = 0
+    if (a == null) {
+      while (i < t.size) {
+        setMissing()
+        i += 1
+      }
+    } else {
+      while(i < t.size) {
+        addAnnotation(t.types(i), a(i))
+        i += 1
+      }
+    }
+  }
+
   def result(): RegionValue = RegionValue(region, start)
 }

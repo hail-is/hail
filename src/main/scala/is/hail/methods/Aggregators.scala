@@ -23,8 +23,8 @@ object Aggregators {
 
   def buildRowAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
-    globals: BroadcastValue,
-    colValues: IndexedSeq[Annotation],
+    globals: BroadcastRow,
+    colValues: BroadcastIndexedSeq,
     nKeys: Int,
     keyMap: Array[Int],
     ec: EvalContext): (RegionValue) => Array[() => Unit] = {
@@ -34,8 +34,8 @@ object Aggregators {
       return { rv => Array.fill[() => Unit](nKeys) { () => Unit } }
 
     val localA = ec.a
-    val localNCols = colValues.length
-    val localAnnotationsBc = sc.broadcast(colValues)
+    val localNCols = colValues.value.length
+    val localAnnotationsBc = colValues.broadcast
     val globalsBc = globals.broadcast
 
     val fullRowType = typ.rvRowType
@@ -88,8 +88,8 @@ object Aggregators {
 
   def buildRowAggregations(sc: SparkContext,
     typ: MatrixType,
-    globals: BroadcastValue,
-    colValues: IndexedSeq[Annotation],
+    globals: BroadcastRow,
+    colValues: BroadcastIndexedSeq,
     ec: EvalContext): Option[(RegionValue) => Unit] = {
 
     val aggregations = ec.aggregations
@@ -97,8 +97,8 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localNCols = colValues.length
-    val colValuesBc = sc.broadcast(colValues)
+    val localNCols = colValues.value.length
+    val colValuesBc = colValues.broadcast
     val fullRowType = typ.rvRowType
     val localEntriesIndex = typ.entriesIdx
     val globalsBc = globals.broadcast
@@ -147,7 +147,7 @@ object Aggregators {
     val localA = ec.a
     val localNCols = value.nCols
     val globalsBc = value.globals.broadcast
-    val localColValuesBc = value.colValuesBc
+    val localColValuesBc = value.colValues.broadcast
 
     val nAggregations = aggregations.length
     val nCols = value.nCols
@@ -212,7 +212,7 @@ object Aggregators {
     val newType = TStruct(resultNames.zip(resultTypes): _*)
 
     val localNCols = vsm.numCols
-    val localColValuesBc = vsm.colValuesBc
+    val localColValuesBc = vsm.colValues.broadcast
 
     val aggregations = ec.aggregations
     val nAggregations = aggregations.size

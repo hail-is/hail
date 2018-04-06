@@ -98,7 +98,7 @@ object FilterAlleles {
       val newRVType = newMatrixType.rvRowType
       val localEntriesIndex = vsm.entriesIndex
 
-      val localSampleAnnotationsBc = vsm.colValuesBc
+      val localSampleAnnotationsBc = vsm.colValues.broadcast
 
       rdd.mapPartitions(newRVType) { it =>
         var prevLocus: Locus = null

@@ -86,7 +86,7 @@ class AggregatorSuite extends SparkSuite {
     val nHet = vds.querySA("sa.test.nHet")._2
     val nHomVar = vds.querySA("sa.test.nHomVar")._2
 
-    vds.stringSampleIds.zip(vds.colValues)
+    vds.stringSampleIds.zip(vds.colValues.value)
       .foreach {
         case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))

@@ -1,11 +1,12 @@
 package is.hail.testUtils
 
-import is.hail.annotations.{Annotation, Querier, UnsafeRow}
+import is.hail.annotations.{Annotation, Querier, SafeRow, UnsafeRow}
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 
@@ -18,7 +19,7 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
-    val localColValuesBc = vsm.colValuesBc
+    val localColValuesBc = vsm.colValues.broadcast
 
     rdd
       .flatMap { case (v, (va, gs)) =>
@@ -79,15 +80,16 @@ class RichMatrixTable(vsm: MatrixTable) {
     (t, f2)
   }
 
-  def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues)
+  def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues.value)
 
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
     val fullRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
+    val localRowType = vsm.rowType
     val rowKeyF = vsm.rowKeysF
     vsm.rvd.rdd.map { rv =>
-      val rvc = rv.copy()
-      val fullRow = new UnsafeRow(fullRowType, rvc)
+      val unsafeFullRow = new UnsafeRow(fullRowType, rv)
+      val fullRow = SafeRow(fullRowType, rv.region, rv.offset)
       val row = fullRow.deleteField(localEntriesIndex)
       (rowKeyF(fullRow), (row, fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)))
     }

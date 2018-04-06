@@ -2,11 +2,23 @@ package is.hail.annotations
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
+
+trait UnKryoSerializable extends KryoSerializable {
+  def write(kryo: Kryo, output: Output): Unit = {
+    throw new NotImplementedException()
+  }
+
+  def read(kryo: Kryo, input: Input): Unit = {
+    throw new NotImplementedException()
+  }
+}
 
 object UnsafeIndexedSeq {
   def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
@@ -50,7 +62,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
   var length: Int = t.loadLength(region, aoff)
 
@@ -125,7 +137,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long) extends Row {
+  var region: Region, var offset: Long) extends Row with UnKryoSerializable {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
