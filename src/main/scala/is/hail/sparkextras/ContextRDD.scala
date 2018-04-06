@@ -179,13 +179,12 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val r = new Random(seed)
     val partitionSeeds =
       sparkContext.broadcast(
-        Array.tabulate(rdd.partitions.length)(_ => r.nextLong()))
-    val makeSampler = if (withReplacement)
-      () => new PoissonSampler[T](fraction)
-    else
-      () => new BernoulliSampler[T](fraction)
+        Array.fill(rdd.partitions.length)(r.nextLong()))
     cmapPartitionsWithIndex({ (i, ctx, it) =>
-      val sampler = makeSampler()
+      val sampler = if (withReplacement)
+        new PoissonSampler[T](fraction)
+      else
+        new BernoulliSampler[T](fraction)
       sampler.setSeed(partitionSeeds.value(i))
       sampler.sample(it)
     }, preservesPartitioning = true)
