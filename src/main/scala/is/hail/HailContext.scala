@@ -35,6 +35,10 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
+  private var theContext: HailContext = _
+
+  def get: HailContext = theContext
+
   def configureAndCreateSparkContext(appName: String, master: Option[String],
     local: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
@@ -171,6 +175,7 @@ object HailContext {
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")
+    theContext = hc
     hc
   }
 
@@ -653,5 +658,6 @@ class HailContext private(val sc: SparkContext,
 
   def stop() {
     sc.stop()
+    HailContext.theContext = null
   }
 }
