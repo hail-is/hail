@@ -61,7 +61,7 @@ object FunctionBuilder {
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[_]) {
+class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
 
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
@@ -73,6 +73,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
   val layout: Array[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.slots })
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
+  private val localBitSet = new LocalBitSet(this)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
@@ -84,15 +85,19 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
     i
   }
 
+  def newLocalBit(): SettableBit = localBitSet.newBit()
+
+  def newClassBit(): SettableBit = fb.classBitSet.newBit(this)
+
   def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] =
     newLocal()
 
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
-  def newField[T: TypeInfo]: ClassFieldRef[T] = newField[T]()
+  def newField[T: TypeInfo](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField[T]()
 
-  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
+  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] = fb.newField[T](name)
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
@@ -203,9 +208,15 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     )
   }
 
-  def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
+  val classBitSet = new ClassBitSet(this)
 
-  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
+  def newLocalBit(): SettableBit = apply_method.newLocalBit()
+
+  def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
+
+  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
+
+  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
     new ClassFieldRef[T](this, if (name == null) s"field${cn.fields.size()}" else name)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
@@ -232,7 +243,6 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     mb
   }
 
-
   def newMethod[A: TypeInfo, R: TypeInfo] = {
     val mb = new Method1Builder[A, R](this, s"method${ methods.size }")
     methods.append(mb)
@@ -244,7 +254,6 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     methods.append(mb)
     mb
   }
-
 
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo] = {
     val mb = new Method3Builder[A, B, C, R](this, s"method${ methods.size }")

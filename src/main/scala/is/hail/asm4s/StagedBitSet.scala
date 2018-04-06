@@ -3,16 +3,21 @@ package is.hail.asm4s
 import org.objectweb.asm.tree._
 import scala.collection.generic.Growable
 
-class StagedBitSet(fb: FunctionBuilder[_]) {
+abstract class StagedBitSet {
+
   private var used = 0
-  private var bits: LocalRef[Long] = null
+  private var bits: Settable[Long] = null
   private var count = 0
 
-  def newBit(): SettableBit = {
+  def getNewVar: Settable[Long]
+
+  def getCount: Int = count
+
+  def newBit(mb: MethodBuilder): SettableBit = {
     if (used >= 64 || bits == null) {
-      bits = fb.newLocal[Long](s"settable$count")
+      bits = getNewVar
       count += 1
-      fb.emit(bits.store(0L))
+      mb.emit(bits.store(0L))
       used = 0
     }
 
@@ -21,7 +26,21 @@ class StagedBitSet(fb: FunctionBuilder[_]) {
   }
 }
 
-class SettableBit(bits: LocalRef[Long], i: Int) extends Settable[Boolean] {
+class LocalBitSet(mb: MethodBuilder) extends StagedBitSet {
+  def this(fb: FunctionBuilder[_]) =
+    this(fb.apply_method)
+
+  def getNewVar: Settable[Long] = mb.newLocal[Long](s"settable$getCount")
+
+  def newBit(): SettableBit =
+    newBit(mb)
+}
+
+class ClassBitSet(fb: FunctionBuilder[_]) extends StagedBitSet {
+  def getNewVar: Settable[Long] = fb.newField[Long](s"settable$getCount")
+}
+
+class SettableBit(bits: Settable[Long], i: Int) extends Settable[Boolean] {
   assert(i >= 0)
   assert(i < 64)
 
