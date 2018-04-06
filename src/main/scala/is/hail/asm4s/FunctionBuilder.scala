@@ -217,7 +217,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
 
   def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
-    new ClassFieldRef[T](this, if (name == null) s"field${cn.fields.size()}" else name)
+    new ClassFieldRef[T](this, s"field${cn.fields.size()}${ if (name == null) "" else s"_$name" }")
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 
