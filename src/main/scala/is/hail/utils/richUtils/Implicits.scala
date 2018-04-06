@@ -6,6 +6,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.{Region, RegionValue, JoinedRegionValue}
 import is.hail.asm4s.Code
 import is.hail.io.RichRDDRegionValue
+import is.hail.sparkextras._
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import org.apache.hadoop
 import org.apache.spark.SparkContext
@@ -121,4 +122,6 @@ trait Implicits {
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
+
+  implicit def toContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](x: ContextRDD[C, (K, V)]): ContextPairRDDFunctions[C, K, V] = new ContextPairRDDFunctions(x)
 }

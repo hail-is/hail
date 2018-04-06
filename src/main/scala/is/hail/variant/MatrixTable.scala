@@ -2479,8 +2479,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def linreg(ysExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
-    LinearRegression(this, ysExpr, xField, covExpr, root, rowBlockSize)
+  def linreg(yExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
+    LinearRegression(this, yExpr, xField, covExpr, root, rowBlockSize)
   }
 
   def logreg(test: String,
