@@ -472,36 +472,25 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         matrixType,
         MatrixValue(matrixType, globals, colValues, rvd)))
 
-  private type Axis = Int
-  private val globalAxis: Axis = 0
-  private val rowAxis: Axis = 1
-  private val colAxis: Axis = 2
-  private val entryAxis: Axis = 3
+  private[this] type Axis = Int
+  private[this] val globalAxis: Axis = 0
+  private[this] val rowAxis: Axis = 1
+  private[this] val colAxis: Axis = 2
+  private[this] val entryAxis: Axis = 3
 
-  private def useIR(axis: Axis, ast: AST): Boolean = {
+  private[this] def useIR(axis: Axis, ast: AST): Boolean = {
     if (hc.forceIR)
       return true
     axis match {
-      case this.globalAxis =>
+      case this.globalAxis | this.colAxis =>
         ast.`type`.asInstanceOf[TStruct].size < 500
 
-      case this.rowAxis =>
+      case this.rowAxis | this.entryAxis =>
         ast.`type`.asInstanceOf[TStruct].size < 500 &&
           globalType.size < 3 &&
           colType.size == 1 &&
           Set(TInt32(), +TInt32(), TString(), +TString())
             .contains(colType.types(0))
-
-      case this.colAxis =>
-        ast.`type`.asInstanceOf[TStruct].size < 500
-
-      case this.entryAxis =>
-        ast.`type`.asInstanceOf[TStruct].size < 500 &&
-          globalType.size < 3 &&
-          colType.size == 1 &&
-          Set(TInt32(), +TInt32(), TString(), +TString())
-            .contains(colType.types(0))
-
     }
   }
 
