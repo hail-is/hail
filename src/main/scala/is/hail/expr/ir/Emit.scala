@@ -251,7 +251,6 @@ private class Emit(
         EmitTriplet(codeA.setup, codeA.m, TContainer.loadLength(region, coerce[Long](codeA.v)))
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
-
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(fb, ir.typ)
 

@@ -379,4 +379,32 @@ class ASM4SSuite extends TestNGSuite {
     assert(readField[Long](1, 2L, true) == 2L)
     assert(readField[Boolean](1, 2L, true))
   }
+
+  @Test def checkClassFieldsFromMethod(): Unit = {
+
+    def readField[T: TypeInfo](arg1: Int, arg2: Long, arg3: Boolean): T = {
+      val fb = FunctionBuilder.functionBuilder[Int, Long, Boolean, T]
+      val mb = fb.newMethod[Int, Long, Boolean, T]
+      val intField = fb.newField[Int]
+      val longField = fb.newField[Long]
+      val booleanField = fb.newField[Boolean]
+      val c = Code(
+        intField.store(fb.getArg[Int](1)),
+        longField.store(fb.getArg[Long](2)),
+        booleanField.store(fb.getArg[Boolean](3)))
+
+      typeInfo[T] match {
+        case IntInfo => mb.emit(Code(c, intField.load()))
+        case LongInfo => mb.emit(Code(c, longField.load()))
+        case BooleanInfo => mb.emit(Code(c, booleanField.load()))
+      }
+      fb.emit(mb.invoke(fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3)))
+      val f = fb.result()()
+      f(arg1, arg2, arg3)
+    }
+
+    assert(readField[Int](1, 2L, true) == 1)
+    assert(readField[Long](1, 2L, true) == 2L)
+    assert(readField[Boolean](1, 2L, true))
+  }
 }
