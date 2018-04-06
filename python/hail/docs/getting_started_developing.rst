@@ -6,15 +6,15 @@ Getting Started Developing
 
 You'll need:
 
-- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_
-- `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_
-- `Anaconda <https://www.continuum.io/downloads>`_
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
+- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_.
+- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
 
 -------------------
 Building a Hail JAR
 -------------------
 
-The minimal set of tools necessary to build Hail from source is a C++ compiler. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
+The only additional tool necessary to build Hail from source is a C++ compiler. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
 
     sudo apt-get install g++
 
@@ -27,11 +27,10 @@ The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
     git clone https://github.com/hail-is/hail.git
     cd hail
 
-
-A Hail JAR can be built using Gradle, note that every Hail JAR is specific to
+A Hail JAR can be built using Gradle. Note that every Hail JAR is specific to
 one version of Spark::
 
-    ./gradlew -Dspark.version=2.0.2 shadowJar
+    ./gradlew -Dspark.version=2.2.0 shadowJar
 
 Finally, some environment variables must be set so that Hail can find Spark, Spark can find Hail, and Python can find Hail. Add these lines to your ``.bashrc`` or equivalent setting ``SPARK_HOME`` to the root directory of a Spark installation and ``HAIL_HOME`` to the root of the Hail repository::
 
