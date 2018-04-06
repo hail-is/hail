@@ -97,7 +97,7 @@ object Table {
   def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
     key: IndexedSeq[String], nPartitions: Option[Int]): Table = {
     val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
-    new Table(hc, TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions))
+    new Table(hc, TableParallelize(typ, rows, nPartitions))
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,

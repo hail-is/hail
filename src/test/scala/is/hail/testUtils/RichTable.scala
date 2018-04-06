@@ -1,6 +1,5 @@
 package is.hail.testUtils
 
-import is.hail.HailContext
 import is.hail.annotations.Inserter
 import is.hail.expr._
 import is.hail.expr.ir.{InsertFields, MakeStruct, Ref}
