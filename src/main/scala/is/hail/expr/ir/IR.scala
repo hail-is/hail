@@ -17,8 +17,6 @@ sealed trait IR extends BaseIR {
       case x: IR => x.size
       case _ => 1
     }.sum
-
-  def estimatedBytecode: Int = size * 20
 }
 
 object Literal {

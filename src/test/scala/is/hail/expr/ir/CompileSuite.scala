@@ -16,7 +16,6 @@ import org.apache.spark.sql.Row
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
-    println(ir)
     Emit(ir, fb)
   }
 
@@ -613,6 +612,8 @@ class CompileSuite {
     }
 
     testStructN(5)
-    testStructN(500)
+    testStructN(5000)
+
+    // FIXME: testStructN(20000) hits the Class file size limit!
   }
 }
