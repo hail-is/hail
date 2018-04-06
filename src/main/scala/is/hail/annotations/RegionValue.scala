@@ -47,11 +47,6 @@ final class RegionValue(var region: Region,
 
 object SerializedRegionValue {
 
-  def apply(t: Type, region: Region, offset: Long, codec: CodecSpec = CodecSpec.default): SerializedRegionValue = {
-    val (baos, enc) = getEncoder(codec)
-    apply(t, region, offset, baos, enc)
-  }
-
   def apply(t: Type, region: Region, offset: Long, baos: ByteArrayOutputStream, enc: Encoder): SerializedRegionValue = {
     baos.reset()
     enc.writeRegionValue(t, region, offset)
