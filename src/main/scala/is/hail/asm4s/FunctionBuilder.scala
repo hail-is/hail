@@ -90,6 +90,10 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField[T]()
+
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
+
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
     assert(i < layout.length)
@@ -172,7 +176,8 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   cn.superName = "java/lang/Object"
   cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
 
-  var methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
+  val methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
+  val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
 
   val apply_method = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
@@ -197,6 +202,11 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
       }
     )
   }
+
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
+
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
+    new ClassFieldRef[T](this, if (name == null) s"field${cn.fields.size()}" else name)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 

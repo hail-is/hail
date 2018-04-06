@@ -21,7 +21,7 @@ class StagedBitSet(fb: FunctionBuilder[_]) {
   }
 }
 
-class SettableBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] with Settable[Boolean] {
+class SettableBit(bits: LocalRef[Long], i: Int) extends Settable[Boolean] {
   assert(i >= 0)
   assert(i < 64)
 
@@ -29,9 +29,5 @@ class SettableBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] with Setta
     bits := bits & ~(1L << i) | (b.toI.toL << i)
   }
 
-  def emit(il: Growable[AbstractInsnNode]): Unit = {
-    ((bits >> i) & 1L).toI.emit(il)
-  }
-
-  def load(): Code[Boolean] = this
+  def load(): Code[Boolean] = (bits >> i & 1L).toI.toZ
 }

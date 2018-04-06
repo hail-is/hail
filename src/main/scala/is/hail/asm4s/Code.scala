@@ -2,6 +2,7 @@ package is.hail.asm4s
 
 import is.hail.expr.CM
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
+import java.util
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -644,6 +645,32 @@ trait Settable[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
+}
+
+class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String) extends Settable[T] {
+  val desc: String = typeInfo[T].name
+  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
+
+  fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
+
+  def load(): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        fb.getArg[java.lang.Object](0).emit(il)
+        il += new FieldInsnNode(GETFIELD, fb.name, name, desc)
+      }
+    }
+
+  def store(rhs: Code[T]): Code[Unit] =
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        fb.getArg[java.lang.Object](0).emit(il)
+        rhs.emit(il)
+        il += new FieldInsnNode(PUTFIELD, fb.name, name, desc)
+      }
+    }
+
+  def storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {

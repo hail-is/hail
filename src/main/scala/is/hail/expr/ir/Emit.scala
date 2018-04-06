@@ -343,8 +343,8 @@ private class Emit(
         val i = fb.newLocal[Int]("af_i")
         val len = fb.newLocal[Int]("af_len")
         val bodyenv = env.bind(
-          name1 -> (tti, xmout, xvout.load()),
-          name2 -> (eti, xmv, xvv.load()))
+          name1 -> (tti, xmout.load(), xvout.load()),
+          name2 -> (eti, xmv.load(), xvv.load()))
 
         val codeZ = emit(zero)
         val codeB = emit(body, env = bodyenv)
@@ -747,7 +747,7 @@ private class Emit(
                 mout := false,
                 xvcond := coerce[Boolean](codeCond.v),
                 addCnsq.setup, addAltr.setup)))
-          val missing = if (addCnsq.m.isEmpty && addAltr.m.isEmpty)
+          val missing: Code[Boolean] = if (addCnsq.m.isEmpty && addAltr.m.isEmpty)
             mout
           else
             Code(
