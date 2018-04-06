@@ -478,6 +478,28 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         matrixType,
         MatrixValue(matrixType, globals, colValues, rvd)))
 
+  private[this] type Axis = Int
+  private[this] val globalAxis: Axis = 0
+  private[this] val rowAxis: Axis = 1
+  private[this] val colAxis: Axis = 2
+  private[this] val entryAxis: Axis = 3
+
+  private[this] def useIR(axis: Axis, ast: AST): Boolean = {
+    if (hc.forceIR)
+      return true
+    axis match {
+      case this.globalAxis | this.colAxis =>
+        ast.`type`.asInstanceOf[TStruct].size < 500
+
+      case this.rowAxis | this.entryAxis =>
+        ast.`type`.asInstanceOf[TStruct].size < 500 &&
+          globalType.size < 3 &&
+          colType.size == 1 &&
+          Set(TInt32(), +TInt32(), TString(), +TString())
+            .contains(colType.types(0))
+    }
+  }
+
   def requireRowKeyVariant(method: String) {
     rowKey.zip(rowKeyTypes) match {
       case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
@@ -1136,10 +1158,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = rowEC
 
     val rowsAST = Parser.parseToAST(expr, ec)
-    val useAST = rowType.size < 500 && (colType.size == 1 && Set(TInt32(), +TInt32(), TString(), +TString()).contains(colType.types(0)))
 
     rowsAST.toIR(Some("AGG")) match {
-      case Some(x) if !useAST =>
+      case Some(x) if useIR(this.rowAxis, rowsAST) =>
         new MatrixTable(hc, MapRows(ast, x))
 
       case _ =>
@@ -1148,22 +1169,28 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val newRowKey = rowKey.filter(namesSet.contains)
         val newPartitionKey = rowPartitionKey.filter(namesSet.contains)
 
+        def structSelectChangesRowKeys(names: Array[String], asts: Array[AST]): Boolean = {
+          names.zip(asts).exists { case (name, node) =>
+            rowKey.contains(name) &&
+              (node match {
+                case Select(_, SymRef(_, "va"), n) => n != name
+                case _ => true
+              })
+          }
+        }
+
         val touchesKeys: Boolean = (newRowKey != rowKey) ||
           (newPartitionKey != rowPartitionKey) || (
           rowsAST match {
             case StructConstructor(_, names, asts) =>
-              names.zip(asts).exists { case (name, node) =>
-                rowKey.contains(name) &&
-                  (node match {
-                    case Select(_, SymRef(_, "va"), n) => n != name
-                    case _ => true
-                  })
-              }
-            case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
-              coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
-            case x@Apply(_, "drop", Array(SymRef(_, "va"), _*)) =>
+              structSelectChangesRowKeys(names, asts)
+            case Apply(_, "annotate", Array(StructConstructor(_, names, asts), newstruct)) =>
+              structSelectChangesRowKeys(names, asts) ||
+                coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
+            case x@Apply(_, "drop", Array(StructConstructor(_, names, asts), _*)) =>
               val rowKeySet = rowKey.toSet
-              x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
+              structSelectChangesRowKeys(names, asts) ||
+                x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
             case _ =>
               log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
               true
@@ -1221,7 +1248,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(entryAST.`type`.isInstanceOf[TStruct])
 
     entryAST.toIR() match {
-      case Some(ir) if entryAST.`type`.asInstanceOf[TStruct].size < 500 =>
+      case Some(ir) if useIR(this.entryAxis, entryAST) =>
         new MatrixTable(hc, MapEntries(ast, ir))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -2188,7 +2215,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array.empty[String])
   }
 
-  private def rowFieldsRVD: OrderedRVD = {
+  private def rowFieldsRVD: OrderedRVD
+
+  = {
     val localRowType = rowType
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex

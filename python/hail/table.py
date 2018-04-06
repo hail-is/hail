@@ -1218,7 +1218,7 @@ class Table(ExprContainer):
                         key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
                             '{}: {}'.format(u, e._ast.to_hql()) for u, e in
                             zip(uids, exprs)))
-                        jl = jl.selectRows('annotate(va, {'+key_expr+"})")
+                        jl = jl.selectRows('annotate('+left._row._ast.to_hql()+', {'+key_expr+"})")
                         return MatrixTable(jl)
 
                     return construct_expr(Select(TopLevelReference('va', src._row_indices), uid),

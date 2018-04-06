@@ -634,18 +634,22 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
   }
 
+  private[this] def makeStructChangesKeys(fields: Seq[(String, IR)]): Boolean =
+    fields.exists { case (name, ir) =>
+      typ.rowKey.contains(name) && (
+        ir match {
+          case GetField(Ref("va", _), n, _) => n != name
+          case _ => true
+        })
+    }
+
   val touchesKeys: Boolean = (typ.rowKey != child.typ.rowKey) ||
     (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
     newRow match {
       case MakeStruct(fields, _) =>
-        fields.exists { case (name, ir) =>
-          typ.rowKey.contains(name) && (
-            ir match {
-              case GetField(Ref("va", _), n, _) => n != name
-              case _ => true
-            })
-        }
-      case InsertFields(Ref("va", _), toIns, _) => toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
+        makeStructChangesKeys(fields)
+      case InsertFields(MakeStruct(fields, _), toIns, _) =>
+        makeStructChangesKeys(fields) || toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
       case _ => true
     })
 

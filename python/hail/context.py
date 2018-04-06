@@ -21,11 +21,12 @@ class HailContext(object):
                       min_block_size=int,
                       branching_factor=int,
                       tmp_dir=nullable(str),
-                      default_reference=str)
+                      default_reference=str,
+                      force_ir=bool)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37"):
+                 default_reference="GRCh37", force_ir=False):
 
         if Env._hc:
             raise FatalError('Hail Context has already been created, restart session '
@@ -50,7 +51,7 @@ class HailContext(object):
         # to be routed through Python separately.
         self._jhc = self._hail.HailContext.apply(
             jsc, app_name, joption(master), local, log, True, append,
-            min_block_size, branching_factor, tmp_dir)
+            min_block_size, branching_factor, tmp_dir, force_ir)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
@@ -117,11 +118,12 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'))
+           default_reference=enumeration('GRCh37', 'GRCh38'),
+           force_ir=bool)
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference='GRCh37'):
+             default_reference='GRCh37', force_ir=False):
     """Initialize Hail and Spark.
 
     Parameters
@@ -153,7 +155,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
-                min_block_size, branching_factor, tmp_dir, default_reference)
+                min_block_size, branching_factor, tmp_dir,
+                default_reference, force_ir)
 
 def stop():
     """Stop the currently running Hail session."""
