@@ -5,7 +5,9 @@ import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.storage._
 import org.apache.spark.util.random._
+
 import scala.reflect.ClassTag
+import scala.util._
 
 object ContextRDD {
   def empty[C <: AutoCloseable, T: ClassTag](
@@ -179,9 +181,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       sparkContext.broadcast(
         Array.tabulate(rdd.partitions.length)(_ => r.nextLong()))
     val makeSampler = if (withReplacement)
-      () => new PoissonSampler[RegionValue](fraction)
+      () => new PoissonSampler[T](fraction)
     else
-      () => new BernoulliSampler[RegionValue](fraction)
+      () => new BernoulliSampler[T](fraction)
     cmapPartitionsWithIndex({ (i, ctx, it) =>
       val sampler = makeSampler()
       sampler.setSeed(partitionSeeds.value(i))
