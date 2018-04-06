@@ -613,5 +613,6 @@ class CompileSuite {
     }
 
     testStructN(5)
+    testStructN(500)
   }
 }

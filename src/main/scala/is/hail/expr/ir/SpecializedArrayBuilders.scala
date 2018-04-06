@@ -7,7 +7,7 @@ class StagedArrayBuilder(elt: Type, mb: MethodBuilder) {
 
   val ti = typeToTypeInfo(elt)
 
-  val ref: LocalRef[Any] = coerce[Any](ti match {
+  val ref: Settable[Any] = coerce[Any](ti match {
     case BooleanInfo => mb.newLocal[BooleanArrayBuilder]("zab")
     case IntInfo => mb.newLocal[IntArrayBuilder]("iab")
     case LongInfo => mb.newLocal[LongArrayBuilder]("jab")

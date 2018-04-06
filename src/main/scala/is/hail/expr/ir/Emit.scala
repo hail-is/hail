@@ -66,29 +66,48 @@ private class Emit(
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
+  private val maxBytecodeSizeTarget: Int = 4096
+
+  def chunkIRs(irs: Seq[IR]): Array[Seq[IR]] = {
+    val sizes = irs.map(_.estimatedBytecode)
+    var total = 0
+    val ab = new ArrayBuilder[Int]()
+    ab += 0
+    sizes.zipWithIndex.foreach { case (size, i) =>
+      if (total + size <= maxBytecodeSizeTarget)
+        total += size
+      else {
+        if (total == 0)
+          total += size
+        else
+          ab += i
+          total = 0
+      }
+    }
+    ab += irs.size
+    val chunkBounds = ab.result()
+    Array.tabulate(chunkBounds.length - 1)(i => irs.slice(chunkBounds(i), chunkBounds(i + 1)))
+  }
+
   val methods: mutable.Map[String, Seq[(Seq[Type], MethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.E
   import Emit.F
 
-  private def wrapToMethod(irs: Seq[IR], env: E): (Code[Unit], Seq[EmitTriplet]) = {
+  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (MethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
     // should create a method with same args as normal method. All env bindings
     // from Let, ArrayFold, ArrayMap, etc. should get wrapped as class fields.
     // since all of these are evaluated at once,
     val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
     val emitWrapper = new Emit(newMB, tAggInOpt, nSpecialArguments)
-    val emitTriplets =
+    val c =
       for (ir <- irs) yield {
-        val EmitTriplet(setup, m, v) = emitWrapper.emit(ir, env)
-        val missing = newMB.newClassBit()
-        val value = coerce[Any](newMB.newField()(typeToTypeInfo(ir.typ)))
-        mb.emit(setup)
-        mb.emit(missing := m)
-        mb.emit(value := missing.mux(defaultValue(ir.typ), v))
-        EmitTriplet(setup=Code._empty, m=missing, v=value)
+        val v = emitWrapper.emit(ir, env)
+        useValues(newMB, ir.typ, v)
       }
-    val args = mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mb.getArg(i+1)(ti).load() }
-    (newMB.invoke(args: _*), emitTriplets)
+    newMB.emit(Code(c: _*))
+    val args = mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mb.getArg(i + 1)(ti).load() }
+    newMB.invoke(args: _*)
   }
 
   /**
@@ -226,13 +245,18 @@ private class Emit(
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(mb, typ)
         val addElement = srvb.addIRIntermediate(typ.elementType)
-        val mvargs = args.map(emit(_))
-        present(Code(
-          srvb.start(args.length, init = true),
-          Code(mvargs.map { case EmitTriplet(setup, m, v) =>
-            Code(setup, m.mux(srvb.setMissing(), addElement(v)), srvb.advance())
-          }: _*),
-          srvb.offset))
+        val initialize = srvb.start(init = true)
+        val addElts = Code(
+          chunkIRs(args).map { chunk =>
+            wrapToMethod(chunk, env) { (newMB, t, v) =>
+              Code(
+                v.setup,
+                v.m.mux(srvb.setMissing(), addElement(v.v)),
+                srvb.advance())
+            }
+          }: _*)
+        present(Code(initialize, addElts, srvb.offset))
+
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
         val tarray = coerce[TArray](a.typ)
@@ -374,17 +398,19 @@ private class Emit(
         present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
 
       case x@MakeStruct(fields, _) =>
-        val initializers = fields.map { case (_, v) => (v.typ, emit(v)) }
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        present(Code(
-          srvb.start(init = true),
-          Code(initializers.map { case (t, EmitTriplet(setup, mv, vv)) =>
-            Code(
-              setup,
-              mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-              srvb.advance())
-          }: _*),
-          srvb.offset))
+        val initialize = srvb.start(init = true)
+        val addFields = Code(
+          chunkIRs(fields.map(_._2)).map { chunk =>
+            wrapToMethod(chunk, env) { (newMB, t, v) =>
+              Code(
+                v.setup,
+                v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
+                srvb.advance())
+            }
+          }: _*)
+        present(Code(initialize, addFields, srvb.offset))
+
       case x@InsertFields(old, fields, _) =>
         old.typ match {
           case oldtype: TStruct =>
@@ -444,18 +470,21 @@ private class Emit(
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
-      case x@MakeTuple(types, _) =>
-        val initializers = types.map { v => (v.typ, emit(v)) }
+        
+      case x@MakeTuple(fields, _) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        present(Code(
-          srvb.start(init = true),
-          Code(initializers.map { case (t, EmitTriplet(setup, mv, vv)) =>
-            Code(
-              setup,
-              mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-              srvb.advance())
-          }: _*),
-          srvb.offset))
+        val initialize = srvb.start(init = true)
+        val addFields = Code(
+          chunkIRs(fields).map { chunk =>
+            wrapToMethod(chunk, env) { (newMB, t, v) =>
+              Code(
+                v.setup,
+                v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
+                srvb.advance())
+            }
+          }: _*)
+        present(Code(initialize, addFields, srvb.offset))
+
       case GetTupleElement(o, idx, _) =>
         val t = coerce[TTuple](o.typ)
         val codeO = emit(o)
