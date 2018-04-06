@@ -5,6 +5,7 @@ import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.storage._
 import org.apache.spark.util.random._
+import org.apache.spark.ExposedUtils
 
 import scala.reflect.ClassTag
 import scala.util._
@@ -103,34 +104,26 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): ContextRDD[C, V] =
     czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
 
-  // FIXME: this should disappear when region values become non-serializable
+  // FIXME: delete when region values are non-serializable
   def aggregate[U: ClassTag](
-    makeZero: () => U,
+    zero: U,
     seqOp: (U, T) => U,
     combOp: (U, U) => U
-  ): U = aggregate[U, U](makeZero, seqOp, combOp, x => x, x => x)
+  ): U = aggregate[U, U](zero, seqOp, combOp, x => x, x => x)
 
-  // FIXME: spark uses spark serialization to clone the zero, but its private,
-  // so I just force the user to give me a constructor instead
-  //
-  // FIXME: do serialize and deserialize belong on contextrdd? They seem
-  // necessary for the RegionValues as offsets to work, but it seems irrelevant
-  // to ContextRDD
   def aggregate[U: ClassTag, V: ClassTag](
-    makeZero: () => U,
+    zero: U,
     seqOp: (U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
     deserialize: V => U
   ): U = {
-    val zeroValue = makeZero()
-    // FIXME: I need to clean seqOp and combOp but that's private in
-    // SparkContext, wtf...
-    val aggregatePartition = { (it: Iterator[C => Iterator[T]]) =>
+    val zeroValue = ExposedUtils.clone(zero, sparkContext)
+    val aggregatePartition = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
           it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
-    var result = makeZero()
+    var result = ExposedUtils.clone(zero, sparkContext)
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
     sparkContext.runJob(rdd, aggregatePartition, localCombiner)
@@ -168,17 +161,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): V = {
     require(depth > 0)
     val zeroValue = serialize(makeZero())
-    // FIXME: I need to clean seqOp and combOp but that's private in
-    // SparkContext, wtf...
-    val aggregatePartitionOfContextTs = { (it: Iterator[C => Iterator[T]]) =>
+    val aggregatePartitionOfContextTs = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
           it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp, combOp)) } }
-    val aggregatePartitionOfVs = { (it: Iterator[V]) =>
+    val aggregatePartitionOfVs = clean { (it: Iterator[V]) =>
       using(mkc()) { c =>
         serialize(
           it.map(deserialize).fold(deserialize(zeroValue))(combOp)) } }
-    val combOpV = { (l: V, r: V) =>
+    val combOpV = clean { (l: V, r: V) =>
       using(mkc()) { c =>
         serialize(
           combOp(deserialize(l), deserialize(r))) } }
@@ -296,6 +287,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def sparkContext: SparkContext = rdd.sparkContext
 
   def getNumPartitions: Int = rdd.getNumPartitions
+
+  private[this] def clean[T <: AnyRef](value: T): T =
+    ExposedUtils.clean(sc, value)
 
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
