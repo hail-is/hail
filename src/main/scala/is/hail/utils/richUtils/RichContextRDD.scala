@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io._
 
 import org.apache.commons.lang3.StringUtils
+import org.apache.spark.TaskContext
 import is.hail.utils._
 import is.hail.sparkextras._
 
@@ -30,18 +31,16 @@ class RichContextRDD[C <: AutoCloseable, T: ClassTag](crdd: ContextRDD[C, T]) {
 
     val remapBc = sc.broadcast(remap)
 
-    val partFiles = Array.tabulate[String](nPartitions) { i =>
-      val is = i.toString
-      assert(is.length <= d)
-      "part-" + StringUtils.leftPad(is, d, "0")
-    }
-
-    val partitionCounts = crdd.mapPartitionsWithIndex { case (index, it) =>
+    val (partFiles, partitionCounts) = crdd.mapPartitionsWithIndex { case (index, it) =>
       val i = remapBc.value(index)
-      val filename = path + "/parts/" + partFile(d, i)
+      val f = partFile(d, i, TaskContext.get)
+      val filename = path + "/parts/" + f
       val os = sHadoopConfBc.value.value.unsafeWriter(filename)
-      Iterator.single(write(i, it, os))
-    }.run.collect()
+      Iterator.single(f -> write(i, it, os))
+    }
+      .run
+      .collect()
+      .unzip
 
     val itemCount = partitionCounts.sum
     assert(nPartitionsToWrite == partitionCounts.length)
