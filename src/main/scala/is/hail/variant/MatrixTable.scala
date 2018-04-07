@@ -563,6 +563,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
+
+    log.info("in MatrixTable.value: execute:\n" + ir.Pretty(opt))
+
     val v = opt.execute(hc)
     assert(v.rvd.typ == matrixType.orvdType, s"\n${ v.rvd.typ }\n${ matrixType.orvdType }")
     v

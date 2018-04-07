@@ -18,6 +18,9 @@ object Interpret {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg]): T = {
+
+    log.info("interpret:\n" + Pretty(ir))
+
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
