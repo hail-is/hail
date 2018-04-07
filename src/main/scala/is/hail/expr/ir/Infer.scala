@@ -184,6 +184,7 @@ object Infer {
       case x@TableAggregate(child, query, _) =>
         infer(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)
         x.typ = query.typ
+      case MatrixWrite(_, _, _, _) =>
       case TableWrite(_, _, _, _) =>
       case TableCount(_) =>
     }

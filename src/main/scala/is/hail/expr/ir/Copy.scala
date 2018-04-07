@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{BaseIR, TableIR}
+import is.hail.expr.{BaseIR, MatrixIR, TableIR}
 
 object Copy {
   def apply(x: IR, newChildren: IndexedSeq[BaseIR]): BaseIR = {
@@ -106,6 +106,10 @@ object Copy {
         Apply(fn, newChildren.map(_.asInstanceOf[IR]), impl)
       case ApplySpecial(fn, args, impl) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), impl)
+      // from MatrixIR
+      case MatrixWrite(_, path, overwrite, codecSpecJSONStr) =>
+        val IndexedSeq(child: MatrixIR) = newChildren
+        MatrixWrite(child, path, overwrite, codecSpecJSONStr)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren

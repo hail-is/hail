@@ -42,6 +42,8 @@ object Recur {
     case Die(message) => ir
     case Apply(fn, args, impl) => Apply(fn, args.map(f), impl)
     case ApplySpecial(fn, args, impl) => ApplySpecial(fn, args.map(f), impl)
+    // from MatrixIR
+    case MatrixWrite(_, _, _, _) => ir
     // from TableIR
     case TableCount(_) => ir
     case TableAggregate(child, query, typ) => TableAggregate(child, query, typ)
