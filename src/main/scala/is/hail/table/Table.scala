@@ -166,6 +166,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   lazy val value: TableValue = {
     val opt = TableIR.optimize(tir)
+
+    log.info("in Table.value: execute:\n" + ir.Pretty(opt))
+
     opt.execute(hc)
   }
 
