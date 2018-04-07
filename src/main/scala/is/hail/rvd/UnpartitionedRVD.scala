@@ -46,9 +46,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   }
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
-    new UnpartitionedRVD(
-      rowType,
-      ContextRDD.weaken(rdd.sample(withReplacement, p, seed)))
+    new UnpartitionedRVD(rowType, crdd.sample(withReplacement, p, seed))
 
   def write(path: String, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)

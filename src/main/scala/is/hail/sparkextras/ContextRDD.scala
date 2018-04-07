@@ -3,8 +3,11 @@ package is.hail.sparkextras
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd._
+import org.apache.spark.storage._
+import org.apache.spark.util.random._
 
 import scala.reflect.ClassTag
+import scala.util._
 
 object ContextRDD {
   def empty[C <: AutoCloseable, T: ClassTag](
@@ -122,10 +125,12 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     mkc)
 
   def cmapPartitionsWithIndex[U: ClassTag](
-    f: (Int, C, Iterator[T]) => Iterator[U]
+    f: (Int, C, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
   ): ContextRDD[C, U] = new ContextRDD(
     rdd.mapPartitionsWithIndex(
-      (i, part) => inCtx(ctx => f(i, ctx, part.flatMap(_(ctx))))),
+      (i, part) => inCtx(ctx => f(i, ctx, part.flatMap(_(ctx)))),
+      preservesPartitioning),
     mkc)
 
   def czipPartitions[U: ClassTag, V: ClassTag](
@@ -164,6 +169,26 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       ContextRDD.weaken(run.coalesce(numPartitions, shuffle), mkc)
     else
       onRDD(_.coalesce(numPartitions, shuffle))
+
+  def sample(
+    withReplacement: Boolean,
+    fraction: Double,
+    seed: Long
+  ): ContextRDD[C, T] = {
+    require(fraction >= 0.0 && fraction <= 1.0)
+    val r = new Random(seed)
+    val partitionSeeds =
+      sparkContext.broadcast(
+        Array.fill(rdd.partitions.length)(r.nextLong()))
+    cmapPartitionsWithIndex({ (i, ctx, it) =>
+      val sampler = if (withReplacement)
+        new PoissonSampler[T](fraction)
+      else
+        new BernoulliSampler[T](fraction)
+      sampler.setSeed(partitionSeeds.value(i))
+      sampler.sample(it)
+    }, preservesPartitioning = true)
+  }
 
   def sparkContext: SparkContext = rdd.sparkContext
 
