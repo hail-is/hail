@@ -752,37 +752,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(columnToExplode: String): Table = {
-
-    val explodeField = signature.fieldOption(columnToExplode) match {
-      case Some(x) => x
-      case None =>
-        fatal(
-          s"""Input field name `${ columnToExplode }' not found in Table.
-             |Table field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
-    }
-
-    val index = explodeField.index
-
-    val explodeType = explodeField.typ match {
-      case t: TIterable => t.elementType
-      case _ => fatal(s"Require Array or Set. Column `$columnToExplode' has type `${ explodeField.typ }'.")
-    }
-
-    val newSignature = signature.copy(fields = fields.updated(index, Field(columnToExplode, explodeType, index)))
-
-    val empty = Iterable.empty[Row]
-    val explodedRDD = rdd.flatMap { a =>
-      val row = a.toSeq
-      val it = row(index)
-      if (it == null)
-        empty
-      else
-        for (element <- row(index).asInstanceOf[Iterable[_]]) yield Row.fromSeq(row.updated(index, element))
-    }
-
-    copy(rdd = explodedRDD, signature = newSignature, key = key)
-  }
+  def explode(column: String): Table = new Table(hc, TableExplode(tir, column))
 
   def explode(columnNames: Array[String]): Table = {
     columnNames.foldLeft(this)((kt, name) => kt.explode(name))

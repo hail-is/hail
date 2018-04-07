@@ -196,7 +196,7 @@ object MatrixIR {
 
   def filterCols(typ: MatrixType): (MatrixType, (MatrixValue, (Annotation, Int) => Boolean) => MatrixValue) = {
     val (t, keepF) = chooseColsWithArray(typ)
-    (t, {(mv: MatrixValue, p :(Annotation, Int) => Boolean) =>
+    (t, { (mv: MatrixValue, p: (Annotation, Int) => Boolean) =>
       val keep = (0 until mv.nCols)
         .view
         .filter { i => p(mv.colValues.value(i), i) }
@@ -1129,5 +1129,61 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
       t = rTyp.asInstanceOf[TStruct])
 
     TableValue(typ, newGlobals, tv.rvd)
+  }
+}
+
+case class TableExplode(child: TableIR, column: String) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  private val columnIdx = child.typ.rowType.fieldIdx(column)
+  private val columnType = child.typ.rowType.types(columnIdx).asInstanceOf[TContainer]
+
+  val typ: TableType =
+    child.typ.copy(
+      rowType = child.typ.rowType.updateKey(column, columnIdx, columnType.elementType))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
+    assert(newChildren.length == 1)
+    TableExplode(newChildren(0).asInstanceOf[TableIR], column)
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+
+    val (_, isMissingF) = ir.Compile[Long, Boolean]("row", child.typ.rowType,
+      ir.IsNA(ir.GetField(Ref("row"), column)))
+
+    val (_, lengthF) = ir.Compile[Long, Int]("row", child.typ.rowType,
+      ir.ArrayLen(ir.GetField(Ref("row"), column)))
+
+    val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", child.typ.rowType,
+      "i", TInt32(),
+      ir.InsertFields(Ref("row"),
+        Array(column -> ir.ArrayRef(
+          ir.GetField(ir.Ref("row"), column),
+          ir.Ref("i")))))
+    assert(resultType == typ.rowType)
+
+    TableValue(typ, prev.globals,
+      prev.rvd.mapPartitions(typ.rowType) { it =>
+        val rv2 = RegionValue()
+
+        it.flatMap { rv =>
+          val isMissing = isMissingF()(rv.region, rv.offset, false)
+          if (isMissing)
+            Iterator.empty
+          else {
+            val end = rv.region.size
+            val n = lengthF()(rv.region, rv.offset, false)
+            Iterator.range(0, n)
+              .map { i =>
+                // rv.region.clear(end)
+                val off = explodeF()(rv.region, rv.offset, false, i, false)
+                rv2.set(rv.region, off)
+                rv2
+              }
+          }
+        }
+      })
   }
 }
