@@ -1,4 +1,5 @@
 from pyspark.sql import DataFrame
+import pandas
 
 import hail as hl
 from hail.expr.expr_ast import *
@@ -385,19 +386,18 @@ class Table(ExprContainer):
 
     @classmethod
     @typecheck_method(rows=anytype,
-                      schema=tstruct,
+                      schema=nullable(tstruct),
                       key=oneof(str, sequenceof(str)),
                       n_partitions=nullable(int))
-    def parallelize(cls, rows, schema, key=(), n_partitions=None):
-        rows = to_expr(rows, hl.tarray(schema))
+    def parallelize(cls, rows, schema=None, key=(), n_partitions=None):
+        rows = to_expr(rows, hl.tarray(schema) if schema is not None else None)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        rows = rows.value
         return Table(
             Env.hail().table.Table.parallelize(
-                Env.hc()._jhc, hl.tarray(schema)._to_json(rows),
-                schema._jtype, wrap_to_list(key), joption(n_partitions)))
+                Env.hc()._jhc, rows.dtype._to_json(rows.value),
+                rows.dtype.element_type._jtype, wrap_to_list(key), joption(n_partitions)))
 
     @typecheck_method(keys=oneof(str, Expression))
     def key_by(self, *keys) -> 'Table':
@@ -2155,7 +2155,7 @@ class Table(ExprContainer):
             jt = jt.expandTypes()
         if flatten:
             jt = jt.flatten()
-        return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.hc()._sql_context)
+        return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.sql_context())
 
     @typecheck_method(expand=bool,
                       flatten=bool)
@@ -2177,6 +2177,31 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
         """
         return self.to_spark(expand, flatten).toPandas()
+
+    @staticmethod
+    @typecheck(df=pandas.DataFrame,
+               key=oneof(str, sequenceof(str)))
+    def from_pandas(df, key=[]):
+        """Create table from Pandas DataFrame
+
+        Examples
+        --------
+
+        >>> t = Table.from_pandas(df) # doctest: +SKIP
+
+        Parameters
+        ----------
+        df : :class:`.pandas.DataFrame`
+            Pandas DataFrame.
+
+        key : :obj:`str` or :obj:`list` of :obj:`str`
+            Key fields.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric))
     def _same(self, other, tolerance=1e-6):

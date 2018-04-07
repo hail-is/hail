@@ -1,6 +1,7 @@
 """
 Unit tests for Hail.
 """
+import pandas as pd
 import unittest
 import random
 import hail as hl
@@ -479,6 +480,16 @@ class TableTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
+
+    def test_from_pandas_works(self):
+        d = {'a': [1, 2], 'b': ['foo', 'bar']}
+        df = pd.DataFrame(data=d)
+        t = hl.Table.from_pandas(df, key='a')
+
+        d2 = [hl.struct(a=hl.int64(1), b='foo'), hl.struct(a=hl.int64(2), b='bar')]
+        t2 = hl.Table.parallelize(d2, key='a')
+
+        self.assertTrue(t._same(t2))
 
     def test_rename(self):
         kt = hl.utils.range_table(10)
