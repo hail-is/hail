@@ -2,13 +2,11 @@ package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr._
 import is.hail.expr.ir
 import is.hail.expr.types._
-import is.hail.io.annotators.IntervalList
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
-import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
+import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
@@ -428,7 +426,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
-    copy(key = key.toArray[String])
+    copy2(key = key.toArray[String])
   }
 
   def select(expr: String): Table = {
@@ -466,16 +464,18 @@ class Table(val hc: HailContext, val tir: TableIR) {
       exportTypes(file, hConf, fields.map(f => (f.name, f.typ)))
     }
 
+    val localSignature = signature
     val localTypes = fields.map(_.typ)
 
-    rdd.mapPartitions { it =>
+    rvd.mapPartitions { it =>
       val sb = new StringBuilder()
 
-      it.map { r =>
+      it.map { rv =>
+        val ur = new UnsafeRow(localSignature)
         sb.clear()
 
         localTypes.indices.foreachBetween { i =>
-          sb.append(TableAnnotationImpex.exportAnnotation(r.get(i), localTypes(i)))
+          sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
         }(sb += '\t')
 
         sb.result()
@@ -746,8 +746,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature
     sqlContext.createDataFrame(
-      rdd.map {
-        a => SparkAnnotationImpex.exportAnnotation(a, localSignature).asInstanceOf[Row]
+      rvd.map { rv =>
+        val ur = new UnsafeRow(localSignature, rv)
+        SparkAnnotationImpex.exportAnnotation(ur, localSignature).asInstanceOf[Row]
       },
       signature.schema.asInstanceOf[StructType])
   }
@@ -812,13 +813,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
         fatal(s"unknown StorageLevel `$storageLevel'")
     }
 
-    rdd.persist(level)
-    this
+    copy2(rvd = rvd.persist(level))
   }
 
-  def unpersist() {
-    rdd.unpersist()
-  }
+  def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
   def orderBy(sortCols: SortColumn*): Table =
     orderBy(sortCols.toArray)
@@ -860,19 +858,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 
-  def repartition(n: Int, shuffle: Boolean = true): Table = copy(rdd = rdd.coalesce(n, shuffle))
+  def repartition(n: Int, shuffle: Boolean = true): Table = copy2(rvd = rvd.coalesce(n, shuffle))
 
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 
   def union(kts: Table*): Table = {
-    kts.foreach { kt =>
-      if (signature != kt.signature)
-        fatal("cannot union tables with different schemas")
-      if (!key.sameElements(kt.key))
-        fatal("cannot union tables with different key")
-    }
+    assert(kts.forall(_.signature == signature))
+    assert(kts.forall(_.key == key))
 
-    copy(rdd = hc.sc.union(rdd, kts.map(_.rdd): _*))
+    copy2(rvd = RVD.union(rvd +: kts.map(_.rvd)))
   }
 
   def take(n: Int): Array[Row] = rdd.take(n)

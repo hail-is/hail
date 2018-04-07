@@ -808,13 +808,12 @@ object OrderedRVD {
       })
   }
 
-  def union(rvds: Array[OrderedRVD]): OrderedRVD = {
+  def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
-    val first = rvds(0)
-    val sc = first.sparkContext
+    val first = rvds.head
     OrderedRVD.coerce(
       first.typ,
-      sc.union(rvds.map(_.rdd)),
+      RVD.union(rvds),
       None,
       None)
   }
