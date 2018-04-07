@@ -127,7 +127,7 @@ def collect_as_set(expr) -> SetExpression:
     :class:`.SetExpression`
         Set of unique `expr` records.
     """
-    return _agg_func('collectAsSet', expr, tarray(expr.dtype))
+    return _agg_func('collectAsSet', expr, tset(expr.dtype))
 
 @typecheck(expr=nullable(agg_expr(expr_any)))
 def count(expr=None) -> Int64Expression:

@@ -160,7 +160,11 @@ trait RVD {
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
-    depth: Int = 2): U = rdd.treeAggregate(zeroValue)(seqOp, combOp, depth)
+    depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)): U = rdd.treeAggregate(zeroValue)(seqOp, combOp, depth)
+
+  def aggregate[U: ClassTag](zeroValue: U)(
+    seqOp: (U, RegionValue) => U,
+    combOp: (U, U) => U): U = rdd.aggregate(zeroValue)(seqOp, combOp)
 
   def aggregateWithContext[U: ClassTag, V](context: () => V)(zeroValue: U)
     (seqOp: (V, U, RegionValue) => U, combOp: (U, U) => U): U = {

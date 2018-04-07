@@ -5,15 +5,17 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.io.CodecSpec
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.table.TableSpec
-import is.hail.variant.MatrixTableSpec
+import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
+import org.json4s.jackson.JsonMethods
 
 object BaseIR {
   def genericRewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
@@ -750,6 +752,48 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         p(rv, globalRV)
       }
     })
+  }
+
+  def write(path: String, overwrite: Boolean, codecSpecJSONStr: String) {
+    val hc = HailContext.get
+
+    val codecSpec =
+      if (codecSpecJSONStr != null) {
+        implicit val formats = RVDSpec.formats
+        val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
+        codecSpecJSON.extract[CodecSpec]
+      } else
+        CodecSpec.default
+
+    if (overwrite)
+      hc.hadoopConf.delete(path, recursive = true)
+    else if (hc.hadoopConf.exists(path))
+      fatal(s"file already exists: $path")
+
+    hc.hadoopConf.mkDir(path)
+
+    val globalsPath = path + "/globals"
+    hc.hadoopConf.mkDir(globalsPath)
+    RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+
+    val partitionCounts = rvd.write(path + "/rows", codecSpec)
+
+    val referencesPath = path + "/references"
+    hc.hadoopConf.mkDir(referencesPath)
+    ReferenceGenome.exportReferences(hc, referencesPath, typ.rowType)
+    ReferenceGenome.exportReferences(hc, referencesPath, typ.globalType)
+
+    val spec = TableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "references",
+      typ,
+      Map("globals" -> RVDComponentSpec("globals"),
+        "rows" -> RVDComponentSpec("rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    spec.write(hc, path)
+
+    hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 }
 

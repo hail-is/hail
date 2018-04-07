@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.expr.types._
 import is.hail.methods._
@@ -10,18 +12,18 @@ object Interpret {
   type AggElement = (Any, Env[Any])
   type Agg = (TAggregable, IndexedSeq[AggElement])
 
-  def apply(ir: IR): Any = apply(ir, Env.empty[(Any, Type)], IndexedSeq(), None)
+  def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], IndexedSeq(), None).asInstanceOf[T]
 
-  def apply(ir: IR,
+  def apply[T](ir: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
-    agg: Option[Agg]): Any = {
+    agg: Option[Agg]): T = {
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
     Infer(ir, agg.map(_._1), typeEnv)
-    interpret(ir, valueEnv, args, agg.orNull)
+    interpret(ir, valueEnv, args, agg.orNull).asInstanceOf[T]
   }
 
   private def interpret(ir: IR, env: Env[Any], args: IndexedSeq[Any], agg: Agg): Any = {
@@ -357,9 +359,65 @@ object Interpret {
         val resultOffset = f(region, offset, false)
         val ur = new UnsafeRow(TTuple(implementation.returnType), region, resultOffset)
         ur.get(0)
+      case TableCount(child) =>
+        child.partitionCounts
+          .map(_.sum)
+          .getOrElse(child.execute(HailContext.get).rvd.count())
+      case TableWrite(child, path, overwrite, codecSpecJSONStr) =>
+        val hc = HailContext.get
+        val tableValue = child.execute(hc)
+        tableValue.write(path, overwrite, codecSpecJSONStr)
+      case TableAggregate(child, query, _) =>
+        val localGlobalSignature = child.typ.globalType
+        val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
+
+        val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
+          "AGG", tAgg,
+          "global", child.typ.globalType,
+          MakeTuple(Array(query)))
+
+        val value = child.execute(HailContext.get)
+        val globalsBc = value.globals.broadcast
+        val aggResults = if (seqOps.nonEmpty) {
+          value.rvd.aggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
+            // add globals to region value
+            val rowOffset = rv.offset
+            val rvb = new RegionValueBuilder()
+            rvb.set(rv.region)
+            rvb.start(localGlobalSignature)
+            rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+            val globalsOffset = rvb.end()
+
+            rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
+              seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false)
+            }
+            rvaggs
+          }, { (rvAggs1, rvAggs2) =>
+            rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
+            rvAggs1
+          })
+        } else
+          Array.empty[RegionValueAggregator]
+
+        val region: Region = Region()
+        val rvb: RegionValueBuilder = new RegionValueBuilder()
+        rvb.set(region)
+
+        rvb.start(aggResultType)
+        rvb.startStruct()
+        aggResults.foreach(_.result(rvb))
+        rvb.endStruct()
+        val aggResultsOffset = rvb.end()
+
+        rvb.start(localGlobalSignature)
+        rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+        val globalsOffset = rvb.end()
+
+        val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+        val resultType = coerce[TTuple](t)
+        UnsafeRow.readBaseStruct(resultType, region, resultOffset).get(0)
     }
   }
-
 
   private def interpretAgg(ir: IR, agg: IndexedSeq[AggElement]): IndexedSeq[AggElement] = {
     (ir: @unchecked) match {

@@ -350,14 +350,16 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val Array(ktMean, ktStDev) = kt.query(Array("AGG.map(r => r.qPhen.toFloat64).stats().mean", "AGG.map(r => r.qPhen.toFloat64).stats().stdev")).map(_._1)
+    val IndexedSeq(ktMean, ktStDev) = kt.query(
+      "[AGG.map(r => r.qPhen.toFloat64).stats().mean , " +
+      "AGG.map(r => r.qPhen.toFloat64).stats().stdev]").asInstanceOf[IndexedSeq[Double]]
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))
 
     val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
 
-    val ktCounter = kt.query("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
+    val ktCounter = kt.query("AGG.map(r => r.Status).counter()").asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
   }

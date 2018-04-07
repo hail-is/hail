@@ -139,6 +139,7 @@ object HailContext {
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
     forceIR: Boolean = false): HailContext = {
+    require(theContext == null)
 
     val javaVersion = System.getProperty("java.version")
     if (!javaVersion.startsWith("1.8"))
@@ -180,7 +181,11 @@ object HailContext {
     hc
   }
 
-  def startProgressBar(sc: SparkContext): Unit = {
+  def clear() {
+    theContext = null
+  }
+
+  def startProgressBar(sc: SparkContext) {
     ProgressBarBuilder.build(sc)
   }
 
@@ -656,10 +661,5 @@ class HailContext private(val sc: SparkContext,
         val (t, f) = Parser.eval(ast, ec)
         (f(), t)
     }
-  }
-
-  def stop() {
-    sc.stop()
-    HailContext.theContext = null
   }
 }

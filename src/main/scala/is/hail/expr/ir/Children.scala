@@ -4,6 +4,7 @@ import is.hail.expr.BaseIR
 
 object Children {
   private def none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
   def apply(x: IR): IndexedSeq[BaseIR] = x match {
     case I32(x) => none
     case I64(x) => none
@@ -78,5 +79,9 @@ object Children {
       args.toIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toIndexedSeq
+    // from TableIR
+    case TableCount(child) => IndexedSeq(child)
+    case TableAggregate(child, query, _) => IndexedSeq(child, query)
+    case TableWrite(child, _, _, _) => IndexedSeq(child)
   }
 }
