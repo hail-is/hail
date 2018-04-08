@@ -19,9 +19,6 @@ object Copy {
         val IndexedSeq(v: IR) = newChildren
         Cast(v, typ)
       case NA(_) => same
-      case MapNA(name, _, _, typ) =>
-        val IndexedSeq(value: IR, body: IR) = newChildren
-        MapNA(name, value, body, typ)
       case IsNA(value) =>
         val IndexedSeq(value: IR) = newChildren
         IsNA(value)
@@ -45,9 +42,6 @@ object Copy {
       case ArrayRef(_, _, typ) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
         ArrayRef(a, i, typ)
-      case ArrayMissingnessRef(_, _) =>
-        val IndexedSeq(a: IR, i: IR) = newChildren
-        ArrayMissingnessRef(a, i)
       case ArrayLen(_) =>
         val IndexedSeq(a: IR) = newChildren
         ArrayLen(a)
@@ -75,9 +69,6 @@ object Copy {
       case GetField(_, name, typ) =>
         val IndexedSeq(o: IR) = newChildren
         GetField(o, name, typ)
-      case GetFieldMissingness(_, name) =>
-        val IndexedSeq(o: IR) = newChildren
-        GetFieldMissingness(o, name)
       case AggIn(_) =>
         same
       case AggMap(_, name, _, typ) =>
@@ -97,8 +88,6 @@ object Copy {
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx, typ)
       case In(_, _) =>
-        same
-      case InMissingness(_) =>
         same
       case Die(message) =>
         same

@@ -154,24 +154,6 @@ private class Emit(
       case IsNA(v) =>
         val codeV = emit(v)
         EmitTriplet(codeV.setup, const(false), codeV.m)
-      case MapNA(name, value, body, typ) =>
-        val vti = typeToTypeInfo(value.typ)
-        val bti = typeToTypeInfo(typ)
-        val mx = mb.newBit()
-        val x = coerce[Any](fb.newLocal(name)(vti))
-        val mout = mb.newBit()
-        val out = coerce[Any](fb.newLocal(name)(bti))
-        val codeV = emit(value)
-        val bodyenv = env.bind(name -> (vti, mx, x))
-        val codeBody = emit(body, env = bodyenv)
-        val setup = Code(
-          codeV.setup,
-          mx := codeV.m,
-          mx.mux(
-            Code(mout := true, out := defaultValue(typ)),
-            Code(x := codeV.v, codeBody.setup, mout := codeBody.m, out := codeBody.v)))
-
-        EmitTriplet(setup, mout, out)
 
       case If(cond, cnsq, altr, typ) =>
         val codeCond = emit(cond)
@@ -264,15 +246,6 @@ private class Emit(
                 .invoke[String, String]("concat", " / ")
                 .invoke[String, String]("concat", len.load().toS)
             ))))
-      case ArrayMissingnessRef(a, i) =>
-        val tarray = coerce[TArray](a.typ)
-        val ati = coerce[Long](typeToTypeInfo(tarray))
-        val codeA = emit(a)
-        val codeI = emit(i)
-        present(Code(
-          codeA.setup,
-          codeI.setup,
-          codeA.m || codeI.m || !tarray.isElementDefined(region, coerce[Long](codeA.v), coerce[Int](codeI.v))))
       case ArrayLen(a) =>
         val codeA = emit(a)
         EmitTriplet(codeA.setup, codeA.m, TContainer.loadLength(region, coerce[Long](codeA.v)))
@@ -455,12 +428,6 @@ private class Emit(
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
-      case GetFieldMissingness(o, name) =>
-        val t = coerce[TStruct](o.typ)
-        val fieldIdx = t.fieldIdx(name)
-        val codeO = emit(o)
-        present(Code(codeO.setup, codeO.m || !t.isFieldDefined(region, coerce[Long](codeO.v), fieldIdx)))
-
       case x@MakeTuple(types, _) =>
         val initializers = types.map { v => (v.typ, emit(v)) }
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
@@ -493,8 +460,6 @@ private class Emit(
         EmitTriplet(Code._empty,
           fb.getArg[Boolean](normalArgumentPosition(i) + 1),
           fb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
-      case InMissingness(i) =>
-        present(fb.getArg[Boolean](i * 2 + 3))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case Apply(fn, args, impl) =>
@@ -596,7 +561,7 @@ private class Emit(
         }
       case _: ApplyAggOp =>
         throw new RuntimeException(s"No nested aggregations allowed: $ir")
-      case In(_, _) | InMissingness(_) =>
+      case In(_, _) =>
         throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")
       case _ =>
         throw new RuntimeException(s"Expected an aggregator, but found: $ir")
