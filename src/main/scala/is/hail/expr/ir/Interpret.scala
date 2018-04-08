@@ -14,18 +14,22 @@ object Interpret {
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], IndexedSeq(), None).asInstanceOf[T]
 
-  def apply[T](ir: IR,
+  def apply[T](ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg]): T = {
 
-    log.info("interpret:\n" + Pretty(ir))
 
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
+    var ir = ir0
+    ir = Optimize(ir)
     Infer(ir, agg.map(_._1), typeEnv)
+
+    log.info("interpret:\n" + Pretty(ir))
+
     interpret(ir, valueEnv, args, agg.orNull).asInstanceOf[T]
   }
 

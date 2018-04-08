@@ -562,7 +562,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     .toArray
 
   lazy val value: MatrixValue = {
-    val opt = MatrixIR.optimize(ast)
+    val opt = ir.Optimize(ast)
 
     log.info("in MatrixTable.value: execute:\n" + ir.Pretty(opt))
 

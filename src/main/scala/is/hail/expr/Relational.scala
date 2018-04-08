@@ -17,59 +17,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.jackson.JsonMethods
 
-object BaseIR {
-  def genericRewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
-    def rewrite(ast: BaseIR): BaseIR = {
-      rule.lift(ast) match {
-        case Some(newAST) if newAST != ast =>
-          rewrite(newAST)
-        case None =>
-          val newChildren = ast.children.map(rewrite)
-          if ((ast.children, newChildren).zipped.forall(_ eq _))
-            ast
-          else
-            ast.copy(newChildren)
-      }
-    }
-
-    rewrite(ast)
-  }
-
-  def rewriteTopDown(ast: MatrixIR, rule: PartialFunction[BaseIR, BaseIR]): MatrixIR =
-    genericRewriteTopDown(ast, rule).asInstanceOf[MatrixIR]
-
-  def rewriteTopDown(ast: TableIR, rule: PartialFunction[BaseIR, BaseIR]): TableIR =
-    genericRewriteTopDown(ast, rule).asInstanceOf[TableIR]
-
-  def genericRewriteBottomUp(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
-    def rewrite(ast: BaseIR): BaseIR = {
-      val newChildren = ast.children.map(rewrite)
-
-      // only recons if necessary
-      val rewritten =
-        if ((ast.children, newChildren).zipped.forall(_ eq _))
-          ast
-        else
-          ast.copy(newChildren)
-
-      rule.lift(rewritten) match {
-        case Some(newAST) if newAST != rewritten =>
-          rewrite(newAST)
-        case None =>
-          rewritten
-      }
-    }
-
-    rewrite(ast)
-  }
-
-  def rewriteBottomUp(ast: MatrixIR, rule: PartialFunction[BaseIR, BaseIR]): MatrixIR =
-    genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixIR]
-
-  def rewriteBottomUp(ast: TableIR, rule: PartialFunction[BaseIR, BaseIR]): TableIR =
-    genericRewriteBottomUp(ast, rule).asInstanceOf[TableIR]
-}
-
 abstract class BaseIR {
   def typ: BaseType
 
@@ -103,64 +50,6 @@ case class MatrixValue(
 }
 
 object MatrixIR {
-  def optimize(ast: MatrixIR): MatrixIR = {
-    BaseIR.rewriteTopDown(ast, {
-      case FilterRows(
-      MatrixRead(path, spec, dropSamples, _),
-      Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, spec, dropSamples, dropRows = true)
-
-      case FilterCols(
-      MatrixRead(path, spec, _, dropVariants),
-      Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, spec, dropCols = true, dropVariants)
-
-      case FilterRows(m, Const(_, true, TBoolean(_))) =>
-        m
-      case FilterCols(m, Const(_, true, TBoolean(_))) =>
-        m
-
-      // minor, but push FilterVariants into FilterSamples
-      case FilterRows(FilterCols(m, spred), vpred) =>
-        FilterCols(FilterRows(m, vpred), spred)
-
-      case FilterRows(FilterRows(m, pred1), pred2) =>
-        FilterRows(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
-
-      case FilterCols(FilterCols(m, pred1), pred2) =>
-        FilterCols(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
-
-      // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case FilterRowsIR(MatrixRead(path, spec, dropSamples, _), False()) =>
-        MatrixRead(path, spec, dropSamples, dropRows = true)
-
-      case FilterColsIR(MatrixRead(path, spec, dropVariants, _), False()) =>
-        MatrixRead(path, spec, dropCols = true, dropVariants)
-
-      // Keep all rows/cols = do nothing
-      case FilterRowsIR(m, True()) => m
-
-      case FilterColsIR(m, True()) => m
-
-      // Push FilterRowsIR into FilterColsIR
-      case FilterRowsIR(FilterColsIR(m, colPred), rowPred) =>
-        FilterColsIR(FilterRowsIR(m, rowPred), colPred)
-
-      // Combine multiple filters into one
-      /*
-       * FIXME: optimizations disabled due to lack of DoubleAmpersand()
-       *
-      case FilterRowsIR(FilterRowsIR(m, pred1), pred2) =>
-        FilterRowsIR(m,
-          ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
-
-      case FilterColsIR(FilterColsIR(m, pred1), pred2) =>
-        FilterColsIR(m,
-          ApplyBinaryPrimOp(DoubleAmpersand(), pred1, pred2))
-       */
-    })
-  }
-
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
     val rowType = typ.rvRowType
     val keepType = TArray(+TInt32())
@@ -794,17 +683,6 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
-  }
-}
-
-
-object TableIR {
-  def optimize(ir: TableIR): TableIR = {
-    BaseIR.rewriteTopDown(ir, {
-      case TableFilter(x, True()) => x
-      case TableFilter(TableRead(path, spec, _), False() | NA(TBoolean(_))) =>
-        TableRead(path, spec, true)
-    })
   }
 }
 
