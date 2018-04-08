@@ -1052,6 +1052,49 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
+case class TableRange(n: Int, name: String = "index", nPartitions: Int) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableRange = this
+
+  private val partCounts = partition(n, nPartitions)
+
+  override val partitionCounts = Some(partCounts.map(_.toLong))
+
+  val typ: TableType = TableType(
+    TStruct(name -> TInt32()),
+    Array(name),
+    TStruct.empty())
+
+  def execute(hc: HailContext): TableValue = {
+    val localRowType = typ.rowType
+    val localPartCounts = partCounts
+    val partStarts = partCounts.scanLeft(0)(_ + _)
+
+    TableValue(typ,
+      BroadcastRow(Row(), typ.globalType, hc.sc),
+      new UnpartitionedRVD(typ.rowType,
+        hc.sc.parallelize(Range(0, nPartitions), nPartitions)
+          .mapPartitionsWithIndex { case (i, _) =>
+            val region = Region()
+            val rvb = new RegionValueBuilder(region)
+            val rv = RegionValue(region)
+
+            val start = partStarts(i)
+            Iterator.range(start, start + localPartCounts(i))
+              .map { j =>
+                region.clear()
+                rvb.start(localRowType)
+                rvb.startStruct()
+                rvb.addInt(j)
+                rvb.endStruct()
+                rv.setOffset(rvb.end())
+                rv
+              }
+          }))
+  }
+}
+
 case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, pred)
 

@@ -567,6 +567,13 @@ class TableTests(unittest.TestCase):
         t = t.annotate(ref = t.alleles[0])
         t._force_count()
 
+    def test_range_table(self):
+        t = hl.utils.range_table(26, n_partitions = 5)
+        self.assertEqual(t.globals.dtype, hl.tstruct())
+        self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.int32))
+        self.assertEqual(list(t.key), ['idx'])
+        
+        self.assertEqual([r.idx for r in t.collect()], range(26))
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:

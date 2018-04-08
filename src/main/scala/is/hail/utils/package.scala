@@ -580,6 +580,15 @@ package object utils extends Logging
   }
 
   def point[T]()(implicit t: Pointed[T]): T = t.point
+
+  def partition(n: Int, k: Int): Array[Int] = {
+    assert(n >= 0)
+    assert(k > 0)
+    val parts = Array.tabulate(k)(i => (n - i + n - 1) / n)
+    assert(parts.sum == n)
+    assert(parts.max - parts.min < 1)
+    parts
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
