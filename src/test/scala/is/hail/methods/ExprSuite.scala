@@ -997,10 +997,6 @@ class ExprSuite extends SparkSuite {
       property("table") = forAll(g.filter { case (t, a) => !t.isOfType(TFloat64()) && a != null }.resize(10)) { case (t, a) =>
         TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
       }
-
-      property("spark") = forAll(g) { case (t, a) =>
-        SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
     }
 
     Spec.check()

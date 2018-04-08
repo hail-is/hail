@@ -61,10 +61,7 @@ object Table {
 
   def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[String] = Array.empty[String]): Table = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    Table(hc, df.rdd.map { r =>
-      SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
-    },
-      signature, key)
+    Table(hc, df.rdd, signature, key)
   }
 
   def read(hc: HailContext, path: String): Table = {
@@ -726,12 +723,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def expandTypes(): Table = {
-    val localSignature = signature
-    val expandedSignature = Annotation.expandType(localSignature).asInstanceOf[TStruct]
+    def deepExpand(t: Type): Type = {
+      t match {
+        case t: TContainer =>
+          // set, dict => array
+          TArray(deepExpand(t.elementType), t.required)
+        case t: ComplexType =>
+          deepExpand(t.representation).setRequired(t.required)
+        case t: TBaseStruct =>
+          // tuple => struct
+          TStruct(t.required, t.fields.map { f => (f.name, deepExpand(f.typ)) }: _*)
+        case _ => t
+      }
+    }
 
-    copy(rdd = rdd.map { a => Annotation.expandAnnotation(a, localSignature).asInstanceOf[Row] },
-      signature = expandedSignature,
-      key = key)
+    val newRowType = deepExpand(signature).asInstanceOf[TStruct]
+    copy2(
+      rvd = new UnpartitionedRVD(newRowType, rvd.crdd),
+      signature = newRowType)
   }
 
   def flatten(): Table = {
@@ -759,13 +768,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
       .keyBy(newKey)
   }
 
+  // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature
     sqlContext.createDataFrame(
-      rvd.map { rv =>
-        val ur = new UnsafeRow(localSignature, rv)
-        SparkAnnotationImpex.exportAnnotation(ur, localSignature).asInstanceOf[Row]
-      },
+      rvd.map { rv => SafeRow(localSignature, rv) },
       signature.schema.asInstanceOf[StructType])
   }
 

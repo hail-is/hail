@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{JSONAnnotationImpex, Parser}
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.{TArray, TInterval, TStruct, TStructSerializer}
 import is.hail.sparkextras._
 import is.hail.io._
@@ -12,7 +12,7 @@ import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.json4s.{CustomSerializer, DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.reflect.ClassTag

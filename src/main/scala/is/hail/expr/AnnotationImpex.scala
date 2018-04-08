@@ -9,16 +9,7 @@ import org.apache.spark.sql.types._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-abstract class AnnotationImpex[T, A] {
-  // FIXME for now, schema must be specified on import
-  def exportType(t: Type): T
-
-  def exportAnnotation(a: Annotation, t: Type): A
-
-  def importAnnotation(a: A, t: Type): Annotation
-}
-
-object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
+object SparkAnnotationImpex {
   val invalidCharacters: Set[Char] = " ,;{}()\n\t=".toSet
 
   def escapeColumnName(name: String): String = {
@@ -28,15 +19,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       else
         c
     }.mkString
-  }
-
-  def requiresConversion(t: Type): Boolean = t match {
-    case TArray(elementType, _) => requiresConversion(elementType)
-    case TSet(_, _) | TDict(_, _, _) |
-         TLocus(_, _) | TInterval(_, _) | TCall(_) => true
-    case tbs: TBaseStruct =>
-      tbs.types.isEmpty || tbs.types.exists(typ => requiresConversion(typ))
-    case _ => false
   }
 
   def importType(t: DataType): Type = t match {
@@ -52,54 +34,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       TStruct(fields.map { f => (f.name, importType(f.dataType).setRequired(!f.nullable)) }: _*)
   }
 
-  def annotationImporter(t: Type): (Any) => Annotation = {
-    if (requiresConversion(t))
-      (a: Any) => importAnnotation(a, t)
-    else
-      (a: Any) => a
-  }
-
-  def importAnnotation(a: Any, t: Type): Annotation = {
-    if (a == null) {
-      if (t.required)
-        fatal("required annotation cannot be null")
-      null
-    } else
-      t match {
-        case TArray(elementType, _) =>
-          a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType))
-        case TSet(elementType, _) =>
-          a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType)).toSet
-        case TDict(keyType, valueType, _) =>
-          val kvPairs = a.asInstanceOf[IndexedSeq[Annotation]]
-          kvPairs
-            .map(_.asInstanceOf[Row])
-            .map(r => (importAnnotation(r.get(0), keyType), importAnnotation(r.get(1), valueType)))
-            .toMap
-        case TCall(_) =>
-          Call.parse(a.asInstanceOf[String])
-        case _: TLocus =>
-          val r = a.asInstanceOf[Row]
-          Locus(r.getAs[String](0), r.getAs[Int](1))
-        case x: TInterval =>
-          val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), x.pointType),
-            importAnnotation(r.get(1), x.pointType),
-            importAnnotation(r.get(2), TBooleanRequired).asInstanceOf[Boolean],
-            importAnnotation(r.get(3), TBooleanRequired).asInstanceOf[Boolean])
-        case t: TBaseStruct =>
-          if (t.size == 0)
-            if (a.asInstanceOf[Boolean]) Annotation.empty else null
-          else {
-            val r = a.asInstanceOf[Row]
-            Annotation.fromSeq(r.toSeq.zip(t.types).map { case (v, typ) =>
-              importAnnotation(v, typ)
-            })
-          }
-        case _ => a
-      }
-  }
-
   def exportType(t: Type): DataType = (t: @unchecked) match {
     case _: TBoolean => BooleanType
     case _: TInt32 => IntegerType
@@ -110,71 +44,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case _: TBinary => BinaryType
     case TArray(elementType, _) =>
       ArrayType(exportType(elementType), containsNull = !elementType.required)
-    case TSet(elementType, req) =>
-      ArrayType(exportType(elementType), containsNull = !elementType.required)
-    case TDict(keyType, valueType, _) =>
-      ArrayType(StructType(Array(
-        StructField("key", keyType.schema, nullable = !keyType.required),
-        StructField("value", valueType.schema, nullable = !valueType.required))), containsNull = false)
-    case _: TLocus => Locus.sparkSchema
-    case _: TInterval => StructType(Array(
-      StructField("start", Locus.sparkSchema, nullable = false),
-      StructField("end", Locus.sparkSchema, nullable = false)))
-    case _: TCall => StringType
-    case tbs: TBaseStruct =>
+    case tbs: TStruct =>
       if (tbs.fields.isEmpty)
         BooleanType //placeholder
       else
         StructType(tbs.fields
           .map(f =>
             StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
-  }
-
-  def annotationExporter(t: Type): (Annotation) => Any = {
-    if (requiresConversion(t))
-      (a: Annotation) => exportAnnotation(a, t)
-    else
-      (a: Annotation) => a
-  }
-
-  def exportAnnotation(a: Annotation, t: Type): Any = {
-    if (a == null) {
-      if (t.required)
-        fatal("required annotation cannot be null")
-      null
-    } else
-      t match {
-        case TArray(elementType, _) =>
-          a.asInstanceOf[IndexedSeq[_]].map(elem => exportAnnotation(elem, elementType))
-        case TSet(elementType, _) =>
-          a.asInstanceOf[Set[_]].toSeq.map(elem => exportAnnotation(elem, elementType))
-        case TDict(keyType, valueType, _) =>
-          a.asInstanceOf[Map[_, _]]
-            .map { case (k, v) =>
-              Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
-            }.toIndexedSeq
-        case TCall(_) =>
-          Call.toString(a.asInstanceOf[Call])
-        case TLocus(rg, _) =>
-          val l = a.asInstanceOf[Locus]
-          Row(l.contig, l.position)
-        case TInterval(pointType, _) =>
-          val i = a.asInstanceOf[Interval]
-          Row(exportAnnotation(i.start, pointType),
-            exportAnnotation(i.end, pointType),
-            exportAnnotation(i.includesStart, TBooleanRequired),
-            exportAnnotation(i.includesEnd, TBooleanRequired))
-        case t: TBaseStruct =>
-          if (t.size == 0)
-            a != null
-          else {
-            val r = a.asInstanceOf[Row]
-            Annotation.fromSeq(r.toSeq.zip(t.types).map {
-              case (v, typ) => exportAnnotation(v, typ)
-            })
-          }
-        case _ => a
-      }
   }
 }
 
@@ -191,7 +67,7 @@ case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractCo
     contigs.map(c => (c.name, c.length)).toMap, xContigs, yContigs, mtContigs, par.map(_.toLocusTuple))
 }
 
-object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
+object JSONAnnotationImpex {
   def jsonExtractSample(t: Type, sampleExpr: String): Any => String = {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
@@ -359,7 +235,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
   }
 }
 
-object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
+object TableAnnotationImpex {
 
   // Tables have no schema
   def exportType(t: Type): Unit = ()
