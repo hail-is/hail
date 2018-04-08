@@ -583,7 +583,7 @@ def logistic_regression(test, y, x, covariates=[], root='logreg') -> MatrixTable
 
     base, cleanup = mt._process_joins(*all_exprs)
 
-    jds = Env.hail().methods.LinearRegression.apply(
+    jds = Env.hail().methods.LogisticRegression.apply(
         base._jvds,
         test,
         y._ast.to_hql(),
