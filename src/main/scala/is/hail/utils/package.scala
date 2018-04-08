@@ -584,7 +584,7 @@ package object utils extends Logging
   def partition(n: Int, k: Int): Array[Int] = {
     assert(n >= 0)
     assert(k > 0)
-    val parts = Array.tabulate(k)(i => (n - i + n - 1) / n)
+    val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
     assert(parts.sum == n)
     assert(parts.max - parts.min < 1)
     parts
