@@ -309,29 +309,6 @@ class CompileSuite {
   }
 
   @Test
-  def mapNA() {
-    val mapNaIr = MapNA("foo", In(0, TArray(TFloat64())),
-      ArrayRef(Ref("foo"), In(1, TInt32())))
-
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Int, Boolean, Double]
-    doit(mapNaIr, fb)
-    val f = fb.result()()
-    def run(a: Array[java.lang.Double], i: Int): Double = {
-      val mb = Region()
-      val aoff = if (a != null) addBoxedArray(mb, a:_*) else -1L
-      f(mb, aoff, a == null, i, false)
-    }
-
-    assert(run(Array(1.0), 0) === 1.0)
-    assert(run(Array(1.0,2.0,3.0), 2) === 3.0)
-    assert(run(Array(-1.0,0.0,1.0), 0) === -1.0)
-
-    intercept[RuntimeException](run(null, 5))
-    intercept[RuntimeException](run(null, 0))
-    intercept[RuntimeException](run(Array(-1.0,null,1.0), 1))
-  }
-
-  @Test
   def getFieldSum() {
     val tL = TStruct("0" -> TFloat64())
     val scopeStruct = TStruct("foo" -> TInt32())
