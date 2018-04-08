@@ -1164,7 +1164,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     rowsAST.toIR(Some("AGG")) match {
       case Some(x) if useIR(this.rowAxis, rowsAST) =>
-        new MatrixTable(hc, MapRows(ast, x))
+        new MatrixTable(hc, MatrixMapRows(ast, x))
 
       case _ =>
         val newRowType = coerce[TStruct](rowsAST.`type`)
