@@ -3,10 +3,11 @@ package is.hail.testUtils
 import is.hail.annotations.{Annotation, Querier, SafeRow, UnsafeRow}
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
+import is.hail.methods._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 
@@ -131,5 +132,43 @@ class RichMatrixTable(vsm: MatrixTable) {
     val newToOld = newIds.map(oldIndex)
 
     vsm.chooseCols(newToOld)
+  }
+
+  def linreg(yExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
+    LinearRegression(vsm, yExpr, xField, covExpr, root, rowBlockSize)
+  }
+
+  def logreg(test: String,
+    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
+    root: String = "logreg"): MatrixTable = {
+    LogisticRegression(vsm, test, yExpr, xField, covExpr, root)
+  }
+
+  def lmmreg(kinshipMatrix: KinshipMatrix,
+    yExpr: String,
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
+    useML: Boolean = false,
+    rootGA: String = "lmmreg",
+    rootVA: String = "lmmreg",
+    runAssoc: Boolean = true,
+    delta: Option[Double] = None,
+    sparsityThreshold: Double = 1.0,
+    nEigs: Option[Int] = None,
+    optDroppedVarianceFraction: Option[Double] = None): MatrixTable = {
+    LinearMixedRegression(vsm, kinshipMatrix, yExpr, xField, covExpr, useML, rootGA, rootVA,
+      runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
+  }
+
+  def skat(keyExpr: String,
+    weightExpr: String,
+    yExpr: String,
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
+    logistic: Boolean = false,
+    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
+    accuracy: Double = 1e-6,
+    iterations: Int = 10000): Table = {
+    Skat(vsm, keyExpr, weightExpr, yExpr, xField, covExpr, logistic, maxSize, accuracy, iterations)
   }
 }

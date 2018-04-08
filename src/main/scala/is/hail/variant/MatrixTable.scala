@@ -2515,44 +2515,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def linreg(yExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
-    LinearRegression(this, yExpr, xField, covExpr, root, rowBlockSize)
-  }
-
-  def logreg(test: String,
-    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
-    root: String = "logreg"): MatrixTable = {
-    LogisticRegression(this, test, yExpr, xField, covExpr, root)
-  }
-
-  def lmmreg(kinshipMatrix: KinshipMatrix,
-    yExpr: String,
-    xField: String,
-    covExpr: Array[String] = Array.empty[String],
-    useML: Boolean = false,
-    rootGA: String = "lmmreg",
-    rootVA: String = "lmmreg",
-    runAssoc: Boolean = true,
-    delta: Option[Double] = None,
-    sparsityThreshold: Double = 1.0,
-    nEigs: Option[Int] = None,
-    optDroppedVarianceFraction: Option[Double] = None): MatrixTable = {
-    LinearMixedRegression(this, kinshipMatrix, yExpr, xField, covExpr, useML, rootGA, rootVA,
-      runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
-  }
-
-  def skat(keyExpr: String,
-    weightExpr: String,
-    yExpr: String,
-    xField: String,
-    covExpr: Array[String] = Array.empty[String],
-    logistic: Boolean = false,
-    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
-    accuracy: Double = 1e-6,
-    iterations: Int = 10000): Table = {
-    Skat(this, keyExpr, weightExpr, yExpr, xField, covExpr, logistic, maxSize, accuracy, iterations)
-  }
-
   def minRep(leftAligned: Boolean = false): MatrixTable = {
     requireRowKeyVariant("min_rep")
 

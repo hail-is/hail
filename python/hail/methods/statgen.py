@@ -341,13 +341,13 @@ def linear_regression(y, x, covariates=[], root='linreg', block_size=16) -> Matr
 
     base, cleanup = mt._process_joins(*all_exprs)
 
-    jm = base._jvds.linreg(
+    jm = Env.hail().methods.LinearRegression.apply(
+        base._jvds,
         jarray(Env.jvm().java.lang.String, [yi._ast.to_hql() for yi in y]),
         x_field,
         jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
         root,
-        block_size
-    )
+        block_size)
 
     mt_result = cleanup(MatrixTable(jm)).drop(*fields_to_drop)
 
@@ -583,7 +583,8 @@ def logistic_regression(test, y, x, covariates=[], root='logreg') -> MatrixTable
 
     base, cleanup = mt._process_joins(*all_exprs)
 
-    jds = base._jvds.logreg(
+    jds = Env.hail().methods.LogisticRegression.apply(
+        base._jvds,
         test,
         y._ast.to_hql(),
         x_field,
@@ -1092,19 +1093,21 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
 
     base, cleanup = mt._process_joins(*all_exprs)
 
-    jds = base._jvds.lmmreg(kinship_matrix._jkm,
-                            y._ast.to_hql(),
-                            x_field,
-                            jarray(Env.jvm().java.lang.String,
-                                   [cov._ast.to_hql() for cov in covariates]),
-                            use_ml,
-                            global_root,
-                            row_root,
-                            run_assoc,
-                            joption(delta),
-                            sparsity_threshold,
-                            joption(n_eigenvectors),
-                            joption(dropped_variance_fraction))
+    jds = Env.hail().methods.LinearMixedRegression.apply(
+        base._jvds,
+        kinship_matrix._jkm,
+        y._ast.to_hql(),
+        x_field,
+        jarray(Env.jvm().java.lang.String,
+               [cov._ast.to_hql() for cov in covariates]),
+        use_ml,
+        global_root,
+        row_root,
+        run_assoc,
+        joption(delta),
+        sparsity_threshold,
+        joption(n_eigenvectors),
+        joption(dropped_variance_fraction))
 
     return cleanup(MatrixTable(jds)).drop(*fields_to_drop)
 
@@ -1289,7 +1292,8 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
     base, _ = mt._process_joins(*all_exprs)
 
-    jt = base._jvds.skat(
+    jt = Env.hail().methods.Skat.apply(
+        base._jvds,
         key_expr._ast.to_hql(),
         weight_expr._ast.to_hql(),
         y._ast.to_hql(),
@@ -1298,8 +1302,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
         logistic,
         max_size,
         accuracy,
-        iterations
-    )
+        iterations)
 
     return Table(jt)
 
