@@ -405,7 +405,6 @@ private class Emit(
               .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
             val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
               .map { case (_, v) => (v.typ, emit(v)) }
-            val initializers = fields.map { case (_, v) => (v.typ, emit(v)) }
             val srvb = new StagedRegionValueBuilder(fb, x.typ)
             present(Code(
               srvb.start(init = true),
@@ -764,7 +763,6 @@ private class Emit(
 
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)
-        val srvb = new StagedRegionValueBuilder(fb, t)
         val i = fb.newLocal[Int]("i")
         val len = fb.newLocal[Int]("len")
         val aoff = fb.newLocal[Long]("aoff")
@@ -774,7 +772,6 @@ private class Emit(
           len := t.loadLength(region, aoff))
         ArrayIteratorTriplet(calcLength, Some(len.load()), { continuation: F =>
           EmitArrayTriplet(codeV.setup, Some(codeV.m), Code(
-            srvb.start(len, init = true),
             i := 0,
             Code.whileLoop(i < len,
               continuation(t.isElementMissing(region, aoff, i),
