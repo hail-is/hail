@@ -165,10 +165,9 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
   def toFastIndexedSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = {
     i match {
-      case s: mutable.WrappedArray[T] =>
-        s
-      case _ =>
-        i.toArray[T]
+      case i: mutable.WrappedArray[T] => i
+      case i: mutable.ArrayBuffer[T] => i
+      case _ => i.toArray[T]
     }
   }
 }
