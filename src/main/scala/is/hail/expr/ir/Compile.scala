@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.utils.FastSeq
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -15,7 +16,7 @@ object Compile {
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] =
       GenericTypeInfo[Region]() +:
         args.flatMap { case (_, t, _) =>
-          Seq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
+          FastSeq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
         }.toArray
 
     val fb = new FunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
@@ -33,7 +34,7 @@ object Compile {
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (Type, () => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](Seq(), body)
+    apply[AsmFunction1[Region, R], R](FastSeq[(String, Type, ClassTag[_])](), body)
   }
 
   def apply[T0 : ClassTag, R: TypeInfo : ClassTag](
@@ -41,7 +42,7 @@ object Compile {
     typ0: Type,
     body: IR): (Type, () => AsmFunction3[Region, T0, Boolean, R]) = {
 
-    apply[AsmFunction3[Region, T0, Boolean, R], R](Seq((name0, typ0, classTag[T0])), body)
+    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body)
   }
 
   def apply[T0 : ClassTag, T1 : ClassTag, R: TypeInfo : ClassTag](
@@ -51,7 +52,7 @@ object Compile {
     typ1: Type,
     body: IR): (Type, () => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
 
-    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](Seq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body)
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body)
   }
 
   def apply[
@@ -100,7 +101,7 @@ object Compile {
     body: IR
   ): (Type, () => AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R]) = {
 
-    apply[AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R], R](Seq(
+    apply[AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R], R](FastSeq(
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2]),
@@ -170,7 +171,7 @@ object CompileWithAggregators {
 
     assert(TypeToIRIntermediateClassTag(aggTyp) == classTag[TAGG])
 
-    val args = Seq((name0, typ0, classTag[T0]))
+    val args = FastSeq((name0, typ0, classTag[T0]))
 
     val scope = aggTyp.symTab
     assert(scope.size == 2)
@@ -209,7 +210,7 @@ object CompileWithAggregators {
 
     assert(TypeToIRIntermediateClassTag(aggTyp) == classTag[TAGG])
 
-    val args = Seq(
+    val args = FastSeq(
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]))
 

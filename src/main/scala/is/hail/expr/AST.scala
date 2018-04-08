@@ -316,7 +316,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
                |    ${ t.fields.map(x => s"${ prettyIdentifier(x.name) }: ${ x.typ }").mkString("\n    ") }""".stripMargin)
         }
 
-      case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
+      case (t, name) => FunctionRegistry.lookupFieldReturnType(t, FastSeq(), name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ, _) =>
             parseError(s"""`$t' has no field or method `$rhs'""".stripMargin)
@@ -326,7 +326,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   }
 
   def compileAggregator(): CMCodeCPS[AnyRef] =
-    FunctionRegistry.callAggregatorTransformation(lhs.`type`, Seq(), rhs)(lhs, Seq())
+    FunctionRegistry.callAggregatorTransformation(lhs.`type`, FastSeq(), rhs)(lhs, FastSeq())
 
   def compile() = (lhs.`type`: @unchecked) match {
     case t: TStruct =>
@@ -337,7 +337,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case t =>
       val localPos = posn
 
-      FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
+      FunctionRegistry.lookupField(t, FastSeq(), rhs)(lhs, FastSeq())
         .valueOr {
           case FunctionRegistry.NotFound(name, typ, _) =>
             ParserUtils.error(localPos,

@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.utils.FastSeq
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
@@ -22,12 +23,12 @@ class ASTToIRSuite extends TestNGSuite {
       "3.0" -> F64(3.0),
       "true" -> True(),
       "false" -> False(),
-      "{}" -> MakeStruct(Seq()),
-      "{a : 1}" -> MakeStruct(Seq(("a", I32(1)))),
-      "{a: 1, b: 2}" -> MakeStruct(Seq(
+      "{}" -> MakeStruct(FastSeq()),
+      "{a : 1}" -> MakeStruct(FastSeq(("a", I32(1)))),
+      "{a: 1, b: 2}" -> MakeStruct(FastSeq(
         ("a", I32(1)), ("b", I32(2)))),
-      "[1, 2]" -> MakeArray(Seq(I32(1), I32(2)), TArray(TInt32())),
-      "[42.0]" -> MakeArray(Seq(F64(42.0)), TArray(TFloat64()))
+      "[1, 2]" -> MakeArray(FastSeq(I32(1), I32(2)), TArray(TInt32())),
+      "[42.0]" -> MakeArray(FastSeq(F64(42.0)), TArray(TFloat64()))
     )
     } {
       assert(toIR(in).contains(out),
@@ -40,13 +41,13 @@ class ASTToIRSuite extends TestNGSuite {
     for {(in, out) <- Array(
       "{a: 1, b: 2}.a" ->
         GetField(
-          MakeStruct(Seq(
+          MakeStruct(FastSeq(
             ("a", I32(1)), ("b", I32(2)))),
           "a",
           TInt32()),
       "{a: 1, b: 2}.b" ->
         GetField(
-          MakeStruct(Seq(
+          MakeStruct(FastSeq(
             ("a", I32(1)), ("b", I32(2)))),
           "b",
           TInt32())
@@ -110,24 +111,24 @@ class ASTToIRSuite extends TestNGSuite {
   @Test
   def aggs() { for { (in, out) <- Array(
     "aggregable.sum()" ->
-      ApplyAggOp(AggIn(), Sum(), Seq()),
+      ApplyAggOp(AggIn(), Sum(), FastSeq()),
     "aggregable.map(x => x * 5).sum()" ->
       ApplyAggOp(
         AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))),
-        Sum(), Seq(), TInt32()),
+        Sum(), FastSeq(), TInt32()),
     "aggregable.map(x => x * something).sum()" ->
       ApplyAggOp(
         AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), Ref("something"))),
-        Sum(), Seq()),
+        Sum(), FastSeq()),
     "aggregable.filter(x => x > 2).sum()" ->
       ApplyAggOp(
         AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x"), I32(2))),
-        Sum(), Seq()),
+        Sum(), FastSeq()),
     "aggregable.flatMap(x => [x * 5]).sum()" ->
       ApplyAggOp(
         AggFlatMap(AggIn(), "x",
-          MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x") ,I32(5))))),
-        Sum(), Seq())
+          MakeArray(FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("x") ,I32(5))))),
+        Sum(), FastSeq())
   )
   } {
     val tAgg = TAggregable(TInt32())

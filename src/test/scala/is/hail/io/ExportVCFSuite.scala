@@ -46,7 +46,7 @@ class ExportVCFSuite extends SparkSuite {
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')
-        .map(line => line.split("\t")).take(5).map(a => Annotation(Locus(a(0), a(1).toInt), Array(a(3), a(4)).toFastIndexedSeq)).toArray
+        .map(line => line.split("\t")).take(5).map(a => Annotation(Locus(a(0), a(1).toInt), FastIndexedSeq(a(3), a(4)))).toArray
     }.isSorted)
   }
 

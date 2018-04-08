@@ -106,8 +106,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       "values not sorted or not in range [0, number of partitions)")
     val parentPartitions = r.partitions
 
-    new RDD[T](r.sparkContext, Seq(new NarrowDependency[T](r) {
-      def getParents(partitionId: Int): Seq[Int] = Seq(keep(partitionId))
+    new RDD[T](r.sparkContext, FastSeq(new NarrowDependency[T](r) {
+      def getParents(partitionId: Int): Seq[Int] = FastSeq(keep(partitionId))
     })) {
       def getPartitions: Array[Partition] = keep.indices.map { i =>
         SubsetRDDPartition(i, parentPartitions(keep(i)))

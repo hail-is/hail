@@ -340,7 +340,7 @@ package object stats {
 
     val rdd = hc.sc.parallelize(
       (0 until callMat.cols).map { j =>
-        (Annotation(Locus("1", j + 1), Array("A", "C").toFastIndexedSeq),
+        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
           (0 until callMat.rows).map { i =>
             Genotype(callMat(i, j))
           }: Iterable[Annotation])
@@ -374,7 +374,7 @@ package object stats {
 
     val rdd = hc.sc.parallelize(
       (0 until gpMat.cols).map { j =>
-        (Annotation(Locus("1", j + 1), Array("A", "C").toFastIndexedSeq),
+        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
           (0 until gpMat.rows).map { i =>
             Row(gpMat(i, j): IndexedSeq[Annotation])
           }: Iterable[Annotation])

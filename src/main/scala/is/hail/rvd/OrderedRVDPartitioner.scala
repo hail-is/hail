@@ -69,7 +69,7 @@ class OrderedRVDPartitioner(
         rangeTree.queryValues(pkType.ordering, row)
       case interval: Interval =>
         if (!rangeTree.probablyOverlaps(pkType.ordering, interval))
-          Seq.empty[Int]
+          FastSeq.empty[Int]
         else {
           val startRange = getPartitionRange(interval.start)
           val start = if (startRange.nonEmpty)
@@ -112,14 +112,14 @@ class OrderedRVDPartitioner(
     if (newRange.isEmpty)
       return this
     if (range.isEmpty)
-      return copy(rangeBounds = IndexedSeq(newRange.get))
+      return copy(rangeBounds = FastIndexedSeq(newRange.get))
     val newStart = pkType.ordering.min(range.get.start, Annotation.copy(pkType, newRange.get.start))
     val newEnd = pkType.ordering.max(range.get.end, Annotation.copy(pkType, newRange.get.end))
     val newRangeBounds =
       rangeBounds match {
-        case IndexedSeq(x) => IndexedSeq(Interval(newStart, newEnd, true, true))
+        case IndexedSeq(x) => FastIndexedSeq(Interval(newStart, newEnd, true, true))
         case IndexedSeq(x1, x2) =>
-          IndexedSeq(x1.copy(start = newStart, includesStart = true),
+          FastIndexedSeq(x1.copy(start = newStart, includesStart = true),
             x2.copy(end = newEnd, includesEnd = true))
         case _ =>
           rangeBounds.head.copy(start = newStart, includesStart = true)  +:

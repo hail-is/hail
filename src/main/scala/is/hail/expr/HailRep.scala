@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.expr.types._
-import is.hail.utils.Interval
+import is.hail.utils._
 import is.hail.variant.{Call, RGBase, Locus}
 
 trait HailRep[T] { self =>
@@ -79,7 +79,7 @@ trait HailRepFunctions {
   }
 
   implicit def unaryHr[T, U](implicit hrt: HailRep[T], hru: HailRep[U]) = new HailRep[(Any) => Any] {
-    def typ = TFunction(Seq(hrt.typ), hru.typ)
+    def typ = TFunction(FastSeq(hrt.typ), hru.typ)
   }
 
   def aggregableHr[T](implicit hrt: HailRep[T]) = new HailRep[T] {

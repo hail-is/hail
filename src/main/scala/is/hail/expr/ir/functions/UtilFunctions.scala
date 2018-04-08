@@ -3,6 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.utils._
 import is.hail.expr.types.coerce
 
 object UtilFunctions extends RegistryFunctions {
@@ -17,7 +18,7 @@ object UtilFunctions extends RegistryFunctions {
       ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
     }
 
-    registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), Seq()))
+    registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
     registerIR("min", TArray(tnum("T"))) { a =>
       val body = If(IsNA(Ref("min")),

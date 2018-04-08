@@ -49,7 +49,7 @@ object LoadGen {
 
     val recodedContig = contigRecoding.getOrElse(chr, chr)
     val locus = Locus.annotation(recodedContig, start.toInt, rg)
-    val alleles = Array(ref, alt).toFastIndexedSeq
+    val alleles = FastIndexedSeq(ref, alt)
 
     val gp = arr.drop(6 - chrCol).map {
       _.toDouble

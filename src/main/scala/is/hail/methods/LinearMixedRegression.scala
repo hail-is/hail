@@ -437,7 +437,7 @@ object DiagLMM {
 
       val h2Lkhd = h2LogLkhd.map(ll => math.exp(ll - maxLogLkhd))
       val h2LkhdSum = h2Lkhd.sum
-      val h2NormLkhd = IndexedSeq(Double.NaN) ++ h2Lkhd.map(_ / h2LkhdSum) ++ IndexedSeq(Double.NaN)
+      val h2NormLkhd = FastIndexedSeq(Double.NaN) ++ h2Lkhd.map(_ / h2LkhdSum) ++ FastIndexedSeq(Double.NaN)
 
       (FastMath.exp(maxlogDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2, h2NormLkhd))
     }
