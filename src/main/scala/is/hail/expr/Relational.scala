@@ -1177,7 +1177,7 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
             val n = lengthF()(rv.region, rv.offset, false)
             Iterator.range(0, n)
               .map { i =>
-                // rv.region.clear(end)
+                rv.region.clear(end)
                 val off = explodeF()(rv.region, rv.offset, false, i, false)
                 rv2.set(rv.region, off)
                 rv2
