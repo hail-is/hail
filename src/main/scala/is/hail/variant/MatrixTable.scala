@@ -1152,7 +1152,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def nPartitions: Int = rvd.partitions.length
 
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
-    orderedRVDLeftJoinDistinctAndInsert(right.rowFieldsRVD, root, product = false)
+    orderedRVDLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
 
   def count(): (Long, Long) = (countRows(), numCols)
 
@@ -2081,38 +2081,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array.empty[String])
   }
 
-  private def rowFieldsRVD: OrderedRVD
-
-  = {
-    val localRowType = rowType
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    rvd.mapPartitionsPreservesPartitioning(
-      new OrderedRVDType(rowPartitionKey.toArray, rowKey.toArray, rowType)
-    ) { it =>
-      val rv2b = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      it.map { rv =>
-        rv2b.set(rv.region)
-        rv2b.start(localRowType)
-        rv2b.startStruct()
-        var i = 0
-        while (i < fullRowType.size) {
-          if (i != localEntriesIndex)
-            rv2b.addField(fullRowType, rv, i)
-          i += 1
-        }
-        rv2b.endStruct()
-        rv2.set(rv.region, rv2b.end())
-        rv2
-      }
-    }
-  }
-
-  def rowsTable(): Table = {
-    val tableType = TableType(rowType, rowKey, globalType)
-    new Table(hc, TableLiteral(TableValue(tableType, globals, rowFieldsRVD)))
-  }
+  def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))
 
   def entriesTable(): Table = {
     val localNSamples = numCols

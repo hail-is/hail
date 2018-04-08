@@ -103,117 +103,30 @@ case class MatrixValue(
     colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
   }
 
-  private def writeCols(path: String, codecSpec: CodecSpec) {
-    val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
-
-    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
-
-    val colsSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      typ.colsTableType,
-      Map("globals" -> RVDComponentSpec("../globals/rows"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    colsSpec.write(hc, path)
-
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
-  }
-
-  private def writeGlobals(path: String, codecSpec: CodecSpec) {
-    val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
-
-    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
-
-    RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
-
-    val globalsSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      TableType(typ.globalType, Array.empty[String], TStruct.empty()),
-      Map("globals" -> RVDComponentSpec("globals"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    globalsSpec.write(hc, path)
-
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
-  }
-
-  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null): Unit = {
-    val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
-
-    val codecSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = RVDSpec.formats
-        val codecSpecJSON = parse(codecSpecJSONStr)
-        codecSpecJSON.extract[CodecSpec]
-      } else
-        CodecSpec.default
-
-    if (overwrite)
-      hadoopConf.delete(path, recursive = true)
-    else if (hadoopConf.exists(path))
-      fatal(s"file already exists: $path")
-
-    hc.hadoopConf.mkDir(path)
-
-    val partitionCounts = rvd.writeRowsSplit(path, typ, codecSpec)
-
-    val globalsPath = path + "/globals"
-    hadoopConf.mkDir(globalsPath)
-    writeGlobals(globalsPath, codecSpec)
-
-    val rowsSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      typ.rowsTableType,
-      Map("globals" -> RVDComponentSpec("../globals/rows"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    rowsSpec.write(hc, path + "/rows")
-
-    hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
-
-    val entriesSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      typ.rowsTableType,
-      Map("globals" -> RVDComponentSpec("../globals/rows"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    entriesSpec.write(hc, path + "/entries")
-
-    hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
-
-    hadoopConf.mkDir(path + "/cols")
-    writeCols(path + "/cols", codecSpec)
-
-    val refPath = path + "/references"
-    hc.hadoopConf.mkDir(refPath)
-    Array(typ.colType, typ.rowType, typ.entryType, typ.globalType).foreach { t =>
-      ReferenceGenome.exportReferences(hc, refPath, t)
+  def rowsRVD(): OrderedRVD = {
+    val localRowType = typ.rowType
+    val fullRowType = typ.rvRowType
+    val localEntriesIndex = typ.entriesIdx
+    rvd.mapPartitionsPreservesPartitioning(
+      new OrderedRVDType(typ.rowPartitionKey.toArray, typ.rowKey.toArray, typ.rowType)
+    ) { it =>
+      val rv2b = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.map { rv =>
+        rv2b.set(rv.region)
+        rv2b.start(localRowType)
+        rv2b.startStruct()
+        var i = 0
+        while (i < fullRowType.size) {
+          if (i != localEntriesIndex)
+            rv2b.addField(fullRowType, rv, i)
+          i += 1
+        }
+        rv2b.endStruct()
+        rv2.set(rv.region, rv2b.end())
+        rv2
+      }
     }
-
-    val spec = MatrixTableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "references",
-      typ,
-      Map("globals" -> RVDComponentSpec("globals/rows"),
-        "cols" -> RVDComponentSpec("cols/rows"),
-        "rows" -> RVDComponentSpec("rows/rows"),
-        "entries" -> RVDComponentSpec("entries/rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hc, path)
-
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 }
 
@@ -1381,6 +1294,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
   }
 }
 
+<<<<<<< 78bcdb4379d3fe07574388bd63a32356fdf2d82f
 case class TableExplode(child: TableIR, column: String) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
@@ -1434,5 +1348,24 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
           }
         }
       })
+=======
+case class MatrixRowsTable(child: MatrixIR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
+    assert(newChildren.length == 1)
+    MatrixRowsTable(newChildren(0).asInstanceOf[MatrixIR])
+  }
+
+  val typ: TableType = TableType(child.typ.rowType,
+    child.typ.rowKey,
+    child.typ.globalType)
+
+  def execute(hc: HailContext): TableValue = {
+    val mv = child.execute(hc)
+    TableValue(typ,
+      mv.globals,
+      mv.rowsRVD())
+>>>>>>> add MT.rowsTable IR node
   }
 }
