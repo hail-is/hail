@@ -25,7 +25,6 @@ object Compile {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
-    ir = Optimize(ir)
     ir = Subst(ir, env)
     Infer(ir)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
