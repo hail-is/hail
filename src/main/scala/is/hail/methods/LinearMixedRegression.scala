@@ -231,7 +231,7 @@ class FullRankScalerLMM(
     val b: Double = xQty / xQtx
     val s2 = invDf * (yQty - xQty * b)
     val chi2 = n * (logNullS2 - math.log(s2))
-    val p = chiSquaredTail(1, chi2)
+    val p = chiSquaredTail(chi2, 1)
 
     rvb.startStruct()
     rvb.addDouble(b)
@@ -291,7 +291,7 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
     val b = CdC \ Cdy
     val s2 = invDf * (ydy - (Cdy dot b))
     val chi2 = n * (logNullS2 - math.log(s2))
-    val p = chiSquaredTail(1, chi2)
+    val p = chiSquaredTail(chi2, 1)
 
     rvb.startStruct()
     rvb.addDouble(b(0))

@@ -802,6 +802,7 @@ class Tests(unittest.TestCase):
 
         bad = (tdt_tab.filter(hl.is_nan(tdt_tab.p_value), keep=False)
             .join(truth.filter(hl.is_nan(truth.Pval), keep=False), how='outer'))
+        bad.describe()
 
         bad = bad.filter(~(
                 (bad.t == bad.T) &

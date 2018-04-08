@@ -5,6 +5,14 @@ import is.hail.asm4s._
 import is.hail.expr.types._
 
 package object ir {
+  var uidCounter: Long = 0
+
+  def genUID(): String = {
+    val uid = s"__iruid_$uidCounter"
+    uidCounter += 1
+    uid
+  }
+
   def typeToTypeInfo(t: Type): TypeInfo[_] = t.fundamentalType match {
     case _: TInt32 => typeInfo[Int]
     case _: TInt64 => typeInfo[Long]

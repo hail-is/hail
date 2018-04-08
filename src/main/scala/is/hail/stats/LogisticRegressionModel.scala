@@ -91,7 +91,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
     val lrStats =
       if (fit.converged) {
         val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
-        val p = chiSquaredTail(m - m0, chi2)
+        val p = chiSquaredTail(chi2, m - m0)
 
         Some(LikelihoodRatioStats(fit.b, chi2, p))
       } else
@@ -134,7 +134,7 @@ object FirthTest extends LogisticRegressionTest {
       val firthStats =
         if (fitFirth.converged) {
           val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
-          val p = chiSquaredTail(m - m0, chi2)
+          val p = chiSquaredTail(chi2, m - m0)
 
           Some(FirthStats(fitFirth.b, chi2, p))
         } else
@@ -189,7 +189,7 @@ object ScoreTest extends LogisticRegressionTest {
         fisher(r1, r1) := X1.t * (X1(::, *) *:* (mu *:* (1d - mu)))
 
         val chi2 = score dot (fisher \ score)
-        val p = chiSquaredTail(m - m0, chi2)
+        val p = chiSquaredTail(chi2, m - m0)
 
         Some(ScoreStats(chi2, p))
       } catch {

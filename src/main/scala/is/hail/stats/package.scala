@@ -281,10 +281,10 @@ package object stats {
   def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
 
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def chiSquaredTail(df: Double, x: Double): Double = ChiSquare.cumulative(x, df, false, false)
+  def chiSquaredTail(x: Double, df: Double): Double = ChiSquare.cumulative(x, df, false, false)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
+  def inverseChiSquaredTail(p: Double, df: Double): Double = ChiSquare.quantile(p, df, false, false)
 
   def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 
@@ -292,15 +292,21 @@ package object stats {
 
   def rpois(n: Int, lambda: Double): IndexedSeq[Double] = new Poisson(lambda).random(n)
 
-  def dpois(x: Double, lambda: Double, logP: Boolean = false): Double = new Poisson(lambda).density(x, logP)
+  def dpois(x: Double, lambda: Double, logP: Boolean): Double = new Poisson(lambda).density(x, logP)
 
-  def ppois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
+  def dpois(x: Double, lambda: Double): Double = dpois(x, lambda, logP = false)
 
-  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Int = {
+  def ppois(x: Double, lambda: Double, lowerTail: Boolean, logP: Boolean): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
+
+  def ppois(x: Double, lambda: Double): Double = ppois(x, lambda, lowerTail = true, logP = false)
+
+  def qpois(x: Double, lambda: Double, lowerTail: Boolean, logP: Boolean): Int = {
     val result = new Poisson(lambda).quantile(x, lowerTail, logP)
     assert(result.isValidInt, s"qpois result is not a valid int. Found $result.")
     result.toInt
   }
+
+  def qpois(x: Double, lambda: Double): Int = qpois(x, lambda, lowerTail = true, logP = false)
 
   def binomTest(nSuccess: Int, n: Int, p: Double, alternative: String): Double = {
     val kind = alternative match {

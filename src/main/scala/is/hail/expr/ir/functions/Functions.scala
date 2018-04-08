@@ -56,7 +56,9 @@ object IRFunctionRegistry {
     }
 
     (validIR, validMethods) match {
-      case (None, None) => None
+      case (None, None) =>
+        log.fatal(s"no IRFunction found for $name(${ args.mkString(", ") })")
+        None
       case (None, Some(x)) => Some(x)
       case (Some(x), None) => Some(x)
       case _ => fatal(s"Multiple methods found that satisfy $name(${ args.mkString(",") }).")
