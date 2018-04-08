@@ -733,14 +733,28 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def flatten(): Table = {
-    val localSignature = signature
-    val keySignature = TStruct(keyFields.map { f => f.name -> f.typ }: _*)
-    val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
-    val flattenedKey = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
+    def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
+      t.fields.map { f =>
+        f.typ match {
+          case t: TStruct =>
+            deepFlatten(t, ir.GetField(x, f.name))
+              .flatten
+              .map { case (n2, x2) =>
+                f.name + "." + n2 -> x2
+              }
+          case _ =>
+            IndexedSeq(f.name -> ir.GetField(x, f.name))
+        }
+      }
+    }
 
-    copy(rdd = rdd.map { a => Annotation.flattenAnnotation(a, localSignature).asInstanceOf[Row] },
-      signature = flattenedSignature,
-      key = flattenedKey)
+    val newFields = deepFlatten(signature, ir.Ref("row"))
+    val newKey = keyFieldIdx.flatMap { i =>
+      newFields(i).map { case (n, _) => n }
+    }
+
+    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
+      .keyBy(newKey)
   }
 
   def toDF(sqlContext: SQLContext): DataFrame = {
