@@ -299,7 +299,6 @@ class TableSuite extends SparkSuite {
     val ktResult3 = Table(hc, resRDD3, TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())), key = Array("Sample"))
     ktResult3.typeCheck()
 
-    intercept[HailException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
     assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
 

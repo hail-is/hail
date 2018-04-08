@@ -2010,6 +2010,8 @@ class Table(ExprContainer):
             # global field
             assert field._indices == self._global_indices
             raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
+        if not is_container(field.dtype):
+            raise ValueError(f"method 'explode' expects array, set or dict field, found: {field.dtype}")
 
         return Table(self._jt.explode(self._fields_inverse[field]))
 

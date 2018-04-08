@@ -120,7 +120,7 @@ def _to_expr(e, dtype):
                 assert dtype == tint64
                 return hl.int64(e)
         return e
-    elif not is_container(dtype):
+    elif not is_compound(dtype):
         # these are not container types and cannot contain expressions if we got here
         return e
     elif isinstance(dtype, tstruct):
