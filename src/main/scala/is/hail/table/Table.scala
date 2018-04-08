@@ -471,9 +471,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
       val sb = new StringBuilder()
 
       it.map { rv =>
-        val ur = new UnsafeRow(localSignature)
+        val ur = new UnsafeRow(localSignature, rv)
         sb.clear()
-
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
         }(sb += '\t')
