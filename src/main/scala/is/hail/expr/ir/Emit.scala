@@ -590,7 +590,7 @@ private class Emit(
                 len := tArray.loadLength(region, arr),
                 Code.whileLoop(i < len,
                   continuation(
-                    region.loadIRIntermediate(tArray.elementType)(tArray.loadElement(region, arr, i)),
+                    region.loadIRIntermediate(tArray.elementType)(tArray.elementOffsetInRegion(region, arr, i)),
                     tArray.isElementMissing(region, arr, i)),
                   i ++))))
         }
@@ -778,7 +778,7 @@ private class Emit(
             i := 0,
             Code.whileLoop(i < len,
               continuation(t.isElementMissing(region, aoff, i),
-                region.loadIRIntermediate(t.elementType)(t.loadElement(region, aoff, i))),
+                region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
               i := i + 1)))
         })
     }
