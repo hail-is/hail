@@ -60,7 +60,7 @@ object ContextRDD {
     def apply[T: ClassTag](
       rdd: RDD[T]
     )(implicit c: Pointed[C]
-     ): ContextRDD[C, T] = weaken(rdd, c.point _)
+    ): ContextRDD[C, T] = weaken(rdd, c.point _)
   }
   private[this] object weakenInstance extends Weaken[Nothing]
   def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
