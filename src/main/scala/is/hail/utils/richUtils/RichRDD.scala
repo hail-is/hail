@@ -2,7 +2,7 @@ package is.hail.utils.richUtils
 
 import java.io.OutputStream
 
-import is.hail.sparkextras.ReorderedPartitionsRDD
+import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
@@ -183,4 +183,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }, preservesPartitioning = true)
       .subsetPartitions((0 to idxLast).toArray)
   }
+
+  def writePartitions(path: String,
+    write: (Int, Iterator[T], OutputStream) => Long,
+    remapPartitions: Option[(Array[Int], Int)] = None
+  )(implicit tct: ClassTag[T]
+  ): (Array[String], Array[Long]) =
+    ContextRDD.weaken[TrivialContext, T](r).writePartitions(path, write, remapPartitions)
 }
