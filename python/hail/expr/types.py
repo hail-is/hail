@@ -15,6 +15,7 @@ __all__ = [
     'HailType',
     'hail_type',
     'is_container',
+    'is_compound',
     'is_numeric',
     'is_primitive',
     'types_match',
