@@ -47,7 +47,7 @@ object Emit {
     env: E,
     tAggIn: Option[TAggregable],
     nSpecialArguments: Int): EmitTriplet = {
-    TypeCheck(ir)
+    TypeCheck(ir, tAggIn)
     new Emit(fb.apply_method, tAggIn, nSpecialArguments).emit(ir, env)
   }
 }

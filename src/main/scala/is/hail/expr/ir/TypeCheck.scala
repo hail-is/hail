@@ -101,7 +101,7 @@ object TypeCheck {
         (tAgg, typ) match {
           case (Some(t), null) => x.typ = t
           case (Some(t), t2) => assert(t == t2)
-          case (None, _) => throw new RuntimeException("must provide type of aggregable to Infer")
+          case (None, _) => throw new RuntimeException("must provide type of aggregable to TypeCheck")
         }
       case x@AggMap(a, name, body) =>
         check(a)

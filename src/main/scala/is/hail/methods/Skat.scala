@@ -225,8 +225,9 @@ object Skat {
     
     (vsm.rvd.rdd.flatMap { rv =>
       val fullRow = new UnsafeRow(fullRowType, rv)
+      val row = fullRow.deleteField(entryArrayIdx)
 
-      (Option(keyQuerier(fullRow)), Option(weightQuerier(fullRow)).map(_.asInstanceOf[Double])) match {
+      (Option(keyQuerier(row)), Option(weightQuerier(row)).map(_.asInstanceOf[Double])) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")

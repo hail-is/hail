@@ -1052,9 +1052,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               true
           })
 
-        val newEntriesIndex = newRowType.fieldIdx(MatrixType.entriesIdentifier)
+        val newEntriesIndex = newRowType.fieldIdx.get(MatrixType.entriesIdentifier)
+
         val newMatrixType = matrixType.copyParts(
-          rowType = newRowType.deleteKey(MatrixType.entriesIdentifier, entriesIndex),
+          rowType = newEntriesIndex.map(idx => newRowType.deleteKey(MatrixType.entriesIdentifier, idx)).getOrElse(newRowType),
           rowKey = newRowKey,
           rowPartitionKey = newPartitionKey)
         val fullRowType = rvRowType
@@ -1081,7 +1082,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.startStruct()
             var i = 0
             while (i < newRowType.size) {
-              if (i != newEntriesIndex)
+              if (newEntriesIndex.forall(_ != i))
                 rvb.addAnnotation(newRowType.types(i), results(i))
               i += 1
             }
@@ -1690,10 +1691,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def aggregateRows(expr: String): (Annotation, Type) = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "va" -> (1, rowType))
+      "va" -> (1, rvRowType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "AGG" -> (1, TAggregable(rowType, aggregationST))))
+      "AGG" -> (1, TAggregable(rvRowType, aggregationST))))
+    val globalsBc = globals.broadcast
 
     val qAST = Parser.parseToAST(expr, ec)
 
