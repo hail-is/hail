@@ -189,5 +189,5 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     remapPartitions: Option[(Array[Int], Int)] = None
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
-    ContextRDD.weaken[TrivialContext, T](r).writePartitions(path, write, remapPartitions)
+    ContextRDD.weaken[TrivialContext](r).writePartitions(path, write, remapPartitions)
 }
