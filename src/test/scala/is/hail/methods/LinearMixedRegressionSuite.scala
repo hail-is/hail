@@ -440,7 +440,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
       .annotateColsExpr("culprit" -> """AGG.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
-      .annotateColsExpr("pheno.PhenoLMM" -> "(1d + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit.toFloat64")
+      .annotateColsExpr("pheno" -> "annotate(sa.pheno, {PhenoLMM: (1d + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit.toFloat64}")
 
     val vdsKinship = vdsAssoc.filterRowsExpr("va.locus.position < 4")
 
