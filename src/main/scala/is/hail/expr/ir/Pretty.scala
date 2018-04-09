@@ -14,7 +14,7 @@ object Pretty {
       sb.append(ir.getClass.getName.split("\\.").last)
 
       ir match {
-        case MakeStruct(fields, _) =>
+        case MakeStruct(fields) =>
           if (fields.nonEmpty) {
             sb += '\n'
             fields.foreachBetween { case (n, a) =>
@@ -26,7 +26,7 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case InsertFields(old, fields, _) =>
+        case InsertFields(old, fields) =>
           sb += '\n'
           pretty(old, depth + 2)
           if (fields.nonEmpty) {
@@ -48,19 +48,19 @@ object Pretty {
             case F64(x) => x.toString
             case Cast(_, typ) => typ.toString
             case NA(typ) => typ.toString
-            case Let(name, _, _, _) => name
+            case Let(name, _, _) => name
             case Ref(name, _) => name
-            case ApplyBinaryPrimOp(op, _, _, _) => op.getClass.getName.split("\\.").last
-            case ApplyUnaryPrimOp(op, _, _) => op.getClass.getName.split("\\.").last
-            case ArrayRef(_, i, _) => i.toString
-            case GetField(_, name, _) => name
-            case GetTupleElement(_, idx, _) => idx.toString
-            case ArrayMap(_, name, _, _) => name
+            case ApplyBinaryPrimOp(op, _, _) => op.getClass.getName.split("\\.").last
+            case ApplyUnaryPrimOp(op, _) => op.getClass.getName.split("\\.").last
+            case ArrayRef(_, i) => i.toString
+            case GetField(_, name) => name
+            case GetTupleElement(_, idx) => idx.toString
+            case ArrayMap(_, name, _) => name
             case ArrayFilter(_, name, _) => name
             case ArrayFlatMap(_, name, _) => name
-            case ArrayFold(_, _, accumName, valueName, _, _) => s"$accumName $valueName"
-            case Apply(function, _, _) => function
-            case ApplySpecial(function, _, _) => function
+            case ArrayFold(_, _, accumName, valueName, _) => s"$accumName $valueName"
+            case Apply(function, _) => function
+            case ApplySpecial(function, _) => function
             case In(i, _) => i.toString
             case MatrixRead(path, _, dropCols, dropRows) =>
               s"${ StringEscapeUtils.escapeString(path) }${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"

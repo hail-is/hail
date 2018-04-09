@@ -207,6 +207,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globalSignature,
     globals)
 
+  def typ: TableType = tir.typ
+
   private def useIR(ast: AST): Boolean = {
     if (hc.forceIR)
       return true
@@ -421,7 +423,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     val value = BroadcastRow(Row(a), TStruct(name -> t), hc.sc)
-    new Table(hc, TableMapGlobals(tir, ir.InsertFields(ir.Ref("global"), FastSeq(name -> ir.GetField(ir.Ref(s"value"), name))), value))
+    new Table(hc, TableMapGlobals(tir,
+      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", t), name))), value))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
@@ -809,7 +812,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
     }
 
-    val newFields = deepFlatten(signature, ir.Ref("row"))
+    val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
     val newKey = keyFieldIdx.flatMap { i =>
       newFields(i).map { case (n, _) => n }
     }

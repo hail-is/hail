@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
-import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.expr.types._
 import is.hail.utils._
 
@@ -48,6 +47,7 @@ object Emit {
     env: E,
     tAggIn: Option[TAggregable],
     nSpecialArguments: Int): EmitTriplet = {
+    TypeCheck(ir)
     new Emit(fb.apply_method, tAggIn, nSpecialArguments).emit(ir, env)
   }
 }
@@ -205,7 +205,8 @@ private class Emit(
         val codeV = emit(v)
         EmitTriplet(codeV.setup, const(false), codeV.m)
 
-      case If(cond, cnsq, altr, typ) =>
+      case If(cond, cnsq, altr) =>
+        val typ = ir.typ
         val codeCond = emit(cond)
         val xvcond = mb.newLocal[Boolean]()
         val out = coerce[Any](mb.newLocal()(typeToTypeInfo(typ)))
@@ -224,7 +225,8 @@ private class Emit(
 
         EmitTriplet(setup, mout, out)
 
-      case Let(name, value, body, typ) =>
+      case Let(name, value, body) =>
+        val typ = ir.typ
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newField[Boolean]()
         val x = coerce[Any](mb.newField(name)(vti))
@@ -244,14 +246,16 @@ private class Emit(
         assert(t == ti, s"$name type annotation, $typ, $t doesn't match typeinfo: $ti")
         EmitTriplet(Code._empty, m, v)
 
-      case ApplyBinaryPrimOp(op, l, r, typ) =>
+      case ApplyBinaryPrimOp(op, l, r) =>
+        val typ = ir.typ
         val codeL = emit(l)
         val codeR = emit(r)
         EmitTriplet(Code(codeL.setup, codeR.setup),
           codeL.m || codeR.m,
 
           BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v))
-      case ApplyUnaryPrimOp(op, x, typ) =>
+      case ApplyUnaryPrimOp(op, x) =>
+        val typ = ir.typ
         val v = emit(x)
         EmitTriplet(v.setup, v.m, UnaryOp.emit(op, x.typ, v.v))
 
@@ -266,7 +270,8 @@ private class Emit(
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
 
-      case ArrayRef(a, i, typ) =>
+      case x@ArrayRef(a, i) =>
+        val typ = x.typ
         val ti = typeToTypeInfo(typ)
         val tarray = coerce[TArray](a.typ)
         val ati = coerce[Long](typeToTypeInfo(tarray))
@@ -355,7 +360,8 @@ private class Emit(
             ))
         }
 
-      case ArrayFold(a, zero, name1, name2, body, typ) =>
+      case ArrayFold(a, zero, name1, name2, body) =>
+        val typ = ir.typ
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
@@ -402,11 +408,11 @@ private class Emit(
           xvout := xmout.mux(defaultValue(typ), xvout)
         ), xmout, xvout)
 
-      case x@ApplyAggOp(a, op, args, _) =>
+      case x@ApplyAggOp(a, op, args) =>
         val agg = AggOp.get(op, x.inputType, args.map(_.typ))
         present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
 
-      case x@MakeStruct(fields, _) =>
+      case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
         val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
@@ -416,7 +422,7 @@ private class Emit(
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
 
-      case x@InsertFields(old, fields, _) =>
+      case x@InsertFields(old, fields) =>
         old.typ match {
           case oldtype: TStruct =>
             val codeOld = emit(old)
@@ -458,11 +464,10 @@ private class Emit(
               srvb.offset))
           case _ =>
             val newIR = MakeStruct(fields)
-            Infer(newIR)
             emit(newIR)
         }
 
-      case GetField(o, name, _) =>
+      case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         val fieldIdx = t.fieldIdx(name)
         val codeO = emit(o)
@@ -476,7 +481,7 @@ private class Emit(
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
 
-      case x@MakeTuple(fields, _) =>
+      case x@MakeTuple(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
         val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
@@ -486,7 +491,7 @@ private class Emit(
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields, env)(addFields), srvb.offset))
 
-      case GetTupleElement(o, idx, _) =>
+      case GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
@@ -508,7 +513,8 @@ private class Emit(
           mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
-      case Apply(fn, args, impl) =>
+      case ir@Apply(fn, args) =>
+        val impl = ir.implementation
         val meth =
           methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
             case Seq(f) =>
@@ -525,8 +531,8 @@ private class Emit(
         val missing = if (codeArgs.isEmpty) const(false) else codeArgs.map(_.m).reduce(_ || _)
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         EmitTriplet(setup, missing, value)
-      case ApplySpecial(_, args, impl) =>
-        impl.apply(mb, args.map(emit(_)): _*)
+      case x@ApplySpecial(_, args) =>
+        x.implementation.apply(mb, args.map(emit(_)): _*)
     }
   }
 
@@ -549,7 +555,8 @@ private class Emit(
       case AggIn(typ) =>
         assert(tAggIn == typ)
         continuation(element, melement)
-      case AggMap(a, name, body, typ) =>
+      case AggMap(a, name, body) =>
+        val typ = ir.typ
         val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
@@ -563,7 +570,8 @@ private class Emit(
             codeB.setup,
             continuation(codeB.v, codeB.m))
         }
-      case AggFilter(a, name, body, typ) =>
+      case AggFilter(a, name, body) =>
+        val typ = ir.typ
         val tElement = coerce[TAggregable](a.typ).elementType
         val elementTi = typeToTypeInfo(tElement)
         val x = coerce[Any](mb.newField()(elementTi))
@@ -577,7 +585,8 @@ private class Emit(
             // missing is false
             (!codeB.m && coerce[Boolean](codeB.v)).mux(continuation(x, mx), Code._empty))
         }
-      case AggFlatMap(a, name, body, typ) =>
+      case AggFlatMap(a, name, body) =>
+        val typ = ir.typ
         val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
@@ -707,7 +716,7 @@ private class Emit(
 
         emitArrayIterator(a).copy(length = None).wrapContinuation(bodyCont)
 
-      case x@ArrayMap(a, name, body, _) =>
+      case x@ArrayMap(a, name, body) =>
         val elt = coerce[TArray](a.typ).elementType
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmv = mb.newField[Boolean]()
@@ -735,7 +744,7 @@ private class Emit(
         }
         ArrayIteratorTriplet(Code._empty, Some(const(args.length)), f)
 
-      case If(cond, cnsq, altr, typ) =>
+      case If(cond, cnsq, altr) =>
         val codeCond = emit(cond)
         val xmcond = mb.newLocal[Boolean]()
         val xvcond = mb.newLocal[Boolean]()

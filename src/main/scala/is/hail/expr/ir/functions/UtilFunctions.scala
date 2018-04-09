@@ -14,8 +14,9 @@ object UtilFunctions extends RegistryFunctions {
     registerIR("size", TArray(tv("T")))(ArrayLen)
 
     registerIR("sum", TArray(tnum("T"))) { a =>
-      val zero = Literal(0, coerce[TArray](a.typ).elementType)
-      ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
+      val t = coerce[TArray](a.typ).elementType
+      val zero = Literal(0, t)
+      ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v", t)), Ref("sum", t), ApplyBinaryPrimOp(Add(), Ref("sum", t), Ref("v", t))))
     }
 
     registerIR("*", TArray(tnum("T")), tv("T")){ (a, c) => ArrayMap(a, "imul", ApplyBinaryPrimOp(Multiply(), Ref("imul"), c)) }

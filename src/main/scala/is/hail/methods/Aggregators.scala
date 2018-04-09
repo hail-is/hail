@@ -43,7 +43,6 @@ object Aggregators {
 
     { (rv: RegionValue) =>
       val fullRow = new UnsafeRow(fullRowType, rv)
-      val row = fullRow.deleteField(localEntriesIndex)
 
       val aggs = MultiArray2.fill[Aggregator](nKeys, aggregations.size)(null)
       var nk = 0
@@ -56,7 +55,7 @@ object Aggregators {
         nk += 1
       }
       localA(0) = globalsBc.value
-      localA(1) = row
+      localA(1) = fullRow
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
       var i = 0
@@ -106,12 +105,11 @@ object Aggregators {
     Some({ (rv: RegionValue) =>
 
       val fullRow = new UnsafeRow(fullRowType, rv)
-      val row = fullRow.deleteField(localEntriesIndex)
 
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
 
       ec.set(0, globalsBc.value)
-      ec.set(1, row)
+      ec.set(1, fullRow)
 
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
       var i = 0
@@ -163,10 +161,9 @@ object Aggregators {
 
     val result = value.rvd.treeAggregate(baseArray)({ case (arr, rv) =>
       val fullRow = new UnsafeRow(fullRowType, rv)
-      val row = fullRow.deleteField(localEntriesIndex)
 
       localA(0) = globalsBc.value
-      localA(3) = row
+      localA(3) = fullRow
 
       val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
@@ -233,7 +230,6 @@ object Aggregators {
 
     val seqOp = (ma: MultiArray2[Aggregator], rv: RegionValue) => {
       val fullRow = new UnsafeRow(fullRowType, rv)
-      val row = fullRow.deleteField(localEntriesIndex)
 
       val is = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
@@ -242,7 +238,7 @@ object Aggregators {
         ec.setAll(globalsBc.value,
           localColValuesBc.value(i),
           is(i),
-          row)
+          fullRow)
 
         var j = 0
         while (j < nAggregations) {

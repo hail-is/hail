@@ -352,7 +352,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     s <- lhs.toIR(agg)
     t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
     f <- t.selfField(rhs)
-  } yield ir.GetField(s, rhs, f.typ)
+  } yield ir.GetField(s, rhs)
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -703,11 +703,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case IndexedSeq((xt, x)) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
         t <- ir.UnaryOp.returnTypeOption(op, xt)
-      } yield ir.ApplyUnaryPrimOp(op, x, t)
+      } yield ir.ApplyUnaryPrimOp(op, x)
       case IndexedSeq((xt, x), (yt, y)) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
         t <- ir.BinaryOp.returnTypeOption(op, xt, yt)
-      } yield ir.ApplyBinaryPrimOp(op, x, y, t)
+      } yield ir.ApplyBinaryPrimOp(op, x, y)
     }
 
   private[this] def tryIRConversion(agg: Option[String]): Option[IR] =
@@ -827,9 +827,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           a <- lhs.toIR(agg)
           b <- body.toIR(agg)
           result <- optMatch((t, m)) {
-            case (_: TAggregable, "map") => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
+            case (_: TAggregable, "map") => ir.AggMap(a, name, b)
+            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
+            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b)
             case (_: TArray, "map") => ir.ArrayMap(a, name, b)
             case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
             case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
@@ -931,7 +931,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     condition <- cond.toIR(agg)
     consequent <- thenTree.toIR(agg)
     alternate <- elseTree.toIR(agg)
-  } yield ir.If(condition, consequent, alternate, `type`)
+  } yield ir.If(condition, consequent, alternate)
 }
 
 // PrettyAST(ast) gives a pretty-print of an AST tree

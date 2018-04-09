@@ -103,7 +103,6 @@ object FilterAlleles {
       rdd.mapPartitions(newRVType) { it =>
         var prevLocus: Locus = null
         val fullRow = new UnsafeRow(fullRowType)
-        val row = fullRow.deleteField(localEntriesIndex)
         val rvv = new RegionValueVariant(fullRowType)
 
         it.flatMap { rv =>
@@ -115,7 +114,7 @@ object FilterAlleles {
 
           val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
-          filterAllelesInVariant(rvv.locus(), rvv.alleles(), row)
+          filterAllelesInVariant(rvv.locus(), rvv.alleles(), fullRow)
             .flatMap { case (newLocus, newAlleles, newToOld, oldToNew) =>
               val isLeftAligned = (prevLocus == null || prevLocus != newLocus) &&
                 newLocus == rvv.locus
@@ -133,8 +132,8 @@ object FilterAlleles {
                 rvb.start(newRVType)
                 rvb.startStruct()
 
-                vAnnotator.ec.setAll(globalsBc.value, row, newLocus, newAlleles, oldToNew, newToOld)
-                var newVA = vAnnotator.insert(row)
+                vAnnotator.ec.setAll(globalsBc.value, fullRow, newLocus, newAlleles, oldToNew, newToOld)
+                var newVA = vAnnotator.insert(fullRow)
                 newVA = insertLocus(newVA, newLocus)
                 newVA = insertAlleles(newVA, newAlleles)
                 val newRow = newVA.asInstanceOf[Row]
@@ -146,7 +145,7 @@ object FilterAlleles {
                   i += 1
                 }
 
-                gAnnotator.ec.setAll(globalsBc.value, row, newLocus, newAlleles, oldToNew, newToOld)
+                gAnnotator.ec.setAll(globalsBc.value, fullRow, newLocus, newAlleles, oldToNew, newToOld)
 
                 rvb.startArray(localNSamples) // gs
                 var k = 0

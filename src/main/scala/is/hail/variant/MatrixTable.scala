@@ -702,7 +702,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
     val value = BroadcastRow(Row(a), TStruct(name -> t), hc.sc)
-    new MatrixTable(hc, MatrixMapGlobals(ast, ir.InsertFields(ir.Ref("global"), FastSeq(name -> ir.GetField(ir.Ref(s"value"), name))), value))
+    new MatrixTable(hc, MatrixMapGlobals(ast,
+      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", t), name))), value))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): MatrixTable = {
@@ -1062,13 +1063,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val globalsBc = globals.broadcast
         val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
           val fullRow = new UnsafeRow(fullRowType)
-          val row = fullRow.deleteField(localEntriesIndex)
           val rv2 = RegionValue()
           val rvb = new RegionValueBuilder()
           it.map { rv =>
             fullRow.set(rv)
             ec.set(0, globalsBc.value)
-            ec.set(1, row)
+            ec.set(1, fullRow)
             aggregateOption.foreach(_ (rv))
             val results = f().asInstanceOf[Row]
 
@@ -1117,12 +1117,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         insertEntries(() => {
           val fullRow = new UnsafeRow(fullRowType)
-          val row = fullRow.deleteField(localEntriesIndex)
           ec.set(0, globalsBc.value)
-          fullRow -> row
-        })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+          fullRow
+        })(newEntryType, { case (fullRow, rv, rvb) =>
           fullRow.set(rv)
-          ec.set(1, row)
+          ec.set(1, fullRow)
           val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           rvb.startArray(localNCols)
           var i = 0
@@ -1316,8 +1315,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     pred match {
       case Some(irPred) =>
         new MatrixTable(hc,
-          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
-        )
+          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred")))
       case _ =>
         log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
@@ -1357,7 +1355,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     assert(!rowKey.contains(path))
-
 
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
@@ -1532,7 +1529,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     Table(hc,
       rvd.mapPartitions { it =>
         val fullRow = new UnsafeRow(localRVRowType)
-        val row = fullRow.deleteField(localEntriesIndex)
 
         it.map { rv =>
           fullRow.set(rv)
@@ -1541,7 +1537,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           val a = new Array[Any](n)
 
           var j = 0
-          vEC.setAll(globalsBc.value, row)
+          vEC.setAll(globalsBc.value, fullRow)
           vf().foreach { x =>
             a(j) = x
             j += 1
@@ -1550,7 +1546,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           var i = 0
           while (i < localNSamples) {
             val sa = localColValuesBc.value(i)
-            gEC.setAll(globalsBc.value, row, sa, gs(i))
+            gEC.setAll(globalsBc.value, fullRow, sa, gs(i))
             gf().foreach { x =>
               a(j) = x
               j += 1
@@ -1710,10 +1706,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val fullRowType = rvRowType
         val localEntriesIndex = entriesIndex
         val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
-          val ur = new UnsafeRow(fullRowType, rv)
-          val row = ur.deleteField(localEntriesIndex)
+          val fullRow = new UnsafeRow(fullRowType, rv)
           ec.set(0, globalsBc.value)
-          ec.set(1, row)
+          ec.set(1, fullRow)
         })
 
         val result = rvd
@@ -2053,12 +2048,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def rowEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "va" -> (1, rowType),
+      "va" -> (1, rvRowType),
       "g" -> (2, entryType),
       "sa" -> (3, colType))
     EvalContext(Map(
       "global" -> (0, globalType),
-      "va" -> (1, rowType),
+      "va" -> (1, rvRowType),
       "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
@@ -2191,6 +2186,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         log.warn(s"filter_entries found no AST to IR conversion: ${ PrettyAST(filterAST) }")
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
 
+<<<<<<< 202c883a2f4a51a12106db58fcdf61033a9d8107
         val localKeep = keep
         val fullRowType = rvRowType
         val localNSamples = numCols
@@ -2199,6 +2195,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val localEntriesIndex = entriesIndex
         val localEntriesType = matrixType.entryArrayType
         val globalsBc = globals.broadcast
+=======
+    insertEntries(() => {
+      val fullRow = new UnsafeRow(fullRowType)
+      fullRow
+    })(localEntryType.copy(required = false), { case (fullRow, rv, rvb) =>
+      fullRow.set(rv)
+      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
+>>>>>>> wip
 
         insertEntries(() => {
           val fullRow = new UnsafeRow(fullRowType)
@@ -2209,7 +2214,29 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
+<<<<<<< 202c883a2f4a51a12106db58fcdf61033a9d8107
           rvb.startArray(localNSamples)
+=======
+      var i = 0
+      while (i < localNSamples) {
+        val entry = entries(i)
+        ec.setAll(fullRow,
+          localColValuesBc.value(i),
+          entry, globalsBc.value)
+        if (Filter.boxedKeepThis(f(), localKeep)) {
+          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
+          if (!isDefined)
+            rvb.setMissing()
+          else {
+            // can't use addElement because we could be losing requiredness
+            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
+            rvb.startStruct()
+            rvb.addAllFields(localEntryType, rv.region, elementOffset)
+            rvb.endStruct()
+          }
+        } else
+          rvb.setMissing()
+>>>>>>> wip
 
           var i = 0
           while (i < localNSamples) {

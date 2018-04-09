@@ -48,14 +48,12 @@ class FunctionSuite {
   def fromHailString(hql: String): IR = Parser.parseToAST(hql, ec).toIR().get
 
   def toF[R: TypeInfo](ir: IR): AsmFunction1[Region, R] = {
-    Infer(ir)
     val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, R])
     Emit(ir, fb)
     fb.result(Some(new PrintWriter(System.out)))()
   }
 
   def toF[A: TypeInfo, R: TypeInfo](ir: IR): AsmFunction3[Region, A, Boolean, R] = {
-    Infer(ir)
     val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, A, Boolean, R])
     Emit(ir, fb)
     fb.result(Some(new PrintWriter(System.out)))()

@@ -11,38 +11,38 @@ object Recur {
     case Cast(v, typ) => Cast(f(v), typ)
     case NA(typ) => ir
     case IsNA(value) => IsNA(f(value))
-    case If(cond, cnsq, altr, typ) => If(f(cond), f(cnsq), f(altr), typ)
-    case Let(name, value, body, typ) => Let(name, f(value), f(body), typ)
+    case If(cond, cnsq, altr) => If(f(cond), f(cnsq), f(altr))
+    case Let(name, value, body) => Let(name, f(value), f(body))
     case Ref(name, typ) => ir
-    case ApplyBinaryPrimOp(op, l, r, typ) => ApplyBinaryPrimOp(op, f(l), f(r), typ)
-    case ApplyUnaryPrimOp(op, x, typ) => ApplyUnaryPrimOp(op, f(x), typ)
+    case ApplyBinaryPrimOp(op, l, r) => ApplyBinaryPrimOp(op, f(l), f(r))
+    case ApplyUnaryPrimOp(op, x) => ApplyUnaryPrimOp(op, f(x))
     case MakeArray(args, typ) => MakeArray(args map f, typ)
-    case ArrayRef(a, i, typ) => ArrayRef(f(a), f(i), typ)
+    case ArrayRef(a, i) => ArrayRef(f(a), f(i))
     case ArrayLen(a) => ArrayLen(f(a))
     case ArrayRange(start, stop, step) => ArrayRange(f(start), f(stop), f(step))
-    case ArrayMap(a, name, body, elementTyp) => ArrayMap(f(a), name, f(body), elementTyp)
+    case ArrayMap(a, name, body) => ArrayMap(f(a), name, f(body))
     case ArrayFilter(a, name, cond) => ArrayFilter(f(a), name, f(cond))
     case ArrayFlatMap(a, name, body) => ArrayFlatMap(f(a), name, f(body))
-    case ArrayFold(a, zero, accumName, valueName, body, typ) => ArrayFold(f(a), f(zero), accumName, valueName, f(body), typ)
-    case MakeStruct(fields, _) => MakeStruct(fields map { case (n, a) => (n, f(a)) })
-    case InsertFields(old, fields, _) => InsertFields(f(old), fields map { case (n, a) => (n, f(a)) })
-    case GetField(o, name, typ) => GetField(f(o), name, typ)
+    case ArrayFold(a, zero, accumName, valueName, body) => ArrayFold(f(a), f(zero), accumName, valueName, f(body))
+    case MakeStruct(fields) => MakeStruct(fields map { case (n, a) => (n, f(a)) })
+    case InsertFields(old, fields) => InsertFields(f(old), fields map { case (n, a) => (n, f(a)) })
+    case GetField(o, name) => GetField(f(o), name)
     case AggIn(typ) => ir
-    case AggMap(a, name, body, typ) => AggMap(f(a), name, f(body), typ)
-    case AggFilter(a, name, body, typ) => AggFilter(f(a), name, f(body), typ)
-    case AggFlatMap(a, name, body, typ) => AggFlatMap(f(a), name, f(body), typ)
-    case ApplyAggOp(a, op, args, typ) => ApplyAggOp(f(a), op, args.map(f), typ)
-    case MakeTuple(elts, typ) => MakeTuple(elts.map(f), typ)
-    case GetTupleElement(tup, idx, typ) => GetTupleElement(f(tup), idx, typ)
+    case AggMap(a, name, body) => AggMap(f(a), name, f(body))
+    case AggFilter(a, name, body) => AggFilter(f(a), name, f(body))
+    case AggFlatMap(a, name, body) => AggFlatMap(f(a), name, f(body))
+    case ApplyAggOp(a, op, args) => ApplyAggOp(f(a), op, args.map(f))
+    case MakeTuple(elts) => MakeTuple(elts.map(f))
+    case GetTupleElement(tup, idx) => GetTupleElement(f(tup), idx)
     case In(i, typ) => ir
     case Die(message) => ir
-    case Apply(fn, args, impl) => Apply(fn, args.map(f), impl)
-    case ApplySpecial(fn, args, impl) => ApplySpecial(fn, args.map(f), impl)
+    case Apply(fn, args) => Apply(fn, args.map(f))
+    case ApplySpecial(fn, args) => ApplySpecial(fn, args.map(f))
     // from MatrixIR
     case MatrixWrite(_, _, _, _) => ir
     // from TableIR
     case TableCount(_) => ir
-    case TableAggregate(child, query, typ) => TableAggregate(child, f(query), typ)
+    case TableAggregate(child, query) => TableAggregate(child, f(query))
     case TableWrite(_, _, _, _) => ir
     case TableExport(_, _, _, _, _) => ir
   }

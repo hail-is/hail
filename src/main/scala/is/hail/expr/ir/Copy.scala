@@ -22,79 +22,79 @@ object Copy {
       case IsNA(value) =>
         val IndexedSeq(value: IR) = newChildren
         IsNA(value)
-      case If(_, _, _, typ) =>
+      case If(_, _, _) =>
         val IndexedSeq(cond: IR, cnsq: IR, altr: IR) = newChildren
-        If(cond, cnsq, altr, typ)
-      case Let(name, _, _, typ) =>
+        If(cond, cnsq, altr)
+      case Let(name, _, _) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
-        Let(name, value, body, typ)
+        Let(name, value, body)
       case Ref(_, _) =>
         same
-      case ApplyBinaryPrimOp(op, _, _, typ) =>
+      case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
-        ApplyBinaryPrimOp(op, l, r, typ)
-      case ApplyUnaryPrimOp(op, _, typ) =>
+        ApplyBinaryPrimOp(op, l, r)
+      case ApplyUnaryPrimOp(op, _) =>
         val IndexedSeq(x: IR) = newChildren
-        ApplyUnaryPrimOp(op, x, typ)
+        ApplyUnaryPrimOp(op, x)
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
-      case ArrayRef(_, _, typ) =>
+      case ArrayRef(_, _) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
-        ArrayRef(a, i, typ)
+        ArrayRef(a, i)
       case ArrayLen(_) =>
         val IndexedSeq(a: IR) = newChildren
         ArrayLen(a)
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
-      case ArrayMap(_, name, _, elementTyp) =>
+      case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
-        ArrayMap(a, name, body, elementTyp)
+        ArrayMap(a, name, body)
       case ArrayFilter(_, name, _) =>
         val IndexedSeq(a: IR, cond: IR) = newChildren
         ArrayFilter(a, name, cond)
       case ArrayFlatMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFlatMap(a, name, body)
-      case ArrayFold(_, _, accumName, valueName, _, typ) =>
+      case ArrayFold(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
-        ArrayFold(a, zero, accumName, valueName, body, typ)
-      case MakeStruct(fields, _) =>
+        ArrayFold(a, zero, accumName, valueName, body)
+      case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
-      case InsertFields(_, fields, typ) =>
+      case InsertFields(_, fields) =>
         assert(newChildren.length == fields.length + 1)
         InsertFields(newChildren.head.asInstanceOf[IR], fields.zip(newChildren.tail).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
-      case GetField(_, name, typ) =>
+      case GetField(_, name) =>
         val IndexedSeq(o: IR) = newChildren
-        GetField(o, name, typ)
+        GetField(o, name)
       case AggIn(_) =>
         same
-      case AggMap(_, name, _, typ) =>
+      case AggMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
-        AggMap(a, name, body, typ)
-      case AggFilter(_, name, _, typ) =>
+        AggMap(a, name, body)
+      case AggFilter(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
-        AggFilter(a, name, body, typ)
-      case AggFlatMap(_, name, _, typ) =>
+        AggFilter(a, name, body)
+      case AggFlatMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
-        AggFlatMap(a, name, body, typ)
-      case ApplyAggOp(_, op, args, typ) =>
-        ApplyAggOp(newChildren.head.asInstanceOf[IR], op, newChildren.tail.map(_.asInstanceOf[IR]), typ)
-      case MakeTuple(_, typ) =>
-        MakeTuple(newChildren.map(_.asInstanceOf[IR]), typ)
-      case GetTupleElement(_, idx, typ) =>
+        AggFlatMap(a, name, body)
+      case ApplyAggOp(_, op, args) =>
+        ApplyAggOp(newChildren.head.asInstanceOf[IR], op, newChildren.tail.map(_.asInstanceOf[IR]))
+      case MakeTuple(_) =>
+        MakeTuple(newChildren.map(_.asInstanceOf[IR]))
+      case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
-        GetTupleElement(o, idx, typ)
+        GetTupleElement(o, idx)
       case In(_, _) =>
         same
       case Die(message) =>
         same
-      case Apply(fn, args, impl) =>
-        Apply(fn, newChildren.map(_.asInstanceOf[IR]), impl)
-      case ApplySpecial(fn, args, impl) =>
-        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), impl)
+      case Apply(fn, args) =>
+        Apply(fn, newChildren.map(_.asInstanceOf[IR]))
+      case ApplySpecial(fn, args) =>
+        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
       // from MatrixIR
       case MatrixWrite(_, path, overwrite, codecSpecJSONStr) =>
         val IndexedSeq(child: MatrixIR) = newChildren
@@ -103,7 +103,7 @@ object Copy {
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableCount(child)
-      case TableAggregate(_, _, typ) =>
+      case TableAggregate(_, _) =>
         val IndexedSeq(child: TableIR, query: IR) = newChildren
         TableAggregate(child, query)
       case TableWrite(_, path, overwrite, codecSpecJSONStr) =>
