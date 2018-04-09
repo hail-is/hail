@@ -151,14 +151,14 @@ trait RVD {
       it.map { rv => f(c, rv) }
     })
 
-  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
+  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(f)
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
 
-  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitionsWithIndex(f).run
+  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitionsWithIndex(f)
 
-  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitions(f).run
+  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitions(f)
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
