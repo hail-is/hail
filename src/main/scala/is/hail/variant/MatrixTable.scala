@@ -1087,27 +1087,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def selectGlobals(fields: java.util.ArrayList[String]): MatrixTable = selectGlobals(fields.asScala.toArray: _*)
-
-  def selectGlobals(fields: String*): MatrixTable = {
-    // FIXME: should support nested fields
-    val fieldsToKeep = fields.toArray
-    val globalFieldSet = globalType.fieldNames.toSet
-    val keepSet = fieldsToKeep.toSet
-    assert(fieldsToKeep.forall(globalFieldSet.contains))
-
-    val keepIndices = fieldsToKeep.map(globalType.fieldIdx)
-
-    val newGlobalType = TStruct(keepIndices.zip(fieldsToKeep).map { case (i, f) => f -> globalType.types(i) }: _*)
-
-    val newMatrixType = matrixType.copy(globalType = newGlobalType)
-
-    val newGlobals = Row(keepIndices.map(i => globals.asInstanceOf[Row].get(i)): _*)
-
-    copyMT(matrixType = newMatrixType, globals = globals.copy(value = newGlobals, t = newGlobalType))
-  }
-
-
   def selectCols(selectExprs: java.util.ArrayList[String]): MatrixTable = selectCols(selectExprs.asScala.toArray: _*)
 
   def selectCols(exprs: String*): MatrixTable = {
