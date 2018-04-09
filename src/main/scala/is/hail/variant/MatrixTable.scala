@@ -1950,7 +1950,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "global" -> (0, globalType),
       "sa" -> (1, colType),
       "g" -> (2, entryType),
-      "va" -> (3, rowType))
+      "va" -> (3, rvRowType))
     EvalContext(Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
@@ -2048,7 +2048,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def entryEC: EvalContext = EvalContext(Map(
     "global" -> (0, globalType),
-    "va" -> (1, rowType),
+    "va" -> (1, rvRowType),
     "sa" -> (2, colType),
     "g" -> (3, entryType)))
 

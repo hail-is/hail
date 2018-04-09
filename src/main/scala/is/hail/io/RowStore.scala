@@ -774,11 +774,12 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
 
               it.foreach { rv =>
                 fullRow.set(rv)
+                val row = fullRow.deleteField(localEntriesIndex)
 
                 val region = rv.region
                 rvb.set(region)
                 rvb.start(rowsRVType)
-                rvb.addAnnotation(rowsRVType, fullRow)
+                rvb.addAnnotation(rowsRVType, row)
 
                 rowsEN.writeByte(1)
                 rowsEN.writeRegionValue(rowsRVType, region, rvb.end())
