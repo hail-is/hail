@@ -88,44 +88,6 @@ object Annotation {
         case _ => a
       }
 
-  def flattenType(t: Type): Type = t match {
-    case t: TStruct =>
-      val flatFields = t.fields.flatMap { f =>
-        flattenType(f.typ) match {
-          case t2: TStruct =>
-            t2.fields.map { f2 => (f.name + "." + f2.name, f2.typ) }
-
-          case _ => Seq(f.name -> f.typ)
-        }
-      }
-
-      TStruct(flatFields: _*)
-
-    case _ => t
-  }
-
-  def flattenAnnotation(a: Annotation, t: Type): Annotation = t match {
-    case t: TStruct =>
-      val s =
-        if (a == null)
-          Seq.fill(t.fields.length)(null)
-        else
-          a.asInstanceOf[Row].toSeq
-
-      val fs = (s, t.fields).zipped.flatMap { case (ai, f) =>
-        f.typ match {
-          case t: TStruct =>
-            flattenAnnotation(ai, f.typ).asInstanceOf[Row].toSeq
-
-          case _ =>
-            Seq(ai)
-        }
-      }
-      Row.fromSeq(fs)
-
-    case _ => a
-  }
-
   def apply(args: Any*): Annotation = Row.fromSeq(args)
 
   def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
