@@ -12,6 +12,7 @@ dependencies:
 - matplotlib
 - seaborn
 - bokeh
+- jupyter
 - pip
 - pip:
     - parsimonious
