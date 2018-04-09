@@ -7,7 +7,8 @@ package object sparkextras {
 
   val TrivialContext = TrivialContextInstance
 
-  implicit object TrivialContextIsPointed extends Pointed[TrivialContext] {
+  implicit object TrivialContextIsPointed
+      extends Pointed[TrivialContext] with Serializable {
     def point: TrivialContext = TrivialContext
   }
 }
