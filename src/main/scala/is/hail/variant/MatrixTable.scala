@@ -10,14 +10,10 @@ import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
 import is.hail.methods.Aggregators.ColFunctions
-import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
-import is.hail.io.CodecSpec
 import org.apache.hadoop
-import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -2378,109 +2374,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-
-  def writeCols(path: String, codecSpec: CodecSpec) {
-    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.colType, codecSpec, colValues.value)
-
-    val colsSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      matrixType.colsTableType,
-      Map("globals" -> RVDComponentSpec("../globals/rows"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    colsSpec.write(hc, path)
-
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
-  }
-
-  def writeGlobals(path: String, codecSpec: CodecSpec) {
-    val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", matrixType.globalType, codecSpec, Array(globals.value))
-
-    RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
-
-    val globalsSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      TableType(globalType, Array.empty[String], TStruct.empty()),
-      Map("globals" -> RVDComponentSpec("globals"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    globalsSpec.write(hc, path)
-
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
-  }
-
-  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null): Unit = {
-    val codecSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = RVDSpec.formats
-        val codecSpecJSON = parse(codecSpecJSONStr)
-        codecSpecJSON.extract[CodecSpec]
-      } else
-        CodecSpec.default
-
-    if (overwrite)
-      hadoopConf.delete(path, recursive = true)
-    else if (hadoopConf.exists(path))
-      fatal(s"file already exists: $path")
-
-    hc.hadoopConf.mkDir(path)
-
-    val partitionCounts = rvd.writeRowsSplit(path, matrixType, codecSpec)
-
-    val globalsPath = path + "/globals"
-    hadoopConf.mkDir(globalsPath)
-    writeGlobals(globalsPath, codecSpec)
-
-    val rowsSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      matrixType.rowsTableType,
-      Map("globals" -> RVDComponentSpec("../globals/rows"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    rowsSpec.write(hc, path + "/rows")
-
-    hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
-
-    val entriesSpec = TableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "../references",
-      matrixType.rowsTableType,
-      Map("globals" -> RVDComponentSpec("../globals/rows"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    entriesSpec.write(hc, path + "/entries")
-
-    hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
-
-    hadoopConf.mkDir(path + "/cols")
-    writeCols(path + "/cols", codecSpec)
-
-    val refPath = path + "/references"
-    hc.hadoopConf.mkDir(refPath)
-    Array(colType, rowType, entryType, globalType).foreach { t =>
-      ReferenceGenome.exportReferences(hc, refPath, t)
-    }
-
-    val spec = MatrixTableSpec(
-      FileFormat.version.rep,
-      hc.version,
-      "references",
-      matrixType,
-      Map("globals" -> RVDComponentSpec("globals/rows"),
-        "cols" -> RVDComponentSpec("cols/rows"),
-        "rows" -> RVDComponentSpec("rows/rows"),
-        "entries" -> RVDComponentSpec("entries/rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hc, path)
-
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
+    ir.Interpret(ir.MatrixWrite(ast, path, overwrite, codecSpecJSONStr))
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {

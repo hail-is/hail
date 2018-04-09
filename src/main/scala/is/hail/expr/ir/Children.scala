@@ -79,6 +79,8 @@ object Children {
       args.toIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toIndexedSeq
+    // from MatrixIR
+    case MatrixWrite(child, _, _, _) => IndexedSeq(child)
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
     case TableAggregate(child, query, _) => IndexedSeq(child, query)

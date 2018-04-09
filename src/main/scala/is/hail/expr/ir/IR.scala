@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
-import is.hail.expr.{BaseIR, TableIR}
+import is.hail.expr.{BaseIR, MatrixIR, TableIR}
 import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 
 sealed trait IR extends BaseIR {
@@ -90,6 +90,14 @@ final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64(
 final case class TableAggregate(child: TableIR, query: IR, var typ: Type = null) extends IR
 final case class TableWrite(
   child: TableIR,
+  path: String,
+  overwrite: Boolean = true,
+  codecSpecJSONStr: String = null) extends IR {
+  val typ: Type = TVoid
+}
+
+final case class MatrixWrite(
+  child: MatrixIR,
   path: String,
   overwrite: Boolean = true,
   codecSpecJSONStr: String = null) extends IR {
