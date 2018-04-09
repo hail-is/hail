@@ -4,6 +4,9 @@ import is.hail._
 import org.testng.annotations.Test
 
 class ContextRDDSuite extends SparkSuite {
+  def intplus(x: Int, y: Int): Int = x + y
+  def intplusarraylength[T](x: Int, y: Array[T]): Int = x + y.length
+
   @Test
   def aggregateSumVariousPartitionings() {
     for {
@@ -55,7 +58,7 @@ class ContextRDDSuite extends SparkSuite {
       )
     } {
       assert(
-        data.treeAggregate[Int](0, _ + _, _ + _, depth = depth) == data.run.collect().sum,
+        data.treeAggregate[Int](0, intplus _, intplus _, depth = depth) == data.run.collect().sum,
         name)
     }
   }
@@ -79,7 +82,7 @@ class ContextRDDSuite extends SparkSuite {
       assert(
         data.aggregate[Int](0, _ + _.length, _ + _)
           ==
-          data.run.collect().sum,
+          data.run.collect().map(_.length).sum,
         name)
     }
   }
@@ -103,11 +106,11 @@ class ContextRDDSuite extends SparkSuite {
       assert(
         data.treeAggregate[Int](
           0,
-          _ + _.length,
-          _ + _,
+          intplusarraylength[Null] _,
+          intplus _,
           depth = 3)
           ==
-          data.run.collect().sum,
+          data.run.collect().map(_.length).sum,
         name)
     }
   }
