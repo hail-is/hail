@@ -2187,13 +2187,12 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> t = Table.from_pandas(df) # doctest: +SKIP
+        >>> t = hl.Table.from_pandas(df) # doctest: +SKIP
 
         Parameters
         ----------
         df : :class:`.pandas.DataFrame`
             Pandas DataFrame.
-
         key : :obj:`str` or :obj:`list` of :obj:`str`
             Key fields.
 
