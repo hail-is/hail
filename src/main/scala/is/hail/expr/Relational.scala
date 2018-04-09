@@ -642,6 +642,8 @@ case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR 
 
   val (typ, colsF) = MatrixIR.chooseColsWithArray(child.typ)
 
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
@@ -675,6 +677,8 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
     )
     child.typ.copy(rvRowType = newRow.typ)
   }
+
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -719,8 +723,7 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 }
 
-case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
-
+case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
@@ -750,6 +753,8 @@ case class MapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     val newPartitionKey = child.typ.rowPartitionKey.filter(newRVRowSet.contains)
     child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
   }
+
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
 
   private[this] def makeStructChangesKeys(fields: Seq[(String, IR)]): Boolean =
     fields.exists { case (name, ir) =>
@@ -1185,6 +1190,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
     val (rTyp, f) = ir.Compile[Long, Long, Long](
@@ -1225,6 +1232,8 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
     assert(newChildren.length == 2)
     TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
+
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
