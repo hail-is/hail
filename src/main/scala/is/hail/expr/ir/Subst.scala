@@ -9,8 +9,6 @@ object Subst {
         env.lookupOption(name).getOrElse(x)
       case Let(name, v, body, _) =>
         Let(name, subst(v), subst(body, env.delete(name)))
-      case MapNA(name, v, body, _) =>
-        MapNA(name, subst(v), subst(body, env.delete(name)))
       case ArrayMap(a, name, body, _) =>
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFilter(a, name, cond) =>

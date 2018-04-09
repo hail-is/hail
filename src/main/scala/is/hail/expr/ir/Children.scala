@@ -15,8 +15,6 @@ object Children {
     case Cast(v, typ) =>
       Array(v)
     case NA(typ) => none
-    case MapNA(name, value, body, typ) =>
-      Array(value, body)
     case IsNA(value) =>
       Array(value)
     case If(cond, cnsq, altr, typ) =>
@@ -32,8 +30,6 @@ object Children {
     case MakeArray(args, typ) =>
       args.toIndexedSeq
     case ArrayRef(a, i, typ) =>
-      Array(a, i)
-    case ArrayMissingnessRef(a, i) =>
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
@@ -63,15 +59,11 @@ object Children {
       (a +: args).toIndexedSeq
     case GetField(o, name, typ) =>
       Array(o)
-    case GetFieldMissingness(o, name) =>
-      Array(o)
     case MakeTuple(types, _) =>
       types.toIndexedSeq
     case GetTupleElement(o, idx, _) =>
       Array(o)
     case In(i, typ) =>
-      none
-    case InMissingness(i) =>
       none
     case Die(message) =>
       none

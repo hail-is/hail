@@ -39,7 +39,6 @@ final case class False() extends IR { val typ = TBoolean() }
 final case class Cast(v: IR, typ: Type) extends IR
 
 final case class NA(typ: Type) extends IR
-final case class MapNA(name: String, value: IR, body: IR, var typ: Type = null) extends IR
 final case class IsNA(value: IR) extends IR { val typ = TBoolean() }
 
 final case class If(cond: IR, cnsq: IR, altr: IR, var typ: Type = null) extends IR
@@ -52,7 +51,6 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) exte
 
 final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
-final case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean() }
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
 final case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
@@ -69,17 +67,14 @@ final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR], var typ: Type = nul
 }
 
 final case class MakeStruct(fields: Seq[(String, IR)], var typ: TStruct = null) extends IR
-
 final case class InsertFields(old: IR, fields: Seq[(String, IR)], var typ: TStruct = null) extends IR
 
 final case class GetField(o: IR, name: String, var typ: Type = null) extends IR
-final case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 
 final case class MakeTuple(types: Seq[IR], var typ: TTuple = null) extends IR
 final case class GetTupleElement(o: IR, idx: Int, var typ: Type = null) extends IR
 
 final case class In(i: Int, var typ: Type) extends IR
-final case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
 

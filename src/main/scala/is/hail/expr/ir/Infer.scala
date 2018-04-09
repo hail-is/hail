@@ -22,10 +22,6 @@ object Infer {
 
       case NA(t) =>
         assert(t != null)
-      case x@MapNA(name, value, body, _) =>
-        infer(value)
-        infer(body, env = env.bind(name, value.typ))
-        x.typ = body.typ
       case IsNA(v) =>
         infer(v)
 
@@ -64,10 +60,6 @@ object Infer {
         infer(i)
         assert(i.typ.isOfType(TInt32()))
         x.typ = -coerce[TArray](a.typ).elementType
-      case ArrayMissingnessRef(a, i) =>
-        infer(a)
-        infer(i)
-        assert(i.typ.isOfType(TInt32()))
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
@@ -155,10 +147,6 @@ object Infer {
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
         x.typ = -t.field(name).typ
-      case GetFieldMissingness(o, name) =>
-        infer(o)
-        val t = coerce[TStruct](o.typ)
-        assert(t.index(name).nonEmpty)
       case x@MakeTuple(types, _) =>
         types.foreach { a => infer(a) }
         x.typ = TTuple(types.map(_.typ): _*)
@@ -169,7 +157,6 @@ object Infer {
         x.typ = -t.types(idx)
       case In(i, typ) =>
         assert(typ != null)
-      case InMissingness(i) =>
       case Die(msg) =>
       case x@Apply(fn, args, impl) =>
         args.foreach(infer(_))
