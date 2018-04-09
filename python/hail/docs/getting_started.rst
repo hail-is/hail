@@ -6,9 +6,9 @@ Getting Started
 
 You'll need:
 
-- The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
 - `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_. Hail should work with other versions of Spark 2, see below.
-- The Python 3 `Anaconda distribution <https://www.continuum.io/downloads>`_.
+- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------
 Running Hail locally with a pre-compiled distribution

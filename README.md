@@ -29,29 +29,40 @@ To learn more, you can view our talks at [Spark Summit East](https://spark-summi
 
 [![Hail talk at Spark Summit West 2017](https://storage.googleapis.com/hail-common/hail_spark_summit_west.png)](https://www.youtube.com/watch?v=pyeQusIN5Ao&list=PLlMMtlgw6qNjROoMNTBQjAcdx53kV50cS)
 
-### Using Hail
+### Getting Started
 
-To get started using Hail on your own data or on [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
+There are currently two versions of Hail: `0.1` (stable) and `0.2 beta` (development).
+We recommend that new users install `0.2 beta`, since this version is already radically improved from `0.1`,
+ the file format is stable, and the interface is nearly stable.
 
-- install Hail using the instructions in [Getting Started](https://hail.is/hail/getting_started.html)
-- read the [Overview](https://hail.is/hail/overview.html) for a broad introduction to Hail
-- follow the [Tutorials](https://hail.is/hail/tutorials-landing.html) for examples of how to use Hail
-- check out the [Python API](https://hail.is/hail/api.html) for detailed information on the programming interface
+To get started using Hail `0.2 beta` on your own data or on [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
 
-### Support
+- install Hail using the instructions in [Getting Started](https://hail.is/docs/devel/getting_started.html)
+- read the [Overview](https://hail.is/docs/devel/tutorials-landing.html) for a broad introduction to Hail
+- follow the [Tutorials](https://hail.is/docs/devel/overview.html) for examples of how to use Hail
+- check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
 
-There are many ways to get in touch with the Hail team if you need help using Hail, or if you would like to suggest improvements or features. We also love to hear from new users about how you are using Hail.
+As we work toward a stable `0.2` release, additional improvements to the interface may require users to modify their pipelines
+when updating to the latest patch. All such breaking changes will be logged [here](http://discuss.hail.is/t/log-of-breaking-changes-in-0-2-beta/454).
+
+See the [Hail 0.1 docs](https://hail.is/docs/stable/index.html) to get started with `0.1`. The [Annotation Database](https://hail.is/docs/stable/annotationdb.html) and [gnomAD distribution](http://gnomad-beta.broadinstitute.org/downloads) are currently only directly available
+for `0.1` but will be updated for `0.2` soon.
+
+### User Support
+
+There are many ways to get in touch with the Hail team if you need help using Hail, or if you would like to suggest improvements or features. We also love to hear from new users about how they are using Hail.
 
 - chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 - post to the [Discussion Forum](http://discuss.hail.is) for user support and feature requests, or to share your Hail-powered science 
 - please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues)
 
-Hail uses a continuous deployment approach to software development, which means we frequently push new features. We update our users about changes to Hail via the Discussion Forum. We recommend creating an account on the Discussion Forum so that you can subscribe to these updates.
+Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the Discussion Forum. We recommend creating an account on the Discussion Forum so that you can subscribe to these updates.
 
 ### Contribute
 
 Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
+- see [Getting Started Developing])(https://hail.is/docs/devel/getting_started_developing.html) for info on compiling Hail
 - chat with us about development in our [Gitter dev room](https://gitter.im/hail-is/hail-dev)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->
@@ -61,8 +72,7 @@ Hail is committed to open-source development. Our [Github repo](https://github.c
 
 The Hail team is embedded in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
 
-Contact the Hail team at
-<a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
+Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 
 Follow Hail on Twitter <a href="https://twitter.com/hailgenetics">@hailgenetics</a>.
 
