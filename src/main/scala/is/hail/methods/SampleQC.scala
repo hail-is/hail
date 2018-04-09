@@ -165,7 +165,7 @@ object SampleQC {
     val rvRowType = vsm.rvRowType
     val localEntriesIndex = vsm.entriesIndex
     val nSamples = vsm.numCols
-    if (vsm.rvd.partitions.nonEmpty)
+    if (vsm.rvd.getNumPartitions > 0)
       vsm.rvd
         .mapPartitions { it =>
           val view = HTSGenotypeView(rvRowType)

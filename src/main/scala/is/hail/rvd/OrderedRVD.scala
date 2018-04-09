@@ -238,7 +238,7 @@ class OrderedRVD(
       intervalsBc.value.contains(pkOrdering, pk)
     }
 
-    val nPartitions = partitions.length
+    val nPartitions = getNumPartitions
     if (nPartitions <= 1)
       return filter(pred)
 

@@ -138,8 +138,6 @@ trait RVD {
 
   def getNumPartitions: Int = crdd.getNumPartitions
 
-  def partitions: Array[Partition] = crdd.partitions
-
   def filter(f: (RegionValue) => Boolean): RVD
 
   def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD =
