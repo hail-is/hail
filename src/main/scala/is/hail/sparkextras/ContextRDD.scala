@@ -51,12 +51,15 @@ object ContextRDD {
   ): ContextRDD[C, T] =
     new ContextRDD(rdd.mapPartitions(it => Iterator.single((ctx: C) => it)), mkc)
 
-  def weaken[C <: AutoCloseable : Pointed, T: ClassTag](
-    rdd: RDD[T]
-  ): ContextRDD[C, T] =
-    new ContextRDD(
-      rdd.mapPartitions(it => Iterator.single((ctx: C) => it)),
-      point[C])
+  // this one weird trick permits the caller to specify C without T
+  sealed trait Weaken[C <: AutoCloseable] {
+    def apply[T: ClassTag](
+      rdd: RDD[T]
+    )(implicit c: Pointed[C]
+     ): ContextRDD[C, T] = weaken(rdd, c.point _)
+  }
+  private[this] object weakenInstance extends Weaken[Nothing]
+  def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
 
   type ElementType[C, T] = C => Iterator[T]
 }
