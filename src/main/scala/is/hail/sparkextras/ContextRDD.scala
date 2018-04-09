@@ -61,6 +61,23 @@ object ContextRDD {
   private[this] object weakenInstance extends Weaken[Nothing]
   def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
 
+  sealed trait Parallelize[C <: AutoCloseable] {
+    def apply[T : ClassTag](
+      sc: SparkContext,
+      data: Seq[T],
+      numSlices: Int
+    )(implicit c: Pointed[C]
+    ): ContextRDD[C, T] = weaken(sc.parallelize(data, numSlices))
+
+    def apply[T : ClassTag](
+      sc: SparkContext,
+      data: Seq[T]
+    )(implicit c: Pointed[C]
+    ): ContextRDD[C, T] = weaken(sc.parallelize(data))
+  }
+  private[this] object parallelizeInstance extends Parallelize[Nothing]
+  def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
+
   type ElementType[C, T] = C => Iterator[T]
 }
 
@@ -293,7 +310,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def getNumPartitions: Int = rdd.getNumPartitions
 
   private[this] def clean[T <: AnyRef](value: T): T =
-    ExposedUtils.clean(value, sc)
+    ExposedUtils.clean(sparkContext, value)
 
   private[this] def onRDD(
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
