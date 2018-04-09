@@ -26,7 +26,7 @@ class SelectSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .annotateColsExpr("foo = AGG.count(), bar.baz = 5")
 
-    val t1 = vds.selectCols("sa.s", "sa.bar.baz", "foo2 = AGG.count()").colsTable()
+    val t1 = vds.selectCols("{s: sa.s, baz: sa.bar.baz, foo2: AGG.count()}").colsTable()
 
     val t2 = vds.colsTable().select(Array("row.s", "row.bar.baz", "foo2 = row.foo"))
 

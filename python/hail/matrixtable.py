@@ -876,16 +876,12 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with new column-indexed field(s).
         """
-        exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        base, cleanup = self._process_joins(*named_exprs.values())
 
         for k, v in named_exprs.items():
-            analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
-            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._col_indices)
-        m = MatrixTable(base._jvds.annotateColsExpr(",\n".join(exprs)))
-        return cleanup(m)
+
+        return self._select_cols("MatrixTable.annotate_cols", self.col.annotate(**named_exprs))
 
     def annotate_entries(self, **named_exprs) -> 'MatrixTable':
         """Create new row-and-column-indexed fields by name.
@@ -1109,29 +1105,22 @@ class MatrixTable(ExprContainer):
             MatrixTable with specified column fields.
         """
 
-        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
+        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
+        assignments = OrderedDict()
 
-        ids = []
         for e in exprs:
-            all_exprs.append(e)
-            analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
-                raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
-            strs.append(e._ast.to_hql())
-            ids.append(e._ast.name)
+                raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
+            assert isinstance(e._ast, Select)
+            assignments[e._ast.name] = e
+
         for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze('MatrixTable.select_cols', e, self._col_indices, {self._row_axis})
             check_collisions(self._fields, k, self._col_indices)
-            strs.append('{} = {}'.format(escape_id(k), e._ast.to_hql()))
-            ids.append(k)
-        check_field_uniqueness(ids)
-        m = MatrixTable(base._jvds.selectCols(strs))
-        return cleanup(m)
+            assignments[k] = e
+
+        check_field_uniqueness(assignments.keys())
+        return self._select_cols('Table.select_cols', hl.struct(**assignments))
 
     def select_entries(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing entry fields or create new fields by name, dropping the rest.
@@ -1256,10 +1245,9 @@ class MatrixTable(ExprContainer):
         if row_fields:
             m = m._select_rows("MatrixTable.drop_rows", m.row.drop(*row_fields))
 
-        if any(self._fields[field]._indices == self._col_indices for field in fields_to_drop):
-            # need to drop col fields
-            new_col_fields = [f for f in m.col if f not in fields_to_drop]
-            m = m.select_cols(*new_col_fields)
+        col_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._col_indices]
+        if col_fields:
+            m = m._select_cols("MatrixTable.drop_cols", m.col.drop(*col_fields))
 
         entry_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._entry_indices]
         if entry_fields:
@@ -2201,12 +2189,9 @@ class MatrixTable(ExprContainer):
             analyze("MatrixTable.annotate_rows", row_struct, self._row_indices)
             jmt = jmt.selectRows(row_struct._ast.to_hql())
         if col_exprs:
-            col_strs = []
-            for k, v in col_exprs.items():
-                analyze('MatrixTable.annotate_cols', v, self._col_indices, {self._row_axis})
-                col_strs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-                check_collisions(self._fields, k, self._col_indices)
-                jmt = jmt.annotateColsExpr(",\n".join(col_strs))
+            col_struct = self.col.annotate(**col_exprs)
+            analyze("MatrixTable.annotate_cols", col_struct, self._col_indices)
+            jmt = jmt.selectCols(col_struct._ast.to_hql())
         if entry_exprs:
             entry_struct = self.entry.annotate(**entry_exprs)
             analyze("MatrixTable.annotate_entries", entry_struct, self._entry_indices)
@@ -2587,6 +2572,12 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._row_indices, {self._col_axis})
         return cleanup(MatrixTable(base._jvds.selectRows(s._ast.to_hql())))
+
+    @typecheck_method(caller=str, s=expr_struct())
+    def _select_cols(self, caller, s):
+        base, cleanup = self._process_joins(s)
+        analyze(caller, s, self._col_indices, {self._row_axis})
+        return cleanup(MatrixTable(base._jvds.selectCols(s._ast.to_hql())))
 
     @typecheck(datasets=matrix_table_type)
     def union_rows(*datasets: 'MatrixTable') -> 'MatrixTable':
