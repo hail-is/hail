@@ -799,11 +799,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = matrixType.copy(colType = t), colValues = colValues.copy(value = newAnnotations, t = TArray(t)))
   }
 
-  def annotateCols(annotations: Map[Annotation, Annotation], signature: Type, root: String): MatrixTable = {
-    val (t, i) = insertSA(signature, List(root))
-    annotateCols(t, i) { case (s, _) => annotations.getOrElse(s, null) }
-  }
-
   def annotateColsTable(kt: Table, vdsKey: java.util.ArrayList[String],
     root: String, product: Boolean): MatrixTable =
     annotateColsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, product)
