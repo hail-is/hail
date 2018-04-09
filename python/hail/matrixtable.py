@@ -1851,6 +1851,9 @@ class MatrixTable(ExprContainer):
 
         return GroupedMatrixTable(self).group_cols_by(*exprs, **named_exprs)
 
+    def collect_cols_by_key(self) -> 'MatrixTable':
+        return MatrixTable(self._jvds.collectColsByKey())
+
     def count_rows(self) -> int:
         """Count the number of rows in the matrix.
 

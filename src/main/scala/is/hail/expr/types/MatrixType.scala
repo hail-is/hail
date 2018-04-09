@@ -49,7 +49,15 @@ case class MatrixType(
 
   assert(rowKey.startsWith(rowPartitionKey))
 
-  val rowKeyStruct = TStruct(rowKey.map(k => k -> rowType.fieldByName(k).typ): _*)
+  val (rowKeyStruct, extractRowKey) = rowType.select(rowKey.toArray)
+  val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
+  val (rowValueStruct, extractRowValue) = rowType.filter(rowKey.toSet, include = false)
+  val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
+
+  val (colKeyStruct, extractColKey) = colType.select(colKey.toArray)
+  val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
+  val (colValueStruct, extractColValue) = colType.filter(colKey.toSet, include = false)
+  val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType = TableType(colType, colKey, globalType)
 

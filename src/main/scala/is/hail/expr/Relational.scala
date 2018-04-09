@@ -234,6 +234,86 @@ object MatrixIR {
       keepF(mv, keep)
     })
   }
+
+  def collectColsByKey(typ: MatrixType): (MatrixType, MatrixValue => MatrixValue) = {
+    val newColValueType = TStruct(typ.colValueStruct.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
+    val newColType = typ.colKeyStruct ++ newColValueType
+    val newEntryType = TStruct(typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
+    val newMatrixType = typ.copyParts(colType = newColType, entryType = newEntryType)
+    val oldRVRowType = typ.rvRowType
+    val newRVRowType = newMatrixType.rvRowType
+    val oldEntryArrayType = typ.entryArrayType
+    val oldEntryType = typ.entryType
+    val localRowSize = newRVRowType.size
+
+    (newMatrixType, { mv =>
+      val colValMap: Map[Row, Array[Int]] = mv.colValues.value.map(_.asInstanceOf[Row]).zipWithIndex
+        .groupBy[Row]{ case (r, i) => typ.extractColKey(r)}
+        .mapValues{ _.map{ case (r, i) => i }.toArray}
+      val idxMap = colValMap.values.toArray
+
+      val newColValues: BroadcastIndexedSeq = mv.colValues.copy(
+        value = colValMap.map { case (key, idx) =>
+          Row.fromSeq(key.toSeq ++ newColValueType.fields.map { f =>
+            idx.map { i =>
+              mv.colValues.value(i).asInstanceOf[Row]
+                .get(typ.colType.fieldIdx(f.name))
+            }.toIndexedSeq
+          })
+        }.toIndexedSeq)
+
+      val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType){ it =>
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+
+        it.map { rv =>
+          val entryArrayOffset = oldRVRowType.loadField(rv, oldRVRowType.fieldIdx(MatrixType.entriesIdentifier))
+
+          rvb.set(rv.region)
+          rvb.start(newRVRowType)
+          rvb.startStruct()
+          var i = 0
+          while (i < localRowSize - 1) {
+            rvb.addField(oldRVRowType, rv, i)
+            i += 1
+          }
+          rvb.startArray(idxMap.length) //start entries array
+          i = 0
+          while (i < idxMap.length) {
+            rvb.startStruct()
+            var j = 0
+            while (j < newEntryType.size) {
+              rvb.startArray(idxMap(i).length)
+              var k = 0
+              while (k < idxMap(i).length) {
+                rvb.addField(
+                  oldEntryType,
+                  rv.region,
+                  oldEntryArrayType.loadElement(rv.region, entryArrayOffset, idxMap(i)(k)),
+                  j
+                )
+                k += 1
+              }
+              rvb.endArray()
+              j += 1
+            }
+            rvb.endStruct()
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      }
+
+      mv.copy(
+        typ = newMatrixType,
+        colValues = newColValues,
+        rvd = newRVD
+      )
+    })
+  }
 }
 
 abstract sealed class MatrixIR extends BaseIR {
@@ -643,6 +723,22 @@ case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR 
     val prev = child.execute(hc)
 
     colsF(prev, oldIndices)
+  }
+}
+
+case class CollectColsByKey(child: MatrixIR) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): CollectColsByKey = {
+    assert(newChildren.length == 1)
+    CollectColsByKey(newChildren(0).asInstanceOf[MatrixIR])
+  }
+
+  val (typ, groupF) = MatrixIR.collectColsByKey(child.typ)
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+    groupF(prev)
   }
 }
 

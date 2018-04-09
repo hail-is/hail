@@ -727,6 +727,32 @@ class MatrixTests(unittest.TestCase):
         vds = vds.drop_cols()
         self.assertEqual(vds.count_cols(), 0)
 
+    def test_collect_cols_by_key(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
+        mt = mt.annotate_cols(foo = col_dict.get(mt.col_idx))\
+            .explode_cols('foo')
+        mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
+
+        grouped = mt.collect_cols_by_key()
+
+        self.assertListEqual(grouped.cols().order_by('col_idx').collect(),
+                         [hl.Struct(col_idx=0, foo=[1]),
+                          hl.Struct(col_idx=1, foo=[2, 3]),
+                          hl.Struct(col_idx=2, foo=[4, 5, 6])])
+        self.assertListEqual(
+            grouped.entries().select('row_idx', 'col_idx', 'bar')
+                .order_by('row_idx', 'col_idx').collect(),
+            [hl.Struct(row_idx=0, col_idx=0, bar=[0]),
+             hl.Struct(row_idx=0, col_idx=1, bar=[0, 0]),
+             hl.Struct(row_idx=0, col_idx=2, bar=[0, 0, 0]),
+             hl.Struct(row_idx=1, col_idx=0, bar=[1]),
+             hl.Struct(row_idx=1, col_idx=1, bar=[2, 3]),
+             hl.Struct(row_idx=1, col_idx=2, bar=[4, 5, 6]),
+             hl.Struct(row_idx=2, col_idx=0, bar=[2]),
+             hl.Struct(row_idx=2, col_idx=1, bar=[4, 6]),
+             hl.Struct(row_idx=2, col_idx=2, bar=[8, 10, 12])])
+
     def test_weird_names(self):
         ds = self.get_vds()
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
