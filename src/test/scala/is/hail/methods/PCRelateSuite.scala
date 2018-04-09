@@ -6,7 +6,8 @@ import is.hail.linalg.BlockMatrix
 import is.hail.expr.types._
 import is.hail.io.plink.ExportPlink
 import is.hail.stats._
-import is.hail.utils.{TextTableReader, _}
+import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.MatrixTable
 import is.hail.methods.PCASuite.samplePCA
 import org.testng.annotations.Test
@@ -117,7 +118,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 10000
     val vds: MatrixTable = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
-      .annotateColsExpr("s = str(sa.sample_idx)").keyColsBy("s")
+      .annotateColsExpr("s" -> "str(sa.sample_idx)").keyColsBy("s")
     val pcs = samplePCA(vds, 2)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01).mapValues(quadMap(toD).tupled)
@@ -225,7 +226,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 1000
     val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
-      .annotateColsExpr("s = str(sa.sample_idx)").keyColsBy("s")
+      .annotateColsExpr("s" -> "str(sa.sample_idx)").keyColsBy("s")
     val pcs = samplePCA(vds)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .mapValues(quadMap(toBoxedD).tupled)

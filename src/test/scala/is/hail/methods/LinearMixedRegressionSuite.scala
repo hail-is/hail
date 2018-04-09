@@ -201,7 +201,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop),
       scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
-      .annotateColsExpr("s = str(sa.sample_idx)").keyColsBy("s")
+      .annotateColsExpr("s" -> "str(sa.sample_idx)").keyColsBy("s")
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
@@ -311,8 +311,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     bim = "src/test/resources/fastlmmTest.bim",
     fam = "src/test/resources/fastlmmTest.fam",
     rg = None)
-    .annotateColsTable(covariates, root = "cov").annotateColsExpr("cov = sa.cov.f2")
-    .annotateColsTable(phenotypes, root = "pheno").annotateColsExpr("pheno = sa.pheno.f2").cache()
+    .annotateColsTable(covariates, root = "cov").annotateColsExpr("cov" -> "sa.cov.f2")
+    .annotateColsTable(phenotypes, root = "pheno").annotateColsExpr("pheno" -> "sa.pheno.f2").cache()
 
   lazy val vdsChr1 = vdsFastLMM.filterRowsExpr("""va.locus.contig == "1"""")
     .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
@@ -439,8 +439,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .filterRowsExpr("va.alleles.length() == 2")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
-      .annotateColsExpr("""culprit = AGG.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
-      .annotateColsExpr("pheno.PhenoLMM = (1d + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit.toFloat64")
+      .annotateColsExpr("culprit" -> """AGG.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
+      .annotateColsExpr("pheno.PhenoLMM" -> "(1d + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit.toFloat64")
 
     val vdsKinship = vdsAssoc.filterRowsExpr("va.locus.position < 4")
 
@@ -511,9 +511,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
   val randomNorms = (1 to 10).map(x => rand.nextGaussian())
 
   lazy val vdsSmall = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(smallMat))
-    .annotateColsExpr("culprit = AGG.filter(g => va.locus.position == 2).map(g => g.GT.nNonRefAlleles()).collect()[0]")
+    .annotateColsExpr("culprit" -> "AGG.filter(g => va.locus.position == 2).map(g => g.GT.nNonRefAlleles()).collect()[0]")
     .annotateGlobal(randomNorms, TArray(TFloat64()), "randNorms")
-    .annotateColsExpr("pheno = sa.culprit.toFloat64 + global.randNorms[sa.s.toInt32()]")
+    .annotateColsExpr("pheno" -> "sa.culprit.toFloat64 + global.randNorms[sa.s.toInt32()]")
 
   lazy val vdsSmallRRM = TestUtils.computeRRM(hc, vdsSmall)
   

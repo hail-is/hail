@@ -15,12 +15,12 @@ import org.apache.spark.sql.Row
 class GroupBySuite extends SparkSuite {
 
   @Test def testGroupSamplesBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
     vds.groupColsBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupSamplesStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("foo = {str1: 1, str2: \"bar\"}")
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("foo" -> "{str1: 1, str2: \"bar\"}")
     vds.groupColsBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
@@ -94,7 +94,7 @@ class GroupBySuite extends SparkSuite {
     val vdsGrouped = vds.explodeRows("va.genes")
       .keyRowsBy(Array("genes"), Array("genes"))
       .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum()")
-      .annotateColsExpr("pheno = sa.pheno.Pheno")
+      .annotateColsExpr("pheno" -> "sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select(Array("row.genes", "row.linreg.beta",
