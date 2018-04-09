@@ -137,8 +137,6 @@ object CompileWithAggregators {
     }.unzip
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
-    println("body", Pretty(body))
-    println("postAggIR", Pretty(postAggIR))
     val (t, f) = Compile[F2, R](args2, postAggIR)
     (rvAggs, seqOps, aggResultType, f, t)
   }

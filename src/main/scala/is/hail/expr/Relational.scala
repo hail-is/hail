@@ -844,9 +844,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   val tAgg = TAggregable(tAggElt, aggSymTab)
 
   val typ: MatrixType = {
-    println("prevRVRowType", child.typ.rvRowType)
-    println("newRVRow", Pretty(newRVRow))
-    println("newRVRow.typ", newRVRow.typ)
     val newRVRowSet = newRVRow.typ.fieldNames.toSet
     val newRowKey = child.typ.rowKey.filter(newRVRowSet.contains)
     val newPartitionKey = child.typ.rowPartitionKey.filter(newRVRowSet.contains)

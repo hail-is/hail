@@ -11,8 +11,6 @@ object Subst {
     e match {
       case x@Ref(name, typ) =>
         val s = env.lookupOption(name).getOrElse(x)
-        println(Pretty(x))
-        println(Pretty(s))
         assert(s.typ == x.typ, s"$name: ${ x.typ.parsableString() }, ${ s.typ.parsableString() }")
         s
       case Let(name, v, body) =>
