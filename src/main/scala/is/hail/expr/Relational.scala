@@ -726,9 +726,9 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, newRow)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapRows = {
     assert(newChildren.length == 2)
-    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   val newRVRow = InsertFields(newRow, Seq(MatrixType.entriesIdentifier -> GetField(Ref("va"), MatrixType.entriesIdentifier)))
