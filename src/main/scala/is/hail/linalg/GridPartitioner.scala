@@ -2,7 +2,6 @@ package is.hail.linalg
 
 import org.apache.spark.Partitioner
 import breeze.linalg.{DenseVector => BDV}
-import is.hail.utils.fatal
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Partitioner {
   require(nRows > 0 && nRows <= Int.MaxValue.toLong * blockSize)
@@ -87,20 +86,5 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     val rects = rectangles.foldLeft(Set[Int]())((s, r) => s ++ rectangularBlocks(r(0), r(1), r(2), r(3))).toArray    
     scala.util.Sorting.quickSort(rects)
     rects
-  }
-
-  // returns increasing array of all blocks above the diagonal which intersect the union of squares
-  def upperDiagonalBlocks(squares: Array[Array[Long]]): Array[Int] = {
-    if (nRows != nCols) {
-      fatal(s"Expected square block matrix, but found block matrix with $nRows rows and $nCols columns.")
-    }
-
-    require(squares.forall(sq => sq.length==2))
-    val sqs = squares.foldLeft(Set[Int]()) { (s, square) =>
-      s ++ (for {i <- square(0) until square(1)} yield rectangularBlocks(square(0), i, i + 1, i + 1)).flatten
-    }.toArray
-
-    scala.util.Sorting.quickSort(sqs)
-    sqs
   }
 }

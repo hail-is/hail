@@ -6,13 +6,9 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
-import is.hail.linalg.BlockMatrix
-import is.hail.stats.RegressionUtils
-import is.hail.table.Table
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {

@@ -612,7 +612,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockSize, keepRows.length, keepCols.length)
 
   def entriesTable(hc: HailContext, keep: Option[Array[Int]] = None): Table = {
-    val rvRowType = TStruct("i" -> TInt64Required, "j" -> TInt64Required, "entry" -> TFloat64Required)
+    val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     val rdd = keep match {
       case Some(keep) => blocks.subsetPartitions(keep)
       case None => blocks

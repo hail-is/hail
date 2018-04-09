@@ -104,24 +104,4 @@ class GridPartitionerSuite extends TestNGSuite {
       assert(gp.rectangularBlocks(0, 20, 0, 30) sameElements (0 until 12))
     }
   }
-
-  @Test
-  def testUpperDiagonalBlocksExcludeDiagonalWhenDesiredPartitionsDoNotOverlapWithDiagonal() {
-    val gp = GridPartitioner(blockSize = 1, nRows = 6, nCols = 6)
-
-    assert(gp.upperDiagonalBlocks(Array(Array(0, 1), Array(1, 3), Array(2, 5))) sameElements
-      Array(6, 13, 19, 20, 26, 27, 32, 33, 34))
-  }
-
-  @Test
-  def testUpperDiagonalBlocksIncludeDiagonalWhenDesiredPartitionsOverlapWithDiagonal() {
-    val gp = GridPartitioner(blockSize = 10, nRows = 40, nCols = 40)
-    val gp2 = GridPartitioner(blockSize = 10, nRows = 31, nCols = 31)
-
-    assert(gp.upperDiagonalBlocks(Array(Array(0, 3), Array(4, 12), Array(11, 20), Array(35, 39))) sameElements
-      Array(0, 4, 5, 9, 15))
-
-    assert(gp2.upperDiagonalBlocks(Array(Array(0, 3), Array(4, 12), Array(11, 20), Array(31, 31))) sameElements
-      Array(0, 4, 5, 9))
-  }
 }
