@@ -116,6 +116,14 @@ object RVD {
 
     Array(part0Count)
   }
+
+  def union(rvds: Seq[RVD]): RVD = {
+    require(rvds.length > 1)
+    val first = rvds.head
+    val sc = first.sparkContext
+    new UnpartitionedRVD(first.rowType,
+      ContextRDD.union(sc, rvds.map(_.crdd)))
+  }
 }
 
 trait RVD {

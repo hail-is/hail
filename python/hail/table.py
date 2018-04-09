@@ -1352,7 +1352,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Unpersisted table.
         """
-        self._jt.unpersist()
+        return Table(self._jt.unpersist())
 
     def collect(self):
         """Collect the rows of the table into a local list.
