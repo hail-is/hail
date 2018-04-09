@@ -799,48 +799,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = matrixType.copy(colType = t), colValues = colValues.copy(value = newAnnotations, t = TArray(t)))
   }
 
-  def annotateColsExpr(expr: String): MatrixTable = {
-    val ec = colEC
-
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-    val finalType = (paths, types).zipped.foldLeft(colType) { case (sas, (ids, signature)) =>
-      val (s, i) = sas.structInsert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-    val inserters = inserterBuilder.result()
-
-    val colAggregationOption = Aggregators.buildColAggregations(hc, value, ec)
-
-    ec.set(0, globals.value)
-
-    val newAnnotations = new Array[Annotation](numCols)
-
-    var i = 0
-    while (i < numCols) {
-      colAggregationOption.foreach(_.apply(i))
-      val sa = colValues.value(i)
-      ec.set(1, sa)
-
-      newAnnotations(i) = f().zip(inserters)
-        .foldLeft(sa) { case (sa, (v, inserter)) =>
-          inserter(sa, v)
-        }
-      i += 1
-    }
-
-    val saFields = finalType.fieldNames.toSet
-    copyMT(colValues = colValues.copy(value = newAnnotations, t = TArray(finalType)),
-      matrixType = matrixType.copy(colKey = colKey.filter(saFields.contains), colType = finalType))
-  }
-
-  def annotateCols(annotations: Map[Annotation, Annotation], signature: Type, root: String): MatrixTable = {
-    val (t, i) = insertSA(signature, List(root))
-    annotateCols(t, i) { case (s, _) => annotations.getOrElse(s, null) }
-  }
-
   def annotateColsTable(kt: Table, vdsKey: java.util.ArrayList[String],
     root: String, product: Boolean): MatrixTable =
     annotateColsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, product)
@@ -1083,29 +1041,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def selectCols(selectExprs: java.util.ArrayList[String]): MatrixTable = selectCols(selectExprs.asScala.toArray: _*)
-
-  def selectCols(exprs: String*): MatrixTable = {
+  def selectCols(expr: String): MatrixTable = {
     val ec = colEC
-    val (paths, types, f) = Parser.parseSelectExprs(exprs.toArray, ec)
-    val topLevelFields = mutable.Set.empty[String]
+    val (t, f) = Parser.parseExpr(expr, ec)
 
-    val finalNames = paths.map {
-      // assignment
-      case Left(name) => name
-      case Right(path) =>
-        assert(path.head == Annotation.COL_HEAD)
-        path match {
-          case List(Annotation.COL_HEAD, name) => topLevelFields += name
-          case _ =>
-        }
-        path.last
-    }
-
-    assert(finalNames.areDistinct())
-    val newColType = TStruct(finalNames.zip(types): _*)
-    val finalNameSet = finalNames.toSet
-    val newColKey = colKey.filter(finalNameSet.contains)
+    val newColType = coerce[TStruct](t)
+    val namesSet = newColType.fieldNames.toSet
+    val newColKey = colKey.filter(namesSet.contains)
 
     val newMatrixType = matrixType.copy(colType = newColType, colKey = newColKey)
     val aggOption = Aggregators.buildColAggregations(hc, value, ec)
@@ -1114,8 +1056,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newColValues = Array.tabulate(numCols) { i =>
       ec.set(1, colValues.value(i))
       aggOption.foreach(_ (i))
-      val results = f()
-      Row.fromSeq(results)
+      f()
     }
     copyMT(matrixType = newMatrixType,
       colValues = colValues.copy(newColValues, TArray(newColType)))

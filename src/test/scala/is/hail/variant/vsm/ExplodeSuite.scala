@@ -9,7 +9,7 @@ class ExplodeSuite extends SparkSuite {
   @Test def testExplode() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
       .annotateRowsExpr("foo" -> "[1, 2, 2]", "bar" -> "[1, 2, 2].toSet()")
-      .annotateColsExpr("foo = [1, 2, 2], bar = [1, 2, 2].toSet()")
+      .annotateColsExpr("foo" -> "[1, 2, 2]", "bar" -> "[1, 2, 2].toSet()")
         
     assert(vsm.explodeRows("va.foo").countRows() == vsm.countRows() * 3)
     assert(vsm.explodeRows("va.bar").countRows() == vsm.countRows() * 2)
@@ -24,7 +24,7 @@ class ExplodeSuite extends SparkSuite {
   @Test def testExplodeUnwrap() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
       .annotateRowsExpr("foo" -> "[1]")
-      .annotateColsExpr("foo = [3]")
+      .annotateColsExpr("foo" -> "[3]")
     
     val exploded = vsm.explodeRows("va.foo")
     assert(vsm.variants.collect().sameElements(exploded.variants.collect()))
@@ -36,7 +36,7 @@ class ExplodeSuite extends SparkSuite {
   @Test def testNoElements() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
       .annotateRowsExpr("foo" -> "NA: Array[Int32]")
-      .annotateColsExpr("foo = NA: Array[Int32]")
+      .annotateColsExpr("foo" -> "NA: Array[Int32]")
     
     val exploded = vsm.explodeRows("va.foo")
     assert(exploded.countRows() == 0)

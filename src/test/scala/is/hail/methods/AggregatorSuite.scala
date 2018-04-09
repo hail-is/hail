@@ -58,21 +58,21 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testColumns() {
     val vds = SampleQC(hc.importVCF("src/test/resources/sample2.vcf"))
-      .annotateColsExpr(
-        """test.callrate = AGG.fraction(g => isDefined(g.GT)),
-          |test.nCalled = AGG.filter(g => isDefined(g.GT)).count(),
-          |test.nNotCalled = AGG.filter(g => !isDefined(g.GT)).count(),
-          |test.gqstats = AGG.map(g => g.GQ.toFloat64).stats(),
-          |test.gqhetstats = AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats(),
-          |test.nHet = AGG.filter(g => g.GT.isHet()).count(),
-          |test.nHomRef = AGG.filter(g => g.GT.isHomRef()).count(),
-          |test.nHomVar = AGG.filter(g => g.GT.isHomVar()).count(),
-          |test.nSNP = AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_snp(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nInsertion = AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_insertion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nDeletion = AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_deletion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nTi = AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_transition(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nTv = AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_transversion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
-          |test.nStar = AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_star(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum()""".stripMargin)
+      .annotateColsExpr("test" ->
+        """{callrate: AGG.fraction(g => isDefined(g.GT)),
+          |nCalled: AGG.filter(g => isDefined(g.GT)).count(),
+          |nNotCalled: AGG.filter(g => !isDefined(g.GT)).count(),
+          |gqstats: AGG.map(g => g.GQ.toFloat64).stats(),
+          |gqhetstats: AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats(),
+          |nHet: AGG.filter(g => g.GT.isHet()).count(),
+          |nHomRef: AGG.filter(g => g.GT.isHomRef()).count(),
+          |nHomVar: AGG.filter(g => g.GT.isHomVar()).count(),
+          |nSNP: AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_snp(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |nInsertion: AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_insertion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |nDeletion: AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_deletion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |nTi: AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_transition(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |nTv: AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_transversion(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum(),
+          |nStar: AGG.map(g => [g.GT[0], g.GT[1]].map(x => if (x > 0 && is_star(va.alleles[0], va.alleles[x])) 1 else 0).sum()).sum()}""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
     val qCallRateQC = vds.querySA("sa.qc.call_rate")._2
