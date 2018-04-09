@@ -76,11 +76,7 @@ case class EvalContext private(st: SymbolTable,
 }
 
 object EvalContext {
-  def apply(symTab0: SymbolTable): EvalContext = {
-    val symTab = symTab0.map { case (name, (i, t)) =>
-      (name, (i, t.deepOptional()))
-    }
-
+  def apply(symTab: SymbolTable): EvalContext = {
     def maxEntry(st: SymbolTable): Int = {
       val m = st.map {
         case (name, (i, t: TAggregable)) => i.max(maxEntry(t.symTab))
@@ -101,7 +97,7 @@ object EvalContext {
 
   def apply(args: (String, Type)*): EvalContext = {
     EvalContext(args.zipWithIndex
-      .map { case ((name, t), i) => (name, (i, t.deepOptional())) }
+      .map { case ((name, t), i) => (name, (i, t)) }
       .toMap)
   }
 }
@@ -869,9 +865,13 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
+  var typeWithMissingness: Type = null
+
   override def typecheckThis(ec: EvalContext): Type = {
     ec.st.get(symbol) match {
-      case Some((_, t)) => t
+      case Some((_, t)) =>
+        typeWithMissingness = t
+        t.deepOptional()
       case None =>
         val symbols = ec.st.toArray.sortBy(_._2._1).map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }
         parseError(
@@ -891,8 +891,11 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def compile() = CM.lookup(symbol)
 
   def toIR(agg: Option[String] = None): Option[IR] = agg match {
-    case Some(x) if x == symbol => Some(ir.AggIn(`type`.asInstanceOf[TAggregable]))
-    case _ => Some(ir.Ref(symbol, `type`))
+    case Some(x) if x == symbol =>
+      assert(typeWithMissingness != null)
+      Some(ir.AggIn(typeWithMissingness.asInstanceOf[TAggregable]))
+    case _ =>
+      Some(ir.Ref(symbol, typeWithMissingness))
   }
 }
 

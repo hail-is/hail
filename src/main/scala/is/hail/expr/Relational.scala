@@ -689,7 +689,6 @@ case class FilterRowsIR(
     val prev = child.execute(hc)
     assert(child.typ == prev.typ)
 
-    println(Pretty(pred))
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "va", typ.rvRowType,
       "global", typ.globalType,

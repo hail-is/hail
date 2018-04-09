@@ -41,8 +41,9 @@ object TypeCheck {
         check(value)
         check(body, env = env.bind(name, value.typ))
         assert(x.typ == body.typ)
-      case x@Ref(_, _) =>
-        assert(x.typ == env.lookup(x))
+      case x@Ref(name, _) =>
+        val expected = env.lookup(x)
+        assert(x.typ == expected, s"$name ${ x.typ.parsableString() } ${ expected.parsableString() }")
       case x@ApplyBinaryPrimOp(op, l, r) =>
         check(l)
         check(r)
@@ -93,7 +94,7 @@ object TypeCheck {
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(zero)
-        check(body, env = env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
+        check(body, env = env.bind(accumName -> zero.typ, valueName -> -tarray.elementType))
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
       case x@AggIn(typ) =>

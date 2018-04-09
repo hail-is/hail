@@ -288,7 +288,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     TStruct(newFields)
   }
 
-  def deleteKey(key: String, index: Int): Type = {
+  def deleteKey(key: String, index: Int): TStruct = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
       TStruct.empty()

@@ -1052,7 +1052,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               true
           })
 
-        val newMatrixType = matrixType.copyParts(rowType = newRowType, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+        val newEntriesIndex = newRowType.fieldIdx(MatrixType.entriesIdentifier)
+        val newMatrixType = matrixType.copyParts(
+          rowType = newRowType.deleteKey(MatrixType.entriesIdentifier, entriesIndex),
+          rowKey = newRowKey,
+          rowPartitionKey = newPartitionKey)
         val fullRowType = rvRowType
         val localEntriesIndex = entriesIndex
         val newRVType = newMatrixType.rvRowType
@@ -1077,7 +1081,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.startStruct()
             var i = 0
             while (i < newRowType.size) {
-              rvb.addAnnotation(newRowType.types(i), results(i))
+              if (i != newEntriesIndex)
+                rvb.addAnnotation(newRowType.types(i), results(i))
               i += 1
             }
             rvb.addField(fullRowType, rv, localEntriesIndex)
