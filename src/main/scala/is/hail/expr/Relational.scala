@@ -1294,7 +1294,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
   }
 }
 
-<<<<<<< 78bcdb4379d3fe07574388bd63a32356fdf2d82f
+
 case class TableExplode(child: TableIR, column: String) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
@@ -1348,7 +1348,9 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
           }
         }
       })
-=======
+  }
+}
+
 case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child)
 
@@ -1366,6 +1368,5 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
     TableValue(typ,
       mv.globals,
       mv.rowsRVD())
->>>>>>> add MT.rowsTable IR node
   }
 }
