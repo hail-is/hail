@@ -1,8 +1,7 @@
 package is.hail.rvd
 
-import is.hail.annotations.{RegionValue, SafeRow, SerializedRegionValue, WritableRegionValue}
+import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
 import is.hail.expr.types.Type
-import org.apache.spark.sql.Row
 
 case class OrderedRVPartitionInfo(
   partitionIndex: Int,
@@ -74,7 +73,7 @@ object OrderedRVPartitionInfo {
       i += 1
     }
 
-    val safe = SafeRow(typ.pkType, _)
+    val safe: RegionValue => Any = SafeRow(typ.pkType, _)
 
     OrderedRVPartitionInfo(partitionIndex, i,
       safe(minF.value), safe(maxF.value),
