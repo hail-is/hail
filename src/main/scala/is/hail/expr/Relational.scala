@@ -215,6 +215,32 @@ case class MatrixValue(
 
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
+
+  def rowsRVD(): OrderedRVD = {
+    val localRowType = typ.rowType
+    val fullRowType = typ.rvRowType
+    val localEntriesIndex = typ.entriesIdx
+    rvd.mapPartitionsPreservesPartitioning(
+      new OrderedRVDType(typ.rowPartitionKey.toArray, typ.rowKey.toArray, typ.rowType)
+    ) { it =>
+      val rv2b = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.map { rv =>
+        rv2b.set(rv.region)
+        rv2b.start(localRowType)
+        rv2b.startStruct()
+        var i = 0
+        while (i < fullRowType.size) {
+          if (i != localEntriesIndex)
+            rv2b.addField(fullRowType, rv, i)
+          i += 1
+        }
+        rv2b.endStruct()
+        rv2.set(rv.region, rv2b.end())
+        rv2
+      }
+    }
+  }
 }
 
 object MatrixIR {
@@ -1381,6 +1407,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
   }
 }
 
+
 case class TableExplode(child: TableIR, column: String) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
@@ -1434,5 +1461,25 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
           }
         }
       })
+  }
+}
+
+case class MatrixRowsTable(child: MatrixIR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
+    assert(newChildren.length == 1)
+    MatrixRowsTable(newChildren(0).asInstanceOf[MatrixIR])
+  }
+
+  val typ: TableType = TableType(child.typ.rowType,
+    child.typ.rowKey,
+    child.typ.globalType)
+
+  def execute(hc: HailContext): TableValue = {
+    val mv = child.execute(hc)
+    TableValue(typ,
+      mv.globals,
+      mv.rowsRVD())
   }
 }
