@@ -11,8 +11,6 @@ object RVDContext {
   def fromRegion(region: Region): RVDContext = new RVDContext(region)
 }
 
-// NB: must be *Auto*Closeable because calling close twice is undefined behavior
-// (see AutoCloseable javadoc)
 class RVDContext(r: Region) extends ResettableContext {
   private[this] val children: mutable.ArrayBuffer[AutoCloseable] = new mutable.ArrayBuffer()
 
