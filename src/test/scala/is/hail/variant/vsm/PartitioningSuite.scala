@@ -54,15 +54,15 @@ class PartitioningSuite extends SparkSuite {
   }
 
   @Test def testHintPartitionerAdjustedCorrectly() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, "idx", partitions=Some(6)))
-    val t = Table.range(hc, 205, "idx", partitions=Some(6))
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
+    val t = Table.range(hc, 205, nPartitions=Some(6))
       .select(Array("tidx = 200 - row.idx"))
       .keyBy("tidx")
     mt.annotateRowsTable(t, "foo").forceCountRows()
   }
 
   @Test def testShuffleOnEmptyRDD() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, "idx", partitions=Some(6)))
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
     val t = new Table(hc,
       TableLiteral(TableValue(
         TableType(TStruct("tidx"->TInt32()), Array("tidx"), TStruct.empty()),
@@ -72,7 +72,7 @@ class PartitioningSuite extends SparkSuite {
   }
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, "idx", partitions=Some(6)))
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
     val orvdType = mt.matrixType.orvdType
 
     mt.rvd.orderedJoinDistinct(OrderedRVD.empty(hc.sc, orvdType), "left", _.map(_._1), orvdType).count()
@@ -80,7 +80,7 @@ class PartitioningSuite extends SparkSuite {
   }
 
   @Test def testEmptyRDDOrderedJoin() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, "idx", partitions=Some(6)))
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
     val orvdType = mt.matrixType.orvdType
 
     val nonEmptyRVD = mt.rvd

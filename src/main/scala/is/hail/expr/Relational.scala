@@ -460,6 +460,84 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($path, dropSamples = $dropCols, dropVariants = $dropRows)"
 }
 
+case class MatrixRange(nRows: Int, nCols: Int, nPartitions: Int) extends MatrixIR {
+  private val partCounts = partition(nRows, nPartitions)
+
+  override val partitionCounts: Option[Array[Long]] = Some(partCounts.map(_.toLong))
+
+  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixRange = {
+    assert(newChildren.isEmpty)
+    this
+  }
+
+  val typ: MatrixType = MatrixType.fromParts(
+    globalType = TStruct.empty(),
+    colKey = Array("col_idx"),
+    colType = TStruct("col_idx" -> TInt32()),
+    rowPartitionKey = Array("row_idx"),
+    rowKey = Array("row_idx"),
+    rowType = TStruct("row_idx" -> TInt32()),
+    entryType = TStruct.empty())
+
+  def execute(hc: HailContext): MatrixValue = {
+    val localRVType = typ.rvRowType
+    val localPartCounts = partCounts
+    val partStarts = partCounts.scanLeft(0)(_ + _)
+
+    val rvd =
+      OrderedRVD(typ.orvdType,
+        new OrderedRVDPartitioner(typ.rowPartitionKey.toArray,
+          typ.rowKeyStruct,
+          Array.tabulate(nPartitions) { i =>
+            val start = partStarts(i)
+            Interval(Row(start), Row(start + localPartCounts(i)), includesStart = true, includesEnd = false)
+          }),
+        hc.sc.parallelize(Range(0, nPartitions), nPartitions)
+          .mapPartitionsWithIndex { case (i, _) =>
+            val region = Region()
+            val rvb = new RegionValueBuilder(region)
+            val rv = RegionValue(region)
+
+            val start = partStarts(i)
+            Iterator.range(start, start + localPartCounts(i))
+              .map { j =>
+                region.clear()
+                rvb.start(localRVType)
+                rvb.startStruct()
+
+                // row idx field
+                rvb.addInt(j)
+
+                // entries field
+                rvb.startArray(nCols)
+                var i = 0
+                while (i < nCols) {
+                  rvb.startStruct()
+                  rvb.endStruct()
+                  i += 1
+                }
+                rvb.endArray()
+
+                rvb.endStruct()
+                rv.setOffset(rvb.end())
+                rv
+              }
+          })
+
+    MatrixValue(typ,
+      BroadcastRow(Row(), typ.globalType, hc.sc),
+      BroadcastIndexedSeq(
+        Iterator.range(0, nCols)
+          .map(Row(_))
+          .toFastIndexedSeq,
+        TArray(typ.colType),
+        hc.sc),
+      rvd)
+  }
+}
+
 case class FilterCols(
   child: MatrixIR,
   pred: AST) extends MatrixIR {
@@ -1049,6 +1127,52 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
     }
 
     TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
+  }
+}
+
+case class TableRange(n: Int, nPartitions: Int) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableRange = {
+    assert(newChildren.length == 0)
+    this
+  }
+
+  private val partCounts = partition(n, nPartitions)
+
+  override val partitionCounts = Some(partCounts.map(_.toLong))
+
+  val typ: TableType = TableType(
+    TStruct("idx" -> TInt32()),
+    Array("idx"),
+    TStruct.empty())
+
+  def execute(hc: HailContext): TableValue = {
+    val localRowType = typ.rowType
+    val localPartCounts = partCounts
+    val partStarts = partCounts.scanLeft(0)(_ + _)
+
+    TableValue(typ,
+      BroadcastRow(Row(), typ.globalType, hc.sc),
+      new UnpartitionedRVD(typ.rowType,
+        hc.sc.parallelize(Range(0, nPartitions), nPartitions)
+          .mapPartitionsWithIndex { case (i, _) =>
+            val region = Region()
+            val rvb = new RegionValueBuilder(region)
+            val rv = RegionValue(region)
+
+            val start = partStarts(i)
+            Iterator.range(start, start + localPartCounts(i))
+              .map { j =>
+                region.clear()
+                rvb.start(localRowType)
+                rvb.startStruct()
+                rvb.addInt(j)
+                rvb.endStruct()
+                rv.setOffset(rvb.end())
+                rv
+              }
+          }))
   }
 }
 

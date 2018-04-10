@@ -171,8 +171,7 @@ class OrderedRVD(
       return this
 
     val newN = maxPartitions
-    val newNParts = Array.tabulate(newN)(i => (n - i + newN - 1) / newN)
-    assert(newNParts.sum == n)
+    val newNParts = partition(n, newN)
     assert(newNParts.forall(_ > 0))
     blockCoalesce(newNParts.scanLeft(-1)(_ + _).tail)
   }
