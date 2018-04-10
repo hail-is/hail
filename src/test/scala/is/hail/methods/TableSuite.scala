@@ -314,9 +314,11 @@ class TableSuite extends SparkSuite {
       .expandTypes()
       .flatten()
       .select(Array("row.`info.MQRankSum`"))
-      .copy2(globalSignature = TStruct.empty())
+      .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
-    val df = kt.toDF(sqlContext)
+    val df = kt
+      .expandTypes()
+      .toDF(sqlContext)
     assert(Table.fromDF(hc, df).same(kt))
   }
 
@@ -327,9 +329,11 @@ class TableSuite extends SparkSuite {
       .rowsTable()
       .annotate("locus = str(row.locus), alleles = str(row.alleles), filters = row.filters.toArray()")
       .flatten()
-      .copy2(globalSignature = TStruct.empty())
+      .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
-    val df = kt.toDF(sqlContext)
+    val df = kt
+      .expandTypes()
+      .toDF(sqlContext)
     val kt2 = Table.fromDF(hc, df, key = Array("locus", "alleles"))
     assert(kt2.same(kt))
   }
@@ -351,7 +355,7 @@ class TableSuite extends SparkSuite {
 
     val IndexedSeq(ktMean, ktStDev) = kt.query(
       "[AGG.map(r => r.qPhen.toFloat64).stats().mean , " +
-      "AGG.map(r => r.qPhen.toFloat64).stats().stdev]").asInstanceOf[IndexedSeq[Double]]
+        "AGG.map(r => r.qPhen.toFloat64).stats().stdev]").asInstanceOf[IndexedSeq[Double]]
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))

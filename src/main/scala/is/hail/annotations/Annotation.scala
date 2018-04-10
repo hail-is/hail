@@ -35,59 +35,6 @@ object Annotation {
     }
   }
 
-  def expandType(t: Type): Type = t match {
-    case tc: ComplexType => expandType(tc.representation)
-    case TArray(elementType, req) =>
-      TArray(expandType(elementType), req)
-    case TStruct(fields, req) =>
-      TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) }, req)
-    case TTuple(types, req) =>
-      TTuple(types.map { t => expandType(t) }, req)
-    case TSet(elementType, req) =>
-      TArray(expandType(elementType), req)
-    case TDict(keyType, valueType, req) =>
-      TArray(TStruct(
-        "key" -> expandType(keyType),
-        "value" -> expandType(valueType)), req)
-    case _ => t
-  }
-
-  def expandAnnotation(a: Annotation, t: Type): Annotation =
-    if (a == null)
-      null
-    else
-      t match {
-        case _: TLocus => a.asInstanceOf[Locus].toRow
-
-        case TArray(elementType, _) =>
-          a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
-
-        case t: TBaseStruct =>
-          Row.fromSeq((a.asInstanceOf[Row].toSeq, t.types).zipped.map { case (ai, typ) =>
-            expandAnnotation(ai, typ)
-          })
-
-        case TSet(elementType, _) =>
-          (a.asInstanceOf[Set[_]]
-            .toArray[Any]: IndexedSeq[_])
-            .map(expandAnnotation(_, elementType))
-
-        case TDict(keyType, valueType, _) =>
-          (a.asInstanceOf[Map[String, _]]
-
-            .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])
-            .map { case (k, v) => Annotation(expandAnnotation(k, keyType), expandAnnotation(v, valueType)) }
-
-        case TInterval(pointType, _) =>
-          val i = a.asInstanceOf[Interval]
-          Annotation(
-            expandAnnotation(i.start, pointType),
-            expandAnnotation(i.end, pointType))
-
-        // including TChar, TSample
-        case _ => a
-      }
-
   def apply(args: Any*): Annotation = Row.fromSeq(args)
 
   def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)

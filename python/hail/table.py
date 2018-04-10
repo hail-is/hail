@@ -1,5 +1,5 @@
-from pyspark.sql import DataFrame
 import pandas
+import pyspark
 
 import hail as hl
 from hail.expr.expr_ast import *
@@ -1793,7 +1793,7 @@ class Table(ExprContainer):
         Notes
         -----
         Expands the following types: :class:`.tlocus`, :class:`.tinterval`,
-        :class:`.tset`, :class:`.tdict`.
+        :class:`.tset`, :class:`.tdict`, :class:`.ttuple`.
 
         The only types that will remain after this method are:
         :py:data:`.tbool`, :py:data:`.tint32`, :py:data:`.tint64`,
@@ -2089,7 +2089,7 @@ class Table(ExprContainer):
         return self._row
 
     @staticmethod
-    @typecheck(df=DataFrame,
+    @typecheck(df=pyspark.sql.DataFrame,
                key=oneof(str, sequenceof(str)))
     def from_spark(df, key=[]):
         """Convert PySpark SQL DataFrame to a table.
@@ -2133,52 +2133,48 @@ class Table(ExprContainer):
         """
         return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
-    @typecheck_method(expand=bool,
-                      flatten=bool)
-    def to_spark(self, expand=True, flatten=True):
+    @typecheck_method(flatten=bool)
+    def to_spark(self, flatten=True):
         """Converts this table to a Spark DataFrame.
+
+        Because Spark cannot represent complex types, types are
+        expanded before flattening or conversion.
 
         Parameters
         ----------
-        expand : :obj:`bool`
-            If ``True``, :meth:`expand_types` before converting to Spark DataFrame.
-
         flatten : :obj:`bool`
             If ``True``, :meth:`flatten` before converting to Spark DataFrame.
-            If `expand` and `flatten` are ``True``, flatten is run after
-            expand so that expanded types are flattened.
 
         Returns
         -------
         :class:`.pyspark.sql.DataFrame`
+
         """
         jt = self._jt
-        if expand:
-            jt = jt.expandTypes()
+        jt = jt.expandTypes()
         if flatten:
             jt = jt.flatten()
-        return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+        return pyspark.sql.DataFrame(jt.toDF(Env.hc()._jsql_context), Env.sql_context())
 
-    @typecheck_method(expand=bool,
-                      flatten=bool)
-    def to_pandas(self, expand=True, flatten=True):
+    @typecheck_method(flatten=bool)
+    def to_pandas(self, flatten=True):
         """Converts this table to a Pandas DataFrame.
+
+        Because converion to Pandas is done through Spark, and Spark
+        cannot represent complex types, types are expanded before
+        flattening or conversion.
 
         Parameters
         ----------
-        expand : :obj:`bool`
-            If ``True``, :meth:`expand_types` before converting to Pandas DataFrame.
-
         flatten : :obj:`bool`
             If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
-            If `expand` and `flatten` are ``True``, flatten is run after
-            expand so that expanded types are flattened.
 
         Returns
         -------
         :class:`.pandas.DataFrame`
+
         """
-        return self.to_spark(expand, flatten).toPandas()
+        return self.to_spark(flatten).toPandas()
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
