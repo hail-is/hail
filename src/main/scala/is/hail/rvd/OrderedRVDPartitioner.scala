@@ -168,13 +168,12 @@ object OrderedRVDPartitioner {
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): Array[Interval] = {
-    val uisRangeBounds = UnsafeIndexedSeq(TArray(pType), rangeBounds)
+  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[Any]): Array[Interval] = {
     var includesStart = true
-    uisRangeBounds.zip(uisRangeBounds.tail).map { case (s, e) =>
-        val i = Interval(Annotation.copy(pType, s), Annotation.copy(pType, e), includesStart, true)
-        includesStart = false
-        i
-    }.toArray
+    rangeBounds.zip(rangeBounds.tail).map { case (s, e) =>
+      val i = Interval(s, e, includesStart, true)
+      includesStart = false
+      i
+    }
   }
 }

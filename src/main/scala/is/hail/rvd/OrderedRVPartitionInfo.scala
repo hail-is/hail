@@ -1,18 +1,19 @@
 package is.hail.rvd
 
-import is.hail.annotations.{RegionValue, SerializedRegionValue, WritableRegionValue}
+import is.hail.annotations.{RegionValue, SafeRow, SerializedRegionValue, WritableRegionValue}
 import is.hail.expr.types.Type
+import org.apache.spark.sql.Row
 
 case class OrderedRVPartitionInfo(
   partitionIndex: Int,
   size: Int,
-  min: SerializedRegionValue,
-  max: SerializedRegionValue,
+  min: Any,
+  max: Any,
   // min, max: RegionValue[pkType]
-  samples: Array[SerializedRegionValue],
+  samples: Array[Any],
   sortedness: Int) {
   def pretty(t: Type): String = {
-    s"partitionIndex=$partitionIndex,size=$size,min=${min.pretty(t)},max=${max.pretty(t)},samples=${samples.map(_.pretty(t)).mkString(",")},sortedness=$sortedness"
+    s"partitionIndex=$partitionIndex,size=$size,min=$min,max=$max,samples=${samples.mkString(",")},sortedness=$sortedness"
   }
 }
 
@@ -73,11 +74,11 @@ object OrderedRVPartitionInfo {
       i += 1
     }
 
-    val serializer = SerializedRegionValue.getRVSerializer(typ.pkType)
+    val safe = SafeRow(typ.pkType, _)
 
     OrderedRVPartitionInfo(partitionIndex, i,
-      serializer(minF.value), serializer(maxF.value),
-      Array.tabulate[SerializedRegionValue](math.min(i, sampleSize))(i => serializer(samples(i).value)),
+      safe(minF.value), safe(maxF.value),
+      Array.tabulate[Any](math.min(i, sampleSize))(i => safe(samples(i).value)),
       sortedness)
   }
 }
