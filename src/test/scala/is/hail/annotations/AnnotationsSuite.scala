@@ -58,7 +58,7 @@ class AnnotationsSuite extends SparkSuite {
     val dbQuery = vas.query("info", "DB")
     assert(vas.fieldOption("info", "DB").exists(_.typ.isInstanceOf[TBoolean]))
     assert(dbQuery(variantAnnotationMap(firstVariant)) == true)
-    assert(dbQuery(variantAnnotationMap(anotherVariant)) == null)
+    assert(dbQuery(variantAnnotationMap(anotherVariant)) == false)
 
     //type Set[String]
     val filtQuery = vas.query("filters")
