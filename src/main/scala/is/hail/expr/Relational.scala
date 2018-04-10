@@ -841,7 +841,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   val tAggElt: Type = child.typ.entryType
   val aggSymTab = Map(
     "global" -> (0, child.typ.globalType),
-    "va" -> (1, child.typ.rowType),
+    "va" -> (1, child.typ.rvRowType),
     "g" -> (2, child.typ.entryType),
     "sa" -> (3, child.typ.colType))
 
@@ -891,7 +891,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     val localNCols = prev.nCols
     val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
-
+    
     val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
       "AGG", tAgg,
       "global", localGlobalsType,
@@ -917,29 +917,38 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         rvb.addAnnotation(localColsType, colValuesBc.value)
         val cols = rvb.end()
 
-        val entries = localRowType.fieldOffset(oldRow, entriesIdx)
+        val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
 
-        val aggResults = if (seqOps.nonEmpty) {
+        val aggResultsOff = if (seqOps.nonEmpty) {
+          val newRVAggs = rvAggs.map(_.copy())
+
           var i = 0
           while (i < localNCols) {
-            val eMissing = localEntriesType.isElementMissing(region, entries, i)
-            val eOff = localEntriesType.elementOffset(entries, localNCols, i)
+            val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
+            val eOff = localEntriesType.elementOffset(entriesOff, localNCols, i)
             val colMissing = localColsType.isElementMissing(region, cols, i)
             val colOff = localColsType.elementOffset(cols, localNCols, i)
-            rvAggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
-              seqOp()(region, rvagg, oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+
+            var j = 0
+            while (j < seqOps.length) {
+              seqOps(j)()(region, newRVAggs(j), oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+              j += 1
             }
             i += 1
           }
-          rvAggs
-        } else
-          Array.empty[RegionValueAggregator]
+          rvb.start(aggResultType)
+          rvb.startStruct()
 
-        rvb.start(aggResultType)
-        rvb.startStruct()
-        aggResults.foreach(_.result(rvb))
-        rvb.endStruct()
-        val aggResultsOff = rvb.end()
+          var j = 0
+          while (j < newRVAggs.length) {
+            newRVAggs(j).result(rvb)
+            j += 1
+          }
+          rvb.endStruct()
+          val aggResultsOff = rvb.end()
+          aggResultsOff
+        } else
+          0
 
         val off = rowF(region, aggResultsOff, false, globals, false, oldRow, false)
 
