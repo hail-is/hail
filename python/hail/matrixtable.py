@@ -1852,6 +1852,95 @@ class MatrixTable(ExprContainer):
         return GroupedMatrixTable(self).group_cols_by(*exprs, **named_exprs)
 
     def collect_cols_by_key(self) -> 'MatrixTable':
+        """Collect values for each unique column key into arrays.
+
+        Examples
+        --------
+        >>> mt = hl.utils.range_matrix_table(3, 3)
+        ... col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
+        ... mt = mt.annotate_cols(foo = col_dict.get(mt.col_idx))\
+        ...     .explode_cols('foo')
+        ... mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
+
+        >>> mt.cols().show()
+        +---------+-------+
+        | col_idx |   foo |
+        +---------+-------+
+        |   int32 | int32 |
+        +---------+-------+
+        |       0 |     1 |
+        |       1 |     2 |
+        |       1 |     3 |
+        |       2 |     4 |
+        |       2 |     5 |
+        |       2 |     6 |
+        +---------+-------+
+
+        >>> mt.entries().show()
+        +---------+---------+-------+-------+
+        | row_idx | col_idx |   foo |   bar |
+        +---------+---------+-------+-------+
+        |   int32 |   int32 | int32 | int32 |
+        +---------+---------+-------+-------+
+        |       0 |       0 |     1 |     0 |
+        |       0 |       1 |     2 |     0 |
+        |       0 |       1 |     3 |     0 |
+        |       0 |       2 |     4 |     0 |
+        |       0 |       2 |     5 |     0 |
+        |       0 |       2 |     6 |     0 |
+        |       1 |       0 |     1 |     1 |
+        |       1 |       1 |     2 |     2 |
+        |       1 |       1 |     3 |     3 |
+        |       1 |       2 |     4 |     4 |
+        +---------+---------+-------+-------+
+        showing top 10 rows
+
+        >>> mt = mt.collect_cols_by_key()
+        ... mt.cols().show()
+        +---------+--------------+
+        | col_idx | foo          |
+        +---------+--------------+
+        |   int32 | array<int32> |
+        +---------+--------------+
+        |       1 | [2,3]        |
+        |       0 | [1]          |
+        |       2 | [4,5,6]      |
+        +---------+--------------+
+
+        >>> mt.entries().show()
+        +---------+---------+--------------+--------------+
+        | row_idx | col_idx | foo          | bar          |
+        +---------+---------+--------------+--------------+
+        |   int32 |   int32 | array<int32> | array<int32> |
+        +---------+---------+--------------+--------------+
+        |       0 |       1 | [2,3]        | [0,0]        |
+        |       0 |       0 | [1]          | [0]          |
+        |       0 |       2 | [4,5,6]      | [0,0,0]      |
+        |       1 |       1 | [2,3]        | [2,3]        |
+        |       1 |       0 | [1]          | [1]          |
+        |       1 |       2 | [4,5,6]      | [4,5,6]      |
+        |       2 |       1 | [2,3]        | [4,6]        |
+        |       2 |       0 | [1]          | [2]          |
+        |       2 |       2 | [4,5,6]      | [8,10,12]    |
+        +---------+---------+--------------+--------------+
+
+        Notes
+        -----
+        Each entry field and each non-key column field of type t is replaced by
+        a field of type array<t>. The value of each such field is an array
+        containing all values of that field sharing the corresponding column
+        key. In each column, the newly collected arrays all have the same
+        length, and the values of each pre-collection column are guaranteed to
+        be located at the same index in their corresponding arrays.
+
+        Note
+        -----
+        The order of the columns is not guaranteed.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
         return MatrixTable(self._jvds.collectColsByKey())
 
     def count_rows(self) -> int:
