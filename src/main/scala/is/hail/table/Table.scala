@@ -344,9 +344,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
-    val (newT, i) = globalSignature.insert(t, name)
-    copy2(globalSignature = newT.asInstanceOf[TStruct],
-      globals = globals.copy(value = i(globals.value, a).asInstanceOf[Row], t = newT.asInstanceOf[TStruct]))
+    val value = BroadcastRow(Row(a), TStruct(name -> t), hc.sc)
+    new Table(hc, TableMapGlobals(tir, ir.InsertFields(ir.Ref("global"), FastSeq(name -> ir.GetField(ir.Ref(s"value"), name))), value))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
@@ -364,7 +363,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     ast.toIR() match {
       case Some(ir) if useIR(ast) =>
-        new Table(hc, TableMapGlobals(tir, ir))
+        new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
