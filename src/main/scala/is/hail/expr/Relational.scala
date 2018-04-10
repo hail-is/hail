@@ -1371,17 +1371,17 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   }
 }
 
-case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
+case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
-    Infer(newRow, None, child.typ.env)
+    Infer(newRow, None, child.typ.env.bind("value", value.t))
     child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
   }
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
-    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], value)
   }
 
   override def partitionCounts: Option[Array[Long]] = child.partitionCounts
@@ -1390,14 +1390,16 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
     val tv = child.execute(hc)
     val gType = typ.globalType
 
-    val (rTyp, f) = ir.Compile[Long, Long](
+    val (rTyp, f) = ir.Compile[Long, Long, Long](
       "global", child.typ.globalType,
+      "value", value.t,
       newRow)
     assert(rTyp == gType)
 
     val globalRegion = Region()
     val globalOff = tv.globals.toRegion(globalRegion)
-    val newOff = f()(globalRegion, globalOff, false)
+    val valueOff = value.toRegion(globalRegion)
+    val newOff = f()(globalRegion, globalOff, false, valueOff, false)
 
     val newGlobals = tv.globals.copy(
       value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
