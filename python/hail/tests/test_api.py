@@ -570,10 +570,10 @@ class TableTests(unittest.TestCase):
     def test_range_table(self):
         t = hl.utils.range_table(26, n_partitions = 5)
         self.assertEqual(t.globals.dtype, hl.tstruct())
-        self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.int32))
+        self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
         self.assertEqual(list(t.key), ['idx'])
         
-        self.assertEqual([r.idx for r in t.collect()], range(26))
+        self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
@@ -1060,6 +1060,21 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
         self.assertEqual(ht.order_by(hl.asc('idx')).idx.collect(), list(range(10)))
         self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
+
+    def test_range_matrix_table(self):
+        mt = hl.utils.range_matrix_table(13, 7, n_partitions = 5)
+        self.assertEqual(mt.globals.dtype, hl.tstruct())
+        self.assertEqual(mt.row.dtype, hl.tstruct(row_idx=hl.tint32))
+        self.assertEqual(mt.col.dtype, hl.tstruct(col_idx=hl.tint32))
+        self.assertEqual(mt.entry.dtype, hl.tstruct())
+
+        self.assertEqual(list(mt.row_key), ['row_idx'])
+        self.assertEqual(list(mt.partition_key), ['row_idx'])
+        self.assertEqual(list(mt.col_key), ['col_idx'])
+
+        self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
+        self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
+
 
 class GroupedMatrixTests(unittest.TestCase):
 

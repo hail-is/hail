@@ -46,8 +46,8 @@ case class TableSpec(
 }
 
 object Table {
-  def range(hc: HailContext, n: Int, name: String = "index", nPartitions: Option[Int] = None): Table =
-    new Table(hc, TableRange(n, name, nPartitions.getOrElse(hc.sc.defaultParallelism)))
+  def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =
+    new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
     fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)

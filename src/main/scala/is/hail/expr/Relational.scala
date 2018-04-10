@@ -492,7 +492,7 @@ case class MatrixRange(nRows: Int, nCols: Int, nPartitions: Int) extends MatrixI
           typ.rowKeyStruct,
           Array.tabulate(nPartitions) { i =>
             val start = partStarts(i)
-            Interval(start, partCounts(i), includesStart = true, includesEnd = (i == nPartitions - 1))
+            Interval(Row(start), Row(start + localPartCounts(i)), includesStart = true, includesEnd = false)
           }),
         hc.sc.parallelize(Range(0, nPartitions), nPartitions)
           .mapPartitionsWithIndex { case (i, _) =>
@@ -503,6 +503,7 @@ case class MatrixRange(nRows: Int, nCols: Int, nPartitions: Int) extends MatrixI
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
+                region.clear()
                 rvb.start(localRVType)
                 rvb.startStruct()
 
@@ -1129,18 +1130,21 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
-case class TableRange(n: Int, name: String = "index", nPartitions: Int) extends TableIR {
+case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  def copy(newChildren: IndexedSeq[BaseIR]): TableRange = this
+  def copy(newChildren: IndexedSeq[BaseIR]): TableRange = {
+    assert(newChildren.length == 0)
+    this
+  }
 
   private val partCounts = partition(n, nPartitions)
 
   override val partitionCounts = Some(partCounts.map(_.toLong))
 
   val typ: TableType = TableType(
-    TStruct(name -> TInt32()),
-    Array(name),
+    TStruct("idx" -> TInt32()),
+    Array("idx"),
     TStruct.empty())
 
   def execute(hc: HailContext): TableValue = {
