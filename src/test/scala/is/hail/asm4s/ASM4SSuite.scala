@@ -381,7 +381,6 @@ class ASM4SSuite extends TestNGSuite {
   }
 
   @Test def checkClassFieldsFromMethod(): Unit = {
-
     def readField[T: TypeInfo](arg1: Int, arg2: Long, arg3: Boolean): T = {
       val fb = FunctionBuilder.functionBuilder[Int, Long, Boolean, T]
       val mb = fb.newMethod[Int, Long, Boolean, T]
