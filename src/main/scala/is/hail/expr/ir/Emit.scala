@@ -66,13 +66,8 @@ private class Emit(
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
-  private val maxBytecodeSizeTarget: Int = 2048
+  private val maxBytecodeSizeTarget: Int = 4096
   private val opSize: Int = 20
-
-  def chunkIRs(irs: Seq[IR]): Array[Seq[IR]] = {
-    val chunkBounds = getChunkBounds(irs.map(_.size * opSize))
-    Array.tabulate(chunkBounds.length - 1)(i => irs.slice(chunkBounds(i), chunkBounds(i + 1)))
-  }
 
   def getChunkBounds(sizes: Seq[Int]): Array[Int] = {
     var total = 0
@@ -96,35 +91,36 @@ private class Emit(
   import Emit.F
 
   private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (MethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
-    val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
-    val emitWrapper = new Emit(newMB, tAggInOpt, nSpecialArguments)
-    val c =
-      for (ir <- irs) yield {
-        val v = emitWrapper.emit(ir, env)
-        useValues(newMB, ir.typ, v)
-      }
-    newMB.emit(Code(c: _*))
-    val args = mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mb.getArg(i + 1)(ti).load() }
-    newMB.invoke(args: _*)
-  }
-
-  private def treeWrapToMethod(irs: Seq[IR], env: E)(useValues: (MethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
-    def wrapCodeChunks(code: Seq[Code[Unit]]): Code[Unit] = {
-      if (code.size * opSize < maxBytecodeSizeTarget)
-        coerce[Unit](Code(code: _*))
-      else {
-        val chunkBounds = getChunkBounds(Array.fill(code.size)(opSize))
-        val chunks = chunkBounds.zip(chunkBounds.tail).map { case (start, end) =>
-          val c = code.slice(start, end)
-          val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
-          newMB.emit(Code(c: _*))
-          val args = mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mb.getArg(i + 1)(ti).load() }
-          coerce[Unit](newMB.invoke(args: _*))
-        }
-        wrapCodeChunks(chunks)
+    def wrapCodeChunks(items: Seq[_], isIR: Boolean = false): Code[Unit] = {
+      val sizes: Seq[Int] = if (isIR) irs.map(_.size * opSize) else Array.fill(items.size)(5)
+      val chunkBounds = getChunkBounds(sizes)
+      chunkBounds match {
+        case Array(start, end) =>
+          if (isIR) {
+            val c = for (ir: IR <- items.asInstanceOf[Seq[IR]]) yield
+              useValues(mb, ir.typ, emit(ir, env))
+            coerce[Unit](Code(c: _*))
+          } else
+            coerce[Unit](Code(items.asInstanceOf[Seq[Code[Unit]]]: _*))
+        case _ =>
+          val chunks = chunkBounds.zip(chunkBounds.tail).map { case (start, end) =>
+            val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
+            val c = {
+              if (isIR) {
+                val emitWrapper = new Emit(newMB, tAggInOpt, nSpecialArguments)
+                for (ir: IR <- items.asInstanceOf[Seq[IR]].slice(start, end)) yield
+                  useValues(newMB, ir.typ, emitWrapper.emit(ir, env))
+              } else
+                items.asInstanceOf[Seq[Code[Unit]]].slice(start, end)
+            }
+            newMB.emit(Code(c: _*))
+            val args = mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mb.getArg(i + 1)(ti).load() }
+            coerce[Unit](newMB.invoke(args: _*))
+          }
+          wrapCodeChunks(chunks)
       }
     }
-    wrapCodeChunks(chunkIRs(irs).map(wrapToMethod(_, env)(useValues)))
+    wrapCodeChunks(irs, true)
   }
 
   /**
@@ -211,9 +207,9 @@ private class Emit(
 
       case If(cond, cnsq, altr, typ) =>
         val codeCond = emit(cond)
-        val xvcond = mb.newLocalBit()
+        val xvcond = mb.newLocal[Boolean]()
         val out = coerce[Any](mb.newLocal()(typeToTypeInfo(typ)))
-        val mout = mb.newLocalBit()
+        val mout = mb.newLocal[Boolean]()
         val codeCnsq = emit(cnsq)
         val codeAltr = emit(altr)
         val setup = Code(
@@ -230,7 +226,7 @@ private class Emit(
 
       case Let(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
-        val mx = mb.newClassBit()
+        val mx = mb.newField[Boolean]()
         val x = coerce[Any](mb.newField(name)(vti))
         val codeV = emit(value)
         val bodyenv = env.bind(name -> (vti, mx.load(), x.load()))
@@ -268,7 +264,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), addElement(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(args.size, init = true), treeWrapToMethod(args, env)(addElts), srvb.offset))
+        present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
 
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
@@ -276,12 +272,12 @@ private class Emit(
         val ati = coerce[Long](typeToTypeInfo(tarray))
         val codeA = emit(a)
         val codeI = emit(i)
-        val xma = mb.newLocalBit()
+        val xma = mb.newLocal[Boolean]()
         val xa = mb.newLocal()(ati)
         val xi = mb.newLocal[Int]
         val len = mb.newLocal[Int]
-        val xmi = mb.newLocalBit()
-        val xmv = mb.newLocalBit()
+        val xmi = mb.newLocal[Boolean]()
+        val xmv = mb.newLocal[Boolean]()
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
@@ -363,9 +359,9 @@ private class Emit(
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newClassBit()
+        val xmv = mb.newField[Boolean]()
         val xvv = coerce[Any](mb.newField(name2)(eti))
-        val xmout = mb.newClassBit()
+        val xmout = mb.newField[Boolean]()
         val xvout = coerce[Any](mb.newField(name1)(tti))
         val i = mb.newLocal[Int]("af_i")
         val len = mb.newLocal[Int]("af_len")
@@ -418,14 +414,14 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), treeWrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
 
       case x@InsertFields(old, fields, _) =>
         old.typ match {
           case oldtype: TStruct =>
             val codeOld = emit(old)
             val xo = mb.newLocal[Long]
-            val xmo = mb.newLocalBit()
+            val xmo = mb.newLocal[Boolean]()
             val updateInit = Map(fields.filter { case (name, _) => oldtype.hasField(name) }
               .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
             val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
@@ -470,7 +466,7 @@ private class Emit(
         val t = coerce[TStruct](o.typ)
         val fieldIdx = t.fieldIdx(name)
         val codeO = emit(o)
-        val xmo = mb.newLocalBit()
+        val xmo = mb.newLocal[Boolean]()
         val xo = mb.newLocal[Long]
         val setup = Code(
           codeO.setup,
@@ -479,7 +475,7 @@ private class Emit(
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
-        
+
       case x@MakeTuple(fields, _) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
         val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
@@ -488,12 +484,12 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), treeWrapToMethod(fields, env)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields, env)(addFields), srvb.offset))
 
       case GetTupleElement(o, idx, _) =>
         val t = coerce[TTuple](o.typ)
         val codeO = emit(o)
-        val xmo = mb.newLocalBit()
+        val xmo = mb.newLocal[Boolean]()
         val xo = mb.newLocal[Long]
         val setup = Code(
           codeO.setup,
@@ -558,7 +554,7 @@ private class Emit(
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
         val x = coerce[Any](mb.newField()(elementTi))
-        val mx = mb.newClassBit()
+        val mx = mb.newField[Boolean]()
         val codeB = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
         emitAgg(a) { (v, mv) =>
           Code(
@@ -571,7 +567,7 @@ private class Emit(
         val tElement = coerce[TAggregable](a.typ).elementType
         val elementTi = typeToTypeInfo(tElement)
         val x = coerce[Any](mb.newField()(elementTi))
-        val mx = mb.newClassBit()
+        val mx = mb.newField[Boolean]()
         val codeB = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
         emitAgg(a) { (v, mv) =>
           Code(
@@ -590,7 +586,7 @@ private class Emit(
         val arr = mb.newLocal[Long]
         val len = mb.newLocal[Int]
         val i = mb.newLocal[Int]
-        val mx = mb.newClassBit()
+        val mx = mb.newField[Boolean]()
         val codeB = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
         emitAgg(a) { (v, mv) =>
           Code(
@@ -669,7 +665,7 @@ private class Emit(
         })
       case x@ArrayFilter(a, name, condition) =>
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(x.typ.elementType))
-        val xmv = mb.newClassBit()
+        val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
         val condenv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
         val codeCond = emit(condition, condenv)
@@ -690,7 +686,7 @@ private class Emit(
 
       case x@ArrayFlatMap(a, name, body) =>
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
-        val xmv = mb.newClassBit()
+        val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
         val bodyenv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
         val bodyIt = emitArrayIterator(body, bodyenv)
@@ -714,7 +710,7 @@ private class Emit(
       case x@ArrayMap(a, name, body, _) =>
         val elt = coerce[TArray](a.typ).elementType
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
-        val xmv = mb.newClassBit()
+        val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
         val bodyenv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
         val codeB = emit(body, bodyenv)
@@ -741,9 +737,9 @@ private class Emit(
 
       case If(cond, cnsq, altr, typ) =>
         val codeCond = emit(cond)
-        val xmcond = mb.newLocalBit()
-        val xvcond = mb.newLocalBit()
-        val mout = mb.newLocalBit()
+        val xmcond = mb.newLocal[Boolean]()
+        val xvcond = mb.newLocal[Boolean]()
+        val mout = mb.newLocal[Boolean]()
         val aCnsq = emitArrayIterator(cnsq)
         val aAltr = emitArrayIterator(altr)
 
