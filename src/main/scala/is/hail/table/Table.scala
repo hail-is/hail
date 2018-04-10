@@ -204,7 +204,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     TableLiteral(
       TableValue(
         TableType(signature, key, globalSignature),
-        BroadcastValue(globals, globalSignature, hc.sc),
+        BroadcastRow(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, crdd))))
 
   def this(
