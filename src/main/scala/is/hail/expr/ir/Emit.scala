@@ -775,15 +775,9 @@ private class Emit(
 
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)
-<<<<<<< c501f4eb26f6729875d721b85a97771469c20c40
         val i = mb.newLocal[Int]("i")
         val len = mb.newLocal[Int]("len")
         val aoff = mb.newLocal[Long]("aoff")
-=======
-        val i = fb.newLocal[Int]("i")
-        val len = fb.newLocal[Int]("len")
-        val aoff = fb.newLocal[Long]("aoff")
->>>>>>> nuked some dead code
         val codeV = emit(ir, env)
         val calcLength = Code(
           aoff := coerce[Long](codeV.v),
