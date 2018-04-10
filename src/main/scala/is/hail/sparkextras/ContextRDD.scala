@@ -154,7 +154,24 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     result
   }
 
-  // FIXME: delete when region values are non-serializable
+  // FIXME: update with serializers when region values are non-serializable
+  def treeReduce(f: (T, T) => T, depth: Int = 2): T = {
+    val seqOp: (Option[T], T) => Option[T] = {
+      case (Some(l), r) => Some(f(l, r))
+      case (None, r) => Some(r)
+    }
+
+    val combOp: (Option[T], Option[T]) => Option[T] = {
+      case (Some(l), Some(r)) => Some(f(l, r))
+      case (l: Some[_], None) => l
+      case (None, r: Some[_]) => r
+      case (None, None) => None
+    }
+
+    treeAggregate(Option.empty, seqOp, combOp, depth)
+      .getOrElse(throw new RuntimeException("nothing in the RDD!"))
+  }
+
   def treeAggregate[U: ClassTag](
     zero: U,
     seqOp: (U, T) => U,
