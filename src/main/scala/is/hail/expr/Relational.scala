@@ -200,6 +200,20 @@ case class MatrixValue(
     Array(typ.colType, typ.rowType, typ.entryType, typ.globalType).foreach { t =>
       ReferenceGenome.exportReferences(hc, refPath, t)
     }
+
+    val spec = MatrixTableSpec(
+      FileFormat.version.rep,
+      hc.version,
+      "references",
+      typ,
+      Map("globals" -> RVDComponentSpec("globals/rows"),
+        "cols" -> RVDComponentSpec("cols/rows"),
+        "rows" -> RVDComponentSpec("rows/rows"),
+        "entries" -> RVDComponentSpec("entries/rows"),
+        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+    spec.write(hc, path)
+
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
   def rowsRVD(): OrderedRVD = {
