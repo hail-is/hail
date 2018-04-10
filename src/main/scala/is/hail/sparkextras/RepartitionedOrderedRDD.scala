@@ -61,7 +61,7 @@ class RepartitionedOrderedRDD(
 
   val dependency = new OrderedDependency(oldPartitionerBc, newPartitionerBc, prevRDD)
 
-  override def getDependencies: Seq[Dependency[_]] = Seq(dependency)
+  override def getDependencies: Seq[Dependency[_]] = FastSeq(dependency)
 }
 
 class OrderedDependency(oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newPartitionerBc: Broadcast[OrderedRVDPartitioner], rdd: RDD[RegionValue])
@@ -78,7 +78,7 @@ class OrderedDependency(oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newP
 
   override def getParents(partitionId: Int): Seq[Int] = {
     val partBounds =
-      newPartitioner.rangeBounds(partitionId).asInstanceOf[Interval]
+      newPartitioner.rangeBounds(partitionId)
     oldPartitioner.getPartitionRange(partBounds)
   }
 }

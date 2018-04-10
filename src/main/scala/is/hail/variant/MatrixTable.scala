@@ -815,7 +815,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val keyedRDD = kt.keyedRDD()
       .filter { case (k, v) => k.toSeq.forall(_ != null) }
 
-    val nullValue: IndexedSeq[Annotation] = if (product) IndexedSeq() else null
+    val nullValue: IndexedSeq[Annotation] = if (product) FastIndexedSeq() else null
 
     if (vdsKey != null) {
       val keyEC = EvalContext(Map("sa" -> (0, colType)))

@@ -5,6 +5,7 @@ import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.utils.FastSeq
 
 object LogisticRegressionTest {
   val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
@@ -66,7 +67,7 @@ object WaldTest extends LogisticRegressionTest {
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(b(-1), se(-1), z(-1), p(-1))
+  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), se(-1), z(-1), p(-1))
 }
 
 
@@ -103,7 +104,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
 
 
 case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), chi2, p)
 }
 
 
@@ -147,7 +148,7 @@ object FirthTest extends LogisticRegressionTest {
 
 
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), chi2, p)
 }
 
 
@@ -203,7 +204,7 @@ object ScoreTest extends LogisticRegressionTest {
 
 
 case class ScoreStats(chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(chi2, p)
+  def toAnnotations: Seq[Annotation] = FastSeq(chi2, p)
 }
 
 

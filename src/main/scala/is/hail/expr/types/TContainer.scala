@@ -21,7 +21,7 @@ abstract class TContainer extends Type {
 
   def contentsAlignment: Long
 
-  override def children = Seq(elementType)
+  override def children = FastSeq(elementType)
 
   final def loadLength(region: Region, aoff: Long): Int =
     TContainer.loadLength(region, aoff)

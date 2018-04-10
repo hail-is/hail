@@ -22,7 +22,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
     case _ => false
   }
 
-  override def children = Seq(keyType, valueType)
+  override def children = FastSeq(keyType, valueType)
 
   override def unify(concrete: Type): Boolean = {
     concrete match {

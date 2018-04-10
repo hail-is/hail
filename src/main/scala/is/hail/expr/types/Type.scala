@@ -128,7 +128,7 @@ object Type {
 abstract class Type extends BaseType with Serializable {
   self =>
 
-  def children: Seq[Type] = Seq()
+  def children: Seq[Type] = FastSeq()
 
   def clear(): Unit = children.foreach(_.clear())
 

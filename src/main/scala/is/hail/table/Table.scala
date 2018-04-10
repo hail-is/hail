@@ -52,7 +52,7 @@ object Table {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    Table(hc, rdd, TStruct(name -> TInt32()), IndexedSeq(name))
+    Table(hc, rdd, TStruct(name -> TInt32()), FastIndexedSeq(name))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
@@ -337,7 +337,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     Parser.parseToAST(expr, ec).toIR(Some("AGG")) match {
       case Some(convertedIR) =>
         val t = ir.TableAggregate(tir, convertedIR)
-        (ir.Interpret(t, ir.Env.empty, IndexedSeq(), None), t.typ)
+        (ir.Interpret(t, ir.Env.empty, FastIndexedSeq(), None), t.typ)
       case None =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {

@@ -1,5 +1,6 @@
 package is.hail.sparkextras
 
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
 
@@ -37,7 +38,7 @@ class BlockedRDD[T](@transient var prev: RDD[T],
   }
 
   override def getDependencies: Seq[Dependency[_]] = {
-    Seq(new NarrowDependency(prev) {
+    FastSeq(new NarrowDependency(prev) {
       def getParents(id: Int): Seq[Int] =
         partitions(id).asInstanceOf[BlockedRDDPartition].range
     })
@@ -58,11 +59,11 @@ class BlockedRDD[T](@transient var prev: RDD[T],
       .mapValues(_.length)
 
     if (locationAvail.isEmpty)
-      return Seq.empty
+      return FastSeq.empty[String]
 
     val m = locationAvail.values.max
     locationAvail.filter(_._2 == m)
       .keys
-      .toSeq
+      .toFastSeq
   }
 }

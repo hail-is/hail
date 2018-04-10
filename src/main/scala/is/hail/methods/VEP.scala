@@ -173,7 +173,7 @@ object VEP {
 
   def annotate(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean,
     blockSize: Int): MatrixTable = {
-    assert(vsm.rowKey == IndexedSeq("locus", "alleles"))
+    assert(vsm.rowKey == FastIndexedSeq("locus", "alleles"))
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
 

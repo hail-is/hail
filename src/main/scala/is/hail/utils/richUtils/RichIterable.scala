@@ -5,6 +5,7 @@ import java.io.Serializable
 import is.hail.utils._
 
 import scala.collection.{TraversableOnce, mutable}
+import scala.reflect.ClassTag
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
@@ -158,5 +159,15 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     i.foreach { elem => m.updateValue(elem, 0, _ + 1) }
 
     m.toMap
+  }
+
+  def toFastSeq(implicit tct: ClassTag[T]): Seq[T] = toFastIndexedSeq
+
+  def toFastIndexedSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = {
+    i match {
+      case i: mutable.WrappedArray[T] => i
+      case i: mutable.ArrayBuffer[T] => i
+      case _ => i.toArray[T]
+    }
   }
 }

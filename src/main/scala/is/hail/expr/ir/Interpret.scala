@@ -12,7 +12,7 @@ object Interpret {
   type AggElement = (Any, Env[Any])
   type Agg = (TAggregable, IndexedSeq[AggElement])
 
-  def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], IndexedSeq(), None).asInstanceOf[T]
+  def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
   def apply[T](ir: IR,
     env: Env[(Any, Type)],

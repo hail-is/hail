@@ -68,7 +68,7 @@ private class Emit(
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
-  val methods: mutable.Map[String, Seq[(Seq[Type], MethodBuilder)]] = mutable.Map().withDefaultValue(Seq())
+  val methods: mutable.Map[String, Seq[(Seq[Type], MethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.E
   import Emit.F

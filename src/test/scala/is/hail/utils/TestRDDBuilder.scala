@@ -97,7 +97,7 @@ object TestRDDBuilder {
 
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
-      (Locus("1", i + 1), Array(defaultRef, defaultAlt).toFastIndexedSeq,
+      (Locus("1", i + 1), FastIndexedSeq(defaultRef, defaultAlt),
         (callArray.map(_ (i)),
           gqArray.map(_ (i)),
           dpArray.map(_ (i)))))
