@@ -182,7 +182,7 @@ class ReadBlocksAsRowsRDD(path: String,
     
     var inPerBlockCol: IndexedSeq[(InputBuffer, Int, Int)] = null
     var i = start
-    
+
     new Iterator[(Long, Array[Double])] {
       def hasNext: Boolean = i < end
 
