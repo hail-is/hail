@@ -62,7 +62,7 @@ Hail uses a continuous deployment approach to software development, which means 
 
 Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
-- see [Getting Started Developing])(https://hail.is/docs/devel/getting_started_developing.html) for info on compiling Hail
+- see [Getting Started Developing](https://hail.is/docs/devel/getting_started_developing.html) for info on compiling Hail
 - chat with us about development in our [Gitter dev room](https://gitter.im/hail-is/hail-dev)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->
