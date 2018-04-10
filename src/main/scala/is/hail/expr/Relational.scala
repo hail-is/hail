@@ -377,6 +377,7 @@ case class MatrixRead(
         OrderedRVD.empty(hc.sc, typ.orvdType)
       else {
         val fullRowType = typ.rvRowType
+        val rowType = typ.rowType
         val localEntriesIndex = typ.entriesIdx
 
         val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
@@ -391,14 +392,14 @@ case class MatrixRead(
               rv2b.startStruct()
               var i = 0
               while (i < localEntriesIndex) {
-                rv2b.addField(fullRowType, rv, i)
+                rv2b.addField(rowType, rv, i)
                 i += 1
               }
               rv2b.startArray(0)
               rv2b.endArray()
               i += 1
               while (i < fullRowType.size) {
-                rv2b.addField(fullRowType, rv, i - 1)
+                rv2b.addField(rowType, rv, i - 1)
                 i += 1
               }
               rv2b.endStruct()
@@ -431,13 +432,13 @@ case class MatrixRead(
                 rvb.startStruct()
                 var i = 0
                 while (i < localEntriesIndex) {
-                  rvb.addField(fullRowType, rv1, i)
+                  rvb.addField(rowType, rv1, i)
                   i += 1
                 }
                 rvb.addField(entriesRowType, rv2, 0)
                 i += 1
                 while (i < fullRowType.size) {
-                  rvb.addField(fullRowType, rv1, i - 1)
+                  rvb.addField(rowType, rv1, i - 1)
                   i += 1
                 }
                 rvb.endStruct()

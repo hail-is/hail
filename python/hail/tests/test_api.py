@@ -988,6 +988,16 @@ class MatrixTests(unittest.TestCase):
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
+    def test_fix3307_read_mt_wrong(self):
+        mt = hl.import_vcf(resource('sample2.vcf'))
+        mt = hl.split_multi_hts(mt)
+        mt.write('/tmp/foo.mt', overwrite=True)
+        mt2 = hl.read_matrix_table('/tmp/foo.mt')
+        t = hl.read_table('/tmp/foo.mt/rows')
+        self.assertTrue(mt.rows()._same(t))
+        self.assertTrue(mt2.rows()._same(t))
+        self.assertTrue(mt._same(mt2))
+
     def test_rename(self):
         dataset = self.get_vds()
         renamed1 = dataset.rename({'locus': 'locus2', 'info': 'info2', 's': 'info'})
