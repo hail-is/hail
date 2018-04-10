@@ -4,8 +4,8 @@ import is.hail._
 import org.testng.annotations.Test
 
 class ContextRDDSuite extends SparkSuite {
-  def intplus(x: Int, y: Int): Int = x + y
-  def intplusarraylength[T](x: Int, y: Array[T]): Int = x + y.length
+  val intplus = (x: Int, y: Int) => x + y
+  def intplusarraylength[T] = (x: Int, y: Array[T]) => x + y.length
 
   @Test
   def aggregateSumVariousPartitionings() {
@@ -58,7 +58,7 @@ class ContextRDDSuite extends SparkSuite {
       )
     } {
       assert(
-        data.treeAggregate[Int](0, intplus _, intplus _, depth = depth) == data.run.collect().sum,
+        data.treeAggregate[Int](0, intplus, intplus, depth = depth) == data.run.collect().sum,
         name)
     }
   }
@@ -70,12 +70,12 @@ class ContextRDDSuite extends SparkSuite {
         "indivisble number of partitions" ->
           ContextRDD.parallelize[TrivialContext](
             sc,
-            (0 until 256).map(Array.fill(_)(null)),
+            (0 until 256).map(Array.fill(_)(0)),
             5),
         "divisble number of partitions" ->
           ContextRDD.parallelize[TrivialContext](
             sc,
-            (0 until 256).map(Array.fill(_)(null)),
+            (0 until 256).map(Array.fill(_)(0)),
             5)
       )
     } {
@@ -94,20 +94,20 @@ class ContextRDDSuite extends SparkSuite {
         "indivisble number of partitions" ->
           ContextRDD.parallelize[TrivialContext](
             sc,
-            (0 until 256).map(Array.fill(_)(null)),
+            (0 until 256).map(Array.fill(_)(0)),
             5),
         "divisble number of partitions" ->
           ContextRDD.parallelize[TrivialContext](
             sc,
-            (0 until 256).map(Array.fill(_)(null)),
+            (0 until 256).map(Array.fill(_)(0)),
             5)
       )
     } {
       assert(
         data.treeAggregate[Int](
           0,
-          intplusarraylength[Null] _,
-          intplus _,
+          intplusarraylength[Int],
+          intplus,
           depth = 3)
           ==
           data.run.collect().map(_.length).sum,
