@@ -25,11 +25,11 @@ object RepartitionedOrderedRDD {
 }
 
 class RepartitionedOrderedRDD(
-  prev: ContextRDD[RVDContext, RegionValue],
-  typ: OrderedRVDType,
-  oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
-  newPartitionerBc: Broadcast[OrderedRVDPartitioner]
-) extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.sparkContext, Nil) { // Nil since we implement getDependencies
+    prev: ContextRDD[RVDContext, RegionValue],
+    typ: OrderedRVDType,
+    oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+    newPartitionerBc: Broadcast[OrderedRVDPartitioner])
+  extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.sparkContext, Nil) { // Nil since we implement getDependencies
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
@@ -56,7 +56,8 @@ class RepartitionedOrderedRDD(
         .flatMap { parentPartition =>
         prev.iterator(parentPartition, context).flatMap(_(ctx))
       }
-      OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range) }
+      OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range)
+    }
   }
 
   val dependency = new OrderedDependency(oldPartitionerBc, newPartitionerBc, prev.rdd)
@@ -64,11 +65,8 @@ class RepartitionedOrderedRDD(
   override def getDependencies: Seq[Dependency[_]] = FastSeq(dependency)
 }
 
-class OrderedDependency[T](
-  oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
-  newPartitionerBc: Broadcast[OrderedRVDPartitioner],
-  rdd: RDD[T]
-) extends NarrowDependency[T](rdd) {
+class OrderedDependency[T](oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newPartitionerBc: Broadcast[OrderedRVDPartitioner], rdd: RDD[T])
+  extends NarrowDependency[T](rdd) {
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
@@ -87,7 +85,7 @@ class OrderedDependency[T](
 }
 
 case class RepartitionedOrderedRDD2Partition(
-  index: Int,
-  parents: Array[Partition],
-  range: Interval
-) extends Partition
+    index: Int,
+    parents: Array[Partition],
+    range: Interval)
+  extends Partition
