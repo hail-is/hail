@@ -16,7 +16,6 @@ import org.apache.spark.sql.Row
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
-    println(ir)
     Emit(ir, fb)
   }
 
@@ -592,14 +591,17 @@ class CompileSuite {
     val region = Region()
     val rvb = new RegionValueBuilder(region)
 
-    def testStructN(n: Int) {
+    def testStructN(n: Int, hardCoded: Boolean = false, print: Option[PrintWriter] = None) {
       val tin = TStruct((0 until n).map(i => s"field$i" -> TInt32()): _*)
       val in = In(0, tin)
-      val ir = MakeStruct((0 until n).map(i => s"foo$i" -> GetField(in, s"field$i")))
+      val ir = if (hardCoded)
+        MakeStruct((0 until n).map(i => s"foo$i" -> I32(n)))
+      else
+        MakeStruct((0 until n).map(i => s"foo$i" -> GetField(in, s"field$i")))
 
       val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
       doit(ir, fb)
-      val f = fb.result()()
+      val f = fb.result(print)()
 
       region.clear()
       val input = Row(Array.fill(n)(n): _*)
@@ -613,5 +615,7 @@ class CompileSuite {
     }
 
     testStructN(5)
+    testStructN(5000)
+    testStructN(20000, hardCoded=true)
   }
 }

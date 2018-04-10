@@ -150,7 +150,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       case t: TBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
-          elementsOffset := startOffset + t.byteOffsets(staticIdx)
+          elementsOffset := elementsOffset + (t.byteOffsets(staticIdx) - t.byteOffsets(staticIdx - 1))
         else _empty
     }
   }
