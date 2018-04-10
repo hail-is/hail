@@ -71,7 +71,6 @@ private class Emit(
 
   def chunkIRs(irs: Seq[IR]): Array[Seq[IR]] = {
     val chunkBounds = getChunkBounds(irs.map(_.size * opSize))
-    println(chunkBounds.mkString(","))
     Array.tabulate(chunkBounds.length - 1)(i => irs.slice(chunkBounds(i), chunkBounds(i + 1)))
   }
 
@@ -80,13 +79,10 @@ private class Emit(
     val ab = new ArrayBuilder[Int]()
     ab += 0
     sizes.zipWithIndex.foreach { case (size, i) =>
-      if (total + size <= maxBytecodeSizeTarget)
+      if (total == 0 || total + size <= maxBytecodeSizeTarget)
         total += size
       else {
-        if (total == 0)
-          total += size
-        else
-          ab += i
+        ab += i
         total = 0
       }
     }
@@ -118,7 +114,6 @@ private class Emit(
         coerce[Unit](Code(code: _*))
       else {
         val chunkBounds = getChunkBounds(Array.fill(code.size)(opSize))
-        println(chunkBounds.mkString(","))
         val chunks = chunkBounds.zip(chunkBounds.tail).map { case (start, end) =>
           val c = code.slice(start, end)
           val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
