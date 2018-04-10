@@ -435,7 +435,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testCollectAsSet() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.query("AGG.map(r => r.index).collectAsSet()") == (0 until 100).toSet)
-    assert(kt.union(kt, kt).query("AGG.map(r => r.index).collectAsSet()") == (0 until 100).toSet)
+    assert(kt.query("AGG.map(r => r.idx).collectAsSet()") == (0 until 100).toSet)
+    assert(kt.union(kt, kt).query("AGG.map(r => r.idx).collectAsSet()") == (0 until 100).toSet)
   }
 }

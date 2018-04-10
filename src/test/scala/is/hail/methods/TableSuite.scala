@@ -411,7 +411,7 @@ class TableSuite extends SparkSuite {
       .keyBy("i").join(Table.range(hc, 100), "inner")
       .signature.fields.map(f => (f.name, f.typ)).toSet
       ===
-      Set(("index", TInt32()), ("i", TInt32()), ("j", TFloat64())))
+      Set(("idx", TInt32()), ("i", TInt32()), ("j", TFloat64())))
   }
 
   @Test def testGlobalAnnotations() {
@@ -420,14 +420,14 @@ class TableSuite extends SparkSuite {
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
       .annotateGlobalExpr("another = global.foo[1]")
 
-    assert(kt.filter("global.dict.get(row.index) == \"bar\"", true).count() == 1)
+    assert(kt.filter("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz = global.foo").forall("row.baz == [1,2,3]"))
     assert(kt.forall("global.foo == [1,2,3]"))
-    assert(kt.exists("global.dict.get(row.index) == \"bar\""))
+    assert(kt.exists("global.dict.get(row.idx) == \"bar\""))
 
-    val gkt = kt.aggregate("index = row.index", "x = AGG.map(r => global.dict.get(r.index)).collect()[0]")
+    val gkt = kt.aggregate("idx = row.idx", "x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
-    assert(kt.select(Array("baz = global.dict.get(row.index)")).exists("row.baz == \"bar\""))
+    assert(kt.select(Array("baz = global.dict.get(row.idx)")).exists("row.baz == \"bar\""))
 
     val tmpPath = tmpDir.createTempFile(extension = "kt")
     kt.write(tmpPath)
@@ -490,6 +490,6 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testQueryIR() {
-    Table.range(hc, 100).query("AGG.map(x => row.index + 4).sum()")
+    Table.range(hc, 100).query("AGG.map(x => row.idx + 4).sum()")
   }
 }
