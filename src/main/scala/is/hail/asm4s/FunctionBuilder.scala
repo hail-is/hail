@@ -95,9 +95,9 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T](name))
 
-  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField[T]()(tti)
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField[T]()
 
-  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] = fb.newField[T](name)
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
@@ -214,9 +214,9 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
 
-  def newField[T](implicit tti: TypeInfo[T]): ClassFieldRef[T] = newField()
+  def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
-  def newField[T](name: String = null)(implicit tti: TypeInfo[T]): ClassFieldRef[T] =
+  def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
     new ClassFieldRef[T](this, s"field${cn.fields.size()}${ if (name == null) "" else s"_$name" }")
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)

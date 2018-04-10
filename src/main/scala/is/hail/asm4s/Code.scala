@@ -647,7 +647,7 @@ trait Settable[T] {
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 }
 
-class ClassFieldRef[T](fb: FunctionBuilder[_], name: String)(implicit tti: TypeInfo[T]) extends Settable[T] {
+class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String) extends Settable[T] {
   val desc: String = typeInfo[T].name
   val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
 
