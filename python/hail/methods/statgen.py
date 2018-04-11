@@ -671,10 +671,10 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
     - Set the `row_root` argument to change the variant annotation root in
       Step 5.
 
-    :func:`.linear_mixed_regression` adds 9 or 13 global annotations in Step 4,
-    depending on whether :math:`\delta` is set or fit. These global annotations
-    are stored under the prefix `global_root`, which is by default
-    ``lmmreg_global``. The prefix is not displayed in the table below.
+    :func:`.linear_mixed_regression` adds 13 global annotations in Step 4.
+    These global annotations are stored under the prefix `global_root`, which is
+    by default ``lmmreg_global``. The prefix is not displayed in the table
+    below.
 
     .. list-table::
        :header-rows: 1

@@ -696,52 +696,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
 
-  def annotateGlobal(a: Annotation, t: Type, path: String*): MatrixTable = {
-    val (newT, i) = insertGlobal(t, path.toList)
-    copyMT(matrixType = matrixType.copy(globalType = newT),
-      globals = globals.copy(value = i(globals.value, a).asInstanceOf[Row], t = newT))
+  def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
+    val value = BroadcastRow(Row(a), TStruct(name -> t), hc.sc)
+    new MatrixTable(hc, MatrixMapGlobals(ast, ir.InsertFields(ir.Ref("global"), FastSeq(name -> ir.GetField(ir.Ref(s"value"), name))), value))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): MatrixTable = {
     val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), t)
 
     annotateGlobal(ann, t, name)
-  }
-
-  /**
-    * Create and destroy global annotations with expression language.
-    *
-    * @param expr Annotation expression
-    */
-  def annotateGlobalExpr(expr: String): MatrixTable = {
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType)))
-
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Option(Annotation.GLOBAL_HEAD))
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-
-    val finalType = (paths, types).zipped.foldLeft(globalType) { case (v, (ids, signature)) =>
-      val (s, i) = v.structInsert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-
-    val inserters = inserterBuilder.result()
-
-    ec.set(0, globals.value)
-    val ga = inserters
-      .zip(f())
-      .foldLeft(globals.value) { case (a, (ins, res)) =>
-        ins(a, res).asInstanceOf[Row]
-      }
-
-    copyMT(matrixType = matrixType.copy(globalType = finalType), globals = globals.copy(value = ga, t = finalType))
-
-  }
-
-  def insertGlobal(sig: Type, path: List[String]): (TStruct, Inserter) = {
-    globalType.structInsert(sig, path)
   }
 
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
@@ -996,6 +959,26 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
            |  [ ${ rowKeyTypes.mkString(", ") } ]
            |  [ ${ rowPartitionKeyTypes.mkString(", ") } ]
            |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
+    }
+  }
+
+  def selectGlobals(expr: String): MatrixTable = {
+    val ec = EvalContext(Map("global" -> (0, globalType)))
+
+    val globalAST = Parser.parseToAST(expr, ec)
+    assert(globalAST.`type`.isInstanceOf[TStruct])
+
+    globalAST.toIR() match {
+      case Some(ir) if useIR(this.globalAxis, globalAST) =>
+        new MatrixTable(hc, MatrixMapGlobals(ast, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
+      case _ =>
+        val (t, f) = Parser.parseExpr(expr, ec)
+        val newSignature = t.asInstanceOf[TStruct]
+
+        ec.set(0, globals.value)
+        val newGlobal = f().asInstanceOf[Row]
+
+        copyMT(matrixType = matrixType.copy(globalType = newSignature), globals = globals.copy(value = newGlobal, t = newSignature))
     }
   }
 

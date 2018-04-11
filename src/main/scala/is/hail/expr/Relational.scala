@@ -959,6 +959,46 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   }
 }
 
+case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) extends MatrixIR {
+  val children: IndexedSeq[BaseIR] = Array(child, newRow)
+
+  val typ: MatrixType = {
+    Infer(newRow, None, new Env[Type]()
+      .bind("global", child.typ.globalType)
+      .bind("value", value.t)
+    )
+    child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
+  }
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
+    assert(newChildren.length == 2)
+    MatrixMapGlobals(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], value)
+  }
+
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long](
+      "global", child.typ.globalType,
+      "value", value.t,
+      newRow)
+    assert(rTyp == typ.globalType)
+
+    val globalRegion = Region()
+    val globalOff = prev.globals.toRegion(globalRegion)
+    val valueOff = value.toRegion(globalRegion)
+    val newOff = f()(globalRegion, globalOff, false, valueOff, false)
+
+    val newGlobals = prev.globals.copy(
+      value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
+      t = rTyp.asInstanceOf[TStruct])
+
+    prev.copy(typ = typ, globals = newGlobals)
+  }
+}
+
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def rdd: RDD[Row] =
     rvd.toRows
