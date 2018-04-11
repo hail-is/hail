@@ -1,18 +1,18 @@
 package is.hail.rvd
 
-import is.hail.annotations.{RegionValue, WritableRegionValue}
+import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
 import is.hail.expr.types.Type
 
 case class OrderedRVPartitionInfo(
   partitionIndex: Int,
   size: Int,
-  min: RegionValue,
-  max: RegionValue,
+  min: Any,
+  max: Any,
   // min, max: RegionValue[pkType]
-  samples: Array[RegionValue],
+  samples: Array[Any],
   sortedness: Int) {
   def pretty(t: Type): String = {
-    s"partitionIndex=$partitionIndex,size=$size,min=${min.pretty(t)},max=${max.pretty(t)},samples=${samples.map(_.pretty(t)).mkString(",")},sortedness=$sortedness"
+    s"partitionIndex=$partitionIndex,size=$size,min=$min,max=$max,samples=${samples.mkString(",")},sortedness=$sortedness"
   }
 }
 
@@ -73,9 +73,11 @@ object OrderedRVPartitionInfo {
       i += 1
     }
 
+    val safe: RegionValue => Any = SafeRow(typ.pkType, _)
+
     OrderedRVPartitionInfo(partitionIndex, i,
-      minF.value, maxF.value,
-      Array.tabulate[RegionValue](math.min(i, sampleSize))(i => samples(i).value),
+      safe(minF.value), safe(maxF.value),
+      Array.tabulate[Any](math.min(i, sampleSize))(i => safe(samples(i).value)),
       sortedness)
   }
 }
