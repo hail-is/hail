@@ -216,7 +216,7 @@ class TableTests(unittest.TestCase):
             x36=True
         )
 
-    def test_query(self):
+    def test_aggregate1(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
@@ -234,11 +234,56 @@ class TableTests(unittest.TestCase):
         self.assertEqual(set(results.q3), {"hello", "cat", "dog"})
         self.assertEqual(set(results.q4), {"hello", "cat"})
 
-    def test_query_ir(self):
+    def test_aggregate2(self):
+        schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
+
+        rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3},
+                {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
+
+        kt = hl.Table.parallelize(rows, schema)
+
+        result = convert_struct_to_dict(
+            kt.group_by(status=kt.status)
+                .aggregate(x1=agg.collect(kt.qPheno * 2),
+                           x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
+                           x3=agg.min(kt.qPheno),
+                           x4=agg.max(kt.qPheno),
+                           x5=agg.sum(kt.qPheno),
+                           x6=agg.product(hl.int64(kt.qPheno)),
+                           x7=agg.count(),
+                           x8=agg.count_where(kt.qPheno == 3),
+                           x9=agg.fraction(kt.qPheno == 1),
+                           x10=agg.stats(hl.float64(kt.qPheno)),
+                           x11=agg.hardy_weinberg(kt.GT),
+                           x13=agg.inbreeding(kt.GT, 0.1),
+                           x14=agg.call_stats(kt.GT, ["A", "T"]),
+                           x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
+                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
+                           x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
+                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
+                           ).take(1)[0])
+
+        expected = {u'status': 0,
+                    u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
+                             u'observed_homs': 1},
+                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
+                    u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
+                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
+                    u'x8': 1, u'x9': 0.0, u'x16': u'apple',
+                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
+                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
+                    u'x17': [],
+                    u'x18': []}
+
+        self.maxDiff = None
+
+        self.assertDictEqual(result, expected)
+
+    def test_aggregate_ir(self):
         kt = hl.utils.range_table(10).annotate_globals(g1 = 5)
-        r = kt.aggregate(hl.struct(x = agg.sum(kt.idx) + kt.g1,
-                                   y = agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1,
-                                   z = agg.sum(kt.g1 + kt.idx) + kt.g1))
+        r = kt.aggregate(hl.struct(x=agg.sum(kt.idx) + kt.g1,
+                                   y=agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1,
+                                   z=agg.sum(kt.g1 + kt.idx) + kt.g1))
         self.assertEqual(convert_struct_to_dict(r), {u'x': 50, u'y': 40, u'z': 100})
 
         r = kt.aggregate(5)
@@ -305,51 +350,6 @@ class TableTests(unittest.TestCase):
         s = kt.select()
         self.assertEqual(list(s.row), [])
         self.assertEqual(list(s.key), [])
-
-    def test_aggregate(self):
-        schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
-
-        rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3},
-                {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
-
-        kt = hl.Table.parallelize(rows, schema)
-
-        result = convert_struct_to_dict(
-            kt.group_by(status=kt.status)
-                .aggregate(x1=agg.collect(kt.qPheno * 2),
-                           x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
-                           x3=agg.min(kt.qPheno),
-                           x4=agg.max(kt.qPheno),
-                           x5=agg.sum(kt.qPheno),
-                           x6=agg.product(hl.int64(kt.qPheno)),
-                           x7=agg.count(),
-                           x8=agg.count_where(kt.qPheno == 3),
-                           x9=agg.fraction(kt.qPheno == 1),
-                           x10=agg.stats(hl.float64(kt.qPheno)),
-                           x11=agg.hardy_weinberg(kt.GT),
-                           x13=agg.inbreeding(kt.GT, 0.1),
-                           x14=agg.call_stats(kt.GT, ["A", "T"]),
-                           x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
-                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
-                           x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
-                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
-                           ).take(1)[0])
-
-        expected = {u'status': 0,
-                    u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
-                             u'observed_homs': 1},
-                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
-                    u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
-                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
-                    u'x8': 1, u'x9': 0.0, u'x16': u'apple',
-                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
-                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
-                    u'x17': [],
-                    u'x18': []}
-
-        self.maxDiff = None
-
-        self.assertDictEqual(result, expected)
 
     def test_errors(self):
         schema = hl.tstruct(status=hl.tint32, gt=hl.tcall, qPheno=hl.tint32)
@@ -636,7 +636,7 @@ class MatrixTests(unittest.TestCase):
         vds = vds.filter_entries((vds.z1 < 5) & (vds.y1 == 3) & (vds.x1 == 5) & (vds.foo == 2))
         vds.count_rows()
 
-    def test_query(self):
+    def test_aggregate(self):
         vds = self.get_vds()
 
         vds = vds.annotate_globals(foo=5)
@@ -662,6 +662,32 @@ class MatrixTests(unittest.TestCase):
 
         qgs = vds.aggregate_entries(hl.Struct(x=agg.collect(agg.filter(False, vds.y1)),
                                               y=agg.collect(agg.filter(hl.rand_bool(0.1), vds.GT))))
+
+    def test_aggregate_ir(self):
+        ds = (hl.utils.range_matrix_table(5, 5)
+              .annotate_globals(g1=5)
+              .annotate_entries(e1=3))
+
+        x = [("col_idx", lambda e: ds.aggregate_cols(e)),
+             ("row_idx", lambda e: ds.aggregate_rows(e))]
+
+        for name, f in x:
+            r = f(hl.struct(x=agg.sum(ds[name]) + ds.g1,
+                            y=agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1,
+                            z=agg.sum(ds.g1 + ds[name]) + ds.g1))
+            self.assertEqual(convert_struct_to_dict(r), {u'x': 15, u'y': 13, u'z': 40})
+
+            r = f(5)
+            self.assertEqual(r, 5)
+
+            r = f(hl.null(hl.tint32))
+            self.assertEqual(r, None)
+
+            r = f(agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1)
+            self.assertEqual(r, 13)
+
+        r = ds.aggregate_entries(agg.sum(agg.filter((ds.row_idx % 2 != 0) & (ds.col_idx % 2 != 0), ds.e1 + ds.g1 + ds.row_idx + ds.col_idx)) + ds.g1)
+        self.assertTrue(r, 48)
 
     def test_select_entries(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4)

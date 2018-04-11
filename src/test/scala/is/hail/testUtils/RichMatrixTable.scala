@@ -2,7 +2,7 @@ package is.hail.testUtils
 
 import is.hail.annotations.{Annotation, Querier, SafeRow, UnsafeRow}
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser}
+import is.hail.expr.{EvalContext, Parser, SymbolTable}
 import is.hail.methods._
 import is.hail.table.Table
 import is.hail.utils._
@@ -59,34 +59,25 @@ class RichMatrixTable(vsm: MatrixTable) {
   def annotateEntriesExpr(exprs: (String, String)*): MatrixTable =
     vsm.selectEntries(s"annotate(g, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})")
 
-  def querySA(code: String): (Type, Querier) = {
-    val st = Map(Annotation.COL_HEAD -> (0, vsm.colType))
+  def querySA(code: String): (Type, Querier) =
+    vsm.query(code, Map(Annotation.COL_HEAD -> (0, vsm.colType)))
+
+  def queryGA(code: String): (Type, Querier) =
+    vsm.query(code, Map(Annotation.ENTRY_HEAD -> (0, vsm.entryType)))
+
+  def queryGlobal(path: String): (Type, Annotation) = {
+    val st = Map(Annotation.GLOBAL_HEAD -> (0, vsm.globalType))
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parseExpr(code, ec)
+    val (t, f) = Parser.parseExpr(path, ec)
 
     val f2: Annotation => Any = { annotation =>
       a(0) = annotation
       f()
     }
 
-    (t, f2)
-  }
-
-  def queryGA(code: String): (Type, Querier) = {
-    val st = Map(Annotation.ENTRY_HEAD -> (0, vsm.entryType))
-    val ec = EvalContext(st)
-    val a = ec.a
-
-    val (t, f) = Parser.parseExpr(code, ec)
-
-    val f2: Annotation => Any = { annotation =>
-      a(0) = annotation
-      f()
-    }
-
-    (t, f2)
+    (t, f2(vsm.globals.value))
   }
 
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues.value)

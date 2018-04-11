@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir
+import is.hail.expr.ir.IR
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
@@ -209,7 +210,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   private def useIR(ast: AST): Boolean = {
     if (hc.forceIR)
       return true
-    ast.`type`.asInstanceOf[TStruct].size < 500
+    !ast.`type`.isInstanceOf[TStruct] || ast.`type`.asInstanceOf[TStruct].size < 500
   }
 
   lazy val value: TableValue = {
@@ -253,14 +254,18 @@ class Table(val hc: HailContext, val tir: TableIR) {
     ec
   }
 
-  private def aggEvalContext(): EvalContext = {
+  def aggEvalContext(): EvalContext = {
+    val ec = EvalContext("global" -> globalSignature,
+      "AGG" -> aggType())
+    ec
+  }
+
+  def aggType(): TAggregable = {
     val aggSymbolTable = Map(
       "global" -> (0, globalSignature),
       "row" -> (1, signature)
     )
-    val ec = EvalContext("global" -> globalSignature,
-      "AGG" -> TAggregable(signature, aggSymbolTable))
-    ec
+    TAggregable(signature, aggSymbolTable)
   }
 
   def fields: Array[Field] = signature.fields.toArray
@@ -383,25 +388,19 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def queryJSON(expr: String): String = {
-    val (value, t) = queryTyped(expr)
+  def aggregateJSON(expr: String): String = {
+    val (value, t) = aggregate(expr)
     makeJSON(t, value)
   }
 
-  def query(expr: String): Any = {
-    val (value, _) = queryTyped(expr)
-    value
-  }
-
-  def queryTyped(expr: String): (Any, Type) = {
+  def aggregate(expr: String): (Any, Type) = {
     val globalsBc = globals.broadcast
     val ec = aggEvalContext()
 
-    Parser.parseToAST(expr, ec).toIR(Some("AGG")) match {
-      case Some(convertedIR) =>
-        val t = ir.TableAggregate(tir, convertedIR)
-        (ir.Interpret(t, ir.Env.empty, FastIndexedSeq(), None), t.typ)
-      case None =>
+    val queryAST = Parser.parseToAST(expr, ec)
+    queryAST.toIR(Some("AGG")) match {
+      case Some(ir) if useIR(queryAST) => aggregate(ir)
+      case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
           case (ec, a) =>
@@ -413,6 +412,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
         (f(), t)
     }
+  }
+
+  def aggregate(query: IR): (Any, Type) = {
+    val t = ir.TableAggregate(tir, query)
+    (ir.Interpret(t, ir.Env.empty, FastIndexedSeq(), None), t.typ)
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
