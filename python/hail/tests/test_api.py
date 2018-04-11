@@ -344,7 +344,8 @@ class TableTests(unittest.TestCase):
                     u'x8': 1, u'x9': 0.0, u'x16': u'apple',
                     u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
                     u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
-                    u'x17': []}
+                    u'x17': [],
+                    u'x18': set([])}
 
         self.assertDictEqual(result, expected)
 
