@@ -2179,7 +2179,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = EvalContext(symTab)
     val filterAST = Parser.parseToAST(filterExpr, ec)
     filterAST.toIR() match {
-      case Some(x) =>
+      case Some(x) if useIR(entryAxis, filterAST) =>
         copyAST(MatrixFilterEntries(ast, ir.filterPredicateWithKeep(x, keep, "filterEntriesPred")))
 
       case _ =>

@@ -1546,7 +1546,6 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
     val colValuesType = TArray(child.typ.colType)
 
-    val entry = "entry"
     val x = ir.InsertFields(ir.Ref("va", child.typ.rvRowType),
       FastSeq(MatrixType.entriesIdentifier ->
         ir.ArrayMap(ir.ArrayRange(ir.I32(0), ir.I32(mv.nCols), ir.I32(1)),
