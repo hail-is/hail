@@ -95,7 +95,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       val res = norm(yc - xCc * beta)
       val sg2 = (res * res) / (n - c)
       val chi2 = n * (model.logNullS2 - math.log(sg2))
-      val pval = chiSquaredTail(1d, chi2)
+      val pval = chiSquaredTail(chi2, 1d)
       
       (beta(0), sg2, chi2, pval)
     }

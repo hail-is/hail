@@ -32,6 +32,10 @@ object MathFunctions extends RegistryFunctions {
 
   def isnan(d: Double): Boolean = d.isNaN
 
+  def pcoin(p: Double): Boolean = math.random < p
+
+  def runif(min: Double, max: Double): Double = min + (max - min) * math.random
+
   def registerAll() {
     val thisClass = getClass
     val mathPackageClass = Class.forName("scala.math.package$")
@@ -64,6 +68,21 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois")
     // other rpois returns an array
+
+    registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
+    registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
+
+    registerScalaFunction("ppois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "ppois")
+    registerScalaFunction("ppois", TFloat64(), TFloat64(), TBoolean(), TBoolean(), TFloat64())(statsPackageClass, "ppois")
+
+    registerScalaFunction("qpois", TFloat64(), TFloat64(), TInt32())(statsPackageClass, "qpois")
+    registerScalaFunction("qpois", TFloat64(), TFloat64(), TBoolean(), TBoolean(), TInt32())(statsPackageClass, "qpois")
+
+    registerScalaFunction("pchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "chiSquaredTail")
+    registerScalaFunction("qchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "inverseChiSquaredTail")
+
+    registerScalaFunction("pcoin", TFloat64(), TBoolean())(thisClass, "pcoin")
+    registerScalaFunction("runif", TFloat64(), TFloat64(), TFloat64())(thisClass, "runif")
 
     registerScalaFunction("floor", TFloat32(), TFloat32())(thisClass, "floor")
     registerScalaFunction("floor", TFloat64(), TFloat64())(thisClass, "floor")

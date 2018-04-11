@@ -17,6 +17,8 @@ final case class Sum() extends AggOp { }
 final case class Max() extends AggOp { }
 // final case class Min() extends AggOp { }
 
+final case class Count() extends AggOp { }
+
 // unary
 final case class Take() extends AggOp { }
 
@@ -72,6 +74,7 @@ object AggOp {
     case (Max(), in: TFloat32, Seq()) => CodeAggregator[RegionValueMaxFloatAggregator](in, TFloat32())
     case (Max(), in: TFloat64, Seq()) => CodeAggregator[RegionValueMaxDoubleAggregator](in, TFloat64())
     // case (Min(), _: T) =>
+    case (Count(), in, Seq()) => CodeAggregator[RegionValueCountAggregator](in, TInt64())
     case (Take(), in: TBoolean, args@Seq(_: TInt32)) => CodeAggregator[RegionValueTakeBooleanAggregator](in, TArray(in), classOf[Int])
     case (Take(), in: TInt32, args@Seq(_: TInt32)) => CodeAggregator[RegionValueTakeIntAggregator](in, TArray(in), classOf[Int])
     case (Take(), in: TInt64, args@Seq(_: TInt32)) => CodeAggregator[RegionValueTakeLongAggregator](in, TArray(in), classOf[Int])

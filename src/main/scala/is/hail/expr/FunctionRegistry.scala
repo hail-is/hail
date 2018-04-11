@@ -986,8 +986,8 @@ object FunctionRegistry {
 
   register("qpois", { (p: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => qpois(p, lambda, lowerTail, logP) })
 
-  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) })
-  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(df, p) })
+  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(x, df) })
+  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(p, df) })
 
   register("!", (a: Boolean) => !a)
 
