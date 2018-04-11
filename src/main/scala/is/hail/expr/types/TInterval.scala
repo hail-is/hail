@@ -54,7 +54,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
                   if (includesE1 == includesEnd(r2, o2)) {
                     0
                   } else if (includesE1) 1 else -1
-                }
+                } else cmp
               } else if (edef1 == missingGreatest) -1 else 1
             } else if (includesS1) -1 else 1
           } else cmp
