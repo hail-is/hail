@@ -2177,52 +2177,59 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "global" -> (3, globalType))
 
     val ec = EvalContext(symTab)
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
+    val filterAST = Parser.parseToAST(filterExpr, ec)
+    filterAST.toIR() match {
+      case Some(x) if useIR(entryAxis, filterAST) =>
+        copyAST(MatrixFilterEntries(ast, ir.filterPredicateWithKeep(x, keep, "filterEntriesPred")))
 
-    val localKeep = keep
-    val fullRowType = rvRowType
-    val localNSamples = numCols
-    val localEntryType = entryType
-    val localColValuesBc = colValues.broadcast
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    val globalsBc = globals.broadcast
+      case _ =>
+        val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
 
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      (fullRow, row)
-    })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
+        val localKeep = keep
+        val fullRowType = rvRowType
+        val localNSamples = numCols
+        val localEntryType = entryType
+        val localColValuesBc = colValues.broadcast
+        val localEntriesIndex = entriesIndex
+        val localEntriesType = matrixType.entryArrayType
+        val globalsBc = globals.broadcast
 
-      rvb.startArray(localNSamples)
+        insertEntries(() => {
+          val fullRow = new UnsafeRow(fullRowType)
+          val row = fullRow.deleteField(localEntriesIndex)
+          (fullRow, row)
+        })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
+          fullRow.set(rv)
+          val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+          val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
-      var i = 0
-      while (i < localNSamples) {
-        val entry = entries(i)
-        ec.setAll(row,
-          localColValuesBc.value(i),
-          entry, globalsBc.value)
-        if (Filter.boxedKeepThis(f(), localKeep)) {
-          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
-          if (!isDefined)
-            rvb.setMissing()
-          else {
-            // can't use addElement because we could be losing requiredness
-            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
-            rvb.startStruct()
-            rvb.addAllFields(localEntryType, rv.region, elementOffset)
-            rvb.endStruct()
+          rvb.startArray(localNSamples)
+
+          var i = 0
+          while (i < localNSamples) {
+            val entry = entries(i)
+            ec.setAll(row,
+              localColValuesBc.value(i),
+              entry, globalsBc.value)
+            if (Filter.boxedKeepThis(f(), localKeep)) {
+              val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
+              if (!isDefined)
+                rvb.setMissing()
+              else {
+                // can't use addElement because we could be losing requiredness
+                val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
+                rvb.startStruct()
+                rvb.addAllFields(localEntryType, rv.region, elementOffset)
+                rvb.endStruct()
+              }
+            } else
+              rvb.setMissing()
+
+            i += 1
           }
-        } else
-          rvb.setMissing()
-
-        i += 1
-      }
-      rvb.endArray()
-    })
+          rvb.endArray()
+        })
+    }
   }
 
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
