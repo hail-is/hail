@@ -14,7 +14,10 @@ object Region {
   }
 }
 
-final class Region(private var mem: Array[Byte], private var end: Long = 0) extends KryoSerializable with Serializable {
+final class Region(
+  private var mem: Array[Byte],
+  private var end: Long = 0
+) extends KryoSerializable with Serializable with AutoCloseable {
   def size: Long = end
 
   def capacity: Long = mem.length
@@ -369,4 +372,6 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
     visit(t, off, v)
     v.result()
   }
+
+  def close(): Unit = ()
 }
