@@ -114,15 +114,7 @@ object Table {
     rdd: RDD[Row],
     signature: TStruct,
     key: IndexedSeq[String]
-  ): Table = apply(hc, rdd, signature, key, TStruct.empty())
-
-  def apply(
-    hc: HailContext,
-    rdd: RDD[Row],
-    signature: TStruct,
-    key: IndexedSeq[String],
-    globalSignature: TStruct
-  ): Table = apply(hc, rdd, signature, key, globalSignature, Annotation.empty)
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty)
 
   def apply(
     hc: HailContext,
@@ -144,15 +136,7 @@ object Table {
     crdd: ContextRDD[RVDContext, Row],
     signature: TStruct,
     key: IndexedSeq[String]
-  ): Table = apply(hc, crdd, signature, key, TStruct.empty())
-
-  def apply(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext, Row],
-    signature: TStruct,
-    key: IndexedSeq[String],
-    globalSignature: TStruct
-  ): Table = apply(hc, crdd, signature, key, globalSignature, Annotation.empty)
+  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty)
 
   def apply(
     hc: HailContext,
