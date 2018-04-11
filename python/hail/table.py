@@ -1680,8 +1680,12 @@ class Table(ExprContainer):
             Joined table.
 
         """
-        if not self.key.dtype == right.key.dtype:
-            raise ValueError(f"'join': key mismatch:\n  Left:  '{self.key.dtype}'\n  Right: '{right.key.dtype}'")
+        left_key_types = list(self.key.dtype.values())
+        right_key_types = list(right.key.dtype.values())
+        if not left_key_types == right_key_types:
+            raise ValueError(f"'join': key mismatch:\n  "
+                             f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
+                             f"  right: [{', '.join(str(t) for t in right_key_types)}]")
 
         return Table(self._jt.join(right._jt, how))
 
