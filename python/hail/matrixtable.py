@@ -771,16 +771,13 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with new global field(s).
         """
-        exprs = []
+
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        base, cleanup = self._process_joins(*named_exprs.values())
 
         for k, v in named_exprs.items():
-            analyze('MatrixTable.annotate_globals', v, self._global_indices)
-            exprs.append('global.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             check_collisions(self._fields, k, self._global_indices)
-        m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
-        return cleanup(m)
+
+        return self._select_globals("MatrixTable.annotate_globals", self.globals.annotate(**named_exprs))
 
     def annotate_rows(self, **named_exprs) -> 'MatrixTable':
         """Create new row-indexed fields by name.
@@ -975,30 +972,23 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             MatrixTable with specified global fields.
         """
-        exprs = [to_expr(e) if not isinstance(e, str) else self[e] for e in exprs]
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*itertools.chain(exprs, named_exprs.values()))
 
-        ids = []
+        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        assignments = OrderedDict()
+
         for e in exprs:
-            all_exprs.append(e)
-            analyze('MatrixTable.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append('{}: {}'.format(escape_id(e._ast.name), e._ast.to_hql()))
-            ids.append(e._ast.name)
+            assert isinstance(e._ast, Select)
+            assignments[e._ast.name] = e
 
         for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze('MatrixTable.select_globals', e, self._global_indices)
             check_collisions(self._fields, k, self._global_indices)
-            strs.append('{}: {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
-            ids.append(k)
-        check_field_uniqueness(ids)
-        m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
-        return cleanup(m)
+            assignments[k] = e
+
+        check_field_uniqueness(assignments.keys())
+        return self._select_globals('MatrixTable.select_globals', hl.struct(**assignments))
 
     def select_rows(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing row fields or create new fields by name, dropping the rest.
@@ -1051,7 +1041,7 @@ class MatrixTable(ExprContainer):
 
         for e in exprs:
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
-                raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
+                raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
             assert isinstance(e._ast, Select)
             assignments[e._ast.name] = e
 
@@ -1060,7 +1050,7 @@ class MatrixTable(ExprContainer):
             assignments[k] = e
 
         check_field_uniqueness(assignments.keys())
-        return self._select_rows('Table.select_rows', hl.struct(**assignments))
+        return self._select_rows('MatrixTable.select_rows', hl.struct(**assignments))
 
     def select_cols(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing column fields or create new fields by name, dropping the rest.
@@ -1111,7 +1101,7 @@ class MatrixTable(ExprContainer):
 
         for e in exprs:
             if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
-                raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
+                raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
             assert isinstance(e._ast, Select)
             assignments[e._ast.name] = e
 
@@ -1120,7 +1110,7 @@ class MatrixTable(ExprContainer):
             assignments[k] = e
 
         check_field_uniqueness(assignments.keys())
-        return self._select_cols('Table.select_cols', hl.struct(**assignments))
+        return self._select_cols('MatrixTable.select_cols', hl.struct(**assignments))
 
     def select_entries(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing entry fields or create new fields by name, dropping the rest.
@@ -1236,22 +1226,21 @@ class MatrixTable(ExprContainer):
                 fields_to_drop.add(e)
 
         m = self
-        if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
-            # need to drop globals
-            new_global_fields = [f for f in m.globals if f not in fields_to_drop]
-            m = m.select_globals(*new_global_fields)
+        global_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._global_indices]
+        if global_fields:
+            m = m._select_globals("MatrixTable.drop", m.globals.drop(*global_fields))
 
         row_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._row_indices]
         if row_fields:
-            m = m._select_rows("MatrixTable.drop_rows", m.row.drop(*row_fields))
+            m = m._select_rows("MatrixTable.drop", m.row.drop(*row_fields))
 
         col_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._col_indices]
         if col_fields:
-            m = m._select_cols("MatrixTable.drop_cols", m.col.drop(*col_fields))
+            m = m._select_cols("MatrixTable.drop", m.col.drop(*col_fields))
 
         entry_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._entry_indices]
         if entry_fields:
-            m = m._select_entries("MatrixTable.drop_entries", m.entry.drop(*entry_fields))
+            m = m._select_entries("MatrixTable.drop", m.entry.drop(*entry_fields))
 
         return m
 
@@ -2578,6 +2567,12 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._col_indices, {self._row_axis})
         return cleanup(MatrixTable(base._jvds.selectCols(s._ast.to_hql())))
+
+    @typecheck_method(caller=str, s=expr_struct())
+    def _select_globals(self, caller, s):
+        base, cleanup = self._process_joins(s)
+        analyze(caller, s, self._global_indices)
+        return cleanup(MatrixTable(base._jvds.selectGlobals(s._ast.to_hql())))
 
     @typecheck(datasets=matrix_table_type)
     def union_rows(*datasets: 'MatrixTable') -> 'MatrixTable':

@@ -117,34 +117,40 @@ object LinearMixedRegression {
       info(s"linear_mixed_regression: global model fit: standard_error_h_squared = ${ gf.sigmaH2 }")
     }
 
-    val vds1 = assocVSM.annotateGlobal(
-      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
-      TStruct(
-        ("use_ml", TBoolean()),
-        ("beta", TDict(TString(), TFloat64())),
-        ("sigma_g_squared", TFloat64()),
-        ("sigma_e_squared", TFloat64()),
-        ("delta", TFloat64()),
-        ("h_squared", TFloat64()),
-        ("eigenvalues", TArray(TFloat64())),
-        ("n_eigenvectors", TInt32()),
-        ("dropped_variance_fraction", TFloat64())), rootGA)
+    val fitType = TStruct(
+      "standard_error_h_squared" -> TFloat64(),
+      "normalized_likelihood_h_squared" -> TArray(TFloat64()),
+      "max_log_likelihood" -> TFloat64(),
+      "log_delta_grid" -> TArray(TFloat64()),
+      "log_likelihood_values" -> TArray(TFloat64())
+    )
 
-    val vds2 = diagLMM.optGlobalFit match {
+    val t = TStruct(
+      "use_ml" -> TBoolean(),
+      "beta" -> TDict(TString(), TFloat64()),
+      "sigma_g_squared" -> TFloat64(),
+      "sigma_e_squared" -> TFloat64(),
+      "delta" -> TFloat64(),
+      "h_squared" -> TFloat64(),
+      "eigenvalues" -> TArray(TFloat64()),
+      "n_eigenvectors" -> TInt32(),
+      "dropped_variance_fraction" -> TFloat64(),
+      "fit" -> fitType
+    )
+
+    val aFit = diagLMM.optGlobalFit match {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
-        vds1.annotateGlobal(
-          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(
-            ("standard_error_h_squared", TFloat64()),
-            ("normalized_likelihood_h_squared", TArray(TFloat64())),
-            ("max_log_likelihood", TFloat64()),
-            ("log_delta_grid", TArray(TFloat64())),
-            ("log_likelihood_values", TArray(TFloat64()))), rootGA, "fit")
+        Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals)
       case None =>
         assert(optDelta.isDefined)
-        vds1
+        Annotation(null, null, null, null, null)
     }
+
+    val a = Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double],
+      nEigs, optDroppedVarianceFraction.orNull, aFit)
+
+    val vds = assocVSM.annotateGlobal(a, t, rootGA)
 
     if (runAssoc) {
       val sc = assocVSM.sparkContext
@@ -164,17 +170,17 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      val fullRowType = vds2.rvRowType
-      val entryArrayType = vds2.matrixType.entryArrayType
-      val entryType = vds2.entryType
+      val fullRowType = vds.rvRowType
+      val entryArrayType = vds.matrixType.entryArrayType
+      val entryType = vds.entryType
       val fieldType = entryType.field(xField).typ
 
       assert(fieldType.isOfType(TFloat64()))
   
-      val entryArrayIdx = vds2.entriesIndex
+      val entryArrayIdx = vds.entriesIndex
       val fieldIdx = entryType.fieldIdx(xField)
       
-      vds2.insertIntoRow(() => (new BDV[Double](n), new ArrayBuilder[Int]()))(
+      vds.insertIntoRow(() => (new BDV[Double](n), new ArrayBuilder[Int]()))(
         LinearMixedRegression.schema, rootVA, { case ((x, missingCompleteCols), rv, rvb) =>
 
           RegressionUtils.setMeanImputedDoubles(x.data, 0, completeColIdxBc.value, missingCompleteCols, 
@@ -184,7 +190,7 @@ object LinearMixedRegression {
         }
       )
     } else
-      vds2
+      vds
   }
 
   def computeNEigsDVF(S: BDV[Double], droppedVarianceFraction: Double): Int = {
