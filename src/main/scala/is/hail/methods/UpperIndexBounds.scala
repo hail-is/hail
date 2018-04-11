@@ -15,12 +15,9 @@ object UpperIndexBounds {
     if (tbl.signature != expectedSignature) {
       fatal(s"Expected table to have signature $expectedSignature, but found ${ tbl.signature }.")
     }
-
-    val convertUnsafeSeqToIntArray = (unsafe: UnsafeIndexedSeq) => unsafe.toArray.map(_.asInstanceOf[Row])
-      .map(r => r.get(0).asInstanceOf[Int])
-
+    
     val groupedPositions = tbl.keyBy("contig").groupByKey("positions").collect()
-      .map(r => convertUnsafeSeqToIntArray(r.get(1).asInstanceOf[UnsafeIndexedSeq]))
+      .map(r => r.get(1).asInstanceOf[Vector[Row]].toArray.map(r=>r.get(0).asInstanceOf[Int]))
 
     groupedPositions.foreach(scala.util.Sorting.quickSort)
     groupedPositions
