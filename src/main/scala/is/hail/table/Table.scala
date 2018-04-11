@@ -206,14 +206,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globalSignature,
     globals)
 
-  def this(
-    hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct,
-    key: IndexedSeq[String],
-    globalSignature: TStruct
-  ) = this(hc, rdd, signature, key, globalSignature, Row.empty)
-
   private def useIR(ast: AST): Boolean = {
     if (hc.forceIR)
       return true
