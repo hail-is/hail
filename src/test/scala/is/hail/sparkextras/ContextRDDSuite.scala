@@ -80,4 +80,34 @@ class ContextRDDSuite extends SparkSuite {
         s"$name, partitions: $partitions")
     }
   }
+
+  @Test
+  def treeReduceOnEmptyIsError() {
+    val data = ContextRDD.empty[TrivialContext, Int](sc)
+    intercept[RuntimeException] {
+      data.treeReduce(_ + _)
+    }
+  }
+
+  def treeReduceOnSingletonIsSingleton() {
+    val data = ContextRDD.parallelize[TrivialContext](sc, Seq(1))
+    assert(data.treeReduce(_ + _) == 1)
+  }
+
+  @Test
+  def treeReducePlusIsSum() {
+    for {
+      partitions <- Seq(1, 2, 3, 4, 5)
+      (numbers, depth) <- Seq(
+        (0 until 4) -> 2,
+        (0 until 32) -> 2,
+        (0 until 512) -> 5
+      )
+    } {
+      val data = ContextRDD.parallelize[TrivialContext](sc, numbers, partitions)
+      assert(
+        data.treeReduce(_ + _, depth = depth) == numbers.sum,
+        s"$numbers, $depth")
+    }
+  }
 }

@@ -125,7 +125,7 @@ object Table {
     globals: Annotation
   ): Table = apply(
     hc,
-    ContextRDD.weaken(rdd),
+    ContextRDD.weaken[RVDContext](rdd),
     signature,
     key,
     globalSignature,
@@ -200,7 +200,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globals: Row
   ) = this(
     hc,
-    ContextRDD.weaken(rdd),
+    ContextRDD.weaken[RVDContext](rdd),
     signature,
     key,
     globalSignature,
@@ -225,7 +225,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     rdd: RDD[RegionValue],
     signature: TStruct,
     key: IndexedSeq[String]
-  ) = this(hc, rdd, signature, key, TStruct.empty())
+  ) = this(hc, rdd, signature, key, TStruct.empty(), Row.empty)
 
   def this(
     hc: HailContext,
