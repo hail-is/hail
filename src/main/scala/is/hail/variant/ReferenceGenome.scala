@@ -4,9 +4,10 @@ import java.io.InputStream
 
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
+import is.hail.asm4s.{ClassFieldRef, Code, FunctionBuilder}
 import is.hail.check.Gen
 import is.hail.expr.types._
-import is.hail.expr.{JSONExtractContig, JSONExtractReferenceGenome, JSONExtractIntervalLocus, Parser}
+import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.reference.FASTAReader
 import is.hail.utils._
 import org.json4s._
@@ -443,9 +444,30 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs, yContigs, mtContigs,
         par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
-      implicit val formats = defaultJSONFormats
+      implicit val formats: Formats = defaultJSONFormats
       Serialization.write(jrg, out)
     }
+
+  def toJSONString: String = {
+    val jrg = JSONExtractReferenceGenome(name,
+      contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
+      xContigs, yContigs, mtContigs,
+      par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(jrg)
+  }
+
+  def toCompressedJSONAsBytes: Array[Byte]
+
+  def addAsField(fb: FunctionBuilder[_]): (ClassFieldRef[ReferenceGenome], Code[Unit]) = {
+    val str = fb.newField[String](s"strrg_$name")
+    val field = fb.newField[ReferenceGenome](s"rg_$name")
+    println(toJSONString.length())
+    val loader: Code[Unit] =
+      Code(str := toJSONString,
+        field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", str))
+    (field, loader)
+  }
 }
 
 object ReferenceGenome {
@@ -503,6 +525,11 @@ object ReferenceGenome {
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
+  }
+
+  def parse(str: String): ReferenceGenome = {
+    implicit val formats = defaultJSONFormats
+    JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
   def fromResource(file: String): ReferenceGenome = {
