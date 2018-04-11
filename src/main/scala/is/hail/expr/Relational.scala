@@ -1525,3 +1525,74 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
       mv.rowsRVD())
   }
 }
+
+case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
+  val children: IndexedSeq[BaseIR] = Array(child, pred)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterEntries = {
+    assert(newChildren.length == 2)
+    MatrixFilterEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val typ: MatrixType = child.typ
+
+  def execute(hc: HailContext): MatrixValue = {
+    val mv = child.execute(hc)
+
+    val localGlobalType = child.typ.globalType
+    val globalsBc = mv.globals.broadcast
+    val localColValuesType = TArray(child.typ.colType)
+    val colValuesBc = mv.colValues.broadcast
+
+    val colValuesType = TArray(child.typ.colType)
+
+    val entry = "entry"
+    val x = ir.InsertFields(ir.Ref("va", child.typ.rvRowType),
+      FastSeq(MatrixType.entriesIdentifier ->
+        ir.ArrayMap(ir.ArrayRange(ir.I32(0), ir.I32(mv.nCols), ir.I32(1)),
+          "i",
+          ir.Let("g",
+            ir.ArrayRef(
+              ir.GetField(ir.Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier),
+              ir.Ref("i", TInt32())),
+            ir.If(
+              ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
+                pred),
+              ir.Ref("g", child.typ.entryType),
+              ir.NA(child.typ.entryType))))))
+
+    val (t, f) = ir.Compile[Long, Long, Long, Long](
+      "global", child.typ.globalType,
+      "colValues", colValuesType,
+      "va", child.typ.rvRowType,
+      x)
+    assert(t == typ.rvRowType)
+
+    val mapPartitionF = { it: Iterator[RegionValue] =>
+      val rvb = new RegionValueBuilder()
+      val rowF = f()
+      val newRV = RegionValue()
+
+      it.map { rv =>
+        val region = rv.region
+        rvb.set(region)
+
+        rvb.start(localGlobalType)
+        rvb.addAnnotation(localGlobalType, globalsBc.value)
+        val globalsOff = rvb.end()
+
+        rvb.start(localColValuesType)
+        rvb.addAnnotation(localColValuesType, colValuesBc.value)
+        val colValuesOff = rvb.end()
+
+        val off = rowF(region, globalsOff, false, colValuesOff, false, rv.offset, false)
+
+        newRV.set(region, off)
+        newRV
+      }
+    }
+
+    val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
+    mv.copy(rvd = newRVD)
+  }
+}
