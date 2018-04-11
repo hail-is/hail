@@ -1632,7 +1632,7 @@ class Table(ExprContainer):
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'))
-    def join(self, right, how='inner') -> 'Table':
+    def join(self, right: 'Table', how='inner') -> 'Table':
         """Join two tables together.
 
         Examples
@@ -1680,6 +1680,8 @@ class Table(ExprContainer):
             Joined table.
 
         """
+        if not self.key.dtype == right.key.dtype:
+            raise ValueError(f"'join': key mismatch:\n  Left:  '{self.key.dtype}'\n  Right: '{right.key.dtype}'")
 
         return Table(self._jt.join(right._jt, how))
 
