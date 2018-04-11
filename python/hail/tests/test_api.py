@@ -332,6 +332,7 @@ class TableTests(unittest.TestCase):
                            x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
                            x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
                            x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
+                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
                            ).take(1)[0])
 
         expected = {u'status': 0,
