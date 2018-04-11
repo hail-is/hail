@@ -59,8 +59,8 @@ class TableSuite extends SparkSuite {
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
-    intercept[HailException] {
-      hc.importTable(inputFile).keyBy(List("Sample", "Status", "BadKeyName"))
+    intercept[AssertionError] {
+      hc.importTable(inputFile).keyBy("Sample", "Status", "BadKeyName")
     }
 
     assert(importedData == exportedData)
@@ -190,7 +190,7 @@ class TableSuite extends SparkSuite {
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(outputFile)
 
-    val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy(List("Sample", "Status"))
+    val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy("Sample", "Status")
     assert(noNull.join(noNull.rename(Map("qPhen" -> "qPhen_"), Map()), "outer").rdd.forall { r => !r.toSeq.contains(null) })
   }
 

@@ -488,20 +488,27 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy(rdd = rdd.head(n))
   }
 
-  def keyBy(key: String*): Table = keyBy(key)
+  def keyBy(key: String*): Table = keyBy(key.toArray, key.toArray)
 
-  def keyBy(key: java.util.ArrayList[String]): Table = keyBy(key.asScala)
+  def keyBy(keys: java.util.ArrayList[String]): Table = keyBy(keys, keys)
 
-  def keyBy(key: Iterable[String]): Table = {
-    val colSet = fieldNames.toSet
-    val badKeys = key.filter(!colSet.contains(_))
+  def keyBy(
+    keys: java.util.ArrayList[String],
+    partitionKeys: java.util.ArrayList[String]
+  ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
 
-    if (badKeys.nonEmpty)
-      fatal(
-        s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
-           |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
+  def keyBy(keys: Array[String]): Table = keyBy(keys, keys)
 
-    copy2(key = key.toArray[String])
+  def keyBy(keys: Array[String], partitionKeys: Array[String]): Table = {
+    require(keys.nonEmpty)
+    require(partitionKeys.nonEmpty)
+    val fields = signature.fieldNames.toSet
+    assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
+    assert(partitionKeys.length <= keys.length)
+    assert(keys.zip(partitionKeys).forall{ case (k, pk) => k == pk })
+
+    val keyed = copy2(key = keys.toArray[String])
+    keyed.copy2(rvd = keyed.toOrderedRVD(None, partitionKeys.length))
   }
 
   def select(expr: String): Table = {

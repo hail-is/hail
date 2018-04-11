@@ -558,7 +558,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     require(partitionKeys.nonEmpty)
     val rowFields = rowType.fieldNames.toSet
     assert(keys.forall(rowFields.contains), s"${ keys.filter(k => !rowFields.contains(k)).mkString(", ") }")
-    assert(partitionKeys.forall(rowFields.contains))
+    assert(partitionKeys.length <= keys.length)
+    assert(keys.zip(partitionKeys).forall{ case (k, pk) => k == pk })
 
     val newMatrixType = matrixType.copy(rowKey = keys,
       rowPartitionKey = partitionKeys)
@@ -782,7 +783,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(!product || rightValueIndices.length == 1)
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-
     val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
       val rvb = new RegionValueBuilder()
       val rv = RegionValue()
@@ -916,12 +916,21 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val keyTypes = kt.keyFields.map(_.typ)
     if (keyTypes.sameElements(rowKeyTypes) || keyTypes.sameElements(rowPartitionKeyTypes)) {
-      orderedRVDLeftJoinDistinctAndInsert(
-        kt.toOrderedRVD(Some(rvd.partitioner), rowPartitionKey.length),
-        root, product)
-    } else if (keyTypes.length == 1 &&
+      val rightORVD = kt.rvd match {
+        case ordered: OrderedRVD => ordered
+        case unordered =>
+          val ordType = new OrderedRVDType(
+            kt.key.toArray,
+            kt.key.toArray.take(rowPartitionKey.length),
+            kt.signature)
+          unordered.constrainToOrderedPartitioner(ordType, rvd.partitioner)
+      }
+      orderedRVDLeftJoinDistinctAndInsert(rightORVD, root, product)
+    } else if (
+      keyTypes.length == 1 &&
       rowPartitionKeyTypes.length == 1 &&
-      keyTypes(0) == TInterval(rowPartitionKeyTypes(0))) {
+      keyTypes(0) == TInterval(rowPartitionKeyTypes(0))
+    ) {
       annotateRowsIntervalTable(kt, root, product)
     } else {
       fatal(
