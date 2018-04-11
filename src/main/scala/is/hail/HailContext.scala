@@ -39,12 +39,21 @@ object HailContext {
 
   def get: HailContext = theContext
 
+  def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
+    def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
+
+    if (majorMinor(jarVersion) != majorMinor(sparkVersion))
+      fatal(s"This Hail JAR was compiled for Spark $jarVersion, cannot run with Spark $sparkVersion.\n" +
+         s"  The major and minor versions must agree, though the patch version can differ.")
+    else if (jarVersion != sparkVersion)
+      warn(s"This Hail JAR was compiled for Spark $jarVersion, running with Spark $sparkVersion.\n" +
+        s"  Compatibility is not guaranteed.")
+  }
+
   def configureAndCreateSparkContext(appName: String, master: Option[String],
     local: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
-    require(is.hail.HAIL_SPARK_VERSION == org.apache.spark.SPARK_VERSION,
-      s"""This Hail JAR was compiled for Spark ${ is.hail.HAIL_SPARK_VERSION },
-         |  but the version of Spark available at runtime is ${ org.apache.spark.SPARK_VERSION }.""".stripMargin)
+    checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
 
     val conf = new SparkConf().setAppName(appName)
 
