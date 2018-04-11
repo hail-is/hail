@@ -1444,11 +1444,13 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Filtered matrix table.
         """
-        base, cleanup = self._process_joins(expr)
-        analyze('MatrixTable.filter_entries', expr, self._entry_indices)
+        if keep:
+            select_expr = hl.cond(expr, self.entry, hl.null(self.entry.dtype))
+        else:
+            select_expr = hl.cond(expr, hl.null(self.entry.dtype), self.entry)
 
-        m = MatrixTable(base._jvds.filterEntries(expr._ast.to_hql(), keep))
-        return cleanup(m)
+        return self._select_entries('MatrixTable.filter_entries', select_expr)
+
 
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.

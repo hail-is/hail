@@ -179,4 +179,61 @@ class RichMatrixTable(vsm: MatrixTable) {
     iterations: Int = 10000): Table = {
     Skat(vsm, keyExpr, weightExpr, yExpr, xField, covExpr, logistic, maxSize, accuracy, iterations)
   }
+
+  def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
+    val symTab = Map(
+      "va" -> (0, vsm.rowType),
+      "sa" -> (1, vsm.colType),
+      "g" -> (2, vsm.entryType),
+      "global" -> (3, vsm.globalType))
+
+    val ec = EvalContext(symTab)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
+
+    val localKeep = keep
+    val fullRowType = vsm.rvRowType
+    val localNSamples = vsm.numCols
+    val localEntryType = vsm.entryType
+    val localColValuesBc = vsm.colValues.broadcast
+    val localEntriesIndex = vsm.entriesIndex
+    val localEntriesType = vsm.matrixType.entryArrayType
+    val globalsBc = vsm.globals.broadcast
+
+    vsm.insertEntries(() => {
+      val fullRow = new UnsafeRow(fullRowType)
+      val row = fullRow.deleteField(localEntriesIndex)
+      (fullRow, row)
+    })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
+      fullRow.set(rv)
+      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
+
+      rvb.startArray(localNSamples)
+
+      var i = 0
+      while (i < localNSamples) {
+        val entry = entries(i)
+        ec.setAll(row,
+          localColValuesBc.value(i),
+          entry, globalsBc.value)
+        if (Filter.boxedKeepThis(f(), localKeep)) {
+          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
+          if (!isDefined)
+            rvb.setMissing()
+          else {
+            // can't use addElement because we could be losing requiredness
+            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
+            rvb.startStruct()
+            rvb.addAllFields(localEntryType, rv.region, elementOffset)
+            rvb.endStruct()
+          }
+        } else
+          rvb.setMissing()
+
+        i += 1
+      }
+      rvb.endArray()
+    })
+  }
+
 }
