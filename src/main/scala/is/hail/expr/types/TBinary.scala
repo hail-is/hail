@@ -1,6 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.utils._
@@ -61,7 +62,12 @@ object TBinary {
   def loadLength(region: Region, boff: Long): Int =
     region.loadInt(boff)
 
+  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] =
+    region.loadInt(boff)
+
   def bytesOffset(boff: Long): Long = boff + 4
+
+  def bytesOffset(boff: Code[Long]): Code[Long] = boff + 4L
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentAlignment, contentByteSize(length))

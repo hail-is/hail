@@ -323,6 +323,30 @@ trait CodeConditional extends Code[Boolean] {
       rhs.emitConditional(il, ltrue, lfalse)
     }
   }
+
+  def ceq(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lefttrue = new LabelNode
+      val leftfalse = new LabelNode
+      self.emitConditional(il, lefttrue, leftfalse)
+      il += lefttrue
+      rhs.emitConditional(il, ltrue, lfalse)
+      il += leftfalse
+      rhs.emitConditional(il, lfalse, ltrue)
+    }
+  }
+
+  def cne(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lefttrue = new LabelNode
+      val leftfalse = new LabelNode
+      self.emitConditional(il, lefttrue, leftfalse)
+      il += lefttrue
+      rhs.emitConditional(il, lfalse, ltrue)
+      il += leftfalse
+      rhs.emitConditional(il, ltrue, lfalse)
+    }
+  }
 }
 
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
@@ -374,6 +398,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   def ||(rhs: Code[Boolean]): Code[Boolean] =
     lhs.toConditional || rhs.toConditional
+
+  def ceq(rhs: Code[Boolean]): Code[Boolean] =
+
+  def cne(rhs: Code[Boolean]): Code[Boolean] =
 
   // on the JVM Booleans are represented as Ints
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
