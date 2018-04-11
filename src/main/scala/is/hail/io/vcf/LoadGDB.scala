@@ -64,7 +64,7 @@ object LoadGDB {
       "GQ" -> TInt32(),
       "PL" -> TArray(TInt32(arrayElementsRequired)))
 
-    val (raw, attrs) = headerSignature(lines, callFields, arrayElementsRequired)
+    val (raw, attrs, _) = headerSignature(lines, callFields, arrayElementsRequired)
 
     var canonicalFlags = 0
     var i = 0
@@ -137,7 +137,7 @@ object LoadGDB {
     }
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs) = LoadVCF.headerSignature(infoHeader)
+    val (infoSignature, infoAttrs, infoFlagFieldNames) = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
@@ -180,7 +180,7 @@ object LoadGDB {
         rvb.clear()
         region.clear()
         rvb.start(localRowType)
-        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags)
+        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags, infoFlagFieldNames)
         rvb.result().copy()
       }.toArray
 

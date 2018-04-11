@@ -4,7 +4,6 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr._
 import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
@@ -14,14 +13,13 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-import scala.annotation.switch
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.collection.mutable
 import scala.io.Source
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
-  filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes)
+  filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
 
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
@@ -609,7 +607,7 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String], arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String])) = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String], arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String]), Boolean) = {
     val id = line.getID
     val isCall = id == "GT" || callFields.contains(id)
 
@@ -627,24 +625,30 @@ object LoadVCF {
       "Number" -> headerNumberToString(line),
       "Type" -> headerTypeToString(line))
 
+    val isFlag = line.getType == VCFHeaderLineType.Flag
+
     if (line.isFixedCount &&
       (line.getCount == 1 ||
-        (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
-      (Field(id, baseType, i), (id, attrs))
+        (isFlag && line.getCount == 0)))
+      (Field(id, baseType, i), (id, attrs), isFlag)
     else if (baseType.isInstanceOf[TCall])
       fatal("fields in 'call_fields' must have 'Number' equal to 1.")
     else
-      (Field(id, TArray(baseType.setRequired(arrayElementsRequired)), i), (id, attrs))
+      (Field(id, TArray(baseType.setRequired(arrayElementsRequired)), i), (id, attrs), isFlag)
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes) = {
-    val (fields, attrs) = lines
+    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes, Set[String]) = {
+    val (fields, attrs, flags) = lines
       .zipWithIndex
       .map { case (line, i) => headerField(line, i, callFields, arrayElementsRequired) }
-      .unzip
+      .unzip3
 
-    (TStruct(fields.toArray), attrs.toMap)
+    val flagFieldNames = fields.zip(flags)
+      .flatMap { case (f, isFlag) => if (isFlag) Some(f.name) else None }
+      .toSet
+
+    (TStruct(fields.toArray), attrs.toMap, flagFieldNames)
   }
 
   def parseHeader(reader: HtsjdkRecordReader, lines: Array[String], arrayElementsRequired: Boolean = true): VCFHeaderInfo = {
@@ -662,10 +666,10 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs) = headerSignature(infoHeader)
+    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val (gSignature, formatAttrs) = headerSignature(formatHeader, reader.callFields, arrayElementsRequired = arrayElementsRequired)
+    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, reader.callFields, arrayElementsRequired = arrayElementsRequired)
 
     val vaSignature = TStruct(Array(
       Field("rsid", TString(), 0),
@@ -681,7 +685,7 @@ object LoadVCF {
 
     val sampleIds: Array[String] = headerLine.split("\t").drop(9)
 
-    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, filterAttrs, infoAttrs, formatAttrs)
+    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, filterAttrs, infoAttrs, formatAttrs, infoFlagFields)
   }
 
   def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
@@ -814,7 +818,7 @@ object LoadVCF {
       warn("Loading user-provided header file. The number of samples, sample IDs, variant annotation schema and genotype schema were not checked for agreement with input data.")
     }
 
-    val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, _, _, _) = header1
+    val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
 
     val sampleIds: Array[String] = if (dropSamples) Array.empty else sampleIdsHeader
     val localNSamples = sampleIds.length
@@ -822,6 +826,7 @@ object LoadVCF {
     LoadVCF.warnDuplicates(sampleIds)
 
     val infoSignatureBc = sc.broadcast(infoSignature)
+    val infoFlagFieldNamesBc = sc.broadcast(infoFlagFieldNames)
 
     val headerLinesBc = sc.broadcast(headerLines1)
 
@@ -848,7 +853,7 @@ object LoadVCF {
         new ParseLineContext(genotypeSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
         val vc = c.codec.decode(l.line)
-        reader.readVariantInfo(vc, rvb, infoSignatureBc.value)
+        reader.readVariantInfo(vc, rvb, infoSignatureBc.value, infoFlagFieldNamesBc.value)
 
         rvb.startArray(localNSamples) // gs
         if (localNSamples > 0) {
@@ -887,7 +892,7 @@ object LoadVCF {
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
     val hConf = hc.hadoopConf
     val headerLines = getHeaderLines(hConf, headerFile)
-    val VCFHeaderInfo(_, _, _, _, filtersAttrs, infoAttrs, formatAttrs) = parseHeader(reader, headerLines)
+    val VCFHeaderInfo(_, _, _, _, filtersAttrs, infoAttrs, formatAttrs, _) = parseHeader(reader, headerLines)
 
     Map("filter" -> filtersAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
   }

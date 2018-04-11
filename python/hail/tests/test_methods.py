@@ -1076,6 +1076,15 @@ class Tests(unittest.TestCase):
         vcf = hl.import_vcf(resource('invalid_base.vcf'))
         self.assertEqual(vcf.count_rows(), 1)
 
+    def test_import_vcf_flags_are_defined(self):
+        # issue 3277
+
+        t = hl.import_vcf(resource('sample.vcf')).rows()
+        self.assertTrue(t.all(hl.is_defined(t.info.NEGATIVE_TRAIN_SITE) &
+                              hl.is_defined(t.info.POSITIVE_TRAIN_SITE) &
+                              hl.is_defined(t.info.DB) &
+                              hl.is_defined(t.info.DS)))
+
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
