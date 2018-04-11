@@ -457,15 +457,28 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Serialization.write(jrg)
   }
 
-  def toCompressedJSONAsBytes: Array[Byte]
-
   def addAsField(fb: FunctionBuilder[_]): (ClassFieldRef[ReferenceGenome], Code[Unit]) = {
-    val str = fb.newField[String](s"strrg_$name")
+    val json = toJSONString
+    val chunkSize = 65535
+    val nChunks = (json.length() - 1) / chunkSize + 1
+    assert(nChunks > 0)
+    val stringRef = fb.newField[String](s"strrg_$name")
+
+    val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
+    val stringAssembler = if (chunks.length == 1) {
+      stringRef := chunks.head
+    } else {
+      Code(stringRef := chunks.head,
+        Code(chunks.tail.map { s =>
+            stringRef := stringRef.invoke[String, String]("concat", s)
+          }: _*))
+    }
+
     val field = fb.newField[ReferenceGenome](s"rg_$name")
-    println(toJSONString.length())
     val loader: Code[Unit] =
-      Code(str := toJSONString,
-        field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", str))
+      Code(
+        stringAssembler,
+        field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringRef))
     (field, loader)
   }
 }

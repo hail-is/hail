@@ -299,7 +299,7 @@ class ReferenceGenomeSuite extends SparkSuite {
 //  }
 
   @Test def testSerializeOnFB() {
-    val grch38 = ReferenceGenome.GRCh37
+    val grch38 = ReferenceGenome.GRCh38
 
     val fb = FunctionBuilder.functionBuilder[String, Boolean]
     val (rgfield, load) = grch38.addAsField(fb)
