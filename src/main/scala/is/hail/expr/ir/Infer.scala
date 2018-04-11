@@ -30,7 +30,7 @@ object Infer {
         infer(cnsq)
         infer(altr)
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"${cnsq.typ}, ${altr.typ}, $cond")
+        assert(cnsq.typ.isOfType(altr.typ), s"${cnsq.typ}, ${altr.typ}, $cond")
         x.typ = cnsq.typ
 
       case x@Let(name, value, body, _) =>

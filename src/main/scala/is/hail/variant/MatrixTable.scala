@@ -2169,62 +2169,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    val symTab = Map(
-      "va" -> (0, rowType),
-      "sa" -> (1, colType),
-      "g" -> (2, entryType),
-      "global" -> (3, globalType))
-
-    val ec = EvalContext(symTab)
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
-
-    val localKeep = keep
-    val fullRowType = rvRowType
-    val localNSamples = numCols
-    val localEntryType = entryType
-    val localColValuesBc = colValues.broadcast
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    val globalsBc = globals.broadcast
-
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
-      (fullRow, row)
-    })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-
-      rvb.startArray(localNSamples)
-
-      var i = 0
-      while (i < localNSamples) {
-        val entry = entries(i)
-        ec.setAll(row,
-          localColValuesBc.value(i),
-          entry, globalsBc.value)
-        if (Filter.boxedKeepThis(f(), localKeep)) {
-          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
-          if (!isDefined)
-            rvb.setMissing()
-          else {
-            // can't use addElement because we could be losing requiredness
-            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
-            rvb.startStruct()
-            rvb.addAllFields(localEntryType, rv.region, elementOffset)
-            rvb.endStruct()
-          }
-        } else
-          rvb.setMissing()
-
-        i += 1
-      }
-      rvb.endArray()
-    })
-  }
-
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
     ir.Interpret(ir.MatrixWrite(ast, path, overwrite, codecSpecJSONStr))
   }
