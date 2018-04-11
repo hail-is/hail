@@ -125,9 +125,9 @@ object TypeCheck {
         tagg2.symTab = tagg.symTab
         assert(x.typ == tagg2)
       case x@ApplyAggOp(a, op, args) =>
+        val tAgg = coerce[TAggregable](a.typ)
         check(a)
         args.foreach(check(_))
-        val tAgg = coerce[TAggregable](a.typ)
         assert(x.typ == AggOp.getType(op, tAgg.elementType, args.map(_.typ)))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
@@ -171,6 +171,7 @@ object TypeCheck {
         val impl = x.implementation
         args.foreach(check(_))
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall { case (i, j) => j.unify(i) })
+      case MatrixWrite(_, _, _, _) =>
       case x@TableAggregate(child, query) =>
         check(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)
         assert(x.typ == query.typ)

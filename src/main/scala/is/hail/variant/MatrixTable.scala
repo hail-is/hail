@@ -701,9 +701,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
-    val value = BroadcastRow(Row(a), TStruct(name -> t), hc.sc)
+    val at = TStruct(name -> t)
+    val value = BroadcastRow(Row(a), at, hc.sc)
     new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", t), name))), value))
+      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): MatrixTable = {

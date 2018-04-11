@@ -40,7 +40,7 @@ object FilterAlleles {
       "sa" -> (6, vsm.colType),
       "g" -> (7, vsm.entryType)))
 
-    val vAnnotator = new ExprAnnotator(vEC, vsm.rowType, variantExpr, Some(Annotation.ROW_HEAD))
+    val vAnnotator = new ExprAnnotator(vEC, vsm.rvRowType, variantExpr, Some(Annotation.ROW_HEAD))
     val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
 
     val (t1, insertLocus) = vAnnotator.newT.insert(locusType, "locus")
@@ -51,8 +51,12 @@ object FilterAlleles {
     val globalsBc = vsm.globals.broadcast
     val localNSamples = vsm.numCols
 
+    val newRowEntriesIdx = vAnnotator.newT.fieldIdx.get(MatrixType.entriesIdentifier)
+    val newRowType = newRowEntriesIdx.map(i => vAnnotator.newT.deleteKey(MatrixType.entriesIdentifier, i))
+      .getOrElse(vAnnotator.newT)
+
     val newEntryType = gAnnotator.newT
-    val newMatrixType = vsm.matrixType.copyParts(rowType = vAnnotator.newT, entryType = newEntryType)
+    val newMatrixType = vsm.matrixType.copyParts(rowType = newRowType, entryType = newEntryType)
 
     def filter(rdd: RVD,
       removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
@@ -137,11 +141,11 @@ object FilterAlleles {
                 newVA = insertLocus(newVA, newLocus)
                 newVA = insertAlleles(newVA, newAlleles)
                 val newRow = newVA.asInstanceOf[Row]
-                assert(newRow.length == newRVType.size - 1)
 
                 var i = 0
-                while (i < newRVType.size - 1) {
-                  rvb.addAnnotation(newRVType.types(i), newRow.get(i))
+                while (i < vAnnotator.newT.size) {
+                  if (newRowEntriesIdx.forall(_ != i))
+                    rvb.addAnnotation(vAnnotator.newT.types(i), newRow.get(i))
                   i += 1
                 }
 

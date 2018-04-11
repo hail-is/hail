@@ -29,12 +29,17 @@ object Infer {
         assert(body.typ == zero.typ)
         zero.typ
       case x@AggMap(a, name, body) =>
-        coerce[TAggregable](a.typ).copy(elementType = body.typ)
+        val tagg = coerce[TAggregable](a.typ)
+        val tagg2 = tagg.copy(elementType = body.typ)
+        tagg2.symTab = tagg.symTab
+        tagg2
       case x@AggFilter(a, name, body) =>
         a.typ
       case x@AggFlatMap(a, name, body) =>
         val tagg = coerce[TAggregable](a.typ)
-        tagg.copy(elementType = coerce[TContainer](body.typ).elementType)
+        val tagg2 = tagg.copy(elementType = coerce[TContainer](body.typ).elementType)
+        tagg2.symTab = tagg.symTab
+        tagg2
       case x@ApplyAggOp(a, op, args) =>
         val tAgg = coerce[TAggregable](a.typ)
         AggOp.getType(op, tAgg.elementType, args.map(_.typ))
