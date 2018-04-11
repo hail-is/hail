@@ -1857,10 +1857,10 @@ class MatrixTable(ExprContainer):
         Examples
         --------
         >>> mt = hl.utils.range_matrix_table(3, 3)
-        ... col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
-        ... mt = mt.annotate_cols(foo = col_dict.get(mt.col_idx))\
-        ...     .explode_cols('foo')
-        ... mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
+        >>> col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
+        >>> mt = (mt.annotate_cols(foo = col_dict.get(mt.col_idx))
+        ...     .explode_cols('foo'))
+        >>> mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
 
         >>> mt.cols().show()
         +---------+-------+
@@ -1896,7 +1896,7 @@ class MatrixTable(ExprContainer):
         showing top 10 rows
 
         >>> mt = mt.collect_cols_by_key()
-        ... mt.cols().show()
+        >>> mt.cols().show()
         +---------+--------------+
         | col_idx | foo          |
         +---------+--------------+
