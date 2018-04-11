@@ -479,7 +479,6 @@ object OrderedRVD {
         Iterator()
     }.run.collect()
 
-    val region = Region()
     pkis.sortBy(_.min)(typ.pkType.ordering.toOrdering)
   }
 
@@ -549,8 +548,6 @@ object OrderedRVD {
     if (pkis.isEmpty)
       return empty(sc, typ)
 
-    val region = Region()
-
     val partitionsSorted = (pkis, pkis.tail).zipped.forall { case (p, pnext) =>
       val r = typ.pkType.ordering.lteq(p.max, pnext.min)
       if (!r)
@@ -600,8 +597,7 @@ object OrderedRVD {
     assert(nPartitions > 0)
 
     val pkOrd = typ.pkType.ordering.toOrdering
-    val region = Region()
-    var keys = pkis
+    val keys = pkis
       .flatMap(_.samples)
       .sorted(pkOrd)
 
@@ -644,8 +640,6 @@ object OrderedRVD {
 
     if (pkis.isEmpty)
       return OrderedRVD(typ, partitioner, rdd)
-
-    val region = Region()
 
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
@@ -703,7 +697,6 @@ object OrderedRVD {
 
     val it = sortedKeyInfo.indices.iterator.buffered
 
-    val region = Region()
     partitionBounds += sortedKeyInfo(0).min
 
     while (it.nonEmpty) {
