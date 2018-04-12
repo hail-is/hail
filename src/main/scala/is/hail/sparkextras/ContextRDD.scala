@@ -94,17 +94,17 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   def collect(): Array[T] =
     run.collect()
 
+  // WARNING: this resets the context, when this method is called, the value of
+  // type `T` must already be "stable" i.e. not dependent on the region
+  private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
+    new SetupIterator(it.flatMap(_(c)), c.reset _)
+
   def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => decontextualize(cc, part) } }
 
   private[this] def inCtx[U: ClassTag](
     f: C => Iterator[U]
   ): Iterator[C => Iterator[U]] = Iterator.single(f)
-
-  // WARNING: this resets the context, when this method is called, the value of
-  // type `T` must already be "stable" i.e. not dependent on the region
-  private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
-    new SetupIterator(it.flatMap(_(c)), c.reset _)
 
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
     mapPartitions(_.map(f), true)
