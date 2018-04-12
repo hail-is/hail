@@ -12,6 +12,9 @@ object Region {
   def apply(sizeHint: Long = 128): Region = {
     new Region(new Array[Byte](sizeHint.toInt))
   }
+
+  def scoped[T](f: Region => T): T =
+    using(Region())(f)
 }
 
 final class Region(
