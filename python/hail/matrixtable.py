@@ -2546,9 +2546,10 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.indexCols(name))
 
     @typecheck_method(other=matrix_table_type,
-                      tolerance=numeric)
-    def _same(self, other, tolerance=1e-6):
-        return self._jvds.same(other._jvds, tolerance)
+                      tolerance=numeric,
+                      absolute=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False):
+        return self._jvds.same(other._jvds, tolerance, absolute)
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_entries(self, caller, s):

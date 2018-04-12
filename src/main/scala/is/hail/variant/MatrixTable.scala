@@ -1818,7 +1818,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copy2(colType = newSchema, colValues = colValues.copy(value = newAnnotations, t = TArray(newSchema)))
   }
 
-  def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
+  def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     var metadataSame = true
     if (rowType.deepOptional() != that.rowType.deepOptional()) {
       metadataSame = false
@@ -1848,14 +1848,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
            |  left:  ${ entryType.toString }
            |  right: ${ that.entryType.toString }""".stripMargin)
     }
-    if (!colValuesSimilar(that, tolerance)) {
+    if (!colValuesSimilar(that, tolerance, absolute)) {
       metadataSame = false
       println(
         s"""different sample annotations:
            |  left:  $colValues
            |  right: ${ that.colValues }""".stripMargin)
     }
-    if (!globalType.valuesSimilar(globals.value, that.globals.value)) {
+    if (!globalType.valuesSimilar(globals.value, that.globals.value, tolerance, absolute)) {
       metadataSame = false
       println(
         s"""different global annotation:
@@ -1901,7 +1901,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           val row1 = fullRow1.deleteField(localLeftEntriesIndex)
           val row2 = fullRow2.deleteField(localRightEntriesIndex)
 
-          if (!localRowType.valuesSimilar(row1, row2, tolerance)) {
+          if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
             println(
               s"""row fields not the same:
                  |  $row1
@@ -1914,7 +1914,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
           var i = 0
           while (partSame && i < gs1.length) {
-            if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance)) {
+            if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
               partSame = false
               println(
                 s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
@@ -1946,10 +1946,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
-  def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
+  def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     require(colType == that.colType, s"\n${ colType }\n${ that.colType }")
     colValues.value.zip(that.colValues.value)
-      .forall { case (s1, s2) => colType.valuesSimilar(s1, s2, tolerance)
+      .forall { case (s1, s2) => colType.valuesSimilar(s1, s2, tolerance, absolute)
       }
   }
 

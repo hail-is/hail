@@ -102,12 +102,12 @@ abstract class TBaseStruct extends Type {
           Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*)))
   }
 
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && types.zip(a1.asInstanceOf[Row].toSeq).zip(a2.asInstanceOf[Row].toSeq)
       .forall {
         case ((t, x1), x2) =>
-          t.valuesSimilar(x1, x2, tolerance)
+          t.valuesSimilar(x1, x2, tolerance, absolute)
       })
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]

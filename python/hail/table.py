@@ -2200,9 +2200,9 @@ class Table(ExprContainer):
         """
         return Table.from_spark(Env.sql_context().createDataFrame(df), key)
 
-    @typecheck_method(other=table_type, tolerance=nullable(numeric))
-    def _same(self, other, tolerance=1e-6):
-        return self._jt.same(other._jt, tolerance)
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False):
+        return self._jt.same(other._jt, tolerance, absolute)
 
     def collect_by_key(self, name: str= 'values') -> 'Table':
         """Collect values for each unique key into an array.

@@ -112,7 +112,7 @@ object Table {
     ))
   }
 
-  def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double): Boolean = {
+  def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
     val used = new Array[Boolean](r.length)
     var i = 0
     while (i < l.length) {
@@ -120,7 +120,7 @@ object Table {
       var matched = false
       var j = 0
       while (!matched && j < l.length && !used(j)) {
-        matched = t.valuesSimilar(li, r(j), tolerance)
+        matched = t.valuesSimilar(li, r(j), tolerance, absolute)
         if (matched)
           used(j) = true
         j += 1
@@ -257,7 +257,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
-  def same(other: Table, tolerance: Double = defaultTolerance): Boolean = {
+  def same(other: Table, tolerance: Double = defaultTolerance, absolute: Boolean = false): Boolean = {
     val localValueSignature = valueSignature
 
     val globalSignatureOpt = globalSignature.deepOptional()
@@ -299,7 +299,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
             val res = if (r1.length != r2.length)
               false
             else r1.counter() == r2.counter() ||
-              Table.sameWithinTolerance(localValueSignature, r1, r2, tolerance)
+              Table.sameWithinTolerance(localValueSignature, r1, r2, tolerance, absolute)
             if (!res)
               info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ") }\n  right:\n    ${ r2.mkString("\n    ") }")
             res
