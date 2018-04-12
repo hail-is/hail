@@ -155,7 +155,7 @@ object CalculateConcordance {
 
     val leftRowKeysF = left.rowKeysF
     val rightRowKeysF = right.rowKeysF
-    val variantRDD = join.mapPartitions { it =>
+    val variantCRDD = join.mapPartitions { it =>
       val comb = new ConcordanceCombiner
 
       val lur = new UnsafeRow(leftRowType)
@@ -222,7 +222,7 @@ object CalculateConcordance {
 
     val sampleKT = Table(left.hc, sampleRDD, sampleSchema, left.colKey)
 
-    val variantKT = Table(left.hc, variantRDD, variantSchema, left.rowKey)
+    val variantKT = Table(left.hc, variantCRDD, variantSchema, left.rowKey)
 
     (global.toAnnotation, sampleKT, variantKT)
   }
