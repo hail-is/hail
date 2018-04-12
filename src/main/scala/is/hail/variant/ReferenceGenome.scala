@@ -463,6 +463,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val nChunks = (json.length() - 1) / chunkSize + 1
     assert(nChunks > 0)
     val stringRef = fb.newField[String]
+    val isDefined = fb.newField[Boolean]
 
     val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
     val stringAssembler = if (chunks.length == 1) {
@@ -476,9 +477,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val field = fb.newField[ReferenceGenome]
     val loader: Code[Unit] =
-      Code(
-        stringAssembler,
-        field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringRef))
+      isDefined.mux(
+        Code._empty[Unit],
+        Code(stringAssembler,
+          field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringRef),
+          isDefined := true))
+
     (field, loader)
   }
 }
