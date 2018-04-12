@@ -219,6 +219,21 @@ object SafeRow {
   }
 
   def apply(t: TBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.region, rv.offset)
+
+  def read(t: Type, region: Region, off: Long): Annotation =
+    Annotation.copy(t, UnsafeRow.read(t, region, off))
+
+  def read(t: Type, rv: RegionValue): Annotation =
+    read(t, rv.region, rv.offset)
+}
+
+object SafeIndexedSeq {
+  def apply(t: TArray, region: Region, off: Long): IndexedSeq[Annotation] =
+    Annotation.copy(t, new UnsafeIndexedSeq(t, region, off))
+      .asInstanceOf[IndexedSeq[Annotation]]
+
+  def apply(t: TArray, rv: RegionValue): IndexedSeq[Annotation] =
+    apply(t, rv.region, rv.offset)
 }
 
 class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {
