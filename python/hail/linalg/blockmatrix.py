@@ -875,7 +875,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table(self._jbm.entriesTable(Env.hc()._jhc, joption(None)))
+        return Table(self._jbm.entriesTable(Env.hc()._jhc))
 
 
 block_matrix_type.set(BlockMatrix)

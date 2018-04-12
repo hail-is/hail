@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.expr.types.{TInt32, TString, TStruct}
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.{SparkSuite}
+import is.hail.SparkSuite
 import is.hail.linalg.BlockMatrix
 import is.hail.table.Table
 import is.hail.testUtils._
@@ -24,9 +24,10 @@ class UpperIndexBoundsSuite extends SparkSuite {
   }
 
   @Test def testGroupPositionsByContig() {
-    val groupedPositions = UpperIndexBounds.groupPositionsByContig(tbl)
+    val groupedPositions = UpperIndexBounds.groupPositionsByContig(tbl.keyBy("contig"))
     val expected = Array(Array(5, 7, 13, 14, 17, 65, 70, 73), Array(74, 75, 200, 300))
-    assert(groupedPositions.deep == expected.deep)
+    assert((groupedPositions.collect(), expected).zipped
+      .forall { case (positions, expectedPositions) => positions.toSet == expectedPositions.toSet })
   }
 
   @Test def testComputeUpperIndexBoundsOnSingleArray() {
@@ -36,9 +37,12 @@ class UpperIndexBoundsSuite extends SparkSuite {
     assert(bounds sameElements expected)
   }
 
-  @Test def testComputeUpperIndexBoundsOnGroupOfArrays() {
-    val groupedPositions = UpperIndexBounds.groupPositionsByContig(tbl)
-    val bounds = UpperIndexBounds.computeUpperIndexBounds(groupedPositions, radius = 10)
+  @Test def testShiftUpperIndexBounds() {
+    val groupedPositions = UpperIndexBounds.groupPositionsByContig(tbl.keyBy("contig"))
+    val bounds = UpperIndexBounds.shiftUpperIndexBounds(groupedPositions.map { positions =>
+      scala.util.Sorting.quickSort(positions)
+      UpperIndexBounds.computeUpperIndexBounds(positions, radius = 10)
+    })
     val expected = Array(3, 4, 4, 4, 4, 7, 7, 7, 9, 9, 10, 11)
     assert(bounds sameElements expected)
   }
@@ -50,14 +54,14 @@ class UpperIndexBoundsSuite extends SparkSuite {
 
     for (i <- 0 to 1) {
       val bm = makeSquareBlockMatrix(tbl.count().toInt, blockSize = blockSizes(i))
-      val blocks = UpperIndexBounds.computeBlocksWithinRadius(tbl, bm, radius = 10)
+      val blocks = UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal(tbl.keyBy("contig"), bm, radius = 10)
       assert(blocks sameElements expecteds(i))
     }
   }
 
   @Test def testEntriesTableFromWindowedBlockMatrix() {
     val bm = makeSquareBlockMatrix(tbl.count().toInt, blockSize = 1)
-    val entriesTable = UpperIndexBounds.entriesTableFromWindowedBlockMatrix(hc, tbl, bm, window = 10)
+    val entriesTable = UpperIndexBounds.entriesTableFromWindowedBlockMatrix(hc, tbl.keyBy("contig"), bm, window = 10)
 
     val expectedRows = IndexedSeq[(Int, Int)]((0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (3, 4),
       (5, 6), (5, 7), (6, 7), (8, 9)).map { case (i, j) => Row(i, j) }

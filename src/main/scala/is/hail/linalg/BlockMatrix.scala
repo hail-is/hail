@@ -611,6 +611,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize, keepRows.length, keepCols.length)
 
+  def entriesTable(hc: HailContext): Table = entriesTable(hc, None)
+
   def entriesTable(hc: HailContext, keep: Option[Array[Int]] = None): Table = {
     val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     val rdd = keep match {
