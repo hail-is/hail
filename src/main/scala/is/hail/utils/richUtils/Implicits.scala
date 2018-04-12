@@ -123,7 +123,7 @@ trait Implicits {
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
 
-  implicit def toContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](x: ContextRDD[C, (K, V)]): ContextPairRDDFunctions[C, K, V] = new ContextPairRDDFunctions(x)
+  implicit def toContextPairRDDFunctions[C <: ResettableContext, K: ClassTag, V: ClassTag](x: ContextRDD[C, (K, V)]): ContextPairRDDFunctions[C, K, V] = new ContextPairRDDFunctions(x)
 
-  implicit def toRichContextRDD[C <: AutoCloseable, T: ClassTag](x: ContextRDD[C, T]): RichContextRDD[C, T] = new RichContextRDD(x)
+  implicit def toRichContextRDD[C <: ResettableContext, T: ClassTag](x: ContextRDD[C, T]): RichContextRDD[C, T] = new RichContextRDD(x)
 }
