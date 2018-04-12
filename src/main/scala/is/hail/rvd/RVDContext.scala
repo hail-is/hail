@@ -26,8 +26,6 @@ class RVDContext(r: Region) extends ResettableContext {
 
   def region: Region = r // lifetime: element
 
-  def partitionRegion: Region = r // lifetime: partition
-
   private[this] val theRvb = new RegionValueBuilder(r)
   def rvb = theRvb
 
