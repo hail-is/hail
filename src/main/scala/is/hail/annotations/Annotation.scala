@@ -115,26 +115,4 @@ object Annotation {
       case _ => true
     })
   }
-
-  def safeFromRegionValue(t: Type, rv: RegionValue): Annotation =
-    safeFromRegionValue(t, rv.region, rv.offset)
-
-  def safeFromRegionValue(t: Type, region: Region, offset: Long): Annotation =
-    Annotation.copy(t, UnsafeRow.read(t, region, offset))
-
-  def safeFromArrayRegionValue(
-    t: TContainer,
-    region: Region,
-    offset: Long
-  ): IndexedSeq[Annotation] =
-    Annotation.copy(t, UnsafeRow.readArray(t, region, offset))
-      .asInstanceOf[IndexedSeq[Annotation]]
-
-  def safeFromBaseStructRegionValue(
-    t: TBaseStruct,
-    region: Region,
-    offset: Long
-  ): Row =
-    Annotation.copy(t, UnsafeRow.readBaseStruct(t, region, offset))
-      .asInstanceOf[Row]
 }
