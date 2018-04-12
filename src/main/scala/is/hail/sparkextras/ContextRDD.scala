@@ -104,7 +104,7 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   // WARNING: this resets the context, when this method is called, the value of
   // type `T` must already be "stable" i.e. not dependent on the region
   private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
-    new SetupIterator(it.flatMap(_(c)), () => c.reset())
+    new SetupIterator(it.flatMap(_(c)), c.reset _)
 
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
     mapPartitions(_.map(f), true)
