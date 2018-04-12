@@ -5,7 +5,8 @@ import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Call2, MatrixTable, ReferenceGenome}
 import org.apache.commons.math3.random.JDKRandomGenerator
@@ -132,10 +133,9 @@ object BaldingNicholsModel {
 
     val rvType = matrixType.rvRowType
 
-    val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
-      .mapPartitions { it =>
-
-        val region = Region()
+    val rdd = ContextRDD.weaken[RVDContext](sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions))
+      .cmapPartitions { (ctx, it) =>
+        val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
 
@@ -152,7 +152,6 @@ object BaldingNicholsModel {
                 .draw()
           })
 
-          region.clear()
           rvb.start(rvType)
           rvb.startStruct()
 

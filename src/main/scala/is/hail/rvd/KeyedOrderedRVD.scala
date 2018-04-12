@@ -42,15 +42,17 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "right" => _.rightJoin(_)
         case "outer" => _.outerJoin(_)
       }
-    val joinedRDD =
-      repartitionedLeft.crdd.zipPartitions(repartitionedRight.crdd, true) {
-        (leftIt, rightIt) =>
-          joiner(compute(
-            OrderedRVIterator(lTyp, leftIt),
-            OrderedRVIterator(rTyp, rightIt)))
-    }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    repartitionedLeft.zipPartitions(
+      joinedType,
+      newPartitioner,
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (_, leftIt, rightIt) =>
+      joiner(compute(
+        OrderedRVIterator(lTyp, leftIt),
+        OrderedRVIterator(rTyp, rightIt)))
+    }
   }
 
   def orderedJoinDistinct(
@@ -71,15 +73,17 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "inner" => _.innerJoinDistinct(_)
         case "left" => _.leftJoinDistinct(_)
       }
-    val joinedRDD =
-      this.rvd.crdd.zipPartitions(repartitionedRight.crdd, true) {
-        (leftIt, rightIt) =>
-          joiner(compute(
-            OrderedRVIterator(rekeyedLTyp, leftIt),
-            OrderedRVIterator(rekeyedRTyp, rightIt)))
-    }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    rvd.zipPartitions(
+      joinedType,
+      newPartitioner,
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (_, leftIt, rightIt) =>
+      joiner(compute(
+        OrderedRVIterator(rekeyedLTyp, leftIt),
+        OrderedRVIterator(rekeyedRTyp, rightIt)))
+    }
   }
 
   def orderedZipJoin(right: KeyedOrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] = {
@@ -90,7 +94,10 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
 
     val leftType = this.typ
     val rightType = right.typ
-    repartitionedLeft.crdd.zipPartitions(repartitionedRight.crdd, true){ (leftIt, rightIt) =>
+    repartitionedLeft.zipPartitions(
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (_, leftIt, rightIt) =>
       OrderedRVIterator(leftType, leftIt).zipJoin(OrderedRVIterator(rightType, rightIt))
     }
   }

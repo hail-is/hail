@@ -255,11 +255,6 @@ final class Region(
     off
   }
 
-  def clear(newEnd: Long) {
-    assert(newEnd <= end)
-    end = newEnd
-  }
-
   def clear() {
     end = 0
   }

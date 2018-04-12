@@ -3,7 +3,8 @@ package is.hail.io
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
@@ -360,9 +361,9 @@ object LoadMatrix {
       rowPartitionKey = rowKey.toFastIndexedSeq,
       entryType = cellType)
 
-    val rdd = lines.filter(l => l.value.nonEmpty)
-      .mapPartitionsWithIndex { (i, it) =>
-        val region = Region()
+    val rdd = ContextRDD.weaken[RVDContext](lines.filter(l => l.value.nonEmpty))
+      .cmapPartitionsWithIndex { (i, ctx, it) =>
+        val region = ctx.region
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
@@ -375,7 +376,6 @@ object LoadMatrix {
           val fileRowNum = partitionStartInFile + row
           val line = v.value
 
-          region.clear()
           rvb.start(matrixType.rvRowType)
           rvb.startStruct()
           if (useIndex) {

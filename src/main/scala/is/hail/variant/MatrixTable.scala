@@ -1896,7 +1896,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         OrderedRVD.adjustBoundsAndShuffle(
           that.rvd.typ,
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
-          that.rvd.rdd)
+          that.rvd)
           .rdd) { (it1, it2) =>
         val fullRow1 = new UnsafeRow(leftRVType)
         val fullRow2 = new UnsafeRow(rightRVType)

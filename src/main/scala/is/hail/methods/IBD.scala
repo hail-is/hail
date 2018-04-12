@@ -5,6 +5,8 @@ import is.hail.expr.EvalContext
 import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.rvd.RVDContext
+import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
 import is.hail.stats.RegressionUtils
 import org.apache.spark.rdd.RDD
@@ -207,7 +209,7 @@ object IBD {
     min: Option[Double],
     max: Option[Double],
     sampleIds: IndexedSeq[String],
-    bounded: Boolean): RDD[RegionValue] = {
+    bounded: Boolean): ContextRDD[RVDContext, RegionValue] = {
 
     val nSamples = vds.numCols
 
@@ -253,7 +255,7 @@ object IBD {
       })
       .map { case ((s, v), gs) => (v, (s, IBSFFI.pack(chunkSize, chunkSize, gs))) }
 
-    chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
+    val joined = ContextRDD.weaken[RVDContext](chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
       // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>
@@ -266,9 +268,11 @@ object IBD {
           i += 1
         }
         a
-      }
-      .mapPartitions { it =>
-        val region = Region()
+      })
+
+    joined
+      .cmapPartitions { (ctx, it) =>
+        val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         for {
@@ -282,7 +286,6 @@ object IBD {
           eibd = calculateIBDInfo(ibses(idx * 3), ibses(idx * 3 + 1), ibses(idx * 3 + 2), ibse, bounded)
           if min.forall(eibd.ibd.PI_HAT >= _) && max.forall(eibd.ibd.PI_HAT <= _)
         } yield {
-          region.clear()
           rvb.start(ibdSignature)
           rvb.startStruct()
           rvb.addString(sampleIds(i))
@@ -292,7 +295,7 @@ object IBD {
           rv.setOffset(rvb.end())
           rv
         }
-      }
+    }
   }
 
   def apply(vds: MatrixTable,

@@ -10,7 +10,8 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
-import is.hail.rvd.RVD
+import is.hail.rvd.{RVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
@@ -614,17 +615,16 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def entriesTable(hc: HailContext): Table = {
     val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
-    val entriesRDD = blocks.flatMap { case ((blockRow, blockCol), block) =>
+    val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
 
-      val region = Region()
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
       block.activeIterator
         .map { case ((i, j), entry) =>
-          region.clear()
           rvb.start(rvRowType)
           rvb.startStruct()
           rvb.addLong(rowOffset + i)
@@ -993,7 +993,7 @@ case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) 
 }
 
 class WriteBlocksRDD(path: String,
-  rdd: RDD[RegionValue],
+  crdd: ContextRDD[RVDContext, RegionValue],
   sc: SparkContext,
   matrixType: MatrixType,
   parentPartStarts: Array[Long],
@@ -1002,7 +1002,7 @@ class WriteBlocksRDD(path: String,
 
   require(gp.nRows == parentPartStarts.last)
 
-  private val parentParts = rdd.partitions
+  private val parentParts = crdd.partitions
   private val blockSize = gp.blockSize
 
   private val d = digitsNeeded(gp.numPartitions)
@@ -1010,7 +1010,7 @@ class WriteBlocksRDD(path: String,
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
-      new NarrowDependency(rdd) {
+      new NarrowDependency(crdd.rdd) {
         def getParents(partitionId: Int): Seq[Int] =
           partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
       }
@@ -1085,8 +1085,8 @@ class WriteBlocksRDD(path: String,
 
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
-    writeBlocksPart.range.foreach { pi =>
-      val it = rdd.iterator(parentParts(pi), context)
+    writeBlocksPart.range.foreach { pi => using(crdd.mkc()) { ctx =>
+      val it = crdd.iterator(parentParts(pi), context, ctx)
 
       if (pi == start) {
         var j = 0
@@ -1132,7 +1132,7 @@ class WriteBlocksRDD(path: String,
         }
         i += 1
       }
-    }
+    } }
 
     outPerBlockCol.foreach(_.close())
 

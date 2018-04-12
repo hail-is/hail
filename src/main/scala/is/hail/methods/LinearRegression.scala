@@ -60,9 +60,9 @@ object LinearRegression {
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
-    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
-
-        val region2 = Region()
+    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioningWithContextBoundary(
+      newMatrixType.orvdType, { (ctx, it) =>
+        val region2 = ctx.region
         val rvb = new RegionValueBuilder(region2)
         val rv2 = RegionValue(region2)
 
@@ -136,7 +136,7 @@ object LinearRegression {
               rv2
             }
           }
-      }
+      })
 
     vsm.copyMT(matrixType = newMatrixType,
       rvd = newRDD2)

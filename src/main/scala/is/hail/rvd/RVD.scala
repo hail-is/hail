@@ -1,5 +1,7 @@
 package is.hail.rvd
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
@@ -42,8 +44,12 @@ object RVDSpec {
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
-      HailContext.readRowsPartition(rowType, codecSpec)(0, in)
-        .map(rv => SafeRow(rowType, rv.region, rv.offset))
+      using(RVDContext.default) { ctx =>
+        new SetupIterator(
+          HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
+            .map(rv => SafeRow(rowType, rv.region, rv.offset)),
+          ctx.reset _)
+      }
     }.toFastIndexedSeq
   }
 }
@@ -92,7 +98,7 @@ case class OrderedRVDSpec(
 }
 
 case class PersistedRVRDD(
-  persistedRDD: RDD[RegionValue],
+  persistedRDD: RDD[Array[Byte]],
   iterationRDD: ContextRDD[RVDContext, RegionValue])
 
 object RVD {
@@ -101,15 +107,18 @@ object RVD {
     hConf.mkDir(path + "/parts")
 
     val os = hConf.unsafeWriter(path + "/parts/part-0")
-    val rvb = new RegionValueBuilder()
-    val part0Count = RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
-      rows.map { a =>
-        val region = Region()
-        rvb.set(region)
-        rvb.start(rowType)
-        rvb.addAnnotation(rowType, a)
-        RegionValue(region, rvb.end())
-      }.iterator, os)
+    val part0Count = Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+      RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
+        rows.iterator.map { a =>
+          region.clear()
+          rvb.start(rowType)
+          rvb.addAnnotation(rowType, a)
+          rv.setOffset(rvb.end())
+          rv
+        }, os)
+    }
 
     val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
     spec.write(hConf, path)
@@ -132,7 +141,34 @@ trait RVD {
 
   def crdd: ContextRDD[RVDContext, RegionValue]
 
-  def rdd: RDD[RegionValue]
+  private[rvd] def stabilize(
+    unstable: ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = {
+    val localRowType = rowType
+    unstable.map { rv =>
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(localRowType)
+      rvb.addRegionValue(localRowType, rv)
+      RegionValue(region, rvb.end())
+    }
+  }
+
+  private[rvd] def stably(
+    f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = f(stabilize(crdd))
+
+  private[rvd] def stably(
+    unstable: ContextRDD[RVDContext, RegionValue],
+    f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
+  ): ContextRDD[RVDContext, RegionValue] = f(stabilize(unstable))
+
+  // SOMEWHAT UNSAFE: the values produced will not be in the consumer's region,
+  // therefore this is private[rvd], you must be careful to copy the value into
+  // the appropriate region
+  private[rvd] def boundary: RVD
+
+  def rdd: RDD[RegionValue] = stabilize(crdd).run
 
   def sparkContext: SparkContext = crdd.sparkContext
 
@@ -149,14 +185,20 @@ trait RVD {
       it.map { rv => f(c, rv) }
     })
 
-  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(f)
-
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
 
-  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitionsWithIndex(f)
+  def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
+    new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
-  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitions(f)
+  def find(p: (RegionValue) => Boolean): Option[RegionValue] =
+    stabilize(crdd.filter(p)).run.take(1).headOption
+
+  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
+
+  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitionsWithIndex(f).run
+
+  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitions(f).run
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
@@ -167,7 +209,7 @@ trait RVD {
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
     depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
-  ) : U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
+  ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
 
   def aggregate[U: ClassTag](
     zeroValue: U
@@ -175,35 +217,39 @@ trait RVD {
     combOp: (U, U) => U
   ): U = crdd.aggregate(zeroValue, seqOp, combOp)
 
-  def count(): Long = rdd.count()
+  def count(): Long =
+    crdd.mapPartitions(x => Iterator.single(getIteratorSize(x))).run.fold(0L)(_ + _)
 
-  def countPerPartition(): Array[Long] = rdd.countPerPartition()
+  def countPerPartition(): Array[Long] =
+    crdd.mapPartitions(x => Iterator.single(getIteratorSize(x))).run.collect
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
 
+    val persistCodec = CodecSpec.default
+
     // copy, persist region values
-    val persistedRDD = rdd.mapPartitions { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
+    val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
+      val baos = new ByteArrayOutputStream()
+      val enc = persistCodec.buildEncoder(baos)
       it.map { rv =>
-        region.clear()
-        rvb.start(localRowType)
-        rvb.addRegionValue(localRowType, rv)
-        val off = rvb.end()
-        RegionValue(region.copy(), off)
+        baos.reset()
+        enc.writeRegionValue(localRowType, rv.region, rv.offset)
+        enc.flush()
+        baos.toByteArray
       }
-    }
+    } .run
       .persist(level)
 
     PersistedRVRDD(persistedRDD,
       ContextRDD.weaken[RVDContext](persistedRDD)
-        .mapPartitions { it =>
-          val region = Region()
+        .cmapPartitions { (ctx, it) =>
+          val region = ctx.region
           val rv2 = RegionValue(region)
-          it.map { rv =>
-            region.setFrom(rv.region)
-            rv2.setOffset(rv.offset)
+          it.map { bytes =>
+            val bais = new ByteArrayInputStream(bytes)
+            val dec = persistCodec.buildDecoder(bais)
+            rv2.setOffset(dec.readRegionValue(localRowType, region))
             rv2
           }
         })
@@ -231,6 +277,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    rdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }
+    crdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }.run
   }
 }

@@ -5,17 +5,19 @@ import htsjdk.variant.vcf.{VCFCompoundHeaderLine, VCFHeader}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.utils._
+import is.hail.io._
 import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.json4s._
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
-import java.io.{File, FileWriter}
+import java.io._
 
 import is.hail.expr.types._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.LoadVCF.headerSignature
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -170,27 +172,42 @@ object LoadGDB {
       entryType = genotypeSignature)
     val localRowType = matrixType.rvRowType
 
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
+    val rvCodec = CodecSpec.default
 
-    val records = gdbReader
-      .iterator
-      .asScala
-      .map { vc =>
+    val records = Region.scoped { region =>
+      val baos = new ByteArrayOutputStream()
+      val enc = rvCodec.buildEncoder(baos)
+      val rvb = new RegionValueBuilder(region)
+      gdbReader
+        .iterator
+        .asScala
+        .map { vc =>
         rvb.clear()
         region.clear()
         rvb.start(localRowType)
         reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags, infoFlagFieldNames)
-        rvb.result().copy()
+        enc.writeRegionValue(localRowType, region, rvb.end())
+        baos.toByteArray()
       }.toArray
+    }
 
-    val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))
+    val recordCRDD = ContextRDD.parallelize[RVDContext](sc, records, nPartitions)
+      .cmapPartitions { (ctx, it) =>
+        val region = ctx.region
+        val rv = RegionValue(region)
+        it.map { bytes =>
+          val bais = new ByteArrayInputStream(bytes)
+          val dec = rvCodec.buildDecoder(bais)
+          rv.setOffset(dec.readRegionValue(localRowType, region))
+          rv
+        }
+      }
 
     queryFile.delete()
 
     new MatrixTable(hc, matrixType,
       BroadcastRow(Row.empty, matrixType.globalType, sc),
       BroadcastIndexedSeq(sampleIds.map(x => Annotation(x)), TArray(matrixType.colType), sc),
-      OrderedRVD.coerce(matrixType.orvdType, hc.sc.parallelize(records), None, None))
+      OrderedRVD.coerce(matrixType.orvdType, recordCRDD, None, None))
   }
 }
