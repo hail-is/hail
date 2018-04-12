@@ -359,7 +359,7 @@ final class VCFLine(val line: String) {
 
   def parseStringInFormatArray(): String = {
     val start = pos
-    while (!endFormatField())
+    while (!endFormatArrayField())
       pos += 1
     val end = pos
     line.substring(start, end)
