@@ -187,21 +187,20 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Row
   ) = this(hc,
     TableLiteral(
       TableValue(
-        TableType(signature, Some(key), globalSignature),
+        TableType(signature, key, globalSignature),
         BroadcastRow(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, crdd))))
 
-  // FIXME
   def this(hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Row
   ) = this(
@@ -232,14 +231,14 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String]
+    key: Option[IndexedSeq[String]]
   ) = this(hc, rdd, signature, key, TStruct.empty(), Row.empty)
 
   def this(
     hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct
-  ) = this(hc, rdd, signature, Array.empty[String])
+  ) = this(hc, rdd, signature, None)
 
   lazy val TableValue(ktType, globals, rvd) = value
 
