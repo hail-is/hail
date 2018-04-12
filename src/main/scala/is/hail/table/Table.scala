@@ -52,12 +52,12 @@ object Table {
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
-    fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)
+    fromDF(hc, df, Option(key.asScala.toArray.toFastIndexedSeq))
   }
 
-  def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[String] = Array.empty[String]): Table = {
+  def fromDF(hc: HailContext, df: DataFrame, key: Option[IndexedSeq[String]] = None): Table = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    Table(hc, df.rdd, signature, Some(key))
+    Table(hc, df.rdd, signature, key)
   }
 
   def read(hc: HailContext, path: String): Table = {
