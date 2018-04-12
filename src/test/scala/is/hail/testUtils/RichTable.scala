@@ -83,7 +83,8 @@ class RichTable(ht: Table) {
         }
     }
 
-    val newKey = ht.key.map(_.filter(insertionPaths.toSet))
+    var newKey = ht.key.map(_.filter(insertionPaths.toSet))
+    if (newKey.exists(_.isEmpty)) newKey = None
 
     ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature, key = newKey)
   }
