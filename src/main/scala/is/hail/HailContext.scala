@@ -408,11 +408,14 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean,
     impute: Boolean,
     quote: java.lang.Character,
-    skipBlankLines: Boolean): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, comment.asScala.toArray, separator, missing, noHeader, impute, quote, skipBlankLines)
+    skipBlankLines: Boolean
+  ): Table = importTables(inputs.asScala,
+    Option(keyNames).map(_.asScala.toIndexedSeq),
+    Option(nPartitions), types.asScala.toMap, comment.asScala.toArray,
+    separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTable(input: String,
-    keyNames: Array[String] = Array.empty[String],
+    keyNames: Option[IndexedSeq[String]] = None,
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
     comment: Array[String] = Array.empty[String],
@@ -421,12 +424,12 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean = false,
     impute: Boolean = false,
     quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false): Table = {
-    importTables(List(input), keyNames, nPartitions, types, comment, separator, missing, noHeader, impute, quote, skipBlankLines)
-  }
+    skipBlankLines: Boolean = false
+  ): Table = importTables(List(input), keyNames, nPartitions, types, comment,
+    separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTables(inputs: Seq[String],
-    keyNames: Array[String] = Array.empty[String],
+    keyNames: Option[IndexedSeq[String]] = None,
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
     comment: Array[String] = Array.empty[String],
@@ -443,7 +446,12 @@ class HailContext private(val sc: SparkContext,
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
     TextTableReader.read(this)(files, types, comment, separator, missing,
-      noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, keyNames, skipBlankLines)
+      noHeader,
+      impute,
+      nPartitions.getOrElse(sc.defaultMinPartitions),
+      quote,
+      keyNames,
+      skipBlankLines)
   }
 
   def importPlink(bed: String, bim: String, fam: String,
