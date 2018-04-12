@@ -224,12 +224,12 @@ object SafeRow {
     Annotation.copy(t, UnsafeRow.read(t, region, off))
 
   def read(t: Type, rv: RegionValue): Annotation =
-    read(t, rv.region, rv.off)
+    read(t, rv.region, rv.offset)
 }
 
 object SafeIndexedSeq {
   def apply(t: TArray, region: Region, off: Long): IndexedSeq[Annotation] =
-    Annotation.copy(new UnsafeIndexedSeq(t, region, off))
+    Annotation.copy(t, new UnsafeIndexedSeq(t, region, off))
       .asInstanceOf[IndexedSeq[Annotation]]
 
   def apply(t: TArray, rv: RegionValue): IndexedSeq[Annotation] =
