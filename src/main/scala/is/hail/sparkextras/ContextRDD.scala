@@ -11,24 +11,24 @@ import scala.reflect.ClassTag
 import scala.util._
 
 object ContextRDD {
-  def apply[C <: AutoCloseable : Pointed, T: ClassTag](
+  def apply[C <: ResettableContext : Pointed, T: ClassTag](
     rdd: RDD[C => Iterator[T]]
   ): ContextRDD[C, T] = new ContextRDD(rdd, point[C])
 
-  def empty[C <: AutoCloseable, T: ClassTag](
+  def empty[C <: ResettableContext, T: ClassTag](
     sc: SparkContext,
     mkc: () => C
   ): ContextRDD[C, T] =
     new ContextRDD(sc.emptyRDD[C => Iterator[T]], mkc)
 
-  def empty[C <: AutoCloseable : Pointed, T: ClassTag](
+  def empty[C <: ResettableContext : Pointed, T: ClassTag](
     sc: SparkContext
   ): ContextRDD[C, T] =
     new ContextRDD(sc.emptyRDD[C => Iterator[T]], point[C])
 
   // this one weird trick permits the caller to specify T without C
   sealed trait Empty[T] {
-    def apply[C <: AutoCloseable](
+    def apply[C <: ResettableContext](
       sc: SparkContext,
       mkc: () => C
     )(implicit tct: ClassTag[T]
@@ -37,35 +37,35 @@ object ContextRDD {
   private[this] object emptyInstance extends Empty[Nothing]
   def empty[T] = emptyInstance.asInstanceOf[Empty[T]]
 
-  def union[C <: AutoCloseable : Pointed, T: ClassTag](
+  def union[C <: ResettableContext : Pointed, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
   ): ContextRDD[C, T] = union(sc, xs, point[C])
 
-  def union[C <: AutoCloseable, T: ClassTag](
+  def union[C <: ResettableContext, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]],
     mkc: () => C
   ): ContextRDD[C, T] =
     new ContextRDD(sc.union(xs.map(_.rdd)), mkc)
 
-  def weaken[C <: AutoCloseable, T: ClassTag](
+  def weaken[C <: ResettableContext, T: ClassTag](
     rdd: RDD[T],
     mkc: () => C
   ): ContextRDD[C, T] =
     new ContextRDD(rdd.mapPartitions(it => Iterator.single((ctx: C) => it)), mkc)
 
   // this one weird trick permits the caller to specify C without T
-  sealed trait Weaken[C <: AutoCloseable] {
+  sealed trait Weaken[C <: ResettableContext] {
     def apply[T: ClassTag](
       rdd: RDD[T]
     )(implicit c: Pointed[C]
     ): ContextRDD[C, T] = weaken(rdd, c.point _)
   }
   private[this] object weakenInstance extends Weaken[Nothing]
-  def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
+  def weaken[C <: ResettableContext] = weakenInstance.asInstanceOf[Weaken[C]]
 
-  sealed trait Parallelize[C <: AutoCloseable] {
+  sealed trait Parallelize[C <: ResettableContext] {
     def apply[T : ClassTag](
       sc: SparkContext,
       data: Seq[T],
@@ -80,12 +80,12 @@ object ContextRDD {
     ): ContextRDD[C, T] = weaken(sc.parallelize(data))
   }
   private[this] object parallelizeInstance extends Parallelize[Nothing]
-  def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
+  def parallelize[C <: ResettableContext] = parallelizeInstance.asInstanceOf[Parallelize[C]]
 
   type ElementType[C, T] = C => Iterator[T]
 }
 
-class ContextRDD[C <: AutoCloseable, T: ClassTag](
+class ContextRDD[C <: ResettableContext, T: ClassTag](
   val rdd: RDD[C => Iterator[T]],
   val mkc: () => C
 ) extends Serializable {
@@ -95,24 +95,25 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     run.collect()
 
   def run[U >: T : ClassTag]: RDD[U] =
-    rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
+    rdd.mapPartitions { part => using(mkc()) { cc => decontextualize(cc, part) } }
 
   private[this] def inCtx[U: ClassTag](
     f: C => Iterator[U]
   ): Iterator[C => Iterator[U]] = Iterator.single(f)
 
-  private[this] def withoutContext[U: ClassTag](
-    f: Iterator[T] => Iterator[U]
-  ): ContextRDD[C, U] = new ContextRDD(rdd.map(_.andThen(f)), mkc)
+  // WARNING: this resets the context, when this method is called, the value of
+  // type `T` must already be "stable" i.e. not dependent on the region
+  private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
+    new SetupIterator(it.flatMap(_(c)), () => c.reset())
 
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
-    withoutContext(_.map(f))
+    mapPartitions(_.map(f), true)
 
   def filter(f: T => Boolean): ContextRDD[C, T] =
-    withoutContext(_.filter(f))
+    mapPartitions(_.filter(f), true)
 
   def flatMap[U: ClassTag](f: T => TraversableOnce[U]): ContextRDD[C, U] =
-    withoutContext(_.flatMap(f))
+    mapPartitions(_.flatMap(f))
 
   def mapPartitions[U: ClassTag](
     f: Iterator[T] => Iterator[U],
