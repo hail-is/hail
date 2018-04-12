@@ -1413,9 +1413,9 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 }
 
 case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends TableIR {
-  require(left.typ.keyType.exists(leftKey =>
-    right.typ.keyType.exists(rightKey =>
-      leftKey isIsomorphicTo rightKey)))
+  require(left.typ.keyType.zip(right.typ.keyType).exists { case (leftKey, rightKey) =>
+    leftKey isIsomorphicTo rightKey
+  })
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
