@@ -213,6 +213,8 @@ package object utils extends Logging
 
   def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
 
+  def formatDouble(i: Int, precision: Int): String = i.formatted(s"%.${ precision }f")
+
   def uriPath(uri: String): String = new URI(uri).getPath
 
   sealed trait FlattenOrNull[C[_] >: Null] {

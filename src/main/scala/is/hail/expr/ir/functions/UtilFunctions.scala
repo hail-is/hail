@@ -18,7 +18,6 @@ object UtilFunctions extends RegistryFunctions {
       ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
     }
 
-
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
     registerIR("product", TArray(tnum("T"))) { a =>

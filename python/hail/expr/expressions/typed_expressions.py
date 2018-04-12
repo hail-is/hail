@@ -1882,12 +1882,55 @@ class BooleanExpression(NumericExpression):
 
 class Float64Expression(NumericExpression):
     """Expression of type :py:data:`.tfloat64`."""
-    pass
+
+    @typecheck_method(precision=int)
+    def format(self, precision):
+        """Formats the floating point number to the number of decimal places
+        given by `precision`.
+
+        Examples
+        --------
+        .. doctest::
+
+        >>> hl.float64(0.5345656).format(4)
+        "0.5346"
+
+        Parameters
+        ----------
+        precision : :obj:`int`
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method("format", tstr, precision)
 
 
 class Float32Expression(NumericExpression):
     """Expression of type :py:data:`.tfloat32`."""
-    pass
+
+    @typecheck_method(precision=int)
+    def format(self, precision):
+        """Formats the floating point number to the number of decimal places
+        given by `precision`.
+
+        Examples
+        --------
+        .. doctest::
+
+        >>> hl.float32(0.5345656).format(4)
+        "0.5346"
+
+        Parameters
+        ----------
+        precision : :obj:`int`
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+
+        return self._method("format", tstr, precision)
 
 
 class Int32Expression(NumericExpression):

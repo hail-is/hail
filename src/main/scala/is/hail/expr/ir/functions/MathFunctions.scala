@@ -36,6 +36,10 @@ object MathFunctions extends RegistryFunctions {
 
   def runif(min: Double, max: Double): Double = min + (max - min) * math.random
 
+  def format(x: Float, precision: Int) = x.formatted(s"%.${ precision }f")
+
+  def format(x: Double, precision: Int) = x.formatted(s"%.${ precision }f")
+
   def registerAll() {
     val thisClass = getClass
     val mathPackageClass = Class.forName("scala.math.package$")
@@ -99,6 +103,9 @@ object MathFunctions extends RegistryFunctions {
     registerJavaStaticFunction("%", TInt64(), TInt32(), TInt64())(jMathClass, "floorMod")
 
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
+
+    registerScalaFunction("format", TFloat32(), TString())(thisClass, "format")
+    registerScalaFunction("format", TFloat64(), TString())(thisClass, "format")
 
     registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
       EmitTriplet(

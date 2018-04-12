@@ -1729,6 +1729,9 @@ object FunctionRegistry {
   register("ceil", (x: Float) => math.ceil(x).toFloat)
   register("ceil", (x: Double) => math.ceil(x))
 
+  registerMethod("format", (x: Float, precision: Int) => x.formatted(s"%.${ precision }f"))
+  registerMethod("format", (x: Double, precision: Int) => x.formatted(s"%.${ precision }f"))
+
   register("//", { (xs: IndexedSeq[java.lang.Integer], y: Int) =>
     val a = new Array[java.lang.Integer](xs.length)
     var i = 0
