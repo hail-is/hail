@@ -7,101 +7,67 @@ class ContextRDDSuite extends SparkSuite {
   val intplus = (x: Int, y: Int) => x + y
   def intplusarraylength[T] = (x: Int, y: Array[T]) => x + y.length
 
+  private[this] def intDatasets(partitions: Int) = Seq(
+    "1,2,3,4" -> Seq(1,2,3,4),
+    "0 until 256" -> (0 until 256)
+  ).map { case (name, localData) =>
+    (name, ContextRDD.parallelize[TrivialContext](sc, localData, partitions))
+  }
+
   @Test
   def aggregateSumVariousPartitionings() {
     for {
-      (name, data) <- Seq(
-        "one partition" ->
-          ContextRDD.parallelize[TrivialContext](sc, Seq(1,2,3,4), 1),
-        "more partitions than records" ->
-          ContextRDD.parallelize[TrivialContext](sc, Seq(1,2,3,4), 5),
-        "lots of records, indivisble number of partitions" ->
-          ContextRDD.parallelize[TrivialContext](sc, 0 until 256, 5),
-        "lots of records, divisble number of partitions" ->
-          ContextRDD.parallelize[TrivialContext](sc, 0 until 256, 16)
-      )
+      partitions <- Seq(1, 4, 5)
+      (name, data) <- intDatasets(partitions)
     } {
       assert(
         data.aggregate[Int](0, _ + _, _ + _) == data.run.collect().sum,
-        name)
+        s"name, partitions: $partitions")
     }
   }
 
   @Test
   def treeAggregateVariousPartitionings() {
     for {
-      (name, data, depth) <- Seq(
-        ("one partition",
-          ContextRDD.parallelize[TrivialContext](sc, Seq(1,2,3,4), 1),
-          2
-        ),
-        ("more partitions than records",
-          ContextRDD.parallelize[TrivialContext](sc, Seq(1,2,3,4), 5),
-          2
-        ),
-        ("lots of records, indivisble number of partitions",
-          ContextRDD.parallelize[TrivialContext](sc, 0 until 256, 15),
-          2
-        ),
-        ("lots of records, divisble number of partitions",
-          ContextRDD.parallelize[TrivialContext](sc, 0 until 256, 16),
-          2
-        ),
-        ("lots of records, divisble number of partitions, depth 3",
-          ContextRDD.parallelize[TrivialContext](sc, 0 until 256, 16),
-          3
-        ),
-        ("lots of records, indivisble number of partitions, depth 3",
-          ContextRDD.parallelize[TrivialContext](sc, 0 until 256, 15),
-          2
-        )
-      )
+      partitions <- Seq(1, 15, 16, 64)
+      (name, data) <- intDatasets(partitions)
+      depth <- Seq(2, 3, 5)
     } {
       assert(
         data.treeAggregate[Int](0, intplus, intplus, depth = depth) == data.run.collect().sum,
-        name)
+        s"$name, partitions: $partitions, depth: $depth")
     }
+  }
+
+  private[this] def seqDatasets(partitions: Int) = Seq(
+    "1,2,3,4" -> Seq(1,2,3,4),
+    "0 until 256" -> (0 until 256)
+  ).map { case (name, lengths) =>
+    (name, lengths.map(Array.fill(_)(0)))
+  }.map { case (name, localData) =>
+    (name, ContextRDD.parallelize[TrivialContext](sc, localData, partitions))
   }
 
   @Test
   def aggregateDistinctTandUTypes() {
     for {
-      (name, data) <- Seq(
-        "indivisble number of partitions" ->
-          ContextRDD.parallelize[TrivialContext](
-            sc,
-            (0 until 256).map(Array.fill(_)(0)),
-            5),
-        "divisble number of partitions" ->
-          ContextRDD.parallelize[TrivialContext](
-            sc,
-            (0 until 256).map(Array.fill(_)(0)),
-            5)
-      )
+      partitions <- Seq(1, 4, 5)
+      (name, data) <- seqDatasets(partitions)
     } {
       assert(
         data.aggregate[Int](0, _ + _.length, _ + _)
           ==
           data.run.collect().map(_.length).sum,
-        name)
+        s"$name, partitions: $partitions")
     }
   }
 
   @Test
   def treeAggregateDistinctTandUTypes() {
     for {
-      (name, data) <- Seq(
-        "indivisble number of partitions" ->
-          ContextRDD.parallelize[TrivialContext](
-            sc,
-            (0 until 256).map(Array.fill(_)(0)),
-            5),
-        "divisble number of partitions" ->
-          ContextRDD.parallelize[TrivialContext](
-            sc,
-            (0 until 256).map(Array.fill(_)(0)),
-            5)
-      )
+      partitions <- Seq(1, 15, 16, 64)
+      (name, data) <- seqDatasets(partitions)
+      depth <- Seq(2, 3, 5)
     } {
       assert(
         data.treeAggregate[Int](
@@ -111,7 +77,7 @@ class ContextRDDSuite extends SparkSuite {
           depth = 3)
           ==
           data.run.collect().map(_.length).sum,
-        name)
+        s"$name, partitions: $partitions")
     }
   }
 }
