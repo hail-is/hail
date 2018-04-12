@@ -82,32 +82,6 @@ object ContextRDD {
   private[this] object parallelizeInstance extends Parallelize[Nothing]
   def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
 
-  sealed trait Weaken[C <: AutoCloseable] {
-    def apply[T: ClassTag](
-      rdd: RDD[T]
-    )(implicit c: Pointed[C]
-    ): ContextRDD[C, T] = weaken(rdd, c.point _)
-  }
-  private[this] object weakenInstance extends Weaken[Nothing]
-  def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
-
-  sealed trait Parallelize[C <: AutoCloseable] {
-    def apply[T : ClassTag](
-      sc: SparkContext,
-      data: Seq[T],
-      numSlices: Int
-    )(implicit c: Pointed[C]
-    ): ContextRDD[C, T] = weaken(sc.parallelize(data, numSlices))
-
-    def apply[T : ClassTag](
-      sc: SparkContext,
-      data: Seq[T]
-    )(implicit c: Pointed[C]
-    ): ContextRDD[C, T] = weaken(sc.parallelize(data))
-  }
-  private[this] object parallelizeInstance extends Parallelize[Nothing]
-  def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
-
   type ElementType[C, T] = C => Iterator[T]
 }
 
