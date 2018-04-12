@@ -144,23 +144,21 @@ the same as above, except:
 
  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
    version of Spark. The following example builds a Hail JAR for Cloudera's
-   2.0.2 version of Spark::
+   2.2.0 version of Spark::
  
-    ./gradlew shadowJar -Dspark.version=2.0.2.cloudera
+    ./gradlew shadowJar -Dspark.version=2.2.0.cloudera
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
 
- - On Cloudera, you can create an interactive Python shell using ``pyspark2``::
+ - On Cloudera, you can create an interactive Python shell using ``pyspark``::
  
-    pyspark2 --jars build/libs/hail-all-spark.jar \
-             --py-files build/distributions/hail-python.zip \
-             --conf spark.sql.files.openCostInBytes=1099511627776 \
-             --conf spark.sql.files.maxPartitionBytes=1099511627776 \
-             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
-             --conf spark.hadoop.parquet.block.size=1099511627776
-
- - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.
+    pyspark --jars build/libs/hail-all-spark.jar \
+            --py-files build/distributions/hail-python.zip \
+            --conf spark.sql.files.openCostInBytes=1099511627776 \
+            --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+            --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
+            --conf spark.hadoop.parquet.block.size=1099511627776
 
 .. _running-in-the-cloud:
 
@@ -184,16 +182,16 @@ Building with other versions of Spark 2
 =======================================
 
 Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.2.1, modify the above
+different version, such as Spark 2.3.0, modify the above
 instructions as follows:
 
  - Set the Spark version in the gradle command
 
    .. code-block:: text
 
-      ./gradlew -Dspark.version=2.2.1 shadowJar
+      ./gradlew -Dspark.version=2.3.0 shadowJar
 
- - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.2.1-bin-hadoop2.7*
+ - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.3.0-bin-hadoop2.7*
 
  - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 
