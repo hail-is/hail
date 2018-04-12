@@ -49,7 +49,14 @@ class OrderedRVD(
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
-      rdd.mapPartitions(f))
+      crdd.mapPartitions(f))
+
+  def mapPartitionsPreservesPartitioning(
+    newTyp: OrderedRVDType,
+    f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
+    OrderedRVD(newTyp,
+      partitioner,
+      crdd.cmapPartitions(f))
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
