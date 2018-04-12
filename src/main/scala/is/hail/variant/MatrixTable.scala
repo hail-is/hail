@@ -889,7 +889,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           Iterator()
       }
 
-    val nParts = rvd.partitions.length
+    val nParts = rvd.getNumPartitions
     val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
       def getPartition(key: Any): Int = key.asInstanceOf[Int]
 
@@ -1134,7 +1134,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def nPartitions: Int = rvd.partitions.length
+  def nPartitions: Int = rvd.getNumPartitions
 
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
     orderedRVDLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)

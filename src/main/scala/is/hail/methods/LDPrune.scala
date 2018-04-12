@@ -292,7 +292,7 @@ object LDPrune {
 
     val partitioner = inputRDD.partitioner
     val rangeBounds = partitioner.rangeBounds
-    val nPartitions = inputRDD.partitions.length
+    val nPartitions = inputRDD.getNumPartitions
 
     val localRowType = inputRDD.typ.rowType
 
@@ -469,7 +469,7 @@ object LDPrune {
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
       val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
       val nVariantsKept = prunedRDD.count()
-      val nPartitions = prunedRDD.partitions.length
+      val nPartitions = prunedRDD.getNumPartitions
       assert(nVariantsKept >= 1)
       (prunedRDD, nVariantsKept, nPartitions)
     })
@@ -482,7 +482,7 @@ object LDPrune {
       rddLP1.unpersist()
       val prunedRDD = pruneLocal(repartRDD, r2Threshold, windowSize, None).persist(StorageLevel.MEMORY_AND_DISK)
       val nVariantsKept = prunedRDD.count()
-      val nPartitions = prunedRDD.partitions.length
+      val nPartitions = prunedRDD.getNumPartitions
       assert(nVariantsKept >= 1)
       repartRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)

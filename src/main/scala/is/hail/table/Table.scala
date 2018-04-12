@@ -288,7 +288,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def nKeys: Int = key.length
 
-  def nPartitions: Int = rvd.partitions.length
+  def nPartitions: Int = rvd.getNumPartitions
 
   def keySignature: TStruct = {
     val (t, _) = signature.select(key.toArray)

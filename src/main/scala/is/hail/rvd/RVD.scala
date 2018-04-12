@@ -102,7 +102,7 @@ object RVD {
 
     val os = hConf.unsafeWriter(path + "/parts/part-0")
     val rvb = new RegionValueBuilder()
-    val part0Count = RichRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
+    val part0Count = RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
       rows.map { a =>
         val region = Region()
         rvb.set(region)
@@ -134,11 +134,9 @@ trait RVD {
 
   def rdd: RDD[RegionValue]
 
-  def sparkContext: SparkContext = rdd.sparkContext
+  def sparkContext: SparkContext = crdd.sparkContext
 
-  def getNumPartitions: Int = rdd.getNumPartitions
-
-  def partitions: Array[Partition] = rdd.partitions
+  def getNumPartitions: Int = crdd.getNumPartitions
 
   def filter(f: (RegionValue) => Boolean): RVD
 
@@ -223,7 +221,13 @@ trait RVD {
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
-  def write(path: String, codecSpec: CodecSpec): Array[Long]
+  protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec
+
+  final def write(path: String, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, codecSpec)
+    rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
+    partitionCounts
+  }
 
   def toRows: RDD[Row] = {
     val localRowType = rowType

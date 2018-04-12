@@ -60,7 +60,7 @@ object ContextRDD {
     def apply[T: ClassTag](
       rdd: RDD[T]
     )(implicit c: Pointed[C]
-     ): ContextRDD[C, T] = weaken(rdd, c.point _)
+    ): ContextRDD[C, T] = weaken(rdd, c.point _)
   }
   private[this] object weakenInstance extends Weaken[Nothing]
   def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
@@ -90,6 +90,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   val mkc: () => C
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[C, T]
+
+  def collect(): Array[T] =
+    run.collect()
 
   def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }

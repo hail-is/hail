@@ -5,6 +5,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.io.compress.LZ4Utils
 import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.json4s.{Extraction, JValue}
@@ -710,7 +711,7 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
   }
 }
 
-object RichRDDRegionValue {
+object RichContextRDDRegionValue {
   def writeRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
     val en = codecSpec.buildEncoder(os)
     var rowCount = 0L
@@ -729,13 +730,13 @@ object RichRDDRegionValue {
   }
 }
 
-class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
+class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
-    rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t, codecSpec))
+    crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(t, codecSpec))
   }
 
   def writeRowsSplit(path: String, t: MatrixType, codecSpec: CodecSpec, partitioner: OrderedRVDPartitioner): Array[Long] = {
-    val sc = rdd.sparkContext
+    val sc = crdd.sparkContext
     val hConf = sc.hadoopConfiguration
 
     hConf.mkDir(path + "/rows/rows/parts")
@@ -743,7 +744,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
 
     val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
-    val nPartitions = rdd.getNumPartitions
+    val nPartitions = crdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
     val fullRowType = t.rvRowType
@@ -753,7 +754,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val entriesRVType = TStruct(
       MatrixType.entriesIdentifier -> TArray(t.entryType))
 
-    val partFilePartitionCounts = rdd.mapPartitionsWithIndex { case (i, it) =>
+    val partFilePartitionCounts = crdd.mapPartitionsWithIndex { case (i, it) =>
       val hConf = sHConfBc.value.value
 
       val f = partFile(d, i, TaskContext.get)
@@ -802,8 +803,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
           }
         }
       }
-    }
-      .collect()
+    }.collect()
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 

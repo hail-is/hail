@@ -41,7 +41,7 @@ case class MatrixValue(
 
   def sparkContext: SparkContext = rvd.sparkContext
 
-  def nPartitions: Int = rvd.partitions.length
+  def nPartitions: Int = rvd.getNumPartitions
 
   def nCols: Int = colValues.value.length
 
