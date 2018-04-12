@@ -459,10 +459,10 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def addAsField(fb: FunctionBuilder[_]): (ClassFieldRef[ReferenceGenome], Code[Unit]) = {
     val json = toJSONString
-    val chunkSize = 65535
+    val chunkSize = (1 << 16) - 1
     val nChunks = (json.length() - 1) / chunkSize + 1
     assert(nChunks > 0)
-    val stringRef = fb.newField[String](s"strrg_$name")
+    val stringRef = fb.newField[String]
 
     val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
     val stringAssembler = if (chunks.length == 1) {
@@ -474,7 +474,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
           }: _*))
     }
 
-    val field = fb.newField[ReferenceGenome](s"rg_$name")
+    val field = fb.newField[ReferenceGenome]
     val loader: Code[Unit] =
       Code(
         stringAssembler,
