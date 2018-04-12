@@ -24,7 +24,7 @@ that you don't need to rerun these commands in each new session.
 
 Un-tar the Spark distribution.
 
-.. codeblock:: text
+.. code-block:: text
 
     tar xvf ???
 
@@ -36,7 +36,7 @@ Here, fill in the path to the **un-tarred** Spark package.
 
 Unzip the Hail distribution.
 
-.. codeblock:: text
+.. code-block:: text
 
     unzip ???
 
