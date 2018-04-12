@@ -330,7 +330,9 @@ class TableTests(unittest.TestCase):
                            x13=agg.inbreeding(kt.GT, 0.1),
                            x14=agg.call_stats(kt.GT, ["A", "T"]),
                            x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
-                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0]
+                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
+                           x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
+                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
                            ).take(1)[0])
 
         expected = {u'status': 0,
@@ -341,7 +343,11 @@ class TableTests(unittest.TestCase):
                     u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
                     u'x8': 1, u'x9': 0.0, u'x16': u'apple',
                     u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
-                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16}
+                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
+                    u'x17': [],
+                    u'x18': []}
+
+        self.maxDiff = None
 
         self.assertDictEqual(result, expected)
 
