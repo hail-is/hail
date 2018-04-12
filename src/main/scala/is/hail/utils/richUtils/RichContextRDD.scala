@@ -38,7 +38,6 @@ class RichContextRDD[C <: AutoCloseable, T: ClassTag](crdd: ContextRDD[C, T]) {
       val os = sHadoopConfBc.value.value.unsafeWriter(filename)
       Iterator.single(f -> write(i, it, os))
     }
-      .run
       .collect()
       .unzip
 

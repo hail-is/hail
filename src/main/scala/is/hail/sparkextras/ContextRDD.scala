@@ -91,6 +91,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[C, T]
 
+  def collect(): Array[T] =
+    run.collect()
+
   def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 

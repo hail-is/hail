@@ -803,7 +803,7 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
           }
         }
       }
-    }.run.collect()
+    }.collect()
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 

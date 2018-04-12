@@ -475,7 +475,7 @@ object OrderedRVD {
         Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else
         Iterator()
-    }.run.collect()
+    }.collect()
 
     pkis.sortBy(_.min)(typ.pkType.ordering.toOrdering)
   }
