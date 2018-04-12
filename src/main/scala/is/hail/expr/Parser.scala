@@ -560,7 +560,7 @@ object Parser extends JavaTokenParsers {
     (("Table" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~
       (("," ~ "key" ~ ":") ~> key) ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ key ~ rowType =>
-      TableType(rowType, key, globalType)
+      TableType(rowType, Some(key), globalType)
     }
 
   def matrix_type_expr: Parser[MatrixType] =

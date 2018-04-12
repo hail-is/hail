@@ -14,7 +14,7 @@ class UpperIndexBoundsSuite extends SparkSuite {
     val rows = IndexedSeq[(String, Int)](("X", 5), ("X", 7), ("X", 13), ("X", 14), ("X", 17),
       ("X", 65), ("X", 70), ("X", 73), ("Y", 74), ("Y", 75), ("Y", 200), ("Y", 300))
       .map { case (contig, pos) => Row(contig, pos) }
-    Table.parallelize(hc, rows, TStruct("contig" -> TString(), "pos" -> TInt32()), IndexedSeq[String](), None)
+    Table.parallelize(hc, rows, TStruct("contig" -> TString(), "pos" -> TInt32()), None, None)
   }
 
   @Test def testGroupPositionsByContig() {

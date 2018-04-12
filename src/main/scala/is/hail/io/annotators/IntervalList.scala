@@ -77,6 +77,6 @@ object IntervalList {
         }.value
       }
 
-    Table(hc, rdd, schema, Array("interval"))
+    Table(hc, rdd, schema, Some(IndexedSeq("interval")))
   }
 }

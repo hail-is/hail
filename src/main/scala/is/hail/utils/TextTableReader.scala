@@ -152,6 +152,7 @@ object TextTableReader {
     }.toArray
   }
 
+  // FIXME
   def read(hc: HailContext)(files: Array[String],
     types: Map[String, Type] = Map.empty[String, Type],
     comment: Array[String] = Array.empty[String],
@@ -244,7 +245,7 @@ object TextTableReader {
 
     info(sb.result())
 
-    val ttyp = TableType(TStruct(namesAndTypes: _*), keyNames, TStruct())
+    val ttyp = TableType(TStruct(namesAndTypes: _*), Some(keyNames), TStruct())
     val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes, separator, missing, noHeader, header, quote, skipBlankLines)
     new Table(hc, TableImport(files, ttyp, readerOpts))
   }

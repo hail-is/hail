@@ -30,19 +30,23 @@ class ConcordanceSuite extends SparkSuite {
       })
     }
     scrambledVariants1 <- Gen.shuffle(vds1.locusAlleles.collect()).map(_.iterator)
-    newVariantMapping <- Gen.parameterized { p =>
-      Gen.const(Table.parallelize(hc, vds2.locusAlleles.collect().map { case (locus, alleles) =>
-        if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) {
-          val (locus2, alleles2) = scrambledVariants1.next()
-          Row(locus, alleles, locus2, alleles2)
-        } else
-          Row(locus, alleles, locus, alleles)
-      },
+    newVariantMapping <- Gen.parameterized { p => Gen.const(
+      Table.parallelize(
+        hc,
+        vds2.locusAlleles.collect().map { case (locus, alleles) =>
+          if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) {
+            val (locus2, alleles2) = scrambledVariants1.next()
+            Row(locus, alleles, locus2, alleles2)
+          } else
+            Row(locus, alleles, locus, alleles)
+        },
         TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
-        "alleles" -> TArray(TString()),
-        "locus2" -> TLocus(ReferenceGenome.GRCh37),
-        "alleles2" -> TArray(TString())), Array.empty[String], None)
-        .keyBy("locus", "alleles"))
+          "alleles" -> TArray(TString()),
+          "locus2" -> TLocus(ReferenceGenome.GRCh37),
+          "alleles2" -> TArray(TString())),
+        None,
+        None
+      ).keyBy("locus", "alleles"))
     }
   } yield (vds1, vds2.annotateRowsTable(newVariantMapping, "newVariant")
       .annotateRowsExpr("locus" -> "va.newVariant.locus2",

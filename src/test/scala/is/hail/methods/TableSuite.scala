@@ -21,9 +21,9 @@ class TableSuite extends SparkSuite {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = Array("Sample")
+    val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, keyNames)
+    val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
     kt
   }
@@ -33,8 +33,8 @@ class TableSuite extends SparkSuite {
       Array("Sample3", IndexedSeq(2, 3, 4), 5), Array("Sample4", IndexedSeq.empty[Int], 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TInt32())), ("field2", TInt32()))
-    val keyNames = Array("Sample")
-    val kt = Table(hc, rdd, signature, keyNames)
+    val keyNames = IndexedSeq("Sample")
+    val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
     kt
   }
@@ -44,8 +44,8 @@ class TableSuite extends SparkSuite {
       Array("Sample3", IndexedSeq(IndexedSeq(2, 3, 4), IndexedSeq(3), IndexedSeq(4, 10)), IndexedSeq.empty[Int]), Array("Sample4", IndexedSeq.empty[Int], IndexedSeq(5)))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TArray(TInt32()))), ("field2", TArray(TInt32())))
-    val keyNames = Array("Sample")
-    val kt = Table(hc, rdd, signature, keyNames)
+    val keyNames = IndexedSeq("Sample")
+    val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
     kt
   }
@@ -93,10 +93,10 @@ class TableSuite extends SparkSuite {
     val kt1columns = kt1.fieldNames.toSet
     val kt2columns = kt2.fieldNames.toSet
 
-    assert(kt1.nKeys == 1)
-    assert(kt2.nKeys == 1)
+    assert(kt1.nKeys.exists(_ == 1))
+    assert(kt2.nKeys.exists(_ == 1))
     assert(kt1.nColumns == 3 && kt2.nColumns == 6)
-    assert(kt1.keyFields.zip(kt2.keyFields).forall { case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ })
+    assert(kt1.keyFields.get.zip(kt2.keyFields.get).forall { case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ })
     assert(kt1columns ++ Set("qPhen2", "NotStatus", "X") == kt2columns)
     assert(kt2 same kt3)
 
@@ -108,8 +108,8 @@ class TableSuite extends SparkSuite {
     val kt3data = getDataAsMap(kt3)
     val kt4data = getDataAsMap(kt4)
 
-    assert(kt4.key.toSet == Set("qPhen", "NotStatus") &&
-      kt4.fieldNames.toSet -- kt4.key == Set("qPhen2", "X", "Sample", "Status") &&
+    assert(kt4.key.get.toSet == Set("qPhen", "NotStatus") &&
+      kt4.fieldNames.toSet -- kt4.key.get == Set("qPhen2", "X", "Sample", "Status") &&
       kt3data == kt4data
     )
 
@@ -121,9 +121,9 @@ class TableSuite extends SparkSuite {
     val data = Array(Array(5, 9, 0), Array(2, 3, 4), Array(1, 2, 3))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("field1", TInt32()), ("field2", TInt32()), ("field3", TInt32()))
-    val keyNames = Array("field1")
+    val keyNames = IndexedSeq("field1")
 
-    val kt1 = Table(hc, rdd, signature, keyNames)
+    val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
     val kt2 = kt1.filter("row.field1 < 3", keep = true)
     val kt3 = kt1.filter("row.field1 < 3 && row.field3 == 4", keep = true)
@@ -148,7 +148,7 @@ class TableSuite extends SparkSuite {
     val ktInnerJoin = ktLeft.join(ktRight, "inner")
     val ktOuterJoin = ktLeft.join(ktRight, "outer")
 
-    val nExpectedColumns = ktLeft.nColumns + ktRight.nColumns - ktRight.nKeys
+    val nExpectedColumns = ktLeft.nColumns + ktRight.nColumns - ktRight.nKeys.get
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)
 
@@ -162,10 +162,10 @@ class TableSuite extends SparkSuite {
 
     val nIntersectRows = leftKeys.intersect(rightKeys).size
     val nUnionRows = rightKeys.union(leftKeys).size
-    val nExpectedKeys = ktLeft.nKeys
+    val nExpectedKeys = ktLeft.nKeys.get
 
     assert(ktLeftJoin.count == ktLeft.count &&
-      ktLeftJoin.nKeys == nExpectedKeys &&
+      ktLeftJoin.nKeys.get == nExpectedKeys &&
       ktLeftJoin.nColumns == nExpectedColumns &&
       ktLeftJoin.copy(rdd = ktLeftJoin.rdd.filter { a =>
         !rightKeys.contains(Option(leftJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
@@ -173,18 +173,18 @@ class TableSuite extends SparkSuite {
     )
 
     assert(ktRightJoin.count == ktRight.count &&
-      ktRightJoin.nKeys == nExpectedKeys &&
+      ktRightJoin.nKeys.get == nExpectedKeys &&
       ktRightJoin.nColumns == nExpectedColumns &&
       ktRightJoin.copy(rdd = ktRightJoin.rdd.filter { a =>
         !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }).forall("isMissing(row.Status) && isMissing(row.qPhen)"))
 
     assert(ktOuterJoin.count == nUnionRows &&
-      ktOuterJoin.nKeys == ktLeft.nKeys &&
+      ktOuterJoin.nKeys.get == ktLeft.nKeys.get &&
       ktOuterJoin.nColumns == nExpectedColumns)
 
     assert(ktInnerJoin.count == nIntersectRows &&
-      ktInnerJoin.nKeys == nExpectedKeys &&
+      ktInnerJoin.nKeys.get == nExpectedKeys &&
       ktInnerJoin.nColumns == nExpectedColumns)
 
     val outputFile = tmpDir.createTempFile("join", "tsv")
@@ -204,20 +204,20 @@ class TableSuite extends SparkSuite {
 
     intercept[Exception] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
-      assert(ktJoinBad.key sameElements Array("Sample"))
+      assert(ktJoinBad.key.get sameElements Array("Sample"))
     }
 
     val ktJoin = ktLeft.join(ktRight, "left")
-    assert(ktJoin.key sameElements Array("Sample"))
+    assert(ktJoin.key.get sameElements Array("Sample"))
   }
 
   @Test def testAggregate() {
     val data = Array(Array("Case", 9, 0), Array("Case", 3, 4), Array("Control", 2, 3), Array("Control", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("field1", TString()), ("field2", TInt32()), ("field3", TInt32()))
-    val keyNames = Array("field1")
+    val keyNames = IndexedSeq("field1")
 
-    val kt1 = Table(hc, rdd, signature, keyNames)
+    val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
     val kt2 = kt1.aggregate("Status = row.field1",
       "A = AGG.map(r => r.field2).sum(), " +
@@ -231,7 +231,7 @@ class TableSuite extends SparkSuite {
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Row.fromSeq(_)))
     val resSignature = TStruct(("Status", TString()), ("A", TInt32()), ("B", TInt32()), ("C", TInt32()), ("D", TInt64()), ("E", TInt64()))
-    val ktResult = Table(hc, resRDD, resSignature, key = Array("Status"))
+    val ktResult = Table(hc, resRDD, resSignature, key = Some(IndexedSeq("Status")))
     ktResult.typeCheck()
 
     assert(kt2 same ktResult)
@@ -244,9 +244,9 @@ class TableSuite extends SparkSuite {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = Array("Sample")
+    val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, keyNames)
+    val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
     assert(kt.forall("row.field2 == 5 && row.field1 != 0"))
     assert(!kt.forall("row.field2 == 0 && row.field1 == 5"))
@@ -258,22 +258,22 @@ class TableSuite extends SparkSuite {
     val data = Array(Array("Sample1", 9, 5, Row(5, "bunny")), Array("Sample2", 3, 5, Row(6, "hello")), Array("Sample3", 2, 5, null), Array("Sample4", 1, 5, null))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()), ("field3", TStruct(("A", TInt32()), ("B", TString()))))
-    val keyNames = Array("Sample")
+    val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, keyNames)
+    val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
 
     val select1 = kt.select(Array("row.field1")).keyBy("field1")
-    assert((select1.key sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
+    assert((select1.key.get sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
     val select2 = kt.select(Array("row.Sample", "row.field2", "row.field1")).keyBy("Sample")
-    assert((select2.key sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
+    assert((select2.key.get sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
-    val select3 = kt.select(Array("row.field2", "row.field1", "row.Sample")).keyBy()
-    assert((select3.key sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
+    val select3 = kt.select(Array("row.field2", "row.field1", "row.Sample")).keyBy(None)
+    assert(select3.key.isEmpty && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
     val select4 = kt.select(Array.empty[String])
-    assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
+    assert((select4.key.get sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
     for (select <- Array(select1, select2, select3, select4)) {
       select.export(tmpDir.createTempFile("select", "tsv"))
@@ -290,13 +290,13 @@ class TableSuite extends SparkSuite {
     val result2 = Array(Array("Sample1", 9, 5), Array("Sample1", 1, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5),
       Array("Sample3", 3, 5), Array("Sample3", 4, 5))
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
-    val ktResult2 = Table(hc, resRDD2, TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())), key = Array("Sample"))
+    val ktResult2 = Table(hc, resRDD2, TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())), key = Some(IndexedSeq("Sample")))
     ktResult2.typeCheck()
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
       Array("Sample1", 1, 5), Array("Sample1", 1, 6), Array("Sample2", 3, 5), Array("Sample2", 3, 3))
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
-    val ktResult3 = Table(hc, resRDD3, TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())), key = Array("Sample"))
+    val ktResult3 = Table(hc, resRDD3, TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())), key = Some(IndexedSeq("Sample")))
     ktResult3.typeCheck()
 
     assert(ktResult2.same(kt2.explode(Array("field1"))))
@@ -376,7 +376,7 @@ class TableSuite extends SparkSuite {
         "f3" -> TInt32(),
         "f4" -> TString()
       ),
-      Array("f3", "f2", "f1"))
+      Some(IndexedSeq("f3", "f2", "f1")))
     kt1.typeCheck()
 
     val kt2 = Table(hc,
@@ -387,7 +387,7 @@ class TableSuite extends SparkSuite {
         "f2" -> TString(),
         "f5" -> TString()
       ),
-      Array("f3", "f2", "f1"))
+      Some(IndexedSeq("f3", "f2", "f1")))
     kt2.typeCheck()
 
     assert(kt1.join(kt2, "inner").count() == 1L)
@@ -441,9 +441,12 @@ class TableSuite extends SparkSuite {
 
   @Test def testMaximalIndependentSet() {
     val edges = List((0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
-    val edgeTable = Table
-      .parallelize(SparkSuite.hc, edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) }.toIndexedSeq,
-        TStruct("i" -> TInt64(), "j" -> TInt64()), Array.empty[String], None)
+    val edgeTable = Table.parallelize(
+      SparkSuite.hc,
+      edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) }.toIndexedSeq,
+      TStruct("i" -> TInt64(), "j" -> TInt64()),
+      None,
+      None)
     val misTable = edgeTable.maximalIndependentSet("row.i", "row.j", true, None)
 
     val mis = misTable.collect().map(row => row.getLong(0))
@@ -454,7 +457,7 @@ class TableSuite extends SparkSuite {
 
     assert(nonMaximalIndependentSets.contains(mis.toSet) || maximalIndependentSets.contains(mis.toSet))
     assert(misTable.signature == TStruct("node" -> TInt64())
-      && misTable.key == IndexedSeq("node")
+      && misTable.key.get == IndexedSeq("node")
       && misTable.globalSignature == TStruct())
   }
 
@@ -467,9 +470,12 @@ class TableSuite extends SparkSuite {
 
     val iStruct = TStruct("id" -> TString(), "isCase" -> TBoolean())
 
-    val edgeTable = Table
-      .parallelize(SparkSuite.hc, edges.map { case (i, j) => Row(Row(i._1, i._2), Row(j._1, j._2)) }.toIndexedSeq,
-        TStruct("i" -> iStruct, "j" -> iStruct), Array.empty[String], None)
+    val edgeTable = Table.parallelize(
+      SparkSuite.hc,
+      edges.map { case (i, j) => Row(Row(i._1, i._2), Row(j._1, j._2)) }.toIndexedSeq,
+      TStruct("i" -> iStruct, "j" -> iStruct),
+      None,
+      None)
 
     edgeTable.typeCheck()
 
