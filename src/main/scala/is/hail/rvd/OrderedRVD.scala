@@ -387,6 +387,9 @@ class OrderedRVD(
     t: MatrixType,
     codecSpec: CodecSpec
   ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner)
+
+  def toUnpartitionedRVD: UnpartitionedRVD =
+    new UnpartitionedRVD(typ.rowType, crdd)
 }
 
 object OrderedRVD {

@@ -42,7 +42,7 @@ object PCRelate {
       ("ibd1", TFloat64()),
       ("ibd2", TFloat64()))
 
-  private val keys = Array("i", "j")
+  private val keys = IndexedSeq("i", "j")
 
   def apply(
     hc: HailContext,
@@ -60,7 +60,7 @@ object PCRelate {
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
-    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
+    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
   }
 
   private[methods] def apply(hc: HailContext,
@@ -78,7 +78,7 @@ object PCRelate {
 
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
-    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
+    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
       .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, ibd0: row.ibd0, ibd1: row.ibd1, ibd2: row.ibd2}") 
   }
