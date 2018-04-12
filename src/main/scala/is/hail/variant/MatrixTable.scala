@@ -443,10 +443,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       return true
     axis match {
       case this.globalAxis | this.colAxis =>
-        ast.`type`.asInstanceOf[TStruct].size < 500
+        !ast.`type`.isInstanceOf[TStruct] ||
+          ast.`type`.asInstanceOf[TStruct].size < 500
 
       case this.rowAxis | this.entryAxis =>
-        ast.`type`.asInstanceOf[TStruct].size < 500 &&
+        !ast.`type`.isInstanceOf[TStruct] ||
+          ast.`type`.asInstanceOf[TStruct].size < 500 &&
           globalType.size < 3 &&
           colType.size == 1 &&
           Set(TInt32(), +TInt32(), TString(), +TString())
