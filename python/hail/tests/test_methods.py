@@ -1086,6 +1086,10 @@ class Tests(unittest.TestCase):
                               hl.is_defined(t.info.DB) &
                               hl.is_defined(t.info.DS)))
 
+    def test_import_vcf_can_import_float_array_format(self):
+        mt = hl.import_vcf(resource('floating_point_array.vcf'))
+        self.assertTrue(mt.aggregate_entries(hl.agg.all(mt.numeric_array == [1.5, 2.5])))
+
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
