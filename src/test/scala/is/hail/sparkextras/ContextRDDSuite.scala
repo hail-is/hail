@@ -40,7 +40,7 @@ class ContextRDDSuite extends SparkSuite {
   }
 
   private[this] def seqDatasets(partitions: Int) = Seq(
-    "1,2,3,4" -> Seq(1,2,3,4),
+    "1, 2, 3, 4" -> Seq(1, 2, 3, 4),
     "0 until 256" -> (0 until 256)
   ).map { case (name, lengths) =>
     (name, lengths.map(Array.fill(_)(0)))
