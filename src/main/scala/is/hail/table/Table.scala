@@ -85,11 +85,6 @@ object Table {
     parallelize(hc, parsedRows, signature, Some(key), nPartitions)
   }
 
-//  def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
-//    key: IndexedSeq[String], nPartitions: Option[Int]): Table = {
-//    val typ = TableType(signature, Some(key.toArray.toFastIndexedSeq), TStruct())
-//    new Table(hc, TableParallelize(typ, rows, nPartitions))
-//  }
   def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
     key: Option[IndexedSeq[String]], nPartitions: Option[Int]): Table = {
     val typ = TableType(signature, key.map(_.toArray.toFastIndexedSeq), TStruct())
