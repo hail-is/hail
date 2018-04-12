@@ -18,7 +18,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   self =>
 
   def this(rowType: TStruct, rdd: RDD[RegionValue]) =
-    this(rowType, ContextRDD.weaken(rdd))
+    this(rowType, ContextRDD.weaken[RVDContext](rdd))
 
   val rdd = crdd.run
 
