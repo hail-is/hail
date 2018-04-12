@@ -273,13 +273,13 @@ class TableSuite extends SparkSuite {
     assert(select3.key.isEmpty && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
     val select4 = kt.select(Array.empty[String])
-    assert((select4.key.get sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
+    assert(select4.key.isEmpty && (select4.fieldNames sameElements Array.empty[String]))
 
     for (select <- Array(select1, select2, select3, select4)) {
       select.export(tmpDir.createTempFile("select", "tsv"))
     }
 
-    TestUtils.interceptFatal("Invalid key")(kt.select(Array.empty[String]).keyBy("Sample"))
+    intercept[Throwable](kt.select(Array.empty[String]).keyBy("Sample"))
   }
 
   @Test def testExplode() {
@@ -338,7 +338,7 @@ class TableSuite extends SparkSuite {
     val df = kt
       .expandTypes()
       .toDF(sqlContext)
-    val kt2 = Table.fromDF(hc, df, key = Array("locus", "alleles"))
+    val kt2 = Table.fromDF(hc, df, key = Some(IndexedSeq("locus", "alleles")))
     assert(kt2.same(kt))
   }
 

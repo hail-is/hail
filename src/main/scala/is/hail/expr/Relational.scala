@@ -1624,7 +1624,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   val typ: TableType = {
     val newRowType = newRow.typ.asInstanceOf[TStruct]
-    val newKey = child.typ.key.map(_.filter(newRowType.fieldIdx.contains))
+    var newKey = child.typ.key.map(_.filter(newRowType.fieldIdx.contains))
+    if (newKey.exists(_.isEmpty)) newKey = None
     child.typ.copy(rowType = newRowType, key = newKey)
   }
 
@@ -1644,22 +1645,27 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
+    val newRVD = tv.rvd.mapPartitions(typ.rowType) { it =>
+      val globalRV = RegionValue()
+      val globalRVb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      val newRow = f()
+      it.map { rv =>
+        globalRVb.set(rv.region)
+        globalRVb.start(gType)
+        globalRVb.addAnnotation(gType, globalsBc.value)
+        globalRV.set(rv.region, globalRVb.end())
+        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
+        rv2
+      }
+    }
     TableValue(typ,
       tv.globals,
-      tv.rvd.mapPartitions(typ.rowType) { it =>
-        val globalRV = RegionValue()
-        val globalRVb = new RegionValueBuilder()
-        val rv2 = RegionValue()
-        val newRow = f()
-        it.map { rv =>
-          globalRVb.set(rv.region)
-          globalRVb.start(gType)
-          globalRVb.addAnnotation(gType, globalsBc.value)
-          globalRV.set(rv.region, globalRVb.end())
-          rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
-          rv2
-        }
-      })
+      typ.key match {
+        case Some(_) => newRVD
+        case None => newRVD.toUnpartitionedRVD
+      }
+      )
   }
 }
 
