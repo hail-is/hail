@@ -94,10 +94,10 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   def collect(): Array[T] =
     run.collect()
 
-  // WARNING: this resets the context, when this method is called, the value of
+  // WARNING: This resets the context. When this method is called, the value of
   // type `T` must already be "stable" i.e. not dependent on the region
   private[this] def decontextualize(c: C, it: Iterator[C => Iterator[T]]): Iterator[T] =
-    new SetupIterator(it.flatMap(_(c)), c.reset _)
+    new SetupIterator(it.flatMap(_(c)), c.reset)
 
   def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part => using(mkc()) { cc => decontextualize(cc, part) } }
@@ -107,10 +107,10 @@ class ContextRDD[C <: ResettableContext, T: ClassTag](
   ): Iterator[C => Iterator[U]] = Iterator.single(f)
 
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
-    mapPartitions(_.map(f), true)
+    mapPartitions(_.map(f), preservesPartitioning = true)
 
   def filter(f: T => Boolean): ContextRDD[C, T] =
-    mapPartitions(_.filter(f), true)
+    mapPartitions(_.filter(f), preservesPartitioning = true)
 
   def flatMap[U: ClassTag](f: T => TraversableOnce[U]): ContextRDD[C, U] =
     mapPartitions(_.flatMap(f))
