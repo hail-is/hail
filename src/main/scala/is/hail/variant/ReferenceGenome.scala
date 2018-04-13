@@ -4,9 +4,10 @@ import java.io.InputStream
 
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
+import is.hail.asm4s.{ClassFieldRef, Code, FunctionBuilder}
 import is.hail.check.Gen
 import is.hail.expr.types._
-import is.hail.expr.{JSONExtractContig, JSONExtractReferenceGenome, JSONExtractIntervalLocus, Parser}
+import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.reference.FASTAReader
 import is.hail.utils._
 import org.json4s._
@@ -443,9 +444,47 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs, yContigs, mtContigs,
         par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
-      implicit val formats = defaultJSONFormats
+      implicit val formats: Formats = defaultJSONFormats
       Serialization.write(jrg, out)
     }
+
+  def toJSONString: String = {
+    val jrg = JSONExtractReferenceGenome(name,
+      contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
+      xContigs, yContigs, mtContigs,
+      par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(jrg)
+  }
+
+  def addAsField(fb: FunctionBuilder[_]): (ClassFieldRef[ReferenceGenome], Code[Unit]) = {
+    val json = toJSONString
+    val chunkSize = (1 << 16) - 1
+    val nChunks = (json.length() - 1) / chunkSize + 1
+    assert(nChunks > 0)
+    val stringRef = fb.newField[String]
+    val isDefined = fb.newField[Boolean]
+
+    val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
+    val stringAssembler = if (chunks.length == 1) {
+      stringRef := chunks.head
+    } else {
+      Code(stringRef := chunks.head,
+        Code(chunks.tail.map { s =>
+            stringRef := stringRef.invoke[String, String]("concat", s)
+          }: _*))
+    }
+
+    val field = fb.newField[ReferenceGenome]
+    val loader: Code[Unit] =
+      isDefined.mux(
+        Code._empty[Unit],
+        Code(stringAssembler,
+          field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringRef),
+          isDefined := true))
+
+    (field, loader)
+  }
 }
 
 object ReferenceGenome {
@@ -503,6 +542,11 @@ object ReferenceGenome {
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
+  }
+
+  def parse(str: String): ReferenceGenome = {
+    implicit val formats = defaultJSONFormats
+    JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
   def fromResource(file: String): ReferenceGenome = {

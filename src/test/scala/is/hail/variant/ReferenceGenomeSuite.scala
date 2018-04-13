@@ -2,6 +2,7 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
+import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.types.{TInterval, TLocus, TStruct}
@@ -295,5 +296,17 @@ class ReferenceGenomeSuite extends SparkSuite {
     assert(table.annotate("""baseComputed = getReferenceSequence(test2)(row.contig, row.pos.toInt32(), 0, 0)""")
       .forall("row.base == row.baseComputed"))
     ReferenceGenome.removeReference(rg2.name)
+  }
+
+  @Test def testSerializeOnFB() {
+    val grch38 = ReferenceGenome.GRCh38
+    val fb = FunctionBuilder.functionBuilder[String, Boolean]
+    val (rgfield, load) = grch38.addAsField(fb)
+
+    fb.emit(load)
+    fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
+
+    val f = fb.result()()
+    assert(f("X") == grch38.isValidContig("X"))
   }
 }
