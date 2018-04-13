@@ -974,6 +974,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case Some(ir) if useIR(this.globalAxis, globalAST) =>
         new MatrixTable(hc, MatrixMapGlobals(ast, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
+        log.warn(s"select_globals found no AST to IR conversion: ${ PrettyAST(globalAST) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
 
@@ -1015,6 +1016,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         new MatrixTable(hc, MatrixMapRows(ast, x))
 
       case _ =>
+        log.warn(s"select_rows found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
         val newRowType = coerce[TStruct](rowsAST.`type`)
         val namesSet = newRowType.fieldNames.toSet
         val newRowKey = rowKey.filter(namesSet.contains)
@@ -1102,6 +1104,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case Some(ir) if useIR(this.entryAxis, entryAST) =>
         new MatrixTable(hc, MapEntries(ast, ir))
       case _ =>
+        log.warn(s"select_entries found no AST to IR conversion: ${ PrettyAST(selectEntries) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newEntryType = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast
@@ -1604,6 +1607,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(et.aggType()))
         et.aggregate(sqir)
       case _ =>
+        log.warn(s"aggregateEntries found no AST to IR conversion: ${ PrettyAST(queryAST) }")
         val (t, f) = Parser.parseExpr(expr, ec)
 
         val localEntryType = entryType
@@ -1697,6 +1701,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
         rt.aggregate(sqir)
       case None =>
+        log.warn(s"aggregate_rows found no AST to IR conversion: ${ PrettyAST(qAST) }")
         val globalsBc = globals.broadcast
         val (t, f) = Parser.parseExpr(expr, ec)
 
@@ -2187,6 +2192,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         copyAST(MatrixFilterEntries(ast, ir.filterPredicateWithKeep(x, keep, "filterEntriesPred")))
 
       case _ =>
+        log.warn(s"filter_entries found no AST to IR conversion: ${ PrettyAST(filterAST) }")
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
 
         val localKeep = keep
