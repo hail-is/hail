@@ -21,7 +21,7 @@ case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevR
 
     var packIndex = 0
     var i = 0
-    val shiftInit = LDPrune.genotypesPerPack * 2 - 2
+    val shiftInit = LocalLDPrune.genotypesPerPack * 2 - 2
     while (packIndex < nPacks && i < nSamples) {
       val l = gs(packIndex)
       var shift = shiftInit
@@ -41,7 +41,11 @@ case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevR
   }
 }
 
-object LDPruneSuite {
+object LocalLDPruneSuite {
+  val variantByteOverhead = 50
+  val fractionMemoryToUse = 0.25
+  val genotypesPerPack = LocalLDPrune.genotypesPerPack
+
   val rvRowType = TStruct(
     "locus" -> ReferenceGenome.GRCh37.locusType,
     "alleles" -> TArray(TString()),
@@ -91,7 +95,7 @@ object LDPruneSuite {
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
     rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
-    val keep = LDPrune.addBitPackedVector(rvb, hcView, nSamples)
+    val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {
       rvb.endStruct()
@@ -110,29 +114,37 @@ object LDPruneSuite {
   }
 
   def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int) = {
-    val bvi = gts.map { gs => LDPruneSuite.toBitPackedVectorView(gs, nSamples) }
+    val bvi = gts.map { gs => LocalLDPruneSuite.toBitPackedVectorView(gs, nSamples) }
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
-          Some(LDPrune.computeR2(x, y))
+          Some(LocalLDPrune.computeR2(x, y))
         case _ => None
       }
     }
     val nVariants = bvi.length
     new MultiArray2(nVariants, nVariants, r2.toArray)
   }
+
+  def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long): Int = {
+    val bytesPerVariant = math.ceil(8 * nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
+    val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
+
+    val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / bytesPerVariant).toInt)
+    maxQueueSize
+  }
 }
 
-class LDPruneSuite extends SparkSuite {
-  val bytesPerCoreMB = 256
+class LocalLDPruneSuite extends SparkSuite {
+  val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
   lazy val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
-  
-  def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table): 
+
+  def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table):
   RDD[(Locus, Any, Iterable[Annotation])] = {
-    
+
     val locusIndex = locallyPrunedTable.rvd.rowType.fieldIdx("locus")
     val allelesIndex = locallyPrunedTable.rvd.rowType.fieldIdx("alleles")
 
@@ -143,16 +155,16 @@ class LDPruneSuite extends SparkSuite {
       (v.asInstanceOf[GenericRow].get(0).asInstanceOf[Locus], v.asInstanceOf[GenericRow].get(1), gs)
     }.filter { case (locus, alleles, gs) => locallyPrunedVariants.contains((locus, alleles)) }
   }
-  
+
   def isGloballyUncorrelated(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table, r2Threshold: Double,
     windowSize: Int): Boolean = {
-    
+
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
     val nSamples = unprunedMatrixTable.numCols
 
-    val r2Matrix = LDPruneSuite.correlationMatrix(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect(), nSamples)
+    val r2Matrix = LocalLDPruneSuite.correlationMatrix(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect(), nSamples)
     val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, alleles, gs), i) => (i.toInt, locus) }.collectAsMap()
-    
+
     r2Matrix.indices.forall { case (i, j) =>
       val locus1 = variantMap(i)
       val locus2 = variantMap(j)
@@ -175,7 +187,7 @@ class LDPruneSuite extends SparkSuite {
       locallyPrunedRDD.mapPartitions(it => {
         // bind function for serialization
         val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]], nSamps: Int) =>
-          LDPruneSuite.correlationMatrix(gts, nSamps)
+          LocalLDPruneSuite.correlationMatrix(gts, nSamps)
 
         val (it1, it2) = it.duplicate
         val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) => gs }.toArray, nSamples)
@@ -205,7 +217,7 @@ class LDPruneSuite extends SparkSuite {
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
 
     for (calls <- Array(calls1, calls2, calls3)) {
-      assert(LDPruneSuite.toBitPackedVector(calls).forall { bpv =>
+      assert(LocalLDPruneSuite.toBitPackedVector(calls).forall { bpv =>
         bpv.unpack().map(toC2) sameElements calls
       })
     }
@@ -226,7 +238,7 @@ class LDPruneSuite extends SparkSuite {
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 
-    val computedR2 = LDPruneSuite.correlationMatrix(calls.map(LDPruneSuite.convertCallsToGs), 8)
+    val computedR2 = LocalLDPruneSuite.correlationMatrix(calls.map(LocalLDPruneSuite.convertCallsToGs), 8)
 
     val isSame = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
@@ -248,23 +260,18 @@ class LDPruneSuite extends SparkSuite {
     assert(isSame)
 
     val input = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
-    val bvi1 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertCallsToGs(input), input.length).get
-    val bvi2 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertCallsToGs(input), input.length).get
+    val bvi1 = LocalLDPruneSuite.toBitPackedVectorView(LocalLDPruneSuite.convertCallsToGs(input), input.length).get
+    val bvi2 = LocalLDPruneSuite.toBitPackedVectorView(LocalLDPruneSuite.convertCallsToGs(input), input.length).get
 
-    assert(D_==(LDPrune.computeR2(bvi1, bvi2), 1d))
-  }
-
-  @Test def testIdenticalVariants() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)))
-    val locallyPrunedVariantsTable = LDPrune(vds, nCores, 0.2, 700, memoryPerCoreMB = bytesPerCoreMB)
-    assert(locallyPrunedVariantsTable.count() == 1)
+    assert(D_==(LocalLDPrune.computeR2(bvi1, bvi2), 1d))
   }
 
   @Test def testMultipleChr() = {
     val r2 = 0.2
     val windowSize = 500
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)))
-    val locallyPrunedVariantsTable = LDPrune(vds, nCores, r2, windowSize, bytesPerCoreMB)
+    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
+    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2, windowSize, maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, r2, windowSize))
   }
 
@@ -276,29 +283,29 @@ class LDPruneSuite extends SparkSuite {
 
     property("bitPacked pack and unpack give same as orig") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], _) =>
-        val bpv = LDPruneSuite.toBitPackedVector(v1)
+        val bpv = LocalLDPruneSuite.toBitPackedVector(v1)
 
         bpv match {
-          case Some(x) => LDPruneSuite.toBitPackedVector(x.unpack().map(toC2)).get.gs sameElements x.gs
+          case Some(x) => LocalLDPruneSuite.toBitPackedVector(x.unpack().map(toC2)).get.gs sameElements x.gs
           case None => true
         }
       }
 
     property("R2 bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
-        val v1Ann = LDPruneSuite.convertCallsToGs(v1)
-        val v2Ann = LDPruneSuite.convertCallsToGs(v2)
+        val v1Ann = LocalLDPruneSuite.convertCallsToGs(v1)
+        val v2Ann = LocalLDPruneSuite.convertCallsToGs(v2)
 
-        val bv1 = LDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
-        val bv2 = LDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
+        val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
+        val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LDPruneSuite.rvRowType)
+        val view = HardCallView(LocalLDPruneSuite.rvRowType)
 
-        val rv1 = LDPruneSuite.makeRV(v1Ann)
+        val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
         val sgs1 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
-        val rv2 = LDPruneSuite.makeRV(v2Ann)
+        val rv2 = LocalLDPruneSuite.makeRV(v2Ann)
         view.setRegion(rv2)
         val sgs2 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
@@ -306,7 +313,7 @@ class LDPruneSuite extends SparkSuite {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
             val rBreeze = c.dot(d): Double
             val r2Breeze = rBreeze * rBreeze
-            val r2BitPacked = LDPrune.computeR2(a, b)
+            val r2BitPacked = LocalLDPrune.computeR2(a, b)
 
             val isSame = D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
             if (!isSame) {
@@ -323,38 +330,38 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testInputs() {
-    // memory per core requirement
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCoreMB = 0))
-
     // r2 negative
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = -0.1, windowSize = 1000))
+    intercept[HailException](LocalLDPrune(vds, r2Threshold = -0.1, windowSize = 1000, maxQueueSize = 1))
 
     // r2 > 1
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 1.1, windowSize = 1000))
+    intercept[HailException](LocalLDPrune(vds, r2Threshold = 1.1, windowSize = 1000, maxQueueSize = 1))
 
     // windowSize negative
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.5, windowSize = -2))
+    intercept[HailException](LocalLDPrune(vds, r2Threshold = 0.5, windowSize = -2, maxQueueSize = 1))
 
-    // parallelism negative
-    intercept[HailException](LDPrune(vds, nCores = -1, r2Threshold = 0.5, windowSize = 100))
+    // max queue size < 1
+    intercept[HailException](LocalLDPrune(vds, r2Threshold = 0.5, windowSize = 1000, maxQueueSize = 0))
   }
 
   @Test def testMemoryRequirements() {
     val nSamples = 5
     val nVariants = 100
-    val memoryPerVariant = LDPrune.variantByteOverhead + math.ceil(8 * nSamples.toDouble / LDPrune.genotypesPerPack).toLong
-    val recipFractionMemoryUsed = 1.0 / LDPrune.fractionMemoryToUse
+
+    val memoryPerVariant = LocalLDPruneSuite.variantByteOverhead +
+      math.ceil(8 * nSamples.toDouble / LocalLDPruneSuite.genotypesPerPack).toLong
+    val recipFractionMemoryUsed = 1.0 / LocalLDPruneSuite.fractionMemoryToUse
     val memoryPerCore = math.ceil(memoryPerVariant * recipFractionMemoryUsed).toInt
 
-    for (maxQueueSize <- 1 to nVariants; nCores <- 1 to 5) {
-      val y = LDPrune.estimateMemoryRequirements(nVariants, nSamples, nCores = nCores, memoryPerCore * maxQueueSize)
-      assert(y._1 == maxQueueSize && y._2 == math.max(nCores * LDPrune.nPartitionsPerCore, math.ceil(nVariants.toDouble / maxQueueSize).toInt))
+    for (expectedMaxQueueSize <- 1 to nVariants) {
+      val y = LocalLDPruneSuite.estimateMemoryRequirements(nVariants, nSamples, memoryPerCore * expectedMaxQueueSize)
+      assert(y == expectedMaxQueueSize)
     }
   }
 
   @Test def testNoPrune() {
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
-    val locallyPrunedVariantsTable = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
+    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCore = 200 * 1024 * 1024)
+    val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize)
     assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
   }
 
@@ -387,7 +394,8 @@ class LDPruneSuite extends SparkSuite {
 
   @Test def testIsLocallyUncorrelated() {
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
-    val locallyPrunedVariantsTable = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000000, memoryPerCoreMB = 256)
+    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
+    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }

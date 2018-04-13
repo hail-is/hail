@@ -63,11 +63,8 @@ class BitPackedVectorView(rvRowType: TStruct) {
   def getStdDevRecip: Double = m.loadDouble(sdOffset)
 }
 
-object LDPrune {
-  val variantByteOverhead = 50
-  val fractionMemoryToUse = 0.25
+object LocalLDPrune {
   val genotypesPerPack = 32
-  val nPartitionsPerCore = 3
 
   val lookupTable: Array[Byte] = {
     val table = Array.ofDim[Byte](256 * 4)
@@ -271,44 +268,17 @@ object LDPrune {
   private def pruneLocalTimed(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, maxQueueSize: Option[Int]):
   ((OrderedRVD, Long, Int), Long) = {
     time({
-      val prunedRDD = pruneLocal(inputRDD, r2Threshold, windowSize, maxQueueSize).persist(StorageLevel.MEMORY_AND_DISK)
+      val prunedRDD = pruneLocal(inputRDD, r2Threshold, windowSize, maxQueueSize)
       val nVariantsKept = prunedRDD.count()
-      val nPartitions = prunedRDD.partitions.length
+      val nPartitions = prunedRDD.getNumPartitions
       assert(nVariantsKept >= 1)
       (prunedRDD, nVariantsKept, nPartitions)
     })
   }
 
-
-  def estimateMemoryRequirements(nVariants: Long, nSamples: Int, nCores: Int, memoryPerCore: Long) = {
-    val nBytesPerVariant = math.ceil(8 * nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
-    val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
-
-    val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / nBytesPerVariant).toInt)
-
-    val nPartitionsMinimum = math.max(1, math.ceil(nVariants.toDouble / maxQueueSize).toInt)
-    val nPartitionsOptimal = nCores * nPartitionsPerCore
-
-    val nPartitions =
-      if (nPartitionsOptimal < nPartitionsMinimum)
-        nPartitionsMinimum
-      else
-        nPartitionsOptimal
-
-    assert(maxQueueSize > 0 && nPartitions > 0)
-
-    (maxQueueSize, nPartitions)
-  }
-
-  def apply(mt: MatrixTable, nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000,
-    memoryPerCoreMB: Long = 256): Table = {
+  def apply(mt: MatrixTable, r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
 
     mt.requireRowKeyVariant("ld_prune")
-
-    val memoryPerCore = memoryPerCoreMB * 1024L * 1024L
-
-    if (nCores <= 0)
-      fatal(s"Number of cores must be positive.")
 
     if (r2Threshold < 0 || r2Threshold > 1)
       fatal(s"R^2 threshold must be in the range [0,1]. Found `$r2Threshold'.")
@@ -316,15 +286,12 @@ object LDPrune {
     if (windowSize < 0)
       fatal(s"Window size must be greater than or equal to 0. Found `$windowSize'.")
 
+    if (maxQueueSize < 1)
+      fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
+
     val (nVariantsInitial, nPartitionsInitial, nSamples) = (mt.countRows(), mt.nPartitions, mt.numCols)
 
-    val minMemoryPerCore = math.ceil((1d / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
-    val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, nCores, memoryPerCore)
-
     info(s"Running LD prune with nSamples=$nSamples, nVariants=$nVariantsInitial, nPartitions=$nPartitionsInitial, and maxQueueSize=$maxQueueSize.")
-
-    if (memoryPerCore < minMemoryPerCore)
-      fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
     val fullRowType = mt.rvRowType
 
@@ -362,23 +329,15 @@ object LDPrune {
         }
       })
 
-    val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = pruneLocalTimed(
+    val ((rddLP, nVariantsLP1, nPartitionsLP1), durationLP1) = pruneLocalTimed(
       standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
-    info(s"LD prune step 1 of 3: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
+    info(s"LD prune step 1 of 2: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
 
-    val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
-    val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true).persist(StorageLevel.MEMORY_AND_DISK)
-    repartRDD.count()
-    rddLP1.unpersist()
-    val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = pruneLocalTimed(repartRDD, r2Threshold, windowSize, None)
-    repartRDD.unpersist()
-    info(s"LD prune step 2 of 3: nVariantsKept=$nVariantsLP2, nPartitions=$nPartitionsLP2, time=${ formatTime(durationLP2) }")
-    
     val tableType = TableType(
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "sd_reciprocal" -> TFloat64Required),
       key = mt.rowKey, globalType = TStruct.empty())
 
-    val sitesOnlyRDD = rddLP2.mapPartitionsPreservesPartitioning(
+    val sitesOnlyRDD = rddLP.mapPartitionsPreservesPartitioning(
       new OrderedRVDType(typ.partitionKey, typ.key, tableType.rowType))({
       it =>
         val region = Region()
