@@ -50,7 +50,8 @@ object ExtractAggregators {
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
     case x@ApplyAggOp(a, op, args, typ) =>
-      val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
+      val constfb =
+        new EmitFunctionBuilder[AsmFunction1[Region, RegionValueAggregator]](Array(GenericTypeInfo[Region]()), GenericTypeInfo[RegionValueAggregator]())
       val codeArgs = args.map(Emit.toCode(_, constfb, 1))
       constfb.emit(Code(
         Code(codeArgs.map(_.setup):_*),
