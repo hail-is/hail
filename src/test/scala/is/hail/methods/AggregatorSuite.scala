@@ -214,7 +214,7 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testCounter() {
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
-      val (r, t) = vds.queryRows("AGG.map(_ => va.locus.contig).counter()")
+      val (r, t) = vds.aggregateRows("AGG.map(_ => va.locus.contig).counter()")
       val counterMap = r.asInstanceOf[Map[String, Long]]
       val aggMap = vds.variants.map(_.asInstanceOf[Variant].contig).countByValue()
       aggMap == counterMap
@@ -243,14 +243,14 @@ class AggregatorSuite extends SparkSuite {
         s <- Gen.choose(0, vds.numCols - 1)
       } yield {
         val s1 = vds.stringSampleIds(0)
-        assert(vds.queryCols(s"""AGG.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.numCols)
-        assert(vds.queryCols("AGG.filter(r => true).map(id => 1).sum()")._1 == vds.numCols)
-        assert(vds.queryCols("AGG.filter(r => false).map(id => 1).sum()")._1 == 0)
-        assert(vds.queryCols("AGG.flatMap(g => [1]).sum()")._1 == vds.numCols)
-        assert(vds.queryCols("AGG.flatMap(g => [0][:0]).sum()")._1 == 0)
-        assert(vds.queryCols("AGG.flatMap(g => [1,2]).sum()")._1 == 3 * vds.numCols)
-        assert(vds.queryCols("AGG.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
-        assert(vds.queryCols("AGG.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
+        assert(vds.aggregateCols(s"""AGG.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.numCols)
+        assert(vds.aggregateCols("AGG.filter(r => true).map(id => 1).sum()")._1 == vds.numCols)
+        assert(vds.aggregateCols("AGG.filter(r => false).map(id => 1).sum()")._1 == 0)
+        assert(vds.aggregateCols("AGG.flatMap(g => [1]).sum()")._1 == vds.numCols)
+        assert(vds.aggregateCols("AGG.flatMap(g => [0][:0]).sum()")._1 == 0)
+        assert(vds.aggregateCols("AGG.flatMap(g => [1,2]).sum()")._1 == 3 * vds.numCols)
+        assert(vds.aggregateCols("AGG.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
+        assert(vds.aggregateCols("AGG.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
 
         vds.annotateRowsExpr("foo" -> s"""AGG.filter(g => sa.s == "$s1").map(g => 1).sum()""")
           .rowsTable()
@@ -309,8 +309,9 @@ class AggregatorSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
-      val Array((a, _), (b, _)) = vds.queryEntries(Array("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])",
-        "AGG.map(g => [g.DP, g.GQ]).takeBy(x => x[1], 10)"))
+      val (a, _) = vds.aggregateEntries("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
+      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => x[1], 10)")
+
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
 
@@ -330,8 +331,9 @@ class AggregatorSuite extends SparkSuite {
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
       vds.typecheck()
 
-      val Array((a, _), (b, _)) = vds.queryEntries(Array("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])",
-        "AGG.map(g => [g.DP, g.GQ]).takeBy(x => g.GQ, 10)"))
+      val (a, _) = vds.aggregateEntries("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
+      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => g.GQ, 10)")
+
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
 
@@ -435,7 +437,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testCollectAsSet() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.query("AGG.map(r => r.idx).collectAsSet()") == (0 until 100).toSet)
-    assert(kt.union(kt, kt).query("AGG.map(r => r.idx).collectAsSet()") == (0 until 100).toSet)
+    assert(kt.aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
+    assert(kt.union(kt, kt).aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
   }
 }

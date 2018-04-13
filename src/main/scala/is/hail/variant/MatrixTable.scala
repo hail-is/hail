@@ -1563,127 +1563,164 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def aggregateRowsJSON(expr: String): String = {
-    val (a, t) = queryRows(expr)
+    val (a, t) = aggregateRows(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
 
   def aggregateColsJSON(expr: String): String = {
-    val (a, t) = queryCols(expr)
+    val (a, t) = aggregateCols(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
 
   def aggregateEntriesJSON(expr: String): String = {
-    val (a, t) = queryEntries(expr)
+    val (a, t) = aggregateEntries(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
     JsonMethods.compact(jv)
   }
 
-  def queryEntries(expr: String): (Annotation, Type) = {
-    val qv = queryEntries(Array(expr))
-    assert(qv.length == 1)
-    qv.head
-  }
-
-  def queryEntries(exprs: Array[String]): Array[(Annotation, Type)] = {
+  def aggregateEntries(expr: String): (Annotation, Type) = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "g" -> (1, entryType),
       "va" -> (2, rowType),
       "sa" -> (3, colType))
+
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
       "AGG" -> (1, TAggregable(entryType, aggregationST))))
 
-    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+    val queryAST = Parser.parseToAST(expr, ec)
 
-    val localEntryType = entryType
+    queryAST.toIR(Some("AGG")) match {
+      case Some(qir) if useIR(entryAxis, queryAST) =>
+        val aggEnv =  new ir.Env[ir.IR].bind(
+          "g" -> ir.Ref("row"),
+          "va" -> ir.Ref("row"),
+          "sa" -> ir.Ref("row"))
 
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, g) =>
-      ec.set(1, Annotation.copy(localEntryType, g))
-    })
+        val et = entriesTable()
+        val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(et.aggType()))
+        et.aggregate(sqir)
+      case _ =>
+        val (t, f) = Parser.parseExpr(expr, ec)
 
-    val globalsBc = globals.broadcast
-    val localColValuesBc = colValues.broadcast
-    val localRVRowType = rvRowType
-    val localRowType = rowType
-    val localEntriesIndex = entriesIndex
+        val localEntryType = entryType
 
-    val result = rvd.mapPartitions { it =>
-      val fullRow = new UnsafeRow(localRVRowType)
-      val row = new UnsafeRow(localRowType)
+        val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, g) =>
+          ec.set(1, Annotation.copy(localEntryType, g))
+        })
 
-      val zv = zVal.map(_.copy())
-      ec.set(0, globalsBc.value)
-      it.foreach { rv =>
-        fullRow.set(rv)
-        row.set(rv)
-        val gs = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
+        val globalsBc = globals.broadcast
+        val localColValuesBc = colValues.broadcast
+        val localRVRowType = rvRowType
+        val localRowType = rowType
+        val localEntriesIndex = entriesIndex
 
-        var i = 0
-        ec.set(2, Annotation.copy(row.t, row))
-        gs.foreach { g =>
-          ec.set(3, localColValuesBc.value(i))
-          seqOp(zv, g)
-          i += 1
-        }
-      }
-      Iterator(zv)
-    }.fold(zVal.map(_.copy()))(combOp)
-    resOp(result)
+        val result = rvd.mapPartitions { it =>
+          val fullRow = new UnsafeRow(localRVRowType)
+          val row = new UnsafeRow(localRowType)
 
-    ec.set(0, globalsBc.value)
-    ts.map { case (t, f) => (f(), t) }
-  }
+          val zv = zVal.map(_.copy())
+          ec.set(0, globalsBc.value)
+          it.foreach { rv =>
+            fullRow.set(rv)
+            row.set(rv)
+            val gs = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
 
-  def queryGlobal(path: String): (Type, Annotation) = {
-    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalType))
-    val ec = EvalContext(st)
-    val a = ec.a
+            var i = 0
+            ec.set(2, Annotation.copy(row.t, row))
+            gs.foreach { g =>
+              ec.set(3, localColValuesBc.value(i))
+              seqOp(zv, g)
+              i += 1
+            }
+          }
+          Iterator(zv)
+        }.fold(zVal.map(_.copy()))(combOp)
+        resOp(result)
 
-    val (t, f) = Parser.parseExpr(path, ec)
-
-    val f2: Annotation => Any = { annotation =>
-      a(0) = annotation
-      f()
+        ec.set(0, globalsBc.value)
+        (f(), t)
     }
-
-    (t, f2(globals.value))
   }
 
-  def queryCols(expr: String): (Annotation, Type) = {
-    val qs = queryCols(Array(expr))
-    assert(qs.length == 1)
-    qs.head
-  }
-
-  def queryCols(exprs: Array[String]): Array[(Annotation, Type)] = {
+  def aggregateCols(expr: String): (Annotation, Type) = {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType))
+
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
       "AGG" -> (1, TAggregable(colType, aggregationST))))
 
-    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+    val queryAST = Parser.parseToAST(expr, ec)
 
-    val localGlobals = globals.value
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, (sa)) =>
-      ec.setAll(localGlobals, sa)
-    })
+    queryAST.toIR(Some("AGG")) match {
+      case Some(qir) if useIR(colAxis, queryAST) =>
+        val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row"))
+        val ct = colsTable()
+        val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(ct.aggType()))
+        ct.aggregate(sqir)
+      case None =>
+        val (t, f) = Parser.parseExpr(expr, ec)
 
-    val results = colValues.value
-      .aggregate(zVal)(seqOp, combOp)
-    resOp(results)
-    ec.set(0, localGlobals)
+        val localGlobals = globals.value
+        val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, (sa)) =>
+          ec.setAll(localGlobals, sa)
+        })
 
-    ts.map { case (t, f) => (f(), t) }
+        val results = colValues.value
+          .aggregate(zVal)(seqOp, combOp)
+        resOp(results)
+        ec.set(0, localGlobals)
+
+        (f(), t)
+    }
   }
 
-  def queryVA(code: String): (Type, Querier) = {
+  def aggregateRows(expr: String): (Annotation, Type) = {
+    val aggregationST = Map(
+      "global" -> (0, globalType),
+      "va" -> (1, rowType))
+    val ec = EvalContext(Map(
+      "global" -> (0, globalType),
+      "AGG" -> (1, TAggregable(rowType, aggregationST))))
 
-    val st = Map(Annotation.ROW_HEAD -> (0, rowType))
+    val qAST = Parser.parseToAST(expr, ec)
+
+    qAST.toIR(Some("AGG")) match {
+      case Some(qir) if useIR(rowAxis, qAST) =>
+        val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row"))
+        val rt = rowsTable()
+        val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
+        rt.aggregate(sqir)
+      case None =>
+        val globalsBc = globals.broadcast
+        val (t, f) = Parser.parseExpr(expr, ec)
+
+        val fullRowType = rvRowType
+        val localEntriesIndex = entriesIndex
+        val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
+          val ur = new UnsafeRow(fullRowType, rv)
+          val row = ur.deleteField(localEntriesIndex)
+          ec.set(0, globalsBc.value)
+          ec.set(1, row)
+        })
+
+        val result = rvd
+          .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
+        resOp(result)
+
+        (f(), t)
+    }
+  }
+
+  def queryVA(code: String): (Type, Querier) =
+    query(code, Map(Annotation.ROW_HEAD -> (0, rowType)))
+
+  def query(code: String, st: SymbolTable): (Type, Querier) = {
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -1695,41 +1732,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     (t, f2)
-  }
-
-  def queryRows(expr: String): (Annotation, Type) = {
-    val qv = queryRows(Array(expr))
-    assert(qv.length == 1)
-    qv.head
-  }
-
-  def queryRows(exprs: Array[String]): Array[(Annotation, Type)] = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rowType))
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType),
-      "AGG" -> (1, TAggregable(rowType, aggregationST))))
-    val globalsBc = globals.broadcast
-
-    val ts = exprs.map(e => Parser.parseExpr(e, ec))
-
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
-      val ur = new UnsafeRow(fullRowType, rv)
-      val row = ur.deleteField(localEntriesIndex)
-      ec.set(0, globalsBc.value)
-      ec.set(1, row)
-    })
-
-    val result = rvd
-      .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
-    resOp(result)
-
-    ts.map { case (t, f) =>
-      (f(), t)
-    }
   }
 
   def chooseCols(oldIndices: java.util.ArrayList[Int]): MatrixTable =

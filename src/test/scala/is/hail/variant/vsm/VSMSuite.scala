@@ -125,7 +125,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryEntries("AGG.map(g => g.GQ.toFloat64).hist(0d, 100d, 100)")
+    vds.aggregateEntries("AGG.map(g => g.GQ.toFloat64).hist(0d, 100d, 100)")
   }
 
   @Test def testReorderSamples() {

@@ -14,8 +14,8 @@ class HWESuite extends SparkSuite {
   @Test def test() {
     val a = VariantQC(hc.importVCF("src/test/resources/HWE_test.vcf"))
       .rowsTable()
-      .query("{pos: AGG.map(r => r.locus.position).collect()," +
-        " results: AGG.map(_ => {r: row.qc.r_expected_het_freq, p: row.qc.p_hwe}).collect()}")
+      .aggregate("{pos: AGG.map(r => r.locus.position).collect()," +
+        " results: AGG.map(_ => {r: row.qc.r_expected_het_freq, p: row.qc.p_hwe}).collect()}")._1
       .asInstanceOf[Row]
 
     val r = a.getAs[IndexedSeq[Any]](0).zip(a.getAs[IndexedSeq[Any]](1)).toMap
