@@ -1104,7 +1104,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case Some(ir) if useIR(this.entryAxis, entryAST) =>
         new MatrixTable(hc, MapEntries(ast, ir))
       case _ =>
-        log.warn(s"select_entries found no AST to IR conversion: ${ PrettyAST(selectEntries) }")
+        log.warn(s"select_entries found no AST to IR conversion: ${ PrettyAST(entryAST) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newEntryType = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast

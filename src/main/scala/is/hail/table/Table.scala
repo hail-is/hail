@@ -461,7 +461,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep, "filter_pred"))
         )
       case None =>
-        log.warn(s"Table.filter found no AST to IR conversion: ${ PrettyAST(pred) }")
+        log.warn(s"Table.filter found no AST to IR conversion: ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
