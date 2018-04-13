@@ -18,6 +18,7 @@ object UtilFunctions extends RegistryFunctions {
       ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
     }
 
+    registerIR("*", TArray(tnum("T")), tv("T")) { (array, const) =>  ArrayMap(array, "imul", ApplyBinaryPrimOp(Multiply(), Ref("imul"), const))
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
