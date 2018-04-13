@@ -5,6 +5,8 @@ import is.hail.sparkextras._
 import is.hail.utils.fatal
 import org.apache.spark.rdd.RDD
 
+import scala.collection.generic.Growable
+
 class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
   val typ: OrderedRVDType = rvd.typ
   val (kType, _) = rvd.rowType.select(key)
@@ -35,23 +37,26 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
       this.rvd.constrainToOrderedPartitioner(this.typ, newPartitioner)
     val repartitionedRight =
       right.rvd.constrainToOrderedPartitioner(right.typ, newPartitioner)
-    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
+    val compute: (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
-        case "inner" => _.innerJoin(_)
-        case "left" => _.leftJoin(_)
-        case "right" => _.rightJoin(_)
-        case "outer" => _.outerJoin(_)
+        case "inner" => _.innerJoin(_, _)
+        case "left" => _.leftJoin(_, _)
+        case "right" => _.rightJoin(_, _)
+        case "outer" => _.outerJoin(_, _)
       }
 
-    repartitionedLeft.zipPartitions(
+    repartitionedLeft.zipPartitionsAndContext(
       joinedType,
       newPartitioner,
       repartitionedRight,
       preservesPartitioning = true
-    ) { (_, leftIt, rightIt) =>
+    ) { (ctx, leftProducer, rightProducer) =>
+      val rightContext = ctx.freshContext
       joiner(compute(
-        OrderedRVIterator(lTyp, leftIt),
-        OrderedRVIterator(rTyp, rightIt)))
+        OrderedRVIterator(lTyp, leftProducer(ctx)),
+        OrderedRVIterator(rTyp, rightProducer(rightContext)),
+        new RegionValueArrayBuffer(rTyp.rowType, rightContext.region)
+      ))
     }
   }
 

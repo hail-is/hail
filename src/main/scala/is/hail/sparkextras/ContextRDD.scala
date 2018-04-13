@@ -100,40 +100,6 @@ object ContextRDD {
         data,
         nPartitions.getOrElse(sc.defaultMinPartitions)))
 
-  def textFilesLines[C <: AutoCloseable](
-    sc: SparkContext,
-    files: Array[String],
-    nPartitions: Option[Int] = None
-  )(implicit c: Pointed[C]
-  ): ContextRDD[C, WithContext[String]] =
-    textFilesLines(
-      sc,
-      files,
-      nPartitions.getOrElse(sc.defaultMinPartitions))
-
-  def textFilesLines[C <: AutoCloseable](
-    sc: SparkContext,
-    files: Array[String],
-    nPartitions: Int
-  )(implicit c: Pointed[C]
-  ): ContextRDD[C, WithContext[String]] =
-    ContextRDD.weaken[C](
-      sc.textFilesLines(
-        files,
-        nPartitions))
-
-  // this one weird trick permits the caller to specify C without T
-  sealed trait Parallelize[C <: AutoCloseable] {
-    def apply[T : ClassTag](
-      sc: SparkContext,
-      data: Seq[T],
-      nPartitions: Option[Int] = None
-    )(implicit c: Pointed[C]
-    ): ContextRDD[C, T] = ContextRDD.weaken[C](
-      sc.parallelize(
-        data,
-        nPartitions.getOrElse(sc.defaultMinPartitions)))
-
     def apply[T : ClassTag](
       sc: SparkContext,
       data: Seq[T],

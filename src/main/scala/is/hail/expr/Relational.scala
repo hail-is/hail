@@ -1451,7 +1451,7 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
     assert(resultType == typ.rowType)
 
     TableValue(typ, prev.globals,
-      prev.rvd.mapPartitionsWithBoundary(typ.rowType, { (ctx, it) =>
+      prev.rvd.boundary.mapPartitions(typ.rowType, { (ctx, it) =>
         val rv2 = RegionValue()
         it.flatMap { rv =>
           val isMissing = isMissingF()(rv.region, rv.offset, false)
@@ -1461,13 +1461,13 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
             val n = lengthF()(rv.region, rv.offset, false)
             Iterator.range(0, n)
               .map { i =>
-                ctx.rvb.start(incomingRowType)
-                ctx.rvb.addRegionValue(incomingRowType, rv)
-                val incomingRow = ctx.rvb.end()
-                val off = explodeF()(ctx.region, incomingRow, false, i, false)
-                rv2.set(ctx.region, off)
-                rv2
-              }
+              ctx.rvb.start(incomingRowType)
+              ctx.rvb.addRegionValue(incomingRowType, rv)
+              val incomingRow = ctx.rvb.end()
+              val off = explodeF()(ctx.region, incomingRow, false, i, false)
+              rv2.set(ctx.region, off)
+              rv2
+            }
           }
         }
       }))

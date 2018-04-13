@@ -730,7 +730,7 @@ object RichContextRDDRegionValue {
   }
 }
 
-class RichContextRDDRegionValue[C <: ResettableContext](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
+class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
     crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(t, codecSpec))
   }

@@ -9,7 +9,7 @@ import is.hail.sparkextras._
 
 import scala.reflect.ClassTag
 
-class RichContextRDD[C <: ResettableContext, T: ClassTag](crdd: ContextRDD[C, T]) {
+class RichContextRDD[C <: AutoCloseable, T: ClassTag](crdd: ContextRDD[C, T]) {
   def writePartitions(path: String,
     write: (Int, Iterator[T], OutputStream) => Long,
     remapPartitions: Option[(Array[Int], Int)] = None): (Array[String], Array[Long]) = {

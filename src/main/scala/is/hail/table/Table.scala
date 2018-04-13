@@ -147,7 +147,7 @@ object Table {
     globalSignature: TStruct,
     globals: Annotation
   ): Table = {
-    val crdd2 = crdd.mapPartitions(_.toRegionValueIterator(signature))
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
     new Table(hc, TableLiteral(
       TableValue(
         TableType(signature, key, globalSignature),
@@ -233,6 +233,27 @@ class Table(val hc: HailContext, val tir: TableIR) {
     rdd: RDD[RegionValue],
     signature: TStruct
   ) = this(hc, rdd, signature, Array.empty[String])
+
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct
+  ) = this(hc, crdd, signature, key, globalSignature, Row.empty)
+
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext,RegionValue],
+    signature: TStruct,
+    key: IndexedSeq[String]
+  ) = this(hc, crdd, signature, key, TStruct.empty())
+
+  def this(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    signature: TStruct
+  ) = this(hc, crdd, signature, Array.empty[String])
 
   lazy val TableValue(ktType, globals, rvd) = value
 
@@ -699,16 +720,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRVType = matrixType.rvRowType
     val orderedRKStruct = matrixType.rowKeyStruct
 
-    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
+    val newRVD = ordered.boundary.mapPartitionsPreservesPartitioning(matrixType.orvdType, { (ctx, it) =>
+      val region = ctx.region
+      val rvb = ctx.rvb
       val outRV = RegionValue(region)
 
       OrderedRVIterator(
         new OrderedRVDType(partitionKeys, rowKeys, rowEntryStruct),
         it
       ).staircase.map { rowIt =>
-        region.clear()
         rvb.start(newRVType)
         rvb.startStruct()
         var i = 0
@@ -742,7 +762,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         outRV.setOffset(rvb.end())
         outRV
       }
-    }
+    })
     new MatrixTable(hc,
       matrixType,
       globals,

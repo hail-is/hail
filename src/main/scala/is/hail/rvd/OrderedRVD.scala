@@ -29,12 +29,29 @@ class OrderedRVD(
     rdd: RDD[RegionValue]
   ) = this(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
 
-  private[rvd] def boundary: OrderedRVD = OrderedRVD(
+  def boundary: OrderedRVD = OrderedRVD(
     typ,
     partitioner,
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
-      new SetupIterator(part.flatMap(_ (producerCtx)), producerCtx.reset)
+      val it = part.flatMap(_ (producerCtx))
+      new Iterator[RegionValue]() {
+        private[this] var cleared: Boolean = false
+        def hasNext = {
+          if (!cleared) {
+            cleared = true
+            producerCtx.region.clear()
+          }
+          it.hasNext
+        }
+        def next = {
+          if (!cleared) {
+            producerCtx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
     })
 
   def rowType: TStruct = typ.rowType
@@ -51,6 +68,14 @@ class OrderedRVD(
     OrderedRVD(newTyp,
       partitioner,
       crdd.mapPartitionsWithIndex(f))
+
+  def mapPartitionsWithIndexPreservesPartitioning(
+    newTyp: OrderedRVDType,
+    f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    crdd.cmapPartitionsWithIndex(f))
 
   def mapPartitionsPreservesPartitioning(newTyp: OrderedRVDType)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
@@ -307,34 +332,45 @@ class OrderedRVD(
 
     val localType = typ
 
-    boundary.mapPartitionsPreservesPartitioning(newTyp, { (ctx, it) =>
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
-      val outRV = RegionValue(region)
-      val buffer = new RegionValueArrayBuffer(localType.valueType)
-      val stepped: FlipbookIterator[FlipbookIterator[RegionValue]] =
-        OrderedRVIterator(localType, it).staircase
+    OrderedRVD(
+      newTyp,
+      partitioner,
+      crdd.cmapPartitionsAndContext { (consumerCtx, useCtxes) =>
+        val rvb = consumerCtx.rvb
+        val consumerRegion = consumerCtx.region
+        val outRV = RegionValue(consumerRegion)
 
-      stepped.map { stepIt =>
-        buffer.clear()
-        rvb.start(newRowType)
-        rvb.startStruct()
-        var i = 0
-        while (i < localType.kType.size) {
-          rvb.addField(localType.rowType, stepIt.value, localType.kRowFieldIdx(i))
-          i += 1
+        val producerCtx = consumerCtx.freshContext
+        val producerRegion = producerCtx.region
+        val groupedValues = mutable.ArrayBuffer[Long]()
+        val it = useCtxes.flatMap(_(producerCtx))
+        val stepped = OrderedRVIterator(localType, it).staircase
+
+        stepped.map { stepIt =>
+          groupedValues.clear()
+          producerRegion.clear()
+          rvb.start(newRowType)
+          rvb.startStruct()
+          var i = 0
+          while (i < localType.kType.size) {
+            rvb.addField(localType.rowType, stepIt.value, localType.kRowFieldIdx(i))
+            i += 1
+          }
+          for (rv <- stepIt)
+            groupedValues += rv.offset
+          rvb.startArray(groupedValues.length)
+          for (value <- groupedValues)
+            rvb.selectRegionValue(
+              localType.rowType,
+              localType.valueFieldIdx,
+              producerRegion,
+              value)
+          rvb.endArray()
+          rvb.endStruct()
+          outRV.setOffset(rvb.end())
+          outRV
         }
-        for (rv <- stepIt)
-          buffer.appendSelect(localType.rowType, localType.valueFieldIdx, rv)
-        rvb.startArray(buffer.length)
-        for (rv <- buffer)
-          rvb.addRegionValue(localType.valueType, rv)
-        rvb.endArray()
-        rvb.endStruct()
-        outRV.setOffset(rvb.end())
-        outRV
-      }
-    })
+      })
   }
 
   def distinctByKey(): OrderedRVD = {
@@ -377,15 +413,29 @@ class OrderedRVD(
         partitioner.rangeBounds,
         partitioner.rangeBoundsType))
 
+  def zipPartitionsAndContext(
+    newTyp: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner,
+    that: OrderedRVD,
+    preservesPartitioning: Boolean = false
+  )(zipper: (RVDContext, RVDContext => Iterator[RegionValue], RVDContext => Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    newPartitioner,
+    crdd.czipPartitionsAndContext(that.crdd, preservesPartitioning) { (ctx, lit, rit) =>
+      zipper(ctx, ctx => lit.flatMap(_(ctx)), ctx => rit.flatMap(_(ctx)))
+    }
+  )
+
   // FIXME: should this introduce a boundary?
   def zipPartitionsPreservesPartitioning[T: ClassTag](
     newTyp: OrderedRVDType,
-    that: RDD[T]
+    that: ContextRDD[RVDContext, T]
   )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
   ): OrderedRVD = OrderedRVD(
     newTyp,
     partitioner,
-    crdd.zipPartitions(ContextRDD.weaken[RVDContext](that))(zipper))
+    crdd.zipPartitions(that)(zipper))
 
   def zipPartitions(
     newTyp: OrderedRVDType,

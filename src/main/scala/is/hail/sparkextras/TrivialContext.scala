@@ -1,7 +1,5 @@
 package is.hail.sparkextras
 
-object TrivialContextInstance extends ResettableContext {
+object TrivialContextInstance extends AutoCloseable {
   def close(): Unit = ()
-
-  def reset(): Unit = ()
 }

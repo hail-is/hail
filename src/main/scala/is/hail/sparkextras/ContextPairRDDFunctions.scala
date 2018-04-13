@@ -5,7 +5,7 @@ import org.apache.spark.rdd._
 
 import scala.reflect.ClassTag
 
-class ContextPairRDDFunctions[C <: ResettableContext, K: ClassTag, V: ClassTag](
+class ContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](
   crdd: ContextRDD[C, (K, V)]
 ) {
   def shuffle(p: Partitioner, o: Ordering[K]): ContextRDD[C, (K, V)] =

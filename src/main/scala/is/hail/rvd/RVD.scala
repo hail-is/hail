@@ -45,10 +45,12 @@ object RVDSpec {
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
       using(RVDContext.default) { ctx =>
-        new SetupIterator(
-          HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
-            .map(rv => SafeRow(rowType, rv.region, rv.offset)),
-          ctx.reset _)
+        HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
+          .map { rv =>
+            val r = SafeRow(rowType, rv.region, rv.offset)
+            ctx.region.clear()
+            r
+          }
       }
     }.toFastIndexedSeq
   }
@@ -164,9 +166,8 @@ trait RVD {
   ): ContextRDD[RVDContext, RegionValue] = f(stabilize(unstable))
 
   // SOMEWHAT UNSAFE: the values produced will not be in the consumer's region,
-  // therefore this is private[rvd], you must be careful to copy the value into
-  // the appropriate region
-  private[rvd] def boundary: RVD
+  // you must be careful to copy the value into the appropriate region
+  def boundary: RVD
 
   def rdd: RDD[RegionValue] = stabilize(crdd).run
 

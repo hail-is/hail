@@ -439,10 +439,11 @@ object LDPrune {
     val typ = vsm.rvd.typ
 
     val standardizedRDD = vsm.rvd
-      .mapPartitionsPreservesPartitioningWithContextBoundary(new OrderedRVDType(typ.partitionKey, typ.key, bpvType), { (ctx, it) =>
+      .boundary
+      .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType), { (ctx, it) =>
         val hcView = HardCallView(fullRowType)
         val region = ctx.region
-        val rvb = new RegionValueBuilder(region)
+        val rvb = ctx.rvb
         val rv2 = RegionValue(region)
 
         it.flatMap { rv =>

@@ -13,6 +13,8 @@ import is.hail.methods.Aggregators.ColFunctions
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
+import is.hail.io.CodecSpec
+import is.hail.sparkextras.ContextRDD
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -143,8 +145,8 @@ object MatrixTable {
       BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.sc),
       OrderedRVD.coerce(matrixType.orvdType,
-        rdd.mapPartitions { it =>
-          val region = Region()
+        ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+          val region = ctx.region
           val rvb = new RegionValueBuilder(region)
           val rv = RegionValue(region)
 
@@ -152,7 +154,6 @@ object MatrixTable {
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
 
-            region.clear()
             rvb.start(localRVRowType)
             rvb.startStruct()
             var i = 0
@@ -265,7 +266,7 @@ object MatrixTable {
 
     val oldRowType = kt.signature
 
-    val rdd = kt.rvd.mapPartitions { it =>
+    val rdd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -285,7 +286,7 @@ object MatrixTable {
     new MatrixTable(kt.hc, matrixType,
       BroadcastRow(Row(), matrixType.globalType, kt.hc.sc),
       BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc),
-      OrderedRVD.coerce(matrixType.orvdType, rdd, None, None))
+      OrderedRVD.coerce(matrixType.orvdType, rdd))
   }
 }
 
@@ -653,13 +654,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val selectIdx = matrixType.orvdType.kRowFieldIdx
     val keyOrd = matrixType.orvdType.kRowOrd
 
-    val newRVD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+    val newRVD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
       new Iterator[RegionValue] {
         var isEnd = false
         var current: RegionValue = null
         val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
+        val region = ctx.region
+        val rvb = ctx.rvb
         val newRV = RegionValue(region)
 
         def hasNext: Boolean = {
@@ -681,7 +682,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             aggs = seqOp(aggs, current)
             current = null
           }
-          region.clear()
           rvb.start(newRVType)
           rvb.startStruct()
           var i = 0
@@ -695,7 +695,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           newRV
         }
       }
-    }
+    })
 
     copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
@@ -878,15 +878,21 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ktSignature = kt.signature
     val ktKeyFieldIdx = kt.keyFieldIdx(0)
     val ktValueFieldIdx = kt.valueFieldIdx
-    val partitionKeyedIntervals = kt.rvd.rdd
-      .flatMap { rv =>
+    val partitionKeyedIntervals = kt.rvd.boundary.crdd
+      .cflatMap { (ctx, rv) =>
+        val region = ctx.region
+        val rv2 = RegionValue(region)
+        val rvb = ctx.rvb
+        rvb.start(ktSignature)
+        rvb.addRegionValue(ktSignature, rv)
+        rv2.setOffset(rvb.end())
         val ur = new UnsafeRow(ktSignature, rv)
         val interval = ur.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
           val pkOrd = partBc.value.pkType.ordering
           val wrappedInterval = interval.copy(start = Row(interval.start), end = Row(interval.end))
-          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv))
+          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv2))
         } else
           Iterator()
       }
@@ -907,9 +913,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     ) { case (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { rv =>
-          val ur = new UnsafeRow(ktSignature, rv)
-          val interval = ur.getAs[Interval](ktKeyFieldIdx)
-          (interval, Row.fromSeq(ktValueFieldIdx.map(ur.get)))
+          val r = SafeRow(ktSignature, rv)
+          val interval = r.getAs[Interval](ktKeyFieldIdx)
+          (interval, Row.fromSeq(ktValueFieldIdx.map(r.get)))
         }.toArray
 
       val iTree = IntervalTree.annotationTree(typOrdering, intervalAnnotations)
@@ -1088,7 +1094,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         }
         if (touchesKeys) {
           warn("modified row key, rescanning to compute ordering...")
-          val newRDD = rvd.mapPartitions(mapPartitionsF)
+          val newRDD = rvd.mapPartitions(newMatrixType.rvRowType)(mapPartitionsF)
           copyMT(matrixType = newMatrixType,
             rvd = OrderedRVD.coerce(newMatrixType.orvdType, newRDD, None, None))
         } else copyMT(matrixType = newMatrixType,
@@ -1151,7 +1157,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def forceCountRows(): Long = rvd.count()
 
   def deduplicate(): MatrixTable =
-    copy2(rvd = rvd.mapPartitionsPreservesPartitioning(rvd.typ)(
+    copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ)(
       SortedDistinctRowIterator.transformer(rvd.typ)))
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
@@ -1178,10 +1184,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localEntriesIndex = entriesIndex
 
-    val explodedRDD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
-      val region2 = Region()
+    val explodedRDD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
+      val region2 = ctx.region
       val rv2 = RegionValue(region2)
-      val rv2b = new RegionValueBuilder(region2)
+      val rv2b = ctx.rvb
       val ur = new UnsafeRow(oldRVType)
       it.flatMap { rv =>
         ur.set(rv)
@@ -1190,7 +1196,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           None
         else
           keys.iterator.map { explodedElement =>
-            region2.clear()
             rv2b.start(newRVType)
             inserter(rv.region, rv.offset, rv2b,
               () => rv2b.addAnnotation(keyType, explodedElement))
@@ -1198,7 +1203,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rv2
           }
       }
-    }
+    })
     copyMT(matrixType = newMatrixType, rvd = explodedRDD)
   }
 
@@ -1892,55 +1897,46 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localColKeys = colKeys
 
     metadataSame &&
-      rvd.rdd.zipPartitions(
+      rvd.crdd.czip(
         OrderedRVD.adjustBoundsAndShuffle(
           that.rvd.typ,
           rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
           that.rvd)
-          .rdd) { (it1, it2) =>
+          .crdd) { (ctx, rv1, rv2) =>
+        var partSame = true
+
         val fullRow1 = new UnsafeRow(leftRVType)
         val fullRow2 = new UnsafeRow(rightRVType)
-        var partSame = true
-        while (it1.hasNext && it2.hasNext) {
-          val rv1 = it1.next()
-          val rv2 = it2.next()
 
-          fullRow1.set(rv1)
-          fullRow2.set(rv2)
-          val row1 = fullRow1.deleteField(localLeftEntriesIndex)
-          val row2 = fullRow2.deleteField(localRightEntriesIndex)
+        fullRow1.set(rv1)
+        fullRow2.set(rv2)
+        val row1 = fullRow1.deleteField(localLeftEntriesIndex)
+        val row2 = fullRow2.deleteField(localRightEntriesIndex)
 
-          if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
-            println(
-              s"""row fields not the same:
+        if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
+          println(
+            s"""row fields not the same:
                  |  $row1
                  |  $row2""".stripMargin)
-            partSame = false
-          }
-
-          val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
-          val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
-
-          var i = 0
-          while (partSame && i < gs1.length) {
-            if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
-              partSame = false
-              println(
-                s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
-                   |  ${ gs1(i) }
-                   |  ${ gs2(i) }""".stripMargin)
-            }
-            i += 1
-          }
-        }
-
-        if ((it1.hasNext || it2.hasNext) && partSame) {
-          println("partition has different number of rows")
           partSame = false
         }
 
-        Iterator(partSame)
-      }.forall(t => t)
+        val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
+        val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
+
+        var i = 0
+        while (partSame && i < gs1.length) {
+          if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
+            partSame = false
+            println(
+              s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
+                   |  ${ gs1(i) }
+                   |  ${ gs2(i) }""".stripMargin)
+          }
+          i += 1
+        }
+        partSame
+      }.run.forall(t => t)
   }
 
   def colEC: EvalContext = {
@@ -2034,17 +2030,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
 
     val localRVRowType = rvRowType
-    rvd.map { rv =>
-      new UnsafeRow(localRVRowType, rv)
-    }.find(ur => !localRVRowType.typeCheck(ur))
-      .foreach { ur =>
 
-        foundError = true
-        warn(
-          s"""found violation in row
-             |Schema: $localRVRowType
-             |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
-      }
+    rvd.find { rv =>
+      val ur = new UnsafeRow(localRVRowType, rv)
+      !localRVRowType.typeCheck(ur)
+    }.foreach { rv =>
+      val ur = new UnsafeRow(localRVRowType, rv)
+      foundError = true
+      warn(
+        s"""found violation in row
+            |Schema: $localRVRowType
+            |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
+    }
 
     if (foundError)
       fatal("found one or more type check errors")
@@ -2098,22 +2095,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val tableType = TableType(resultStruct, rowKey ++ colKey, globalType)
     val localColValuesBc = colValues.broadcast
-    new Table(hc, TableLiteral(TableValue(tableType, globals, rvd.mapPartitions(resultStruct) { it =>
-
+    new Table(hc, TableLiteral(TableValue(tableType, globals, rvd.boundary.mapPartitions(resultStruct, { (ctx, it) =>
       val colValues = localColValuesBc.value
 
-      val rv2b = new RegionValueBuilder()
-      val rv2 = RegionValue()
+      val rv2b = ctx.rvb
+      val rv2 = RegionValue(ctx.region)
       it.flatMap { rv =>
-        val rvEnd = rv.region.size
-        rv2b.set(rv.region)
         val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
         (0 until localNSamples).iterator
           .filter { i =>
             localEntriesType.isElementDefined(rv.region, gsOffset, i)
           }
           .map { i =>
-            rv.region.clear(rvEnd)
             rv2b.clear()
             rv2b.start(resultStruct)
             rv2b.startStruct()
@@ -2128,11 +2121,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rv2b.addInlineRow(localColType, colValues(i).asInstanceOf[Row])
             rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
             rv2b.endStruct()
-            rv2.set(rv.region, rv2b.end())
+            rv2.setOffset(rv2b.end())
             rv2
           }
       }
-    })))
+    }))))
   }
 
   def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))
@@ -2256,8 +2249,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val locusIndex = rvRowType.fieldIdx("locus")
     val allelesIndex = rvRowType.fieldIdx("alleles")
 
-    def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
-      rvd.mapPartitions { it =>
+    def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
+      rvd.mapPartitions(localRVRowType) { it =>
         var prevLocus: Locus = null
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
@@ -2483,7 +2476,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
-      new WriteBlocksRDD(dirname, rvd.rdd, sparkContext, matrixType, partStarts, entryField, gp)
+      new WriteBlocksRDD(dirname, rvd.crdd, sparkContext, matrixType, partStarts, entryField, gp)
         .collect()
 
     val blockCount = blockPartFiles.length
@@ -2509,15 +2502,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val partStarts = partitionStarts()
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType) { case (i, it) =>
-      val region2 = Region()
+    val indexedRVD = rvd.boundary.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType, { (i, ctx, it) =>
+      val region2 = ctx.region
       val rv2 = RegionValue(region2)
-      val rv2b = new RegionValueBuilder(region2)
+      val rv2b = ctx.rvb
 
       var idx = partStarts(i)
 
       it.map { rv =>
-        region2.clear()
         rv2b.start(newRVType)
 
         inserter(rv.region, rv.offset, rv2b,
@@ -2527,7 +2519,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2.setOffset(rv2b.end())
         rv2
       }
-    }
+    })
     copyMT(matrixType = newMatrixType, rvd = indexedRVD)
   }
 
