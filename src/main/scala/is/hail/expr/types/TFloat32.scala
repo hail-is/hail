@@ -25,11 +25,18 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
-    a1 == a2 || (a1 != null && a2 != null &&
-      (math.abs(a1.asInstanceOf[Float] - a2.asInstanceOf[Float]) <= tolerance ||
-        D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance) ||
-        (a1.asInstanceOf[Double].isNaN && a2.asInstanceOf[Double].isNaN)))
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
+    a1 == a2 || (a1 != null && a2 != null && {
+      val f1 = a1.asInstanceOf[Float]
+      val f2 = a2.asInstanceOf[Float]
+
+      (if (absolute)
+        math.abs(f1 - f2) <= tolerance
+      else
+        D_==(f1, f2, tolerance)) ||
+        (f1.isNaN && f2.isNaN) ||
+        (f1.isInfinite && f2.isInfinite && ((f1 > 0 && f2 > 0) || (f1 < 0 && f2 < 0)))
+    })
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 

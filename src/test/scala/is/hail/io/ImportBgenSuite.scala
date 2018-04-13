@@ -64,7 +64,7 @@ class ImportBgenSuite extends SparkSuite {
       hc.indexBgen(bgenFile)
       val bgenMT = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), includeGT = true, includeGP = true,
         includeDosage = false, nPartitions = Some(10), contigRecoding = contigRecoding)
-      val isSame = genMT.same(bgenMT, tolerance)
+      val isSame = genMT.same(bgenMT, tolerance, absolute = true)
       hadoopConf.delete(bgenFile + ".idx", recursive = true)
       isSame
     })

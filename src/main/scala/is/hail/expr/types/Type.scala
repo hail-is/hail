@@ -243,7 +243,7 @@ abstract class Type extends BaseType with Serializable {
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
   /* compare values for equality, but compare Float and Double values by the absolute value of their difference is within tolerance or with D_== */
-  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
+  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = a1 == a2
 
   def scalaClassTag: ClassTag[_ <: AnyRef]
 
