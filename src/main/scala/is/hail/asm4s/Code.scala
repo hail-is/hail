@@ -652,8 +652,8 @@ trait Settable[T] {
 
 class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
 
-  val value: ClassFieldRef[T] = fb.newField[T](name)
-  val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
+  private[this] val value: ClassFieldRef[T] = fb.newField[T](name)
+  private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
 
   def load(): Code[T] =
     Code(present.mux(Code._empty[Unit], Code(value := setup, present := true)), value)
