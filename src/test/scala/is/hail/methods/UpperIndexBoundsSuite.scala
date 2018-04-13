@@ -24,7 +24,7 @@ class UpperIndexBoundsSuite extends SparkSuite {
   }
 
   @Test def testGroupPositionsByContig() {
-    val groupedPositions = UpperIndexBounds.groupPositionsByContig(tbl.keyBy("contig"))
+    val groupedPositions = UpperIndexBounds.groupPositionsByKey(tbl.keyBy("contig"))
     val expected = Array(Array(5, 7, 13, 14, 17, 65, 70, 73), Array(74, 75, 200, 300))
     assert((groupedPositions.collect(), expected).zipped
       .forall { case (positions, expectedPositions) => positions.toSet == expectedPositions.toSet })
@@ -38,7 +38,7 @@ class UpperIndexBoundsSuite extends SparkSuite {
   }
 
   @Test def testShiftUpperIndexBounds() {
-    val groupedPositions = UpperIndexBounds.groupPositionsByContig(tbl.keyBy("contig"))
+    val groupedPositions = UpperIndexBounds.groupPositionsByKey(tbl.keyBy("contig"))
     val bounds = UpperIndexBounds.shiftUpperIndexBounds(groupedPositions.map { positions =>
       scala.util.Sorting.quickSort(positions)
       UpperIndexBounds.computeUpperIndexBounds(positions, radius = 10)

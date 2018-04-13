@@ -4,23 +4,23 @@ import is.hail.HailContext
 import is.hail.expr.types._
 import is.hail.linalg.BlockMatrix
 import is.hail.table.Table
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, plural}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object UpperIndexBounds {
 
-  def groupPositionsByContig(tbl: Table): RDD[Array[Int]] = {
+  def groupPositionsByKey(tbl: Table): RDD[Array[Int]] = {
 
-    if (tbl.keySignature.size < 1) {
-      fatal(s"Expected table to have at least 1 key, but found ${ tbl.keySignature.size } keys.")
-    }
     if (tbl.valueSignature.size != 1 || tbl.valueSignature.types(0) != TInt32()) {
-      fatal(s"Expected table to have 1 field of type int32, but found ${ tbl.valueSignature.size } field(s) of " +
-        s"type(s) ${ tbl.valueSignature.types.mkString(", ") }.")
+      fatal(s"Expected table to have one value field of type int32, but found ${ tbl.valueSignature.size } value " +
+        s"${ plural(tbl.valueSignature.size, "field") } of ${ plural(tbl.valueSignature.size, "type") } " +
+        s"${ tbl.valueSignature.types.mkString(", ") }.")
     }
 
-    tbl.groupByKey("positions").rdd.map(row => row.get(1).asInstanceOf[Vector[Row]].toArray
+    val fieldIndex = tbl.valueFieldIdx(0)
+
+    tbl.groupByKey("positions").rdd.map(row => row.get(fieldIndex).asInstanceOf[Vector[Row]].toArray
       .map(row => row.get(0).asInstanceOf[Int]))
   }
 
@@ -28,22 +28,20 @@ object UpperIndexBounds {
   // for each index i, compute the largest index j such that positions[j]-positions[i] <= radius
   def computeUpperIndexBounds(positions: Array[Int], radius: Int): Array[Int] = {
 
-    val bounds = for {i <- positions.indices} yield {
-      val maxPossiblePositionInsideRadius = positions(i) + radius
-      var largestJ = i
-      var j = i
-      while (j < positions.length) {
-        if (positions(j) <= maxPossiblePositionInsideRadius) {
-          largestJ = j
-          j += 1
-        } else {
-          j = positions.length
-        }
+    val n = positions.length
+    val bounds = new Array[Int](n)
+    var j = 0
+
+    for (i <- positions.indices) {
+      val maxPosition = positions(i) + radius
+      while (j < n && positions(j) <= maxPosition) {
+        j += 1
       }
-      largestJ
+      j -= 1
+      bounds(i) = j
     }
 
-    bounds.toArray
+    bounds
   }
 
   def shiftUpperIndexBounds(upperIndexBounds: RDD[Array[Int]]): Array[Long] = {
@@ -58,7 +56,7 @@ object UpperIndexBounds {
   // assumes a symmetric matrix, so only blocks above the diagonal are included
   def computeBlocksWithinRadiusAndAboveDiagonal(tbl: Table, bm: BlockMatrix, radius: Int): Array[Int] = {
 
-    val groupedPositions = groupPositionsByContig(tbl)
+    val groupedPositions = groupPositionsByKey(tbl)
 
     val upperIndexBounds = groupedPositions.map(positions => {
       scala.util.Sorting.quickSort(positions)
