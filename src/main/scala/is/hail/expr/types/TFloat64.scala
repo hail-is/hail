@@ -28,8 +28,8 @@ class TFloat64(override val required: Boolean) extends TNumeric {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null && {
-      val f1 = a1.asInstanceOf[Float]
-      val f2 = a2.asInstanceOf[Float]
+      val f1 = a1.asInstanceOf[Double]
+      val f2 = a2.asInstanceOf[Double]
 
       (if (absolute)
         math.abs(f1 - f2) <= tolerance
