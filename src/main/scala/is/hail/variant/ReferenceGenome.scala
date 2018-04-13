@@ -457,33 +457,17 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Serialization.write(jrg)
   }
 
-  def addAsField(fb: FunctionBuilder[_]): (ClassFieldRef[ReferenceGenome], Code[Unit]) = {
+  def codeSetup: Code[ReferenceGenome] = {
     val json = toJSONString
     val chunkSize = (1 << 16) - 1
     val nChunks = (json.length() - 1) / chunkSize + 1
     assert(nChunks > 0)
-    val stringRef = fb.newField[String]
-    val isDefined = fb.newField[Boolean]
 
     val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
-    val stringAssembler = if (chunks.length == 1) {
-      stringRef := chunks.head
-    } else {
-      Code(stringRef := chunks.head,
-        Code(chunks.tail.map { s =>
-            stringRef := stringRef.invoke[String, String]("concat", s)
-          }: _*))
-    }
+    val stringAssembler =
+      chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
 
-    val field = fb.newField[ReferenceGenome]
-    val loader: Code[Unit] =
-      isDefined.mux(
-        Code._empty[Unit],
-        Code(stringAssembler,
-          field := Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringRef),
-          isDefined := true))
-
-    (field, loader)
+    Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
   }
 }
 

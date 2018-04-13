@@ -406,4 +406,17 @@ class ASM4SSuite extends TestNGSuite {
     assert(readField[Long](1, 2L, true) == 2L)
     assert(readField[Boolean](1, 2L, true))
   }
+
+  @Test def lazyFieldEvaluatesOnce(): Unit = {
+    val fb = FunctionBuilder.functionBuilder[Int]
+    val v2 = fb.newField[Int]
+    val v1 = fb.newLazyField(v2 + 1)
+
+    fb.emit(v2 := 0)
+    fb.emit(v2 := v1)
+    fb.emit(v2 := v1)
+    fb.emit(v1)
+
+    assert(fb.result()()() == 1)
+  }
 }
