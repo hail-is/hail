@@ -83,7 +83,7 @@ trait Implicits {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichContextRDDRegionValue[C <: AutoCloseable](r: ContextRDD[C, RegionValue]): RichContextRDDRegionValue[C] = new RichContextRDDRegionValue(r)
+  implicit def toRichContextRDDRegionValue[C <: ResettableContext](r: ContextRDD[C, RegionValue]): RichContextRDDRegionValue[C] = new RichContextRDDRegionValue(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
