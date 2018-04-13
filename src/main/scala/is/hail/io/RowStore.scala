@@ -5,7 +5,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.io.compress.LZ4Utils
 import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
-import is.hail.sparkextras.ContextRDD
+import is.hail.sparkextras.{ContextRDD, ResettableContext}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.json4s.{Extraction, JValue}
@@ -730,7 +730,7 @@ object RichContextRDDRegionValue {
   }
 }
 
-class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
+class RichContextRDDRegionValue[C <: ResettableContext](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
     crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(t, codecSpec))
   }
