@@ -29,7 +29,7 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"logistic_regression: running $test logistic regression on $n samples for response variable y,\n"
+    info(s"logistic_regression: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)

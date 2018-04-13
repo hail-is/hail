@@ -153,6 +153,230 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1._same(t4a))
         self.assertTrue(t1._same(t4b))
 
+    def test_linear_regression_with_two_cov(self):
+
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
+                                  x=mt.GT.n_alt_alleles(),
+                                  covariates=list(covariates[mt.s].values()))
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
+        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5417647, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 0.3350599, places=6)
+        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+        self.assertAlmostEqual(results[3].beta, 1.07367185, places=6)
+        self.assertAlmostEqual(results[3].standard_error, 0.6764348, places=6)
+        self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
+        self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
+
+        self.assertTrue(np.isnan(results[6].standard_error))
+        self.assertTrue(np.isnan(results[6].t_stat))
+        self.assertTrue(np.isnan(results[6].p_value))
+
+        self.assertTrue(np.isnan(results[7].standard_error))
+        self.assertTrue(np.isnan(results[8].standard_error))
+        self.assertTrue(np.isnan(results[9].standard_error))
+        self.assertTrue(np.isnan(results[10].standard_error))
+
+    def test_linear_regression_with_two_cov_pl(self):
+
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
+                                  x=hl.pl_dosage(mt.PL),
+                                  covariates=list(covariates[mt.s].values()))
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.29166985, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=6)
+        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5499320, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 0.3401110, places=6)
+        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+        self.assertAlmostEqual(results[3].beta, 1.09536219, places=6)
+        self.assertAlmostEqual(results[3].standard_error, 0.6901002, places=6)
+        self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
+        self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
+
+    def test_linear_regression_with_two_cov_dosage(self):
+
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+        mt = hl.import_gen(resource('regressionLinear.gen'), sample_file=resource('regressionLinear.sample'))
+        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
+                                  x=hl.gp_dosage(mt.GP),
+                                  covariates=list(covariates[mt.s].values()))
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.29166985, places=4)
+        self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=4)
+        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5499320, places=4)
+        self.assertAlmostEqual(results[2].standard_error, 0.3401110, places=4)
+        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+        self.assertAlmostEqual(results[3].beta, 1.09536219, places=4)
+        self.assertAlmostEqual(results[3].standard_error, 0.6901002, places=4)
+        self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
+        self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
+        self.assertTrue(np.isnan(results[6].standard_error))
+
+    def test_linear_regression_with_no_cov(self):
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
+                                  x=mt.GT.n_alt_alleles())
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.25, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 0.4841229, places=6)
+        self.assertAlmostEqual(results[1].t_stat, -0.5163978, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.63281250, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.250000, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 0.2602082, places=6)
+        self.assertAlmostEqual(results[2].t_stat, -0.9607689, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.391075888, places=6)
+
+        self.assertTrue(np.isnan(results[6].standard_error))
+        self.assertTrue(np.isnan(results[7].standard_error))
+        self.assertTrue(np.isnan(results[8].standard_error))
+        self.assertTrue(np.isnan(results[9].standard_error))
+        self.assertTrue(np.isnan(results[10].standard_error))
+
+    def test_linear_regression_with_import_fam_boolean(self):
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        fam = hl.import_fam(resource('regressionLinear.fam'))
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=fam[mt.s].is_case,
+                                  x=mt.GT.n_alt_alleles(),
+                                  covariates=list(covariates[mt.s].values()))
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
+        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5417647, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 0.3350599, places=6)
+        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+        self.assertTrue(np.isnan(results[6].standard_error))
+        self.assertTrue(np.isnan(results[7].standard_error))
+        self.assertTrue(np.isnan(results[8].standard_error))
+        self.assertTrue(np.isnan(results[9].standard_error))
+        self.assertTrue(np.isnan(results[10].standard_error))
+
+    def test_linear_regression_with_import_fam_quant(self):
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        fam = hl.import_fam(resource('regressionLinear.fam'),
+                            quant_pheno=True,
+                            missing='0')
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=fam[mt.s].quant_pheno,
+                                  x=mt.GT.n_alt_alleles(),
+                                  covariates=list(covariates[mt.s].values()))
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
+        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5417647, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 0.3350599, places=6)
+        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+        self.assertTrue(np.isnan(results[6].standard_error))
+        self.assertTrue(np.isnan(results[7].standard_error))
+        self.assertTrue(np.isnan(results[8].standard_error))
+        self.assertTrue(np.isnan(results[9].standard_error))
+        self.assertTrue(np.isnan(results[10].standard_error))
+
+    def test_linear_regression_multi_pheno_same(self):
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
+                                  x=mt.GT.n_alt_alleles(),
+                                  covariates=list(covariates[mt.s].values()),
+                                  root='single')
+        mt = hl.linear_regression(y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
+                                  x=mt.GT.n_alt_alleles(),
+                                  covariates=list(covariates[mt.s].values()),
+                                  root='multi')
+
+        def eq(x1, x2):
+            return (hl.is_nan(x1) & hl.is_nan(x2)) | (hl.abs(x1 - x2) < 1e-4)
+
+        self.assertTrue(mt.aggregate_rows(hl.agg.all((eq(mt.single.p_value, mt.multi.p_value[0]) &
+                                                      eq(mt.single.standard_error, mt.multi.standard_error[0]) &
+                                                      eq(mt.single.t_stat, mt.multi.t_stat[0]) &
+                                                      eq(mt.single.beta, mt.multi.beta[0]) &
+                                                      eq(mt.single.y_transpose_x, mt.multi.y_transpose_x[0])))))
+        self.assertTrue(mt.aggregate_rows(hl.agg.all(eq(mt.multi.p_value[1], mt.multi.p_value[0]) &
+                                                     eq(mt.multi.standard_error[1], mt.multi.standard_error[0]) &
+                                                     eq(mt.multi.t_stat[1], mt.multi.t_stat[0]) &
+                                                     eq(mt.multi.beta[1], mt.multi.beta[0]) &
+                                                     eq(mt.multi.y_transpose_x[1], mt.multi.y_transpose_x[0]))))
+
     def test_trio_matrix(self):
         """
         This test depends on certain properties of the trio matrix VCF and
