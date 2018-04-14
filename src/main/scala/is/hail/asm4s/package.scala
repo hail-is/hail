@@ -199,6 +199,8 @@ package object asm4s {
 
   implicit def toCodeDouble(c: Code[Double]): CodeDouble = new CodeDouble(c)
 
+  implicit def toCodeString(c: Code[String]): CodeString = new CodeString(c)
+
   implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
 
   implicit def toCodeObject[T <: AnyRef : ClassTag](c: Code[T]): CodeObject[T] =

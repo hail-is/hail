@@ -1,8 +1,14 @@
 package is.hail.annotations
 
+import java.io.PrintStream
+
+import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.utils._
+import is.hail.expr.types.coerce
+import is.hail.variant.ReferenceGenome
 
 case class CodeOrdering(t: Type, missingGreatest: Boolean) {
 
@@ -24,11 +30,12 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
   private[this] def doubleCompare(v1: Code[Double], v2: Code[Double]): Code[Int] =
     Code.invokeStatic[java.lang.Double, Double, Double, Int]("compare", v1, v2)
 
-  def compare(mb: MethodBuilder, r1: Code[Region], o1: Code[Long], r2: Code[Region], o2: Code[Long]): Code[Int] =
+  def compare(mb: EmitMethodBuilder, r1: Code[Region], o1: Code[Long], r2: Code[Region], o2: Code[Long]): Code[Int] = {
     compare(t, mb, r1, o1, r2, o2)
+  }
 
-  private[this] def compare(typ: Type, mb: MethodBuilder, r1: Code[Region], o1: Code[Long], r2: Code[Region], o2: Code[Long]): Code[Int] = {
-    val c: Code[_] = typ match {
+  private[this] def compare(typ: Type, mb: EmitMethodBuilder, r1: Code[Region], o1: Code[Long], r2: Code[Region], o2: Code[Long]): Code[Int] = {
+    typ match {
       case _: TBoolean =>
         booleanCompare(r1.loadBoolean(o1), r2.loadBoolean(o2))
       case _: TInt32 =>
@@ -39,7 +46,7 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
         floatCompare(r1.loadFloat(o1), r2.loadFloat(o2))
       case _: TFloat64 =>
         doubleCompare(r1.loadDouble(o1), r2.loadDouble(o2))
-      case _: TBinary =>
+      case _: TBinary | _: TString =>
         val b1 = mb.newLocal[Long]("bin_ord_b1")
         val b2 = mb.newLocal[Long]("bin_ord_b2")
         val l1 = mb.newLocal[Int]("bin_ord_l1")
@@ -50,8 +57,8 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
         Code(
           b1 := o1,
           b2 := o2,
-          l1 := TBinary.loadLength(r1, o1),
-          l2 := TBinary.loadLength(r2, o2),
+          l1 := TBinary.loadLength(r1, b1),
+          l2 := TBinary.loadLength(r2, b2),
           lim := (l1 < l2).mux(l1, l2),
           i := 0,
           cmp := 0,
@@ -60,8 +67,30 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
               r2.loadByte(TBinary.bytesOffset(b2) + i.toL)),
             i += 1),
           cmp.ceq(0).mux(intCompare(l1, l2), cmp))
-      case _: TLocus =>
-      // FIXME: I think this needs GenomeRef stuff to work.
+
+      case tl@TLocus(rg, _) =>
+        val rgVal = mb.getReferenceGenome(rg.asInstanceOf[ReferenceGenome])
+        val l1 = mb.newLocal[Long]
+        val l2 = mb.newLocal[Long]
+        val p1 = mb.newLocal[Long]("this_is_test1")
+        val p2 = mb.newLocal[Long]("this_is_test2")
+        val cmp = mb.newLocal[Int]
+
+        val c1 = tl.representation.loadField(r1, l1, 0)
+        val c2 = tl.representation.loadField(r2, l2, 0)
+
+        val s1 = Code.invokeScalaObject[Region, Long, String](TString.getClass, "loadString", r1, c1)
+        val s2 = Code.invokeScalaObject[Region, Long, String](TString.getClass, "loadString", r2, c2)
+
+        Code(
+          l1 := o1,
+          l2 := o2,
+          cmp := rgVal.invoke[String, String, Int]("compare", s1, s2),
+          cmp.ceq(0).mux(Code(
+            p1 := tl.representation.loadField(r1, l1, 1),
+            p2 := tl.representation.loadField(r2, l2, 1),
+            intCompare(r1.loadInt(p1), r2.loadInt(p2))), cmp))
+
       case ti: TInterval =>
         val i1 = mb.newLocal[Long]
         val i2 = mb.newLocal[Long]
@@ -92,37 +121,34 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
                               cmp.cne(0).mux(cmp,
                                 Code(
                                   pinclude1 := ti.includeEnd(r1, i1),
-                                  pinclude1.cne(ti.includeEnd(r1, i1))
+                                  pinclude1.cne(ti.includeEnd(r2, i2))
                                     .mux(pinclude1.mux(1, -1), 0)))),
                             0))))))),
               0)))
       case ts: TBaseStruct =>
-        var i = 0
+        var i = ts.size - 1
         val leftDefined = mb.newLocal[Boolean]
         val rightDefined = mb.newLocal[Boolean]
         val cmp = mb.newLocal[Int]
 
-        var compPrev = { c: Code[Unit] => c }
-        while (i < ts.size) {
-          val compareField = { cmpnextfield: Code[Unit] =>
-            Code(
+        var compNext = Code._empty[Unit]
+        while(i >= 0) {
+          compNext = Code(
               leftDefined := ts.isFieldDefined(r1, o1, i),
               rightDefined := ts.isFieldDefined(r2, o2, i),
               (leftDefined && rightDefined).mux(
-                cmp := compare(ts.types(i), mb, r1, o1, r2, o2),
+                cmp := compare(ts.types(i), mb, r1, ts.loadField(r1, o1, i), r2, ts.loadField(r2, o2, i)),
                 leftDefined.ceq(rightDefined).mux(
                   Code._empty,
                   cmp := (if (missingGreatest) leftDefined.mux(-1, 1) else leftDefined.mux(1, -1)))),
-              cmp.ceq(0).mux(cmpnextfield, Code._empty))
-          }
-          compPrev = compPrev(compareField(_))
-          i += 1
+              cmp.ceq(0).mux(compNext, Code._empty))
+          i -= 1
         }
-        Code(cmp := 0, compPrev(Code._empty), cmp)
+        Code(cmp := 0, compNext, cmp)
 
-      case ti: TIterable =>
-        val ftype = coerce[TArray](ti.fundamentalType)
-        val etype = ftype.elementType
+      case tc: TContainer =>
+        val etype = tc.elementType
+
         val a1 = mb.newLocal[Long]("it_ord_a1")
         val a2 = mb.newLocal[Long]("it_ord_a2")
         val l1 = mb.newLocal[Int]("it_ord_l1")
@@ -132,29 +158,30 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
         val cmp = mb.newLocal[Int]("it_ord_cmp")
         val leftDefined = mb.newLocal[Boolean]
         val rightDefined = mb.newLocal[Boolean]
-        Code(
+        asm4s.coerce[Int](Code(
           a1 := o1,
           a2 := o2,
-          l1 := ftype.loadLength(r1, o1),
-          l2 := ftype.loadLength(r2, o2),
+          l1 := tc.loadLength(r1, o1),
+          l2 := tc.loadLength(r2, o2),
           lim := (l1 < l2).mux(l1, l2),
           i := 0,
           cmp := 0,
           Code.whileLoop(cmp.ceq(0) && i < lim,
-            leftDefined := ftype.isElementDefined(r1, a1, i),
-            rightDefined := ftype.isElementDefined(r2, a2, i),
+            leftDefined := tc.isElementDefined(r1, a1, i),
+            rightDefined := tc.isElementDefined(r2, a2, i),
             (leftDefined && rightDefined).mux(
               cmp := compare(etype, mb,
-                r1, ftype.loadElement(r1, a1, i),
-                r2, ftype.loadElement(r2, a2, i)),
-              leftDefined.ceq(rightDefined).mux(
+                r1, tc.loadElement(r1, a1, i),
+                r2, tc.loadElement(r2, a2, i)),
+              leftDefined.cne(rightDefined).mux(
                 cmp := (if (missingGreatest) leftDefined.mux(-1, 1) else leftDefined.mux(1, -1)),
                 Code._empty)),
             i += 1),
-          cmp.ceq(0).mux(intCompare(l1, l2), cmp))
+          cmp.ceq(0).mux(intCompare(l1, l2), cmp)))
+      case tc: ComplexType =>
+        compare(tc.representation, mb, r1, o1, r2, o2)
       case _ =>
-        throw new UnsupportedOperationException(s"can't stage type: $t")
+        throw new UnsupportedOperationException(s"can't stage type: $typ")
     }
-    coerce[Int](c)
   }
 }

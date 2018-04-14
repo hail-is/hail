@@ -1,5 +1,7 @@
 package is.hail.asm4s
 
+import java.io.PrintStream
+
 import is.hail.expr.CM
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
@@ -175,6 +177,9 @@ object Code {
 
   def invokeScalaObject[A1, S](cls: Class[_], method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S]): Code[S] =
     invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array(a1))
+
+  def invokeScalaObject[A1, A2, S](cls: Class[_], method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array(a1, a2))
 
   def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
@@ -400,8 +405,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     lhs.toConditional || rhs.toConditional
 
   def ceq(rhs: Code[Boolean]): Code[Boolean] =
+    lhs.toConditional.ceq(rhs.toConditional)
 
   def cne(rhs: Code[Boolean]): Code[Boolean] =
+    lhs.toConditional.cne(rhs.toConditional)
 
   // on the JVM Booleans are represented as Ints
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
@@ -570,6 +577,12 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
   def toF: Code[Float] = Code(lhs, new InsnNode(D2F))
 
   def toD: Code[Double] = lhs
+}
+
+class CodeString(val lhs: Code[String]) extends AnyVal {
+  def concat(other: Code[String]): Code[String] = lhs.invoke[String, String]("concat", other)
+
+  def println(): Code[Unit] = Code.getStatic[System, PrintStream]("out").invoke[String, Unit]("println", lhs)
 }
 
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {

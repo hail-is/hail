@@ -49,7 +49,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
             if (includesS1 == includesStart(r2, o2)) {
               val edef1 = endDefined(r1, o1)
               if (edef1 == endDefined(r2, o2)) {
-                val cmp = pOrd.compare(r1, loadStart(r1, o1), r2, loadStart(r2, o2))
+                val cmp = pOrd.compare(r1, loadEnd(r1, o1), r2, loadEnd(r2, o2))
                 if (cmp == 0) {
                   val includesE1 = includesEnd(r1, o1)
                   if (includesE1 == includesEnd(r2, o2)) {
