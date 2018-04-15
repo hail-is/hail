@@ -26,25 +26,25 @@ Un-tar the Spark distribution.
 
 .. code-block:: text
 
-    tar xvf ???
+    tar xvf <path to spark.tgz>
 
 Here, fill in the path to the **un-tarred** Spark package.
 
 .. code-block:: text
 
-    export SPARK_HOME=???
+    export SPARK_HOME=<path to spark>
 
 Unzip the Hail distribution.
 
 .. code-block:: text
 
-    unzip ???
+    unzip <path to hail.zip>
 
 Here, fill in the path to the **unzipped** Hail distribution.
 
 .. code-block:: text
 
-    export HAIL_HOME=???
+    export HAIL_HOME=<path to hail>
     export PATH=$PATH:$HAIL_HOME/bin/
 
 To install Python dependencies, create a conda environment for Hail:
