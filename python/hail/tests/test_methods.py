@@ -377,6 +377,269 @@ class Tests(unittest.TestCase):
                                                      eq(mt.multi.beta[1], mt.multi.beta[0]) &
                                                      eq(mt.multi.y_transpose_x[1], mt.multi.y_transpose_x[0]))))
 
+    def test_logistic_regression_wald_test_two_cov(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.logistic_regression('wald',
+                                    y=pheno[mt.s].isCase,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 2.1085483421, places=6)
+        self.assertAlmostEqual(results[1].z_stat, -0.3852261396, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.7000698784, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 1.0296902941, places=6)
+        self.assertAlmostEqual(results[2].z_stat, -0.4240057531, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.6715616176, places=6)
+
+        def is_constant(r):
+            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+        self.assertTrue(is_constant(results[3]))
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    def test_logistic_regression_wald_test_two_cov_pl(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.logistic_regression('wald',
+                                    y=pheno[mt.s].isCase,
+                                    x=hl.pl_dosage(mt.PL),
+                                    covariates=[covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.8286774, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 2.151145, places=6)
+        self.assertAlmostEqual(results[1].z_stat, -0.3852261, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.7000699, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.4431764, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 1.045213, places=6)
+        self.assertAlmostEqual(results[2].z_stat, -0.4240058, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.6715616, places=6)
+
+        def is_constant(r):
+            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+        self.assertFalse(results[3].fit.converged)
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    def test_logistic_regression_wald_two_cov_dosage(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_gen(resource('regressionLogistic.gen'),
+                           sample_file=resource('regressionLogistic.sample'))
+        mt = hl.logistic_regression('wald',
+                                    y=pheno[mt.s].isCase,
+                                    x=hl.gp_dosage(mt.GP),
+                                    covariates=[covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.8286774, places=4)
+        self.assertAlmostEqual(results[1].standard_error, 2.151145, places=4)
+        self.assertAlmostEqual(results[1].z_stat, -0.3852261, places=4)
+        self.assertAlmostEqual(results[1].p_value, 0.7000699, places=4)
+
+        self.assertAlmostEqual(results[2].beta, -0.4431764, places=4)
+        self.assertAlmostEqual(results[2].standard_error, 1.045213, places=4)
+        self.assertAlmostEqual(results[2].z_stat, -0.4240058, places=4)
+        self.assertAlmostEqual(results[2].p_value, 0.6715616, places=4)
+
+        def is_constant(r):
+            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+        self.assertFalse(results[3].fit.converged)
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    def test_logistic_regression_lrt_two_cov(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.logistic_regression('lrt',
+                                    y=pheno[mt.s].isCase,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+
+        self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
+        self.assertAlmostEqual(results[1].chi_sq_stat, 0.1503349167, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.6982155052, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
+        self.assertAlmostEqual(results[2].chi_sq_stat, 0.1813968574, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.6701755415, places=6)
+
+        def is_constant(r):
+            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+        self.assertFalse(results[3].fit.converged)
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    def test_logistic_regression_score_two_cov(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.logistic_regression('score',
+                                    y=pheno[mt.s].isCase,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+
+        self.assertAlmostEqual(results[1].chi_sq_stat, 0.1502364955, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.6983094571, places=6)
+
+        self.assertAlmostEqual(results[2].chi_sq_stat, 0.1823600965, places=6)
+        self.assertAlmostEqual(results[2].p_value, 0.6693528073, places=6)
+
+        self.assertAlmostEqual(results[3].chi_sq_stat, 7.047367694, places=6)
+        self.assertAlmostEqual(results[3].p_value, 0.007938182229, places=6)
+
+        def is_constant(r):
+            return r.chi_sq_stat is None or r.chi_sq_stat < 1e-6
+
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    def test_logistic_regression_epacts(self):
+        covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
+                                     key='IND_ID',
+                                     types={'PC1': hl.tfloat, 'PC2': hl.tfloat})
+        fam = hl.import_fam(resource('regressionLogisticEpacts.fam'))
+
+        mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
+        mt = mt.annotate_cols(**covariates[mt.s], **fam[mt.s])
+
+        mt = hl.logistic_regression('wald',
+                                    y=mt.is_case,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[mt.is_female, mt.PC1, mt.PC2],
+                                    root='wald')
+        mt = hl.logistic_regression('lrt',
+                                    y=mt.is_case,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[mt.is_female, mt.PC1, mt.PC2],
+                                    root='lrt')
+        mt = hl.logistic_regression('score',
+                                    y=mt.is_case,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[mt.is_female, mt.PC1, mt.PC2],
+                                    root='score')
+        mt = hl.logistic_regression('firth',
+                                    y=mt.is_case,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[mt.is_female, mt.PC1, mt.PC2],
+                                    root='firth')
+
+        # 2535 samples from 1K Genomes Project
+        # Locus("22", 16060511)  # MAC  623
+        # Locus("22", 16115878)  # MAC  370
+        # Locus("22", 16115882)  # MAC 1207
+        # Locus("22", 16117940)  # MAC    7
+        # Locus("22", 16117953)  # MAC   21
+
+        mt = mt.select_rows(*mt.row_key, 'wald', 'lrt', 'firth', 'score')
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.row))))
+
+        self.assertAlmostEqual(results[16060511].wald.beta, -0.097476, places=4)
+        self.assertAlmostEqual(results[16060511].wald.standard_error, 0.087478, places=4)
+        self.assertAlmostEqual(results[16060511].wald.z_stat, -1.1143, places=4)
+        self.assertAlmostEqual(results[16060511].wald.p_value, 0.26516, places=4)
+        self.assertAlmostEqual(results[16060511].lrt.p_value, 0.26475, places=4)
+        self.assertAlmostEqual(results[16060511].score.p_value, 0.26499, places=4)
+        self.assertAlmostEqual(results[16060511].firth.beta, -0.097079, places=4)
+        self.assertAlmostEqual(results[16060511].firth.p_value, 0.26593, places=4)
+
+
+        self.assertAlmostEqual(results[16115878].wald.beta, -0.052632, places=4)
+        self.assertAlmostEqual(results[16115878].wald.standard_error, 0.11272, places=4)
+        self.assertAlmostEqual(results[16115878].wald.z_stat, -0.46691, places=4)
+        self.assertAlmostEqual(results[16115878].wald.p_value, 0.64056, places=4)
+        self.assertAlmostEqual(results[16115878].lrt.p_value, 0.64046, places=4)
+        self.assertAlmostEqual(results[16115878].score.p_value, 0.64054, places=4)
+        self.assertAlmostEqual(results[16115878].firth.beta, -0.052301, places=4)
+        self.assertAlmostEqual(results[16115878].firth.p_value, 0.64197, places=4)
+
+        self.assertAlmostEqual(results[16115882].wald.beta, -0.15598, places=4)
+        self.assertAlmostEqual(results[16115882].wald.standard_error, 0.079508, places=4)
+        self.assertAlmostEqual(results[16115882].wald.z_stat, -1.9619, places=4)
+        self.assertAlmostEqual(results[16115882].wald.p_value, 0.049779, places=4)
+        self.assertAlmostEqual(results[16115882].lrt.p_value, 0.049675, places=4)
+        self.assertAlmostEqual(results[16115882].score.p_value, 0.049675, places=4)
+        self.assertAlmostEqual(results[16115882].firth.beta, -0.15567, places=4)
+        self.assertAlmostEqual(results[16115882].firth.p_value, 0.04991, places=4)
+
+        self.assertAlmostEqual(results[16117940].wald.beta, -0.88059, places=4)
+        self.assertAlmostEqual(results[16117940].wald.standard_error, 0.83769, places=2)
+        self.assertAlmostEqual(results[16117940].wald.z_stat, -1.0512, places=2)
+        self.assertAlmostEqual(results[16117940].wald.p_value, 0.29316, places=2)
+        self.assertAlmostEqual(results[16117940].lrt.p_value, 0.26984, places=4)
+        self.assertAlmostEqual(results[16117940].score.p_value, 0.27828, places=4)
+        self.assertAlmostEqual(results[16117940].firth.beta, -0.7524, places=4)
+        self.assertAlmostEqual(results[16117940].firth.p_value, 0.30731, places=4)
+
+        self.assertAlmostEqual(results[16117953].wald.beta, 0.54921, places=4)
+        self.assertAlmostEqual(results[16117953].wald.standard_error, 0.4517, places=3)
+        self.assertAlmostEqual(results[16117953].wald.z_stat, 1.2159, places=3)
+        self.assertAlmostEqual(results[16117953].wald.p_value, 0.22403, places=3)
+        self.assertAlmostEqual(results[16117953].lrt.p_value, 0.21692, places=4)
+        self.assertAlmostEqual(results[16117953].score.p_value, 0.21849, places=4)
+        self.assertAlmostEqual(results[16117953].firth.beta, 0.5258, places=4)
+        self.assertAlmostEqual(results[16117953].firth.p_value, 0.22562, places=4)
+
     def test_trio_matrix(self):
         """
         This test depends on certain properties of the trio matrix VCF and
