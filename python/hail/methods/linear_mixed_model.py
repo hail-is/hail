@@ -4,20 +4,47 @@ from hail.typecheck import *
 
 class LinearMixedModel(object):
     """
-    Experimental linear mixed model class.
+    .. include:: _templates/experimental.rst
+
+    .. math::
+
+      y \sim \mathrm{N}\left(X\beta, \sigma^2 K + \tau^2 I\right)
+
+    The following attributes are set at initialization.
+    - `n` (:obj:`int`) -- Number of observations
+    - `k` (:obj:`int`) -- Number of fixed effects
+    - `r` (:obj:`int`) -- Number of random effects
+    - `y` (:class:`numpy.ndarray`) -- Response vector with shape (math:`n`,)
+    - `c` (:class:`numpy.ndarray`) -- Covariate matrix of fixed effects with shape (math:`n`, math:`k`)
+    - `py` (:class:`numpy.ndarray`) -- Projected response vector math:`Py` with shape (math:`r`,)
+    - `pc` (:class:`numpy.ndarray`) -- Projected covariate matrix math:`PC` with shape (math:`r`, math:`k`)
+    - `s` (:class: numpy.ndarray`) -- Eigenvalues vector of projection with shape (:math:`r`,)
+
+    The following attributes are set by :meth:`fit` to values which jointly maximize the
+    [restricted maximum likelihood](https://en.wikipedia.org/wiki/Restricted_maximum_likelihood) (REML).
+    - `beta` (:class:`numpy.ndarray`) -- math:`\beta`
+    - `sigma_sq` (:obj:`float`) -- math:`\sigma^2`
+    - `tau_sq` (:obj:`float`) -- math:`\tau^2`
+
+    :meth:`fit` also computes the following values at this estimate:
+    - `gamma` (:obj:`float`) -- math:`\gamma = \frac{\sigma^2}{\tau^2}`
+    - `log_gamma` (:obj:`float`) -- math:`\log(\gamma)`
+    - `h_sq` (:obj:`float`) -- math:`h^2 = \frac{\sigma^2}{\sigma^2 + \tau^2}`
+    - `log_reml` (:obj:`float`) -- log of the restricted maximum likelihood
+    - `optimize_result` (:class:`scipy.optimize.OptimizeResult`) -- class returned by `scipy.optimize.minimize_scalar < https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize_scalar.html>`__
 
     Parameters
     ----------
-    y : :class:`numpy.ndarray`
-        Response vector with shape (n)
-    c : :class:`numpy.ndarray`
-        Covariate matrix with shape (n, k), including intercept
-    py : :class:`numpy.ndarray`
-        Projected response vector P @ y with shape (r)
-    pc : :class:`numpy.ndarray`
-        Projected covariate matrix P @ c with shape (r, k)
-    s : :class:`numpy.ndarray`
-        Eigenvalues vector with shape (r)
+    y: :class:`numpy.ndarray`
+        Response vector.
+    c: :class:`numpy.ndarray`
+        Covariate matrix
+    py: :class:`numpy.ndarray`
+        Projected response vector.
+    pc: :class:`numpy.ndarray`
+        Projected covariate matrix.
+    s: :class:`numpy.ndarray`
+        Eigenvalues vector.
     """
 
     @typecheck_method(y=np.ndarray, c=np.ndarray, py=np.ndarray, pc=np.ndarray, s=np.ndarray)
@@ -26,13 +53,12 @@ class LinearMixedModel(object):
 
         self.n, self.k = c.shape
         self.dof = self.n - self.k
-        self.rank = s.shape[0]
-        self.corank = self.n - self.rank
+        self.r = s.shape[0]
 
-        assert self.dof > 0 and self.n > self.rank > 0
+        assert self.dof > 0 and self.n > self.r > 0
         assert y.size == self.n
-        assert py.size == self.rank
-        assert pc.shape == (self.rank, self.k)
+        assert py.size == self.r
+        assert pc.shape == (self.r, self.k)
 
         self.y = y
         self.c = c
@@ -47,12 +73,15 @@ class LinearMixedModel(object):
         self._shift = self.dof * (1 + np.log(2 * np.pi)) - np.linalg.slogdet(self._ctc)[1]
 
         # set by fit
-        self.fitted = False
-        self.delta = None
+        self._fitted = False
         self.beta = None
+        self.gamma = None
+        self.h_sq = None
+        self.log_gamma = None
+        self.log_reml = None
+        self.optimize_result = None
         self.sigma_sq = None
-        self.reml = None
-        self.optim = None
+        self.tau_sq = None
 
         # constants for fit_rows / fit_local_rows
         self._expanded = False
@@ -65,24 +94,47 @@ class LinearMixedModel(object):
         # scala class used by fit_rows
         self._scala_model = None
 
-    @typecheck_method(delta=nullable(float), lower=float, upper=float, tol=float, maxiter=int)
-    def fit(self, delta=None, lower=-8.0, upper=8.0, tol=1e-8, maxiter=500):
-        if self.fitted:
+    @typecheck_method(log_gamma=nullable(float), lower=float, upper=float, tol=float, maxiter=int)
+    def fit(self, log_gamma=None, lower=-8.0, upper=8.0, tol=1e-8, maxiter=500):
+        r"""Find the triple :math:`(\beta, \sigma^2, \tau^2)`` maximizing REML.
+
+        This method sets the value of the class attributes `beta`, `gamma`,
+        `log_gamma`, `h_sq`, `log_reml`, `sigma_sq`, and `tau_sq` described
+        above. If `log_gamma` is not set, the attribute `optimize_result` is set
+        as well.
+
+        Parameters
+        ----------
+        log_gamma: :obj:`float`, optional.
+            If provided, :math:`\log(\frac{\sigma^2}{\tau^2}` is constrained to
+            this value rather than fit.
+        lower: :obj:`float`
+            Lower bound for :math:`\log(\gamma)`.
+        upper: :obj:`float`
+            Upper bound for :math:`\log(\gamma)`.
+        tol: :obj:`float`
+            Absolute tolerance for optimizing :math:`\log(\gamma)`.
+        maxiter: :obj:`float`
+            Maximum number of iterations for optimizing :math:`\log(\gamma)`.
+        """
+        if self._fitted:
             self._reset()
 
-        if delta:
-            self._neg_reml(np.log(delta))
-            self.delta = delta
+        if log_gamma:
+            self._neg_log_reml(log_gamma)
+            self.log_gamma = log_gamma
         else:
             from scipy.optimize import minimize_scalar
-            self.optim = minimize_scalar(self._neg_reml, method='bounded', bounds=(lower, upper),
+            self.optimize_result = minimize_scalar(self._neg_log_reml, method='bounded', bounds=(lower, upper),
                                          options={'xatol': tol, 'maxiter': maxiter})
-            if not self.optim.success:
-                raise Exception('Failed to fit delta:' + self.optim.message)
-            self.delta = np.exp(self.optim.x)
+            if not self.optimize_result.success:
+                raise Exception('Failed to fit log_gamma:' + self.optimize_result.message)
+            self.log_gamma = self.optimize_result.x
 
-        self.fitted = True
-        return self
+        self.gamma = np.exp(self.log_gamma)
+        self.tau_sq = self.sigma_sq / self.gamma
+        self.h_sq = self.sigma_sq / (self.sigma_sq + self.tau_sq)
+        self._fitted = True
 
     @typecheck_method(path_xt=str, path_pxt=str, partition_size=int)
     def fit_rows(self, path_xt, path_pxt, partition_size):
@@ -101,7 +153,7 @@ class LinearMixedModel(object):
 
         n_rows = x.shape[1]
         assert px.shape[1] == n_rows
-        assert px.shape[0] == self.rank
+        assert px.shape[0] == self.r
 
         if not self._expanded:
             self._expand()
@@ -110,50 +162,50 @@ class LinearMixedModel(object):
 
         return pd.DataFrame.from_records(data, columns=['beta', 'sigma_sq', 'chi_sq', 'p_value'])
 
-    @typecheck_method(log_delta=float)
-    def _neg_reml(self, log_delta):
+    def compute_log_reml(self, log_gamma):
         from scipy.linalg import solve
 
-        delta = np.exp(log_delta)
-        d = self.s + delta
-
-        z = 1 / d - 1 / delta
+        gamma = np.exp(log_gamma)
+        d = self.s + 1 / gamma
+        z = 1 / d - gamma
         zpy = z * self.py
 
-        ydy = self._yty / delta + self.py @ zpy
-        cdy = self._cty / delta + self.pc.T @ zpy
-        cdc = self._ctc / delta + (self.pc.T * z) @ self.pc
+        ydy = self._yty * gamma + self.py @ zpy
+        cdy = self._cty * gamma + self.pc.T @ zpy
+        cdc = self._ctc * gamma + (self.pc.T * z) @ self.pc
 
         beta = solve(cdc, cdy, assume_a='pos', overwrite_a=True)
         residual_sq = ydy - cdy.T @ beta
+        sigma_sq = residual_sq / self.dof
+        tau_sq = sigma_sq / gamma
 
-        logdet_d = np.sum(np.log(d)) + self.corank * log_delta
-        logdet_cdc = np.linalg.slogdet(cdc)[1]
+        logdet_d = np.sum(np.log(d)) + (self.r - self.n) * log_gamma
+        log_reml = -0.5 * (logdet_d + np.linalg.slogdet(cdc)[1] + self.dof * np.log(sigma_sq) + self._shift)
 
-        self.beta = np.squeeze(beta)
-        self.sigma_sq = residual_sq / self.dof
-        self.reml = -0.5 * (logdet_d + logdet_cdc + self.dof * np.log(self.sigma_sq) + self._shift)
+        return log_reml, beta, sigma_sq, tau_sq
 
-        return -self.reml
+    def _neg_log_reml(self, log_gamma):
+        self.log_reml, self.beta, self.sigma_sq, _ = self.compute_log_reml(log_gamma)
+        return -self.log_reml
 
     def _expand(self):
         assert self.dof > 1
 
-        if not self.fitted:
+        if not self._fitted:
             raise Exception("First fit with 'fit'.")
 
-        delta = self.delta
+        gamma = self.gamma
         new_k = self.k + 1
 
-        z = 1 / (self.s + self.delta) - 1 / delta
+        z = 1 / (self.s + 1 / self.gamma) - gamma
         zpy = z * self.py
-        ydy = self._yty / delta + self.py @ zpy
+        ydy = self._yty * gamma + self.py @ zpy
 
         cdy = np.zeros(new_k)
-        cdy[1:] = self._cty / delta + self.pc.T @ zpy
+        cdy[1:] = self._cty * gamma + self.pc.T @ zpy
 
         cdc = np.zeros((new_k, new_k))
-        cdc[1:, 1:] = self._ctc / delta + (self.pc.T * z) @ self.pc
+        cdc[1:, 1:] = self._ctc * gamma + (self.pc.T * z) @ self.pc
 
         self._z = z
         self._ydy = ydy
@@ -166,15 +218,15 @@ class LinearMixedModel(object):
         from scipy.linalg import solve, LinAlgError
         from scipy.stats.distributions import chi2
 
-        delta = self.delta
+        gamma = self.gamma
         zpx = self._z * px
 
         cdy = np.copy(self._cdy)
-        cdy[0] = (self.y @ x) / delta + self.py @ zpx
+        cdy[0] = (self.y @ x) * gamma + self.py @ zpx
 
         cdc = np.copy(self._cdc)
-        cdc[0, 0] = (x @ x) / delta + px @ zpx
-        cdc[0, 1:] = (self.c.T @ x) / delta + self.pc.T @ zpx  # only using upper triangle
+        cdc[0, 0] = (x @ x) * gamma + px @ zpx
+        cdc[0, 1:] = (self.c.T @ x) * gamma + self.pc.T @ zpx  # only using upper triangle
 
         try:
             beta = solve(cdc, cdy, assume_a='pos', overwrite_a=True)
@@ -196,7 +248,7 @@ class LinearMixedModel(object):
 
         self._scala_model = Env.hail().stats.LinearMixedModel.apply(
             Env.hc()._jhc,
-            self.delta,
+            self.gamma,
             self._residual_sq,
             _jarray_from_ndarray(self.y),
             _breeze_from_ndarray(self.c),
@@ -209,17 +261,21 @@ class LinearMixedModel(object):
         )
 
     def _reset(self):
-        self.delta = None
+        self._fitted = False
         self.beta = None
+        self.gamma = None
+        self.h_sq = None
+        self.log_gamma = None
+        self.log_reml = None
+        self.optimize_result = None
         self.sigma_sq = None
-        self.reml = None
-        self.optim = None
+        self.tau_sq = None
 
+        self._expanded = False
         self._z = None
         self._ydy = None
         self._cdy = None
         self._cdc = None
         self._residual_sq = None
-        self._expanded = False
 
         self._scala_model = None

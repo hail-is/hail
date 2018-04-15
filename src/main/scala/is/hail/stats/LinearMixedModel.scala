@@ -8,14 +8,14 @@ import is.hail.linalg.RowMatrix
 import is.hail.table.Table
 import is.hail.utils._
 
-case class LMMData(delta: Double, residualSq: Double, y: BDV[Double], C: BDM[Double],
+case class LMMData(gamma: Double, residualSq: Double, y: BDV[Double], C: BDM[Double],
   Py: BDV[Double], PC: BDM[Double], Z: BDV[Double], ydy: Double, Cdy: BDV[Double], CdC: BDM[Double])
 
 object LinearMixedModel {
-  def apply(hc: HailContext, delta: Double, residualSq: Double, y: Array[Double], C: BDM[Double],
+  def apply(hc: HailContext, gamma: Double, residualSq: Double, y: Array[Double], C: BDM[Double],
     Py: Array[Double], PC: BDM[Double], Z: Array[Double], ydy: Double, Cdy: Array[Double], CdC: BDM[Double]) =
 
-    new LinearMixedModel(hc, LMMData(delta, residualSq, BDV(y), C, BDV(Py), PC, BDV(Z), ydy, BDV(Cdy), CdC))
+    new LinearMixedModel(hc, LMMData(gamma, residualSq, BDV(y), C, BDV(Py), PC, BDV(Z), ydy, BDV(Cdy), CdC))
 }
 
 class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
@@ -38,7 +38,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rowTypeBc = sc.broadcast(rowType)
 
     val rdd = Xt.rows.zipPartitions(PXt.rows) { case (itx, itPx) =>
-      val LMMData(delta, nullResidualSq, y, c, py, pc, z, ydy, cdy0, cdc0) = lmmDataBc.value
+      val LMMData(gamma, nullResidualSq, y, c, py, pc, z, ydy, cdy0, cdc0) = lmmDataBc.value
       val cdy = cdy0.copy
       val cdc = cdc0.copy
 
@@ -60,10 +60,10 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         val px = BDV(px0)
         val zpx = z *:* px
 
-        cdy(0) = (y dot x) / delta + (py dot zpx)
+        cdy(0) = (y dot x) * gamma + (py dot zpx)
 
-        cdc(0, 0) = (x dot x) / delta + (px dot zpx)
-        cdc(r0, r1) := (c.t * x) / delta + pc.t * zpx
+        cdc(0, 0) = (x dot x) * gamma + (px dot zpx)
+        cdc(r0, r1) := (c.t * x) * gamma + pc.t * zpx
         cdc(r1, r0) := cdc(r0, r1).t
         
         region.clear()
