@@ -33,7 +33,7 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
         # one or more out-of-scope fields
         refs = get_refs(expr)
         bad_refs = []
-        for name, inds in refs:
+        for name, inds in refs.items():
             bad_axes = inds.axes.intersection(unexpected_axes)
             if bad_axes:
                 bad_refs.append((name, inds))
@@ -68,7 +68,7 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                         ExpressionException(
                             'Expected an expression from source {}, found expression derived from {}'
                             '\n    Invalid fields: [{}]'.format(
-                                expected_source, source, ', '.join("'{}'".format(name) for name, _ in refs)
+                                expected_source, source, ', '.join("'{}'".format(name) for name in refs)
                             )))
 
                 # check for stray indices
@@ -76,7 +76,7 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                 if unexpected_agg_axes:
                     # one or more out-of-scope fields
                     bad_refs = []
-                    for name, inds in refs:
+                    for name, inds in refs.items():
                         bad_axes = inds.axes.intersection(unexpected_agg_axes)
                         if bad_axes:
                             bad_refs.append((name, inds))
@@ -174,22 +174,22 @@ def eval_expr_typed(expression):
     return expression.collect()[0], expression.dtype
 
 
-def _get_refs(expr: Union[Expression, Aggregable], builder: List) -> None:
+def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
     from ..expr_ast import Select, TopLevelReference
 
     second_level_refs: Tuple[Select] = expr._ast.search(lambda a: isinstance(a, Select)
                                                                   and not a.name.startswith('__uid')
                                                                   and isinstance(a.parent, TopLevelReference))
     for ast in second_level_refs:
-        builder.append((ast.name, ast.parent.indices))
+        builder[ast.name] = ast.parent.indices
 
     for join in expr._joins:
         for e in join.exprs:
             _get_refs(e, builder)
 
 
-def get_refs(*exprs: Union[Expression, Aggregable]) -> List[Tuple[str, Indices]]:
-    builder = []
+def get_refs(*exprs: Union[Expression, Aggregable]) -> Dict[str, Indices]:
+    builder = {}
     for e in exprs:
         _get_refs(e, builder)
     return builder

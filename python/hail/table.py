@@ -599,7 +599,7 @@ class Table(ExprContainer):
         fields_referenced = set()
         for k, v in named_exprs.items():
             check_collisions(self._fields, k, self._row_indices)
-            for name, inds in get_refs(v):
+            for name, inds in get_refs(v).items():
                 if inds == self._row_indices:
                     fields_referenced.add(name)
         fields_referenced = fields_referenced - set(named_exprs.keys())
