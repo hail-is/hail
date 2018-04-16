@@ -2038,7 +2038,7 @@ class Table(ExprContainer):
 
         f = self._fields_inverse[field]
         t = Table(self._jt.explode(f))
-        if name:
+        if name is not None:
             t = t.rename({f: name})
         return t
 
