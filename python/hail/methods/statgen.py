@@ -234,7 +234,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(y, x, covariates=[], root='linreg', block_size=16) -> MatrixTable:
+def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> MatrixTable:
     """For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -330,26 +330,36 @@ def linear_regression(y, x, covariates=[], root='linreg', block_size=16) -> Matr
         all_exprs.append(e)
         analyze('linear_regression/covariates', e, mt._col_indices)
 
-    #  FIXME: remove once select_entries on a field is free
+    # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
-        x_field = mt._fields_inverse[x]
+        x_field_name = mt._fields_inverse[x]
         fields_to_drop = []
+        entry_expr = {}
     else:
-        x_field = Env.get_uid()
-        fields_to_drop = [x_field]
-        mt = mt.annotate_entries(**{x_field: x})
+        x_field_name = Env.get_uid()
+        fields_to_drop = [x_field_name]
+        entry_expr = {x_field_name: x}
 
-    base, cleanup = mt._process_joins(*all_exprs)
+    y_field_names = list(f'__y{i}' for i in range(len(y)))
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+
+    fields_to_drop.extend(y_field_names)
+    fields_to_drop.extend(cov_field_names)
+
+    mt = mt._annotate_all(col_exprs=dict(**dict(zip(y_field_names, y)),
+                                         **dict(zip(cov_field_names, covariates))),
+                          entry_exprs=entry_expr)
+
 
     jm = Env.hail().methods.LinearRegression.apply(
-        base._jvds,
-        jarray(Env.jvm().java.lang.String, [yi._ast.to_hql() for yi in y]),
-        x_field,
-        jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
+        mt._jvds,
+        jarray(Env.jvm().java.lang.String, y_field_names),
+        x_field_name,
+        jarray(Env.jvm().java.lang.String, cov_field_names),
         root,
         block_size)
 
-    mt_result = cleanup(MatrixTable(jm)).drop(*fields_to_drop)
+    mt_result = MatrixTable(jm).drop(*fields_to_drop)
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
@@ -365,7 +375,7 @@ def linear_regression(y, x, covariates=[], root='linreg', block_size=16) -> Matr
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str)
-def logistic_regression(test, y, x, covariates=[], root='logreg') -> MatrixTable:
+def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -572,27 +582,35 @@ def logistic_regression(test, y, x, covariates=[], root='logreg') -> MatrixTable
         all_exprs.append(e)
         analyze('logistic_regression/covariates', e, mt._col_indices)
 
-    #  FIXME: remove once select_entries on a field is free
+    # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
-        x_field = mt._fields_inverse[x]
+        x_field_name = mt._fields_inverse[x]
         fields_to_drop = []
+        entry_expr = {}
     else:
-        x_field = Env.get_uid()
-        fields_to_drop = [x_field]
-        mt = mt.annotate_entries(**{x_field: x})
+        x_field_name = Env.get_uid()
+        fields_to_drop = [x_field_name]
+        entry_expr = {x_field_name: x}
 
-    base, cleanup = mt._process_joins(*all_exprs)
+    y_field_name = '__y'
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    jds = Env.hail().methods.LogisticRegression.apply(
-        base._jvds,
+    fields_to_drop.append(y_field_name)
+    fields_to_drop.extend(cov_field_names)
+
+    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
+                                         **dict(zip(cov_field_names, covariates))),
+                          entry_exprs=entry_expr)
+
+    jmt = Env.hail().methods.LogisticRegression.apply(
+        mt._jvds,
         test,
-        y._ast.to_hql(),
-        x_field,
-        jarray(Env.jvm().java.lang.String,
-               [cov._ast.to_hql() for cov in covariates]),
+        y_field_name,
+        x_field_name,
+        jarray(Env.jvm().java.lang.String, cov_field_names),
         root)
 
-    return cleanup(MatrixTable(jds)).drop(*fields_to_drop)
+    return MatrixTable(jmt).drop(*fields_to_drop)
 
 
 @typecheck(kinship_matrix=KinshipMatrix,
@@ -1082,24 +1100,32 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
         all_exprs.append(e)
         analyze('linear_mixed_regression/covariates', e, mt._col_indices)
 
-    #  FIXME: remove once select_entries on a field is free
+    # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
-        x_field = mt._fields_inverse[x]
+        x_field_name = mt._fields_inverse[x]
         fields_to_drop = []
+        entry_expr = {}
     else:
-        x_field = Env.get_uid()
-        fields_to_drop = [x_field]
-        mt = mt.annotate_entries(**{x_field: x})
+        x_field_name = Env.get_uid()
+        fields_to_drop = [x_field_name]
+        entry_expr = {x_field_name: x}
 
-    base, cleanup = mt._process_joins(*all_exprs)
+    y_field_name = '__y'
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+
+    fields_to_drop.append(y_field_name)
+    fields_to_drop.extend(cov_field_names)
+
+    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
+                                         **dict(zip(cov_field_names, covariates))),
+                          entry_exprs=entry_expr)
 
     jds = Env.hail().methods.LinearMixedRegression.apply(
-        base._jvds,
+        mt._jvds,
         kinship_matrix._jkm,
-        y._ast.to_hql(),
-        x_field,
-        jarray(Env.jvm().java.lang.String,
-               [cov._ast.to_hql() for cov in covariates]),
+        y_field_name,
+        x_field_name,
+        jarray(Env.jvm().java.lang.String, cov_field_names),
         use_ml,
         global_root,
         row_root,
@@ -1109,7 +1135,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
         joption(n_eigenvectors),
         joption(dropped_variance_fraction))
 
-    return cleanup(MatrixTable(jds)).drop(*fields_to_drop)
+    return MatrixTable(jds).drop(*fields_to_drop)
 
 
 @typecheck(key_expr=expr_any,
@@ -1283,22 +1309,32 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
         all_exprs.append(e)
         analyze('skat/covariates', e, mt._col_indices)
 
-    #  FIXME: remove once select_entries on a field is free
+    # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
-        x_field = mt._fields_inverse[x]
+        x_field_name = mt._fields_inverse[x]
+        entry_expr = {}
     else:
-        x_field = Env.get_uid()
-        mt = mt.select_entries(**{x_field: x})
+        x_field_name = Env.get_uid()
+        entry_expr = {x_field_name: x}
 
-    base, _ = mt._process_joins(*all_exprs)
+    y_field_name = '__y'
+    weight_field_name = '__weight'
+    key_field_name = '__key'
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+
+    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
+                                         **dict(zip(cov_field_names, covariates))),
+                          row_exprs={weight_field_name: weight_expr,
+                                     key_field_name: key_expr},
+                          entry_exprs=entry_expr)
 
     jt = Env.hail().methods.Skat.apply(
-        base._jvds,
-        key_expr._ast.to_hql(),
-        weight_expr._ast.to_hql(),
-        y._ast.to_hql(),
-        x_field,
-        jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
+        mt._jvds,
+        key_field_name,
+        weight_field_name,
+        y_field_name,
+        x_field_name,
+        jarray(Env.jvm().java.lang.String, cov_field_names),
         logistic,
         max_size,
         accuracy,

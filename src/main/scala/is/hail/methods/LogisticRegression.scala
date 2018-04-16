@@ -11,13 +11,13 @@ object LogisticRegression {
 
   def apply(vsm: MatrixTable,
     test: String,
-    yExpr: String,
+    yField: String,
     xField: String,
-    covExpr: Array[String],
+    covFields: Array[String],
     root: String): MatrixTable = {
     val logRegTest = LogisticRegressionTest.tests(test)
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be bool or numeric with all present values equal to 0 or 1")

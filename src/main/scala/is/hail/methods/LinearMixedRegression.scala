@@ -23,9 +23,9 @@ object LinearMixedRegression {
   def apply(
     assocVSM: MatrixTable,
     kinshipMatrix: KinshipMatrix,
-    yExpr: String,
+    yField: String,
     xField: String,
-    covExpr: Array[String],
+    covFields: Array[String],
     useML: Boolean,
     rootGA: String,
     rootVA: String,
@@ -35,14 +35,14 @@ object LinearMixedRegression {
     optNEigs: Option[Int],
     optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yExpr, covExpr)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yField, covFields)
     val completeColIds = completeColIdx.map(assocVSM.stringSampleIds)
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
         fatal(s"delta must be positive, got ${ delta }"))
 
-    val covNames = "intercept" +: covExpr
+    val covNames = "intercept" +: covFields
 
     val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeColIds)
       kinshipMatrix

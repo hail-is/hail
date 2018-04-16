@@ -112,7 +112,7 @@ class SkatSuite extends SparkSuite {
     val entryExpr = if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64"
     
     val (keyGsWeightRdd, keyType) =
-      Skat.computeKeyGsWeightRdd(vds.selectEntries(s"{x: $entryExpr}"), "x", completeSampleIndex, keyExpr, weightExpr)
+      Skat.computeKeyGsWeightRdd(vds, "x", completeSampleIndex, keyExpr, weightExpr)
 
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
@@ -178,20 +178,21 @@ class SkatSuite extends SparkSuite {
 
     require(!(useBN && useDosages))
 
-    val vds = if (useBN) vdsBN else vdsSkat
-
     val entryExpr = if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64"
-    
-    val hailKT = vds
+
+    val vds = (if (useBN) vdsBN else vdsSkat)
       .selectEntries(s"{x: $entryExpr}")
-      .skat("va.gene", "va.weight", "sa.pheno", "x", Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic)
+      .annotateColsExpr("Cov1" -> "sa.cov.Cov1", "Cov2" -> "sa.cov.Cov2")
+
+    val hailKT = vds
+      .skat("gene", "weight", "pheno", "x", Array("Cov1", "Cov2"), logistic)
 
     hailKT.typeCheck()
 
     val resultHail = hailKT.rdd.collect()
 
-    val resultsR = skatInR(vds, "va.gene", "va.weight", "sa.pheno",
-      Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
+    val resultsR = skatInR(vds, "gene", "weight", "pheno",
+      Array("Cov1", "Cov2"), logistic, useDosages)
 
     var i = 0
     while (i < resultsR.length) {
@@ -232,7 +233,8 @@ class SkatSuite extends SparkSuite {
 
     val kt = vdsSkat
       .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
-      .skat("va.gene", yExpr = "sa.pheno", xField = "x", weightExpr = "1.0", maxSize = maxSize)
+      .annotateRowsExpr("weight" -> "1.0")
+      .skat("gene", yExpr = "pheno", xField = "x", weightExpr = "weight", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
@@ -292,8 +294,8 @@ class SkatSuite extends SparkSuite {
     assert(vds.same(vds2))
     
     val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "x",
-      completeColIdx = Array(1, 3), keyExpr = "va.key", weightExpr = "va.weight")
-    
+      completeColIdx = Array(1, 3), keyField = "key", weightField = "weight")
+
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => key.asInstanceOf[Int] -> it.toSet }.toMap
     
     // groups of SkatTuples are as expected

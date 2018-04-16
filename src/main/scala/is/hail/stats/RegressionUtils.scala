@@ -6,6 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.MatrixTable
+import org.apache.spark.sql.Row
 
 object RegressionUtils {  
   def setMeanImputedDoubles(data: Array[Double],
@@ -58,49 +59,45 @@ object RegressionUtils {
   }
 
   // IndexedSeq indexed by samples, Array by annotations
-  def getSampleAnnotations(vds: MatrixTable, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
-    val aQs = annots.map(parseFloat64Expr(_, ec))
-
-    vds.colValues.value.map { sa =>
-      ec.set(0, sa)
-      aQs.map { aQ =>
-        val a = aQ()
-        if (a != null)
-          Some(a: Double)
-        else
-          None
-      }
+  def getSampleAnnotations(mt: MatrixTable, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
+    val colType = mt.colType
+    assert(names.forall(name => mt.colType.field(name).typ.isOfType(TFloat64())))
+    val fieldIndices = names.map { name =>
+      val field = mt.colType.field(name)
+      assert(field.typ.isOfType(TFloat64()))
+      field.index
     }
+    mt.colValues
+      .value
+      .map { a =>
+        val struct = a.asInstanceOf[Row]
+        fieldIndices.map(i => Option(struct.get(i)).map(_.asInstanceOf[Double]))
+      }
   }
 
   def getPhenoCovCompleteSamples(
     vsm: MatrixTable,
-    yExpr: String,
-    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
-    
-    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yExpr), covExpr)
+    yField: String,
+    covFields: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
+
+    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yField), covFields)
     
     (DenseVector(y.data), covs, completeSamples)
   }
   
   def getPhenosCovCompleteSamples(
     vsm: MatrixTable,
-    yExpr: Array[String],
-    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
+    yFields: Array[String],
+    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
-    val nPhenos = yExpr.length
-    val nCovs = covExpr.length + 1 // intercept
+    val nPhenos = yFields.length
+    val nCovs = covFields.length + 1 // intercept
 
     if (nPhenos == 0)
       fatal("No phenotypes present.")
 
-    val symTab = Map(
-      "sa" -> (0, vsm.colType))
-
-    val ec = EvalContext(symTab)
-
-    val yIS = getSampleAnnotations(vsm, yExpr, ec)
-    val covIS = getSampleAnnotations(vsm, covExpr, ec)
+    val yIS = getSampleAnnotations(vsm, yFields)
+    val covIS = getSampleAnnotations(vsm, covFields)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, 0 until vsm.numCols)
