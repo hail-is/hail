@@ -76,6 +76,21 @@ class LinearMixedModel(object):
         - float
         - log of REML
 
+    Estimation proceed by minimizing the function :meth:`compute_neg_log_reml`
+    with respect to the parameter :math:`\log{\gamma}` governing the (log)
+    ratio of the variance parameters :math:`\sigma^2` and :math:`\tau^2`. For
+    any fixed ratio, the REML estimate and value have closed form solutions.
+
+    The above linear model is equivalent to its augmentation by an
+    additional fixed effect :math:`x` under the null hypothesis that the
+    coefficient of :math:`x` is zero. Once :meth:`fit` has been used to set :math:`\log{\gamma}` for the null model,
+    the methods :meth:`fit_local_rows` and :meth:`fit_rows`
+    may be used to test this null hypothesis for each of a collection of rows
+    using the likelihood ratio test with both the null and alternative models
+    constrained by :math:`\log{\gamma}`.
+    The test statistic :math:`\chi^2` is given by :math:`n` times the log ratio of
+    the squared residuals and follows a chi-squared distribution with one degree of freedom.
+
     Parameters
     ----------
     y: :class:`numpy.ndarray`
@@ -181,7 +196,7 @@ class LinearMixedModel(object):
 
             self._z, self._ydy, self._cdy, self._cdc = z, ydy, cdy, cdc
 
-            if return_estimates:
+            if return_parameters:
                 return neg_log_reml, beta, sigma_sq, tau_sq
             else:
                 return neg_log_reml
@@ -243,7 +258,7 @@ class LinearMixedModel(object):
                 raise Exception(f'Failed to fit log_gamma:\n  {self.optimize_result}')
 
         neg_log_reml, self.beta, self.sigma_sq, self.tau_sq = (
-            self.compute_neg_log_reml(self.log_gamma, return_estimates=True)
+            self.compute_neg_log_reml(self.log_gamma, return_parameters=True)
         )
         self.log_reml = -neg_log_reml
         self.gamma = np.exp(self.log_gamma)
@@ -261,20 +276,42 @@ class LinearMixedModel(object):
 
         self._fitted = True
 
-    @typecheck_method(path_xt=str, path_pxt=str, partition_size=int)
-    def fit_rows(self, path_xt, path_pxt, partition_size):
-        from hail.table import Table
-
-        if partition_size <= 0:
-            raise ValueError("partition_size must be positive")
-
-        if not self._scala_model:
-            self._set_scala_model()
-
-        return Table(self._scala_model.fit(path_xt, path_pxt, partition_size))
-
     @typecheck_method(x=np.ndarray, px=np.ndarray)
-    def fit_local_rows(self, x, px):
+    def test_local_cols(self, x, px):
+        """Test each column locally. # FIXME
+
+        The resulting pandas DataFrame has the following fields.
+
+        .. list-table::
+          :header-rows: 1
+
+          * - Field
+            - Type
+            - Value
+          * - `beta`
+            - float
+            - :math:`\beta`
+          * - `sigma_sq`
+            - float
+            - :math:`\sigma^2`
+          * - `chi_sq`
+            - float
+            - :math:`\chi^2`
+          * - `p_value`
+            - float
+            - p-value
+
+        Parameters
+        ----------
+        x: :class:`numpy.ndarray`
+            Matrix with shape :math:`(n,m)`.  // FIXME
+        px: :class:`numpy.ndarray`
+            Projected matrix with shape :math:`(r,m)`.
+        Returns
+        -------
+        :class:`pandas.DataFrame`
+            Data frame of results per column.
+        """
         import pandas as pd
 
         if not self._fitted:
@@ -287,6 +324,56 @@ class LinearMixedModel(object):
         data = [self._fit_local_row(x[:, i], px[:, i]) for i in range(n_rows)]  # could parallelize on master
 
         return pd.DataFrame.from_records(data, columns=['beta', 'sigma_sq', 'chi_sq', 'p_value'])
+
+    @typecheck_method(path_xt=str, path_pxt=str, partition_size=int)
+    def fit_rows(self, path_xt, path_pxt, partition_size):
+        """Test each row. # FIXME
+
+        The resulting Table has the following fields:
+
+        .. list-table::
+          :header-rows: 1
+
+          * - Field
+            - Type
+            - Value
+          * - `idx`
+            - Int64
+            - :math:`\beta`
+          * - `beta`
+            - Float64
+            - :math:`\beta`
+          * - `sigma_sq`
+            - Float64
+            - :math:`\sigma^2`
+          * - `chi_sq`
+            - Float64
+            - :math:`\chi^2`
+          * - `p_value`
+            - Float64
+            - p-value
+
+        Parameters
+        ----------
+        path_xt: :obj:`str`
+            Path to block matrix with transpose of shape :math:`(n,m)`.  FIXME: written row-major, expose row matrix?
+        path_pxt: :obj:`str`
+            Path to projected block matrix with transpose of shape :math:`(r,m)`.
+
+        Returns
+        -------
+        :class:`pandas.DataFrame`
+            Data frame of results per row.
+        """
+        from hail.table import Table
+
+        if partition_size <= 0:
+            raise ValueError("partition_size must be positive")
+
+        if not self._scala_model:
+            self._set_scala_model()
+
+        return Table(self._scala_model.fit(path_xt, path_pxt, partition_size))
 
     def _fit_local_row(self, x, px):
         from scipy.linalg import solve, LinAlgError
