@@ -123,6 +123,7 @@ Several Hail tests have additional dependencies:
    These can be installed within R using:
  
    .. code-block:: R
+
       install.packages(c("jsonlite", "SKAT", "logistf"))
       source("https://bioconductor.org/biocLite.R")
       biocLite("GENESIS")
