@@ -31,7 +31,7 @@ if role == 'Master':
         'pandas',
         'matplotlib',
         'seaborn',
-        'decorator',
+        'decorator==4.2.1',
         'parsimonious',
         'jupyter',
         'lxml',
