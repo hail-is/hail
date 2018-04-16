@@ -132,10 +132,15 @@ final class VCFLine(val line: String) {
   def parseInt(): Int = {
     if (endField())
       parseError("empty integer literal")
-    var v = numericValue(line(pos))
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
+    var v = numericValue(line(pos)) * mul
     pos += 1
     while (!endField()) {
-      v = v * 10 + numericValue(line(pos))
+      v = v * 10 + numericValue(line(pos)) * mul
       pos += 1
     }
     v
@@ -299,10 +304,15 @@ final class VCFLine(val line: String) {
   def parseFormatInt(): Int = {
     if (endFormatField())
       parseError("empty integer")
-    var v = numericValue(line(pos))
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
+    var v = numericValue(line(pos)) * mul
     pos += 1
     while (!endFormatField()) {
-      v = v * 10 + numericValue(line(pos))
+      v = v * 10 + numericValue(line(pos)) * mul
       pos += 1
     }
     v
@@ -348,10 +358,15 @@ final class VCFLine(val line: String) {
   def parseIntInFormatArray(): Int = {
     if (endFormatArrayField())
       parseError("empty integer")
-    var v = numericValue(line(pos))
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
+    var v = numericValue(line(pos)) * mul
     pos += 1
     while (!endFormatArrayField()) {
-      v = v * 10 + numericValue(line(pos))
+      v = v * 10 + numericValue(line(pos)) * mul
       pos += 1
     }
     v
