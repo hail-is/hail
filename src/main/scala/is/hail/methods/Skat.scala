@@ -205,17 +205,17 @@ object Skat {
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val keyStructField = vsm.rowType.field(keyField)
+    val fullRowType = vsm.rvRowType
+    val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
 
-    val weightStructField = vsm.rowType.field(weightField)
+    val weightStructField = fullRowType.field(weightField)
     val weightIndex = weightStructField.index
     assert(weightStructField.typ.isOfType(TFloat64()))
 
     val sc = vsm.sparkContext
 
-    val fullRowType = vsm.rvRowType
     val entryArrayType = vsm.matrixType.entryArrayType
     val entryType = vsm.entryType
     val fieldType = entryType.field(xField).typ

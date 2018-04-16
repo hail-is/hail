@@ -142,7 +142,7 @@ class RichMatrixTable(vsm: MatrixTable) {
       yExpr.zipWithIndex.map { case (e, i) => s"__y$i" -> e } ++
       covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
     )
-    LinearRegression(vsm,
+    LinearRegression(vsmAnnot,
       yExpr.indices.map(i => s"__y$i").toArray,
       xField,
       covExpr.indices.map(i => s"__cov$i").toArray,
