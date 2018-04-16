@@ -122,8 +122,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
     Remove samples where imputed sex does not equal reported sex:
 
-    >>> imputed_sex = hl.impute_sex(ds.GT)
-    >>> ds.filter_cols(imputed_sex[ds.s].is_female != ds.pheno.is_female)
+    >>> imputed_sex = hl.impute_sex(dataset.GT)
+    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female)
 
     Notes
     -----
@@ -201,30 +201,31 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     if aaf_threshold < 0.0 or aaf_threshold > 1.0:
         raise FatalError("Invalid argument for `aaf_threshold`. Must be in range [0, 1].")
 
-    ds = call._indices.source
-    ds, _ = ds._process_joins(call)
-    ds = ds.annotate_entries(call=call)
-    ds = require_biallelic(ds, 'impute_sex')
+    mt = call._indices.source
+    mt, _ = mt._process_joins(call)
+    mt = mt.annotate_entries(call=call)
+    mt = require_biallelic(mt, 'impute_sex')
     if (aaf is None):
-        ds = ds.annotate_rows(aaf=agg.call_stats(ds.call, ds.alleles).AF[1])
+        mt = mt.annotate_rows(aaf=agg.call_stats(mt.call, mt.alleles).AF[1])
         aaf = 'aaf'
 
-    # FIXME: filter_intervals
-    if include_par:
-        ds = ds.filter_rows(ds.locus.in_x_par() | ds.locus.in_x_nonpar())
-    else:
-        ds = ds.filter_rows(ds.locus.in_x_nonpar())
+    rg = mt.locus.dtype.reference_genome
+    mt = hl.filter_intervals(mt,
+                             hl.map(lambda x_contig: hl.parse_locus_interval(x_contig, rg), rg.x_contigs),
+                             keep=True)
+    if not include_par:
+        mt = hl.filter_intervals(mt, rg.par, keep=False)
 
-    ds = ds.filter_rows(ds[aaf] > aaf_threshold)
-    ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds[aaf]))
-    kt = ds.select_cols(
-        *ds.col_key,
-        is_female=hl.cond(ds.ib.f_stat < female_threshold,
+    mt = mt.filter_rows((mt[aaf] > aaf_threshold) & (mt[aaf] < (1 - aaf_threshold)))
+    mt = mt.annotate_cols(ib=agg.inbreeding(mt.call, mt[aaf]))
+    kt = mt.select_cols(
+        *mt.col_key,
+        is_female=hl.cond(mt.ib.f_stat < female_threshold,
                           True,
-                          hl.cond(ds.ib.f_stat > male_threshold,
+                          hl.cond(mt.ib.f_stat > male_threshold,
                                   False,
                                   hl.null(tbool))),
-        **ds.ib).cols()
+        **mt.ib).cols()
 
     return kt
 
