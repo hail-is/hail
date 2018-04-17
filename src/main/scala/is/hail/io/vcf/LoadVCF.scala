@@ -5,7 +5,8 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
@@ -696,12 +697,18 @@ object LoadVCF {
   }
 
   // parses the Variant (key), leaves the rest to f
-  def parseLines[C](makeContext: () => C)(f: (C, VCFLine, RegionValueBuilder) => Unit)(
-    lines: RDD[WithContext[String]], t: Type, rg: Option[ReferenceGenome], contigRecoding: Map[String, String]): RDD[RegionValue] = {
-    lines.mapPartitions { it =>
+  def parseLines[C](
+    makeContext: () => C
+  )(f: (C, VCFLine, RegionValueBuilder) => Unit
+  )(lines: ContextRDD[RVDContext, WithContext[String]],
+    t: Type,
+    rg: Option[ReferenceGenome],
+    contigRecoding: Map[String, String]
+  ): ContextRDD[RVDContext, RegionValue] = {
+    lines.cmapPartitions { (ctx, it) =>
       new Iterator[RegionValue] {
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
+        val region = ctx.region
+        val rvb = ctx.rvb
         val rv = RegionValue(region)
 
         val context: C = makeContext()
@@ -714,7 +721,6 @@ object LoadVCF {
             val line = lwc.value
             try {
               val vcfLine = new VCFLine(line)
-              region.clear()
               rvb.start(t)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rg, contigRecoding)
@@ -830,7 +836,7 @@ object LoadVCF {
 
     val headerLinesBc = sc.broadcast(headerLines1)
 
-    val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
+    val lines = ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions)
 
     val matrixType: MatrixType = MatrixType.fromParts(
       TStruct.empty(true),
@@ -880,7 +886,7 @@ object LoadVCF {
         }
         rvb.endArray()
       }(lines, rowType, rg, contigRecoding),
-      Some(justVariants), None)
+      justVariants)
 
     new MatrixTable(hc,
       matrixType,

@@ -20,8 +20,6 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def this(rowType: TStruct, rdd: RDD[RegionValue]) =
     this(rowType, ContextRDD.weaken[RVDContext](rdd))
 
-  val rdd = crdd.run
-
   def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, crdd.filter(f))
 
   def persist(level: StorageLevel): UnpartitionedRVD = {
