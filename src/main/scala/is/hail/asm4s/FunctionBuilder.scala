@@ -126,6 +126,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
+    println(mname)
   }
 
   def invoke(args: Code[_]*) = {
@@ -160,7 +161,8 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
   init.instructions.add(new InsnNode(RETURN))
 
-  val apply_method: MethodBuilder = {
+
+  private[this] lazy val _apply_method: MethodBuilder = {
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
@@ -179,6 +181,8 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     m
   }
 
+  def apply_method: MethodBuilder = _apply_method
+
   val classBitSet = new ClassBitSet(this)
 
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
@@ -188,12 +192,12 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
-    new ClassFieldRef[T](this, s"field${cn.fields.size()}${ if (name == null) "" else s"_$name" }")
+    new ClassFieldRef[T](this, s"field${ cn.fields.size() }${ if (name == null) "" else s"_$name" }")
 
   def newLazyField[T: TypeInfo](setup: Code[T]): LazyFieldRef[T] = newLazyField("")(setup)
 
   def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] =
-    new LazyFieldRef[T](this, s"field${cn.fields.size()}_$name", setup)
+    new LazyFieldRef[T](this, s"field${ cn.fields.size() }_$name", setup)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 
@@ -232,6 +236,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+    println(methods.map(_.mname).mkString(","))
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 
@@ -284,7 +289,9 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     val localName = name.replaceAll("/", ".")
 
     new (() => F) with java.io.Serializable {
-      @transient @volatile private var f: F = null
+      @transient
+      @volatile private var f: F = null
+
       def apply(): F = {
         try {
           if (f == null) {
