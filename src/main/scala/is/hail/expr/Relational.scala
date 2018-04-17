@@ -376,7 +376,8 @@ case class MatrixRead(
 }
 
 case class MatrixRange(nRows: Int, nCols: Int, nPartitions: Int) extends MatrixIR {
-  private val partCounts = partition(nRows, nPartitions)
+  private val nPartitionsAdj = math.min(nRows, nPartitions)
+  private val partCounts = partition(nRows, nPartitionsAdj)
 
   override val partitionCounts: Option[Array[Long]] = Some(partCounts.map(_.toLong))
 
@@ -405,11 +406,11 @@ case class MatrixRange(nRows: Int, nCols: Int, nPartitions: Int) extends MatrixI
       OrderedRVD(typ.orvdType,
         new OrderedRVDPartitioner(typ.rowPartitionKey.toArray,
           typ.rowKeyStruct,
-          Array.tabulate(nPartitions) { i =>
+          Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
             Interval(Row(start), Row(start + localPartCounts(i)), includesStart = true, includesEnd = false)
           }),
-        hc.sc.parallelize(Range(0, nPartitions), nPartitions)
+        hc.sc.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
           .mapPartitionsWithIndex { case (i, _) =>
             val region = Region()
             val rvb = new RegionValueBuilder(region)
