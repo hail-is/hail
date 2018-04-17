@@ -42,6 +42,7 @@ object Interpret {
       case I64(x) => x
       case F32(x) => x
       case F64(x) => x
+      case Str(x) => x
       case True() => true
       case False() => false
       case Cast(v, t) =>

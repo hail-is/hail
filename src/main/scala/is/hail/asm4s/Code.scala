@@ -823,21 +823,16 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
 }
 
 class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
-  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
-    new Code[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        val lnull = new LabelNode
-        val lafter = new LabelNode
+  def isNull: CodeConditional = new CodeConditional {
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode): Unit = {
         lhs.emit(il)
-        il += new JumpInsnNode(IFNULL, lnull)
-        cnonnullcase.emit(il)
-        il += new JumpInsnNode(GOTO, lafter)
-        il += lnull
-        cnullcase.emit(il)
-        // fall through
-        il += lafter
+        il += new JumpInsnNode(IFNULL, ltrue)
+        il += new JumpInsnNode(GOTO, lfalse)
       }
     }
+
+  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
+    isNull.mux(cnullcase, cnonnullcase)
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)

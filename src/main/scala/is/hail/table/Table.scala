@@ -462,7 +462,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     pred match {
       case Some(irPred) =>
         new Table(hc,
-          TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep, "filter_pred"))
+          TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep))
         )
       case None =>
         log.warn(s"Table.filter found no AST to IR conversion: ${ PrettyAST(filterAST) }")

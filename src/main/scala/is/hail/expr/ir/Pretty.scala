@@ -46,6 +46,7 @@ object Pretty {
             case I64(x) => x.toString
             case F32(x) => x.toString
             case F64(x) => x.toString
+            case Str(x) => s"'$x'"
             case Cast(_, typ) => typ.toString
             case NA(typ) => typ.toString
             case Let(name, _, _) => name

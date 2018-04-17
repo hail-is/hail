@@ -293,7 +293,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
     case (t: TFloat32, x: Float) => Some(ir.F32(x))
     case (t: TFloat64, x: Double) => Some(ir.F64(x))
     case (t: TBoolean, x: Boolean) => Some(if (x) ir.True() else ir.False())
-    case (t: TString, x: String) => None
+    case (t: TString, x: String) => Some(ir.Str(x))
     case (t, null) => Some(ir.NA(t))
     case _ => throw new RuntimeException(s"Unrecognized constant of type $t: $value")
   }
