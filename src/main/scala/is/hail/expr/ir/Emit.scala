@@ -62,7 +62,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
 }
 
 private class Emit(
-  mb: MethodBuilder,
+  mb: EmitMethodBuilder,
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
@@ -85,12 +85,12 @@ private class Emit(
     ab.result()
   }
 
-  val methods: mutable.Map[String, Seq[(Seq[Type], MethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
+  val methods: mutable.Map[String, Seq[(Seq[Type], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.E
   import Emit.F
 
-  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (MethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
+  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (EmitMethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
     def wrapCodeChunks(items: Seq[_], isIR: Boolean = false): Code[Unit] = {
       val sizes: Seq[Int] = if (isIR) irs.map(_.size * opSize) else Array.fill(items.size)(5)
       val chunkBounds = getChunkBounds(sizes)
@@ -261,7 +261,7 @@ private class Emit(
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(mb, typ)
         val addElement = srvb.addIRIntermediate(typ.elementType)
-        val addElts = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
+        val addElts = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), addElement(v.v)),
@@ -411,7 +411,7 @@ private class Emit(
 
       case x@MakeStruct(fields, _) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
+        val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
@@ -481,7 +481,7 @@ private class Emit(
 
       case x@MakeTuple(fields, _) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
+        val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),

@@ -126,7 +126,6 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
-    println(mname)
   }
 
   def invoke(args: Code[_]*) = {
@@ -236,7 +235,6 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
-    println(methods.map(_.mname).mkString(","))
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 

@@ -1,10 +1,12 @@
 package is.hail.expr.ir.functions
 
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.expr.types.coerce
+import is.hail.asm4s
 
 object UtilFunctions extends RegistryFunctions {
 
@@ -114,6 +116,58 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("annotate", tv("T", _.isInstanceOf[TStruct]), tv("U", _.isInstanceOf[TStruct])) { (s, annotations) =>
       InsertFields(s, annotations.asInstanceOf[MakeStruct].fields)
+    }
+
+    registerCodeWithMissingness("==", tv("T"), tv("T"), TBoolean()) { (mb, v1, v2) =>
+      val tactual = tv("T").t match {
+        case tc: ComplexType => tc.representation
+        case t => t
+      }
+      val comparison = (tactual, v1.v, v2.v) match {
+        case (_: TBoolean, x1: Code[Boolean], x2: Code[Boolean]) => x1.ceq(x2)
+        case (_: TInt32, x1: Code[Int], x2: Code[Int]) => x1.ceq(x2)
+        case (_: TInt64, x1: Code[Long], x2: Code[Long]) => x1.ceq(x2)
+        case (_: TFloat32, x1: Code[Float], x2: Code[Float]) => x1.ceq(x2)
+        case (_: TFloat64, x1: Code[Double], x2: Code[Double]) => x1.ceq(x2)
+        case (t, o1: Code[Long], o2: Code[Long]) =>
+          val ord = CodeOrdering(t, missingGreatest = true)
+          ord.compare(mb, mb.getArg[Region](1), o1, mb.getArg[Region](1), o2).ceq(0)
+        case (t, x1, x2) =>
+          throw new UnsupportedOperationException(s"can't compare things of type $t with classes ${ x1.getClass } and ${ x2.getClass }")
+      }
+
+      val setup = Code(v1.setup, v2.setup)
+      val v1m = mb.newLocal[Boolean]
+      val vout = Code(
+        v1m := v1.m,
+        v1m.cne(v2.m).mux(const(false), v1m.mux(const(true), comparison)))
+      EmitTriplet(setup, const(false), vout)
+    }
+
+    registerCodeWithMissingness("!=", tv("T"), tv("T"), TBoolean()) { (mb, v1, v2) =>
+      val tactual = tv("T").t match {
+        case tc: ComplexType => tc.representation
+        case t => t
+      }
+      val comparison = (tactual, v1.v, v2.v) match {
+        case (_: TBoolean, x1: Code[Boolean], x2: Code[Boolean]) => x1.cne(x2)
+        case (_: TInt32, x1: Code[Int], x2: Code[Int]) => x1.cne(x2)
+        case (_: TInt64, x1: Code[Long], x2: Code[Long]) => x1.cne(x2)
+        case (_: TFloat32, x1: Code[Float], x2: Code[Float]) => x1.cne(x2)
+        case (_: TFloat64, x1: Code[Double], x2: Code[Double]) => x1.cne(x2)
+        case (t, o1: Code[Long], o2: Code[Long]) =>
+          val ord = CodeOrdering(t, missingGreatest = true)
+          ord.compare(mb, mb.getArg[Region](1), o1, mb.getArg[Region](1), o2).cne(0)
+        case (t, x1, x2) =>
+          throw new UnsupportedOperationException(s"can't compare things of type $t with classes ${ x1.getClass } and ${ x2.getClass }")
+      }
+
+      val setup = Code(v1.setup, v2.setup)
+      val v1m = mb.newLocal[Boolean]
+      val vout = Code(
+        v1m := v1.m,
+        v1m.cne(v2.m).mux(const(true), v1m.mux(const(false), comparison)))
+      EmitTriplet(setup, const(false), vout)
     }
   }
 }
