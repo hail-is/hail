@@ -16,8 +16,6 @@ import scala.collection.mutable
 case class SubsetRDDPartition(index: Int, parentPartition: Partition) extends Partition
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
-  def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
-
   def reorderPartitions(oldIndices: Array[Int])(implicit tct: ClassTag[T]): RDD[T] =
     new ReorderedPartitionsRDD[T](r, oldIndices)
 

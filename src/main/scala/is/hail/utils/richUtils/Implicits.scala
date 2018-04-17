@@ -22,18 +22,11 @@ import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
 trait Implicits {
-  implicit def toRichAny(a: Any): RichAny = new RichAny(a)
-
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
-
-  implicit def toRichByteArrayBuilder(t: ArrayBuilder[Byte]): RichByteArrayBuilder =
-    new RichByteArrayBuilder(t)
 
   implicit def toRichBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
-
-  implicit def toRichDouble(d: Double): RichDouble = new RichDouble(d)
 
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] = new RichEnumeration(e)
 
@@ -78,9 +71,6 @@ trait Implicits {
   implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
     vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
 
-  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
-    new RichPairTraversableOnce[K, V](t)
-
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichContextRDDRegionValue[C <: AutoCloseable](r: ContextRDD[C, RegionValue]): RichContextRDDRegionValue[C] = new RichContextRDDRegionValue(r)
@@ -104,10 +94,6 @@ trait Implicits {
   implicit def toTruncatable[T](it: Iterable[T]): Truncatable = it.truncatable()
 
   implicit def toTruncatable(arr: Array[_]): Truncatable = toTruncatable(arr: Iterable[_])
-
-  implicit def toJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): JSONWritable[T] = new JSONWritable(x, jw)
-
-  implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
 
   implicit def toHailIteratorDouble(it: HailIterator[Int]): HailIterator[Double] = new HailIterator[Double] {
     override def next(): Double = it.next().toDouble
