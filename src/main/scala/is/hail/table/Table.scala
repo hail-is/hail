@@ -441,6 +441,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
+        log.warn(s"Table.select_globals found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val newGlobal = f().asInstanceOf[Row]
@@ -460,6 +461,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep, "filter_pred"))
         )
       case None =>
+        log.warn(s"Table.filter found no AST to IR conversion: ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
@@ -507,6 +509,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapRows(tir, ir))
       case _ =>
+        log.warn(s"Table.select found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast
