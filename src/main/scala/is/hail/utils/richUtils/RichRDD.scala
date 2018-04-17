@@ -2,6 +2,7 @@ package is.hail.utils.richUtils
 
 import java.io.OutputStream
 
+import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
@@ -183,9 +184,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writePartitions(path: String,
-    write: (Int, Iterator[T], OutputStream) => Long,
+    write: (Iterator[T], OutputStream) => Long,
     remapPartitions: Option[(Array[Int], Int)] = None
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
-    ContextRDD.weaken[TrivialContext](r).writePartitions(path, write, remapPartitions)
+    ContextRDD.weaken[RVDContext](r).writePartitions(
+      path,
+      (_, it, os) => write(it, os),
+      remapPartitions)
 }
