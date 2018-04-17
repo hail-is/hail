@@ -7,7 +7,8 @@ Getting Started
 You'll need:
 
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_. Hail should work with other versions of Spark 2, see below.
+- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_.
+  Hail should work with other versions of Spark 2, see below.
 - `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------
@@ -16,21 +17,34 @@ Running Hail locally with a pre-compiled distribution
 
 .. include:: distLinks.rst
 
-Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
-environment variables. You may want to add these to the appropriate dot-file (we recommend ``~/.profile``)
-so that you don't need to rerun these commands in each new session.
+Unzip the distribution after you download it. Next, edit and copy the below bash
+commands to set up the Hail environment variables. You may want to add the
+``export`` lines to the appropriate dot-file (we recommend ``~/.profile``) so
+that you don't need to rerun these commands in each new session.
+
+Un-tar the Spark distribution.
+
+.. code-block:: text
+
+    tar xvf <path to spark.tgz>
 
 Here, fill in the path to the **un-tarred** Spark package.
 
 .. code-block:: text
 
-    export SPARK_HOME=???
+    export SPARK_HOME=<path to spark>
+
+Unzip the Hail distribution.
+
+.. code-block:: text
+
+    unzip <path to hail.zip>
 
 Here, fill in the path to the **unzipped** Hail distribution.
 
 .. code-block:: text
 
-    export HAIL_HOME=???
+    export HAIL_HOME=<path to hail>
     export PATH=$PATH:$HAIL_HOME/bin/
 
 To install Python dependencies, create a conda environment for Hail:
@@ -40,9 +54,10 @@ To install Python dependencies, create a conda environment for Hail:
     conda env create -n hail -f $HAIL_HOME/python/hail/environment.yml
     source activate hail
 
-Once you've set up Hail, we recommend that you run the Python tutorials to get an overview of Hail
-functionality and learn about the powerful query language. To try Hail out, run the below commands
-to start a Jupyter Notebook server in the tutorials directory.
+Once you've set up Hail, we recommend that you run the Python tutorials to get
+an overview of Hail functionality and learn about the powerful query language.
+To try Hail out, run the below commands to start a Jupyter Notebook server in
+the tutorials directory.
 
 .. code-block:: text
 
