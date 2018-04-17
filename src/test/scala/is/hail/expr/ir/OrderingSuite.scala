@@ -57,7 +57,7 @@ class OrderingSuite {
 
       val compare = t.unsafeOrdering(true).compare(region, v1, region, v2)
 
-      val ir = ApplySpecial("==", FastSeq(GetTupleElement(In(0, ttup), 0), GetTupleElement(In(1, ttup), 0)))
+      val ir = Apply("==", FastSeq(GetTupleElement(In(0, ttup), 0), GetTupleElement(In(1, ttup), 0)))
       val irfb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
 
       Infer(ir)
@@ -68,7 +68,7 @@ class OrderingSuite {
       assert(irf(region, tup1, false, tup1, false))
       assert(irf(region, tup2, false, tup2, false))
 
-      val ir2 = ApplySpecial("!=", FastSeq(GetTupleElement(In(0, TTuple(t)), 0), GetTupleElement(In(1, TTuple(t)), 0)))
+      val ir2 = Apply("!=", FastSeq(GetTupleElement(In(0, TTuple(t)), 0), GetTupleElement(In(1, TTuple(t)), 0)))
       val irfb2 = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
 
       Infer(ir2)

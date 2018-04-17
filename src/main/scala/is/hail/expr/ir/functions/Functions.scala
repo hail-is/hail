@@ -140,15 +140,14 @@ abstract class RegistryFunctions {
   def registerCode(mname: String, rt: Type)(impl: EmitMethodBuilder => Code[_]): Unit =
     registerCode(mname, Array[Type](), rt) { case (mb, Array()) => impl(mb) }
 
-  def registerCode[T1: TypeInfo](mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[T1]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1), rt) { case (mb, Array(a1)) => impl(mb, coerce[T1](a1)) }
+  def registerCode(mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1), rt) { case (mb, Array(a1)) => impl(mb, a1) }
 
-  def registerCode[T1: TypeInfo, T2: TypeInfo](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[T1], Code[T2]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2), rt) { case (mb, Array(a1, a2)) => impl(mb, coerce[T1](a1), coerce[T2](a2)) }
+  def registerCode(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1, mt2), rt) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
 
-  def registerCode[T1: TypeInfo, T2: TypeInfo, T3: TypeInfo](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)
-    (impl: (EmitMethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2, mt3), rt) { case (mb, Array(a1, a2, a3)) => impl(mb, coerce[T1](a1), coerce[T2](a2), coerce[T3](a3)) }
+  def registerCode(mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1, mt2, mt3), rt) { case (mb, Array(a1, a2, a3)) => impl(mb, a1, a2, a3) }
 
   def registerCodeWithMissingness(mname: String, rt: Type)(impl: EmitMethodBuilder => EmitTriplet): Unit =
     registerCodeWithMissingness(mname, Array[Type](), rt) { case (mb, Array()) => impl(mb) }
