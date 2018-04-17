@@ -324,8 +324,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     }
   }
 
-  // FIXME: this method is easy to use wrong because it shares the context
-  // between both producers and the consumer
+  // WARNING: this method is easy to use wrong because it shares the context
+  // between the two producers and the one consumer
   def zipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
@@ -333,8 +333,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): ContextRDD[C, V] =
     czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
 
-  // FIXME: this method is easy to use wrong because it shares the context
-  // between both producers and the consumer
+  // WARNING: this method is easy to use wrong because it shares the context
+  // between the two producers and the one consumer
   def czipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
