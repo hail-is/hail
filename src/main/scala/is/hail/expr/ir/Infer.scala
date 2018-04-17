@@ -13,6 +13,7 @@ object Infer {
       case I64(x) =>
       case F32(x) =>
       case F64(x) =>
+      case Str(x) =>
       case True() =>
       case False() =>
 
