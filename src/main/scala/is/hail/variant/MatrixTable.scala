@@ -722,9 +722,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = matrixType.copy(colType = t), colValues = colValues.copy(value = newAnnotations, t = TArray(t)))
   }
 
-  def annotateColsTable(kt: Table, vdsKey: java.util.ArrayList[String], root: String): MatrixTable =
-    annotateColsTable(kt, root)
-
   def annotateColsTable(kt: Table, root: String): MatrixTable = {
 
     val (finalType, inserter) = colType.structInsert(
