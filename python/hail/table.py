@@ -1236,16 +1236,20 @@ class Table(ExprContainer):
 
                     all_uids.append(index_uid)
                     all_uids.extend(uids)
-
                     def joiner(left: MatrixTable):
-                        prev_key = list(left.col_key)
-                        left = left.annotate_cols(**dict(zip(uids, exprs)))
-                        left = left.add_col_index(index_uid)
-                        left = left.key_cols_by(*uids)
-                        left_cols = left.cols().select(*uids, index_uid).distinct()
-                        joined = left_cols.join(self, 'inner')
-                        joined = joined.key_by(index_uid).drop(*uids)
-                        return MatrixTable(left.key_cols_by(index_uid)
+                        prev_key = list(src.col_key)
+                        joined = (src
+                                  .annotate_cols(**dict(zip(uids, exprs)))
+                                  .add_col_index(index_uid)
+                                  .key_cols_by(*uids)
+                                  .cols()
+                                  .select(*uids, index_uid)
+                                  .distinct()
+                                  .join(self, 'inner')
+                                  .key_by(index_uid)
+                                  .drop(*uids))
+                        return MatrixTable(left.add_col_index(index_uid)
+                                           .key_cols_by(index_uid)
                                            ._jvds
                                            .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                 return construct_expr(Select(TopLevelReference('sa', src._col_indices), uid), new_schema,
