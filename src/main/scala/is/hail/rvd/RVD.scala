@@ -1,5 +1,7 @@
 package is.hail.rvd
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
@@ -42,8 +44,14 @@ object RVDSpec {
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
-      HailContext.readRowsPartition(rowType, codecSpec)(0, in)
-        .map(rv => SafeRow(rowType, rv.region, rv.offset))
+      using(RVDContext.default) { ctx =>
+        HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
+          .map { rv =>
+            val r = SafeRow(rowType, rv.region, rv.offset)
+            ctx.region.clear()
+            r
+          }
+      }
     }.toFastIndexedSeq
   }
 }
@@ -92,7 +100,7 @@ case class OrderedRVDSpec(
 }
 
 case class PersistedRVRDD(
-  persistedRDD: RDD[RegionValue],
+  persistedRDD: RDD[Array[Byte]],
   iterationRDD: ContextRDD[RVDContext, RegionValue])
 
 object RVD {
@@ -101,15 +109,18 @@ object RVD {
     hConf.mkDir(path + "/parts")
 
     val os = hConf.unsafeWriter(path + "/parts/part-0")
-    val rvb = new RegionValueBuilder()
-    val part0Count = RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
-      rows.map { a =>
-        val region = Region()
-        rvb.set(region)
-        rvb.start(rowType)
-        rvb.addAnnotation(rowType, a)
-        RegionValue(region, rvb.end())
-      }.iterator, os)
+    val part0Count = Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+      RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
+        rows.iterator.map { a =>
+          region.clear()
+          rvb.start(rowType)
+          rvb.addAnnotation(rowType, a)
+          rv.setOffset(rvb.end())
+          rv
+        }, os)
+    }
 
     val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
     spec.write(hConf, path)
@@ -167,7 +178,7 @@ trait RVD {
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
     depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
-  ) : U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
+  ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
 
   def aggregate[U: ClassTag](
     zeroValue: U
@@ -182,28 +193,30 @@ trait RVD {
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
 
+    val persistCodec = CodecSpec.default
+
     // copy, persist region values
-    val persistedRDD = rdd.mapPartitions { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
+    val persistedRDD = crdd.mapPartitions { it =>
+      val baos = new ByteArrayOutputStream()
+      val enc = persistCodec.buildEncoder(baos)
       it.map { rv =>
-        region.clear()
-        rvb.start(localRowType)
-        rvb.addRegionValue(localRowType, rv)
-        val off = rvb.end()
-        RegionValue(region.copy(), off)
+        baos.reset()
+        enc.writeRegionValue(localRowType, rv.region, rv.offset)
+        enc.flush()
+        baos.toByteArray
       }
-    }
+    } .run
       .persist(level)
 
     PersistedRVRDD(persistedRDD,
       ContextRDD.weaken[RVDContext](persistedRDD)
-        .mapPartitions { it =>
-          val region = Region()
+        .cmapPartitions { (ctx, it) =>
+          val region = Region() // FIXME: use ctx.region when consumers are clearing
           val rv2 = RegionValue(region)
-          it.map { rv =>
-            region.setFrom(rv.region)
-            rv2.setOffset(rv.offset)
+          it.map { bytes =>
+            val bais = new ByteArrayInputStream(bytes)
+            val dec = persistCodec.buildDecoder(bais)
+            rv2.setOffset(dec.readRegionValue(localRowType, region))
             rv2
           }
         })
@@ -231,6 +244,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    rdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }
+    crdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }.run
   }
 }
