@@ -525,7 +525,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType))
 
-  def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
+  def export(output: String, typesFile: String = null, header: Boolean = true, delimiter: String = "\t", exportType: Int = ExportType.CONCATENATED) {
     val hConf = hc.hadoopConf
     hConf.delete(output, recursive = true)
 
@@ -544,11 +544,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
-        }(sb += '\t')
+        }(sb ++= delimiter)
 
         sb.result()
       }
-    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
+    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString(delimiter)).filter(_ => header), exportType = exportType)
   }
 
   def distinctByKey(): Table = {

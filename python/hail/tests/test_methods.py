@@ -1001,7 +1001,7 @@ class Tests(unittest.TestCase):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
                             contig_recoding={"01": "1"},
-                            reference_genome = 'GRCh37').rows()
+                            reference_genome='GRCh37').rows()
         self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
@@ -1013,6 +1013,20 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(gen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
+
+    def test_export_gen(self):
+        gen = hl.import_gen(resource('example.gen'),
+                            sample_file=resource('example.sample'),
+                            contig_recoding={"01": "1"},
+                            reference_genome='GRCh37')
+
+        file = '/tmp/test_export_gen'
+        hl.export_gen(gen, file)
+        gen2 = hl.import_gen(file + '.gen',
+                             sample_file=file + '.sample',
+                             reference_genome='GRCh37')
+
+        self.assertTrue(gen._same(gen2, tolerance=3E-4, absolute=True))
 
     def test_import_bgen(self):
         hl.index_bgen(resource('example.v11.bgen'))

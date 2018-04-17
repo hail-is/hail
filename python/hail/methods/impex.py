@@ -7,7 +7,7 @@ from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expressions import analyze, expr_any
 from hail.genetics.reference_genome import reference_genome_type
-from hail.methods.misc import require_biallelic, require_row_key_variant
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 import hail as hl
 
 
@@ -106,7 +106,9 @@ def export_gen(dataset, output, precision=4):
         Number of digits to write after the decimal point.
     """
 
+    require_col_key_str(dataset, 'export_gen')
     dataset = require_biallelic(dataset, 'export_gen')
+
     try:
         gp = dataset['GP']
         if gp.dtype != tarray(tfloat64) or gp._indices != dataset._entry_indices:
@@ -114,9 +116,43 @@ def export_gen(dataset, output, precision=4):
     except KeyError:
         raise FatalError("export_gen: no entry field 'GP' of type 'array<float64>'")
 
-    dataset = require_biallelic(dataset, 'export_plink')
+    sep = " "
 
-    Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+    # write SAMPLE file
+    header = hl.Table.parallelize([{'s': 'ID_1', 'id2': 'ID_2', 'missing': 'missing'},
+                                   {'s': '0', 'id2': '0', 'missing': '0'}],
+                                  hl.tstruct(s=tstr, id2=tstr, missing=tstr),
+                                  key='s')
+
+    samples = dataset.cols().select('s').annotate(id2='0', missing='0')
+
+    header.union(samples).export(output + '.sample', header=False, delimiter=sep)
+
+    # write GEN file
+    null_gp = sep.join(['0', '0', '0'])
+    format_gp = hl.or_else(hl.delimit(hl.map(lambda prob: prob.format(precision),
+                                             dataset.GP), sep), null_gp)
+    gp_str_name = Env.get_uid()
+
+    t = (dataset
+         .select_rows('locus',
+                      'alleles',
+                      'varid',
+                      'rsid',
+                      **{gp_str_name: hl.delimit(hl.agg.collect(format_gp), sep)})
+         .rows())
+
+    varid = t.locus.contig + ':' + hl.str(t.locus.position) + ':' + \
+            t.alleles[0] + ':' + t.alleles[1]
+
+    (t.select(contig=t.locus.contig,
+              varid=hl.or_else(t.varid, varid),
+              rsid=hl.or_else(t.rsid, '.'),
+              position=t.locus.position,
+              a1=t.alleles[0],
+              a2=t.alleles[1],
+              gp_str=t[gp_str_name])
+     .export(output + '.gen', header=False, delimiter=sep))
 
 
 @typecheck(dataset=MatrixTable,

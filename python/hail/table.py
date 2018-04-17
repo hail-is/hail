@@ -852,7 +852,12 @@ class Table(ExprContainer):
 
         return table
 
-    def export(self, output, types_file=None, header=True, parallel=None):
+    @typecheck_method(output=str,
+                      types_file=nullable(str),
+                      header=bool,
+                      delimiter=str,
+                      parallel=nullable(str))
+    def export(self, output, types_file=None, header=True, delimiter="\t", parallel=None):
         """Export to a TSV file.
 
         Examples
@@ -875,7 +880,9 @@ class Table(ExprContainer):
         types_file : str or None
             URI at which to write file containing field type information.
         header : bool
-            Include a header in the file.
+            Include the field names as a header in the file.
+        delimiter : :obj:`str`
+            Field delimiter.
         parallel : str or None
             If None, a single file is produced, otherwise a
             folder of file shards is produced. If 'separate_header',
@@ -884,7 +891,7 @@ class Table(ExprContainer):
             the export will be slower.
         """
 
-        self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
+        self._jt.export(output, types_file, header, delimiter, Env.hail().utils.ExportType.getExportType(parallel))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
