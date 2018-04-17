@@ -1,7 +1,6 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.sparkextras.ResettableContext
 
 import scala.collection.mutable
 
@@ -11,7 +10,7 @@ object RVDContext {
   def fromRegion(region: Region): RVDContext = new RVDContext(region)
 }
 
-class RVDContext(r: Region) extends ResettableContext {
+class RVDContext(r: Region) extends AutoCloseable {
   private[this] val children: mutable.ArrayBuffer[AutoCloseable] = new mutable.ArrayBuffer()
 
   private[this] def own(child: AutoCloseable): Unit = children += child
@@ -24,7 +23,7 @@ class RVDContext(r: Region) extends ResettableContext {
     ctx
   }
 
-  def region: Region = r // lifetime: element
+  def region: Region = r
 
   private[this] val theRvb = new RegionValueBuilder(r)
   def rvb = theRvb
