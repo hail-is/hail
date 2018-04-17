@@ -140,7 +140,7 @@ trait RVD {
 
   def crdd: ContextRDD[RVDContext, RegionValue]
 
-  def rdd: RDD[RegionValue] =  crdd.run
+  def rdd: RDD[RegionValue] = crdd.run
 
   def sparkContext: SparkContext = crdd.sparkContext
 
