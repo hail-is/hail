@@ -133,6 +133,15 @@ storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_AND_DISK_SER_2', 'OFF_HEAP')
 
 
+def run_command(args):
+    import subprocess as sp
+    try:
+        sp.check_output(args, stderr=sp.STDOUT)
+    except sp.CalledProcessError as e:
+        print(e.output)
+        raise e
+
+
 def plural(orig, n, alternate=None):
     if n == 1:
         return orig

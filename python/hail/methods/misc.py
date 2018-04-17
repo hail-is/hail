@@ -142,6 +142,17 @@ def require_row_key_variant(dataset, method):
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
+def require_row_key_variant_w_struct_locus(dataset, method):
+    if (list(dataset.row_key) != ['locus', 'alleles'] or
+            (not isinstance(dataset['locus'].dtype, tlocus) and
+                 not isinstance(dataset['locus'].dtype, tstruct(contig=tstr, position=tint))) or
+            not dataset['alleles'].dtype == tarray(tstr)):
+        raise ValueError("Method '{}' requires row key to be two fields 'locus'"
+                         " (type 'tlocus<any>' or 'tstruct(contig=tstr,position=tint)') and "
+                         "'alleles' (type 'array<str>')\n"
+                         "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+
 
 def require_partition_key_locus(dataset, method):
     if (len(dataset.partition_key) != 1 or

@@ -2,10 +2,10 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.io._
+import is.hail.io.plink.{BimAnnotationView, ExportPlinkUtils, BitPacker}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.table.TableSpec
@@ -13,7 +13,7 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkContext, TaskContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
@@ -166,6 +166,67 @@ case class MatrixValue(
     spec.write(hc, path)
 
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+  }
+
+  def exportPlink(path: String): Unit = {
+    val hc = HailContext.get
+    val sc = hc.sc
+    val hConf = hc.hadoopConf
+
+    val tmpBedDir = hConf.getTemporaryFile(hc.tmpDir)
+    val tmpBimDir = hConf.getTemporaryFile(hc.tmpDir)
+
+    hConf.mkDir(tmpBedDir)
+    hConf.mkDir(tmpBimDir)
+
+    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+
+    val nPartitions = rvd.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val nSamples = colValues.value.length
+    val fullRowType = typ.rvRowType
+
+    val nRecordsWritten = rvd.mapPartitionsWithIndex { case (i, it) =>
+      val hConf = sHConfBc.value.value
+      val f = partFile(d, i, TaskContext.get)
+      val bedPartPath = tmpBedDir + "/" + f
+      val bimPartPath = tmpBimDir + "/" + f
+      var rowCount = 0L
+
+      hConf.writeTextFile(bimPartPath) { bimOS =>
+        hConf.writeFile(bedPartPath) { bedOS =>
+          val v = new RegionValueVariant(fullRowType)
+          val a = new BimAnnotationView(fullRowType)
+          val hcv = HardCallView(fullRowType)
+          val bp = new BitPacker(2, (i: Int) => bedOS.write(i))
+
+          it.foreach { rv =>
+            v.setRegion(rv)
+            a.setRegion(rv)
+            ExportPlinkUtils.writeBimRow(v, a, bimOS)
+
+            hcv.setRegion(rv)
+            ExportPlinkUtils.writeBedRow(hcv, bp, nSamples)
+
+            rowCount += 1
+          }
+        }
+      }
+
+      Iterator.single(rowCount)
+    }.collect().sum
+
+    hConf.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
+    hConf.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlinkUtils.bedHeader))
+    hConf.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true)
+
+    hConf.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
+    hConf.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false)
+
+    colsTableValue.export(path + ".fam", header = false)
+
+    info(s"wrote $nRecordsWritten variants and $nSamples samples to '$path'")
   }
 
   def rowsRVD(): OrderedRVD = {

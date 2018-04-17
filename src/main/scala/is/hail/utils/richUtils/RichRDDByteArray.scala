@@ -58,7 +58,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (exportType == ExportType.CONCATENATED) {
-      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, deleteTmpFiles, hasHeader = false)
+      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, deleteTmpFiles, header = false)
     }
   }
 }

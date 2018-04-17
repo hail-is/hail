@@ -2168,6 +2168,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     ir.Interpret(ir.MatrixWrite(ast, path, overwrite, codecSpecJSONStr))
   }
 
+  def exportPlink(path: String) {
+    ir.Interpret(ir.ExportPlink(ast, path))
+  }
+
   def minRep(leftAligned: Boolean = false): MatrixTable = {
     requireRowKeyVariant("min_rep")
 

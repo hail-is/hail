@@ -79,7 +79,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (exportType == ExportType.CONCATENATED) {
-      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, hasHeader = false)
+      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, header = false)
     }
   }
 

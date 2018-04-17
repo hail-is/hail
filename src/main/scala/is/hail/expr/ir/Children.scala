@@ -74,6 +74,7 @@ object Children {
       args.toIndexedSeq
     // from MatrixIR
     case MatrixWrite(child, _, _, _) => IndexedSeq(child)
+    case ExportPlink(child, _) => IndexedSeq(child)
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
     case TableAggregate(child, query) => IndexedSeq(child, query)
