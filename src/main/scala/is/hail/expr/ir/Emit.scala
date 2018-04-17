@@ -16,23 +16,23 @@ object Emit {
 
   type F = (Code[Boolean], Code[_]) => Code[Unit]
 
-  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], nSpecialArguments: Int): EmitTriplet = {
+  private[ir] def toCode(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int): EmitTriplet = {
     emit(ir, fb, Env.empty, None, nSpecialArguments)
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_]) {
+  def apply(ir: IR, fb: EmitFunctionBuilder[_]) {
     apply(ir, fb, None, 1)
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], nSpecialArguments: Int) {
+  def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int) {
     apply(ir, fb, None, nSpecialArguments)
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], nSpecialArguments: Int, tAggIn: TAggregable) {
+  def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, tAggIn: TAggregable) {
     apply(ir, fb, Some(tAggIn), nSpecialArguments)
   }
 
-  private def apply(ir: IR, fb: FunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
+  private def apply(ir: IR, fb: EmitFunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
     val triplet = emit(ir, fb, Env.empty, tAggIn, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
@@ -44,7 +44,7 @@ object Emit {
 
   private def emit(
     ir: IR,
-    fb: FunctionBuilder[_],
+    fb: EmitFunctionBuilder[_],
     env: E,
     tAggIn: Option[TAggregable],
     nSpecialArguments: Int): EmitTriplet = {

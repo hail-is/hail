@@ -56,7 +56,7 @@ class ExtractAggregatorsSuite {
     val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg)
 
     val seqOps = aggregators.map { case (ir, agg) =>
-      val fb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator, IN, Boolean, SCOPE0, Boolean, Unit]
+      val fb = EmitFunctionBuilder[Region, RegionValueAggregator, IN, Boolean, SCOPE0, Boolean, Unit]
       Emit(ir, fb, 2, tAgg)
 
       (agg, fb.result(Some(new java.io.PrintWriter(System.out)))())
@@ -84,7 +84,7 @@ class ExtractAggregatorsSuite {
   }
 
   private def compileStage0[R: TypeInfo](ir: IR): AsmFunction3[Region, Long, Boolean, R] = {
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, R]
+    val fb = EmitFunctionBuilder[Region, Long, Boolean, R]
     // nb: inference is done by stage1
     Emit(ir, fb)
     fb.result()()

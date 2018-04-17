@@ -301,9 +301,8 @@ class ReferenceGenomeSuite extends SparkSuite {
   @Test def testSerializeOnFB() {
     val grch38 = ReferenceGenome.GRCh38
     val fb = FunctionBuilder.functionBuilder[String, Boolean]
-    val (rgfield, load) = grch38.addAsField(fb)
 
-    fb.emit(load)
+    val rgfield = fb.newLazyField(grch38.codeSetup)
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
 
     val f = fb.result()()

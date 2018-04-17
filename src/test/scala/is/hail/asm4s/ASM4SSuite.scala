@@ -297,7 +297,7 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def makeMethods(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Int]
-    val methods = Array.tabulate[Method2Builder[Int, Int, Int]](3)(_ => fb.newMethod[Int, Int, Int])
+    val methods = Array.tabulate[MethodBuilder](3)(_ => fb.newMethod[Int, Int, Int])
     val locals = Array.tabulate[LocalRef[Int]](9)(i => methods(i / 3).newLocal[Int])
     var i = 0
     while (i < 3) {
@@ -310,7 +310,7 @@ class ASM4SSuite extends TestNGSuite {
       methods(i).mn.instructions
       i += 1
     }
-    fb.emit(Code._return[Int](methods(1)(0,0)))
+    fb.emit(Code._return[Int](methods(1).invoke(0,0)))
     val f = fb.result()()
     assert(f() == 1)
   }
@@ -326,10 +326,10 @@ class ASM4SSuite extends TestNGSuite {
     mul.emit(mul.getArg[Int](1) * mul.getArg[Int](2))
 
     fb.emit(fb.getArg[Int](1).ceq(0).mux(
-      add(fb.getArg[Int](2), fb.getArg[Int](3)),
+      add.invoke(fb.getArg[Int](2), fb.getArg[Int](3)),
       fb.getArg[Int](1).ceq(1).mux(
-        sub(fb.getArg[Int](2), fb.getArg[Int](3)),
-        mul(fb.getArg[Int](2), fb.getArg[Int](3))
+        sub.invoke(fb.getArg[Int](2), fb.getArg[Int](3)),
+        mul.invoke(fb.getArg[Int](2), fb.getArg[Int](3))
       )))
     val f = fb.result(Some(new PrintWriter(System.out)))()
     assert(f(0, 1, 1) == 2)
@@ -349,7 +349,7 @@ class ASM4SSuite extends TestNGSuite {
       v2 := add.getArg[Int](2),
       v1 + v2))
 
-    fb.emit(add(fb.getArg[Int](1), fb.getArg[Int](2)))
+    fb.emit(add.invoke(fb.getArg[Int](1), fb.getArg[Int](2)))
     val f = fb.result()()
     assert(f(1, 1) == 2)
   }
@@ -405,5 +405,18 @@ class ASM4SSuite extends TestNGSuite {
     assert(readField[Int](1, 2L, true) == 1)
     assert(readField[Long](1, 2L, true) == 2L)
     assert(readField[Boolean](1, 2L, true))
+  }
+
+  @Test def lazyFieldEvaluatesOnce(): Unit = {
+    val fb = FunctionBuilder.functionBuilder[Int]
+    val v2 = fb.newField[Int]
+    val v1 = fb.newLazyField(v2 + 1)
+
+    fb.emit(v2 := 0)
+    fb.emit(v2 := v1)
+    fb.emit(v2 := v1)
+    fb.emit(v1)
+
+    assert(fb.result()()() == 1)
   }
 }

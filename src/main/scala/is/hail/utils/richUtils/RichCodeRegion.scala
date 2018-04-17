@@ -48,6 +48,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Boolean]("loadBoolean", off)
   }
 
+  def loadByte(off: Code[Long]): Code[Byte] = {
+    region.invoke[Long, Byte]("loadByte", off)
+  }
+
   def loadInt(off: Code[Long]): Code[Int] = {
     region.invoke[Long, Int]("loadInt", off)
   }
