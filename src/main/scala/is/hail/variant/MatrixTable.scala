@@ -1282,7 +1282,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     pred match {
       case Some(irPred) =>
         new MatrixTable(hc,
-          FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterCols_pred"))
+          FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep))
         )
       case None =>
         log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
@@ -1314,7 +1314,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     pred match {
       case Some(irPred) =>
         new MatrixTable(hc,
-          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
+          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep))
         )
       case _ =>
         log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
@@ -2189,7 +2189,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val filterAST = Parser.parseToAST(filterExpr, ec)
     filterAST.toIR() match {
       case Some(x) if useIR(entryAxis, filterAST) =>
-        copyAST(MatrixFilterEntries(ast, ir.filterPredicateWithKeep(x, keep, "filterEntriesPred")))
+        copyAST(MatrixFilterEntries(ast, ir.filterPredicateWithKeep(x, keep)))
 
       case _ =>
         log.warn(s"filter_entries found no AST to IR conversion: ${ PrettyAST(filterAST) }")

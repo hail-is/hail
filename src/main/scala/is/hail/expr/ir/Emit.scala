@@ -52,7 +52,9 @@ object Emit {
   }
 }
 
-case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_])
+case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
+  def value[T]: Code[T] = coerce[T](v)
+}
 
 case class EmitArrayTriplet(setup: Code[Unit], m: Option[Code[Boolean]], addElements: Code[Unit])
 
@@ -237,7 +239,7 @@ private class Emit(
         val setup = Code(
           codeV.setup,
           mx := codeV.m,
-          x := codeV.v,
+          x := mx.mux(defaultValue(value.typ), codeV.v),
           codeBody.setup)
 
         EmitTriplet(setup, codeBody.m, codeBody.v)
