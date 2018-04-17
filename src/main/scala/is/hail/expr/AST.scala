@@ -962,7 +962,7 @@ object  PrettyAST {
       case Apply(_, fn, _) => s"Apply[${fn}]"
       case ApplyMethod(_, _, method, _) => s"ApplyMethod[${method}]"
       case ArrayConstructor(_, _) => "ArrayConstructor"
-      case Const(_, value, _) => s"Const[${value.toString()}]"
+      case Const(_, value, _) => s"Const[${Option(value).getOrElse("NA")}]"
       case If(_, _, _, _) => "If"
       case Lambda(_, param, _) => s"Lambda[${param}]"
       case Let(_, _, _) => "Let"
