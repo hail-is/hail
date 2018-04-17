@@ -100,16 +100,20 @@ object RVD {
     val hConf = hc.hadoopConf
     hConf.mkDir(path + "/parts")
 
-    val os = hConf.unsafeWriter(path + "/parts/part-0")
-    val rvb = new RegionValueBuilder()
-    val part0Count = RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
-      rows.map { a =>
-        val region = Region()
-        rvb.set(region)
-        rvb.start(rowType)
-        rvb.addAnnotation(rowType, a)
-        RegionValue(region, rvb.end())
-      }.iterator, os)
+    val part0Count =
+      using(hConf.unsafeWriter(path + "/parts/part-0")) { os =>
+        using(RVDContext.default) { ctx =>
+          val rvb = ctx.rvb
+          RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(ctx,
+            rows.map { a =>
+              val region = ctx.region
+              rvb.set(region)
+              rvb.start(rowType)
+              rvb.addAnnotation(rowType, a)
+              RegionValue(region, rvb.end())
+            }.iterator, os)
+        }
+      }
 
     val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
     spec.write(hConf, path)
