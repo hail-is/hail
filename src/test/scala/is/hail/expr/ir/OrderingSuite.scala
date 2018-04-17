@@ -5,9 +5,9 @@ import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import org.testng.annotations.Test
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class OrderingSuite {
 
