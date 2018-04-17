@@ -6,6 +6,7 @@ import org.apache.spark.rdd._
 import org.apache.spark.storage._
 import org.apache.spark.util.random._
 import org.apache.spark.ExposedUtils
+import org.apache.spark.util.Utils
 
 import scala.reflect.ClassTag
 import scala.util._
@@ -65,7 +66,40 @@ object ContextRDD {
   private[this] object weakenInstance extends Weaken[Nothing]
   def weaken[C <: AutoCloseable] = weakenInstance.asInstanceOf[Weaken[C]]
 
+  def textFilesLines[C <: AutoCloseable](
+    sc: SparkContext,
+    files: Array[String],
+    nPartitions: Option[Int] = None
+  )(implicit c: Pointed[C]
+  ): ContextRDD[C, WithContext[String]] =
+    textFilesLines(
+      sc,
+      files,
+      nPartitions.getOrElse(sc.defaultMinPartitions))
+
+  def textFilesLines[C <: AutoCloseable](
+    sc: SparkContext,
+    files: Array[String],
+    nPartitions: Int
+  )(implicit c: Pointed[C]
+  ): ContextRDD[C, WithContext[String]] =
+    ContextRDD.weaken[C](
+      sc.textFilesLines(
+        files,
+        nPartitions))
+
+  // this one weird trick permits the caller to specify C without T
   sealed trait Parallelize[C <: AutoCloseable] {
+    def apply[T : ClassTag](
+      sc: SparkContext,
+      data: Seq[T],
+      nPartitions: Option[Int] = None
+    )(implicit c: Pointed[C]
+    ): ContextRDD[C, T] = ContextRDD.weaken[C](
+      sc.parallelize(
+        data,
+        nPartitions.getOrElse(sc.defaultMinPartitions)))
+
     def apply[T : ClassTag](
       sc: SparkContext,
       data: Seq[T],
@@ -91,28 +125,24 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[C, T]
 
+  def run[U >: T : ClassTag]: RDD[U] =
+    rdd.mapPartitions { part => using(mkc()) { c => part.flatMap(_(c)) } }
+
   def collect(): Array[T] =
     run.collect()
-
-  def run[U >: T : ClassTag]: RDD[U] =
-    rdd.mapPartitions { part => using(mkc()) { cc => part.flatMap(_(cc)) } }
 
   private[this] def inCtx[U: ClassTag](
     f: C => Iterator[U]
   ): Iterator[C => Iterator[U]] = Iterator.single(f)
 
-  private[this] def withoutContext[U: ClassTag](
-    f: Iterator[T] => Iterator[U]
-  ): ContextRDD[C, U] = new ContextRDD(rdd.map(_.andThen(f)), mkc)
-
   def map[U: ClassTag](f: T => U): ContextRDD[C, U] =
-    withoutContext(_.map(f))
+    mapPartitions(_.map(f), preservesPartitioning = true)
 
   def filter(f: T => Boolean): ContextRDD[C, T] =
-    withoutContext(_.filter(f))
+    mapPartitions(_.filter(f), preservesPartitioning = true)
 
   def flatMap[U: ClassTag](f: T => TraversableOnce[U]): ContextRDD[C, U] =
-    withoutContext(_.flatMap(f))
+    mapPartitions(_.flatMap(f))
 
   def mapPartitions[U: ClassTag](
     f: Iterator[T] => Iterator[U],
@@ -123,13 +153,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def mapPartitionsWithIndex[U: ClassTag](
     f: (Int, Iterator[T]) => Iterator[U]
   ): ContextRDD[C, U] = cmapPartitionsWithIndex((i, _, part) => f(i, part))
-
-  def zipPartitions[U: ClassTag, V: ClassTag](
-    that: ContextRDD[C, U],
-    preservesPartitioning: Boolean = false
-  )(f: (Iterator[T], Iterator[U]) => Iterator[V]
-  ): ContextRDD[C, V] =
-    czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
 
   // FIXME: delete when region values are non-serializable
   def aggregate[U: ClassTag](
@@ -148,8 +171,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val zeroValue = ExposedUtils.clone(zero, sparkContext)
     val aggregatePartition = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
-        serialize(
-          it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
+        serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
     var result = zero
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
@@ -175,6 +197,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       .getOrElse(throw new RuntimeException("nothing in the RDD!"))
   }
 
+  // FIXME: delete when region values are non-serializable
   def treeAggregate[U: ClassTag](
     zero: U,
     seqOp: (U, T) => U,
@@ -240,19 +263,14 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     reduced.reduce(combOpV)
   }
 
-  private[this] def withContext[U: ClassTag](
-    f: (C, Iterator[T]) => Iterator[U]
-  ): ContextRDD[C, U] =
-    new ContextRDD(rdd.map(useCtx => ctx => f(ctx, useCtx(ctx))), mkc)
-
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
-    withContext((c, it) => it.map(f(c, _)))
+    cmapPartitions((c, it) => it.map(f(c, _)), true)
 
   def cfilter(f: (C, T) => Boolean): ContextRDD[C, T] =
-    withContext((c, it) => it.filter(f(c, _)))
+    cmapPartitions((c, it) => it.filter(f(c, _)), true)
 
   def cflatMap[U: ClassTag](f: (C, T) => TraversableOnce[U]): ContextRDD[C, U] =
-    withContext((c, it) => it.flatMap(f(c, _)))
+    cmapPartitions((c, it) => it.flatMap(f(c, _)))
 
   def cmapPartitions[U: ClassTag](
     f: (C, Iterator[T]) => Iterator[U],
@@ -263,6 +281,14 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       preservesPartitioning),
     mkc)
 
+  def cmapPartitionsAndContext[U: ClassTag](
+    f: (C, (Iterator[C => Iterator[T]])) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] =
+    onRDD(_.mapPartitions(
+      part => inCtx(ctx => f(ctx, part)),
+      preservesPartitioning))
+
   def cmapPartitionsWithIndex[U: ClassTag](
     f: (Int, C, Iterator[T]) => Iterator[U],
     preservesPartitioning: Boolean = false
@@ -272,6 +298,43 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       preservesPartitioning),
     mkc)
 
+  def cmapPartitionsAndContextWithIndex[U: ClassTag](
+    f: (Int, C, Iterator[C => Iterator[T]]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] =
+    onRDD(_.mapPartitionsWithIndex(
+      (i, part) => inCtx(ctx => f(i, ctx, part)),
+      preservesPartitioning))
+
+  def czip[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (C, T, U) => V
+  ): ContextRDD[C, V] = czipPartitions(that, preservesPartitioning) { (ctx, l, r) =>
+    new Iterator[V] {
+      def hasNext = {
+        val lhn = l.hasNext
+        val rhn = r.hasNext
+        assert(lhn == rhn)
+        lhn
+      }
+      def next(): V = {
+        f(ctx, l.next(), r.next())
+      }
+    }
+  }
+
+  // FIXME: this method is easy to use wrong because it shares the context
+  // between both producers and the consumer
+  def zipPartitions[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (Iterator[T], Iterator[U]) => Iterator[V]
+  ): ContextRDD[C, V] =
+    czipPartitions[U, V](that, preservesPartitioning)((_, l, r) => f(l, r))
+
+  // FIXME: this method is easy to use wrong because it shares the context
+  // between both producers and the consumer
   def czipPartitions[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
@@ -279,6 +342,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): ContextRDD[C, V] = new ContextRDD(
     rdd.zipPartitions(that.rdd, preservesPartitioning)(
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
+    mkc)
+
+  def czipPartitionsAndContext[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (C, Iterator[C => Iterator[T]], Iterator[C => Iterator[U]]) => Iterator[V]
+  ): ContextRDD[C, V] = new ContextRDD(
+    rdd.zipPartitions(that.rdd, preservesPartitioning)(
+      (l, r) => inCtx(ctx => f(ctx, l, r))),
     mkc)
 
   def subsetPartitions(keptPartitionIndices: Array[Int]): ContextRDD[C, T] =
@@ -329,6 +401,11 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     }, preservesPartitioning = true)
   }
 
+  def partitionSizes: Array[Long] =
+    // safe because we don't actually touch the offsets, we just count how many
+    // there are
+    sparkContext.runJob(run, getIteratorSize _)
+
   def sparkContext: SparkContext = rdd.sparkContext
 
   def getNumPartitions: Int = rdd.getNumPartitions
@@ -338,10 +415,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   def partitions: Array[Partition] = rdd.partitions
 
-  def iterator(p: Partition, c: TaskContext): Iterator[ElementType] =
-    rdd.iterator(p, c)
+  def partitioner: Option[Partitioner] = rdd.partitioner
 
-  private[this] def onRDD(
-    f: RDD[C => Iterator[T]] => RDD[C => Iterator[T]]
-  ): ContextRDD[C, T] = new ContextRDD(f(rdd), mkc)
+  def iterator(p: Partition, tc: TaskContext): Iterator[ElementType] =
+    rdd.iterator(p, tc)
+
+  def iterator(p: Partition, tc: TaskContext, ctx: C): Iterator[T] =
+    rdd.iterator(p, tc).flatMap(_(ctx))
+
+  private[this] def onRDD[U: ClassTag](
+    f: RDD[C => Iterator[T]] => RDD[C => Iterator[U]]
+  ): ContextRDD[C, U] = new ContextRDD(f(rdd), mkc)
 }
