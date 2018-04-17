@@ -722,60 +722,27 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = matrixType.copy(colType = t), colValues = colValues.copy(value = newAnnotations, t = TArray(t)))
   }
 
-  def annotateColsTable(kt: Table, vdsKey: java.util.ArrayList[String],
-    root: String, product: Boolean): MatrixTable =
-    annotateColsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, product)
+  def annotateColsTable(kt: Table, vdsKey: java.util.ArrayList[String], root: String): MatrixTable =
+    annotateColsTable(kt, root)
 
-  def annotateColsTable(kt: Table, vdsKey: Seq[String] = null,
-    root: String = null, product: Boolean = false): MatrixTable = {
+  def annotateColsTable(kt: Table, root: String): MatrixTable = {
 
     val (finalType, inserter) = colType.structInsert(
-      if (product) TArray(kt.valueSignature) else kt.valueSignature,
+      kt.valueSignature,
       List(root))
 
-    val keyTypes = kt.keyFields.map(_.typ).toSeq
+    val keyTypes = kt.keyFields.map(_.typ).toArray
 
-    val keyedRDD = kt.keyedRDD()
-      .filter { case (k, v) => k.toSeq.forall(_ != null) }
+    val keyedRDD = kt.keyedRDD().filter { case (k, v) => k.toSeq.forall(_ != null) }
 
-    val nullValue: IndexedSeq[Annotation] = if (product) FastIndexedSeq() else null
+    assert(keyTypes.length == colKeyTypes.length
+      && keyTypes.zip(colKeyTypes).forall { case (l, r) => l.isOfType(r) },
+      s"MT col key: ${ colKeyTypes.mkString(", ") }, TB key: ${ keyTypes.mkString(", ") }")
+    var r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
 
-    if (vdsKey != null) {
-      val keyEC = EvalContext(Map("sa" -> (0, colType)))
-      val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
+    val m = r.collectAsMap()
 
-      assert(keyTypes == vdsKeyType)
-
-      val keyFuncArray = vdsKeyFs.toArray
-
-      val vdsKeys = colValues.value.map { sa =>
-        keyEC.set(0, sa)
-        (Row.fromSeq(keyFuncArray.map(_ ())), ())
-      }.toArray
-
-      val thisRDD = sparkContext.parallelize(vdsKeys)
-      var r = keyedRDD.join(thisRDD).map { case (k, (tableAnnotation, _)) => (k, tableAnnotation: Annotation) }
-      if (product)
-        r = r.groupByKey().mapValues(is => (is.toArray[Annotation]: IndexedSeq[Annotation]): Annotation)
-
-      val m = r.collectAsMap()
-
-      annotateCols(finalType, inserter) { case (_, i) => m.getOrElse(vdsKeys(i)._1, nullValue) }
-    } else {
-      val ssig = colKeyTypes.toSeq
-      keyTypes match {
-        case `ssig` =>
-          var r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
-
-          if (product)
-            r = r.groupByKey()
-              .map { case (s, rows) => (s, (rows.toArray[Annotation]: IndexedSeq[_]): Annotation) }
-
-          val m = r.collectAsMap()
-
-          annotateCols(finalType, inserter) { case (ck, _) => m.getOrElse(ck, nullValue) }
-      }
-    }
+    annotateCols(finalType, inserter) { case (ck, _) => m.getOrElse(ck, null) }
   }
 
   def annotateCols(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
