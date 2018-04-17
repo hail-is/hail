@@ -99,6 +99,10 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
 
+  def newLazyField[T: TypeInfo](setup: Code[T]): LazyFieldRef[T] = newLazyField("")(setup)
+
+  def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] = fb.newLazyField(name)(setup)
+
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
     assert(i < layout.length)
@@ -167,8 +171,8 @@ class Method5Builder[A, B, C, D, E, R](fb: FunctionBuilder[_], mname: String)
   def apply(a:Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E]): Code[R] = invoke(a, b, c, d, e).asInstanceOf[Code[R]]
 }
 
-class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
+class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
+  val packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
 
   import FunctionBuilder._
 
@@ -218,6 +222,11 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
     new ClassFieldRef[T](this, s"field${cn.fields.size()}${ if (name == null) "" else s"_$name" }")
+
+  def newLazyField[T: TypeInfo](setup: Code[T]): LazyFieldRef[T] = newLazyField("")(setup)
+
+  def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] =
+    new LazyFieldRef[T](this, s"field${cn.fields.size()}_$name", setup)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 
