@@ -29,8 +29,6 @@ class OrderedRVD(
     rdd: RDD[RegionValue]
   ) = this(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
 
-  val rdd = crdd.run
-
   def rowType: TStruct = typ.rowType
 
   def updateType(newTyp: OrderedRVDType): OrderedRVD =
