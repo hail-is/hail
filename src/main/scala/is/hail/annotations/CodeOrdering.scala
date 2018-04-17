@@ -4,7 +4,7 @@ import java.io.PrintStream
 
 import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.expr.types.coerce
