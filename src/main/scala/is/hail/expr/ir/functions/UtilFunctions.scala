@@ -127,5 +127,25 @@ object UtilFunctions extends RegistryFunctions {
       val ord = CodeOrdering(tv("T").t, missingGreatest = true)
       ord.compare(mb, v1, v2).cne(0)
     }
+
+    registerCode("<=", tv("T"), tv("T"), TBoolean()) { (mb, v1, v2) =>
+      val ord = CodeOrdering(tv("T").t, missingGreatest = true)
+      ord.compare(mb, v1, v2) <= 0
+    }
+
+    registerCode(">=", tv("T"), tv("T"), TBoolean()) { (mb, v1, v2) =>
+      val ord = CodeOrdering(tv("T").t, missingGreatest = true)
+      ord.compare(mb, v1, v2) >= 0
+    }
+
+    registerCode("<", tv("T"), tv("T"), TBoolean()) { (mb, v1, v2) =>
+      val ord = CodeOrdering(tv("T").t, missingGreatest = true)
+      ord.compare(mb, v1, v2) < 0
+    }
+
+    registerCode(">", tv("T"), tv("T"), TBoolean()) { (mb, v1, v2) =>
+      val ord = CodeOrdering(tv("T").t, missingGreatest = true)
+      ord.compare(mb, v1, v2) > 0
+    }
   }
 }
