@@ -542,6 +542,26 @@ object OrderedRVD {
     // fastKeys: Option[RDD[RegionValue[kType]]]
     fastKeys: Option[RDD[RegionValue]],
     hintPartitioner: Option[OrderedRVDPartitioner]
+  ): OrderedRVD =
+    coerce(
+      typ,
+      ContextRDD.weaken[RVDContext](rdd),
+      fastKeys.map(ContextRDD.weaken[RVDContext](_)),
+      hintPartitioner)
+
+  def coerce(
+    typ: OrderedRVDType,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    fastKeys: ContextRDD[RVDContext, RegionValue]
+  ): OrderedRVD = coerce(typ, crdd, Some(fastKeys), None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    // rdd: RDD[RegionValue[rowType]]
+    rdd: ContextRDD[RVDContext, RegionValue],
+    // fastKeys: Option[RDD[RegionValue[kType]]]
+    fastKeys: Option[ContextRDD[RVDContext, RegionValue]],
+    hintPartitioner: Option[OrderedRVDPartitioner]
   ): OrderedRVD = {
     val sc = rdd.sparkContext
 
@@ -571,8 +591,9 @@ object OrderedRVD {
         typ.kType,
         rangeBounds)
 
-      val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
-      val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
+      val adjustedRDD = rdd
+        .reorderPartitions(pkis.map(_.partitionIndex))
+        .adjustPartitions(adjustedPartitions)
       (adjSortedness: @unchecked) match {
         case OrderedRVPartitionInfo.KSORTED =>
           info("Coerced sorted dataset")
@@ -638,21 +659,40 @@ object OrderedRVD {
     OrderedRVDPartitioner.makeRangeBoundIntervals(typ.pkType, partitionEdges)
   }
 
-  def adjustBoundsAndShuffle(typ: OrderedRVDType,
+  def adjustBoundsAndShuffle(
+    typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]): OrderedRVD = {
+    rvd: RVD
+  ): OrderedRVD = {
+    assert(typ.rowType == rvd.rowType)
+    adjustBoundsAndShuffle(typ, partitioner, rvd.crdd)
+  }
 
+  def adjustBoundsAndShuffle(
+    typ: OrderedRVDType,
+      partitioner: OrderedRVDPartitioner,
+    rdd: RDD[RegionValue]
+  ): OrderedRVD = adjustBoundsAndShuffle(
+    typ,
+    partitioner,
+    ContextRDD.weaken[RVDContext](rdd))
+
+  private[this] def adjustBoundsAndShuffle(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    crdd: ContextRDD[RVDContext, RegionValue]
+  ): OrderedRVD = {
     val pkType = partitioner.pkType
     val pkOrd = pkType.ordering.toOrdering
-    val pkis = getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, rdd))
+    val pkis = getPartitionKeyInfo(typ, getKeys(typ, crdd))
 
     if (pkis.isEmpty)
-      return OrderedRVD(typ, partitioner, rdd)
+      return OrderedRVD(typ, partitioner, crdd)
 
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
 
-    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), rdd)
+    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), crdd)
   }
 
   def shuffle(
