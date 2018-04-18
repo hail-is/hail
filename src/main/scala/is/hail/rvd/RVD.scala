@@ -187,7 +187,10 @@ trait RVD {
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
 
-    val persistCodec = CodecSpec.default
+    val persistCodec =
+      new PackCodecSpec(
+        new BlockingBufferSpec(32 * 1024,
+          new StreamBlockBufferSpec))
 
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
