@@ -137,13 +137,13 @@ final class VCFLine(val line: String) {
       mul = -1
       pos += 1
     }
-    var v = numericValue(line(pos)) * mul
+    var v = numericValue(line(pos))
     pos += 1
     while (!endField()) {
-      v = v * 10 + numericValue(line(pos)) * mul
+      v = v * 10 + numericValue(line(pos))
       pos += 1
     }
-    v
+    v * mul
   }
 
   def skipField(): Unit = {
@@ -309,13 +309,13 @@ final class VCFLine(val line: String) {
       mul = -1
       pos += 1
     }
-    var v = numericValue(line(pos)) * mul
+    var v = numericValue(line(pos))
     pos += 1
     while (!endFormatField()) {
-      v = v * 10 + numericValue(line(pos)) * mul
+      v = v * 10 + numericValue(line(pos))
       pos += 1
     }
-    v
+    v * mul
   }
 
   def parseAddFormatInt(rvb: RegionValueBuilder) {
@@ -363,13 +363,13 @@ final class VCFLine(val line: String) {
       mul = -1
       pos += 1
     }
-    var v = numericValue(line(pos)) * mul
+    var v = numericValue(line(pos))
     pos += 1
     while (!endFormatArrayField()) {
-      v = v * 10 + numericValue(line(pos)) * mul
+      v = v * 10 + numericValue(line(pos))
       pos += 1
     }
-    v
+    v * mul
   }
 
   def parseStringInFormatArray(): String = {
