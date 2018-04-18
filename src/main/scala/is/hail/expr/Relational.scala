@@ -193,7 +193,7 @@ case class MatrixValue(
     val hc = HailContext.get
     val signature = typ.colType
 
-    new UnpartitionedRVD(signature, hc.sc.parallelize(colValues.value.map(_.asInstanceOf[Row]))
+    new UnpartitionedRVD(signature, hc.sc.parallelize(colValues.value.toArray.map(_.asInstanceOf[Row]))
       .mapPartitions(_.toRegionValueIterator(signature)))
   }
 }
