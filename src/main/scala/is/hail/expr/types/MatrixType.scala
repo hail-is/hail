@@ -1,10 +1,13 @@
 package is.hail.expr.types
 
+import is.hail.annotations.Annotation
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
+import org.apache.spark.sql.Row
+
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
   { case JString(s) => Parser.parseMatrixType(s) },
@@ -49,7 +52,19 @@ case class MatrixType(
 
   assert(rowKey.startsWith(rowPartitionKey))
 
-  val rowKeyStruct = TStruct(rowKey.map(k => k -> rowType.fieldByName(k).typ): _*)
+  val (rowKeyStruct, _) = rowType.select(rowKey.toArray)
+  def extractRowKey: Row => Row = rowType.select(rowKey.toArray)._2
+  val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
+  val (rowValueStruct, _) = rowType.filter(rowKey.toSet, include = false)
+  def extractRowValue: Annotation => Annotation = rowType.filter(rowKey.toSet, include = false)._2
+  val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
+
+  val (colKeyStruct, _) = colType.select(colKey.toArray)
+  def extractColKey: Row => Row = colType.select(colKey.toArray)._2
+  val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
+  val (colValueStruct, _) = colType.filter(colKey.toSet, include = false)
+  def extractColValue: Annotation => Annotation = colType.filter(colKey.toSet, include = false)._2
+  val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType = TableType(colType, colKey, globalType)
 

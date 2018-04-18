@@ -590,6 +590,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
+  def collectColsByKey(): MatrixTable = new MatrixTable(hc, CollectColsByKey(ast))
+
   def groupColsBy(keyExpr: String, aggExpr: String): MatrixTable = {
     val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
       Annotation.COL_HEAD -> (1, colType)))
