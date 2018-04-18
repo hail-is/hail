@@ -355,7 +355,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
            |""".stripMargin)
       false
     } else if (key.isDefined != other.key.isDefined ||
-               (key.isDefined && key.get.toSeq != other.key.get.toSeq)) {
+               (key.isDefined && key.get != other.key.get)) {
       info(
         s"""different keys:
             | left: ${ key.map(_.mkString(", ")).getOrElse("none") }
@@ -376,7 +376,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
            | right: ${ other.globals.value }
            |""".stripMargin)
       false
-    } else {
+    } else if (key.isDefined) {
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
           case (None, None) => true
@@ -395,6 +395,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
             false
         }
       }
+    } else {
+      assert(key.isEmpty)
+      ???
     }
   }
 
