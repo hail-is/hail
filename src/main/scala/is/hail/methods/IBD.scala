@@ -315,7 +315,7 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new Table(vds.hc, ktRdd2, ibdSignature, Some(Array("i", "j")))
+    new Table(vds.hc, ktRdd2, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString()), ("j", TString())).merge(ExtendedIBDInfo.signature)
