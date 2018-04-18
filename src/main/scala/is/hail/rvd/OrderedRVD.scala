@@ -535,23 +535,41 @@ object OrderedRVD {
     rdd: RDD[RegionValue],
     fastKeys: RDD[RegionValue],
     hintPartitioner: OrderedRVDPartitioner
-  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys), Some(hintPartitioner))
+  ): OrderedRVD = coerce(
+    typ,
+    rdd,
+    Some(fastKeys),
+    Some(hintPartitioner))
 
   def coerce(
     typ: OrderedRVDType,
-    // rdd: RDD[RegionValue[rowType]]
     rdd: RDD[RegionValue],
-    // fastKeys: Option[RDD[RegionValue[kType]]]
     fastKeys: Option[RDD[RegionValue]],
     hintPartitioner: Option[OrderedRVDPartitioner]
-  ): OrderedRVD = {
-    val sc = rdd.sparkContext
+  ): OrderedRVD = coerce(
+    typ,
+    ContextRDD.weaken[RVDContext](rdd),
+    fastKeys.map(ContextRDD.weaken[RVDContext](_)),
+    hintPartitioner)
 
-    if (rdd.partitions.isEmpty)
-      return empty(sc, typ)
+  def coerce(
+    typ: OrderedRVDType,
+    crdd: ContextRDD[RVDContext, RegionValue]
+  ): OrderedRVD = coerce(typ, crdd, None, None)
+
+  def coerce(
+    typ: OrderedRVDType,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    fastKeys: Option[ContextRDD[RVDContext, RegionValue]],
+    hintPartitioner: Option[OrderedRVDPartitioner]
+   ): OrderedRVD = {
+    val sc = crdd.sparkContext
+
+    if (crdd.partitions.isEmpty)
+       return empty(sc, typ)
 
     // keys: RDD[RegionValue[kType]]
-    val keys = fastKeys.getOrElse(getKeys(typ, rdd))
+    val keys = fastKeys.getOrElse(getKeys(typ, crdd))
 
     val pkis = getPartitionKeyInfo(typ, keys)
 
@@ -573,8 +591,8 @@ object OrderedRVD {
         typ.kType,
         rangeBounds)
 
-      val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
-      val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
+      val adjustedRDD = crdd.reorderPartitions(pkis.map(_.partitionIndex))
+        .adjustPartitions(adjustedPartitions)
       (adjSortedness: @unchecked) match {
         case OrderedRVPartitionInfo.KSORTED =>
           info("Coerced sorted dataset")

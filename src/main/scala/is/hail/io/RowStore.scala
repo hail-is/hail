@@ -61,6 +61,10 @@ object CodecSpec {
         new LZ4BlockBufferSpec(32 * 1024,
           new StreamBlockBufferSpec))))
 
+  val defaultUncompressed = new PackCodecSpec(
+    new BlockingBufferSpec(32 * 1024,
+      new StreamBlockBufferSpec))
+
   val blockSpecs:  Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
