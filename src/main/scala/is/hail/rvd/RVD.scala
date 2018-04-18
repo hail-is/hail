@@ -190,10 +190,11 @@ trait RVD {
     val persistedRDD = rdd.mapPartitions { it =>
       it.map { rv =>
         using(new ByteArrayOutputStream()) { baos =>
-          val enc = persistCodec.buildEncoder(baos)
-          enc.writeRegionValue(localRowType, rv.region, rv.offset)
-          enc.flush()
-          baos.toByteArray
+          using(persistCodec.buildEncoder(baos)) { enc =>
+            enc.writeRegionValue(localRowType, rv.region, rv.offset)
+            enc.flush()
+            baos.toByteArray
+          }
         }
       }
     }
@@ -207,9 +208,10 @@ trait RVD {
           it.map { bytes =>
             region.clear()
             using(new ByteArrayInputStream(bytes)) { bais =>
-              val dec = persistCodec.buildDecoder(bais)
-              rv2.setOffset(dec.readRegionValue(localRowType, region))
-              rv2
+              using(persistCodec.buildDecoder(bais)) { dec =>
+                rv2.setOffset(dec.readRegionValue(localRowType, region))
+                rv2
+              }
             }
           }
         })
