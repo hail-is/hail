@@ -205,6 +205,7 @@ trait RVD {
           val region = Region()
           val rv2 = RegionValue(region)
           it.map { bytes =>
+            region.clear()
             using(new ByteArrayInputStream(bytes)) { bais =>
               val dec = persistCodec.buildDecoder(bais)
               rv2.setOffset(dec.readRegionValue(localRowType, region))
