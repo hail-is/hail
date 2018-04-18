@@ -589,16 +589,6 @@ case class FilterColsIR(
     val localGlobals = prev.globals.broadcast
     val localColType = typ.colType
 
-    //
-    // Initialize a region containing the globals
-    //
-    val colRegion = Region()
-    val rvb = new RegionValueBuilder(colRegion)
-    rvb.start(typ.globalType)
-    rvb.addAnnotation(typ.globalType, localGlobals.value)
-    val globalRVend = rvb.currentOffset()
-    val globalRVoffset = rvb.end()
-
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "global", typ.globalType,
       "sa", typ.colType,
@@ -606,13 +596,22 @@ case class FilterColsIR(
     )
     // Note that we don't yet support IR aggregators
     val p = (sa: Annotation, i: Int) => {
-      colRegion.clear(globalRVend)
-      val colRVb = new RegionValueBuilder(colRegion)
-      colRVb.start(localColType)
-      colRVb.addAnnotation(localColType, sa)
-      val colRVoffset = colRVb.end()
-      predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false)
+      Region.scoped { colRegion =>
+        // FIXME: it would be nice to only load the globals once per matrix
+        val rvb = new RegionValueBuilder(colRegion)
+        rvb.start(typ.globalType)
+        rvb.addAnnotation(typ.globalType, localGlobals.value)
+        val globalRVend = rvb.currentOffset()
+        val globalRVoffset = rvb.end()
+
+        val colRVb = new RegionValueBuilder(colRegion)
+        colRVb.start(localColType)
+        colRVb.addAnnotation(localColType, sa)
+        val colRVoffset = colRVb.end()
+        predCompiledFunc()(colRegion, globalRVoffset, false, colRVoffset, false)
+      }
     }
+
     filterF(prev, p)
   }
 }
