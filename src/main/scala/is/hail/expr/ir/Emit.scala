@@ -270,7 +270,24 @@ private class Emit(
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
 
-//      case ArraySort(a) =>
+      case ArraySort(a) =>
+        val atyp = coerce[TArray](a.typ)
+
+        val aout = emitArrayIterator(ir)
+        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+        val sorter = new ArraySorter(mb, vab)
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          m.mux(vab.addMissing(), vab.add(v))
+        }
+
+        val processArrayElts = aout.arrayEmitter(cont)
+        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+          vab.clear,
+          aout.calcLength,
+          processArrayElts.addElements,
+          sorter.sort(),
+          sorter.toRegion()))
 
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)

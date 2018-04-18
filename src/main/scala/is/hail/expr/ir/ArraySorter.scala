@@ -1,16 +1,27 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.asm4s._
 import is.hail.utils._
 
 object ArraySorter {
-  def apply(mb: EmitMethodBuilder, typ: Type, array: Code[Long]): ArraySorter = {
+  def apply(mb: EmitMethodBuilder, ta: TArray, array: Code[Long]): (Code[Unit], ArraySorter) = {
+    val region: Code[Region] = mb.getArg[Region](1)
+    val len = mb.newLocal[Int]
+    val i = mb.newLocal[Int]
+    val vab = new StagedArrayBuilder(ta.elementType, mb, 16)
+    val popAB = Code(
+      len := ta.loadLength(region, array),
+      i := 0,
+      Code.whileLoop(i < len,
+        ta.isElementMissing(region, array, i).mux(
+          vab.addMissing(),
+          vab.add(region.loadIRIntermediate(ta.elementType)(ta.elementOffset(array, len, i)))),
+        i += 1))
 
+    (popAB, new ArraySorter(mb, vab))
   }
-
-
 }
 
 class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
@@ -20,7 +31,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
 
   def sort(): Code[Unit] = {
 
-    val sort = mb.fb.newMethod[Region, Int, Int, Int]
+    val sort = mb.fb.newMethod[Region, Int, Int, Unit]
     val region = sort.getArg[Region](1)
     val start = sort.getArg[Int](2)
     val end = sort.getArg[Int](3)
@@ -60,9 +71,21 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
               Code(swap(pi, pi - 1), swap(i, pi))),
             pi += -1),
           i += 1)),
-      (start < pi - 2).mux(sort.invoke(region, start, pi - 1), Code._empty),
-      (pi + 2 < end).mux(sort.invoke(region, pi + 1, end), Code._empty)))
+      (start < pi - 1).mux(sort.invoke(region, start, pi - 1), Code._empty),
+      (pi + 1 < end).mux(sort.invoke(region, pi + 1, end), Code._empty)))
 
     sort.invoke(mb.getArg[Region](1), 0, array.size - 1)
+  }
+
+  def toRegion(): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(mb, TArray(typ))
+    Code(
+      srvb.start(array.size),
+      Code.whileLoop(srvb.arrayIdx < array.size,
+        array.isMissing(srvb.arrayIdx).mux(
+          srvb.setMissing(),
+          srvb.addIRIntermediate(typ)(array(srvb.arrayIdx))),
+        srvb.advance()),
+      srvb.end())
   }
 }

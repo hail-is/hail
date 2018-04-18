@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder, SafeIndexedSeq}
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.expr.ir._
@@ -79,6 +79,35 @@ class OrderingSuite {
       assert(!irf2(region, tup1, false, tup1, false))
       assert(!irf2(region, tup2, false, tup2, false))
       true
+    }
+    p.check()
+  }
+
+  @Test def testSortOnRandomArray() {
+    val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TArray(t).genNonmissingValue))
+    val p = Prop.forAll(compareGen) { case (t, a) =>
+      val ir = ArraySort(GetTupleElement(In(0, TTuple(TArray(t))), 0))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+
+      Infer(ir)
+      Emit(ir, fb)
+
+      val f = fb.result()()
+
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+
+      rvb.start(TTuple(TArray(t)))
+      rvb.startTuple()
+      rvb.addAnnotation(TArray(t), a)
+      rvb.endTuple()
+      val off = rvb.end()
+
+      val res = f(region, off, false)
+      val actual = SafeIndexedSeq(TArray(t), region, res)
+      val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering)
+
+      expected == actual
     }
     p.check()
   }
