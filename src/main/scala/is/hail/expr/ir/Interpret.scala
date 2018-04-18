@@ -183,6 +183,12 @@ object Interpret {
             }
         }
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
+      case ArraySort(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)
         val iValue = interpret(i, env, args, agg)

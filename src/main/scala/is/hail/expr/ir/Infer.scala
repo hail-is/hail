@@ -10,12 +10,16 @@ object Infer {
         assert(cnsq.typ == altr.typ, s"${ cnsq.typ }, ${ altr.typ }, $cond")
         cnsq.typ
 
+<<<<<<< HEAD
       case x@Let(name, value, body) =>
         body.typ
       case x@ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ)
       case x@ApplyUnaryPrimOp(op, v) =>
         UnaryOp.getReturnType(op, v.typ)
+      case x@ArraySort(a) =>
+        assert(a.typ.isInstanceOf[TArray])
+        a.typ
       case x@ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         -coerce[TArray](a.typ).elementType

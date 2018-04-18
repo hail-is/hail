@@ -68,6 +68,7 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends InferIR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends InferIR
 
 final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
+final case class ArraySort(a: IR) extends InferIR
 final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
