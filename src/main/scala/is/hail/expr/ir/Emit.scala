@@ -192,8 +192,7 @@ private class Emit(
       case F64(x) =>
         present(const(x))
       case Str(x) =>
-        val srvb = new StagedRegionValueBuilder(mb, TString())
-        present(Code(srvb.start(), srvb.addString(const(x)), srvb.end()))
+        present(region.appendString(const(x)))
       case True() =>
         present(const(true))
       case False() =>
