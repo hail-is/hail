@@ -15,4 +15,12 @@ class ContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](
     ContextRDD.weaken(
       new ShuffledRDD[K, V, V](crdd.run, p).setKeyOrdering(o),
       crdd.mkc)
+
+  def partitionBy(p: Partitioner): ContextRDD[C, (K, V)] =
+    if (crdd.partitioner.contains(p)) crdd
+    else ContextRDD.weaken(
+      new ShuffledRDD[K, V, V](crdd.run, p),
+      crdd.mkc)
+
+  def values: ContextRDD[C, V] = crdd.map(_._2)
 }
