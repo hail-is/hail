@@ -188,6 +188,14 @@ case class MatrixValue(
       }
     }
   }
+
+  def colsRVD(): RVD = {
+    val hc = HailContext.get
+    val signature = typ.colType
+
+    new UnpartitionedRVD(signature, hc.sc.parallelize(colValues.value.map(_.asInstanceOf[Row]))
+      .mapPartitions(_.toRegionValueIterator(signature)))
+  }
 }
 
 object MatrixIR {
@@ -1409,6 +1417,26 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
     TableValue(typ,
       mv.globals,
       mv.rowsRVD())
+  }
+}
+
+case class MatrixColsTable(child: MatrixIR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixColsTable = {
+    assert(newChildren.length == 1)
+    MatrixColsTable(newChildren(0).asInstanceOf[MatrixIR])
+  }
+
+  val typ: TableType = TableType(child.typ.colType,
+    child.typ.colKey,
+    child.typ.globalType)
+
+  def execute(hc: HailContext): TableValue = {
+    val mv = child.execute(hc)
+    TableValue(typ,
+      mv.globals,
+      mv.colsRVD())
   }
 }
 
