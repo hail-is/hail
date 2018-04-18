@@ -1421,14 +1421,15 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
       newRow)
     assert(rTyp == gType)
 
-    val globalRegion = Region()
-    val globalOff = tv.globals.toRegion(globalRegion)
-    val valueOff = value.toRegion(globalRegion)
-    val newOff = f()(globalRegion, globalOff, false, valueOff, false)
+    val newGlobals = Region.scoped { globalRegion =>
+      val globalOff = tv.globals.toRegion(globalRegion)
+      val valueOff = value.toRegion(globalRegion)
+      val newOff = f()(globalRegion, globalOff, false, valueOff, false)
 
-    val newGlobals = tv.globals.copy(
-      value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
-      t = rTyp.asInstanceOf[TStruct])
+      tv.globals.copy(
+        value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
+        t = rTyp.asInstanceOf[TStruct])
+    }
 
     TableValue(typ, newGlobals, tv.rvd)
   }
