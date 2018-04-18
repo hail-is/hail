@@ -103,18 +103,15 @@ object RVD {
     hConf.mkDir(path + "/parts")
 
     val os = hConf.unsafeWriter(path + "/parts/part-0")
-    val part0Count = Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-      RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
-        rows.iterator.map { a =>
-          region.clear()
-          rvb.start(rowType)
-          rvb.addAnnotation(rowType, a)
-          rv.setOffset(rvb.end())
-          rv
-        }, os)
-    }
+    val rvb = new RegionValueBuilder()
+    val part0Count = RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
+      rows.map { a =>
+        val region = Region()
+        rvb.set(region)
+        rvb.start(rowType)
+        rvb.addAnnotation(rowType, a)
+        RegionValue(region, rvb.end())
+      }.iterator, os)
 
     val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
     spec.write(hConf, path)
@@ -172,7 +169,7 @@ trait RVD {
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
     depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
-  ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
+  ) : U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
 
   def aggregate[U: ClassTag](
     zeroValue: U
@@ -190,22 +187,21 @@ trait RVD {
     val persistCodec = CodecSpec.default
 
     // copy, persist region values
-    val persistedRDD = crdd.mapPartitions { it =>
-      val baos = new ByteArrayOutputStream()
-      val enc = persistCodec.buildEncoder(baos)
+    val persistedRDD = rdd.mapPartitions { it =>
       it.map { rv =>
-        baos.reset()
+        val baos = new ByteArrayOutputStream()
+        val enc = persistCodec.buildEncoder(baos)
         enc.writeRegionValue(localRowType, rv.region, rv.offset)
         enc.flush()
         baos.toByteArray
       }
-    } .run
+    }
       .persist(level)
 
     PersistedRVRDD(persistedRDD,
       ContextRDD.weaken[RVDContext](persistedRDD)
-        .cmapPartitions { (ctx, it) =>
-          val region = Region() // FIXME: use ctx.region when consumers are clearing
+        .mapPartitions { it =>
+          val region = Region()
           val rv2 = RegionValue(region)
           it.map { bytes =>
             val bais = new ByteArrayInputStream(bytes)
@@ -238,6 +234,6 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    crdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }.run
+    rdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }
   }
 }
