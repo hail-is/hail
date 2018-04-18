@@ -260,7 +260,7 @@ object MatrixIR {
           Row.fromSeq(key.toSeq ++ newColValueType.fields.map { f =>
             idx.map { i =>
               mv.colValues.value(i).asInstanceOf[Row]
-                .get(typ.colType.fieldIdx(f.name))
+                .get(typ.colValueFieldIdx(f.index))
             }.toIndexedSeq
           })
         }.toIndexedSeq)
