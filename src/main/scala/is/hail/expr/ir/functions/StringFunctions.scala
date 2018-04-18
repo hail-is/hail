@@ -17,8 +17,7 @@ object StringFunctions extends RegistryFunctions {
   }
 
   private[this] def convertFromString(mb: EmitMethodBuilder, v: Code[String]): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, TString())
-    Code(srvb.start(), srvb.addString(v), srvb.end())
+    mb.getArg[Region](1).load().appendString(v)
   }
 
   private[this] def registerWrappedStringScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
