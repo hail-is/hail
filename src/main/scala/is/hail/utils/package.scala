@@ -205,7 +205,7 @@ package object utils extends Logging
     .filter(s => !s.isEmpty)
 
   def prettyIdentifier(str: String): String = {
-    if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
       s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
@@ -567,8 +567,10 @@ package object utils extends Logging
   }
 
   def lift[T, S](pf: PartialFunction[T, S]): (T) => Option[S] = pf.lift
+
   def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift
-  def optMatch[T, S](a: T)(pf : PartialFunction[T, S]): Option[S] = lift(pf)(a)
+
+  def optMatch[T, S](a: T)(pf: PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
   def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
     try {
@@ -588,6 +590,18 @@ package object utils extends Logging
     assert(parts.max - parts.min <= 1)
     parts
   }
+
+  def unlifted[T, U](f: (T) => Option[U]): PartialFunction[T, U] =
+    new PartialFunction[T, U] {
+      def isDefinedAt(x: T): Boolean = f(x) match {
+        case Some(_) => true
+        case None => false
+      }
+
+      def apply(x: T): U = f(x) match {
+        case Some(u) => u
+      }
+    }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

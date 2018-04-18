@@ -14,22 +14,25 @@ object Interpret {
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
+  def apply[T](ir: IR, optimize: Boolean): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
+
   def apply[T](ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
-    agg: Option[Agg]): T = {
-
+    agg: Option[Agg],
+    optimize: Boolean = true): T = {
 
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
     var ir = ir0
-    ir = Optimize(ir)
+    if (optimize)
+      ir = Optimize(ir)
+    TypeCheck(ir, agg.map(_._1), typeEnv)
 
     log.info("interpret:\n" + Pretty(ir))
 
-    TypeCheck(ir, agg.map(_._1), typeEnv)
     interpret(ir, valueEnv, args, agg.orNull).asInstanceOf[T]
   }
 
@@ -289,7 +292,7 @@ object Interpret {
             new HistAggregator(indices)
         }
         aValue.foreach { case (element, _) =>
-            aggregator.seqOp(element)
+          aggregator.seqOp(element)
         }
         aggregator.result
       case MakeStruct(fields) =>

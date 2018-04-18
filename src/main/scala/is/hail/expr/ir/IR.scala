@@ -30,7 +30,7 @@ object Literal {
       case _: TFloat32 => F32(x.asInstanceOf[Float])
       case _: TFloat64 => F64(x.asInstanceOf[Double])
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
-      case _ => throw new RuntimeException("Unsupported literal type")
+      case _ => throw new RuntimeException(s"Unsupported literal type: $t")
     }
   }
 }
