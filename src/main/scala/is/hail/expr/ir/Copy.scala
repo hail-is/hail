@@ -40,6 +40,9 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
+      case ArraySort(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        ArraySort(a)
       case ArrayRef(_, _, typ) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
         ArrayRef(a, i, typ)

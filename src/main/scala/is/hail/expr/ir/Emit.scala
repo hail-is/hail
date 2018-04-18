@@ -270,6 +270,8 @@ private class Emit(
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
 
+      case ArraySort(a) =>
+
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
         val tarray = coerce[TArray](a.typ)

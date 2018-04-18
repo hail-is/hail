@@ -30,6 +30,8 @@ object Children {
       Array(x)
     case MakeArray(args, typ) =>
       args.toIndexedSeq
+    case ArraySort(a) =>
+      Array(a)
     case ArrayRef(a, i, typ) =>
       Array(a, i)
     case ArrayLen(a) =>
