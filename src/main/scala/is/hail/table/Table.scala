@@ -397,7 +397,20 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
     } else {
       assert(key.isEmpty)
-      ???
+      keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
+        other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
+      ).forall { case (k, (v1, v2)) =>
+        (v1, v2) match {
+          case (None, None) => true
+          case (Some(x), Some(y)) => x.size == y.size
+          case (Some(x), None) =>
+            info(s"ROW IN LEFT, NOT RIGHT: ${ x.mkString("\n    ") }\n")
+            false
+          case (None, Some(y)) =>
+            info(s"ROW IN RIGHT, NOT LEFT: ${ y.mkString("\n    ") }\n")
+            false
+        }
+      }
     }
   }
 
