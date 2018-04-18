@@ -689,6 +689,8 @@ trait Settable[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
+
+  def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
 }
 
 class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
