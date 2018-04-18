@@ -173,6 +173,7 @@ object Infer {
         x.typ = query.typ
       case MatrixWrite(_, _, _, _) =>
       case TableWrite(_, _, _, _) =>
+      case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
     }
   }

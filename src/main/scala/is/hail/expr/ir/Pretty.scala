@@ -89,6 +89,9 @@ object Pretty {
                 s"$path overwrite"
               else
                 path
+            case TableExport(_, path, typesFile, header, exportType) =>
+              val args = Array(Some(path), Option(typesFile), if (header) Some("header") else None, Some(exportType)).flatten
+              args.mkString(" ")
             case _ => ""
           }
 

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.{BaseIR, MatrixIR, TableIR}
 import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
+import is.hail.utils.ExportType
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -93,6 +94,14 @@ final case class TableWrite(
   path: String,
   overwrite: Boolean = true,
   codecSpecJSONStr: String = null) extends IR {
+  val typ: Type = TVoid
+}
+final case class TableExport(
+  child: TableIR,
+  path: String,
+  typesFile: String = null,
+  header: Boolean = true,
+  exportType: Int = ExportType.CONCATENATED) extends IR {
   val typ: Type = TVoid
 }
 

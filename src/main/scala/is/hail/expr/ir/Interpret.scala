@@ -377,6 +377,10 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.write(path, overwrite, codecSpecJSONStr)
+      case TableExport(child, path, typesFile, header, exportType) =>
+        val hc = HailContext.get
+        val tableValue = child.execute(hc)
+        tableValue.export(path, typesFile, header, exportType)
       case TableAggregate(child, query, _) =>
         val localGlobalSignature = child.typ.globalType
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]

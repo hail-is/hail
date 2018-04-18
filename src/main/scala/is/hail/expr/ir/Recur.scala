@@ -44,5 +44,6 @@ object Recur {
     case TableCount(_) => ir
     case TableAggregate(child, query, typ) => TableAggregate(child, query, typ)
     case TableWrite(_, _, _, _) => ir
+    case TableExport(_, _, _, _, _) => ir
   }
 }

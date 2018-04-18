@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.io.CodecSpec
+import is.hail.io._
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.table.TableSpec
@@ -14,7 +14,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
 import org.apache.spark.SparkContext
-
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
@@ -958,6 +957,34 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+  }
+
+  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
+    val hc = HailContext.get
+    hc.hadoopConf.delete(path, recursive = true)
+
+    val fields = typ.rowType.fields
+
+    Option(typesFile).foreach { file =>
+      exportTypes(file, hc.hadoopConf, fields.map(f => (f.name, f.typ)).toArray)
+    }
+
+    val localSignature = typ.rowType
+    val localTypes = fields.map(_.typ)
+
+    rvd.mapPartitions { it =>
+      val sb = new StringBuilder()
+
+      it.map { rv =>
+        val ur = new UnsafeRow(localSignature, rv)
+        sb.clear()
+        localTypes.indices.foreachBetween { i =>
+          sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
+        }(sb += '\t')
+
+        sb.result()
+      }
+    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
   }
 }
 
