@@ -236,20 +236,23 @@ object MatrixIR {
   }
 
   def collectColsByKey(typ: MatrixType): (MatrixType, MatrixValue => MatrixValue) = {
+    val oldRVRowType = typ.rvRowType
+    val oldEntryArrayType = typ.entryArrayType
+    val oldEntryType = typ.entryType
+
     val newColValueType = TStruct(typ.colValueStruct.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
     val newColType = typ.colKeyStruct ++ newColValueType
     val newEntryType = TStruct(typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
     val newMatrixType = typ.copyParts(colType = newColType, entryType = newEntryType)
-    val oldRVRowType = typ.rvRowType
     val newRVRowType = newMatrixType.rvRowType
-    val oldEntryArrayType = typ.entryArrayType
-    val oldEntryType = typ.entryType
     val localRowSize = newRVRowType.size
 
     (newMatrixType, { mv =>
-      val colValMap: Map[Row, Array[Int]] = mv.colValues.value.map(_.asInstanceOf[Row]).zipWithIndex
-        .groupBy[Row]{ case (r, i) => typ.extractColKey(r)}
-        .mapValues{ _.map{ case (r, i) => i }.toArray}
+      val colValMap: Map[Row, Array[Int]] = mv.colValues.value
+        .map(_.asInstanceOf[Row])
+        .zipWithIndex
+        .groupBy[Row]{ case (r, i) => typ.extractColKey(r) }
+        .mapValues{ _.map{ case (r, i) => i }.toArray }
       val idxMap = colValMap.values.toArray
 
       val newColValues: BroadcastIndexedSeq = mv.colValues.copy(
@@ -277,7 +280,7 @@ object MatrixIR {
             rvb.addField(oldRVRowType, rv, i)
             i += 1
           }
-          rvb.startArray(idxMap.length) //start entries array
+          rvb.startArray(idxMap.length) // start entries array
           i = 0
           while (i < idxMap.length) {
             rvb.startStruct()
