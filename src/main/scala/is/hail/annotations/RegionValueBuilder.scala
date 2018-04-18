@@ -385,6 +385,23 @@ class RegionValueBuilder(var region: Region) {
     addElement(t, rv.region, rv.offset, i)
   }
 
+  def selectRegionValue(fromT: TStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
+    selectRegionValue(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
+  }
+
+  def selectRegionValue(fromT: TStruct, fromFieldIdx: Array[Int], region: Region, offset: Long) {
+    val t = fromT.typeAfterSelect(fromFieldIdx).fundamentalType
+    assert(currentType() == t)
+    assert(t.size == fromFieldIdx.length)
+    startStruct()
+    var i = 0
+    while (i < t.size) {
+      addField(fromT, region, offset, fromFieldIdx(i))
+      i += 1
+    }
+    endStruct()
+  }
+
   def addRegionValue(t: Type, rv: RegionValue) {
     addRegionValue(t, rv.region, rv.offset)
   }
