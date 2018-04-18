@@ -189,11 +189,12 @@ trait RVD {
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
       it.map { rv =>
-        val baos = new ByteArrayOutputStream()
-        val enc = persistCodec.buildEncoder(baos)
-        enc.writeRegionValue(localRowType, rv.region, rv.offset)
-        enc.flush()
-        baos.toByteArray
+        using(new ByteArrayOutputStream()) { baos =>
+          val enc = persistCodec.buildEncoder(baos)
+          enc.writeRegionValue(localRowType, rv.region, rv.offset)
+          enc.flush()
+          baos.toByteArray
+        }
       }
     }
       .persist(level)
@@ -204,10 +205,11 @@ trait RVD {
           val region = Region()
           val rv2 = RegionValue(region)
           it.map { bytes =>
-            val bais = new ByteArrayInputStream(bytes)
-            val dec = persistCodec.buildDecoder(bais)
-            rv2.setOffset(dec.readRegionValue(localRowType, region))
-            rv2
+            using(new ByteArrayInputStream(bytes)) { bais =>
+              val dec = persistCodec.buildDecoder(bais)
+              rv2.setOffset(dec.readRegionValue(localRowType, region))
+              rv2
+            }
           }
         })
   }
