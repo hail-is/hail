@@ -591,17 +591,13 @@ package object utils extends Logging
     parts
   }
 
-  def unlifted[T, U](f: (T) => Option[U]): PartialFunction[T, U] =
-    new PartialFunction[T, U] {
-      def isDefinedAt(x: T): Boolean = f(x) match {
-        case Some(_) => true
-        case None => false
-      }
-
-      def apply(x: T): U = f(x) match {
-        case Some(u) => u
-      }
+  def matchErrorToNone[T, U](f: (T) => U): (T) => Option[U] = (x: T) => {
+    try {
+      Some(f(x))
+    } catch {
+      case _: MatchError => None
     }
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

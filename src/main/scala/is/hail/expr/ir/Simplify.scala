@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
 import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableRead}
 
 object Simplify {
   def apply(ir: BaseIR): BaseIR = {
-    RewriteBottomUp(ir, {
+    RewriteBottomUp(ir, matchErrorToNone {
       // optimze IR
 
       case Let(n1, v, Ref(n2, _), _) if n1 == n2 => v

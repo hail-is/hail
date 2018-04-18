@@ -234,7 +234,7 @@ class AggregatorSuite extends SparkSuite {
     assert(qTakeBy(va) == IndexedSeq[Any](5, 20, 1))
   }
 
-  @Test def testTransf ormations() {
+  @Test def testTransformations() {
     val p = Prop.forAll(
       for {
         vds <- MatrixTable.gen(hc, VSMSubgen.random
