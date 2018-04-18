@@ -515,6 +515,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def toF: Code[Float] = Code(lhs, new InsnNode(L2F))
 
   def toD: Code[Double] = Code(lhs, new InsnNode(L2D))
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Long, Long, String]("toString", lhs)
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
@@ -547,6 +549,8 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
   def toF: Code[Float] = lhs
 
   def toD: Code[Double] = Code(lhs, new InsnNode(F2D))
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Float, Float, String]("toString", lhs)
 }
 
 class CodeDouble(val lhs: Code[Double]) extends AnyVal {
@@ -579,6 +583,8 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
   def toF: Code[Float] = Code(lhs, new InsnNode(D2F))
 
   def toD: Code[Double] = lhs
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Double, Double, String]("toString", lhs)
 }
 
 class CodeString(val lhs: Code[String]) extends AnyVal {

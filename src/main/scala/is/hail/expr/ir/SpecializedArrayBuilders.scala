@@ -91,21 +91,15 @@ sealed abstract class MissingArrayBuilder[T](initialCapacity: Int) {
     missing(i)
   }
 
-  def enlargeMissing(newCapacity: Int) {
-    val newmissing = new Array[Boolean](newCapacity)
-    Array.copy(missing, 0, newmissing, 0, size_)
-    missing = newmissing
-  }
-
   def ensureCapacity(n: Int): Unit
 
   def add(x: T): Unit
 
   def update(i: Int, x: T): Unit
 
-  def setMissing(i: Int): Unit = {
+  def setMissing(i: Int, m: Boolean): Unit = {
     require(i >= 0 && i < size)
-    missing(i) = true
+    missing(i) = m
   }
 
   def addMissing() {
@@ -131,7 +125,9 @@ class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Byte](i
       val newb = new Array[Byte](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
-      enlargeMissing(n)
+      val newmissing = new Array[Boolean](newCapacity)
+      Array.copy(missing, 0, newmissing, 0, size_)
+      missing = newmissing
     }
   }
 
@@ -163,7 +159,9 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Int](ini
       val newb = new Array[Int](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
-      enlargeMissing(n)
+      val newmissing = new Array[Boolean](newCapacity)
+      Array.copy(missing, 0, newmissing, 0, size_)
+      missing = newmissing
     }
   }
 
@@ -195,7 +193,9 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Long](i
       val newb = new Array[Long](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
-      enlargeMissing(n)
+      val newmissing = new Array[Boolean](newCapacity)
+      Array.copy(missing, 0, newmissing, 0, size_)
+      missing = newmissing
     }
   }
 
@@ -227,7 +227,9 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Float]
       val newb = new Array[Float](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
-      enlargeMissing(n)
+      val newmissing = new Array[Boolean](newCapacity)
+      Array.copy(missing, 0, newmissing, 0, size_)
+      missing = newmissing
     }
   }
 
@@ -259,7 +261,9 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Doubl
       val newb = new Array[Double](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
-      enlargeMissing(n)
+      val newmissing = new Array[Boolean](newCapacity)
+      Array.copy(missing, 0, newmissing, 0, size_)
+      missing = newmissing
     }
   }
 
@@ -291,7 +295,9 @@ class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Bool
       val newb = new Array[Boolean](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
-      enlargeMissing(n)
+      val newmissing = new Array[Boolean](newCapacity)
+      Array.copy(missing, 0, newmissing, 0, size_)
+      missing = newmissing
     }
   }
 
