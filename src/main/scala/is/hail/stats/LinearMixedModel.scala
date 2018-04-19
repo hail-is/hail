@@ -6,6 +6,7 @@ import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.types.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
 import is.hail.table.Table
+import is.hail.utils._
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], pc: BDM[Double], d: BDV[Double],
   ydy: Double, cdy: BDV[Double], cdc: BDM[Double], yOpt: Option[BDV[Double]], cOpt: Option[BDM[Double]])
@@ -38,7 +39,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     }
  
   def fitLowRank(pathPXt: String, pathXt: String, partitionSize: Int): Table = {
-    val PXt = RowMatrix.readBlockMatrix(hc, pathPXt, partitionSize)    
+    val PXt = RowMatrix.readBlockMatrix(hc, pathPXt, partitionSize)
     val Xt = RowMatrix.readBlockMatrix(hc, pathXt, partitionSize)
     
     assert(PXt.nRows == Xt.nRows)
@@ -69,9 +70,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         val px = BDV(px0)
         val dpx = d *:* px
 
-        cdy(0) = py dot dpx + gamma * (y dot x)
-        cdc(0, 0) = px dot dpx + gamma * (x dot x)
-        cdc(r0, r1) := pc.t * dpx + gamma * (c.t * x)  // FIXME group rows or precompute and add path_xtc
+        cdy(0) = (py dot dpx) + gamma * (y dot x)
+        cdc(0, 0) = (px dot dpx) + gamma * (x dot x)
+        cdc(r0, r1) := (pc.t * dpx) + gamma * (c.t * x)  // FIXME group rows or compute xtc with block matrix multiply
         cdc(r1, r0) := cdc(r0, r1).t
         
         region.clear()
@@ -140,7 +141,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         
         region.clear()
         rvb.start(rowType)
-        try {
+        try {          
           val beta = cdc \ cdy
           val residualSq = ydy - (cdy dot beta)
           val sigmaSq = residualSq / dof

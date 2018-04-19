@@ -70,7 +70,7 @@ class LinearMixedModel(object):
 
     - :math:`P_r: \mathbb{R}^n \rightarrow \mathbb{R}^r` has orthonormal rows
       consisting of the top :math:`r`  eigenvectors of :math:`K`.
-    - :math:`S_r` is the `r \times r` diagonal matrix of corresponding
+    - :math:`S_r` is the :math:`r \times r` diagonal matrix of corresponding
       non-zero eigenvalues.
 
     For this low-rank model, the quintuple :math:`(P_r y, P_r C, S_r, y, C)`
@@ -108,13 +108,13 @@ class LinearMixedModel(object):
         - Number of fixed effects (covariates)
       * - `r`
         - int
-        - Number of mixed effects
+        - Number of random effects
       * - `py`
         - numpy.ndarray
         - Projected response vector :math:`Py` with shape :math:`(r)`
       * - `pc`
         - numpy.ndarray
-        - Decorrelated design matrix :math:`PC` with shape :math:`(r, k)`
+        - Projected (decorrelated) design matrix :math:`PC` with shape :math:`(r, k)`
       * - `s`
         - numpy.ndarray
         - Eigenvalues vector of projection with shape :math:`(r)`
@@ -170,7 +170,7 @@ class LinearMixedModel(object):
     null hypothesis that the corresponding fixed effect :math:`\beta_\star` is zero.
 
     After running :meth:`fit` to fit the null model,
-    the methods :meth:`fit_alternative` and :meth:`fit_alternative_numpy`
+    the methods :meth:`fit_alternatives` and :meth:`fit_alternatives_numpy`
     may be used to test the null hypothesis :math:`\beta_\star = 0` versus
     the alternative hypothesis :math:`\beta_\star \neq 0` for
     each :math:`n`-vector :math:`x_\star` in a collection of augmentations.
@@ -244,6 +244,8 @@ class LinearMixedModel(object):
         self._ydy = None
         self._cdy = None
         self._cdc = None
+        self._d_alt = None
+        self._ydy_alt = None
         self._cdy_alt = np.zeros(self.k + 1)
         self._cdc_alt = np.zeros((self.k + 1, self.k + 1))
         self._residual_sq = None
@@ -381,13 +383,15 @@ class LinearMixedModel(object):
         self.gamma = np.exp(self.log_gamma)
         self.h_sq = self.sigma_sq / (self.sigma_sq + self.tau_sq)
         self._residual_sq = self.sigma_sq * self.dof
+        self._d_alt = self._d
+        self._ydy_alt = self._ydy
         self._cdy_alt[1:] = self._cdy
         self._cdc_alt[1:, 1:] = self._cdc
 
         self._fitted = True
 
     @typecheck_method(path_pxt=str, path_xt=nullable(str), partition_size=int)
-    def fit_alternative(self, path_pxt, path_xt=None, partition_size=1024):
+    def fit_alternatives(self, path_pxt, path_xt=None, partition_size=1024):
         r"""Fit and test alternative model for each augmented design matrix in parallel.
 
         The resulting Table has the following fields:
@@ -444,7 +448,7 @@ class LinearMixedModel(object):
         return Table(self._scala_model.fit(path_pxt, joption(path_xt), partition_size))
 
     @typecheck_method(px=np.ndarray, x=nullable(np.ndarray))
-    def fit_alternative_numpy(self, px, x=None):
+    def fit_alternatives_numpy(self, px, x=None):
         r"""Fit and test alternative model for each augmented design matrix.
 
         The resulting pandas DataFrame has the following fields.
@@ -504,9 +508,10 @@ class LinearMixedModel(object):
         from scipy.stats.distributions import chi2
 
         gamma = self.gamma
-        dpx = self._d * px
+        dpx = self._d_alt * px
 
         # single thread => no need to copy
+        ydy = self._ydy_alt
         cdy = self._cdy_alt
         cdc = self._cdc_alt
 
@@ -521,7 +526,7 @@ class LinearMixedModel(object):
 
         try:
             beta = solve(cdc, cdy, assume_a='pos', overwrite_a=True)  # only uses upper triangle
-            residual_sq = self._ydy - cdy.T @ beta
+            residual_sq = ydy - cdy.T @ beta
             sigma_sq = residual_sq / (self.dof - 1)
             chi_sq = self.n * np.log(self._residual_sq / residual_sq)  # division => precision
             p_value = chi2.sf(chi_sq, 1)
@@ -543,8 +548,8 @@ class LinearMixedModel(object):
             self._residual_sq,
             _jarray_from_ndarray(self.py),
             _breeze_from_ndarray(self.pc),
-            _jarray_from_ndarray(self._d),
-            self._ydy,
+            _jarray_from_ndarray(self._d_alt),
+            self._ydy_alt,
             _jarray_from_ndarray(self._cdy_alt),
             _breeze_from_ndarray(self._cdc_alt),
             jsome(_jarray_from_ndarray(self.y)) if self._low_rank else jnone,
