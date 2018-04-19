@@ -651,6 +651,5 @@ class CompileSuite {
     val region = Region()
     val off = f(region)
     assert(TString.loadString(region, off) == "hello")
-
   }
 }

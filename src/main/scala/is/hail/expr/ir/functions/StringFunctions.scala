@@ -26,7 +26,7 @@ object StringFunctions extends RegistryFunctions {
       case t => TypeToIRIntermediateClassTag(t)
     }
 
-    def conversion(mb: EmitMethodBuilder, typ: Type, v: Code[_]): Code[_] = (typ, v) match {
+    def convertToString(mb: EmitMethodBuilder, typ: Type, v: Code[_]): Code[_] = (typ, v) match {
         case (_: TString, v2: Code[Long]) => wrapToString(mb, v2)
         case (_, v2) => v2
     }
@@ -38,7 +38,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerCode(mname, argTypes, rType) { (mb, args) =>
       val cts = argTypes.map(ct(_).runtimeClass)
-      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => conversion(mb, t, a) } )(ct(rType))
+      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => convertToString(mb, t, a) } )(ct(rType))
       convertBack(mb, out)
     }
   }
