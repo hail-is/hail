@@ -13,6 +13,7 @@ object Copy {
       case I64(_) => same
       case F32(_) => same
       case F64(_) => same
+      case Str(_) => same
       case True() => same
       case False() => same
       case Cast(_, typ) =>

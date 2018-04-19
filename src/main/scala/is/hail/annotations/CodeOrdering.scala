@@ -30,6 +30,18 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
   private[this] def doubleCompare(v1: Code[Double], v2: Code[Double]): Code[Int] =
     Code.invokeStatic[java.lang.Double, Double, Double, Int]("compare", v1, v2)
 
+  def compare(mb: EmitMethodBuilder, v1: Code[_], v2: Code[_]): Code[Int] = {
+    t match {
+      case _: TBoolean => booleanCompare(asm4s.coerce[Boolean](v1), asm4s.coerce[Boolean](v2))
+      case _: TInt32 | _: TCall => intCompare(asm4s.coerce[Int](v1), asm4s.coerce[Int](v2))
+      case _: TInt64 => longCompare(asm4s.coerce[Long](v1), asm4s.coerce[Long](v2))
+      case _: TFloat32 => floatCompare(asm4s.coerce[Float](v1), asm4s.coerce[Float](v2))
+      case _: TFloat64 => doubleCompare(asm4s.coerce[Double](v1), asm4s.coerce[Double](v2))
+      case _ =>
+        compare(mb, mb.getArg[Region](1), asm4s.coerce[Long](v1), mb.getArg[Region](1), asm4s.coerce[Long](v2))
+    }
+  }
+
   def compare(mb: EmitMethodBuilder, r1: Code[Region], o1: Code[Long], r2: Code[Region], o2: Code[Long]): Code[Int] = {
     compare(t, mb, r1, o1, r2, o2)
   }
