@@ -5,25 +5,6 @@ import is.hail.expr.types._
 import is.hail.asm4s._
 import is.hail.utils._
 
-object ArraySorter {
-  def apply(mb: EmitMethodBuilder, ta: TArray, array: Code[Long]): (Code[Unit], ArraySorter) = {
-    val region: Code[Region] = mb.getArg[Region](1)
-    val len = mb.newLocal[Int]
-    val i = mb.newLocal[Int]
-    val vab = new StagedArrayBuilder(ta.elementType, mb, 16)
-    val popAB = Code(
-      len := ta.loadLength(region, array),
-      i := 0,
-      Code.whileLoop(i < len,
-        ta.isElementMissing(region, array, i).mux(
-          vab.addMissing(),
-          vab.add(region.loadIRIntermediate(ta.elementType)(ta.elementOffset(array, len, i)))),
-        i += 1))
-
-    (popAB, new ArraySorter(mb, vab))
-  }
-}
-
 class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boolean = false) {
   val typ: Type = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
@@ -42,13 +23,15 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     val kv2 = cregion.loadIRIntermediate(ktype)(ttype.fieldOffset(compare.getArg[Long](5), 0))
 
     val c = compare.getArg[Boolean](2).ceq(compare.getArg[Boolean](4)).mux(
-      compare.getArg[Boolean](2).mux(0, kord.compare(km1, kv1, km2, kv2)(compare)),
+      compare.getArg[Boolean](2).mux(0, kord.compare(compare, (km1, kv1), (km2, kv2))),
       compare.getArg[Boolean](2).mux(1, -1)
     )
     compare.emit(c)
   } else {
     val ord: CodeOrdering = CodeOrdering(typ, missingGreatest = true)
-    compare.emit(ord.compare(compare.getArg[Boolean](2), compare.getArg(3)(ti), compare.getArg[Boolean](4), compare.getArg(5)(ti))(compare))
+    val x1: (Code[Boolean], Code[_]) = (compare.getArg[Boolean](2), compare.getArg(3)(ti))
+    val x2: (Code[Boolean], Code[_]) = (compare.getArg[Boolean](4), compare.getArg(5)(ti))
+    compare.emit(ord.compare(compare, x1, x2))
   }
 
   def sort(): Code[Unit] = {
