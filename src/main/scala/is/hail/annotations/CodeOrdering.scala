@@ -25,10 +25,15 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
     Code.invokeStatic[java.lang.Long, Long, Long, Int]("compare", v1, v2)
 
   private[this] def floatCompare(v1: Code[Float], v2: Code[Float]): Code[Int] =
-    Code.invokeStatic[java.lang.Float, Float, Float, Int]("compare", v1, v2)
+    v1.ceq(v2).mux(0, Code.invokeStatic[java.lang.Float, Float, Float, Int]("compare", v1, v2))
 
   private[this] def doubleCompare(v1: Code[Double], v2: Code[Double]): Code[Int] =
-    Code.invokeStatic[java.lang.Double, Double, Double, Int]("compare", v1, v2)
+    v1.ceq(v2).mux(0, Code.invokeStatic[java.lang.Double, Double, Double, Int]("compare", v1, v2))
+
+  def compare(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_])(mb: EmitMethodBuilder): Code[Int] = {
+    val m = mb.newLocal[Boolean]
+    Code(m := m1, m.cne(m2).mux(if (missingGreatest) m.mux(1, -1) else m.mux(-1, 1), m.mux(0, compare(mb, v1, v2))))
+  }
 
   def compare(mb: EmitMethodBuilder, v1: Code[_], v2: Code[_]): Code[Int] = {
     t match {

@@ -74,6 +74,8 @@ class StagedArrayBuilder(val elt: Type, mb: MethodBuilder, len: Code[Int]) {
 
   def size: Code[Int] = wrapArgs[Int]("size")
 
+  def setSize(n: Code[Int]): Code[Unit] = wrapArgs[Int, Unit]("setSize", n)
+
   def clear: Code[Unit] = wrapArgs[Unit]("clear")
 }
 
@@ -106,6 +108,11 @@ sealed abstract class MissingArrayBuilder[T](initialCapacity: Int) {
     ensureCapacity(size_ + 1)
     missing(size_) = true
     size_ += 1
+  }
+
+  def setSize(n: Int) {
+    require(n >= 0 && n < size)
+    size_ = n
   }
 
   def clear() {  size_ = 0 }

@@ -29,6 +29,9 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val ord: CodeOrdering = CodeOrdering(typ, missingGreatest = true)
 
+  val compare: EmitMethodBuilder = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], BooleanInfo, ti, BooleanInfo, ti), IntInfo)
+  compare.emit(ord.compare(compare.getArg[Boolean](2), compare.getArg(3)(ti), compare.getArg[Boolean](4), compare.getArg(5)(ti))(compare))
+
   def sort(): Code[Unit] = {
 
     val sort = mb.fb.newMethod[Region, Int, Int, Unit]
@@ -47,7 +50,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
     }
 
     def lt(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_]): Code[Boolean] = {
-      m1.mux(false, m2.mux(true, ord.compare(mb, v1, v2) < 0))
+      coerce[Int](compare.invoke(region, m1, v1, m2, v2)) < 0
     }
 
     def swap(i: Code[Int], j: Code[Int]): Code[Unit] = {
@@ -87,5 +90,30 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
           srvb.addIRIntermediate(typ)(array(srvb.arrayIdx))),
         srvb.advance()),
       srvb.end())
+  }
+
+  def distinctFromSorted(keyOnly: Boolean = false): Code[Unit] = {
+    def ceq(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_]): Code[Boolean] = {
+      coerce[Int](compare.invoke(mb.getArg[Region](1), m1, v1, m2, v2)).ceq(0)
+    }
+
+    val i = mb.newLocal[Int]
+    val n = mb.newLocal[Int]
+
+    Code(
+      n := 0,
+      i := 0,
+      Code.whileLoop(i < array.size,
+        Code.whileLoop(i < array.size && ceq(array.isMissing(n), array(n), array.isMissing(i), array(i)),
+          i += 1),
+        (i < array.size && i.cne(n + 1)).mux(
+          Code(
+            array.setMissing(n + 1, array.isMissing(i)),
+            array.isMissing(n + 1).mux(
+              Code._empty,
+              array.update(n + 1, array(i)))),
+          Code._empty),
+        n += 1),
+      array.setSize(n))
   }
 }

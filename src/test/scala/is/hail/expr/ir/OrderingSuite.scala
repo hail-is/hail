@@ -111,4 +111,34 @@ class OrderingSuite {
     }
     p.check()
   }
+
+  @Test def testToSetOnRandomArray() {
+    val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TArray(t).genNonmissingValue))
+    val p = Prop.forAll(compareGen) { case (t, a) =>
+      val array = a.asInstanceOf[IndexedSeq[Any]] ++ a.asInstanceOf[IndexedSeq[Any]]
+      val ir = Set(GetTupleElement(In(0, TTuple(TArray(t))), 0))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+
+      Infer(ir)
+      Emit(ir, fb)
+
+      val f = fb.result()()
+
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+
+      rvb.start(TTuple(TArray(t)))
+      rvb.startTuple()
+      rvb.addAnnotation(TArray(t), array)
+      rvb.endTuple()
+      val off = rvb.end()
+
+      val res = f(region, off, false)
+      val actual = SafeIndexedSeq(TArray(t), region, res)
+      val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering).distinct
+
+      expected == actual
+    }
+    p.check()
+  }
 }

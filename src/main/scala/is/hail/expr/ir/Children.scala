@@ -30,14 +30,16 @@ object Children {
       Array(x)
     case MakeArray(args, typ) =>
       args.toIndexedSeq
-    case ArraySort(a) =>
-      Array(a)
     case ArrayRef(a, i, typ) =>
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
+    case ArraySort(a) =>
+      Array(a)
+    case Set(a) =>
+      Array(a)
     case ArrayMap(a, name, body, elementTyp) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>

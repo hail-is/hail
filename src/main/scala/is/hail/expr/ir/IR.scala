@@ -57,10 +57,13 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = n
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
-final case class ArraySort(a: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
+
+final case class ArraySort(a: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
+final case class Set(a: IR) extends IR { def typ: TSet = TSet(coerce[TContainer](a.typ).elementType) }
+
 final case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
 final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR { def typ: TArray = coerce[TArray](body.typ) }

@@ -56,9 +56,6 @@ object Infer {
           args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x.isOfType(t), s"at position $i type mismatch: $t $x") }
           x.typ = TArray(t)
         }
-      case x@ArraySort(a) =>
-        infer(a)
-        assert(a.typ.isInstanceOf[TArray])
       case x@ArrayRef(a, i, _) =>
         infer(a)
         infer(i)
@@ -74,6 +71,12 @@ object Infer {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
+      case x@ArraySort(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TArray])
+      case x@Set(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TContainer])
       case x@ArrayMap(a, name, body, _) =>
         infer(a)
         val tarray = coerce[TArray](a.typ)

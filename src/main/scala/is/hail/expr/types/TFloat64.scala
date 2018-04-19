@@ -43,12 +43,20 @@ class TFloat64(override val required: Boolean) extends TNumeric {
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      java.lang.Double.compare(r1.loadDouble(o1), r2.loadDouble(o2))
+      val d1 = r1.loadDouble(o1)
+      val d2 = r2.loadDouble(o2)
+      if (d1 == d2) 0 else java.lang.Double.compare(d1, d2)
     }
   }
 
   val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Double]])
+    new ExtendedOrdering {
+      def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
+        val dx = x.asInstanceOf[Double]
+        val dy = y.asInstanceOf[Double]
+        if (dx == dy) 0 else java.lang.Double.compare(dx, dy)
+      }
+    }
 
   override def byteSize: Long = 8
 }
