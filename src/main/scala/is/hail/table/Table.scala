@@ -239,7 +239,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   val TableType(signature, key, globalSignature) = tir.typ
 
-  val keyOrEmpty = tir.typ.keyOrEmpty
+  val keyOrEmpty: IndexedSeq[String] = tir.typ.keyOrEmpty
+  val keyOrNull: IndexedSeq[String] = tir.typ.keyOrNull
 
   lazy val rdd: RDD[Row] = value.rdd
 
@@ -529,7 +530,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case None => unkey()
     }
 
-  def keyBy(keys: Array[String], partitionKeys: Array[String]): Table = {
+  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
     require(keys.nonEmpty)
     require(partitionKeys.nonEmpty)
     val fields = signature.fieldNames.toSet
@@ -537,8 +538,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(partitionKeys.length <= keys.length)
     assert(keys.zip(partitionKeys).forall{ case (k, pk) => k == pk })
 
-    val keyed = copy2(key = Some(keys))
-    keyed.copy2(rvd = keyed.toOrderedRVD(None, partitionKeys.length))
+    if (sort) {
+      val keyed = copy2(key = Some(keys))
+      keyed.copy2(rvd = keyed.toOrderedRVD(None, partitionKeys.length))
+    } else {
+      unkey().copy2(key = Some(keys))
+    }
   }
 
   def unkey(): Table = copy2(
