@@ -273,26 +273,6 @@ private class Emit(
             srvb.advance())
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
-
-      case ArraySort(a) =>
-        val atyp = coerce[TArray](a.typ)
-
-        val aout = emitArrayIterator(ir)
-        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-        val sorter = new ArraySorter(mb, vab)
-
-        val cont = { (m: Code[Boolean], v: Code[_]) =>
-          m.mux(vab.addMissing(), vab.add(v))
-        }
-
-        val processArrayElts = aout.arrayEmitter(cont)
-        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-          vab.clear,
-          aout.calcLength,
-          processArrayElts.addElements,
-          sorter.sort(),
-          sorter.toRegion()))
-
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
@@ -328,6 +308,46 @@ private class Emit(
       case ArrayLen(a) =>
         val codeA = emit(a)
         EmitTriplet(codeA.setup, codeA.m, TContainer.loadLength(region, coerce[Long](codeA.v)))
+
+      case ArraySort(a) =>
+        val atyp = coerce[TArray](a.typ)
+
+        val aout = emitArrayIterator(ir)
+        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+        val sorter = new ArraySorter(mb, vab)
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          m.mux(vab.addMissing(), vab.add(v))
+        }
+
+        val processArrayElts = aout.arrayEmitter(cont)
+        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+          vab.clear,
+          aout.calcLength,
+          processArrayElts.addElements,
+          sorter.sort(),
+          sorter.toRegion()))
+
+
+      case Set(a) =>
+        val atyp = coerce[TArray](a.typ)
+
+        val aout = emitArrayIterator(a)
+        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+        val sorter = new ArraySorter(mb, vab)
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          m.mux(vab.addMissing(), vab.add(v))
+        }
+
+        val processArrayElts = aout.arrayEmitter(cont)
+        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+          vab.clear,
+          aout.calcLength,
+          processArrayElts.addElements,
+          sorter.sort(),
+          sorter.distinctFromSorted(),
+          sorter.toRegion()))
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
         val elt = coerce[TArray](ir.typ).elementType
