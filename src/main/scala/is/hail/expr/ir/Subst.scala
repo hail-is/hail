@@ -10,9 +10,7 @@ object Subst {
 
     e match {
       case x@Ref(name, typ) =>
-        val s = env.lookupOption(name).getOrElse(x)
-        assert(s.typ == x.typ, s"$name: ${ x.typ.parsableString() }, ${ s.typ.parsableString() }")
-        s
+        env.lookupOption(name).getOrElse(x)
       case x@AggIn(typ) =>
         aggTyp.map(AggIn).getOrElse(x)
       case Let(name, v, body) =>
