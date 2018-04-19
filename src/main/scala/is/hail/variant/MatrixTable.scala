@@ -2181,7 +2181,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
     val symTab = Map(
-      "va" -> (0, rowType),
+      "va" -> (0, rvRowType),
       "sa" -> (1, colType),
       "g" -> (2, entryType),
       "global" -> (3, globalType))
