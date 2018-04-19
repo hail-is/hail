@@ -1943,8 +1943,9 @@ class Table(ExprContainer):
                     sort_cols.append(e._j_obj())
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
-    @typecheck_method(field=oneof(str, Expression))
-    def explode(self, field):
+    @typecheck_method(field=oneof(str, Expression),
+                      name=nullable(str))
+    def explode(self, field, name=None):
         """Explode rows along a top-level field of the table.
 
         Each row is copied for each element of `field`.
@@ -1962,37 +1963,51 @@ class Table(ExprContainer):
             people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
                                      types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
 
-        .. doctest::
 
-            >>> people_table.show()
-            +----------+-------+--------------------------+
-            | Name     |   Age | Children                 |
-            +----------+-------+--------------------------+
-            | str      | int32 | array<str>               |
-            +----------+-------+--------------------------+
-            | Alice    |    34 | ["Dave","Ernie","Frank"] |
-            | Bob      |    51 | ["Gaby","Helen"]         |
-            | Caroline |    10 | []                       |
-            +----------+-------+--------------------------+
+        >>> people_table.show()
+        +----------+-------+--------------------------+
+        | Name     |   Age | Children                 |
+        +----------+-------+--------------------------+
+        | str      | int32 | array<str>               |
+        +----------+-------+--------------------------+
+        | Alice    |    34 | ["Dave","Ernie","Frank"] |
+        | Bob      |    51 | ["Gaby","Helen"]         |
+        | Caroline |    10 | []                       |
+        +----------+-------+--------------------------+
 
         :meth:`.Table.explode` can be used to produce a distinct row for each
         element in the `Children` field:
 
-        .. doctest::
+        >>> exploded = people_table.explode('Children')
+        >>> exploded.show()
+        +-------+-------+----------+
+        | Name  |   Age | Children |
+        +-------+-------+----------+
+        | str   | int32 | str      |
+        +-------+-------+----------+
+        | Alice |    34 | Dave     |
+        | Alice |    34 | Ernie    |
+        | Alice |    34 | Frank    |
+        | Bob   |    51 | Gaby     |
+        | Bob   |    51 | Helen    |
+        +-------+-------+----------+
 
-            >>> exploded = people_table.explode('Children')
-            >>> exploded.show()
-            +-------+-------+----------+
-            | Name  |   Age | Children |
-            +-------+-------+----------+
-            | str   | int32 | str      |
-            +-------+-------+----------+
-            | Alice |    34 | Dave     |
-            | Alice |    34 | Ernie    |
-            | Alice |    34 | Frank    |
-            | Bob   |    51 | Gaby     |
-            | Bob   |    51 | Helen    |
-            +-------+-------+----------+
+        The `name` parameter can be used to produce more appropriate field
+        names:
+
+        >>> exploded = people_table.explode('Children', name='Child')
+        >>> exploded.show()
+        +-------+-------+-------+
+        | Name  |   Age | Child |
+        +-------+-------+-------+
+        | str   | int32 | str   |
+        +-------+-------+-------+
+        | Alice |    34 | Dave  |
+        | Alice |    34 | Ernie |
+        | Alice |    34 | Frank |
+        | Bob   |    51 | Gaby  |
+        | Bob   |    51 | Helen |
+        +-------+-------+-------+
 
         Notes
         -----
@@ -2006,6 +2021,8 @@ class Table(ExprContainer):
         ----------
         field : :obj:`str` or :class:`.Expression`
             Top-level field name or expression.
+        name : :obj:`str` or None
+            If not `None`, rename the exploded field to `name`.
 
         Returns
         -------
@@ -2027,7 +2044,11 @@ class Table(ExprContainer):
         if not is_container(field.dtype):
             raise ValueError(f"method 'explode' expects array, set or dict field, found: {field.dtype}")
 
-        return Table(self._jt.explode(self._fields_inverse[field]))
+        f = self._fields_inverse[field]
+        t = Table(self._jt.explode(f))
+        if name is not None:
+            t = t.rename({f: name})
+        return t
 
     @typecheck_method(row_key=expr_any,
                       col_key=expr_any,
