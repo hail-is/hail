@@ -612,11 +612,11 @@ object OrderedRVD {
       info("Ordering unsorted dataset with network shuffle")
       hintPartitioner
         .filter(_.numPartitions >= rdd.partitions.length)
-        .map(adjustBoundsAndShuffle(typ, _, rdd))
+        .map(adjustBoundsAndShuffle(typ, _, crdd))
         .getOrElse {
-        val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
+        val ranges = calculateKeyRanges(typ, pkis, crdd.getNumPartitions)
         val p = new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges)
-        shuffle(typ, p, rdd)
+        shuffle(typ, p, crdd)
       }
     }
   }
