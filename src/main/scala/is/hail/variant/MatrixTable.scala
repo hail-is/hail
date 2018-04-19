@@ -2002,13 +2002,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
 
-  def colsTable(): Table = {
-    Table(hc, sparkContext.parallelize(colValues.value.map(_.asInstanceOf[Row])),
-      colType,
-      colKey,
-      globalType,
-      globals.value)
-  }
+  def colsTable(): Table = new Table(hc, MatrixColsTable(ast))
 
   def storageLevel: String = rvd.storageLevel.toReadableString()
 

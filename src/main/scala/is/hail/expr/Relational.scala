@@ -50,6 +50,10 @@ case class MatrixValue(
     colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
   }
 
+  def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
+
+  def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
+
   private def writeCols(path: String, codecSpec: CodecSpec) {
     val hc = HailContext.get
     val hadoopConf = hc.hadoopConf
@@ -187,6 +191,14 @@ case class MatrixValue(
         rv2
       }
     }
+  }
+
+  def colsRVD(): RVD = {
+    val hc = HailContext.get
+    val signature = typ.colType
+
+    new UnpartitionedRVD(signature, hc.sc.parallelize(colValues.value.toArray.map(_.asInstanceOf[Row]))
+      .mapPartitions(_.toRegionValueIterator(signature)))
   }
 }
 
@@ -1499,15 +1511,31 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
     MatrixRowsTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  val typ: TableType = TableType(child.typ.rowType,
-    child.typ.rowKey,
-    child.typ.globalType)
+  val typ: TableType = child.typ.rowsTableType
 
   def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
-    TableValue(typ,
-      mv.globals,
-      mv.rowsRVD())
+    val rtv = mv.rowsTableValue
+    assert(rtv.typ == typ)
+    rtv
+  }
+}
+
+case class MatrixColsTable(child: MatrixIR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixColsTable = {
+    assert(newChildren.length == 1)
+    MatrixColsTable(newChildren(0).asInstanceOf[MatrixIR])
+  }
+
+  val typ: TableType = child.typ.colsTableType
+
+  def execute(hc: HailContext): TableValue = {
+    val mv = child.execute(hc)
+    val ctv = mv.colsTableValue
+    assert(ctv.typ == typ)
+    ctv
   }
 }
 
