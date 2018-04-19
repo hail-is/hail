@@ -831,7 +831,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   private def annotateRowsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
-    assert(!kt.key.isEmpty)
+    assert(kt.key.isDefined)
     assert(rowPartitionKeyTypes.length == 1)
     assert(kt.keySignature.get.size == 1)
     assert(kt.keySignature.get.types(0) == TInterval(rowPartitionKeyTypes(0)))
@@ -914,7 +914,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateRowsTable(kt: Table, root: String, product: Boolean = false): MatrixTable = {
-    assert(!kt.key.isEmpty)
+    assert(kt.key.isDefined)
     assert(!rowKey.contains(root))
 
     val keyTypes = kt.keyFields.get.map(_.typ)

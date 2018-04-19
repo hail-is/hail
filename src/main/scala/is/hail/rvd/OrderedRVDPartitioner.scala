@@ -35,7 +35,7 @@ class OrderedRVDPartitioner(
     })
 
   def coarsenedPKRangeTree(newPK: Int): IntervalTree[Int] = {
-    val (newPKType, getNewPK) = kType.select(partitionKey.take(newPK))
+    val (newPKType, getNewPK) = pkType.select(partitionKey.take(newPK))
     IntervalTree.fromSorted(
       newPKType.ordering,
       Array.tabulate[(Interval, Int)](numPartitions) { i =>

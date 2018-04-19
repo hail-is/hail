@@ -295,7 +295,7 @@ class Table(ExprContainer):
                                    indices=self._row_indices)
 
         self._key = hail.struct(
-            **{k: self._row[k] for k in jiterable_to_list(jt.key())})
+            **{k: self._row[k] for k in jiterable_to_list(jt.keyOrNull())})
 
         for k, v in itertools.chain(self._globals.items(),
                                     self._row.items()):
