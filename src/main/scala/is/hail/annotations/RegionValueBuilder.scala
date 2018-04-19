@@ -394,11 +394,7 @@ class RegionValueBuilder(var region: Region) {
     assert(currentType() == t)
     assert(t.size == fromFieldIdx.length)
     startStruct()
-    var i = 0
-    while (i < t.size) {
-      addField(fromT, region, offset, fromFieldIdx(i))
-      i += 1
-    }
+    addFields(fromT, region, offset, fromFieldIdx)
     endStruct()
   }
 
