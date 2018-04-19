@@ -1603,12 +1603,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     queryAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(entryAxis, queryAST) =>
-        val aggEnv =  new ir.Env[ir.IR].bind(
-          "g" -> ir.Ref("row"),
-          "va" -> ir.Ref("row"),
-          "sa" -> ir.Ref("row"))
-
         val et = entriesTable()
+
+        val entriesRowType = et.typ.rowType
+        val aggEnv =  new ir.Env[ir.IR].bind(
+          "g" -> ir.Ref("row", entriesRowType),
+          "va" -> ir.Ref("row", entriesRowType),
+          "sa" -> ir.Ref("row", entriesRowType))
+
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(et.aggType()))
         et.aggregate(sqir)
       case _ =>
@@ -1668,8 +1670,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     queryAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(colAxis, queryAST) =>
-        val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row"))
         val ct = colsTable()
+        val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(ct.aggType()))
         ct.aggregate(sqir)
       case None =>
@@ -1702,8 +1704,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     qAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(rowAxis, qAST) =>
-        val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row"))
         val rt = rowsTable()
+        val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
         rt.aggregate(sqir)
       case None =>
@@ -2194,7 +2196,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         log.warn(s"filter_entries found no AST to IR conversion: ${ PrettyAST(filterAST) }")
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
 
-<<<<<<< 202c883a2f4a51a12106db58fcdf61033a9d8107
         val localKeep = keep
         val fullRowType = rvRowType
         val localNSamples = numCols
@@ -2203,53 +2204,21 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val localEntriesIndex = entriesIndex
         val localEntriesType = matrixType.entryArrayType
         val globalsBc = globals.broadcast
-=======
-    insertEntries(() => {
-      val fullRow = new UnsafeRow(fullRowType)
-      fullRow
-    })(localEntryType.copy(required = false), { case (fullRow, rv, rvb) =>
-      fullRow.set(rv)
-      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
->>>>>>> wip
 
         insertEntries(() => {
           val fullRow = new UnsafeRow(fullRowType)
-          val row = fullRow.deleteField(localEntriesIndex)
-          (fullRow, row)
-        })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
+          fullRow
+        })(localEntryType.copy(required = false), { case (fullRow, rv, rvb) =>
           fullRow.set(rv)
           val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
-<<<<<<< 202c883a2f4a51a12106db58fcdf61033a9d8107
           rvb.startArray(localNSamples)
-=======
-      var i = 0
-      while (i < localNSamples) {
-        val entry = entries(i)
-        ec.setAll(fullRow,
-          localColValuesBc.value(i),
-          entry, globalsBc.value)
-        if (Filter.boxedKeepThis(f(), localKeep)) {
-          val isDefined = localEntriesType.isElementDefined(rv.region, entriesOffset, i)
-          if (!isDefined)
-            rvb.setMissing()
-          else {
-            // can't use addElement because we could be losing requiredness
-            val elementOffset = localEntriesType.loadElement(rv.region, entriesOffset, i)
-            rvb.startStruct()
-            rvb.addAllFields(localEntryType, rv.region, elementOffset)
-            rvb.endStruct()
-          }
-        } else
-          rvb.setMissing()
->>>>>>> wip
 
           var i = 0
           while (i < localNSamples) {
             val entry = entries(i)
-            ec.setAll(row,
+            ec.setAll(fullRow,
               localColValuesBc.value(i),
               entry, globalsBc.value)
             if (Filter.boxedKeepThis(f(), localKeep)) {

@@ -138,15 +138,9 @@ class CompileSuite {
   def nonMissingSum() {
     val tin = TArray(TFloat64())
     val sumIr =
-<<<<<<< 202c883a2f4a51a12106db58fcdf61033a9d8107
       ArrayFold(In(0, TArray(TFloat64())), F64(0), "sum", "v",
-        ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))
-    val fb = EmitFunctionBuilder[Region, Long, Boolean, Double]
-=======
-      ArrayFold(In(0, tin), F64(0), "sum", "v",
         ApplyBinaryPrimOp(Add(), Ref("sum", TFloat64()), If(IsNA(Ref("v", TFloat64())), F64(0.0), Ref("v", TFloat64()))))
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
->>>>>>> wip
+    val fb = EmitFunctionBuilder[Region, Long, Boolean, Double]
     doit(sumIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
@@ -255,13 +249,8 @@ class CompileSuite {
     val replaceMissingIr =
       Let("mean", F64(42.0),
         ArrayMap(In(0, TArray(TFloat64())), "v",
-<<<<<<< 202c883a2f4a51a12106db58fcdf61033a9d8107
-          If(IsNA(Ref("v")), Ref("mean"), Ref("v"))))
-    val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
-=======
           If(IsNA(Ref("v", TFloat64())), Ref("mean", TFloat64()), Ref("v", TFloat64()))))
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
->>>>>>> wip
+    val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
     doit(replaceMissingIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {

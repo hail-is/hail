@@ -3,10 +3,10 @@ package is.hail.expr.ir
 import is.hail.expr.types.TAggregable
 
 object Subst {
-  def apply(e: IR): IR = apply(e, Env.empty)
-
-  def apply(e: IR, env: Env[IR]): IR = {
-    def subst(e: IR, env: Env[IR] = env): IR = apply(e, env)
+  def apply(e: IR): IR = apply(e, Env.empty, Env.empty, None)
+  def apply(e: IR, env: Env[IR]): IR = apply(e, env, Env.empty, None)
+  def apply(e: IR, env: Env[IR], aggEnv: Env[IR], aggTyp: Option[TAggregable]): IR = {
+    def subst(e: IR, env: Env[IR] = env, aggEnv: Env[IR] = aggEnv, aggTyp: Option[TAggregable] = aggTyp): IR = apply(e, env, aggEnv, aggTyp)
 
     e match {
       case x@Ref(name, typ) =>
@@ -25,7 +25,7 @@ object Subst {
         ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case ApplyAggOp(a, op, args) =>
         val substitutedArgs = args.map(arg => Recur(subst(_))(arg))
-        ApplyAggOp(subst(a, aggEnv, Env.empty), op, substitutedArgs, typ)
+        ApplyAggOp(subst(a, aggEnv, Env.empty), op, substitutedArgs)
       case _ =>
         Recur(subst(_))(e)
     }
