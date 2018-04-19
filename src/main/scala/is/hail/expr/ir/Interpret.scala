@@ -183,12 +183,6 @@ object Interpret {
             }
         }
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
-      case ArraySort(a) =>
-        val aValue = interpret(a, env, args, agg)
-        if (aValue == null)
-          null
-        else
-          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)
         val iValue = interpret(i, env, args, agg)
@@ -210,6 +204,24 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
+      case ArraySort(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
+      case Set(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].toSet
+      case Dict(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
