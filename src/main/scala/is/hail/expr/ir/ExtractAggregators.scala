@@ -43,13 +43,13 @@ object ExtractAggregators {
         val ref = Ref("AGGR", null)
         ab += IRAgg(ref, x)
 
-        GetField(ref, (ab.length - 1).toString, x.typ)
+        GetField(ref, (ab.length - 1).toString)
       case _ => Recur(extract)(ir)
     }
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, op, args, typ) =>
+    case x@ApplyAggOp(a, op, args) =>
       val constfb = EmitFunctionBuilder[Region, RegionValueAggregator]
       val codeArgs = args.map(Emit.toCode(_, constfb, 1))
       constfb.emit(Code(

@@ -27,7 +27,6 @@ object Compile {
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     ir = Subst(ir, env)
-    Infer(ir)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
     Emit(ir, fb)
     (ir.typ, fb.result())
@@ -121,7 +120,6 @@ object CompileWithAggregators {
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     val ir = Subst(body, env)
-    Infer(ir, Some(aggType))
 
     val (postAggIR, aggResultType, aggregators) = ExtractAggregators(ir, aggType)
 

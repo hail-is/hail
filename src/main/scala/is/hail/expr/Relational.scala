@@ -207,10 +207,10 @@ object MatrixIR {
     val keepType = TArray(+TInt32())
     val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
       "keep", keepType,
-      body = InsertFields(ir.Ref("row"), Seq((MatrixType.entriesIdentifier,
-        ir.ArrayMap(ir.Ref("keep"), "i",
+      body = InsertFields(ir.Ref("row", rowType), Seq((MatrixType.entriesIdentifier,
+        ir.ArrayMap(ir.Ref("keep", keepType), "i",
           ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
-            ir.Ref("i")))))))
+            ir.Ref("i", TInt32())))))))
     assert(rTyp.isOfType(rowType))
 
     val newMatrixType = typ.copy(rvRowType = coerce[TStruct](rTyp))
@@ -659,11 +659,10 @@ case class FilterRows(
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
       val fullRow = new UnsafeRow(fullRowType)
-      val row = fullRow.deleteField(localEntriesIndex)
       it.filter { rv =>
         fullRow.set(rv)
         ec.set(0, localGlobals.value)
-        ec.set(1, row)
+        ec.set(1, fullRow)
         aggregatorOption.foreach(_ (rv))
         f() == true
       }
@@ -688,18 +687,17 @@ case class FilterRowsIR(
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
+    assert(child.typ == prev.typ)
 
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "va", typ.rvRowType,
       "global", typ.globalType,
-      pred
-    )
+      pred)
 
     // Note that we don't yet support IR aggregators
     //
     // Everything used inside the Spark iteration must be serializable,
     // so we pick out precisely what is needed.
-    //
     val fullRowType = prev.typ.rvRowType
     val localRowType = prev.typ.rowType
     val localEntriesIndex = prev.typ.entriesIdx
@@ -766,22 +764,19 @@ case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 
   val newRow = {
-    val arrayLength = ArrayLen(GetField(Ref("va"), MatrixType.entriesIdentifier))
+    val vaType = child.typ.rvRowType
+    val saType = TArray(child.typ.colType)
+
+    val arrayLength = ArrayLen(GetField(Ref("va", vaType), MatrixType.entriesIdentifier))
     val idxEnv = new Env[IR]()
-      .bind("g", ArrayRef(GetField(Ref("va"), MatrixType.entriesIdentifier), Ref("i")))
-      .bind("sa", ArrayRef(Ref("sa"), Ref("i")))
+      .bind("g", ArrayRef(GetField(Ref("va", vaType), MatrixType.entriesIdentifier), Ref("i", TInt32())))
+      .bind("sa", ArrayRef(Ref("sa", saType), Ref("i", TInt32())))
     val entries = ArrayMap(ArrayRange(I32(0), arrayLength, I32(1)), "i", Subst(newEntries, idxEnv))
-    InsertFields(Ref("va"), Seq((MatrixType.entriesIdentifier, entries)))
+    InsertFields(Ref("va", vaType), Seq((MatrixType.entriesIdentifier, entries)))
   }
 
-  val typ: MatrixType = {
-    Infer(newRow, None, new Env[Type]()
-      .bind("global", child.typ.globalType)
-      .bind("va", child.typ.rvRowType)
-      .bind("sa", TArray(child.typ.colType))
-    )
+  val typ: MatrixType =
     child.typ.copy(rvRowType = newRow.typ)
-  }
 
   override def partitionCounts: Option[Array[Long]] = child.partitionCounts
 
@@ -836,7 +831,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
-  val newRVRow = InsertFields(newRow, Seq(MatrixType.entriesIdentifier -> GetField(Ref("va"), MatrixType.entriesIdentifier)))
+  val newRVRow = InsertFields(newRow, Seq(
+    MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier)))
 
   val tAggElt: Type = child.typ.entryType
   val aggSymTab = Map(
@@ -848,11 +844,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   val tAgg = TAggregable(tAggElt, aggSymTab)
 
   val typ: MatrixType = {
-    Infer(newRVRow, Some(tAgg), new Env[Type]()
-      .bind("global", child.typ.globalType)
-      .bind("va", child.typ.rvRowType)
-      .bind("AGG", tAgg)
-    )
     val newRVRowSet = newRVRow.typ.fieldNames.toSet
     val newRowKey = child.typ.rowKey.filter(newRVRowSet.contains)
     val newPartitionKey = child.typ.rowPartitionKey.filter(newRVRowSet.contains)
@@ -865,7 +856,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     fields.exists { case (name, ir) =>
       typ.rowKey.contains(name) && (
         ir match {
-          case GetField(Ref("va", _), n, _) => n != name
+          case GetField(Ref("va", _), n) => n != name
           case _ => true
         })
     }
@@ -873,15 +864,16 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   val touchesKeys: Boolean = (typ.rowKey != child.typ.rowKey) ||
     (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
     newRow match {
-      case MakeStruct(fields, _) =>
+      case MakeStruct(fields) =>
         makeStructChangesKeys(fields)
-      case InsertFields(MakeStruct(fields, _), toIns, _) =>
+      case InsertFields(MakeStruct(fields), toIns) =>
         makeStructChangesKeys(fields) || toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
       case _ => true
     })
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
+    assert(prev.typ == child.typ)
 
     val localRowType = prev.typ.rvRowType
     val localEntriesType = prev.typ.entryArrayType
@@ -971,13 +963,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) extends MatrixIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
-  val typ: MatrixType = {
-    Infer(newRow, None, new Env[Type]()
-      .bind("global", child.typ.globalType)
-      .bind("value", value.t)
-    )
+  val typ: MatrixType =
     child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
-  }
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
     assert(newChildren.length == 2)
@@ -1394,7 +1381,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
-    Infer(newRow, None, child.typ.env)
     val newRowType = newRow.typ.asInstanceOf[TStruct]
     val newKey = child.typ.key.filter(newRowType.fieldIdx.contains)
     child.typ.copy(rowType = newRowType, key = newKey)
@@ -1438,10 +1424,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
-  val typ: TableType = {
-    Infer(newRow, None, child.typ.env.bind("value", value.t))
+  val typ: TableType =
     child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
-  }
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
@@ -1493,18 +1477,20 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    val (_, isMissingF) = ir.Compile[Long, Boolean]("row", child.typ.rowType,
-      ir.IsNA(ir.GetField(Ref("row"), column)))
+    val childRowType = child.typ.rowType
 
-    val (_, lengthF) = ir.Compile[Long, Int]("row", child.typ.rowType,
-      ir.ArrayLen(ir.GetField(Ref("row"), column)))
+    val (_, isMissingF) = ir.Compile[Long, Boolean]("row", childRowType,
+      ir.IsNA(ir.GetField(Ref("row", childRowType), column)))
 
-    val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", child.typ.rowType,
+    val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType,
+      ir.ArrayLen(ir.GetField(Ref("row", childRowType), column)))
+
+    val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType,
       "i", TInt32(),
-      ir.InsertFields(Ref("row"),
+      ir.InsertFields(Ref("row", childRowType),
         Array(column -> ir.ArrayRef(
-          ir.GetField(ir.Ref("row"), column),
-          ir.Ref("i")))))
+          ir.GetField(ir.Ref("row", childRowType), column),
+          ir.Ref("i", TInt32())))))
     assert(resultType == typ.rowType)
 
     TableValue(typ, prev.globals,

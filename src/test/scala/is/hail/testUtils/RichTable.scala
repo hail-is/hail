@@ -91,40 +91,29 @@ class RichTable(ht: Table) {
   def annotate(code: String): Table = {
     val ec = ht.rowEvalContext()
 
-    val (paths, asts) = Parser.parseAnnotationExprsToAST(code, ec).unzip
-    if (paths.length == 0)
-      return ht
+    val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
 
-    val irs = asts.flatMap { _.toIR() }
+    val inserterBuilder = new ArrayBuilder[Inserter]()
 
-    if (irs.length != asts.length || ht.globalSignature.size != 0) {
-      val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, None)
-
-      val inserterBuilder = new ArrayBuilder[Inserter]()
-
-      val finalSignature = (paths, types).zipped.foldLeft(ht.signature) { case (vs, (ids, sig)) =>
-        val (s: TStruct, i) = vs.insert(sig, ids)
-        inserterBuilder += i
-        s
-      }
-
-      val inserters = inserterBuilder.result()
-      val globalsBc = ht.globals.broadcast
-
-      val annotF: Row => Row = { r =>
-        ec.setAll(globalsBc.value, r)
-
-        f().zip(inserters)
-          .foldLeft(r) { case (a1, (v, inserter)) =>
-            inserter(a1, v).asInstanceOf[Row]
-          }
-      }
-
-      ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature, key = ht.key)
-    } else {
-      val newIR = InsertFields(Ref("row"), paths.zip(irs))
-      new Table(ht.hc, TableMapRows(ht.tir, newIR))
+    val finalSignature = (paths, types).zipped.foldLeft(ht.signature) { case (vs, (ids, sig)) =>
+      val (s: TStruct, i) = vs.insert(sig, ids)
+      inserterBuilder += i
+      s
     }
+
+    val inserters = inserterBuilder.result()
+    val globalsBc = ht.globals.broadcast
+
+    val annotF: Row => Row = { r =>
+      ec.setAll(globalsBc.value, r)
+
+      f().zip(inserters)
+        .foldLeft(r) { case (a1, (v, inserter)) =>
+          inserter(a1, v).asInstanceOf[Row]
+        }
+    }
+
+    ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature, key = ht.key)
   }
 
   def selectGlobal(fields: Array[String]): Table = {

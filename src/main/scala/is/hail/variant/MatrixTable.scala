@@ -701,8 +701,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
-    val value = BroadcastRow(Row(a), TStruct(name -> t), hc.sc)
-    new MatrixTable(hc, MatrixMapGlobals(ast, ir.InsertFields(ir.Ref("global"), FastSeq(name -> ir.GetField(ir.Ref(s"value"), name))), value))
+    val at = TStruct(name -> t)
+    val value = BroadcastRow(Row(a), at, hc.sc)
+    new MatrixTable(hc, MatrixMapGlobals(ast,
+      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
   def annotateGlobalJSON(s: String, t: Type, name: String): MatrixTable = {
@@ -1051,7 +1053,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               true
           })
 
-        val newMatrixType = matrixType.copyParts(rowType = newRowType, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+        val newEntriesIndex = newRowType.fieldIdx.get(MatrixType.entriesIdentifier)
+
+        val newMatrixType = matrixType.copyParts(
+          rowType = newEntriesIndex.map(idx => newRowType.deleteKey(MatrixType.entriesIdentifier, idx)).getOrElse(newRowType),
+          rowKey = newRowKey,
+          rowPartitionKey = newPartitionKey)
         val fullRowType = rvRowType
         val localEntriesIndex = entriesIndex
         val newRVType = newMatrixType.rvRowType
@@ -1062,13 +1069,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val globalsBc = globals.broadcast
         val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
           val fullRow = new UnsafeRow(fullRowType)
-          val row = fullRow.deleteField(localEntriesIndex)
           val rv2 = RegionValue()
           val rvb = new RegionValueBuilder()
           it.map { rv =>
             fullRow.set(rv)
             ec.set(0, globalsBc.value)
-            ec.set(1, row)
+            ec.set(1, fullRow)
             aggregateOption.foreach(_ (rv))
             val results = f().asInstanceOf[Row]
 
@@ -1077,7 +1083,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rvb.startStruct()
             var i = 0
             while (i < newRowType.size) {
-              rvb.addAnnotation(newRowType.types(i), results(i))
+              if (newEntriesIndex.forall(_ != i))
+                rvb.addAnnotation(newRowType.types(i), results(i))
               i += 1
             }
             rvb.addField(fullRowType, rv, localEntriesIndex)
@@ -1117,12 +1124,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         insertEntries(() => {
           val fullRow = new UnsafeRow(fullRowType)
-          val row = fullRow.deleteField(localEntriesIndex)
           ec.set(0, globalsBc.value)
-          fullRow -> row
-        })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+          fullRow
+        })(newEntryType, { case (fullRow, rv, rvb) =>
           fullRow.set(rv)
-          ec.set(1, row)
+          ec.set(1, fullRow)
           val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           rvb.startArray(localNCols)
           var i = 0
@@ -1316,8 +1322,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     pred match {
       case Some(irPred) =>
         new MatrixTable(hc,
-          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred"))
-        )
+          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep, "filterRows_pred")))
       case _ =>
         log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
@@ -1357,7 +1362,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     assert(!rowKey.contains(path))
-
 
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
@@ -1532,7 +1536,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     Table(hc,
       rvd.mapPartitions { it =>
         val fullRow = new UnsafeRow(localRVRowType)
-        val row = fullRow.deleteField(localEntriesIndex)
 
         it.map { rv =>
           fullRow.set(rv)
@@ -1541,7 +1544,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           val a = new Array[Any](n)
 
           var j = 0
-          vEC.setAll(globalsBc.value, row)
+          vEC.setAll(globalsBc.value, fullRow)
           vf().foreach { x =>
             a(j) = x
             j += 1
@@ -1550,7 +1553,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           var i = 0
           while (i < localNSamples) {
             val sa = localColValuesBc.value(i)
-            gEC.setAll(globalsBc.value, row, sa, gs(i))
+            gEC.setAll(globalsBc.value, fullRow, sa, gs(i))
             gf().foreach { x =>
               a(j) = x
               j += 1
@@ -1600,12 +1603,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     queryAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(entryAxis, queryAST) =>
-        val aggEnv =  new ir.Env[ir.IR].bind(
-          "g" -> ir.Ref("row"),
-          "va" -> ir.Ref("row"),
-          "sa" -> ir.Ref("row"))
-
         val et = entriesTable()
+
+        val entriesRowType = et.typ.rowType
+        val aggEnv =  new ir.Env[ir.IR].bind(
+          "g" -> ir.Ref("row", entriesRowType),
+          "va" -> ir.Ref("row", entriesRowType),
+          "sa" -> ir.Ref("row", entriesRowType))
+
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(et.aggType()))
         et.aggregate(sqir)
       case _ =>
@@ -1665,8 +1670,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     queryAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(colAxis, queryAST) =>
-        val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row"))
         val ct = colsTable()
+        val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(ct.aggType()))
         ct.aggregate(sqir)
       case None =>
@@ -1689,17 +1694,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def aggregateRows(expr: String): (Annotation, Type) = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "va" -> (1, rowType))
+      "va" -> (1, rvRowType))
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
-      "AGG" -> (1, TAggregable(rowType, aggregationST))))
+      "AGG" -> (1, TAggregable(rvRowType, aggregationST))))
+    val globalsBc = globals.broadcast
 
     val qAST = Parser.parseToAST(expr, ec)
 
     qAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(rowAxis, qAST) =>
-        val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row"))
         val rt = rowsTable()
+        val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
         rt.aggregate(sqir)
       case None =>
@@ -1710,10 +1716,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val fullRowType = rvRowType
         val localEntriesIndex = entriesIndex
         val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
-          val ur = new UnsafeRow(fullRowType, rv)
-          val row = ur.deleteField(localEntriesIndex)
+          val fullRow = new UnsafeRow(fullRowType, rv)
           ec.set(0, globalsBc.value)
-          ec.set(1, row)
+          ec.set(1, fullRow)
         })
 
         val result = rvd
@@ -1948,7 +1953,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "global" -> (0, globalType),
       "sa" -> (1, colType),
       "g" -> (2, entryType),
-      "va" -> (3, rowType))
+      "va" -> (3, rvRowType))
     EvalContext(Map(
       "global" -> (0, globalType),
       "sa" -> (1, colType),
@@ -2046,19 +2051,19 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def entryEC: EvalContext = EvalContext(Map(
     "global" -> (0, globalType),
-    "va" -> (1, rowType),
+    "va" -> (1, rvRowType),
     "sa" -> (2, colType),
     "g" -> (3, entryType)))
 
   def rowEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "va" -> (1, rowType),
+      "va" -> (1, rvRowType),
       "g" -> (2, entryType),
       "sa" -> (3, colType))
     EvalContext(Map(
       "global" -> (0, globalType),
-      "va" -> (1, rowType),
+      "va" -> (1, rvRowType),
       "AGG" -> (2, TAggregable(entryType, aggregationST))))
   }
 
@@ -2176,7 +2181,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
     val symTab = Map(
-      "va" -> (0, rowType),
+      "va" -> (0, rvRowType),
       "sa" -> (1, colType),
       "g" -> (2, entryType),
       "global" -> (3, globalType))
@@ -2202,9 +2207,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         insertEntries(() => {
           val fullRow = new UnsafeRow(fullRowType)
-          val row = fullRow.deleteField(localEntriesIndex)
-          (fullRow, row)
-        })(localEntryType.copy(required = false), { case ((fullRow, row), rv, rvb) =>
+          fullRow
+        })(localEntryType.copy(required = false), { case (fullRow, rv, rvb) =>
           fullRow.set(rv)
           val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
           val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
@@ -2214,7 +2218,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           var i = 0
           while (i < localNSamples) {
             val entry = entries(i)
-            ec.setAll(row,
+            ec.setAll(fullRow,
               localColValuesBc.value(i),
               entry, globalsBc.value)
             if (Filter.boxedKeepThis(f(), localKeep)) {

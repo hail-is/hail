@@ -14,19 +14,23 @@ object UtilFunctions extends RegistryFunctions {
     registerIR("size", TArray(tv("T")))(ArrayLen)
 
     registerIR("sum", TArray(tnum("T"))) { a =>
-      val zero = Literal(0, coerce[TArray](a.typ).elementType)
-      ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v")), Ref("sum"), ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
+      val t = -coerce[TArray](a.typ).elementType
+      val zero = Literal(0, t)
+      ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v", t)), Ref("sum", t), ApplyBinaryPrimOp(Add(), Ref("sum", t), Ref("v", t))))
     }
 
-    registerIR("*", TArray(tnum("T")), tv("T")){ (a, c) => ArrayMap(a, "imul", ApplyBinaryPrimOp(Multiply(), Ref("imul"), c)) }
+    registerIR("*", TArray(tnum("T")), tv("T")){ (a, c) =>
+      ArrayMap(a, "imul", ApplyBinaryPrimOp(Multiply(), Ref("imul", c.typ), c))
+    }
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
     registerIR("product", TArray(tnum("T"))) { a =>
+      val t = -coerce[TArray](a.typ).elementType
       val product = genUID()
       val v = genUID()
       val one = Literal(1, coerce[TArray](a.typ).elementType)
-      ArrayFold(a, one, product, v, If(IsNA(Ref(v)), Ref(product), ApplyBinaryPrimOp(Multiply(), Ref(product), Ref(v))))
+      ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
     }
 
     registerIR("count", TAggregable(tv("T"))) { agg =>
@@ -35,24 +39,26 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIR("min", TArray(tnum("T"))) { a =>
+      val t = -coerce[TArray](a.typ).elementType
       val min = genUID()
       val value = genUID()
-      val body = If(IsNA(Ref(min)),
-        Ref(value),
-        If(IsNA(Ref(value)),
-          Ref(min),
-          If(ApplyBinaryPrimOp(LT(), Ref(value), Ref(min)), Ref(value), Ref(min))))
+      val body = If(IsNA(Ref(min, t)),
+        Ref(value, t),
+        If(IsNA(Ref(value, t)),
+          Ref(min, t),
+          If(ApplyBinaryPrimOp(LT(), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
       ArrayFold(a, NA(tnum("T").t), min, value, body)
     }
 
     registerIR("max", TArray(tnum("T"))) { a =>
+      val t = -coerce[TArray](a.typ).elementType
       val max = genUID()
       val value = genUID()
-      val body = If(IsNA(Ref(max)),
-        Ref(value),
-        If(IsNA(Ref(value)),
-          Ref(max),
-          If(ApplyBinaryPrimOp(GT(), Ref(value), Ref(max)), Ref(value), Ref(max))))
+      val body = If(IsNA(Ref(max, t)),
+        Ref(value, t),
+        If(IsNA(Ref(value, t)),
+          Ref(max, t),
+          If(ApplyBinaryPrimOp(GT(), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
       ArrayFold(a, NA(tnum("T").t), max, value, body)
     }
 
@@ -72,7 +78,7 @@ object UtilFunctions extends RegistryFunctions {
           ArrayLen(a),
           I32(1)),
         idx,
-        ArrayRef(a, Ref(idx)))
+        ArrayRef(a, Ref(idx, TInt32())))
     }
 
     registerIR("[:*]", TArray(tv("T")), TInt32()) { (a, i) =>
@@ -84,7 +90,7 @@ object UtilFunctions extends RegistryFunctions {
             i),
           I32(1)),
         idx,
-        ArrayRef(a, Ref(idx)))
+        ArrayRef(a, Ref(idx, TInt32())))
     }
 
     registerIR("[*:*]", TArray(tv("T")), TInt32(), TInt32()) { (a, i, j) =>
@@ -99,7 +105,7 @@ object UtilFunctions extends RegistryFunctions {
             j),
           I32(1)),
         idx,
-        ArrayRef(a, Ref(idx)))
+        ArrayRef(a, Ref(idx, TInt32())))
     }
 
     registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.expr.{BaseIR, MatrixIR, TableIR}
-import is.hail.expr.ir.functions.{IRFunction, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
+import is.hail.expr.ir.functions.{IRFunction, IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.ExportType
 
 sealed trait IR extends BaseIR {
@@ -35,6 +35,16 @@ object Literal {
   }
 }
 
+trait InferIR extends IR {
+  var _typ: Type = null
+
+  def typ: Type = {
+    if (_typ == null)
+      _typ = Infer(this)
+    _typ
+  }
+}
+
 final case class I32(x: Int) extends IR { val typ = TInt32() }
 final case class I64(x: Long) extends IR { val typ = TInt64() }
 final case class F32(x: Float) extends IR { val typ = TFloat32() }
@@ -47,48 +57,86 @@ final case class Cast(v: IR, typ: Type) extends IR
 final case class NA(typ: Type) extends IR
 final case class IsNA(value: IR) extends IR { val typ = TBoolean() }
 
-final case class If(cond: IR, cnsq: IR, altr: IR, var typ: Type = null) extends IR
+final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR
 
-final case class Let(name: String, value: IR, body: IR, var typ: Type = null) extends IR
-final case class Ref(name: String, var typ: Type = null) extends IR
+final case class Let(name: String, value: IR, body: IR) extends InferIR
+final case class Ref(name: String, var typ: Type) extends IR
 
-final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = null) extends IR
-final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
+final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends InferIR
+final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends InferIR
 
-final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
-final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
+final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
+final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
-final case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
-final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
-final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR { def typ: TArray = coerce[TArray](body.typ) }
-final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
+final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
+  override def typ: TArray = coerce[TArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
+final case class ArrayFilter(a: IR, name: String, cond: IR) extends InferIR {
+  override def typ: TArray = super.typ.asInstanceOf[TArray]
+}
+final case class ArrayFlatMap(a: IR, name: String, body: IR) extends InferIR {
+  override def typ: TArray = coerce[TArray](super.typ)
+}
+final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends InferIR
 
-final case class AggIn(var typ: TAggregable = null) extends IR
-final case class AggMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
-final case class AggFilter(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
-final case class AggFlatMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
-final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR], var typ: Type = null) extends IR {
+final case class AggIn(var typ: TAggregable) extends IR
+final case class AggMap(a: IR, name: String, body: IR) extends InferIR
+final case class AggFilter(a: IR, name: String, body: IR) extends InferIR
+final case class AggFlatMap(a: IR, name: String, body: IR) extends InferIR
+final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR]) extends InferIR {
   def inputType: Type = coerce[TAggregable](a.typ).elementType
 }
 
-final case class MakeStruct(fields: Seq[(String, IR)], var typ: TStruct = null) extends IR
-final case class InsertFields(old: IR, fields: Seq[(String, IR)], var typ: TStruct = null) extends IR
+final case class MakeStruct(fields: Seq[(String, IR)]) extends InferIR
 
-final case class GetField(o: IR, name: String, var typ: Type = null) extends IR
+final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends InferIR {
+  override def typ: TStruct = coerce[TStruct](super.typ)
+}
 
-final case class MakeTuple(types: Seq[IR], var typ: TTuple = null) extends IR
-final case class GetTupleElement(o: IR, idx: Int, var typ: Type = null) extends IR
+final case class GetField(o: IR, name: String) extends InferIR
 
-final case class In(i: Int, var typ: Type) extends IR
+final case class MakeTuple(types: Seq[IR]) extends InferIR
+final case class GetTupleElement(o: IR, idx: Int) extends InferIR
+
+final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
 
-final case class Apply(function: String, args: Seq[IR], var implementation: IRFunctionWithoutMissingness = null) extends IR { def typ = implementation.returnType }
-final case class ApplySpecial(function: String, args: Seq[IR], var implementation: IRFunctionWithMissingness = null) extends IR { def typ = implementation.returnType }
+final case class Apply(function: String, args: Seq[IR]) extends IR {
+  val implementation: IRFunctionWithoutMissingness =
+    IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]
+
+  def typ: Type = {
+    // convert all arg types before unifying
+    val argTypes = args.map(_.typ)
+    argTypes.zip(implementation.argTypes).foreach { case (i, j) =>
+      j.clear()
+      val u = j.unify(i)
+      assert(u)
+    }
+    implementation.returnType.subst()
+  }
+}
+
+final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
+  val implementation: IRFunctionWithMissingness =
+    IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithMissingness]
+
+  def typ: Type = {
+    val argTypes = args.map(_.typ)
+    argTypes.zip(implementation.argTypes).foreach { case (i, j) =>
+      j.clear()
+      val u = j.unify(i)
+      assert(u)
+    }
+    implementation.returnType.subst()
+  }
+}
 
 final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }
-final case class TableAggregate(child: TableIR, query: IR, var typ: Type = null) extends IR
+final case class TableAggregate(child: TableIR, query: IR) extends InferIR
 final case class TableWrite(
   child: TableIR,
   path: String,

@@ -16,18 +16,18 @@ import org.apache.spark.sql.Row
 
 class CompileSuite {
   def doit(ir: IR, fb: EmitFunctionBuilder[_]) {
-    Infer(ir)
     Emit(ir, fb)
   }
 
   @Test
   def mean() {
+    val tarrf64 = TArray(TFloat64())
     val meanIr =
-      Let("x", In(0, TArray(TFloat64())),
+      Let("x", In(0, tarrf64),
         ApplyBinaryPrimOp(FloatingPointDivide(),
-          ArrayFold(Ref("x"), F64(0.0), "sum", "v",
-            ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))),
-          Cast(ArrayLen(Ref("x")), TFloat64())))
+          ArrayFold(Ref("x", tarrf64), F64(0.0), "sum", "v",
+            ApplyBinaryPrimOp(Add(), Ref("sum", TFloat64()), Ref("v", TFloat64()))),
+          Cast(ArrayLen(Ref("x", tarrf64)), TFloat64())))
 
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Double]
     doit(meanIr, fb)
@@ -49,7 +49,7 @@ class CompileSuite {
     val letAddIr =
       Let("foo", F64(0),
         ApplyBinaryPrimOp(Add(),
-          Ref("foo"), Cast(I32(1), TFloat64())))
+          Ref("foo", TFloat64()), Cast(I32(1), TFloat64())))
 
     val fb = EmitFunctionBuilder[Region, Double]
     doit(letAddIr, fb)
@@ -60,10 +60,11 @@ class CompileSuite {
 
   @Test
   def count() {
+    val tarrf64 = TArray(TFloat64())
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64())),
-        ArrayFold(Ref("in"), I32(0), "count", "v",
-          ApplyBinaryPrimOp(Add(), Ref("count"), I32(1))))
+      Let("in", In(0, tarrf64),
+        ArrayFold(Ref("in", tarrf64), I32(0), "count", "v",
+          ApplyBinaryPrimOp(Add(), Ref("count", TInt32()), I32(1))))
 
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Int]
     doit(letAddIr, fb)
@@ -83,10 +84,11 @@ class CompileSuite {
 
   @Test
   def sum() {
+    val tarrf64 = TArray(TFloat64())
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64())),
-        ArrayFold(Ref("in"), F64(0), "sum", "v",
-          ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
+      Let("in", In(0, tarrf64),
+        ArrayFold(Ref("in", tarrf64), F64(0), "sum", "v",
+          ApplyBinaryPrimOp(Add(), Ref("sum", TFloat64()), Ref("v", TFloat64()))))
 
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Double]
     doit(letAddIr, fb)
@@ -108,10 +110,11 @@ class CompileSuite {
 
   @Test
   def countNonMissing() {
+    val tin = TArray(TFloat64())
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64())),
-        ArrayFold(Ref("in"), I32(0), "count", "v",
-          ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))))
+      Let("in", In(0, tin),
+        ArrayFold(Ref("in", tin), I32(0), "count", "v",
+          ApplyBinaryPrimOp(Add(), Ref("count", TInt32()), If(IsNA(Ref("v", TFloat64())), I32(0), I32(1)))))
 
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Int]
     doit(letAddIr, fb)
@@ -133,9 +136,10 @@ class CompileSuite {
 
   @Test
   def nonMissingSum() {
+    val tin = TArray(TFloat64())
     val sumIr =
       ArrayFold(In(0, TArray(TFloat64())), F64(0), "sum", "v",
-        ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))
+        ApplyBinaryPrimOp(Add(), Ref("sum", TFloat64()), If(IsNA(Ref("v", TFloat64())), F64(0.0), Ref("v", TFloat64()))))
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Double]
     doit(sumIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
@@ -155,15 +159,16 @@ class CompileSuite {
 
   @Test
   def nonMissingMean() {
+    val tin = TArray(TFloat64())
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64())),
+      Let("in", In(0, tin),
         Let("nonMissing",
-          ArrayFold(Ref("in"), I32(0), "count", "v",
-            ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))),
+          ArrayFold(Ref("in", tin), I32(0), "count", "v",
+            ApplyBinaryPrimOp(Add(), Ref("count", TInt32()), If(IsNA(Ref("v", TFloat64())), I32(0), I32(1)))),
           Let("sum",
-            ArrayFold(Ref("in"), F64(0), "sum", "v",
-              ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
-            ApplyBinaryPrimOp(FloatingPointDivide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())))))
+            ArrayFold(Ref("in", tin), F64(0), "sum", "v",
+              ApplyBinaryPrimOp(Add(), Ref("sum", TFloat64()), If(IsNA(Ref("v", TFloat64())), F64(0.0), Ref("v", TFloat64())))),
+            ApplyBinaryPrimOp(FloatingPointDivide(), Ref("sum", TFloat64()), Cast(Ref("nonMissing", TInt32()), TFloat64())))))
 
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Double]
     doit(letAddIr, fb)
@@ -244,7 +249,7 @@ class CompileSuite {
     val replaceMissingIr =
       Let("mean", F64(42.0),
         ArrayMap(In(0, TArray(TFloat64())), "v",
-          If(IsNA(Ref("v")), Ref("mean"), Ref("v"))))
+          If(IsNA(Ref("v", TFloat64())), Ref("mean", TFloat64()), Ref("v", TFloat64()))))
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
     doit(replaceMissingIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
@@ -270,18 +275,19 @@ class CompileSuite {
 
   @Test
   def meanImpute() {
+    val tin = TArray(TFloat64())
     val meanImputeIr =
-      Let("in", In(0, TArray(TFloat64())),
+      Let("in", In(0, tin),
         Let("nonMissing",
-          ArrayFold(Ref("in"), I32(0), "count", "v",
-            ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))),
+          ArrayFold(Ref("in", tin), I32(0), "count", "v",
+            ApplyBinaryPrimOp(Add(), Ref("count", TInt32()), If(IsNA(Ref("v", TFloat64())), I32(0), I32(1)))),
           Let("sum",
-            ArrayFold(Ref("in"), F64(0), "sum", "v",
-              ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
+            ArrayFold(Ref("in", tin), F64(0), "sum", "v",
+              ApplyBinaryPrimOp(Add(), Ref("sum", TFloat64()), If(IsNA(Ref("v", TFloat64())), F64(0.0), Ref("v", TFloat64())))),
             Let("mean",
-              ApplyBinaryPrimOp(FloatingPointDivide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())),
-              ArrayMap(Ref("in"), "v",
-                If(IsNA(Ref("v")), Ref("mean"), Ref("v")))))))
+              ApplyBinaryPrimOp(FloatingPointDivide(), Ref("sum", TFloat64()), Cast(Ref("nonMissing", TInt32()), TFloat64())),
+              ArrayMap(Ref("in", tin), "v",
+                If(IsNA(Ref("v", TFloat64())), Ref("mean", TFloat64()), Ref("v", TFloat64())))))))
 
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
     doit(meanImputeIr, fb)
@@ -422,7 +428,7 @@ class CompileSuite {
   @Test
   def testArrayFilterCutoff() {
     val t = TArray(TInt32())
-    val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x"), In(1, TInt32())))
+    val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x", TInt32()), In(1, TInt32())))
     val region = Region()
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Int, Boolean, Long]
     doit(ir, fb)
@@ -441,7 +447,7 @@ class CompileSuite {
   @Test
   def testArrayFilterElement() {
     val t = TArray(TInt32())
-    val ir = ArrayFilter(In(0, t), "x", ApplyBinaryPrimOp(EQ(), Ref("x"), In(1, TInt32())))
+    val ir = ArrayFilter(In(0, t), "x", ApplyBinaryPrimOp(EQ(), Ref("x", TInt32()), In(1, TInt32())))
     val region = Region()
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Int, Boolean, Long]
     doit(ir, fb)
@@ -472,8 +478,8 @@ class CompileSuite {
     val a1 = In(0, TArray(TInt32()))
     val a2 = In(1, TArray(TString()))
     val min = IRFunctionRegistry.lookupConversion("min", Seq(TArray(TInt32()))).get
-    val range = ArrayRange(I32(0), min(Seq(MakeArray(Seq(ArrayLen(a1), ArrayLen(a2))))), I32(1))
-    val ir = ArrayMap(range, "i", MakeTuple(Seq(ArrayRef(a1, Ref("i")), ArrayRef(a2, Ref("i")))))
+    val range = ArrayRange(I32(0), min(Seq(MakeArray(Seq(ArrayLen(a1), ArrayLen(a2)), TArray(TInt32())))), I32(1))
+    val ir = ArrayMap(range, "i", MakeTuple(Seq(ArrayRef(a1, Ref("i", TInt32())), ArrayRef(a2, Ref("i", TInt32())))))
     val region = Region()
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
     doit(ir, fb)
@@ -501,7 +507,7 @@ class CompileSuite {
 
   def testArrayFlatMap() {
     val tRange = TArray(TInt32())
-    val ir = ArrayFlatMap(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "i", ArrayRange(I32(0), Ref("i"), I32(1)))
+    val ir = ArrayFlatMap(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "i", ArrayRange(I32(0), Ref("i", TInt32()), I32(1)))
     val region = Region()
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Long]
     doit(ir, fb)
@@ -521,8 +527,8 @@ class CompileSuite {
     val tRange = TArray(TInt32())
     val inputIR = ArrayRange(I32(0), In(0, TInt32()), I32(1))
     val filterCond = { x: IR => ApplyBinaryPrimOp(EQ(), x, I32(1)) }
-    val filterIR = ArrayFilter(inputIR, "i", filterCond(Ref("i")))
-    val flatMapIR = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i")), MakeArray(Seq(Ref("i"))), MakeArray(Seq(), tRange)))
+    val filterIR = ArrayFilter(inputIR, "i", filterCond(Ref("i", TInt32())))
+    val flatMapIR = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i", TInt32())), MakeArray(Seq(Ref("i", TInt32())), TArray(TInt32())), MakeArray(Seq(), tRange)))
 
     val region = Region()
     val fb1 = EmitFunctionBuilder[Region, Int, Boolean, Long]

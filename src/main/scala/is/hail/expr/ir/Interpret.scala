@@ -26,10 +26,10 @@ object Interpret {
 
     var ir = ir0
     ir = Optimize(ir)
-    Infer(ir, agg.map(_._1), typeEnv)
 
     log.info("interpret:\n" + Pretty(ir))
 
+    TypeCheck(ir, agg.map(_._1), typeEnv)
     interpret(ir, valueEnv, args, agg.orNull).asInstanceOf[T]
   }
 
@@ -66,7 +66,7 @@ object Interpret {
           }
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
-      case If(cond, cnsq, altr, _) =>
+      case If(cond, cnsq, altr) =>
         val condValue = interpret(cond, env, args, agg)
         if (condValue == null)
           null
@@ -74,11 +74,11 @@ object Interpret {
           interpret(cnsq, env, args, agg)
         else
           interpret(altr, env, args, agg)
-      case Let(name, value, body, _) =>
+      case Let(name, value, body) =>
         val valueValue = interpret(value, env, args, agg)
         interpret(body, env.bind(name, valueValue), args, agg)
       case Ref(name, _) => env.lookup(name)
-      case ApplyBinaryPrimOp(op, l, r, _) =>
+      case ApplyBinaryPrimOp(op, l, r) =>
         val lValue = interpret(l, env, args, agg)
         val rValue = interpret(r, env, args, agg)
         if (lValue == null || rValue == null)
@@ -155,7 +155,7 @@ object Interpret {
                 case NEQ() => lValue != rValue
               }
           }
-      case ApplyUnaryPrimOp(op, x, _) =>
+      case ApplyUnaryPrimOp(op, x) =>
         op match {
           case Bang() =>
             assert(x.typ.isOfType(TBoolean()))
@@ -179,7 +179,7 @@ object Interpret {
             }
         }
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
-      case ArrayRef(a, i, _) =>
+      case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)
         val iValue = interpret(i, env, args, agg)
         if (aValue == null || iValue == null)
@@ -200,7 +200,7 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
-      case ArrayMap(a, name, body, _) =>
+      case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
           null
@@ -232,7 +232,7 @@ object Interpret {
               None
           }
         }
-      case ArrayFold(a, zero, accumName, valueName, body, _) =>
+      case ArrayFold(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
           null
@@ -243,7 +243,7 @@ object Interpret {
           }
           zeroValue
         }
-      case x@ApplyAggOp(a, op, aggArgs, _) =>
+      case x@ApplyAggOp(a, op, aggArgs) =>
         val aValue = interpretAgg(a, agg._2)
         val aggType = a.typ.asInstanceOf[TAggregable].elementType
         assert(aValue != null)
@@ -292,9 +292,9 @@ object Interpret {
             aggregator.seqOp(element)
         }
         aggregator.result
-      case MakeStruct(fields, _) =>
+      case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, agg) })
-      case InsertFields(old, fields, _) =>
+      case InsertFields(old, fields) =>
         var struct = interpret(old, env, args, agg)
         var t = old.typ
         fields.foreach { case (name, body) =>
@@ -303,7 +303,7 @@ object Interpret {
           struct = ins(struct, interpret(body, env, args, agg))
         }
         struct
-      case GetField(o, name, _) =>
+      case GetField(o, name) =>
         val oValue = interpret(o, env, args, agg)
         if (oValue == null)
           null
@@ -312,9 +312,9 @@ object Interpret {
           val fieldIndex = oType.fieldIdx(name)
           oValue.asInstanceOf[Row].get(fieldIndex)
         }
-      case MakeTuple(types, _) =>
+      case MakeTuple(types) =>
         Row.fromSeq(types.map(x => interpret(x, env, args, agg)))
-      case GetTupleElement(o, idx, _) =>
+      case GetTupleElement(o, idx) =>
         val oValue = interpret(o, env, args, agg)
         if (oValue == null)
           null
@@ -322,11 +322,13 @@ object Interpret {
           oValue.asInstanceOf[Row].get(idx)
       case In(i, _) => args(i)
       case Die(message) => fatal(message)
-      case Apply(function, functionArgs, implementation) =>
+      case ir@Apply(function, functionArgs) =>
+
         val argTuple = TTuple(functionArgs.map(_.typ): _*)
         val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(Apply(function,
-          (0 until argTuple.size)
-            .map(i => GetTupleElement(Ref("in"), i))))))
+          functionArgs.zipWithIndex.map { case (x, i) =>
+            GetTupleElement(Ref("in", x.typ), i)
+          }))))
 
         val f = makeFunction()
         Region.scoped { region =>
@@ -342,14 +344,15 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
             .get(0)
         }
-      case ApplySpecial(function, functionArgs, implementation) =>
+      case ir@ApplySpecial(function, functionArgs) =>
         val argTuple = TTuple(functionArgs.map(_.typ): _*)
         val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(ApplySpecial(function,
-          (0 until argTuple.size)
-            .map(i => GetTupleElement(Ref("in"), i))))))
+          functionArgs.zipWithIndex.map { case (x, i) =>
+            GetTupleElement(Ref("in", x.typ), i)
+          }))))
 
         val f = makeFunction()
         Region.scoped { region =>
@@ -365,7 +368,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
             .get(0)
         }
       case TableCount(child) =>
@@ -383,7 +386,7 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.export(path, typesFile, header, exportType)
-      case TableAggregate(child, query, _) =>
+      case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
 
@@ -442,18 +445,18 @@ object Interpret {
       case AggIn(_) =>
         assert(agg != null)
         agg
-      case AggMap(a, name, body, t) =>
+      case AggMap(a, name, body) =>
         interpretAgg(a, agg)
           .map { case (element, env) =>
             interpret(body, env.bind(name, element), null, null) -> env
           }
-      case AggFilter(a, name, body, _) =>
+      case AggFilter(a, name, body) =>
         interpretAgg(a, agg)
           .filter { case (element, env) =>
             // casting to boolean treats null as false
             interpret(body, env.bind(name, element), null, null).asInstanceOf[Boolean]
           }
-      case AggFlatMap(a, name, body, _) =>
+      case AggFlatMap(a, name, body) =>
         interpretAgg(a, agg)
           .flatMap { case (element, env) =>
             interpret(body, env.bind(name, element), null, null)

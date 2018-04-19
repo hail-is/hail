@@ -76,11 +76,7 @@ case class EvalContext private(st: SymbolTable,
 }
 
 object EvalContext {
-  def apply(symTab0: SymbolTable): EvalContext = {
-    val symTab = symTab0.map { case (name, (i, t)) =>
-      (name, (i, t.deepOptional()))
-    }
-
+  def apply(symTab: SymbolTable): EvalContext = {
     def maxEntry(st: SymbolTable): Int = {
       val m = st.map {
         case (name, (i, t: TAggregable)) => i.max(maxEntry(t.symTab))
@@ -101,7 +97,7 @@ object EvalContext {
 
   def apply(args: (String, Type)*): EvalContext = {
     EvalContext(args.zipWithIndex
-      .map { case ((name, t), i) => (name, (i, t.deepOptional())) }
+      .map { case ((name, t), i) => (name, (i, t)) }
       .toMap)
   }
 }
@@ -352,7 +348,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     s <- lhs.toIR(agg)
     t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
     f <- t.selfField(rhs)
-  } yield ir.GetField(s, rhs, f.typ)
+  } yield ir.GetField(s, rhs)
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -703,11 +699,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case IndexedSeq((xt, x)) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
         t <- ir.UnaryOp.returnTypeOption(op, xt)
-      } yield ir.ApplyUnaryPrimOp(op, x, t)
+      } yield ir.ApplyUnaryPrimOp(op, x)
       case IndexedSeq((xt, x), (yt, y)) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
         t <- ir.BinaryOp.returnTypeOption(op, xt, yt)
-      } yield ir.ApplyBinaryPrimOp(op, x, y, t)
+      } yield ir.ApplyBinaryPrimOp(op, x, y)
     }
 
   private[this] def tryIRConversion(agg: Option[String]): Option[IR] =
@@ -827,9 +823,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           a <- lhs.toIR(agg)
           b <- body.toIR(agg)
           result <- optMatch((t, m)) {
-            case (_: TAggregable, "map") => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
+            case (_: TAggregable, "map") => ir.AggMap(a, name, b)
+            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
+            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b)
             case (_: TArray, "map") => ir.ArrayMap(a, name, b)
             case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
             case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
@@ -869,9 +865,13 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
+  var typeWithMissingness: Type = null
+
   override def typecheckThis(ec: EvalContext): Type = {
     ec.st.get(symbol) match {
-      case Some((_, t)) => t
+      case Some((_, t)) =>
+        typeWithMissingness = t
+        t.deepOptional()
       case None =>
         val symbols = ec.st.toArray.sortBy(_._2._1).map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }
         parseError(
@@ -891,8 +891,11 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def compile() = CM.lookup(symbol)
 
   def toIR(agg: Option[String] = None): Option[IR] = agg match {
-    case Some(x) if x == symbol => Some(ir.AggIn(`type`.asInstanceOf[TAggregable]))
-    case _ => Some(ir.Ref(symbol, `type`))
+    case Some(x) if x == symbol =>
+      assert(typeWithMissingness != null)
+      Some(ir.AggIn(typeWithMissingness.asInstanceOf[TAggregable]))
+    case _ =>
+      Some(ir.Ref(symbol, typeWithMissingness))
   }
 }
 
@@ -931,7 +934,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     condition <- cond.toIR(agg)
     consequent <- thenTree.toIR(agg)
     alternate <- elseTree.toIR(agg)
-  } yield ir.If(condition, consequent, alternate, `type`)
+  } yield ir.If(condition, consequent, alternate)
 }
 
 // PrettyAST(ast) gives a pretty-print of an AST tree

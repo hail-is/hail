@@ -22,7 +22,7 @@ class InterpretSuite {
   private val t = True()
   private val f = False()
 
-  private val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())))
+  private val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
 
   private val struct = MakeStruct(List("a" -> i32, "b" -> f32, "c" -> ArrayRange(I32(0), I32(5), I32(1))))
 
@@ -211,7 +211,7 @@ class InterpretSuite {
   }
 
   @Test def testLet() {
-    check(Let("foo", i64, ApplyBinaryPrimOp(Add(), f64, Cast(Ref("foo"), TFloat64()))))
+    check(Let("foo", i64, ApplyBinaryPrimOp(Add(), f64, Cast(Ref("foo", TInt64()), TFloat64()))))
   }
 
   @Test def testMakeArray() {
@@ -233,20 +233,20 @@ class InterpretSuite {
   }
 
   @Test def testArrayMap() {
-    check(ArrayMap(arr, "foo", ApplyBinaryPrimOp(Multiply(), Ref("foo"), Ref("foo"))))
+    check(ArrayMap(arr, "foo", ApplyBinaryPrimOp(Multiply(), Ref("foo", TInt32()), Ref("foo", TInt32()))))
   }
 
   @Test def testArrayFilter() {
-    check(ArrayFilter(arr, "foo", ApplyBinaryPrimOp(LT(), Ref("foo"), I32(2))))
-    check(ArrayFilter(arr, "foo", ApplyBinaryPrimOp(LT(), Ref("foo"), NA(TInt32()))))
+    check(ArrayFilter(arr, "foo", ApplyBinaryPrimOp(LT(), Ref("foo", TInt32()), I32(2))))
+    check(ArrayFilter(arr, "foo", ApplyBinaryPrimOp(LT(), Ref("foo", TInt32()), NA(TInt32()))))
   }
 
   @Test def testArrayFlatMap() {
-    check(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo"), I32(1))))
+    check(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))))
   }
 
   @Test def testArrayFold() {
-    check(ArrayFold(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("element"))))
+    check(ArrayFold(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum", TInt32()), Ref("element", TInt32()))))
   }
 
   @Test def testMakeStruct() {
@@ -290,7 +290,7 @@ class InterpretSuite {
       15 -> Env.empty[Any].bind("a" -> 30)
     )
 
-    val result = Interpret(ApplyAggOp(AggFilter(AggIn(), "x", ApplyBinaryPrimOp(LT(), Ref("a"), I32(21))),
+    val result = Interpret(ApplyAggOp(AggFilter(AggIn(aggT), "x", ApplyBinaryPrimOp(LT(), Ref("a", TInt32()), I32(21))),
       Sum(), List()), env, IndexedSeq(), Some(agg))
     assert(result == 15)
   }
