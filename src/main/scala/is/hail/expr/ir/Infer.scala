@@ -76,7 +76,7 @@ object Infer {
         assert(a.typ.isInstanceOf[TArray])
       case x@Set(a) =>
         infer(a)
-        assert(a.typ.isInstanceOf[TContainer])
+        assert(a.typ.isInstanceOf[TArray])
       case x@Dict(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])

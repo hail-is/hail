@@ -62,7 +62,7 @@ final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
 
 final case class ArraySort(a: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
-final case class Set(a: IR) extends IR { def typ: TSet = TSet(coerce[TContainer](a.typ).elementType) }
+final case class Set(a: IR) extends IR { def typ: TSet = TSet(coerce[TArray](a.typ).elementType) }
 final case class Dict(a: IR) extends IR {
   def typ: TDict = {
     val etype = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
