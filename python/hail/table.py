@@ -1492,7 +1492,15 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with all rows from each component table.
         """
-
+        for i, ht, in enumerate(tables):
+            if not ht.row.dtype == self.row.dtype:
+                raise TypeError(f"'union': table {i} has a different row type.\n"
+                                f"  Expected:  {self.row.dtype}\n"
+                                f"  Table {i}: {ht.row.dtype}")
+            elif list(ht.key) != list(self.key):
+                raise TypeError(f"'union': table {i} has a different key."
+                                f"  Expected:  {list(self.key)}\n"
+                                f"  Table {i}: {list(ht.key)}")
         return Table(self._jt.union([table._jt for table in tables]))
 
     @typecheck_method(n=int)
