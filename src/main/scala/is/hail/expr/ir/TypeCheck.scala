@@ -176,6 +176,7 @@ object TypeCheck {
         check(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)
         assert(x.typ == query.typ)
       case TableWrite(_, _, _, _) =>
+      case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
     }
   }

@@ -367,16 +367,10 @@ object Interpret {
           rvb.endTuple()
           val offset = rvb.end()
 
-<<<<<<< 4f7adbde257a638e515641814f26436ab43a0306
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
             .get(0)
         }
-=======
-        val resultOffset = f(region, offset, false)
-        val ur = new UnsafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
-        ur.get(0)
->>>>>>> wip
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
@@ -388,15 +382,11 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.write(path, overwrite, codecSpecJSONStr)
-<<<<<<< 4f7adbde257a638e515641814f26436ab43a0306
       case TableExport(child, path, typesFile, header, exportType) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.export(path, typesFile, header, exportType)
-      case TableAggregate(child, query, _) =>
-=======
       case TableAggregate(child, query) =>
->>>>>>> wip
         val localGlobalSignature = child.typ.globalType
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
 
