@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
+import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.methods._
 import is.hail.utils._
@@ -329,21 +329,22 @@ object Interpret {
             .map(i => GetTupleElement(Ref("in"), i))))))
 
         val f = makeFunction()
-        val region = Region()
-        val rvb = new RegionValueBuilder()
-        rvb.set(region)
-        rvb.start(argTuple)
-        rvb.startTuple()
-        functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
-          val argValue = interpret(arg, env, args, agg)
-          rvb.addAnnotation(t, argValue)
-        }
-        rvb.endTuple()
-        val offset = rvb.end()
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder()
+          rvb.set(region)
+          rvb.start(argTuple)
+          rvb.startTuple()
+          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
+            val argValue = interpret(arg, env, args, agg)
+            rvb.addAnnotation(t, argValue)
+          }
+          rvb.endTuple()
+          val offset = rvb.end()
 
-        val resultOffset = f(region, offset, false)
-        val ur = new UnsafeRow(TTuple(implementation.returnType), region, resultOffset)
-        ur.get(0)
+          val resultOffset = f(region, offset, false)
+          SafeRow(TTuple(implementation.returnType), region, resultOffset)
+            .get(0)
+        }
       case ApplySpecial(function, functionArgs, implementation) =>
         val argTuple = TTuple(functionArgs.map(_.typ): _*)
         val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(ApplySpecial(function,
@@ -351,21 +352,22 @@ object Interpret {
             .map(i => GetTupleElement(Ref("in"), i))))))
 
         val f = makeFunction()
-        val region = Region()
-        val rvb = new RegionValueBuilder()
-        rvb.set(region)
-        rvb.start(argTuple)
-        rvb.startTuple()
-        functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
-          val argValue = interpret(arg, env, args, agg)
-          rvb.addAnnotation(t, argValue)
-        }
-        rvb.endTuple()
-        val offset = rvb.end()
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder()
+          rvb.set(region)
+          rvb.start(argTuple)
+          rvb.startTuple()
+          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
+            val argValue = interpret(arg, env, args, agg)
+            rvb.addAnnotation(t, argValue)
+          }
+          rvb.endTuple()
+          val offset = rvb.end()
 
-        val resultOffset = f(region, offset, false)
-        val ur = new UnsafeRow(TTuple(implementation.returnType), region, resultOffset)
-        ur.get(0)
+          val resultOffset = f(region, offset, false)
+          SafeRow(TTuple(implementation.returnType), region, resultOffset)
+            .get(0)
+        }
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
@@ -409,23 +411,25 @@ object Interpret {
         } else
           Array.empty[RegionValueAggregator]
 
-        val region: Region = Region()
-        val rvb: RegionValueBuilder = new RegionValueBuilder()
-        rvb.set(region)
+        Region.scoped { region =>
+          val rvb: RegionValueBuilder = new RegionValueBuilder()
+          rvb.set(region)
 
-        rvb.start(aggResultType)
-        rvb.startStruct()
-        aggResults.foreach(_.result(rvb))
-        rvb.endStruct()
-        val aggResultsOffset = rvb.end()
+          rvb.start(aggResultType)
+          rvb.startStruct()
+          aggResults.foreach(_.result(rvb))
+          rvb.endStruct()
+          val aggResultsOffset = rvb.end()
 
-        rvb.start(localGlobalSignature)
-        rvb.addAnnotation(localGlobalSignature, globalsBc.value)
-        val globalsOffset = rvb.end()
+          rvb.start(localGlobalSignature)
+          rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+          val globalsOffset = rvb.end()
 
-        val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
-        val resultType = coerce[TTuple](t)
-        UnsafeRow.readBaseStruct(resultType, region, resultOffset).get(0)
+          val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+
+          SafeRow(coerce[TTuple](t), region, resultOffset)
+            .get(0)
+        }
     }
   }
 
