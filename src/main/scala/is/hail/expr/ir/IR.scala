@@ -108,13 +108,31 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
   val implementation: IRFunctionWithoutMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]
 
-  def typ: Type = implementation.returnType
+  def typ: Type = {
+    // convert all arg types before unifying
+    val argTypes = args.map(_.typ)
+    argTypes.zip(implementation.argTypes).foreach { case (i, j) =>
+      j.clear()
+      val u = j.unify(i)
+      assert(u)
+    }
+    implementation.returnType.subst()
+  }
 }
+
 final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
   val implementation: IRFunctionWithMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithMissingness]
 
-  def typ: Type = implementation.returnType
+  def typ: Type = {
+    val argTypes = args.map(_.typ)
+    argTypes.zip(implementation.argTypes).foreach { case (i, j) =>
+      j.clear()
+      val u = j.unify(i)
+      assert(u)
+    }
+    implementation.returnType.subst()
+  }
 }
 
 final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }
