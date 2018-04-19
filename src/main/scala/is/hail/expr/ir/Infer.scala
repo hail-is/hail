@@ -13,6 +13,7 @@ object Infer {
       case I64(x) =>
       case F32(x) =>
       case F64(x) =>
+      case Str(x) =>
       case True() =>
       case False() =>
 
@@ -70,6 +71,16 @@ object Infer {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
+      case x@ArraySort(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TArray])
+      case x@Set(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TArray])
+      case x@Dict(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TArray])
+        assert(coerce[TBaseStruct](coerce[TContainer](a.typ).elementType).size == 2)
       case x@ArrayMap(a, name, body, _) =>
         infer(a)
         val tarray = coerce[TArray](a.typ)
@@ -161,12 +172,14 @@ object Infer {
       case x@Apply(fn, args, impl) =>
         args.foreach(infer(_))
         if (impl == null)
-          x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithoutMissingness]
-        assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
+          x.implementation = IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]
+        x.implementation.argTypes.foreach(_.clear())
+        assert(args.map(_.typ).zip(x.implementation.argTypes).forall { case (i, j) => j.unify(i) })
       case x@ApplySpecial(fn, args, impl) =>
         args.foreach(infer(_))
         if (impl == null)
-          x.implementation = (IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get).asInstanceOf[IRFunctionWithMissingness]
+          x.implementation = IRFunctionRegistry.lookupFunction(fn, args.map(_.typ)).get.asInstanceOf[IRFunctionWithMissingness]
+        x.implementation.argTypes.foreach(_.clear())
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall {case (i, j) => j.unify(i)})
       case x@TableAggregate(child, query, _) =>
         infer(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)

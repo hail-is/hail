@@ -412,6 +412,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   // on the JVM Booleans are represented as Ints
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
+
+  def toS: Code[String] = lhs.mux("true", "false")
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
@@ -513,6 +515,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def toF: Code[Float] = Code(lhs, new InsnNode(L2F))
 
   def toD: Code[Double] = Code(lhs, new InsnNode(L2D))
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Long, Long, String]("toString", lhs)
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
@@ -545,6 +549,8 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
   def toF: Code[Float] = lhs
 
   def toD: Code[Double] = Code(lhs, new InsnNode(F2D))
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Float, Float, String]("toString", lhs)
 }
 
 class CodeDouble(val lhs: Code[Double]) extends AnyVal {
@@ -577,6 +583,8 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
   def toF: Code[Float] = Code(lhs, new InsnNode(D2F))
 
   def toD: Code[Double] = lhs
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.Double, Double, String]("toString", lhs)
 }
 
 class CodeString(val lhs: Code[String]) extends AnyVal {
@@ -689,6 +697,8 @@ trait Settable[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
+
+  def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
 }
 
 class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
@@ -823,21 +833,16 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
 }
 
 class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
-  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
-    new Code[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        val lnull = new LabelNode
-        val lafter = new LabelNode
+  def isNull: CodeConditional = new CodeConditional {
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode): Unit = {
         lhs.emit(il)
-        il += new JumpInsnNode(IFNULL, lnull)
-        cnonnullcase.emit(il)
-        il += new JumpInsnNode(GOTO, lafter)
-        il += lnull
-        cnullcase.emit(il)
-        // fall through
-        il += lafter
+        il += new JumpInsnNode(IFNULL, ltrue)
+        il += new JumpInsnNode(GOTO, lfalse)
       }
     }
+
+  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
+    isNull.mux(cnullcase, cnonnullcase)
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)

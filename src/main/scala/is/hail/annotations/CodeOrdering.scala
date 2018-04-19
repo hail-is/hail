@@ -25,10 +25,29 @@ case class CodeOrdering(t: Type, missingGreatest: Boolean) {
     Code.invokeStatic[java.lang.Long, Long, Long, Int]("compare", v1, v2)
 
   private[this] def floatCompare(v1: Code[Float], v2: Code[Float]): Code[Int] =
-    Code.invokeStatic[java.lang.Float, Float, Float, Int]("compare", v1, v2)
+    v1.ceq(v2).mux(0, Code.invokeStatic[java.lang.Float, Float, Float, Int]("compare", v1, v2))
 
   private[this] def doubleCompare(v1: Code[Double], v2: Code[Double]): Code[Int] =
-    Code.invokeStatic[java.lang.Double, Double, Double, Int]("compare", v1, v2)
+    v1.ceq(v2).mux(0, Code.invokeStatic[java.lang.Double, Double, Double, Int]("compare", v1, v2))
+
+  def compare(mb: EmitMethodBuilder, x1: (Code[Boolean], Code[_]), x2: (Code[Boolean], Code[_])): Code[Int] = {
+    val m = mb.newLocal[Boolean]
+    val (m1, v1) = x1
+    val (m2, v2) = x2
+    Code(m := m1, m.cne(m2).mux(if (missingGreatest) m.mux(1, -1) else m.mux(-1, 1), m.mux(0, compare(mb, v1, v2))))
+  }
+
+  def compare(mb: EmitMethodBuilder, v1: Code[_], v2: Code[_]): Code[Int] = {
+    t match {
+      case _: TBoolean => booleanCompare(asm4s.coerce[Boolean](v1), asm4s.coerce[Boolean](v2))
+      case _: TInt32 | _: TCall => intCompare(asm4s.coerce[Int](v1), asm4s.coerce[Int](v2))
+      case _: TInt64 => longCompare(asm4s.coerce[Long](v1), asm4s.coerce[Long](v2))
+      case _: TFloat32 => floatCompare(asm4s.coerce[Float](v1), asm4s.coerce[Float](v2))
+      case _: TFloat64 => doubleCompare(asm4s.coerce[Double](v1), asm4s.coerce[Double](v2))
+      case _ =>
+        compare(mb, mb.getArg[Region](1), asm4s.coerce[Long](v1), mb.getArg[Region](1), asm4s.coerce[Long](v2))
+    }
+  }
 
   def compare(mb: EmitMethodBuilder, r1: Code[Region], o1: Code[Long], r2: Code[Region], o2: Code[Long]): Code[Int] = {
     compare(t, mb, r1, o1, r2, o2)

@@ -34,7 +34,7 @@ object EmitFunctionBuilder {
 }
 
 class EmitMethodBuilder(
-  fb: EmitFunctionBuilder[_],
+  override val fb: EmitFunctionBuilder[_],
   mname: String,
   parameterTypeInfo: Array[TypeInfo[_]],
   returnTypeInfo: TypeInfo[_]

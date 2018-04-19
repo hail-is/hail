@@ -52,7 +52,9 @@ object Emit {
   }
 }
 
-case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_])
+case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
+  def value[T]: Code[T] = coerce[T](v)
+}
 
 case class EmitArrayTriplet(setup: Code[Unit], m: Option[Code[Boolean]], addElements: Code[Unit])
 
@@ -62,7 +64,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
 }
 
 private class Emit(
-  mb: MethodBuilder,
+  mb: EmitMethodBuilder,
   tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
@@ -85,12 +87,12 @@ private class Emit(
     ab.result()
   }
 
-  val methods: mutable.Map[String, Seq[(Seq[Type], MethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
+  val methods: mutable.Map[String, Seq[(Seq[Type], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.E
   import Emit.F
 
-  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (MethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
+  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (EmitMethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
     def wrapCodeChunks(items: Seq[_], isIR: Boolean = false): Code[Unit] = {
       val sizes: Seq[Int] = if (isIR) irs.map(_.size * opSize) else Array.fill(items.size)(5)
       val chunkBounds = getChunkBounds(sizes)
@@ -189,6 +191,8 @@ private class Emit(
         present(const(x))
       case F64(x) =>
         present(const(x))
+      case Str(x) =>
+        present(region.appendString(const(x)))
       case True() =>
         present(const(true))
       case False() =>
@@ -234,7 +238,7 @@ private class Emit(
         val setup = Code(
           codeV.setup,
           mx := codeV.m,
-          x := codeV.v,
+          x := mx.mux(defaultValue(value.typ), codeV.v),
           codeBody.setup)
 
         EmitTriplet(setup, codeBody.m, codeBody.v)
@@ -258,7 +262,7 @@ private class Emit(
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(mb, typ)
         val addElement = srvb.addIRIntermediate(typ.elementType)
-        val addElts = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
+        val addElts = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), addElement(v.v)),
@@ -301,6 +305,70 @@ private class Emit(
         val codeA = emit(a)
         EmitTriplet(codeA.setup, codeA.m, TContainer.loadLength(region, coerce[Long](codeA.v)))
 
+      case ArraySort(a) =>
+        val atyp = coerce[TArray](a.typ)
+
+        val aout = emitArrayIterator(a)
+        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+        val sorter = new ArraySorter(mb, vab)
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          m.mux(vab.addMissing(), vab.add(v))
+        }
+
+        val processArrayElts = aout.arrayEmitter(cont)
+        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+          vab.clear,
+          aout.calcLength,
+          processArrayElts.addElements,
+          sorter.sort(),
+          sorter.toRegion()))
+      case Set(a) =>
+        if (a.typ.isInstanceOf[TSet]) {
+          emit(a)
+        } else {
+          val atyp = coerce[TArray](a.typ)
+
+          val aout = emitArrayIterator(a)
+          val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+          val sorter = new ArraySorter(mb, vab, keyOnly = false)
+
+          val cont = { (m: Code[Boolean], v: Code[_]) =>
+            m.mux(vab.addMissing(), vab.add(v))
+          }
+
+          val processArrayElts = aout.arrayEmitter(cont)
+          EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+            vab.clear,
+            aout.calcLength,
+            processArrayElts.addElements,
+            sorter.sort(),
+            sorter.distinctFromSorted,
+            sorter.toRegion()))
+        }
+      case Dict(a) =>
+        if (a.typ.isInstanceOf[TDict]) {
+          emit(a)
+        } else {
+          val atyp = coerce[TArray](a.typ)
+
+          val aout = emitArrayIterator(a)
+          val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+          val sorter = new ArraySorter(mb, vab, keyOnly = true)
+
+          val cont = { (m: Code[Boolean], v: Code[_]) =>
+            m.mux(vab.addMissing(), vab.add(v))
+          }
+
+          val processArrayElts = aout.arrayEmitter(cont)
+          EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+            vab.clear,
+            aout.calcLength,
+            processArrayElts.addElements,
+            sorter.sort(),
+            sorter.distinctFromSorted,
+            sorter.toRegion()))
+        }
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(mb, ir.typ)
@@ -327,26 +395,22 @@ private class Emit(
           case None =>
             val len = mb.newLocal[Int]
             val i = mb.newLocal[Int]
-            val mab = new StagedArrayBuilder(TBoolean(), mb)
-            val vab = new StagedArrayBuilder(elt, mb)
-            mb.emit(mab.create(16))
-            mb.emit(vab.create(16))
+            val vab = new StagedArrayBuilder(elt, mb, 16)
 
             val cont = { (m: Code[Boolean], v: Code[_]) =>
-              coerce[Unit](Code(mab.add(m), vab.add(v)))
+              m.mux(vab.addMissing(), vab.add(v))
             }
 
             val processArrayElts = aout.arrayEmitter(cont)
             EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-              mab.clear,
               vab.clear,
               aout.calcLength,
               processArrayElts.addElements,
-              len := mab.size,
+              len := vab.size,
               srvb.start(len, init = true),
               i := 0,
               Code.whileLoop(i < len,
-                coerce[Boolean](mab(i)).mux(
+                vab.isMissing(i).mux(
                   srvb.setMissing(),
                   srvb.addIRIntermediate(elt)(vab(i))),
                 i := i + 1,
@@ -408,7 +472,7 @@ private class Emit(
 
       case x@MakeStruct(fields, _) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
+        val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
@@ -478,7 +542,7 @@ private class Emit(
 
       case x@MakeTuple(fields, _) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        val addFields = { (newMB: MethodBuilder, t: Type, v: EmitTriplet) =>
+        val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),

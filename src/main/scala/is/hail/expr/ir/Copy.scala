@@ -13,6 +13,7 @@ object Copy {
       case I64(_) => same
       case F32(_) => same
       case F64(_) => same
+      case Str(_) => same
       case True() => same
       case False() => same
       case Cast(_, typ) =>
@@ -48,6 +49,15 @@ object Copy {
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
+      case ArraySort(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        ArraySort(a)
+      case Set(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        Set(a)
+      case Dict(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        Dict(a)
       case ArrayMap(_, name, _, elementTyp) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body, elementTyp)

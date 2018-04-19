@@ -29,6 +29,7 @@ object Literal {
       case _: TFloat32 => F32(x.asInstanceOf[Float])
       case _: TFloat64 => F64(x.asInstanceOf[Double])
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
+      case _: TString => Str(x.asInstanceOf[String])
       case _ => throw new RuntimeException("Unsupported literal type")
     }
   }
@@ -38,6 +39,7 @@ final case class I32(x: Int) extends IR { val typ = TInt32() }
 final case class I64(x: Long) extends IR { val typ = TInt64() }
 final case class F32(x: Float) extends IR { val typ = TFloat32() }
 final case class F64(x: Double) extends IR { val typ = TFloat64() }
+final case class Str(x: String) extends IR { val typ = TString() }
 final case class True() extends IR { val typ = TBoolean() }
 final case class False() extends IR { val typ = TBoolean() }
 
@@ -58,6 +60,16 @@ final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
+
+final case class ArraySort(a: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
+final case class Set(a: IR) extends IR { def typ: TSet = TSet(coerce[TArray](a.typ).elementType) }
+final case class Dict(a: IR) extends IR {
+  def typ: TDict = {
+    val etype = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
+    TDict(etype.types(0), etype.types(1))
+  }
+}
+
 final case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
 final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR { def typ: TArray = coerce[TArray](body.typ) }

@@ -10,6 +10,7 @@ object Children {
     case I64(x) => none
     case F32(x) => none
     case F64(x) => none
+    case Str(x) => none
     case True() => none
     case False() => none
     case Cast(v, typ) =>
@@ -35,6 +36,12 @@ object Children {
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
+    case ArraySort(a) =>
+      Array(a)
+    case Set(a) =>
+      Array(a)
+    case Dict(a) =>
+      Array(a)
     case ArrayMap(a, name, body, elementTyp) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>

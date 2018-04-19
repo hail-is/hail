@@ -39,6 +39,7 @@ object Interpret {
       case I64(x) => x
       case F32(x) => x
       case F64(x) => x
+      case Str(x) => x
       case True() => true
       case False() => false
       case Cast(v, t) =>
@@ -200,6 +201,24 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
+      case ArraySort(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
+      case Set(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].toSet
+      case Dict(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
       case ArrayMap(a, name, body, _) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
