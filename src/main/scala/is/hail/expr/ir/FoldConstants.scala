@@ -15,13 +15,13 @@ object FoldConstants {
           throw new MatchError(ir)
 
         ir match {
-          case If(NA(_), _, _, _) =>
+          case If(NA(_), _, _) =>
             NA(ir.typ)
 
-          case ApplyUnaryPrimOp(_, _, _) |
-               ApplyBinaryPrimOp(_, _, _, _) |
-               Apply(_, _, _) |
-               ApplySpecial(_, _, _) |
+          case ApplyUnaryPrimOp(_, _) |
+               ApplyBinaryPrimOp(_, _, _) |
+               Apply(_, _) |
+               ApplySpecial(_, _) |
                Cast(_, _) =>
             Literal(Interpret(ir, optimize = false), ir.typ)
         }

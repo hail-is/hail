@@ -8,31 +8,31 @@ object Simplify {
     RewriteBottomUp(ir, matchErrorToNone {
       // optimze IR
 
-      case Let(n1, v, Ref(n2, _), _) if n1 == n2 => v
+      case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
 
       // If(NA, ...) handled by FoldConstants
-      case If(True(), x, _, _) => x
-      case If(False(), _, x, _) => x
+      case If(True(), x, _) => x
+      case If(False(), _, x) => x
 
-      case If(c, cnsq, altr, t) if cnsq == altr =>
-        If(IsNA(c), NA(t), cnsq)
+      case If(c, cnsq, altr) if cnsq == altr =>
+        If(IsNA(c), NA(cnsq.typ), cnsq)
 
       case Cast(x, t) if x.typ == t => x
 
       case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
-      case ArrayRef(MakeArray(args, _), I32(i), _) => args(i)
+      case ArrayRef(MakeArray(args, _), I32(i)) => args(i)
 
-      case GetField(MakeStruct(fields, _), name, _) =>
+      case GetField(MakeStruct(fields), name) =>
         val (_, x) = fields.find { case (n, _) => n == name }.get
         x
 
-      case GetField(InsertFields(old, fields, _), name, _)
+      case GetField(InsertFields(old, fields), name)
         if fields.exists { case (n, _) => n == name } =>
         val (_, x) = fields.find { case (n, _) => n == name }.get
         x
 
-      case GetTupleElement(MakeTuple(xs, _), idx, _) => xs(idx)
+      case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
       // optimize TableIR
       case TableFilter(t, True()) => t
