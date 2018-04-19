@@ -7,7 +7,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir.IR
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
-import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
+import is.hail.io.{CassandraConnector, SolrConnector}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -528,30 +528,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType))
 
-  def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
-    val hConf = hc.hadoopConf
-    hConf.delete(output, recursive = true)
-
-    Option(typesFile).foreach { file =>
-      exportTypes(file, hConf, fields.map(f => (f.name, f.typ)))
-    }
-
-    val localSignature = signature
-    val localTypes = fields.map(_.typ)
-
-    rvd.mapPartitions { it =>
-      val sb = new StringBuilder()
-
-      it.map { rv =>
-        val ur = new UnsafeRow(localSignature, rv)
-        sb.clear()
-        localTypes.indices.foreachBetween { i =>
-          sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
-        }(sb += '\t')
-
-        sb.result()
-      }
-    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
+  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
+    ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType))
   }
 
   def distinctByKey(): Table = {

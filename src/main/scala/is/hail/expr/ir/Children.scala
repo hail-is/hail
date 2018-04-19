@@ -77,5 +77,6 @@ object Children {
     case TableCount(child) => IndexedSeq(child)
     case TableAggregate(child, query, _) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _) => IndexedSeq(child)
+    case TableExport(child, _, _, _, _) => IndexedSeq(child)
   }
 }
