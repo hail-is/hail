@@ -13,6 +13,8 @@ object Subst {
         val s = env.lookupOption(name).getOrElse(x)
         assert(s.typ == x.typ, s"$name: ${ x.typ.parsableString() }, ${ s.typ.parsableString() }")
         s
+      case x@AggIn(typ) =>
+        aggTyp.map(AggIn).getOrElse(x)
       case Let(name, v, body) =>
         Let(name, subst(v), subst(body, env.delete(name)))
       case ArrayMap(a, name, body) =>
