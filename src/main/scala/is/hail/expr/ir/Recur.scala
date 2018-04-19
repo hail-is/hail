@@ -42,7 +42,7 @@ object Recur {
     case MatrixWrite(_, _, _, _) => ir
     // from TableIR
     case TableCount(_) => ir
-    case TableAggregate(child, query, typ) => TableAggregate(child, query, typ)
+    case TableAggregate(child, query, typ) => TableAggregate(child, f(query), typ)
     case TableWrite(_, _, _, _) => ir
     case TableExport(_, _, _, _, _) => ir
   }

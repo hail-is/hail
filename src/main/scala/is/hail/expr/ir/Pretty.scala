@@ -63,7 +63,7 @@ object Pretty {
             case ApplySpecial(function, _, _) => function
             case In(i, _) => i.toString
             case MatrixRead(path, _, dropCols, dropRows) =>
-              s"$path${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"
+              s"${ StringEscapeUtils.escapeString(path) }${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head
@@ -73,7 +73,7 @@ object Pretty {
                 sb.append("(paths\n")
                 paths.foreachBetween { p =>
                   sb.append(" " * (depth + 4))
-                  sb.append(p)
+                  StringEscapeUtils.escapeString(p, sb, backticked = false)
                 }(sb += '\n')
                 sb += ')'
 
@@ -81,17 +81,29 @@ object Pretty {
               }
             case TableRead(path, _, dropRows) =>
               if (dropRows)
-                s"$path drop_rows"
+                s"${ StringEscapeUtils.escapeString(path) } drop_rows"
               else
                 path
             case TableWrite(_, path, overwrite, _) =>
               if (overwrite)
-                s"$path overwrite"
+                s"${ StringEscapeUtils.escapeString(path) } overwrite"
               else
                 path
             case TableExport(_, path, typesFile, header, exportType) =>
-              val args = Array(Some(path), Option(typesFile), if (header) Some("header") else None, Some(exportType)).flatten
-              args.mkString(" ")
+              val args = Array(
+                Some(StringEscapeUtils.escapeString(path)),
+                Option(typesFile).map(StringEscapeUtils.escapeString(_)),
+                if (header) Some("header") else None,
+                Some(exportType)
+              ).flatten
+
+              sb += '\n'
+              args.foreachBetween { a =>
+                sb.append(" " * (depth + 2))
+                sb.append(a)
+              }(sb += '\n')
+
+              ""
             case _ => ""
           }
 
