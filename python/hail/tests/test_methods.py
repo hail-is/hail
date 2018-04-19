@@ -1577,6 +1577,13 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('floating_point_array.vcf'))
         self.assertTrue(mt.aggregate_entries(hl.agg.all(mt.numeric_array == [1.5, 2.5])))
 
+    def test_import_vcf_can_import_negative_numbers(self):
+        mt = hl.import_vcf(resource('negative_format_fields.vcf'))
+        self.assertTrue(mt.aggregate_entries(hl.agg.all(mt.negative_int == -1) &
+                                             hl.agg.all(mt.negative_float == -1.5) &
+                                             hl.agg.all(mt.negative_int_array == [-1, -2]) &
+                                             hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
+
     def test_import_plink(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),

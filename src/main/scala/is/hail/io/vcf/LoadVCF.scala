@@ -132,13 +132,18 @@ final class VCFLine(val line: String) {
   def parseInt(): Int = {
     if (endField())
       parseError("empty integer literal")
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
     var v = numericValue(line(pos))
     pos += 1
     while (!endField()) {
       v = v * 10 + numericValue(line(pos))
       pos += 1
     }
-    v
+    v * mul
   }
 
   def skipField(): Unit = {
@@ -299,13 +304,18 @@ final class VCFLine(val line: String) {
   def parseFormatInt(): Int = {
     if (endFormatField())
       parseError("empty integer")
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
     var v = numericValue(line(pos))
     pos += 1
     while (!endFormatField()) {
       v = v * 10 + numericValue(line(pos))
       pos += 1
     }
-    v
+    v * mul
   }
 
   def parseAddFormatInt(rvb: RegionValueBuilder) {
@@ -348,13 +358,18 @@ final class VCFLine(val line: String) {
   def parseIntInFormatArray(): Int = {
     if (endFormatArrayField())
       parseError("empty integer")
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
     var v = numericValue(line(pos))
     pos += 1
     while (!endFormatArrayField()) {
       v = v * 10 + numericValue(line(pos))
       pos += 1
     }
-    v
+    v * mul
   }
 
   def parseStringInFormatArray(): String = {
