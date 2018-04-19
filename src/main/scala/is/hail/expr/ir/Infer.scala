@@ -77,6 +77,10 @@ object Infer {
       case x@Set(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TContainer])
+      case x@Dict(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TContainer])
+        assert(coerce[TBaseStruct](coerce[TContainer](a.typ).elementType).size == 2)
       case x@ArrayMap(a, name, body, _) =>
         infer(a)
         val tarray = coerce[TArray](a.typ)

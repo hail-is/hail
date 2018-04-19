@@ -63,6 +63,12 @@ final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ:
 
 final case class ArraySort(a: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }
 final case class Set(a: IR) extends IR { def typ: TSet = TSet(coerce[TContainer](a.typ).elementType) }
+final case class Dict(a: IR) extends IR {
+  def typ: TDict = {
+    val etype = coerce[TBaseStruct](coerce[TContainer](a.typ).elementType)
+    TDict(etype.types(0), etype.types(1))
+  }
+}
 
 final case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR { def typ: TArray = coerce[TArray](a.typ) }

@@ -40,6 +40,8 @@ object Children {
       Array(a)
     case Set(a) =>
       Array(a)
+    case Dict(a) =>
+      Array(a)
     case ArrayMap(a, name, body, elementTyp) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>

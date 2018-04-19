@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder, SafeIndexedSeq}
+import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.expr.ir._
@@ -112,7 +112,7 @@ class OrderingSuite {
     p.check()
   }
 
-  @Test def testToSetOnRandomArray() {
+  @Test def testToSetOnRandomDuplicatedArray() {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TArray(t).genNonmissingValue))
     val p = Prop.forAll(compareGen) { case (t, a) =>
       val array = a.asInstanceOf[IndexedSeq[Any]] ++ a.asInstanceOf[IndexedSeq[Any]]
@@ -138,6 +138,41 @@ class OrderingSuite {
       val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering).distinct
 
       expected == actual
+    }
+    p.check()
+  }
+
+
+  @Test def testToDictOnRandomDuplicatedArray() {
+    val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
+      case (k, v) => Gen.zip(Gen.const(TTuple(k, v)), TArray(TTuple(k, v)).genNonmissingValue)
+    }
+    val p = Prop.forAll(compareGen) { case (telt, a) =>
+      val array: IndexedSeq[Row] = a.asInstanceOf[IndexedSeq[Row]] ++ a.asInstanceOf[IndexedSeq[Row]]
+      val ir = Dict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+
+      Infer(ir)
+      Emit(ir, fb)
+
+      val f = fb.result()()
+
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+
+      rvb.start(TTuple(TArray(telt)))
+      rvb.startTuple()
+      rvb.addAnnotation(TArray(telt), array)
+      rvb.endTuple()
+      val off = rvb.end()
+
+      val res = f(region, off, false)
+      val actual = SafeIndexedSeq(TArray(telt), region, res)
+      val actualKeys = actual.filter(_ != null).map { case Row(k, _) => k }
+      val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
+      val expectedKeys = expectedMap.keys.toIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
+
+      expectedKeys == actualKeys
     }
     p.check()
   }
