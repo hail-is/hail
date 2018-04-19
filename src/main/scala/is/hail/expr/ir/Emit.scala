@@ -347,7 +347,7 @@ private class Emit(
             sorter.toRegion()))
         }
       case Dict(a) =>
-        if (a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict]) {
+        if (a.typ.isInstanceOf[TDict]) {
           emit(a)
         } else {
           val atyp = coerce[TArray](a.typ)

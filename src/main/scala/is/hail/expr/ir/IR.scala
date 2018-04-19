@@ -65,7 +65,7 @@ final case class ArraySort(a: IR) extends IR { def typ: TArray = coerce[TArray](
 final case class Set(a: IR) extends IR { def typ: TSet = TSet(coerce[TContainer](a.typ).elementType) }
 final case class Dict(a: IR) extends IR {
   def typ: TDict = {
-    val etype = coerce[TBaseStruct](coerce[TContainer](a.typ).elementType)
+    val etype = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
     TDict(etype.types(0), etype.types(1))
   }
 }
