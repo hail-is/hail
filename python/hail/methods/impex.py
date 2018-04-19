@@ -1772,6 +1772,53 @@ def import_vcf(path,
     return MatrixTable(jmt)
 
 
+@typecheck(metadata_file=str,
+           vcf_header_file=str,
+           fasta_file=str,
+           call_fields=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           entry_field_array_elements_required=bool)
+def import_genomicsdb(metadata_file,
+                      vcf_header_file,
+                      fasta_file,
+                      call_fields=[],
+                      reference_genome='default',
+                      entry_field_array_elements_required=True) -> MatrixTable:
+    """Import GenomicsDB database.
+
+    .. include:: _templates/experimental.rst
+
+    Parameters
+    ----------
+    metadata_file : :obj:`str`
+        Path to GenomicsDB JSON metadata file.
+    vcf_header_file : :obj:`str`
+        Path to VCF header file.
+    entry_field_array_elements_required : :obj:`bool`
+        If ``True`` (default), elements of entry fields which are
+        arrays are required.
+    call_fields : :obj:`list` of :obj:`str`
+        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is loaded as
+        a call automatically.
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    rg = reference_genome._jrep if reference_genome else None
+
+    return MatrixTable(
+        Env.hail().io.genomicsdb.ImportGenomicsDB.apply(
+            metadata_file,
+            vcf_header_file,
+            fasta_file,
+            jset_args(call_fields),
+            joption(rg),
+            entry_field_array_elements_required))
+
+
 @typecheck(path=oneof(str, sequenceof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.

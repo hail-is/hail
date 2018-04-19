@@ -3,7 +3,7 @@ package is.hail.io.reference
 import java.util
 import java.util.Map.Entry
 
-import htsjdk.samtools.reference.ReferenceSequenceFileFactory
+import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
 import is.hail.HailContext
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
@@ -14,7 +14,7 @@ import scala.language.postfixOps
 import scala.collection.concurrent
 
 class SerializableReferenceSequenceFile(val hConf: SerializableHadoopConfiguration, val fastaFile: String, val indexFile: String) extends Serializable {
-  @transient lazy val value = {
+  @transient lazy val value: ReferenceSequenceFile = {
     val localFastaFile = FASTAReader.getLocalFastaFileName(hConf.value, fastaFile, indexFile)
     ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(localFastaFile))
   }

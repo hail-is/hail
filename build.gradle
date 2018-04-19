@@ -115,8 +115,7 @@ compileScala {
 }
 
 dependencies {
-    //"compile group: 'com.intel', name: 'genomicsdb', version: '0.6.4-proto-3.0.0-beta-1'" currently does not support spark-core 2.11
-    compile files("libs/genomicsdb-0.6.4.jar")
+    compile group: 'com.intel', name: 'genomicsdb', version: '0.9.2-proto-3.0.0-beta-1+uuid-static'
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
@@ -238,6 +237,8 @@ shadowJar {
     from(project.sourceSets.main.output)
     configurations = [project.configurations.runtime]
     dependencies {
+        include(dependency('com.intel:genomicsdb:.*'))
+
         include(dependency('org.slf4j:slf4j-api:1.7.25'))
 
         include(dependency('org.lz4:lz4-java:.*'))
@@ -292,6 +293,8 @@ task shadowTestJar(type: ShadowJar) {
     from(project.sourceSets.main.output, project.sourceSets.test.output)
     configurations = [project.configurations.testRuntime]
     dependencies {
+        include(dependency('com.intel:genomicsdb:.*'))
+
         include(dependency('org.slf4j:slf4j-api:1.7.25'))
 
         include(dependency('org.lz4:lz4-java:.*'))

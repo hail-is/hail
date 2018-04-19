@@ -9,6 +9,7 @@ import is.hail.expr.types._
 import is.hail.io._
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
+import is.hail.io.genomicsdb.{GenomicsDBMetadata, ImportGenomicsDB}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -17,7 +18,7 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
-import org.apache.spark.SparkContext
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
@@ -422,6 +423,41 @@ case class MatrixRead(
   def execute(hc: HailContext): MatrixValue = f(this)
 
   override def toString: String = s"MatrixRead($typ, partitionCounts = $partitionCounts, dropCols = $dropCols, dropRows = $dropRows)"
+}
+
+case class MatrixImportGenomicsDB(typ: MatrixType, metadata: GenomicsDBMetadata, colValues: BroadcastIndexedSeq) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixImportGenomicsDB = {
+    assert(newChildren.isEmpty)
+    this
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val sc = hc.sc
+
+    val localTyp = typ
+    val localMetadata = metadata
+
+    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+
+    val rdd = new RDD[RegionValue](hc.sc, Nil) {
+      def getPartitions: Array[Partition] = {
+        Array.tabulate(localMetadata.shards.length)(i =>
+          new Partition {
+            val index: Int = i
+          })
+      }
+
+      def compute(split: Partition, context: TaskContext): Iterator[RegionValue] =
+        ImportGenomicsDB.readShard(sHadoopConfBc.value.value, localMetadata, localTyp, split.index)
+    }
+
+    MatrixValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc),
+      colValues,
+      OrderedRVD.coerce(typ.orvdType,
+        rdd))
+  }
 }
 
 case class FilterCols(
