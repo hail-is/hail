@@ -111,7 +111,7 @@ sealed abstract class MissingArrayBuilder[T](initialCapacity: Int) {
   }
 
   def setSize(n: Int) {
-    require(n >= 0 && n < size)
+    require(n >= 0 && n <= size)
     size_ = n
   }
 

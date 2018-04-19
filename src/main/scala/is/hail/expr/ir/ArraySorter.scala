@@ -24,13 +24,32 @@ object ArraySorter {
   }
 }
 
-class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
+class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boolean = false) {
   val typ: Type = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
-  val ord: CodeOrdering = CodeOrdering(typ, missingGreatest = true)
 
   val compare: EmitMethodBuilder = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], BooleanInfo, ti, BooleanInfo, ti), IntInfo)
-  compare.emit(ord.compare(compare.getArg[Boolean](2), compare.getArg(3)(ti), compare.getArg[Boolean](4), compare.getArg(5)(ti))(compare))
+  if (keyOnly) {
+    require(typ.isInstanceOf[TBaseStruct] && coerce[TBaseStruct](typ).size == 2)
+    val ttype = coerce[TBaseStruct](typ)
+    val ktype = ttype.types(0)
+    val kord: CodeOrdering = CodeOrdering(ktype, missingGreatest = true)
+    val cregion: Code[Region] = compare.getArg[Region](1)
+
+    val km1 = ttype.isFieldMissing(cregion, compare.getArg[Long](3), 0)
+    val kv1 = cregion.loadIRIntermediate(ktype)(ttype.fieldOffset(compare.getArg[Long](3), 0))
+    val km2 = ttype.isFieldMissing(cregion, compare.getArg[Long](5), 0)
+    val kv2 = cregion.loadIRIntermediate(ktype)(ttype.fieldOffset(compare.getArg[Long](5), 0))
+
+    val c = compare.getArg[Boolean](2).ceq(compare.getArg[Boolean](4)).mux(
+      compare.getArg[Boolean](2).mux(0, kord.compare(km1, kv1, km2, kv2)(compare)),
+      compare.getArg[Boolean](2).mux(1, -1)
+    )
+    compare.emit(c)
+  } else {
+    val ord: CodeOrdering = CodeOrdering(typ, missingGreatest = true)
+    compare.emit(ord.compare(compare.getArg[Boolean](2), compare.getArg(3)(ti), compare.getArg[Boolean](4), compare.getArg(5)(ti))(compare))
+  }
 
   def sort(): Code[Unit] = {
 
@@ -45,13 +64,11 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
     val m1: LocalRef[Boolean] = sort.newLocal[Boolean]
     val v1: LocalRef[_] = sort.newLocal(ti)
 
-    def loadPivot(start: Code[Int], end: Code[Int]): Code[Unit] = {
+    def loadPivot(start: Code[Int], end: Code[Int]): Code[Unit] =
       pi := end
-    }
 
-    def lt(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_]): Code[Boolean] = {
+    def lt(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_]): Code[Boolean] =
       coerce[Int](compare.invoke(region, m1, v1, m2, v2)) < 0
-    }
 
     def swap(i: Code[Int], j: Code[Int]): Code[Unit] = {
       Code(
@@ -92,7 +109,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
       srvb.end())
   }
 
-  def distinctFromSorted(keyOnly: Boolean = false): Code[Unit] = {
+  def distinctFromSorted: Code[Unit] = {
     def ceq(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_]): Code[Boolean] = {
       coerce[Int](compare.invoke(mb.getArg[Region](1), m1, v1, m2, v2)).ceq(0)
     }
@@ -100,7 +117,12 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
     val i = mb.newLocal[Int]
     val n = mb.newLocal[Int]
 
+    val removeMissing = Code(i := array.size - 1,
+      Code.whileLoop(i > 0 && array.isMissing(i), i += -1),
+      array.size.ceq(i + 1).mux(Code._empty, array.setSize(i + 1)))
+
     Code(
+      if (keyOnly) removeMissing else Code._empty,
       n := 0,
       i := 0,
       Code.whileLoop(i < array.size,

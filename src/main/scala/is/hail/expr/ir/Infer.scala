@@ -25,6 +25,12 @@ object Infer {
       case x@Set(a) =>
         assert(a.typ.isInstanceOf[TArray])
         TSet(a.typ.asInstanceOf[TArray].elementType)
+      case x@Dict(a) =>
+        assert(a.typ.isInstanceOf[TArray])
+        val elt = a.typ.asInstanceOf[TArray].elementType
+        assert(coerce[TBaseStruct](elt).size == 2)
+        val eltt = coerce[TBaseStruct](elt)
+        TDict(eltt.types(0), eltt.types(1))
       case x@ArrayMap(a, name, body) =>
         TArray(-body.typ)
       case x@ArrayFilter(a, name, cond) =>
