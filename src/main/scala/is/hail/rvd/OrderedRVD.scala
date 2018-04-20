@@ -670,7 +670,7 @@ object OrderedRVD {
 
   def adjustBoundsAndShuffle(
     typ: OrderedRVDType,
-      partitioner: OrderedRVDPartitioner,
+    partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]
   ): OrderedRVD = adjustBoundsAndShuffle(
     typ,
