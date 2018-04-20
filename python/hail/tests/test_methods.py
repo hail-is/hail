@@ -1617,15 +1617,15 @@ class Tests(unittest.TestCase):
         bfile = '/tmp/sample_plink'
         hl.export_plink(mt, bfile, id=mt.s)
 
-        bfile_args = [bfile + '.bed', bfile + '.bim', bfile + '.fam']
-
-        def data(a2_reference):
-            return (hl.variant_qc(hl.import_plink(*bfile_args, a2_reference))
+        def get_data(a2_reference):
+            mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim',
+                                          bfile + '.fam', a2_reference=a2_reference)
+            return (hl.variant_qc(mt_imported)
                     .rows()
                     .key_by('rsid'))
 
-        a2 = data(a2_reference=True)
-        a1 = data(a2_reference=False)
+        a2 = get_data(a2_reference=True)
+        a1 = get_data(a2_reference=False)
 
         j = (a2.annotate(a1_alleles=a1[a2.rsid].alleles, a1_vqc=a1[a2.rsid].variant_qc)
              .rename({'variant_qc': 'a2_vqc', 'alleles': 'a2_alleles'}))
