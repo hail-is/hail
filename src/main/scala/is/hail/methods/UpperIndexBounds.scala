@@ -1,8 +1,7 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.expr.types._
-import is.hail.linalg.BlockMatrix
+import is.hail.linalg.{BlockMatrix, GridPartitioner}
 import is.hail.table.Table
 import is.hail.utils.{fatal, plural}
 import org.apache.spark.rdd.RDD
@@ -47,32 +46,32 @@ object UpperIndexBounds {
   def shiftUpperIndexBounds(upperIndexBounds: RDD[Array[Int]]): Array[Long] = {
     val firstIndices = upperIndexBounds.map(_.length).collect().scanLeft(0L)(_ + _)
 
-    (firstIndices, upperIndexBounds.collect()).zipped.map {
+    (firstIndices, upperIndexBounds.collect()).zipped.flatMap {
       case (firstIndex, bounds) => bounds.map(firstIndex + _)
-    }.flatten
+    }
   }
 
-  // compute which blocks of the block matrix have entries whose variants are within a certain radius of each other
-  // assumes a symmetric matrix, so only blocks above the diagonal are included
-  def computeBlocksWithinRadiusAndAboveDiagonal(tbl: Table, bm: BlockMatrix, radius: Int): Array[Int] = {
+  /* computes the minimum set of blocks necessary to cover all pairs of indices (i, j) such that i <= j and 
+  position[j] - position[i] <= radius and i <= j.  If includeDiagonal=false, require i < j rather than i <= j. */
+  def computeBlocksWithinRadiusAndAboveDiagonal(tbl: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
 
     val groupedPositions = groupPositionsByKey(tbl)
 
-    val upperIndexBounds = groupedPositions.map(positions => {
+    val relativeUpperIndexBounds = groupedPositions.map(positions => {
       scala.util.Sorting.quickSort(positions)
       computeUpperIndexBounds(positions, radius)
     })
 
-    val shiftedUpperIndexBounds = shiftUpperIndexBounds(upperIndexBounds)
+    val absoluteUpperIndexBounds = shiftUpperIndexBounds(relativeUpperIndexBounds)
 
-    bm.gp.rectangularBlocks(shiftedUpperIndexBounds.zipWithIndex.flatMap {
-      case (j, i) => if (i == j) None else Some(Array(i, i, i + 1, j))
-    })
-  }
-
-  // get an entries table from a windowed block matrix, where window specifies the size of the window between variants
-  def entriesTableFromWindowedBlockMatrix(hc: HailContext, tbl: Table, bm: BlockMatrix, window: Int): Table = {
-    val blocksToKeep = computeBlocksWithinRadiusAndAboveDiagonal(tbl, bm, window)
-    bm.entriesTable(hc, Some(blocksToKeep))
+    if (includeDiagonal) {
+      gp.rectangularBlocks(absoluteUpperIndexBounds.zipWithIndex.map {
+        case (j, i) => Array(i, i, i, j)
+      })
+    } else {
+      gp.rectangularBlocks(absoluteUpperIndexBounds.zipWithIndex.flatMap {
+        case (j, i) => if (i == j) None else Some(Array(i, i, i + 1, j))
+      })
+    }
   }
 }

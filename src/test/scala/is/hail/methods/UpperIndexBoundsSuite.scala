@@ -5,7 +5,6 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
 import is.hail.linalg.BlockMatrix
 import is.hail.table.Table
-import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -51,23 +50,16 @@ class UpperIndexBoundsSuite extends SparkSuite {
     val blockSizes = Array(1, 2)
     val expecteds = Array(Array(12, 24, 25, 36, 37, 38, 49, 50, 51, 77, 89, 90, 116),
       Array(0, 6, 7, 12, 13, 20, 21, 28))
-
+    val diagonalBlocksToExclude = Array(Array(0, 13, 26, 39, 52, 65, 78, 91, 104, 117, 130, 143), Array(14, 35))
+    
     for (i <- 0 to 1) {
       val bm = makeSquareBlockMatrix(tbl.count().toInt, blockSize = blockSizes(i))
-      val blocks = UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal(tbl.keyBy("contig"), bm, radius = 10)
+      val blocks = UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal(tbl.keyBy("contig"), 
+        bm.gp, radius = 10, includeDiagonal = false)
+      val blocksWithDiagonal = UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal(tbl.keyBy("contig"), 
+        bm.gp, radius=10, includeDiagonal = true)
       assert(blocks sameElements expecteds(i))
+      assert(blocksWithDiagonal.sorted sameElements (expecteds(i)++diagonalBlocksToExclude(i)).sorted)
     }
-  }
-
-  @Test def testEntriesTableFromWindowedBlockMatrix() {
-    val bm = makeSquareBlockMatrix(tbl.count().toInt, blockSize = 1)
-    val entriesTable = UpperIndexBounds.entriesTableFromWindowedBlockMatrix(hc, tbl.keyBy("contig"), bm, window = 10)
-
-    val expectedRows = IndexedSeq[(Int, Int)]((0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (3, 4),
-      (5, 6), (5, 7), (6, 7), (8, 9)).map { case (i, j) => Row(i, j) }
-    val expectedTable = Table.parallelize(hc, expectedRows, TStruct("i" -> TInt32(), "j" -> TInt32()),
-      IndexedSeq[String](), None)
-
-    assert(entriesTable.select(Array("row.i", "row.j")).collect() sameElements expectedTable.collect())
   }
 }
