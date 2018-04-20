@@ -448,7 +448,6 @@ object LDPrune {
 
         it.flatMap { rv =>
           hcView.setRegion(rv)
-          rvb.set(region)
           rvb.start(bpvType)
           rvb.startStruct()
           rvb.addField(fullRowType, rv, locusIndex)

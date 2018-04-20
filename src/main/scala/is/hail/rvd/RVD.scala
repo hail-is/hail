@@ -235,7 +235,7 @@ trait RVD {
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
+    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
   ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
 
   def aggregate[U: ClassTag](
@@ -259,12 +259,13 @@ trait RVD {
           new StreamBlockBufferSpec))
 
     // copy, persist region values
-    val persistedRDD = crdd.mapPartitions { it =>
+    val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
       it.map { rv =>
         using(new ByteArrayOutputStream()) { baos =>
           using(persistCodec.buildEncoder(baos)) { enc =>
             enc.writeRegionValue(localRowType, rv.region, rv.offset)
             enc.flush()
+            ctx.region.clear()
             baos.toByteArray
           }
         }
