@@ -419,42 +419,25 @@ case class MatrixRead(
         } else {
           val entriesRVD = spec.entriesComponent.read(hc, path)
           val entriesRowType = entriesRVD.rowType
-          rowsRVD.zipPartitionsPreservesPartitioning(
-            typ.orvdType,
-            entriesRVD
-          ) { case (it1, it2) =>
-            val rvb = new RegionValueBuilder()
-
-            new Iterator[RegionValue] {
-              def hasNext: Boolean = {
-                val hn = it1.hasNext
-                assert(hn == it2.hasNext)
-                hn
-              }
-
-              def next(): RegionValue = {
-                val rv1 = it1.next()
-                val rv2 = it2.next()
-                val region = rv2.region
-                rvb.set(region)
-                rvb.start(fullRowType)
-                rvb.startStruct()
-                var i = 0
-                while (i < localEntriesIndex) {
-                  rvb.addField(rowType, rv1, i)
-                  i += 1
-                }
-                rvb.addField(entriesRowType, rv2, 0)
-                i += 1
-                while (i < fullRowType.size) {
-                  rvb.addField(rowType, rv1, i - 1)
-                  i += 1
-                }
-                rvb.endStruct()
-                rv2.set(region, rvb.end())
-                rv2
-              }
+          rowsRVD.zip(typ.orvdType, entriesRVD) { (ctx, rv1, rv2) =>
+            val rvb = ctx.rvb
+            val region = ctx.region
+            rvb.start(fullRowType)
+            rvb.startStruct()
+            var i = 0
+            while (i < localEntriesIndex) {
+              rvb.addField(rowType, rv1, i)
+              i += 1
+             }
+            rvb.addField(entriesRowType, rv2, 0)
+            i += 1
+            while (i < fullRowType.size) {
+              rvb.addField(rowType, rv1, i - 1)
+              i += 1
             }
+            rvb.endStruct()
+            rv2.set(region, rvb.end())
+            rv2
           }
         }
       }
