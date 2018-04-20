@@ -955,23 +955,32 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def selectCols(expr: String): MatrixTable = {
     val ec = colEC
-    val (t, f) = Parser.parseExpr(expr, ec)
+    val colsAST = Parser.parseToAST(expr, ec)
 
-    val newColType = coerce[TStruct](t)
-    val namesSet = newColType.fieldNames.toSet
-    val newColKey = colKey.filter(namesSet.contains)
+    colsAST.toIR(Some("AGG")) match {
+      case Some(x) if useIR(this.colAxis, colsAST) =>
+        new MatrixTable(hc, MatrixMapCols(ast, x))
 
-    val newMatrixType = matrixType.copy(colType = newColType, colKey = newColKey)
-    val aggOption = Aggregators.buildColAggregations(hc, value, ec)
+      case _ =>
+        log.warn(s"select_rows found no AST to IR conversion: ${ PrettyAST(colsAST) }")
+        val (t, f) = Parser.parseExpr(expr, ec)
 
-    ec.set(0, globals.value)
-    val newColValues = Array.tabulate(numCols) { i =>
-      ec.set(1, colValues.value(i))
-      aggOption.foreach(_ (i))
-      f()
+        val newColType = coerce[TStruct](t)
+        val namesSet = newColType.fieldNames.toSet
+        val newColKey = colKey.filter(namesSet.contains)
+
+        val newMatrixType = matrixType.copy(colType = newColType, colKey = newColKey)
+        val aggOption = Aggregators.buildColAggregations(hc, value, ec)
+
+        ec.set(0, globals.value)
+        val newColValues = Array.tabulate(numCols) { i =>
+          ec.set(1, colValues.value(i))
+          aggOption.foreach(_ (i))
+          f()
+        }
+        copyMT(matrixType = newMatrixType,
+          colValues = colValues.copy(newColValues, TArray(newColType)))
     }
-    copyMT(matrixType = newMatrixType,
-      colValues = colValues.copy(newColValues, TArray(newColType)))
   }
 
   def selectRows(expr: String): MatrixTable = {
@@ -1075,7 +1084,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     entryAST.toIR() match {
       case Some(ir) if useIR(this.entryAxis, entryAST) =>
-        new MatrixTable(hc, MapEntries(ast, ir))
+        new MatrixTable(hc, MatrixMapEntries(ast, ir))
       case _ =>
         log.warn(s"select_entries found no AST to IR conversion: ${ PrettyAST(entryAST) }")
         val (t, f) = Parser.parseExpr(expr, ec)
