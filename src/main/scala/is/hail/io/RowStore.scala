@@ -535,13 +535,11 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
 
-    if (t.elementType.isInstanceOf[TInt32]) { // fast path
+    if (t.elementType.isInstanceOf[TInt32] && t.elementType.required) { // fast path
       var i = 0
       while (i < length) {
-        if (t.isElementDefined(region, aoff, i)) {
-          val off = elemsOff + i * elemSize
-          region.storeInt(off, in.readInt())
-        }
+        val off = elemsOff + i * elemSize
+        region.storeInt(off, in.readInt())
         i += 1
       }
     } else {
@@ -556,6 +554,7 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
               region.storeAddress(off, aoff)
             case _: TBoolean => region.storeByte(off, in.readBoolean().toByte)
             case _: TInt64 => region.storeLong(off, in.readLong())
+            case _: TInt32 => region.storeInt(off, in.readInt())
             case _: TFloat32 => region.storeFloat(off, in.readFloat())
             case _: TFloat64 => region.storeDouble(off, in.readDouble())
             case _: TBinary => readBinary(region, off)
