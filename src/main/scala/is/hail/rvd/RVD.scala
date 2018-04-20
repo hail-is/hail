@@ -228,11 +228,18 @@ trait RVD {
   def find(p: (RegionValue) => Boolean): Option[RegionValue] =
     stabilize(crdd.filter(p)).run.take(1).headOption
 
-  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = crdd.map(f).run
+  // Only use on CRDD's whose T is not dependnet on the context
+  private[rvd] def clearingRun[T](crdd: ContextRDD[RVDContext, T]): RDD[T] =
+    crdd.cmap { (ctx, v) =>
+      ctx.region.clear()
+      v
+    }.run
 
-  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitionsWithIndex(f).run
+  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.map(f))
 
-  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = crdd.mapPartitions(f).run
+  def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
+
+  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitions(f))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
@@ -252,10 +259,24 @@ trait RVD {
   ): U = crdd.aggregate(zeroValue, seqOp, combOp)
 
   def count(): Long =
-    crdd.mapPartitions(x => Iterator.single(getIteratorSize(x))).run.fold(0L)(_ + _)
+    crdd.cmapPartitions { (ctx, it) =>
+      var count = 0L
+      it.foreach { rv =>
+        count += 1
+        ctx.region.clear()
+      }
+      Iterator.single(count)
+    }.run.fold(0L)(_ + _)
 
   def countPerPartition(): Array[Long] =
-    crdd.mapPartitions(x => Iterator.single(getIteratorSize(x))).run.collect
+    crdd.cmapPartitions { (ctx, it) =>
+      var count = 0L
+      it.foreach { rv =>
+        count += 1
+        ctx.region.clear()
+      }
+      Iterator.single(count)
+    }.collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
@@ -313,6 +334,10 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    crdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }.run
+    crdd.cmap { (ctx, rv) =>
+      val r = SafeRow(localRowType, rv.region, rv.offset)
+      ctx.region.clear()
+      r
+    }.run
   }
 }

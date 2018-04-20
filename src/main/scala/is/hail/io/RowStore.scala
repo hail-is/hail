@@ -759,7 +759,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val entriesRVType = TStruct(
       MatrixType.entriesIdentifier -> TArray(t.entryType))
 
-    val partFilePartitionCounts = crdd.mapPartitionsWithIndex { case (i, it) =>
+    val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
 
       val f = partFile(d, i, TaskContext.get)
@@ -802,6 +802,8 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
               rowsEN.writeByte(0) // end
               entriesEN.writeByte(0)
+
+              ctx.region.clear()
 
               Iterator.single(f -> rowCount)
             }

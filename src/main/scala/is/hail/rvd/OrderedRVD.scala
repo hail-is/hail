@@ -213,7 +213,7 @@ class OrderedRVD(
         shuffled)
     } else {
 
-      val partSize = crdd.partitionSizes
+      val partSize = countPerPartition()
       log.info(s"partSize = ${ partSize.toSeq }")
 
       val partCumulativeSize = mapAccumulate[Array, Long](partSize, 0L)((s, acc) => (s + acc, s + acc))
@@ -539,11 +539,13 @@ object OrderedRVD {
 
     val localType = typ
 
-    val pkis = keys.mapPartitionsWithIndex { (i, it) =>
-      if (it.hasNext)
+    val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
+      val out = if (it.hasNext)
         Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else
         Iterator()
+      ctx.region.clear()
+      out
     }.collect()
 
     pkis.sortBy(_.min)(typ.pkType.ordering.toOrdering)

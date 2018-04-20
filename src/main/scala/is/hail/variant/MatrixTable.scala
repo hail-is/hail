@@ -1904,6 +1904,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           }
           i += 1
         }
+        ctx.region.clear()
         partSame
       }.run.forall(t => t)
   }

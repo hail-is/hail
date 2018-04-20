@@ -37,7 +37,9 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       val f = partFile(d, i, TaskContext.get)
       val filename = path + "/parts/" + f
       val os = sHadoopConfBc.value.value.unsafeWriter(filename)
-      Iterator.single(f -> write(ctx, it, os))
+      val out = Iterator.single(f -> write(ctx, it, os))
+      ctx.region.clear()
+      out
     }
       .collect()
       .unzip

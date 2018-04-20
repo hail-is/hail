@@ -401,11 +401,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     }, preservesPartitioning = true)
   }
 
-  def partitionSizes: Array[Long] =
-    // safe because we don't actually touch the offsets, we just count how many
-    // there are
-    sparkContext.runJob(run, getIteratorSize _)
-
   def sparkContext: SparkContext = rdd.sparkContext
 
   def getNumPartitions: Int = rdd.getNumPartitions
