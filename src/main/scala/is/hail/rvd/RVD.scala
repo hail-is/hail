@@ -136,6 +136,13 @@ object RVD {
     new UnpartitionedRVD(first.rowType,
       ContextRDD.union(sc, rvds.map(_.crdd)))
   }
+
+  private[rvd] val memoryCodec =
+    new PackCodecSpec(
+      new BlockingBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec))
+
+  private[rvd] val wireCodec = memoryCodec
 }
 
 trait RVD {
@@ -253,16 +260,11 @@ trait RVD {
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
 
-    val persistCodec =
-      new PackCodecSpec(
-        new BlockingBufferSpec(32 * 1024,
-          new StreamBlockBufferSpec))
-
     // copy, persist region values
     val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
       it.map { rv =>
         using(new ByteArrayOutputStream()) { baos =>
-          using(persistCodec.buildEncoder(baos)) { enc =>
+          using(RVD.memoryCodec.buildEncoder(baos)) { enc =>
             enc.writeRegionValue(localRowType, rv.region, rv.offset)
             enc.flush()
             ctx.region.clear()
@@ -277,12 +279,12 @@ trait RVD {
       ContextRDD.weaken[RVDContext](persistedRDD)
         .cmapPartitions { (ctx, it) =>
           val region = ctx.region
-          val rv2 = RegionValue(region)
+          val rv = RegionValue(region)
           it.map { bytes =>
             using(new ByteArrayInputStream(bytes)) { bais =>
-              using(persistCodec.buildDecoder(bais)) { dec =>
-                rv2.setOffset(dec.readRegionValue(localRowType, region))
-                rv2
+              using(RVD.memoryCodec.buildDecoder(bais)) { dec =>
+                rv.setOffset(dec.readRegionValue(localRowType, region))
+                rv
               }
             }
           }

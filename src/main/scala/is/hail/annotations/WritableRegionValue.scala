@@ -60,6 +60,7 @@ class RegionValueArrayBuffer(val t: Type, region: Region)
 
   val value = RegionValue(region, 0)
 
+  private val rvb = new RegionValueBuilder(region)
   val idx = ArrayBuffer.empty[Long]
 
   def length = idx.length
@@ -69,14 +70,36 @@ class RegionValueArrayBuffer(val t: Type, region: Region)
   }
 
   def append(fromRegion: Region, fromOffset: Long): this.type = {
-    assert(fromRegion == region)
-    idx += fromOffset
+    rvb.start(t)
+    rvb.addRegionValue(t, fromRegion, fromOffset)
+    idx += rvb.end()
+    this
+  }
+
+  def appendSelect(
+    fromT: TStruct,
+    fromFieldIdx: Array[Int],
+    fromRV: RegionValue): this.type = {
+
+    (t: @unchecked) match {
+      case t: TStruct =>
+        rvb.start(t)
+        rvb.startStruct()
+        var i = 0
+        while (i < t.size) {
+          rvb.addField(fromT, fromRV, fromFieldIdx(i))
+          i += 1
+        }
+        rvb.endStruct()
+        idx += rvb.end()
+    }
     this
   }
 
   def clear() {
     region.clear()
     idx.clear()
+    rvb.clear()
   }
 
   private var itIdx = 0

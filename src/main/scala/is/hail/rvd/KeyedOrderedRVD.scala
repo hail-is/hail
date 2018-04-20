@@ -45,17 +45,17 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "outer" => _.outerJoin(_, _)
       }
 
-    repartitionedLeft.zipPartitionsAndContext(
+    repartitionedLeft.boundary.zipPartitions(
       joinedType,
       newPartitioner,
-      repartitionedRight,
+      repartitionedRight.boundary,
       preservesPartitioning = true
-    ) { (ctx, leftProducer, rightProducer) =>
-      val rightContext = ctx.freshContext
+    ) { (ctx, leftIt, rightIt) =>
+      val sideBuffer = ctx.freshContext.region
       joiner(compute(
-        OrderedRVIterator(lTyp, leftProducer(ctx)),
-        OrderedRVIterator(rTyp, rightProducer(rightContext)),
-        new RegionValueArrayBuffer(rTyp.rowType, rightContext.region)
+        OrderedRVIterator(lTyp, leftIt),
+        OrderedRVIterator(rTyp, rightIt),
+        new RegionValueArrayBuffer(rTyp.rowType, sideBuffer)
       ))
     }
   }

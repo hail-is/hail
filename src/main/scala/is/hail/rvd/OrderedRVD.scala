@@ -1,5 +1,6 @@
 package is.hail.rvd
 
+import java.io.ByteArrayInputStream
 import java.util
 
 import is.hail.annotations._
@@ -8,6 +9,7 @@ import is.hail.expr.types._
 import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
+import org.apache.commons.io.output.ByteArrayOutputStream
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.SparkContext
@@ -781,19 +783,31 @@ object OrderedRVD {
     val partBc = partitioner.broadcast(crdd.sparkContext)
     OrderedRVD(typ,
       partitioner,
-      crdd.mapPartitions { it =>
-          val wrv = WritableRegionValue(typ.rowType)
+      crdd.cmapPartitions { (ctx, it) =>
+        it.map { rv =>
           val wkrv = WritableRegionValue(typ.kType)
-          it.map { rv =>
-            wrv.set(rv)
-            wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-            (wkrv.value, wrv.value)
+          using(new ByteArrayOutputStream()) { baos =>
+            using(RVD.wireCodec.buildEncoder(baos)) { enc =>
+              enc.writeRegionValue(localType.rowType, rv.region, rv.offset)
+              enc.flush()
+              wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+              ctx.region.clear()
+              (wkrv.value, baos.toByteArray)
+            }
           }
+        }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
-        .mapPartitionsWithIndex { case (i, it) =>
-          it.map { case (k, v) =>
+        .cmapPartitionsWithIndex { case (i, ctx, it) =>
+          val region = ctx.region
+          val rv = RegionValue(region)
+          it.map { case (k, bytes) =>
             assert(partBc.value.getPartition(k) == i)
-            v
+            using(new ByteArrayInputStream(bytes)) { bais =>
+              using(RVD.memoryCodec.buildDecoder(bais)) { dec =>
+                rv.setOffset(dec.readRegionValue(localType.rowType, region))
+                rv
+              }
+            }
           }
       })
   }

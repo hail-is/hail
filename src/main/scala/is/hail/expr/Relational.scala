@@ -966,14 +966,15 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
       newRow)
     assert(rTyp == typ.globalType)
 
-    val globalRegion = Region()
-    val globalOff = prev.globals.toRegion(globalRegion)
-    val valueOff = value.toRegion(globalRegion)
-    val newOff = f()(globalRegion, globalOff, false, valueOff, false)
+    val newGlobals = Region.scoped { globalRegion =>
+      val globalOff = prev.globals.toRegion(globalRegion)
+      val valueOff = value.toRegion(globalRegion)
+      val newOff = f()(globalRegion, globalOff, false, valueOff, false)
 
-    val newGlobals = prev.globals.copy(
-      value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
-      t = rTyp.asInstanceOf[TStruct])
+      prev.globals.copy(
+        value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
+        t = rTyp.asInstanceOf[TStruct])
+    }
 
     prev.copy(typ = typ, globals = newGlobals)
   }
