@@ -524,6 +524,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (t, selectF)
   }
 
+  def typeAfterSelect(keep: Array[Int]): TStruct =
+    TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
+
   override val fundamentalType: TStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
     if ((fields, fundamentalFieldTypes).zipped
