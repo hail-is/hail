@@ -1100,7 +1100,7 @@ class Table(ExprContainer):
     def index(self, *exprs):
         exprs = tuple(exprs)
         if not len(exprs) > 0:
-            raise ValueError('Require at least one expression to index a table')
+            raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
         if non_exprs:
             raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
@@ -1225,17 +1225,35 @@ class Table(ExprContainer):
                                           new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
 
             elif indices == src._col_indices:
+                all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
-                        exprs[i] is src[list(src.col_key)[i]] for i in range(len(exprs))]):
-                    # no vds_key (faster)
-                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
-                        right._jt, None, uid, False))
+                        exprs[i] is src.col_key[i] for i in range(len(exprs))]):
+                    # key is already correct
+                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
                 else:
-                    # use vds_key
-                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
-                        right._jt, [e._ast.to_hql() for e in exprs], uid, False))
+                    index_uid = Env.get_uid()
+                    uids = [Env.get_uid() for _ in exprs]
+
+                    all_uids.append(index_uid)
+                    all_uids.extend(uids)
+                    def joiner(left: MatrixTable):
+                        prev_key = list(src.col_key)
+                        joined = (src
+                                  .annotate_cols(**dict(zip(uids, exprs)))
+                                  .add_col_index(index_uid)
+                                  .key_cols_by(*uids)
+                                  .cols()
+                                  .select(*uids, index_uid)
+                                  .distinct()
+                                  .join(self, 'inner')
+                                  .key_by(index_uid)
+                                  .drop(*uids))
+                        return MatrixTable(left.add_col_index(index_uid)
+                                           .key_cols_by(index_uid)
+                                           ._jvds
+                                           .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                 return construct_expr(Select(TopLevelReference('sa', src._col_indices), uid), new_schema,
-                                      indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
+                                      indices, aggregations, joins.push(Join(joiner, all_uids, uid, exprs)))
             else:
                 raise NotImplementedError()
         else:
