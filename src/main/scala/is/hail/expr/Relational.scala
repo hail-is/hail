@@ -601,7 +601,6 @@ case class FilterColsIR(
         val rvb = new RegionValueBuilder(colRegion)
         rvb.start(typ.globalType)
         rvb.addAnnotation(typ.globalType, localGlobals.value)
-        val globalRVend = rvb.currentOffset()
         val globalRVoffset = rvb.end()
 
         val colRVb = new RegionValueBuilder(colRegion)
