@@ -384,6 +384,16 @@ class OrderedRVD(
       partitioner,
       this.rdd.zipPartitions(that.rdd, preservesPartitioning = true)(zipper))
 
+  def zip(
+    newTyp: OrderedRVDType,
+    that: RVD
+  )(zipper: (RVDContext, RegionValue, RegionValue) => RegionValue
+  ): OrderedRVD =
+    OrderedRVD(
+      newTyp,
+      partitioner,
+      this.crdd.czip(that.crdd, preservesPartitioning = true)(zipper))
+
   def writeRowsSplit(
     path: String,
     t: MatrixType,
