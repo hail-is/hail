@@ -9,7 +9,6 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
-import is.hail.methods.UpperIndexBounds
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -818,16 +817,15 @@ class BlockMatrixSuite extends SparkSuite {
     val tbl = Table.parallelize(hc, rows, TStruct("contig" -> TString(), "pos" -> TInt32()), IndexedSeq[String](), None)
     
     val nRows = tbl.count().toInt
-    val lm = new BDM[Double](nRows, nRows, Array.fill[Double](nRows * nRows)(0))
-    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize=1)
+    val bm = BlockMatrix.fromBreezeMatrix(sc, BDM.zeros(nRows, nRows), blockSize = 1)
     
     val entriesTable = bm.filteredEntriesTable(tbl.keyBy("contig"), radius = 10, includeDiagonal = false)
 
-    val expectedRows = IndexedSeq[(Int, Int)]((0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (3, 4),
+    val expectedRows = IndexedSeq[(Long, Long)]((0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (3, 4),
       (5, 6), (5, 7), (6, 7), (8, 9)).map { case (i, j) => Row(i, j) }
-    val expectedTable = Table.parallelize(hc, expectedRows, TStruct("i" -> TInt32(), "j" -> TInt32()),
+    val expectedTable = Table.parallelize(hc, expectedRows, TStruct("i" -> TInt64(), "j" -> TInt64()),
       IndexedSeq[String](), None)
 
-    assert(entriesTable.select("{i: row.i, j: row.j}").collect() sameElements expectedTable.collect())
+    assert(entriesTable.select("{i: row.i, j: row.j}").same(expectedTable))
   }
 }

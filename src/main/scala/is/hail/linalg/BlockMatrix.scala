@@ -10,7 +10,7 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
-import is.hail.methods.UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal
+import is.hail.methods.UpperIndexBounds
 import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -650,7 +650,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   /* returns the entry table of the block matrix, filtered to pairs (i, j) such that i <= j, key[i] == key[j], 
   and position[j] - position[i] <= radius. If includeDiagonal=false, require i < j rather than i <= j.*/
   def filteredEntriesTable(positions: Table, radius: Int, includeDiagonal: Boolean): Table = {
-    val blocksToKeep = computeBlocksWithinRadiusAndAboveDiagonal(positions, this.gp, radius, includeDiagonal)
+    val blocksToKeep = UpperIndexBounds.computeCoverByUpperTriangularBlocks(positions, this.gp, radius, includeDiagonal)
     this.entriesTable(positions.hc, Some(blocksToKeep))
   }
 }

@@ -10,11 +10,6 @@ import org.testng.annotations.Test
 
 class UpperIndexBoundsSuite extends SparkSuite {
 
-  def makeSquareBlockMatrix(nRows: Int, blockSize: Int): BlockMatrix = {
-    val arbitraryEntries = new BDM[Double](nRows, nRows, Array.fill[Double](nRows * nRows)(0))
-    BlockMatrix.fromBreezeMatrix(sc, arbitraryEntries, blockSize)
-  }
-
   val tbl = {
     val rows = IndexedSeq[(String, Int)](("X", 5), ("X", 7), ("X", 13), ("X", 14), ("X", 17),
       ("X", 65), ("X", 70), ("X", 73), ("Y", 74), ("Y", 75), ("Y", 200), ("Y", 300))
@@ -50,16 +45,18 @@ class UpperIndexBoundsSuite extends SparkSuite {
     val blockSizes = Array(1, 2)
     val expecteds = Array(Array(12, 24, 25, 36, 37, 38, 49, 50, 51, 77, 89, 90, 116),
       Array(0, 6, 7, 12, 13, 20, 21, 28))
-    val diagonalBlocksToExclude = Array(Array(0, 13, 26, 39, 52, 65, 78, 91, 104, 117, 130, 143), Array(14, 35))
+    val blocksWithOnlyDiagonalEntriesWithinRadius = Array(Array(0, 13, 26, 39, 52, 65, 78, 91, 104, 117, 130, 143), 
+      Array(14, 35))
     
     for (i <- 0 to 1) {
-      val bm = makeSquareBlockMatrix(tbl.count().toInt, blockSize = blockSizes(i))
-      val blocks = UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal(tbl.keyBy("contig"), 
+      val nRows = tbl.count().toInt
+      val bm = BlockMatrix.fromBreezeMatrix(sc, BDM.zeros(nRows, nRows), blockSize = blockSizes(i))
+      val blocks = UpperIndexBounds.computeCoverByUpperTriangularBlocks(tbl.keyBy("contig"), 
         bm.gp, radius = 10, includeDiagonal = false)
-      val blocksWithDiagonal = UpperIndexBounds.computeBlocksWithinRadiusAndAboveDiagonal(tbl.keyBy("contig"), 
+      val blocksWithDiagonal = UpperIndexBounds.computeCoverByUpperTriangularBlocks(tbl.keyBy("contig"), 
         bm.gp, radius=10, includeDiagonal = true)
       assert(blocks sameElements expecteds(i))
-      assert(blocksWithDiagonal.sorted sameElements (expecteds(i)++diagonalBlocksToExclude(i)).sorted)
+      assert(blocksWithDiagonal.sorted sameElements (expecteds(i)++blocksWithOnlyDiagonalEntriesWithinRadius(i)).sorted)
     }
   }
 }

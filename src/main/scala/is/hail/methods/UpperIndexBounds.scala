@@ -51,13 +51,11 @@ object UpperIndexBounds {
     }
   }
 
-  /* computes the minimum set of blocks necessary to cover all pairs of indices (i, j) such that i <= j and 
-  position[j] - position[i] <= radius and i <= j.  If includeDiagonal=false, require i < j rather than i <= j. */
-  def computeBlocksWithinRadiusAndAboveDiagonal(tbl: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
+  /* computes the minimum set of blocks necessary to cover all pairs of indices (i, j) such that key[i] == key[j], 
+  i <= j, and position[j] - position[i] <= radius.  If includeDiagonal=false, require i < j rather than i <= j. */
+  def computeCoverByUpperTriangularBlocks(tbl: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
 
-    val groupedPositions = groupPositionsByKey(tbl)
-
-    val relativeUpperIndexBounds = groupedPositions.map(positions => {
+    val relativeUpperIndexBounds = groupPositionsByKey(tbl).map(positions => {
       scala.util.Sorting.quickSort(positions)
       computeUpperIndexBounds(positions, radius)
     })
