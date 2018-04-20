@@ -11,7 +11,9 @@ import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
+import is.hail.rvd.RVDContext
 import is.hail.table.Table
+import is.hail.sparkextras.ContextRDD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
@@ -198,9 +200,15 @@ object HailContext {
     ProgressBarBuilder.build(sc)
   }
 
-  def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream, metrics: InputMetrics = null): Iterator[RegionValue] = {
+  def readRowsPartition(
+    t: TStruct,
+    codecSpec: CodecSpec
+  )(ctx: RVDContext,
+    in: InputStream,
+    metrics: InputMetrics = null
+  ): Iterator[RegionValue] =
     new Iterator[RegionValue] {
-      private val region = Region()
+      private val region = ctx.region
       private val rv = RegionValue(region)
 
       private val trackedIn = new ByteTrackingInputStream(in)
@@ -226,7 +234,6 @@ object HailContext {
           throw new NoSuchElementException("next on empty iterator")
 
         try {
-          region.clear()
           rv.setOffset(dec.readRegionValue(t, region))
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
@@ -249,7 +256,6 @@ object HailContext {
         dec.close()
       }
     }
-  }
 }
 
 class HailContext private(val sc: SparkContext,
@@ -512,8 +518,19 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def readRows(path: String, t: TStruct, codecSpec: CodecSpec, partFiles: Array[String]): RDD[RegionValue] =
-    readPartitions(path, partFiles, HailContext.readRowsPartition(t, codecSpec))
+  def readRows(
+    path: String,
+    t: TStruct,
+    codecSpec: CodecSpec,
+    partFiles: Array[String]
+  ): ContextRDD[RVDContext, RegionValue] =
+    ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
+      .cmapPartitions { (ctx, it) =>
+        assert(it.hasNext)
+        val (is, m) = it.next
+        assert(!it.hasNext)
+        HailContext.readRowsPartition(t, codecSpec)(ctx, is, m)
+      }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)
@@ -641,30 +658,30 @@ class HailContext private(val sc: SparkContext,
     val ast = Parser.parseToAST(expr, ec)
     ast.toIR() match {
       case Some(body) =>
-        val region = Region()
-        val t = ast.`type`
-        t match {
-          case _: TBoolean =>
-            val (_, f) = ir.Compile[Boolean](body)
-            (f()(region), t)
-          case _: TInt32 =>
-            val (_, f) = ir.Compile[Int](body)
-            (f()(region), t)
-          case _: TInt64 =>
-            val (_, f) = ir.Compile[Long](body)
-            (f()(region), t)
-          case _: TFloat32 =>
-            val (_, f) = ir.Compile[Float](body)
-            (f()(region), t)
-          case _: TFloat64 =>
-            val (_, f) = ir.Compile[Double](body)
-            (f()(region), t)
-          case _ =>
-            val (_, f) = ir.Compile[Long](body)
-            val off = f()(region)
-            val v2 = UnsafeRow.read(t, region, off)
-            val v3 = Annotation.copy(t, v2)
-            (v3, t)
+        Region.scoped { region =>
+          val t = ast.`type`
+          t match {
+            case _: TBoolean =>
+              val (_, f) = ir.Compile[Boolean](body)
+              (f()(region), t)
+            case _: TInt32 =>
+              val (_, f) = ir.Compile[Int](body)
+              (f()(region), t)
+            case _: TInt64 =>
+              val (_, f) = ir.Compile[Long](body)
+              (f()(region), t)
+            case _: TFloat32 =>
+              val (_, f) = ir.Compile[Float](body)
+              (f()(region), t)
+            case _: TFloat64 =>
+              val (_, f) = ir.Compile[Double](body)
+              (f()(region), t)
+            case _ =>
+              val (_, f) = ir.Compile[Long](body)
+              val off = f()(region)
+              val v2 = SafeRow.read(t, region, off)
+              (v2, t)
+          }
         }
       case None =>
         val (t, f) = Parser.eval(ast, ec)

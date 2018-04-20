@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.io.compress.LZ4Utils
-import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
+import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDContext, RVDSpec, UnpartitionedRVDSpec}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -712,13 +712,14 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
 }
 
 object RichContextRDDRegionValue {
-  def writeRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
+  def writeRowsPartition(t: TStruct, codecSpec: CodecSpec)(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream): Long = {
     val en = codecSpec.buildEncoder(os)
     var rowCount = 0L
 
     it.foreach { rv =>
       en.writeByte(1)
       en.writeRegionValue(t, rv.region, rv.offset)
+      ctx.region.clear()
       rowCount += 1
     }
 
@@ -730,7 +731,7 @@ object RichContextRDDRegionValue {
   }
 }
 
-class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
+class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
     crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(t, codecSpec))
   }
