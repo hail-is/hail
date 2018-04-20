@@ -6,7 +6,8 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, RegionValueVariant}
 import org.apache.spark.sql.Row
@@ -327,8 +328,8 @@ object Nirvana {
     val nirvanaRVD: OrderedRVD = OrderedRVD(
       nirvanaORVDType,
       vds.rvd.partitioner,
-      annotations.mapPartitions { it =>
-        val region = Region()
+      ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
+        val region = ctx.region
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 

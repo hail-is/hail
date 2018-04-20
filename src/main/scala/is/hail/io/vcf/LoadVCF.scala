@@ -866,7 +866,13 @@ object LoadVCF {
     val rowType = matrixType.rvRowType
 
     // nothing after the key
-    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, rg, contigRecoding)
+    val justVariants = parseLines(
+      () => ()
+    )((c, l, rvb) => ()
+    )(ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions),
+      kType,
+      rg,
+      contigRecoding)
 
     val rdd = OrderedRVD.coerce(
       matrixType.orvdType,

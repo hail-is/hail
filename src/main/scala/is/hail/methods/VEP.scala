@@ -6,7 +6,8 @@ import java.util.Properties
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, VariantMethods}
 import org.apache.spark.sql.Row
@@ -336,9 +337,9 @@ object VEP {
     val vepRVD: OrderedRVD = OrderedRVD(
       vepORVDType,
       vsm.rvd.partitioner,
-      annotations.mapPartitions { it =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
+      ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
+        val region = ctx.region
+        val rvb = ctx.rvb
         val rv = RegionValue(region)
 
         it.map { case (v, vep) =>
@@ -351,7 +352,8 @@ object VEP {
           rv.setOffset(rvb.end())
 
           rv
-      }})
+        }
+      })
 
     info(s"vep: annotated ${ annotations.count() } variants")
 

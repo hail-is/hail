@@ -20,6 +20,32 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def this(rowType: TStruct, rdd: RDD[RegionValue]) =
     this(rowType, ContextRDD.weaken[RVDContext](rdd))
 
+  def boundary = new UnpartitionedRVD(
+    rowType,
+    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
+      val producerCtx = consumerCtx.freshContext
+      val it = part.flatMap(_ (producerCtx))
+      new Iterator[RegionValue]() {
+        private[this] var cleared: Boolean = false
+
+        def hasNext = {
+          if (!cleared) {
+            cleared = true
+            producerCtx.region.clear()
+          }
+          it.hasNext
+        }
+
+        def next = {
+          if (!cleared) {
+            producerCtx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
+    })
+
   def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, crdd.filter(f))
 
   def persist(level: StorageLevel): UnpartitionedRVD = {
@@ -50,7 +76,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     UnpartitionedRVDSpec(rowType, codecSpec, partFiles)
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.coalesce(maxPartitions, shuffle = shuffle))
+    new UnpartitionedRVD(rowType, stably(_.coalesce(maxPartitions, shuffle = shuffle)))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,

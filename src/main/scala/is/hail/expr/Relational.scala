@@ -2,12 +2,14 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.annotations.Annotation._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.methods.Aggregators
 import is.hail.rvd._
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
@@ -428,7 +430,7 @@ case class MatrixRead(
             while (i < localEntriesIndex) {
               rvb.addField(rowType, rv1, i)
               i += 1
-             }
+            }
             rvb.addField(entriesRowType, rv2, 0)
             i += 1
             while (i < fullRowType.size) {
@@ -487,16 +489,15 @@ case class MatrixRange(nRows: Int, nCols: Int, nPartitions: Int) extends MatrixI
             val start = partStarts(i)
             Interval(Row(start), Row(start + localPartCounts(i)), includesStart = true, includesEnd = false)
           }),
-        hc.sc.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
-          .mapPartitionsWithIndex { case (i, _) =>
-            val region = Region()
-            val rvb = new RegionValueBuilder(region)
+        ContextRDD.parallelize[RVDContext](hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
+          .cmapPartitionsWithIndex { (i, ctx, _) =>
+            val region = ctx.region
+            val rvb = ctx.rvb
             val rv = RegionValue(region)
 
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
-                region.clear()
                 rvb.start(localRVType)
                 rvb.startStruct()
 
@@ -1122,8 +1123,8 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
 
   def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
-    val rvd = hc.sc.parallelize(rows, nPartitions.getOrElse(hc.sc.defaultParallelism))
-      .mapPartitions(_.toRegionValueIterator(rowTyp))
+    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
+      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
   }
 }
@@ -1142,20 +1143,18 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
     val nField = rowTyp.fields.length
     val rowFields = rowTyp.fields
 
-    val rvd = hc.sc.textFilesLines(paths, readerOpts.nPartitions)
+    val rvd = ContextRDD.textFilesLines[RVDContext](hc.sc, paths, readerOpts.nPartitions)
       .filter { line =>
         !readerOpts.isComment(line.value) &&
           (readerOpts.noHeader || readerOpts.header != line.value) &&
           !(readerOpts.skipBlankLines && line.value.isEmpty)
-      }.mapPartitions { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
+      }.cmapPartitions { (ctx, it) =>
+      val region = ctx.region
+      val rvb = ctx.rvb
       val rv = RegionValue(region)
 
       it.map {
         _.map { line =>
-          region.clear()
-
           val split = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
@@ -1215,16 +1214,15 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TableValue(typ,
       BroadcastRow(Row(), typ.globalType, hc.sc),
       new UnpartitionedRVD(typ.rowType,
-        hc.sc.parallelize(Range(0, nPartitions), nPartitions)
-          .mapPartitionsWithIndex { case (i, _) =>
-            val region = Region()
-            val rvb = new RegionValueBuilder(region)
+        ContextRDD.parallelize(hc.sc, Range(0, nPartitions), nPartitions)
+          .cmapPartitionsWithIndex { case (i, ctx, _) =>
+            val region = ctx.region
+            val rvb = ctx.rvb
             val rv = RegionValue(region)
 
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
-                region.clear()
                 rvb.start(localRowType)
                 rvb.startStruct()
                 rvb.addInt(j)
@@ -1475,26 +1473,26 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
     assert(resultType == typ.rowType)
 
     TableValue(typ, prev.globals,
-      prev.rvd.mapPartitions(typ.rowType) { it =>
+      prev.rvd.boundary.mapPartitions(typ.rowType, { (ctx, it) =>
         val rv2 = RegionValue()
-
         it.flatMap { rv =>
           val isMissing = isMissingF()(rv.region, rv.offset, false)
           if (isMissing)
             Iterator.empty
           else {
-            val end = rv.region.size
             val n = lengthF()(rv.region, rv.offset, false)
             Iterator.range(0, n)
               .map { i =>
-                rv.region.clear(end)
-                val off = explodeF()(rv.region, rv.offset, false, i, false)
-                rv2.set(rv.region, off)
-                rv2
-              }
+              ctx.rvb.start(childRowType)
+              ctx.rvb.addRegionValue(childRowType, rv)
+              val incomingRow = ctx.rvb.end()
+              val off = explodeF()(ctx.region, incomingRow, false, i, false)
+              rv2.set(ctx.region, off)
+              rv2
+            }
           }
         }
-      })
+      }))
   }
 }
 

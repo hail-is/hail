@@ -3,6 +3,8 @@ package is.hail.annotations
 import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
 
+import scala.collection.generic.Growable
+
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
   def restrictToPKInterval(interval: Interval): Iterator[RegionValue] = {
@@ -56,50 +58,62 @@ case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue])
       this.t.kComp(other.t).compare
     )
 
-  def innerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+  def innerJoin(
+    other: OrderedRVIterator,
+    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
+  ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.innerJoin(
       other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
       null,
-      new RegionValueArrayBuffer(other.t.rowType),
+      rightBuffer,
       this.t.kComp(other.t).compare
     )
   }
 
-  def leftJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+  def leftJoin(
+    other: OrderedRVIterator,
+    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
+  ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.leftJoin(
       other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
       null,
-      new RegionValueArrayBuffer(other.t.rowType),
+      rightBuffer,
       this.t.kComp(other.t).compare
     )
   }
 
-  def rightJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+  def rightJoin(
+    other: OrderedRVIterator,
+    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
+  ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.rightJoin(
       other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
       null,
-      new RegionValueArrayBuffer(other.t.rowType),
+      rightBuffer,
       this.t.kComp(other.t).compare
     )
   }
 
-  def outerJoin(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+  def outerJoin(
+    other: OrderedRVIterator,
+    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
+  ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.outerJoin(
       other.iterator.toFlipbookIterator,
       this.t.kRowOrdView,
       other.t.kRowOrdView,
       null,
       null,
-      new RegionValueArrayBuffer(other.t.rowType),
+      rightBuffer,
       this.t.kComp(other.t).compare
     )
   }

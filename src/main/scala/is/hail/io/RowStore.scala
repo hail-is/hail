@@ -5,7 +5,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.io.compress.LZ4Utils
 import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDContext, RVDSpec, UnpartitionedRVDSpec}
-import is.hail.sparkextras.ContextRDD
+import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.json4s.{Extraction, JValue}

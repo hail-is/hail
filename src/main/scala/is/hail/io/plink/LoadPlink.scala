@@ -4,7 +4,8 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.{Locus, _}
@@ -123,8 +124,13 @@ object LoadPlink {
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
     sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
 
-    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
-      nPartitions.getOrElse(sc.defaultMinPartitions))
+    val crdd = ContextRDD.weaken[RVDContext](
+      sc.hadoopFile(
+        bedPath,
+        classOf[PlinkInputFormat],
+        classOf[LongWritable],
+        classOf[PlinkRecord],
+        nPartitions.getOrElse(sc.defaultMinPartitions)))
 
     val matrixType = MatrixType.fromParts(
       globalType = TStruct.empty(),
@@ -138,15 +144,14 @@ object LoadPlink {
     val kType = matrixType.orvdType.kType
     val rvRowType = matrixType.rvRowType
 
-    val fastKeys = rdd.mapPartitions { it =>
-      val region = Region()
+    val fastKeys = crdd.cmapPartitions { (ctx, it) =>
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
       it.map { case (_, record) =>
         val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        region.clear()
         rvb.start(kType)
         rvb.startStruct()
         rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
@@ -161,15 +166,14 @@ object LoadPlink {
       }
     }
 
-    val rdd2 = rdd.mapPartitions { it =>
-      val region = Region()
+    val rdd2 = crdd.cmapPartitions { (ctx, it) =>
+      val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
       it.map { case (_, record) =>
         val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        region.clear()
         rvb.start(rvRowType)
         rvb.startStruct()
         rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
