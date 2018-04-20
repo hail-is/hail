@@ -535,7 +535,7 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
 
-    if (t.elementType.isInstanceOf[TInt32] && t.elementType.required) { // fast path
+    if (t.elementType == TInt32Required) { // fast path
       var i = 0
       while (i < length) {
         val off = elemsOff + i * elemSize
