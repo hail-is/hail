@@ -29,30 +29,7 @@ class OrderedRVD(
     rdd: RDD[RegionValue]
   ) = this(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
 
-  def boundary: OrderedRVD = OrderedRVD(
-    typ,
-    partitioner,
-    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
-      val producerCtx = consumerCtx.freshContext
-      val it = part.flatMap(_ (producerCtx))
-      new Iterator[RegionValue]() {
-        private[this] var cleared: Boolean = false
-        def hasNext = {
-          if (!cleared) {
-            cleared = true
-            producerCtx.region.clear()
-          }
-          it.hasNext
-        }
-        def next = {
-          if (!cleared) {
-            producerCtx.region.clear()
-          }
-          cleared = false
-          it.next
-        }
-      }
-    })
+  def boundary: OrderedRVD = OrderedRVD(typ, partitioner, crddBoundary)
 
   def rowType: TStruct = typ.rowType
 

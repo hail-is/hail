@@ -166,6 +166,31 @@ trait RVD {
     f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
   ): ContextRDD[RVDContext, RegionValue] = f(stabilize(unstable))
 
+  private[rvd] def crddBoundary: ContextRDD[RVDContext, RegionValue] =
+    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
+      val producerCtx = consumerCtx.freshContext
+      val it = part.flatMap(_ (producerCtx))
+      new Iterator[RegionValue]() {
+        private[this] var cleared: Boolean = false
+
+        def hasNext = {
+          if (!cleared) {
+            cleared = true
+            producerCtx.region.clear()
+          }
+          it.hasNext
+        }
+
+        def next = {
+          if (!cleared) {
+            producerCtx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
+    }
+
   // SOMEWHAT UNSAFE: the values produced will not be in the consumer's region,
   // you must be careful to copy the value into the appropriate region
   def boundary: RVD
