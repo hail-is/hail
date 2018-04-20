@@ -43,9 +43,12 @@ object RVDSpec {
     val hConf = hc.hadoopConf
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
-      val in = hConf.unsafeReader(f)
-      HailContext.readRowsPartition(rowType, codecSpec)(0, in)
-        .map(rv => SafeRow(rowType, rv.region, rv.offset))
+      using(hConf.unsafeReader(f)) { in =>
+        using(RVDContext.default) { ctx =>
+          HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
+            .map(rv => SafeRow(rowType, rv.region, rv.offset))
+        }
+      }
     }.toFastIndexedSeq
   }
 }
@@ -102,19 +105,19 @@ object RVD {
     val hConf = hc.hadoopConf
     hConf.mkDir(path + "/parts")
 
-    val os = hConf.unsafeWriter(path + "/parts/part-0")
-    val part0Count = Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-      RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
-        rows.iterator.map { a =>
-          region.clear()
-          rvb.start(rowType)
-          rvb.addAnnotation(rowType, a)
-          rv.setOffset(rvb.end())
-          rv
-        }, os)
-    }
+    val part0Count =
+      using(hConf.unsafeWriter(path + "/parts/part-0")) { os =>
+        using(RVDContext.default) { ctx =>
+          val rvb = ctx.rvb
+          val region = ctx.region
+          RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(ctx,
+            rows.iterator.map { a =>
+              rvb.start(rowType)
+              rvb.addAnnotation(rowType, a)
+              RegionValue(region, rvb.end())
+            }, os)
+        }
+      }
 
     val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
     spec.write(hConf, path)
@@ -137,7 +140,7 @@ trait RVD {
 
   def crdd: ContextRDD[RVDContext, RegionValue]
 
-  def rdd: RDD[RegionValue]
+  def rdd: RDD[RegionValue] = crdd.run
 
   def sparkContext: SparkContext = crdd.sparkContext
 

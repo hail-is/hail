@@ -246,7 +246,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
-    def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
+    def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
       assert(it.hasNext)
       val bdm = it.next()._2
       assert(!it.hasNext)

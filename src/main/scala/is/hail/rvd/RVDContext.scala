@@ -28,10 +28,6 @@ class RVDContext(r: Region) extends AutoCloseable {
   private[this] val theRvb = new RegionValueBuilder(r)
   def rvb = theRvb
 
-  def reset(): Unit = {
-    r.clear()
-  }
-
   // frees the memory associated with this context
   def close(): Unit = {
     var e: Exception = null
