@@ -112,7 +112,7 @@ object CompileWithAggregators {
     args: Seq[(String, Type, ClassTag[_])],
     aggScopeArgs: Seq[(String, Type, ClassTag[_])],
     body: IR
-  ): (Array[RegionValueAggregator], Array[() => F1], Type, () => F2, Type) = {
+  ): (Array[RegionValueAggregator], () => F1, Type, () => F2, Type) = {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
@@ -121,20 +121,19 @@ object CompileWithAggregators {
 
     val ir = Subst(body, env)
 
-    val (postAggIR, aggResultType, aggregators) = ExtractAggregators(ir, aggType)
+    val (postAggIR, aggResultType, aggIR, rvAggs) = ExtractAggregators(ir, aggType)
 
-    val f1TypeInfo: Array[MaybeGenericTypeInfo[_]] =
-      GenericTypeInfo[Region]() +:
-        GenericTypeInfo[RegionValueAggregator]() +:
-        (aggType +: aggScopeArgs.map(_._2).toArray).flatMap { t =>
-          Seq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
-        }
-
-    val (rvAggs, seqOps) = aggregators.zipWithIndex.map { case ((ir, agg), i) =>
+    val seqOps = {
+      val f1TypeInfo: Array[MaybeGenericTypeInfo[_]] =
+        GenericTypeInfo[Region]() +:
+          GenericTypeInfo[Array[RegionValueAggregator]]() +:
+          (aggType +: aggScopeArgs.map(_._2).toArray).flatMap { t =>
+            Seq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
+          }
       val fb = new EmitFunctionBuilder[F1](f1TypeInfo, GenericTypeInfo[Unit]())
-      Emit(ir, fb, 2, aggType)
-      (agg, fb.result())
-    }.unzip
+      Emit(aggIR, fb, 2, aggType)
+      fb.result()
+    }
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR)
@@ -153,7 +152,7 @@ object CompileWithAggregators {
     typ0: Type,
     body: IR
   ): (Array[RegionValueAggregator],
-    Array[() => AsmFunction8[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, Unit]],
+    () => AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
     Type,
     () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
     Type) = {
@@ -170,7 +169,7 @@ object CompileWithAggregators {
       .zip(Array(classTag[S0], classTag[S1]))
       .map { case ((n, t), ct) => (n, t, ct) }.toArray
 
-    apply[AsmFunction8[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
+    apply[AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
       R](aggName, aggTyp, args, aggScopeArgs, body)
   }
@@ -192,7 +191,7 @@ object CompileWithAggregators {
     typ1: Type,
     body: IR
   ): (Array[RegionValueAggregator],
-    Array[() => AsmFunction12[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit]],
+    () => AsmFunction12[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit],
     Type,
     () => AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
     Type) = {
@@ -211,7 +210,7 @@ object CompileWithAggregators {
       .zip(Array(classTag[S0], classTag[S1], classTag[S2], classTag[S3]))
       .map { case ((n, t), ct) => (n, t, ct) }.toArray
 
-    apply[AsmFunction12[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit],
+    apply[AsmFunction12[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit],
       AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
       R](aggName, aggTyp, args, aggScopeArgs, body)
   }

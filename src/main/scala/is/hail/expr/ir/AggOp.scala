@@ -44,13 +44,13 @@ final case class Histogram() extends AggOp { }
 
 object AggOp {
 
-  def get(op: AggOp, inputType: Type, argumentTypes: Seq[Type]): CodeAggregator[_] =
+  def get(op: AggOp, inputType: Type, argumentTypes: Seq[Type]): CodeAggregator[T] forSome { type T <: RegionValueAggregator } =
     m((op, inputType, argumentTypes)).getOrElse(incompatible(op, inputType, argumentTypes))
 
   def getType(op: AggOp, inputType: Type, argumentTypes: Seq[Type]): Type =
     m((op, inputType, argumentTypes)).getOrElse(incompatible(op, inputType, argumentTypes)).out
 
-  private val m: ((AggOp, Type, Seq[Type])) => Option[CodeAggregator[_]] = lift {
+  private val m: ((AggOp, Type, Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
     case (Fraction(), in: TBoolean, Seq()) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
     case (Statistics(), in: TFloat64, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
     case (Collect(), in: TBoolean, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))

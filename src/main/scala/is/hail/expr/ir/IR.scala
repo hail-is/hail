@@ -1,9 +1,12 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
 import is.hail.expr.{BaseIR, MatrixIR, TableIR}
 import is.hail.expr.ir.functions.{IRFunction, IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.ExportType
+
+import scala.language.existentials
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -87,6 +90,14 @@ final case class AggFilter(a: IR, name: String, body: IR) extends InferIR
 final case class AggFlatMap(a: IR, name: String, body: IR) extends InferIR
 final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR]) extends InferIR {
   def inputType: Type = coerce[TAggregable](a.typ).elementType
+}
+
+final case class SeqOp(a: IR, i: Int, agg: CodeAggregator[T] forSome { type T <: RegionValueAggregator }) extends IR {
+  val typ = TVoid
+}
+
+final case class Begin(xs: IndexedSeq[IR]) extends IR {
+  val typ = TVoid
 }
 
 final case class MakeStruct(fields: Seq[(String, IR)]) extends InferIR

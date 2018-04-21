@@ -124,6 +124,13 @@ object TypeCheck {
         val tagg2 = tagg.copy(elementType = tout.elementType)
         tagg2.symTab = tagg.symTab
         assert(x.typ == tagg2)
+      case x@SeqOp(a, _, _) =>
+        check(a)
+      case x@Begin(xs) =>
+        xs.foreach { x =>
+          check(x)
+          assert(x.typ == TVoid)
+        }
       case x@ApplyAggOp(a, op, args) =>
         val tAgg = coerce[TAggregable](a.typ)
         check(a)
