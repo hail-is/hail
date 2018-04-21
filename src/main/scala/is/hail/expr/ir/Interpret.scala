@@ -330,7 +330,7 @@ object Interpret {
         val argTuple = TTuple(functionArgs.map(_.typ): _*)
         val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(Apply(function,
           functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", x.typ), i)
+            GetTupleElement(Ref("in", argTuple), i)
           }))))
 
         val f = makeFunction()

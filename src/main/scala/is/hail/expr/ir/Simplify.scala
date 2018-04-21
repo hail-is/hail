@@ -23,14 +23,19 @@ object Simplify {
 
       case ArrayRef(MakeArray(args, _), I32(i)) => args(i)
 
+      case ArrayFilter(a, _, True()) => a
+
+      case AggFilter(a, _, True()) => a
+
       case GetField(MakeStruct(fields), name) =>
         val (_, x) = fields.find { case (n, _) => n == name }.get
         x
 
-      case GetField(InsertFields(old, fields), name)
-        if fields.exists { case (n, _) => n == name } =>
-        val (_, x) = fields.find { case (n, _) => n == name }.get
-        x
+      case GetField(InsertFields(old, fields), name) =>
+        fields.find { case (n, _) => n == name } match {
+          case Some((_, x)) => x
+          case None => GetField(old, name)
+        }
 
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
@@ -47,29 +52,16 @@ object Simplify {
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case FilterRowsIR(MatrixRead(path, spec, dropSamples, _), False() | NA(_)) =>
-        MatrixRead(path, spec, dropSamples, dropRows = true)
+      case FilterRowsIR(MatrixRead(path, spec, dropCols,  _), False() | NA(_)) =>
+        MatrixRead(path, spec, dropCols, dropRows = true)
 
-      case FilterColsIR(MatrixRead(path, spec, dropVariants, _), False() | NA(_)) =>
-        MatrixRead(path, spec, dropCols = true, dropVariants)
+      case FilterColsIR(MatrixRead(path, spec, _, dropRows), False() | NA(_)) =>
+        MatrixRead(path, spec, dropCols = true, dropRows)
 
       // Keep all rows/cols = do nothing
       case FilterRowsIR(m, True()) => m
 
       case FilterColsIR(m, True()) => m
-
-      // Push FilterRowsIR into FilterColsIR
-      case FilterRowsIR(FilterColsIR(m, colPred), rowPred) =>
-        FilterColsIR(FilterRowsIR(m, rowPred), colPred)
-
-      // Combine multiple filters into one
-      case FilterRowsIR(FilterRowsIR(m, pred1), pred2) =>
-        FilterRowsIR(m,
-          ApplySpecial("&&", Array(pred1, pred2)))
-
-      case FilterColsIR(FilterColsIR(m, pred1), pred2) =>
-        FilterColsIR(m,
-          ApplySpecial("&&", Array(pred1, pred2)))
     })
   }
 }
