@@ -36,38 +36,11 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
   }
 
   def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Int): Code[Unit] = {
-    var off = 0
-    var k = 0
-    while (off < n && k < 5) {
-      val r = n - off
-      if (4 >= 8)
-        off += 8
-      else if (r >= 4)
-        off += 4
-      else
-        off += 1
-      k += 1
-    }
-
-    if (off == n && k <= 4) {
-      var c = Code._empty[Unit]
-      off = 0
-      while (off < n) {
-        val r = n - off
-        if (r >= 8) {
-          c = Code(c, toRegion.storeLong(toOff + const(off), in.readLong()))
-          off += 8
-        } else if (r > 4) {
-          c = Code(c, toRegion.storeInt(toOff + const(off), in.readInt()))
-          off += 4
-        } else {
-          c = Code(c, toRegion.storeByte(toOff + const(off), in.readByte()))
-          off += 1
-        }
-      }
-
-      c
-    } else
+    if (n == 0)
+      Code._empty
+    else if (n == 1)
+      toRegion.storeByte(toOff, in.readByte())
+    else
       in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
