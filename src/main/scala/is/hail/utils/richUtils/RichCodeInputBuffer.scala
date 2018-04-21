@@ -38,8 +38,12 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
   def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Int): Code[Unit] = {
     if (n == 0)
       Code._empty
-    else if (n == 1)
-      toRegion.storeByte(toOff, in.readByte())
+    else if (n < 5)
+      Code(
+        Code((0 until n).map(i =>
+          toRegion.storeByte(toOff + const(i), in.readByte())): _*),
+        // for type
+        Code._empty)
     else
       in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
