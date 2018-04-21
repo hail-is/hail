@@ -1566,7 +1566,6 @@ class Tests(unittest.TestCase):
 
     def test_import_vcf_flags_are_defined(self):
         # issue 3277
-
         t = hl.import_vcf(resource('sample.vcf')).rows()
         self.assertTrue(t.all(hl.is_defined(t.info.NEGATIVE_TRAIN_SITE) &
                               hl.is_defined(t.info.POSITIVE_TRAIN_SITE) &
@@ -1584,7 +1583,61 @@ class Tests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
-    def test_import_plink(self):
+    def test_export_import_plink_same(self):
+        mt = self.get_dataset()
+        mt = mt.select_rows('locus', 'alleles',
+                            rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'))
+        mt = mt.select_cols('s', fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
+                            is_female=hl.null(hl.tbool), is_case=hl.null(hl.tbool))
+        mt = mt.select_entries('GT')
+
+        bfile = '/tmp/test_import_export_plink'
+        hl.export_plink(mt, bfile, id=mt.s)
+
+        mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
+                                      a2_reference=True, reference_genome='GRCh37')
+        self.assertTrue(mt._same(mt_imported))
+
+    def test_import_plink_empty_fam(self):
+        mt = self.get_dataset().drop_cols()
+        bfile = '/tmp/test_empty_fam'
+        hl.export_plink(mt, bfile, id=mt.s)
+        with self.assertRaisesRegex(utils.FatalError, "Empty .fam file"):
+            hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
+
+    def test_import_plink_empty_bim(self):
+        mt = self.get_dataset().drop_rows()
+        bfile = '/tmp/test_empty_bim'
+        hl.export_plink(mt, bfile, id=mt.s)
+        with self.assertRaisesRegex(utils.FatalError, ".bim file does not contain any variants"):
+            hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
+
+    def test_import_plink_a1_major(self):
+        mt = self.get_dataset()
+        bfile = '/tmp/sample_plink'
+        hl.export_plink(mt, bfile, id=mt.s)
+
+        def get_data(a2_reference):
+            mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim',
+                                          bfile + '.fam', a2_reference=a2_reference)
+            return (hl.variant_qc(mt_imported)
+                    .rows()
+                    .key_by('rsid'))
+
+        a2 = get_data(a2_reference=True)
+        a1 = get_data(a2_reference=False)
+
+        j = (a2.annotate(a1_alleles=a1[a2.rsid].alleles, a1_vqc=a1[a2.rsid].variant_qc)
+             .rename({'variant_qc': 'a2_vqc', 'alleles': 'a2_alleles'}))
+
+        self.assertTrue(j.all((j.a1_alleles[0] == j.a2_alleles[1]) &
+                              (j.a1_alleles[1] == j.a2_alleles[0]) &
+                              (j.a1_vqc.n_not_called == j.a2_vqc.n_not_called) &
+                              (j.a1_vqc.n_het == j.a2_vqc.n_het) &
+                              (j.a1_vqc.n_hom_ref == j.a2_vqc.n_hom_var) &
+                              (j.a1_vqc.n_hom_var == j.a2_vqc.n_hom_ref)))
+
+    def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
                           reference_genome=hl.get_reference('GRCh38'),
