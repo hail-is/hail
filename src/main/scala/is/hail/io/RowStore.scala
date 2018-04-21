@@ -537,7 +537,7 @@ object EmitPackDecoder {
     val initCode = Code(
       srvb.start(init = false),
       off := srvb.offset,
-      in.readBytes(srvb.region, off, const(t.nMissingBytes)))
+      in.readBytes(srvb.region, off, t.nMissingBytes))
 
     val fieldCode = (0 until t.size).map { i =>
       val ft = t.types(i)
