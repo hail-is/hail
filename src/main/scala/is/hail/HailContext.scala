@@ -206,7 +206,7 @@ object HailContext {
       private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
         try {
-          codecSpec.buildDecoder(trackedIn)
+          codecSpec.buildDecoder(t, trackedIn)
         } catch {
           case e: Exception =>
             in.close()
@@ -227,7 +227,7 @@ object HailContext {
 
         try {
           region.clear()
-          rv.setOffset(dec.readRegionValue(t, region))
+          rv.setOffset(dec.readRegionValue(region))
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
             ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)

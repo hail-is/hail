@@ -313,7 +313,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   }
 }
 
-class Function2Builder[A1 >: Null : TypeInfo, A2 >: Null : TypeInfo, R >: Null : TypeInfo]
+class Function2Builder[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo]
   extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
 
   def arg1 = getArg[A1](1)

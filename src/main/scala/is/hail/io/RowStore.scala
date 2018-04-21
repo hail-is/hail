@@ -12,6 +12,7 @@ import org.json4s.{Extraction, JValue}
 import org.json4s.jackson.JsonMethods
 import java.io.{Closeable, InputStream, OutputStream}
 
+import is.hail.asm4s._
 import org.apache.spark.TaskContext
 
 trait BufferSpec extends Serializable {
@@ -61,7 +62,7 @@ object CodecSpec {
         new LZ4BlockBufferSpec(32 * 1024,
           new StreamBlockBufferSpec))))
 
-  val blockSpecs:  Array[BufferSpec] = Array(
+  val blockSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
     new BlockingBufferSpec(32 * 1024,
@@ -83,9 +84,9 @@ object CodecSpec {
 }
 
 trait CodecSpec extends Serializable {
-  def buildEncoder(out: OutputStream): Encoder
+  def buildEncoder(t: Type, out: OutputStream): Encoder
 
-  def buildDecoder(in: InputStream): Decoder
+  def buildDecoder(t: Type, in: InputStream): Decoder
 
   override def toString: String = {
     implicit val formats = RVDSpec.formats
@@ -95,9 +96,9 @@ trait CodecSpec extends Serializable {
 }
 
 final class PackCodecSpec(child: BufferSpec) extends CodecSpec {
-  def buildEncoder(out: OutputStream): Encoder = new PackEncoder(child.buildOutputBuffer(out))
+  def buildEncoder(t: Type, out: OutputStream): Encoder = new PackEncoder(t, child.buildOutputBuffer(out))
 
-  def buildDecoder(in: InputStream): Decoder = new PackDecoder(child.buildInputBuffer(in))
+  def buildDecoder(t: Type, in: InputStream): Decoder = new PackDecoder(t, child.buildInputBuffer(in))
 }
 
 trait OutputBlockBuffer extends Closeable {
@@ -324,7 +325,7 @@ trait InputBuffer extends Closeable {
   def readDouble(): Double
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit
-  
+
   def skipBytes(n: Int): Unit
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit
@@ -372,7 +373,7 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
 
   def skipBytes(n: Int): Unit = in.skipBytes(n)
-  
+
   def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit = in.readDoubles(to, toOff, n)
 }
 
@@ -428,9 +429,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     off += 4
     i
   }
+
   def readLong(): Long = {
     ensure(8)
-    val l  = Memory.loadLong(buf, off)
+    val l = Memory.loadLong(buf, off)
     off += 8
     l
   }
@@ -465,7 +467,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       off += p
     }
   }
-  
+
   def skipBytes(n0: Int) {
     var n = n0
     while (n > 0) {
@@ -500,12 +502,170 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 trait Decoder extends Closeable {
   def close()
 
-  def readRegionValue(t: Type, region: Region): Long
+  def readRegionValue(region: Region): Long
 
   def readByte(): Byte
 }
 
-final class PackDecoder(in: InputBuffer) extends Decoder {
+class RichCodeInputBuffer(in: Code[InputBuffer]) {
+  def readByte(): Code[Byte] = {
+    in.invoke[Byte]("readByte")
+  }
+
+  def readBoolean(): Code[Boolean] = {
+    in.invoke[Boolean]("readBoolean")
+  }
+
+  def readInt(): Code[Int] = {
+    in.invoke[Int]("readInt")
+  }
+
+  def readLong(): Code[Long] = {
+    in.invoke[Long]("readLong")
+  }
+
+  def readFloat(): Code[Float] = {
+    in.invoke[Float]("readFloat")
+  }
+
+  def readDouble(): Code[Double] = {
+    in.invoke[Double]("readDouble")
+  }
+
+  def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Code[Int]): Code[Unit] = {
+    in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
+  }
+
+  def skipBytes(n: Code[Int]): Code[Unit] = {
+    in.invoke[Int, Unit]("skipBytes", n)
+  }
+}
+
+object EmitPackDecoder {
+  implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
+  def emitBinary(
+    t: TBinary,
+    mb: MethodBuilder,
+    in: Code[InputBuffer],
+    srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val length = mb.newLocal[Int]
+    val boff = mb.newLocal[Long]
+
+    Code(
+      length := in.readInt(),
+      boff := srvb.allocateBinary(length),
+      in.readBytes(srvb.region, boff + const(4), length))
+  }
+
+  def emitBaseStruct(
+    t: TBaseStruct,
+    mb: MethodBuilder,
+    in: Code[InputBuffer],
+    srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val off = mb.newLocal[Long]
+
+    val initCode = Code(
+      srvb.start(init = false),
+      off := srvb.offset,
+      in.readBytes(srvb.region, off, const(t.nMissingBytes)))
+
+    val fieldCode = (0 until t.size).map { i =>
+      val ft = t.types(i)
+      val readField = emit(ft, mb, in, srvb)
+      if (ft.required)
+        readField
+      else
+        t.isFieldDefined(srvb.region, off, i).mux(
+          readField,
+          srvb.setMissing())
+    }
+
+    Code(initCode, Code(fieldCode: _*), Code._empty)
+  }
+
+  def emitArray(
+    t: TArray,
+    mb: MethodBuilder,
+    in: Code[InputBuffer],
+    srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val length = mb.newLocal[Int]
+    val i = mb.newLocal[Int]
+    val aoff = mb.newLocal[Long]
+
+    Code(
+      length := in.readInt(),
+      srvb.start(length, init = false),
+      aoff := srvb.offset,
+      srvb.region.storeInt(aoff, length),
+      if (t.elementType.required)
+        Code._empty
+      else
+        in.readBytes(srvb.region, aoff + const(4), (length + 7) >>> 3),
+      i := 0,
+      Code.whileLoop(
+        i < length,
+        Code({
+          val readElement = emit(t.elementType, mb, in, srvb)
+          if (t.elementType.required)
+            readElement
+          else
+            t.isElementDefined(srvb.region, aoff, i).mux(
+              readElement,
+              srvb.setMissing())
+        },
+          srvb.advance(),
+          i := i + const(1))))
+  }
+
+  def emit(
+    t: Type,
+    mb: MethodBuilder,
+    in: Code[InputBuffer],
+    srvb: StagedRegionValueBuilder): Code[Unit] = {
+    t match {
+      case t2: TBaseStruct =>
+        srvb.addBaseStruct(t2, { srvb2 =>
+          emitBaseStruct(t2, mb, in, srvb2)
+        })
+      case t2: TArray =>
+        srvb.addArray(t2, { srvb2 =>
+          emitArray(t2, mb, in, srvb2)
+        })
+      case _: TBoolean => srvb.addBoolean(in.readBoolean())
+      case _: TInt64 => srvb.addLong(in.readLong())
+      case _: TInt32 => srvb.addInt(in.readInt())
+      case _: TFloat32 => srvb.addFloat(in.readFloat())
+      case _: TFloat64 => srvb.addDouble(in.readDouble())
+      case t2: TBinary => emitBinary(t2, mb, in, srvb)
+    }
+  }
+
+  def apply(t: Type): () => AsmFunction2[Region, InputBuffer, Long] = {
+    val fb = new Function2Builder[Region, InputBuffer, Long]
+    val mb = fb.apply_method
+    val srvb = new StagedRegionValueBuilder(fb, t)
+
+    emit(t, mb, fb.arg2, srvb)
+
+    fb.apply_method.emit(Code._return(srvb.end()))
+    fb.result()
+  }
+}
+
+final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, InputBuffer, Long]) extends Decoder {
+  def close() {
+    in.close()
+  }
+
+  def readByte(): Byte = in.readByte()
+
+  def readRegionValue(region: Region): Long = {
+    f()(region, in)
+  }
+}
+
+final class PackDecoder(rowType: Type, in: InputBuffer) extends Decoder {
   def close() {
     in.close()
   }
@@ -592,9 +752,8 @@ final class PackDecoder(in: InputBuffer) extends Decoder {
     }
   }
 
-  def readRegionValue(t: Type, region: Region): Long = {
-    val f = t.fundamentalType
-    f match {
+  def readRegionValue(region: Region): Long = {
+    rowType.fundamentalType match {
       case t: TBaseStruct =>
         val start = region.allocate(t.alignment, t.byteSize)
         readBaseStruct(t, region, start)
@@ -611,12 +770,12 @@ trait Encoder extends Closeable {
 
   def close(): Unit
 
-  def writeRegionValue(t: Type, region: Region, offset: Long): Unit
+  def writeRegionValue(region: Region, offset: Long): Unit
 
   def writeByte(b: Byte): Unit
 }
 
-final class PackEncoder(out: OutputBuffer) extends Encoder {
+final class PackEncoder(rowType: Type, out: OutputBuffer) extends Encoder {
   def flush() {
     out.flush()
   }
@@ -699,9 +858,8 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
     }
   }
 
-  def writeRegionValue(t: Type, region: Region, offset: Long) {
-    val f = t.fundamentalType
-    (f: @unchecked) match {
+  def writeRegionValue(region: Region, offset: Long) {
+    (rowType.fundamentalType: @unchecked) match {
       case t: TBaseStruct =>
         writeBaseStruct(t, region, offset)
       case t: TArray =>
@@ -712,12 +870,12 @@ final class PackEncoder(out: OutputBuffer) extends Encoder {
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
-    val en = codecSpec.buildEncoder(os)
+    val en = codecSpec.buildEncoder(t, os)
     var rowCount = 0L
 
     it.foreach { rv =>
       en.writeByte(1)
-      en.writeRegionValue(t, rv.region, rv.offset)
+      en.writeRegionValue(rv.region, rv.offset)
       rowCount += 1
     }
 
@@ -760,11 +918,11 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
 
       val rowsPartPath = path + "/rows/rows/parts/" + f
       hConf.writeFile(rowsPartPath) { rowsOS =>
-        using(codecSpec.buildEncoder(rowsOS)) { rowsEN =>
+        using(codecSpec.buildEncoder(rowsRVType, rowsOS)) { rowsEN =>
 
           val entriesPartPath = path + "/entries/rows/parts/" + f
           hConf.writeFile(entriesPartPath) { entriesOS =>
-            using(codecSpec.buildEncoder(entriesOS)) { entriesEN =>
+            using(codecSpec.buildEncoder(entriesRVType, entriesOS)) { entriesEN =>
 
               var rowCount = 0L
 
@@ -781,7 +939,7 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
                 rvb.addAnnotation(rowsRVType, row)
 
                 rowsEN.writeByte(1)
-                rowsEN.writeRegionValue(rowsRVType, region, rvb.end())
+                rowsEN.writeRegionValue(region, rvb.end())
 
                 rvb.start(entriesRVType)
                 rvb.startStruct()
@@ -789,7 +947,7 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
                 rvb.endStruct()
 
                 entriesEN.writeByte(1)
-                entriesEN.writeRegionValue(entriesRVType, region, rvb.end())
+                entriesEN.writeRegionValue(region, rvb.end())
 
                 rowCount += 1
               }

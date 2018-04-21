@@ -35,14 +35,14 @@ class UnsafeSuite extends SparkSuite {
         val ur = new UnsafeRow(t, region, offset)
 
         val aos = new ByteArrayOutputStream()
-        val en = codecSpec.buildEncoder(aos)
-        en.writeRegionValue(t, region, offset)
+        val en = codecSpec.buildEncoder(t, aos)
+        en.writeRegionValue(region, offset)
         en.flush()
 
         region2.clear()
         val ais = new ByteArrayInputStream(aos.toByteArray)
-        val dec = codecSpec.buildDecoder(ais)
-        val offset2 = dec.readRegionValue(t, region2)
+        val dec = codecSpec.buildDecoder(t, ais)
+        val offset2 = dec.readRegionValue(region2)
         val ur2 = new UnsafeRow(t, region2, offset2)
 
         assert(t.valuesSimilar(a, ur2))
