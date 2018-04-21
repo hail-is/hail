@@ -215,8 +215,8 @@ class LDPruneSuite extends SparkSuite {
 
   object Spec extends Properties("LDPrune") {
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-      v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
-      v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
+    v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
+    v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
     ) yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =

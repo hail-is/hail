@@ -9,7 +9,9 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
+import is.hail.table.Table
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
@@ -786,7 +788,17 @@ class BlockMatrixSuite extends SparkSuite {
       assert(entriesTable.signature === expectedSignature)
     }
   }
-  
+
+  @Test
+  def testEntriesTableWhenKeepingOnlySomeBlocks(): Unit = {
+    val data = (0 until 50).map(_.toDouble).toArray
+    val lm = new BDM[Double](5, 10, data)
+    val bm = toBM(lm, blockSize = 2)
+    
+    assert(bm.entriesTable(hc, Some(Array(0, 1, 6))).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
+      Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
+  }
+
   @Test
   def testPowSqrt(): Unit = {
     val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
@@ -796,5 +808,24 @@ class BlockMatrixSuite extends SparkSuite {
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
     TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
+  }
+
+  @Test def testFilteredEntriesTable() {
+    val rows = IndexedSeq[(String, Int)](("X", 5), ("X", 7), ("X", 13), ("X", 14), ("X", 17),
+      ("X", 65), ("X", 70), ("X", 73), ("Y", 74), ("Y", 75), ("Y", 200), ("Y", 300))
+      .map { case (contig, pos) => Row(contig, pos) }
+    val tbl = Table.parallelize(hc, rows, TStruct("contig" -> TString(), "pos" -> TInt32()), IndexedSeq[String](), None)
+    
+    val nRows = tbl.count().toInt
+    val bm = BlockMatrix.fromBreezeMatrix(sc, BDM.zeros(nRows, nRows), blockSize = 1)
+    
+    val entriesTable = bm.filteredEntriesTable(tbl.keyBy("contig"), radius = 10, includeDiagonal = false)
+
+    val expectedRows = IndexedSeq[(Long, Long)]((0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (3, 4),
+      (5, 6), (5, 7), (6, 7), (8, 9)).map { case (i, j) => Row(i, j) }
+    val expectedTable = Table.parallelize(hc, expectedRows, TStruct("i" -> TInt64(), "j" -> TInt64()),
+      IndexedSeq[String](), None)
+
+    assert(entriesTable.select("{i: row.i, j: row.j}").same(expectedTable))
   }
 }
