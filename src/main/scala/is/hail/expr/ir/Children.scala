@@ -56,6 +56,10 @@ object Children {
       Array(a, body)
     case AggFlatMap(a, name, body) =>
       Array(a, body)
+    case SeqOp(a, _, _) =>
+      Array(a)
+    case Begin(xs) =>
+      xs
     case ApplyAggOp(a, op, args) =>
       (a +: args).toIndexedSeq
     case GetField(o, name) =>

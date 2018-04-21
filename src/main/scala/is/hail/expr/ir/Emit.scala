@@ -122,6 +122,7 @@ private class Emit(
           wrapCodeChunks(chunks)
       }
     }
+
     wrapCodeChunks(irs, true)
   }
 
@@ -136,7 +137,7 @@ private class Emit(
     *  3. guard the the evaluation of value by missingness
     *
     * JVM gotcha:
-    *  a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
+    * a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
     *
     * Argument Convention
     * -------------------
@@ -179,7 +180,7 @@ private class Emit(
     val region = mb.getArg[Region](1).load()
     lazy val aggregator = {
       assert(nSpecialArguments >= 2)
-      mb.getArg[RegionValueAggregator](2)
+      mb.getArg[Array[RegionValueAggregator]](2)
     }
 
     ir match {
@@ -412,9 +413,20 @@ private class Emit(
           xvout := xmout.mux(defaultValue(typ), xvout)
         ), xmout, xvout)
 
-      case x@ApplyAggOp(a, op, args) =>
-        val agg = AggOp.get(op, x.inputType, args.map(_.typ))
-        present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
+      case SeqOp(a, i, agg) =>
+        EmitTriplet(
+          emitAgg(a)(agg.seqOp(aggregator(i), _, _)),
+          const(false),
+          Code._empty)
+
+      case Begin(xs) =>
+        EmitTriplet(
+          coerce[Unit](Code(xs.map { x =>
+            val codex = emit(x)
+            codex.setup
+          }: _*)),
+          const(false),
+          Code._empty)
 
       case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)

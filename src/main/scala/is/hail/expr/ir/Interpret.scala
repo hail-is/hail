@@ -401,7 +401,7 @@ object Interpret {
 
         val value = child.execute(HailContext.get)
         val globalsBc = value.globals.broadcast
-        val aggResults = if (seqOps.nonEmpty) {
+        val aggResults = if (rvAggs.nonEmpty) {
           value.rvd.aggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
             // add globals to region value
             val rowOffset = rv.offset
@@ -411,10 +411,9 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
 
-            rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
-              seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false)
-            }
-            rvaggs
+            seqOps()(rv.region, rvAggs, rowOffset, false, globalsOffset, false, rowOffset, false)
+
+            rvAggs
           }, { (rvAggs1, rvAggs2) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1
