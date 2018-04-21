@@ -25,7 +25,7 @@ class UnsafeSuite extends SparkSuite {
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
       .filter { case (t, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
-      t.typeCheck(a)
+      assert(t.typeCheck(a))
 
       CodecSpec.codecSpecs.foreach { codecSpec =>
         region.clear()
@@ -35,15 +35,18 @@ class UnsafeSuite extends SparkSuite {
         val ur = new UnsafeRow(t, region, offset)
 
         val aos = new ByteArrayOutputStream()
-        val en = codecSpec.buildEncoder(t, aos)
+        val en = codecSpec.buildEncoder(t)(aos)
         en.writeRegionValue(region, offset)
         en.flush()
 
         region2.clear()
         val ais = new ByteArrayInputStream(aos.toByteArray)
-        val dec = codecSpec.buildDecoder(t, ais)
+
+        println(t)
+        val dec = codecSpec.buildDecoder(t)(ais)
         val offset2 = dec.readRegionValue(region2)
         val ur2 = new UnsafeRow(t, region2, offset2)
+        assert(t.typeCheck(ur2))
 
         assert(t.valuesSimilar(a, ur2))
       }

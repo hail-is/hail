@@ -244,7 +244,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     try {
       cn.accept(cw)
       bytes = cw.toByteArray
-      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
+      // CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
     } catch {
       case e: Exception =>
         // if we fail with frames, try without frames for better error message

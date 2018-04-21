@@ -44,7 +44,7 @@ object RVDSpec {
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
-      HailContext.readRowsPartition(rowType, codecSpec)(0, in)
+      HailContext.readRowsPartition(codecSpec.buildDecoder(rowType))(0, in)
         .map(rv => SafeRow(rowType, rv.region, rv.offset))
     }.toFastIndexedSeq
   }
@@ -85,7 +85,7 @@ case class OrderedRVDSpec(
     val rangeBoundsType = TArray(TInterval(orvdType.pkType))
     OrderedRVD(orvdType,
       new OrderedRVDPartitioner(orvdType.partitionKey, orvdType.kType,
-          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
+        JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles))
   }
 
@@ -106,7 +106,7 @@ object RVD {
     val part0Count = Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
-      RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
+      RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(0,
         rows.iterator.map { a =>
           region.clear()
           rvb.start(rowType)
@@ -192,11 +192,15 @@ trait RVD {
         new BlockingBufferSpec(32 * 1024,
           new StreamBlockBufferSpec))
 
+    val makeEnc = persistCodec.buildEncoder(localRowType)(_)
+
+    val makeDec = persistCodec.buildDecoder(localRowType)(_)
+
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
       it.map { rv =>
         using(new ByteArrayOutputStream()) { baos =>
-          using(persistCodec.buildEncoder(localRowType, baos)) { enc =>
+          using(makeEnc(baos)) { enc =>
             enc.writeRegionValue(rv.region, rv.offset)
             enc.flush()
             baos.toByteArray
@@ -214,7 +218,7 @@ trait RVD {
           it.map { bytes =>
             region.clear()
             using(new ByteArrayInputStream(bytes)) { bais =>
-              using(persistCodec.buildDecoder(localRowType, bais)) { dec =>
+              using(makeDec(bais)) { dec =>
                 rv2.setOffset(dec.readRegionValue(region))
                 rv2
               }
