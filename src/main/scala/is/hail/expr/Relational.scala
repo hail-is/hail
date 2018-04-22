@@ -921,7 +921,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 
         val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
 
-        val aggResultsOff = if (seqOps.nonEmpty) {
+        val aggResultsOff = if (rvAggs.nonEmpty) {
           val newRVAggs = rvAggs.map(_.copy())
 
           var i = 0
@@ -931,11 +931,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
             val colMissing = localColsType.isElementMissing(region, cols, i)
             val colOff = localColsType.elementOffset(cols, localNCols, i)
 
-            var j = 0
-            while (j < seqOps.length) {
-              seqOps(j)()(region, newRVAggs(j), oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
-              j += 1
-            }
+            seqOps()(region, newRVAggs, oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
             i += 1
           }
           rvb.start(aggResultType)

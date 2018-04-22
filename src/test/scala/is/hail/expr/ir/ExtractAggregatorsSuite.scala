@@ -52,13 +52,13 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(hailType[IN], Map("scope0" -> (0, hailType[SCOPE0])))
 
     // special arguments: region, aggregator, element, element missingness
-    val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg)
+    val (post, aggResultStruct, aggIR, rvAggs) = ExtractAggregators(ir, tAgg)
 
-    val seqOps = aggregators.map { case (ir, agg) =>
-      val fb = EmitFunctionBuilder[Region, RegionValueAggregator, IN, Boolean, SCOPE0, Boolean, Unit]
-      Emit(ir, fb, 2, tAgg)
+    val seqOps = {
+      val fb = EmitFunctionBuilder[Region, Array[RegionValueAggregator], IN, Boolean, SCOPE0, Boolean, Unit]
+      Emit(aggIR, fb, 2, tAgg)
 
-      (agg, fb.result(Some(new java.io.PrintWriter(System.out)))())
+      fb.result(Some(new java.io.PrintWriter(System.out)))()
     }
 
     val tArray = TArray(hailType[IN])
@@ -69,11 +69,10 @@ class ExtractAggregatorsSuite {
       val e =
         if (me) defaultValue(hailType[IN]).asInstanceOf[IN]
         else loadT(region, tArray.loadElement(region, aOff, i)).asInstanceOf[IN]
-      seqOps.foreach { case (agg, seqOp) =>
-        seqOp(region, agg, e, me, scope0(i), false) }
+        seqOps(region, rvAggs, e, me, scope0(i), false)
     }
 
-    val aggResultsOff = packageResults(region, aggResultStruct, seqOps.map(_._1))
+    val aggResultsOff = packageResults(region, aggResultStruct, rvAggs)
 
     val env = Env.empty[IR].bind("AGGR", In(0, aggResultStruct))
     val postSubst = Subst(post, env)
