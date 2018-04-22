@@ -6,6 +6,7 @@ import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.types.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
 import is.hail.table.Table
+import is.hail.utils._
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
   ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
@@ -28,26 +29,26 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       "chi_sq" -> TFloat64(),
       "p_value" -> TFloat64())
 
-  def fit(pathPAt: String, pathAt: Option[String], partitionSize: Int): Table =
-    if (pathAt.isDefined) {
+  def fit(pa_t: RowMatrix, a_t: Option[RowMatrix]): Table =
+    if (a_t.isDefined) {
       assert(lmmData.yOpt.isDefined && lmmData.xOpt.isDefined)
-      fitLowRank(pathPAt, pathAt.get, partitionSize)
+      fitLowRank(pa_t, a_t.get)
     } else {
       assert(lmmData.yOpt.isEmpty && lmmData.xOpt.isEmpty)
-      fitFullRank(pathPAt, partitionSize)
+      fitFullRank(pa_t)
     }
  
-  def fitLowRank(pathPAt: String, pathAt: String, partitionSize: Int): Table = {
-    val PAt = RowMatrix.readBlockMatrix(hc, pathPAt, partitionSize)
-    val At = RowMatrix.readBlockMatrix(hc, pathAt, partitionSize)
-    
-    assert(PAt.nRows == At.nRows)
-    
+  def fitLowRank(pa_t: RowMatrix, a_t: RowMatrix): Table = {
+    if (pa_t.nRows != a_t.nRows)
+      fatal(s"pa_t and a_t must have the same number of rows, but found ${pa_t.nRows} and ${a_t.nRows}")
+    else if (!(pa_t.partitionCounts() sameElements a_t.partitionCounts()))
+      fatal(s"pa_t and a_t both have ${pa_t.nRows} rows, but row partitions are not aligned")
+        
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(rowType)
     
-    val rdd = PAt.rows.zipPartitions(At.rows) { case (itPAt, itAt) =>
+    val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
       val LMMData(gamma, nullResidualSq, py, px, d, ydy, xdy0, xdx0, Some(y), Some(x)) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
@@ -107,14 +108,12 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     new Table(hc, rdd, rowType, Array("idx")) // FIXME hand partitioner to OrderedRVD once Table is updated
   }
   
-  def fitFullRank(pathPAt: String, partitionSize: Int): Table = {
-    val PAt = RowMatrix.readBlockMatrix(hc, pathPAt, partitionSize)    
-
+  def fitFullRank(pa_t: RowMatrix): Table = {
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(rowType)
     
-    val rdd = PAt.rows.mapPartitions { itPAt =>
+    val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy

@@ -1,6 +1,7 @@
 import numpy as np
 from hail.typecheck import *
-from hail.utils.java import joption, jnone, jsome
+from hail.linalg import RowMatrix
+from hail.utils.java import jnone, jsome
 
 
 class LinearMixedModel(object):
@@ -100,6 +101,9 @@ class LinearMixedModel(object):
       * - Attribute
         - Type
         - Value
+      * - `low_rank`
+        - bool
+        - ``False``
       * - `n`
         - int
         - Number of observations :math:`n`
@@ -127,6 +131,9 @@ class LinearMixedModel(object):
       * - Attribute
         - Type
         - Value
+      * - `low_rank`
+        - bool
+        - ``True``
       * - `n`
         - int
         - Number of observations :math:`n`
@@ -135,7 +142,7 @@ class LinearMixedModel(object):
         - Number of fixed effects :math:`p`
       * - `r`
         - int
-        - Effective number of random effects, less than :math:`(n)`
+        - Effective number of random effects, must be less than :math:`(n)`
       * - `py`
         - numpy.ndarray
         - Projected response vector :math:`P_r y` with shape :math:`(r)`
@@ -205,12 +212,14 @@ class LinearMixedModel(object):
     may be used to test the null hypothesis :math:`\beta_\star = 0` versus
     the alternative hypothesis :math:`\beta_\star \neq 0` for
     each :math:`n`-vector :math:`x_\star` in a collection of augmentations.
+
     Testing uses the likelihood ratio test with both the null and alternative models
     constrained by the REML estimate of :math:`\log{\gamma}` under the null hypothesis.
     The test statistic :math:`\chi^2` equals :math:`n` times the log ratio of
     the squared residuals and follows a chi-squared distribution with one degree of freedom.
-    For these methods, the vector :math:`Px` is sufficient for full-rank inference,
-    whereas the low-rank inference requires both :math:`P_r x` and :math:`x`.
+
+    When testing alternatives, full-rank inference only requires the vector :math:`P x_\star`,
+    whereas low-rank inference requires both :math:`P_r x_\star`and :math:`x_\star`.
 
     Parameters
     ----------
@@ -222,10 +231,10 @@ class LinearMixedModel(object):
         Eigenvalues vector :math:`S` with shape :math:`(r)`.
     y: :class:`numpy.ndarray`, optional
         Response vector with shape :math:`(n)`.
-        Required for low-rank inference.
+        Include for low-rank inference.
     x: :class:`numpy.ndarray`, optional
         Design matrix with shape :math:`(n, p)`.
-        Required for low-rank inference.
+        Include for low-rank inference.
     """
     @typecheck_method(y=np.ndarray, x=np.ndarray, py=np.ndarray, px=np.ndarray, s=np.ndarray)
     def __init__(self, py, px, s, y=None, x=None):
@@ -234,7 +243,7 @@ class LinearMixedModel(object):
         elif y is not None and x is not None:
             low_rank = True
         else:
-            raise ValueError('Set y and x for low-rank')  # FIXME
+            raise ValueError('For low-rank, set both y and x. For full-rank, do not set y or x.')
 
         assert py.ndim == 1 and px.ndim == 2 and s.ndim == 1
         r, f = px.shape
@@ -247,6 +256,7 @@ class LinearMixedModel(object):
             assert x.shape == (y.size, f)
             assert y.size > r
 
+        self.low_rank = low_rank
         self.r = r
         self.f = f
         self.n = y.size if low_rank else r
@@ -266,7 +276,6 @@ class LinearMixedModel(object):
         self.optimize_result = None
 
         self._fitted = False
-        self._low_rank = low_rank 
         if low_rank:
             self._yty = y @ y
             self._xty = x.T @ y
@@ -332,7 +341,7 @@ class LinearMixedModel(object):
         d = 1 / (self.s + 1 / gamma)
         logdet_d = np.sum(np.log(d)) + (self.n - self.r) * log_gamma
 
-        if self._low_rank:
+        if self.low_rank:
             d -= gamma
             dpy = d * self.py
             ydy = self.py @ dpy + gamma * self._yty
@@ -421,9 +430,13 @@ class LinearMixedModel(object):
 
         self._fitted = True
 
-    @typecheck_method(path_pa_t=str, path_a_t=nullable(str), partition_size=int)
-    def fit_alternatives(self, path_pa_t, path_a_t=None, partition_size=1024):
+    @typecheck_method(pa_t=RowMatrix, a_t=nullable(RowMatrix))
+    def fit_alternatives(self, pa_t, a_t=None):
         r"""Fit and test alternative model for each augmented design matrix in parallel.
+
+        Notes
+        -----
+        For low-rank inference, row matrix partitions must align.
 
         The resulting Table has the following fields:
 
@@ -451,17 +464,13 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        path_pa_t: :obj:`str`
-            Path to block matrix :math:`(PA)^T`, the transpose of the projected matrix :math:`PA` of alternatives.
-            :math:`(PA)^T` has shape :math:`(m, r)`.
-            Each row is a projected augmentation :math:`P x_\star` of :math:`PX`.
-        path_a_t: :obj:`str`, optional
-            Path to block matrix :math:`A^T`, the transpose of the matrix :math:`A` of alternatives.
-            :math:`A^T` has shape :math:`(m, n)`.
+        pa_t: :class:`.RowMatrix`
+            Row matrix :math:`(P_r A)^T` with shape :math:`(m, r)`.
+            Each row is a projected augmentation :math:`P_r x_\star` of :math:`P_r X`.
+        a_t: :class:`.RowMatrix`, optional
+            Row matrix :math:`A^T` with shape :math:`(m, n)`.
             Each row is an augmentation :math:`x_\star` of :math:`X`.
-            Required for low-rank inference.
-        partition_size: :obj:`int`
-            Number of rows per partition.
+            Include for low-rank inference.
 
         Returns
         -------
@@ -470,13 +479,18 @@ class LinearMixedModel(object):
         """
         from hail.table import Table
 
-        if partition_size <= 0:
-            raise ValueError("partition_size must be positive")
+        if self.low_rank and a_t is None:
+            raise ValueError('model is low-rank so a_t is required.')
+        elif not (self.low_rank or a_t is None):
+            raise ValueError('model is full-rank so a_t must not be set.')
 
         if not self._scala_model:
             self._set_scala_model()
 
-        return Table(self._scala_model.fit(path_pa_t, joption(path_a_t), partition_size))
+        jpa_t = pa_t._jrm
+        ja_t = jnone() if a_t is None else jsome(a_t._jrm)
+
+        return Table(self._scala_model.fit(jpa_t, ja_t))
 
     @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray))
     def fit_alternatives_numpy(self, pa, a=None):
@@ -506,8 +520,8 @@ class LinearMixedModel(object):
         Parameters
         ----------
         pa: :class:`numpy.ndarray`
-            Projected matrix :math:`PA` of alternatives with shape :math:`(r, m)`.
-            Each column is a projected augmentation :math:`P x_\star` of :math:`PX`.
+            Projected matrix :math:`P_r A` of alternatives with shape :math:`(r, m)`.
+            Each column is a projected augmentation :math:`P_r x_\star` of :math:`P_r X`.
         a: :class:`numpy.ndarray`, optional
             Matrix :math:`A` of alternatives with shape :math:`(n, m)`.
             Each column is an augmentation :math:`x_\star` of :math:`X`.
@@ -526,7 +540,7 @@ class LinearMixedModel(object):
         n_cols = pa.shape[1]
         assert pa.shape[0] == self.r
 
-        if self._low_rank:
+        if self.low_rank:
             assert a.shape[0] == self.n and a.shape[1] == n_cols
             data = [self._fit_alternative_numpy(pa[:, i], a[:, i]) for i in range(n_cols)]
         else:
@@ -546,7 +560,7 @@ class LinearMixedModel(object):
         xdy = self._xdy_alt
         xdx = self._xdx_alt
 
-        if self._low_rank:
+        if self.low_rank:
             xdy[0] = self.py @ dpa + gamma * (self.y @ a)
             xdx[0, 0] = pa @ dpa + gamma * (a @ a)
             xdx[0, 1:] = self.px.T @ dpa + gamma * (self.x.T @ a)
@@ -583,6 +597,6 @@ class LinearMixedModel(object):
             self._ydy_alt,
             _jarray_from_ndarray(self._xdy_alt),
             _breeze_from_ndarray(self._xdx_alt),
-            jsome(_jarray_from_ndarray(self.y)) if self._low_rank else jnone,
-            jsome(_breeze_from_ndarray(self.x)) if self._low_rank else jnone
+            jsome(_jarray_from_ndarray(self.y)) if self.low_rank else jnone(),
+            jsome(_breeze_from_ndarray(self.x)) if self.low_rank else jnone()
         )

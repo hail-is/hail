@@ -225,7 +225,7 @@ class BlockMatrix(object):
     @typecheck_method(entry_expr=expr_float64,
                       block_size=nullable(int))
     def from_entry_expr(cls, entry_expr, block_size=None):
-        """Create a block matrix using a matrix table entry expression.
+        """Creates a block matrix using a matrix table entry expression.
 
         Parameters
         ----------
@@ -370,6 +370,7 @@ class BlockMatrix(object):
         Notes
         -----
         The resulting file can be loaded with :meth:`BlockMatrix.read`.
+        Blocks are stored row-major.
 
         Parameters
         ----------
@@ -588,7 +589,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This function will have no effect on a dataset that was not previously
+        This function will have no effect on a block matrix that was not previously
         persisted.
 
         Returns

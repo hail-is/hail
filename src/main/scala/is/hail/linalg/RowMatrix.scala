@@ -168,7 +168,6 @@ class ReadBlocksAsRowsRDD(path: String,
     val ReadBlocksAsRowsRDDPartition(_, start, end) = split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
 
     var inPerBlockCol = new Array[InputBuffer](nBlockCols)
-    val buf = new Array[Byte](blockSize << 3)
 
     var i = start
 
