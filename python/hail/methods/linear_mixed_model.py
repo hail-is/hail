@@ -12,16 +12,16 @@ class LinearMixedModel(object):
 
     .. math::
 
-        y \sim \mathrm{N}(C \beta, \, \sigma^2 K + \tau^2 I)
+        y \sim \mathrm{N}(X \beta, \, \sigma^2 K + \tau^2 I)
 
     where
 
     - :math:`\mathrm{N}` is a :math:`n`-dimensional normal distribution.
     - :math:`y` is a known vector of :math:`n` observations.
-    - :math:`C` is a known :math:`n \times k` design matrix for :math:`k` fixed effects.
+    - :math:`X` is a known :math:`n \times p` design matrix for :math:`p` fixed effects.
     - :math:`K` is a known :math:`n \times n` positive semi-definite kernel.
     - :math:`I` is the :math:`n \times n` identity matrix.
-    - :math:`\beta` is a :math:`k`-parameter vector of fixed effects.
+    - :math:`\beta` is a :math:`p`-parameter vector of fixed effects.
     - :math:`\sigma^2` is the variance parameter on :math:`K`.
     - :math:`\tau^2` is the variance parameter on :math:`I`.
 
@@ -34,31 +34,31 @@ class LinearMixedModel(object):
 
     .. math::
 
-        y = C \beta + Z \nu + \epsilon
+        y = X \beta + Z u + \epsilon
 
     by setting :math:`K = ZZ^T` where
 
     - :math:`Z` is a known :math:`n \times r` design matrix for :math:`r` random effects.
-    - :math:`\nu` is a :math:`r`-vector of random effects drawn from :math:`\mathrm{N}(0, \sigma^2 I)`.
+    - :math:`u` is a :math:`r`-vector of random effects drawn from :math:`\mathrm{N}(0, \sigma^2 I)`.
     - :math:`\epsilon` is a :math:`n`-vector of random errors drawn from :math:`\mathrm{N}(0, \tau^2 I)`.
 
     However, :class:`LinearMixedModel` does not itself realize :math:`K` as a linear kernel
     with respect to random effects, nor does it take :math:`K` explicitly as input. Rather,
-    via the eigendecomposion :math:`K = P^T S P`, the the class leverages a third, decorrelated
+    via the eigendecomposion :math:`K = U S U^T`, the the class leverages a third, decorrelated
     form of the model
 
     .. math::
 
-        Py \sim \mathrm{N}(PC \beta, \, \sigma_g^2 (\gamma S + I))
+        Py \sim \mathrm{N}(PX \beta, \, \sigma_g^2 (\gamma S + I))
 
     where
 
-    - :math:`P: \mathbb{R}^n \rightarrow \mathbb{R}^n` is an orthonormal transformation
-      that decorrelates the fixed effects. The rows of :math:`P` are an eigenbasis for :math:`K`.
+    - :math:`P = U^T: \mathbb{R}^n \rightarrow \mathbb{R}^n` is an orthonormal transformation
+      that decorrelates the observations. The rows of :math:`P` are an eigenbasis for :math:`K`.
     - :math:`S` is the :math:`n \times n` diagonal matrix of corresponding eigenvalues.
     - :math:`\gamma = \frac{\sigma^2}{\tau^2}` is the ratio of variance parameters.
 
-    Hence, the triple :math:`(Py, PC, S)` determines the probability
+    Hence, the triple :math:`(Py, PX, S)` determines the probability
     of the observations for any choice of model parameters, and is
     therefore sufficient for inference.
     This triple, with S encoded as a vector, is the default
@@ -73,9 +73,9 @@ class LinearMixedModel(object):
     - :math:`S_r` is the :math:`r \times r` diagonal matrix of corresponding
       non-zero eigenvalues.
 
-    For this low-rank model, the quintuple :math:`(P_r y, P_r C, S_r, y, C)`
+    For this low-rank model, the quintuple :math:`(P_r y, P_r X, S_r, y, X)`
     is similarly sufficient for inference and corresponds to the "low-rank"
-    initialization of the class. Morally, :math:`y` and :math:`C` are
+    initialization of the class. Morally, :math:`y` and :math:`X` are
     required for low-rank inference because the diagonal :math:`\gamma S + I`
     is always full-rank.
 
@@ -90,9 +90,9 @@ class LinearMixedModel(object):
     be an effective from of regularization, in addition to boosting
     computational efficiency.
 
-    For low-rank initialization, all of the following class attributes are 
-    set. For full-rank initialization, :math:`n` must equal :math:`r`
-    and `y` and `c` are not set.
+    **Initialization**
+
+    With full-rank initialization by :math:`(Py, PX, S)`, the following class attributes are set:
 
     .. list-table::
       :header-rows: 1
@@ -102,28 +102,57 @@ class LinearMixedModel(object):
         - Value
       * - `n`
         - int
-        - Number of observations
-      * - `k`
+        - Number of observations :math:`n`
+      * - `f`
         - int
-        - Number of fixed effects (covariates)
+        - Number of fixed effects :math:`p`
       * - `r`
         - int
-        - Number of random effects
+        - Effective number of random effects, must equal :math:`n`
       * - `py`
         - numpy.ndarray
-        - Projected response vector :math:`Py` with shape :math:`(r)`
-      * - `pc`
+        - Rotated response vector :math:`P y` with shape :math:`(n)`
+      * - `px`
         - numpy.ndarray
-        - Projected (decorrelated) design matrix :math:`PC` with shape :math:`(r, k)`
+        - Rotated design matrix :math:`P X` with shape :math:`(n, p)`.
       * - `s`
         - numpy.ndarray
-        - Eigenvalues vector of projection with shape :math:`(r)`
+        - Eigenvalues vector :math:`S` of :math:`K` with shape :math:`(n)`
+
+    With low-rank initialization by :math:`(P_r y, P_r X, S_r, y, X)`, the following class attributes are set:
+
+    .. list-table::
+      :header-rows: 1
+
+      * - Attribute
+        - Type
+        - Value
+      * - `n`
+        - int
+        - Number of observations :math:`n`
+      * - `f`
+        - int
+        - Number of fixed effects :math:`p`
+      * - `r`
+        - int
+        - Effective number of random effects, less than :math:`(n)`
+      * - `py`
+        - numpy.ndarray
+        - Projected response vector :math:`P_r y` with shape :math:`(r)`
+      * - `px`
+        - numpy.ndarray
+        - Projected design matrix :math:`P_r X` with shape :math:`(r, p)`
+      * - `s`
+        - numpy.ndarray
+        - Eigenvalues vector :math:`S_r` of :math:`K_r` with shape :math:`(r)`
       * - `y`
         - numpy.ndarray
         - Response vector with shape :math:`(n)`
-      * - `c`
+      * - `x`
         - numpy.ndarray
-        - Design matrix with shape :math:`(n, k)`
+        - Design matrix with shape :math:`(n, p)`
+
+    **Fitting the model**
 
     :meth:`fit` uses `restricted maximum likelihood
     <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`__ (REML)
@@ -158,13 +187,15 @@ class LinearMixedModel(object):
     Estimation proceeds by minimizing the function :meth:`compute_neg_log_reml`
     with respect to the parameter :math:`\log{\gamma}` governing the (log)
     ratio of the variance parameters :math:`\sigma^2` and :math:`\tau^2`. For
-    any fixed ratio, the REML estimate and log likelihood have closed form solutions.
+    any fixed ratio, the REML estimate and log likelihood have closed-form solutions.
+
+    **Testing alternative models**
 
     The model is also equivalent to its augmentation
 
     .. math::
 
-        y \sim \mathrm{N}\left(x_\star\beta_\star + C \beta, \, \sigma^2 K + \tau^2 I\right)
+        y \sim \mathrm{N}\left(x_\star\beta_\star + X \beta, \, \sigma^2 K + \tau^2 I\right)
 
     by an additional covariate of interest :math:`x_\star` under the
     null hypothesis that the corresponding fixed effect :math:`\beta_\star` is zero.
@@ -184,47 +215,47 @@ class LinearMixedModel(object):
     Parameters
     ----------
     py: :class:`numpy.ndarray`
-        Projected response vector with shape :math:`(r)`.
-    pc: :class:`numpy.ndarray`
-        Decorrelated design matrix with shape :math:`(r, k)`.
+        Projected response vector :math:`P_r y` with shape :math:`(r)`.
+    px: :class:`numpy.ndarray`
+        Projected design matrix :math:`P_r X` with shape :math:`(r, p)`.
     s: :class:`numpy.ndarray`
-        Eigenvalues vector with shape :math:`(r)`.
+        Eigenvalues vector :math:`S` with shape :math:`(r)`.
     y: :class:`numpy.ndarray`, optional
         Response vector with shape :math:`(n)`.
         Required for low-rank inference.
-    c: :class:`numpy.ndarray`, optional
-        Design matrix with shape :math:`(n, k)`.
+    x: :class:`numpy.ndarray`, optional
+        Design matrix with shape :math:`(n, p)`.
         Required for low-rank inference.
     """
-    @typecheck_method(y=np.ndarray, c=np.ndarray, py=np.ndarray, pc=np.ndarray, s=np.ndarray)
-    def __init__(self, py, pc, s, y=None, c=None):
-        if y is None and c is None:
+    @typecheck_method(y=np.ndarray, x=np.ndarray, py=np.ndarray, px=np.ndarray, s=np.ndarray)
+    def __init__(self, py, px, s, y=None, x=None):
+        if y is None and x is None:
             low_rank = False
-        elif y is not None and c is not None:
+        elif y is not None and x is not None:
             low_rank = True
         else:
-            raise ValueError('Set y and c for low-rank')  # FIXME
+            raise ValueError('Set y and x for low-rank')  # FIXME
 
-        assert py.ndim == 1 and pc.ndim == 2 and s.ndim == 1
-        r, k = pc.shape
-        assert r > k >= 0
+        assert py.ndim == 1 and px.ndim == 2 and s.ndim == 1
+        r, f = px.shape
+        assert r > f >= 0
         assert py.size == r
         assert s.size == r
 
         if low_rank:
-            assert y.ndim == 1 and c.ndim == 2
-            assert c.shape == (y.size, k)
+            assert y.ndim == 1 and x.ndim == 2
+            assert x.shape == (y.size, f)
             assert y.size > r
 
         self.r = r
-        self.k = k
+        self.f = f
         self.n = y.size if low_rank else r
-        self.dof = self.n - k
+        self.dof = self.n - f
         self.py = py
-        self.pc = pc
+        self.px = px
         self.s = s
         self.y = y
-        self.c = c
+        self.x = x
 
         self.beta = None
         self.sigma_sq = None
@@ -238,16 +269,16 @@ class LinearMixedModel(object):
         self._low_rank = low_rank 
         if low_rank:
             self._yty = y @ y
-            self._cty = c.T @ y
-            self._ctc = c.T @ c
+            self._xty = x.T @ y
+            self._xtx = x.T @ x
         self._d = None
         self._ydy = None
-        self._cdy = None
-        self._cdc = None
+        self._xdy = None
+        self._xdx = None
         self._d_alt = None
         self._ydy_alt = None
-        self._cdy_alt = np.zeros(self.k + 1)
-        self._cdc_alt = np.zeros((self.k + 1, self.k + 1))
+        self._xdy_alt = np.zeros(self.f + 1)
+        self._xdx_alt = np.zeros((self.f + 1, self.f + 1))
         self._residual_sq = None
         self._scala_model = None
 
@@ -276,7 +307,7 @@ class LinearMixedModel(object):
 
         .. math::
 
-            \frac{1}{2}\left((n - k)(1 + \log(2\pi)) - \log(\det(C^T C)\right)
+            \frac{1}{2}\left((n - p)(1 + \log(2\pi)) - \log(\det(X^T X)\right)
 
         to the returned value.
 
@@ -305,25 +336,25 @@ class LinearMixedModel(object):
             d -= gamma
             dpy = d * self.py
             ydy = self.py @ dpy + gamma * self._yty
-            cdy = self.pc.T @ dpy + gamma * self._cty
-            cdc = (self.pc.T * d) @ self.pc + gamma * self._ctc
+            xdy = self.px.T @ dpy + gamma * self._xty
+            xdx = (self.px.T * d) @ self.px + gamma * self._xtx
         else:
             dpy = d * self.py
             ydy = self.py @ dpy
-            cdy = self.pc.T @ dpy
-            cdc = (self.pc.T * d) @ self.pc
+            xdy = self.px.T @ dpy
+            xdx = (self.px.T * d) @ self.px
 
         try:
-            beta = solve(cdc, cdy, assume_a='pos', overwrite_a=True)
-            residual_sq = ydy - cdy.T @ beta
+            beta = solve(xdx, xdy, assume_a='pos', overwrite_a=True)
+            residual_sq = ydy - xdy.T @ beta
             sigma_sq = residual_sq / self.dof
             tau_sq = sigma_sq / gamma
-            neg_log_reml = (np.linalg.slogdet(cdc)[1] - logdet_d + self.dof * np.log(sigma_sq)) / 2
+            neg_log_reml = (np.linalg.slogdet(xdx)[1] - logdet_d + self.dof * np.log(sigma_sq)) / 2
 
             if return_parameters:
                 return neg_log_reml, beta, sigma_sq, tau_sq
             else:
-                self._d, self._ydy, self._cdy, self._cdc = d, ydy, cdy, cdc
+                self._d, self._ydy, self._xdy, self._xdx = d, ydy, xdy, xdx
                 return neg_log_reml
         except LinAlgError as e:
             raise Exception(f'Linear algebra error while solving for REML estimate:\n  {e}')
@@ -385,13 +416,13 @@ class LinearMixedModel(object):
         self._residual_sq = self.sigma_sq * self.dof
         self._d_alt = self._d
         self._ydy_alt = self._ydy
-        self._cdy_alt[1:] = self._cdy
-        self._cdc_alt[1:, 1:] = self._cdc
+        self._xdy_alt[1:] = self._xdy
+        self._xdx_alt[1:, 1:] = self._xdx
 
         self._fitted = True
 
-    @typecheck_method(path_pxt=str, path_xt=nullable(str), partition_size=int)
-    def fit_alternatives(self, path_pxt, path_xt=None, partition_size=1024):
+    @typecheck_method(path_pa_t=str, path_a_t=nullable(str), partition_size=int)
+    def fit_alternatives(self, path_pa_t, path_a_t=None, partition_size=1024):
         r"""Fit and test alternative model for each augmented design matrix in parallel.
 
         The resulting Table has the following fields:
@@ -420,14 +451,14 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        path_pxt: :obj:`str`
-            Path to the transpose of the projected block matrix :math:`PX`.
-            The transposed matrix has shape :math:`(m, r)`.
-            Each row is a projected augmentation :math:`P x_\star`.
-        path_xt: :obj:`str`, optional
-            Path to the transpose of block matrix :math:`X`.
-            The transposed matrix has shape :math:`(m , n)`.
-            Each row is an augmentation :math:`x_\star`.
+        path_pa_t: :obj:`str`
+            Path to block matrix :math:`(PA)^T`, the transpose of the projected matrix :math:`PA` of alternatives.
+            :math:`(PA)^T` has shape :math:`(m, r)`.
+            Each row is a projected augmentation :math:`P x_\star` of :math:`PX`.
+        path_a_t: :obj:`str`, optional
+            Path to block matrix :math:`A^T`, the transpose of the matrix :math:`A` of alternatives.
+            :math:`A^T` has shape :math:`(m, n)`.
+            Each row is an augmentation :math:`x_\star` of :math:`X`.
             Required for low-rank inference.
         partition_size: :obj:`int`
             Number of rows per partition.
@@ -445,10 +476,10 @@ class LinearMixedModel(object):
         if not self._scala_model:
             self._set_scala_model()
 
-        return Table(self._scala_model.fit(path_pxt, joption(path_xt), partition_size))
+        return Table(self._scala_model.fit(path_pa_t, joption(path_a_t), partition_size))
 
-    @typecheck_method(px=np.ndarray, x=nullable(np.ndarray))
-    def fit_alternatives_numpy(self, px, x=None):
+    @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray))
+    def fit_alternatives_numpy(self, pa, a=None):
         r"""Fit and test alternative model for each augmented design matrix.
 
         The resulting pandas DataFrame has the following fields.
@@ -474,12 +505,12 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        px: :class:`numpy.ndarray`
-            Matrix :math:`PX` with shape :math:`(r, m)`.
-            Each column is a projected augmentation :math:`P x_\star`.
-        x: :class:`numpy.ndarray`, optional
-            Matrix :math:`X` with shape :math:`(n, m)`.
-            Each column is an augmentation :math:`x_\star`.
+        pa: :class:`numpy.ndarray`
+            Projected matrix :math:`PA` of alternatives with shape :math:`(r, m)`.
+            Each column is a projected augmentation :math:`P x_\star` of :math:`PX`.
+        a: :class:`numpy.ndarray`, optional
+            Matrix :math:`A` of alternatives with shape :math:`(n, m)`.
+            Each column is an augmentation :math:`x_\star` of :math:`X`.
             Required for low-rank inference.
 
         Returns
@@ -492,41 +523,41 @@ class LinearMixedModel(object):
         if not self._fitted:
             raise Exception("Null model is not fit. Run 'fit' first.")
 
-        n_cols = px.shape[1]
-        assert px.shape[0] == self.r
+        n_cols = pa.shape[1]
+        assert pa.shape[0] == self.r
 
         if self._low_rank:
-            assert x.shape[0] == self.n and x.shape[1] == n_cols
-            data = [self._fit_alternative_numpy(px[:, i], x[:, i]) for i in range(n_cols)]
+            assert a.shape[0] == self.n and a.shape[1] == n_cols
+            data = [self._fit_alternative_numpy(pa[:, i], a[:, i]) for i in range(n_cols)]
         else:
-            data = [self._fit_alternative_numpy(px[:, i], None) for i in range(n_cols)]
+            data = [self._fit_alternative_numpy(pa[:, i], None) for i in range(n_cols)]
 
         return pd.DataFrame.from_records(data, columns=['beta', 'sigma_sq', 'chi_sq', 'p_value'])
 
-    def _fit_alternative_numpy(self, px, x):
+    def _fit_alternative_numpy(self, pa, a):
         from scipy.linalg import solve, LinAlgError
         from scipy.stats.distributions import chi2
 
         gamma = self.gamma
-        dpx = self._d_alt * px
+        dpa = self._d_alt * pa
 
         # single thread => no need to copy
         ydy = self._ydy_alt
-        cdy = self._cdy_alt
-        cdc = self._cdc_alt
+        xdy = self._xdy_alt
+        xdx = self._xdx_alt
 
         if self._low_rank:
-            cdy[0] = self.py @ dpx + gamma * (self.y @ x)
-            cdc[0, 0] = px @ dpx + gamma * (x @ x)
-            cdc[0, 1:] = self.pc.T @ dpx + gamma * (self.c.T @ x)
+            xdy[0] = self.py @ dpa + gamma * (self.y @ a)
+            xdx[0, 0] = pa @ dpa + gamma * (a @ a)
+            xdx[0, 1:] = self.px.T @ dpa + gamma * (self.x.T @ a)
         else:
-            cdy[0] = self.py @ dpx
-            cdc[0, 0] = px @ dpx
-            cdc[0, 1:] = self.pc.T @ dpx
+            xdy[0] = self.py @ dpa
+            xdx[0, 0] = pa @ dpa
+            xdx[0, 1:] = self.px.T @ dpa
 
         try:
-            beta = solve(cdc, cdy, assume_a='pos', overwrite_a=True)  # only uses upper triangle
-            residual_sq = ydy - cdy.T @ beta
+            beta = solve(xdx, xdy, assume_a='pos', overwrite_a=True)  # only uses upper triangle
+            residual_sq = ydy - xdy.T @ beta
             sigma_sq = residual_sq / (self.dof - 1)
             chi_sq = self.n * np.log(self._residual_sq / residual_sq)  # division => precision
             p_value = chi2.sf(chi_sq, 1)
@@ -547,11 +578,11 @@ class LinearMixedModel(object):
             self.gamma,
             self._residual_sq,
             _jarray_from_ndarray(self.py),
-            _breeze_from_ndarray(self.pc),
+            _breeze_from_ndarray(self.px),
             _jarray_from_ndarray(self._d_alt),
             self._ydy_alt,
-            _jarray_from_ndarray(self._cdy_alt),
-            _breeze_from_ndarray(self._cdc_alt),
+            _jarray_from_ndarray(self._xdy_alt),
+            _breeze_from_ndarray(self._xdx_alt),
             jsome(_jarray_from_ndarray(self.y)) if self._low_rank else jnone,
-            jsome(_breeze_from_ndarray(self.c)) if self._low_rank else jnone
+            jsome(_breeze_from_ndarray(self.x)) if self._low_rank else jnone
         )

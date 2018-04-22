@@ -6,18 +6,17 @@ import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.types.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
 import is.hail.table.Table
-import is.hail.utils._
 
-case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], pc: BDM[Double], d: BDV[Double],
-  ydy: Double, cdy: BDV[Double], cdc: BDM[Double], yOpt: Option[BDV[Double]], cOpt: Option[BDM[Double]])
+case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
+  ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
 
 object LinearMixedModel {
-  def apply(hc: HailContext, gamma: Double, residualSq: Double, py: Array[Double], pc: BDM[Double], d: Array[Double],
-    ydy: Double, cdy: Array[Double], cdc: BDM[Double],
-    yOpt: Option[Array[Double]], cOpt: Option[BDM[Double]]): LinearMixedModel = {
+  def apply(hc: HailContext, gamma: Double, residualSq: Double, py: Array[Double], px: BDM[Double], d: Array[Double],
+    ydy: Double, xdy: Array[Double], xdx: BDM[Double],
+    yOpt: Option[Array[Double]], xOpt: Option[BDM[Double]]): LinearMixedModel = {
 
     new LinearMixedModel(hc,
-      LMMData(gamma, residualSq, BDV(py), pc, BDV(d), ydy, BDV(cdy), cdc, yOpt.map(BDV(_)), cOpt))
+      LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
 }
 
@@ -29,57 +28,57 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       "chi_sq" -> TFloat64(),
       "p_value" -> TFloat64())
 
-  def fit(pathPXt: String, pathXt: Option[String], partitionSize: Int): Table =
-    if (pathXt.isDefined) {
-      assert(lmmData.yOpt.isDefined && lmmData.cOpt.isDefined)
-      fitLowRank(pathPXt, pathXt.get, partitionSize)
+  def fit(pathPAt: String, pathAt: Option[String], partitionSize: Int): Table =
+    if (pathAt.isDefined) {
+      assert(lmmData.yOpt.isDefined && lmmData.xOpt.isDefined)
+      fitLowRank(pathPAt, pathAt.get, partitionSize)
     } else {
-      assert(lmmData.yOpt.isEmpty && lmmData.cOpt.isEmpty)
-      fitFullRank(pathPXt, partitionSize)
+      assert(lmmData.yOpt.isEmpty && lmmData.xOpt.isEmpty)
+      fitFullRank(pathPAt, partitionSize)
     }
  
-  def fitLowRank(pathPXt: String, pathXt: String, partitionSize: Int): Table = {
-    val PXt = RowMatrix.readBlockMatrix(hc, pathPXt, partitionSize)
-    val Xt = RowMatrix.readBlockMatrix(hc, pathXt, partitionSize)
+  def fitLowRank(pathPAt: String, pathAt: String, partitionSize: Int): Table = {
+    val PAt = RowMatrix.readBlockMatrix(hc, pathPAt, partitionSize)
+    val At = RowMatrix.readBlockMatrix(hc, pathAt, partitionSize)
     
-    assert(PXt.nRows == Xt.nRows)
+    assert(PAt.nRows == At.nRows)
     
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(rowType)
     
-    val rdd = PXt.rows.zipPartitions(Xt.rows) { case (itPx, itx) =>
-      val LMMData(gamma, nullResidualSq, py, pc, d, ydy, cdy0, cdc0, Some(y), Some(c)) = lmmDataBc.value
-      val cdy = cdy0.copy
-      val cdc = cdc0.copy
-      val n = c.rows
-      val k = c.cols + 1
-      val dof = n - k
+    val rdd = PAt.rows.zipPartitions(At.rows) { case (itPAt, itAt) =>
+      val LMMData(gamma, nullResidualSq, py, px, d, ydy, xdy0, xdx0, Some(y), Some(x)) = lmmDataBc.value
+      val xdy = xdy0.copy
+      val xdx = xdx0.copy
+      val n = x.rows
+      val f = x.cols + 1
+      val dof = n - f
       val r0 = 0 to 0
-      val r1 = 1 until k
+      val r1 = 1 until f
 
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
       val rowType = rowTypeBc.value
 
-      itPx.zip(itx).map { case ((i, px0), (i2, x0)) =>
+      itPAt.zip(itAt).map { case ((i, pa0), (i2, a0)) =>
         assert(i == i2)
 
-        val x = BDV(x0)
-        val px = BDV(px0)
-        val dpx = d *:* px
+        val a = BDV(a0)
+        val pa = BDV(pa0)
+        val dpa = d *:* pa
 
-        cdy(0) = (py dot dpx) + gamma * (y dot x)
-        cdc(0, 0) = (px dot dpx) + gamma * (x dot x)
-        cdc(r0, r1) := (pc.t * dpx) + gamma * (c.t * x)  // FIXME group rows or compute xtc with block matrix multiply
-        cdc(r1, r0) := cdc(r0, r1).t
+        xdy(0) = (py dot dpa) + gamma * (y dot a)
+        xdx(0, 0) = (pa dot dpa) + gamma * (a dot a)
+        xdx(r0, r1) := (px.t * dpa) + gamma * (x.t * a)  // FIXME group rows or compute xtc with block matrix multiply
+        xdx(r1, r0) := xdx(r0, r1).t
         
         region.clear()
         rvb.start(rowType)
         try {
-          val beta = cdc \ cdy
-          val residualSq = ydy - (cdy dot beta)
+          val beta = xdx \ xdy
+          val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
           val pValue = chiSquaredTail(chiSq, 1)
@@ -108,42 +107,42 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     new Table(hc, rdd, rowType, Array("idx")) // FIXME hand partitioner to OrderedRVD once Table is updated
   }
   
-  def fitFullRank(pathPXt: String, partitionSize: Int): Table = {
-    val PXt = RowMatrix.readBlockMatrix(hc, pathPXt, partitionSize)    
+  def fitFullRank(pathPAt: String, partitionSize: Int): Table = {
+    val PAt = RowMatrix.readBlockMatrix(hc, pathPAt, partitionSize)    
 
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(rowType)
     
-    val rdd = PXt.rows.mapPartitions { itPx =>
-      val LMMData(gamma, nullResidualSq, py, pc, d, ydy, cdy0, cdc0, _, _) = lmmDataBc.value
-      val cdy = cdy0.copy
-      val cdc = cdc0.copy
-      val n = lmmData.pc.rows
-      val k = lmmData.pc.cols + 1
-      val dof = n - k
+    val rdd = PAt.rows.mapPartitions { itPAt =>
+      val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
+      val xdy = xdy0.copy
+      val xdx = xdx0.copy
+      val n = lmmData.px.rows
+      val f = lmmData.px.cols + 1
+      val dof = n - f
       val r0 = 0 to 0
-      val r1 = 1 until k
+      val r1 = 1 until f
       
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
       val rowType = rowTypeBc.value
 
-      itPx.map { case (i, px0) =>
-        val px = BDV(px0)
-        val dpx = d *:* px
+      itPAt.map { case (i, pa0) =>
+        val pa = BDV(pa0)
+        val dpa = d *:* pa
 
-        cdy(0) = py dot dpx
-        cdc(0, 0) = px dot dpx
-        cdc(r0, r1) := pc.t * dpx
-        cdc(r1, r0) := cdc(r0, r1).t
+        xdy(0) = py dot dpa
+        xdx(0, 0) = pa dot dpa
+        xdx(r0, r1) := px.t * dpa
+        xdx(r1, r0) := xdx(r0, r1).t
         
         region.clear()
         rvb.start(rowType)
         try {          
-          val beta = cdc \ cdy
-          val residualSq = ydy - (cdy dot beta)
+          val beta = xdx \ xdy
+          val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
           val pValue = chiSquaredTail(chiSq, 1)
