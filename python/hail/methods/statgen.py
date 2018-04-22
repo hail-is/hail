@@ -1120,7 +1120,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
                                          **dict(zip(cov_field_names, covariates))),
                           entry_exprs=entry_expr)
 
-    jds = Env.hail().methods.LinearMixedRegression.apply(
+    jmt = Env.hail().methods.LinearMixedRegression.apply(
         mt._jvds,
         kinship_matrix._jkm,
         y_field_name,
@@ -1135,7 +1135,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
         joption(n_eigenvectors),
         joption(dropped_variance_fraction))
 
-    return MatrixTable(jds).drop(*fields_to_drop)
+    return MatrixTable(jmt).drop(*fields_to_drop)
 
 
 @typecheck(key_expr=expr_any,

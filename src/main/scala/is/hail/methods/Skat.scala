@@ -232,19 +232,17 @@ object Skat {
       val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
       val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
 
-      if (!keyIsDefined || !weightIsDefined)
-        None
-      else {
+      if (keyIsDefined && weightIsDefined) {
         val weight = rv.region.loadDouble(fullRowType.loadField(rv, weightIndex))
         if (weight < 0)
-          fatal(s"Variant weights must be non-negative, got $weight")
+          fatal(s"Row weights must be non-negative, got $weight")
         val key = Annotation.copy(keyType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv, keyIndex)))
         val data = new Array[Double](n)
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         Some(key -> (BDV(data), weight))
-      }
+      } else None
     }.groupByKey(), keyType)
   }
  

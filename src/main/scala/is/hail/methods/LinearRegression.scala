@@ -8,7 +8,6 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
-import scala.collection.JavaConverters._
 
 object LinearRegression {
   def schema = TStruct(

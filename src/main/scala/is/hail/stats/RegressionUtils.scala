@@ -58,8 +58,8 @@ object RegressionUtils {
     () => xf0().asInstanceOf[java.lang.Double]
   }
 
-  // IndexedSeq indexed by samples, Array by annotations
-  def getSampleAnnotations(mt: MatrixTable, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
+  // IndexedSeq indexed by column, Array by field
+  def getColumnVariables(mt: MatrixTable, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
     val colType = mt.colType
     assert(names.forall(name => mt.colType.field(name).typ.isOfType(TFloat64())))
     val fieldIndices = names.map { name =>
@@ -81,10 +81,10 @@ object RegressionUtils {
     covFields: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
     val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yField), covFields)
-    
+
     (DenseVector(y.data), covs, completeSamples)
   }
-  
+
   def getPhenosCovCompleteSamples(
     vsm: MatrixTable,
     yFields: Array[String],
@@ -96,8 +96,8 @@ object RegressionUtils {
     if (nPhenos == 0)
       fatal("No phenotypes present.")
 
-    val yIS = getSampleAnnotations(vsm, yFields)
-    val covIS = getSampleAnnotations(vsm, covFields)
+    val yIS = getColumnVariables(vsm, yFields)
+    val covIS = getColumnVariables(vsm, covFields)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, 0 until vsm.numCols)
