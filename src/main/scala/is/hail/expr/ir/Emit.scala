@@ -196,7 +196,7 @@ private class Emit(
       case False() =>
         present(const(false))
       case Void() =>
-        EmitTriplet(Code._empty, const(true), Code._empty)
+        EmitTriplet(Code._empty, const(false), Code._empty)
 
       case Cast(v, typ) =>
         val codeV = emit(v)
@@ -433,7 +433,7 @@ private class Emit(
 
         val processAElts = aBase.arrayEmitter(cont)
 
-        EmitTriplet(processAElts.setup, const(true), Code._empty)
+        EmitTriplet(processAElts.setup, const(false), Code._empty)
 
       case SeqOp(a, i, agg) =>
         EmitTriplet(
