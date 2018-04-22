@@ -894,17 +894,29 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       val newRV = RegionValue()
       val rowF = f()
 
+      val partRegion = Region()
+
+      rvb.set(partRegion)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val partGlobalsOff = rvb.end()
+
+      rvb.start(localColsType)
+      rvb.addAnnotation(localColsType, colValuesBc.value)
+      val partColsOff = rvb.end()
+
       it.map { rv =>
         val region = rv.region
         val oldRow = rv.offset
 
         rvb.set(region)
         rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
         val globals = rvb.end()
 
+        rvb.set(region)
         rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
+        rvb.addRegionValue(localColsType, partRegion, partColsOff)
         val cols = rvb.end()
 
         val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
