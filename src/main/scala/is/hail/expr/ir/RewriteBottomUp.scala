@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr._
 
 object RewriteBottomUp {
-  def apply(ir: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
+  def apply(ir: BaseIR, rule: (BaseIR) => Option[BaseIR]): BaseIR = {
     def rewrite(ast: BaseIR): BaseIR = {
       val newChildren = ast.children.map(rewrite)
 
@@ -14,7 +14,7 @@ object RewriteBottomUp {
         else
           ast.copy(newChildren)
 
-      rule.lift(rewritten) match {
+      rule(rewritten) match {
         case Some(newAST) if newAST != rewritten =>
           rewrite(newAST)
         case None =>
