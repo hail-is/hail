@@ -62,6 +62,9 @@ object Copy {
       case ArrayFold(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
         ArrayFold(a, zero, accumName, valueName, body)
+      case ArrayFor(_, valueName, _) =>
+        val IndexedSeq(a: IR, body: IR) = newChildren
+        ArrayFor(a, valueName, body)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })

@@ -248,6 +248,14 @@ object Interpret {
           }
           zeroValue
         }
+      case ArrayFor(a, valueName, body) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue != null) {
+          aValue.asInstanceOf[IndexedSeq[Any]].foreach { element =>
+            interpret(body, env.bind(valueName -> element), args, agg)
+          }
+        }
+        ()
       case x@ApplyAggOp(a, op, aggArgs) =>
         val aValue = interpretAgg(a, agg._2)
         val aggType = a.typ.asInstanceOf[TAggregable].elementType
@@ -396,8 +404,10 @@ object Interpret {
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
 
         val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
+          "global", child.typ.globalType,
           "AGG", tAgg,
           "global", child.typ.globalType,
+          "row", child.typ.rowType,
           MakeTuple(Array(query)))
 
         val value = child.execute(HailContext.get)

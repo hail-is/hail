@@ -31,6 +31,7 @@ object Recur {
     case ArrayFilter(a, name, cond) => ArrayFilter(f(a), name, f(cond))
     case ArrayFlatMap(a, name, body) => ArrayFlatMap(f(a), name, f(body))
     case ArrayFold(a, zero, accumName, valueName, body) => ArrayFold(f(a), f(zero), accumName, valueName, f(body))
+    case ArrayFor(a, valueName, body) => ArrayFor(f(a), valueName, f(body))
     case MakeStruct(fields) => MakeStruct(fields map { case (n, a) => (n, f(a)) })
     case InsertFields(old, fields) => InsertFields(f(old), fields map { case (n, a) => (n, f(a)) })
     case GetField(o, name) => GetField(f(o), name)

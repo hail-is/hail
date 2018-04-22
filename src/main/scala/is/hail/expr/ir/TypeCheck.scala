@@ -102,6 +102,10 @@ object TypeCheck {
         check(body, env = env.bind(accumName -> zero.typ, valueName -> -tarray.elementType))
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
+      case x@ArrayFor(a, valueName, body) =>
+        check(a)
+        val tarray = coerce[TArray](a.typ)
+        check(body, env = env.bind(valueName -> -tarray.elementType))
       case x@AggIn(typ) =>
         (tAgg, typ) match {
           case (Some(t), null) => x.typ = t

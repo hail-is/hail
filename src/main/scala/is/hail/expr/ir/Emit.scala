@@ -31,7 +31,7 @@ object Emit {
     apply(ir, fb, Some(tAggIn), nSpecialArguments)
   }
 
-  private def apply(ir: IR, fb: EmitFunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
+  def apply(ir: IR, fb: EmitFunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
     val triplet = emit(ir, fb, Env.empty, tAggIn, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
@@ -171,9 +171,6 @@ private class Emit(
 
     def emit(ir: IR, env: E = env): EmitTriplet =
       this.emit(ir, env)
-
-    def emitAgg(ir: IR, env: E = env)(k: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] =
-      this.emitAgg(ir, aggEnv)(k)
 
     def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env)
 
@@ -415,9 +412,32 @@ private class Emit(
           xvout := xmout.mux(defaultValue(typ), xvout)
         ), xmout, xvout)
 
+      case ArrayFor(a, valueName, body) =>
+        val tarray = coerce[TArray](a.typ)
+        val eti = typeToTypeInfo(tarray.elementType)
+        val xmv = mb.newField[Boolean]()
+        val xvv = coerce[Any](mb.newField(valueName)(eti))
+        val bodyenv = env.bind(
+          valueName -> (eti, xmv.load(), xvv.load()))
+
+        val codeB = emit(body, env = bodyenv)
+
+        val aBase = emitArrayIterator(a)
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := v,
+            codeB.setup)
+        }
+
+        val processAElts = aBase.arrayEmitter(cont)
+
+        EmitTriplet(processAElts.setup, const(true), Code._empty)
+
       case SeqOp(a, i, agg) =>
         EmitTriplet(
-          emitAgg(a)(agg.seqOp(aggregator(i), _, _)),
+          emitAgg(a, env)(agg.seqOp(aggregator(i), _, _)),
           const(false),
           Code._empty)
 
@@ -566,9 +586,10 @@ private class Emit(
     val tAggIn = tAggInOpt.get
 
     val region = mb.getArg[Region](1).load()
-    // aggregator is 2
-    val element = mb.getArg(3)(typeToTypeInfo(tAggIn.elementType)).load()
-    val melement = mb.getArg[Boolean](4).load()
+
+    val element = mb.getArg(normalArgumentPosition(0))(typeToTypeInfo(tAggIn.elementType))
+    val melement = mb.getArg[Boolean](normalArgumentPosition(0) + 1)
+
     ir match {
       case AggIn(typ) =>
         assert(tAggIn == typ)
@@ -823,22 +844,7 @@ private class Emit(
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)
 
-  private lazy val aggEnv: E = {
-    val scopeOffset = nSpecialArguments + 2 // element and element missingness
-    Env.empty.bind(tAggInOpt.get.bindings.zipWithIndex
-      .map {
-        case ((n, t), i) => n -> ((
-          typeToTypeInfo(t),
-          mb.getArg[Boolean](scopeOffset + i * 2 + 2).load(),
-          mb.getArg(scopeOffset + i * 2 + 1)(typeToTypeInfo(t)).load()))
-      }: _*)
-  }
-
   private def normalArgumentPosition(idx: Int): Int = {
-    val aggArgs = tAggInOpt match {
-      case Some(t) => (t.symTab.size + 1) * 2 // one extra for the element itself
-      case None => 0
-    }
-    nSpecialArguments + aggArgs + 1 + idx * 2
+    1 + nSpecialArguments + idx * 2
   }
 }

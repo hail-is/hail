@@ -890,12 +890,10 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       "colValues", colValuesType,
       "va", vaType,
       newRVRow, { (aggIR: IR) =>
-        ir.ArrayFold(
+        ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
-          ir.Void(),
-          "accum",
           "i",
-          ir.Let("sa", ir.ArrayRef(ir.Ref("colvalues", colValuesType), ir.Ref("i", TInt32())),
+          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref("i", TInt32())),
