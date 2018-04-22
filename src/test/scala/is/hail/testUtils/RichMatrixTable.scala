@@ -132,14 +132,32 @@ class RichMatrixTable(vsm: MatrixTable) {
     vsm.chooseCols(newToOld)
   }
 
-  def linreg(yExpr: Array[String], xField: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", rowBlockSize: Int = 16): MatrixTable = {
-    LinearRegression(vsm, yExpr, xField, covExpr, root, rowBlockSize)
+  def linreg(yExpr: Array[String],
+    xField: String,
+    covExpr: Array[String] = Array.empty[String],
+    root: String = "linreg",
+    rowBlockSize: Int = 16): MatrixTable = {
+    val vsmAnnot = vsm.annotateColsExpr(
+      yExpr.zipWithIndex.map { case (e, i) => s"__y$i" -> e } ++
+      covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
+    )
+    LinearRegression(vsmAnnot,
+      yExpr.indices.map(i => s"__y$i").toArray,
+      xField,
+      covExpr.indices.map(i => s"__cov$i").toArray,
+      root,
+      rowBlockSize)
   }
 
   def logreg(test: String,
     yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
     root: String = "logreg"): MatrixTable = {
-    LogisticRegression(vsm, test, yExpr, xField, covExpr, root)
+    val vsmAnnot = vsm.annotateColsExpr(
+      Array("__y" -> yExpr) ++
+        covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
+    )
+
+    LogisticRegression(vsm, test, "__y", xField, covExpr.indices.map(i => s"__cov$i").toArray, root)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,

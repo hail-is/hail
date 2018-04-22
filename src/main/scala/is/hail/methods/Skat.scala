@@ -58,16 +58,16 @@ object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
   def apply(vsm: MatrixTable,
-    keyExpr: String,
-    weightExpr: String,
-    yExpr: String,
+    keyField: String,
+    weightField: String,
+    yField: String,
     xField: String,
-    covExpr: Array[String],
+    covFields: Array[String],
     logistic: Boolean,
     maxSize: Int,
     accuracy: Double,
     iterations: Int): Table = {
-    
+
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
 
@@ -77,24 +77,24 @@ object Skat {
       fatal(s"tolerance must be positive, default is 1e-6, got $accuracy")
     if (iterations <= 0)
       fatal(s"iterations must be positive, default is 10000, got $iterations")
-    
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
+
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
 
     val n = y.size
     val k = cov.cols
     val d = n - k
 
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } (including intercept) implies $d degrees of freedom.")    
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } (including intercept) implies $d degrees of freedom.")
     if (logistic) {
       val badVals = y.findAll(yi => yi != 0d && yi != 1d)
       if (badVals.nonEmpty)
         fatal(s"For logistic SKAT, phenotype must be Boolean or numeric with value 0 or 1 for each complete " +
           s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
     }
-    
+
     val (keyGsWeightRdd, keyType) =
-      computeKeyGsWeightRdd(vsm, xField, completeColIdx, keyExpr, weightExpr)
+      computeKeyGsWeightRdd(vsm, xField, completeColIdx, keyField, weightField)
 
     val sc = keyGsWeightRdd.sparkContext
 
@@ -201,16 +201,21 @@ object Skat {
   def computeKeyGsWeightRdd(vsm: MatrixTable,
     xField: String,
     completeColIdx: Array[Int],
-    keyExpr: String,
+    keyField: String,
     // returns ((key, [(gs_v, weight_v)]), keyType)
-    weightExpr: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
-
-    val (keyType, keyQuerier) = vsm.queryVA(keyExpr)
-    val (weightType, weightQuerier) = vsm.queryVA(weightExpr)
-    
-    val sc = vsm.sparkContext
+    weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
     val fullRowType = vsm.rvRowType
+    val keyStructField = fullRowType.field(keyField)
+    val keyIndex = keyStructField.index
+    val keyType = keyStructField.typ
+
+    val weightStructField = fullRowType.field(weightField)
+    val weightIndex = weightStructField.index
+    assert(weightStructField.typ.isOfType(TFloat64()))
+
+    val sc = vsm.sparkContext
+
     val entryArrayType = vsm.matrixType.entryArrayType
     val entryType = vsm.entryType
     val fieldType = entryType.field(xField).typ
@@ -224,22 +229,20 @@ object Skat {
     val completeColIdxBc = sc.broadcast(completeColIdx)
     
     (vsm.rvd.rdd.flatMap { rv =>
-      val fullRow = new UnsafeRow(fullRowType, rv)
-      val row = fullRow.deleteField(entryArrayIdx)
+      val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
+      val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
 
-      (Option(keyQuerier(row)), Option(weightQuerier(row)).map(_.asInstanceOf[Double])) match {
-        case (Some(key), Some(w)) =>
-          if (w < 0)
-            fatal(s"Variant weights must be non-negative, got $w")
+      if (keyIsDefined && weightIsDefined) {
+        val weight = rv.region.loadDouble(fullRowType.loadField(rv, weightIndex))
+        if (weight < 0)
+          fatal(s"Row weights must be non-negative, got $weight")
+        val key = Annotation.copy(keyType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv, keyIndex)))
+        val data = new Array[Double](n)
 
-          val data = new Array[Double](n)
-
-          RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](), 
-            rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
-          
-          Option((Annotation.copy(keyType, key), (BDV(data), w)))
-        case _ => None
-      }
+        RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
+          rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+        Some(key -> (BDV(data), weight))
+      } else None
     }.groupByKey(), keyType)
   }
  
