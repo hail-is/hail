@@ -19,7 +19,11 @@ object TypeCheck {
       case F64(x) =>
       case True() =>
       case False() =>
+<<<<<<< da22eb32264d1a628647697185ee222c20734739
       case Str(x) =>
+=======
+      case Void() =>
+>>>>>>> loop over columns in IR in MatrixMapRows
 
       case Cast(v, typ) =>
         check(v)

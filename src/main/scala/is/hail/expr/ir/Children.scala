@@ -13,6 +13,7 @@ object Children {
     case Str(x) => none
     case True() => none
     case False() => none
+    case Void() => none
     case Cast(v, typ) =>
       Array(v)
     case NA(typ) => none

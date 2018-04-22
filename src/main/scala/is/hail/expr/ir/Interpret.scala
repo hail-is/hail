@@ -45,6 +45,7 @@ object Interpret {
       case Str(x) => x
       case True() => true
       case False() => false
+      case Void() => ()
       case Cast(v, t) =>
         val vValue = interpret(v, env, args, agg)
         if (vValue == null)

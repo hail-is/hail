@@ -879,12 +879,28 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     val localNCols = prev.nCols
     val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
-    
-    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
+
+    val colValuesType = TArray(prev.typ.colType)
+    val vaType = prev.typ.rvRowType
+    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
+      "global", prev.typ.globalType,
+      "va", vaType,
       "AGG", tAgg,
-      "global", localGlobalsType,
-      "va", prev.typ.rvRowType,
-      newRVRow)
+      "global", prev.typ.globalType,
+      "colValues", colValuesType,
+      "va", vaType,
+      newRVRow, { (aggIR: IR) =>
+        ir.ArrayFold(
+          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
+          ir.Void(),
+          "accum",
+          "i",
+          ir.Let("sa", ir.ArrayRef(ir.Ref("colvalues", colValuesType), ir.Ref("i", TInt32())),
+            ir.Let("g", ir.ArrayRef(
+              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+              ir.Ref("i", TInt32())),
+              aggIR)))
+      })
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
     val mapPartitionF = { it: Iterator[RegionValue] =>
@@ -922,16 +938,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         val aggResultsOff = if (rvAggs.nonEmpty) {
           val newRVAggs = rvAggs.map(_.copy())
 
-          var i = 0
-          while (i < localNCols) {
-            val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
-            val eOff = localEntriesType.loadElement(region, entriesOff, i)
-            val colMissing = localColsType.isElementMissing(region, cols, i)
-            val colOff = localColsType.loadElement(region, cols, i)
+          seqOps()(region, newRVAggs, 0, true, globals, false, oldRow, false, cols, false)
 
-            seqOps()(region, newRVAggs, 0, eOff, eMissing, false, oldRow, false, eOff, eMissing, colOff, colMissing)
-            i += 1
-          }
           rvb.start(aggResultType)
           rvb.startStruct()
 

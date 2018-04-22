@@ -16,6 +16,7 @@ object Copy {
       case Str(_) => same
       case True() => same
       case False() => same
+      case Void() => same
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
         Cast(v, typ)

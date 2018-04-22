@@ -198,6 +198,8 @@ private class Emit(
         present(const(true))
       case False() =>
         present(const(false))
+      case Void() =>
+        EmitTriplet(Code._empty, const(true), Code._empty)
 
       case Cast(v, typ) =>
         val codeV = emit(v)
