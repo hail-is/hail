@@ -920,7 +920,7 @@ class Tests(unittest.TestCase):
 
     def _R_pc_relate(self, mt, maf):
         plink_file = utils.uri_path(utils.new_temp_file())
-        hl.export_plink(mt, plink_file, id=hl.str(mt.col_key[0]))
+        hl.export_plink(mt, plink_file, ind_id=hl.str(mt.col_key[0]))
         utils.run_command(["Rscript",
                            resource("is/hail/methods/runPcRelate.R"),
                            plink_file,
