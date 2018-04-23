@@ -1,10 +1,7 @@
 package is.hail.annotations
 
-import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.utils.{ArrayBuilder, Interval}
-import is.hail.variant._
-import is.hail.utils._
+import is.hail.utils.Interval
 import org.apache.spark.sql.Row
 
 object Annotation {
@@ -38,32 +35,6 @@ object Annotation {
   def apply(args: Any*): Annotation = Row.fromSeq(args)
 
   def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
-
-  def buildInserter(code: String, t: TStruct, ec: EvalContext, expectedHead: String): (TStruct, Inserter) = {
-    val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(expectedHead))
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-    val finalType = (paths, types).zipped.foldLeft(t) { case (t, (ids, signature)) =>
-      val (s, i) = t.structInsert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-
-    val inserters = inserterBuilder.result()
-
-    val insF = (left: Annotation, right: Annotation) => {
-      ec.setAll(left, right)
-
-      var newAnnotation = left
-      val queries = f()
-      queries.indices.foreach { i =>
-        newAnnotation = inserters(i)(newAnnotation, queries(i))
-      }
-      newAnnotation
-    }
-
-    (finalType, insF)
-  }
 
   def copy(t: Type, a: Annotation): Annotation = {
     if (a == null)

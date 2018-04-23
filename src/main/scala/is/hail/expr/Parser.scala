@@ -102,11 +102,6 @@ object Parser extends JavaTokenParsers {
     () => f().asInstanceOf[T]
   }
 
-  def parseExprs(code: String, ec: EvalContext): (Array[Type], () => Array[Any]) = {
-    val (types, fs) = args.parse(code).map(eval(_, ec)).unzip
-    (types.toArray, () => fs.map(f => f()).toArray)
-  }
-
   def parseSelectExprs(codes: Array[String], ec: EvalContext): (Array[Either[String, List[String]]], Array[Type], () => Array[Any]) = {
 
     // Left is string assignment, right is referenced path
@@ -149,12 +144,6 @@ object Parser extends JavaTokenParsers {
     }, ts, f)
   }
   
-  def parseAnnotationExprsToAST(code: String, ec: EvalContext): Array[(String, AST)] = {
-    val as = named_exprs(identifier).parse(code)
-    as.foreach { case (_, ast) => ast.typecheck(ec) }
-    as
-  }
-
   def parseAnnotationExprsToAST(code: String, ec: EvalContext, expectedHead: Option[String]): Array[(String, AST)] = {
     named_exprs(annotationIdentifier)
       .parse(code).map { case (p, ast) =>
@@ -228,13 +217,6 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseCommaDelimitedDoubles(code: String): Array[Double] = {
-    parseAll(comma_delimited_doubles, code) match {
-      case Success(r, _) => r
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
-  }
-
   def parseAnnotationRoot(code: String, root: String): List[String] = {
     val path = parseAll(annotationIdentifier, code) match {
       case Success(result, _) => result.asInstanceOf[List[String]]
@@ -247,10 +229,6 @@ object Parser extends JavaTokenParsers {
       fatal(s"expected an annotation path starting in `$root', but got a path starting in '${ path.head }'")
     else
       path.tail
-  }
-
-  def validateAnnotationRoot(a: String, root: String): Unit = {
-    parseAnnotationRoot(a, root)
   }
 
   def parseLocusInterval(input: String, rg: RGBase): Interval = {
