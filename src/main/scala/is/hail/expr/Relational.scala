@@ -1024,7 +1024,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
 
     type RVAggArray = MultiArray2[RegionValueAggregator]
 
-    def seqOp(ctx: RVDContext, rvaggs: RVAggArray, rv: RegionValue): RVAggArray = {
+    val seqOp = (ctx: RVDContext, rvaggs: RVAggArray, rv: RegionValue) => {
       val rvb = ctx.rvb
       val region = ctx.region
       val oldRow = rv.offset
@@ -1059,13 +1059,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
       rvaggs
     }
 
-    def combOp(ctx: RVDContext, rvAggs1: RVAggArray, rvAggs2: RVAggArray): RVAggArray = {
+    val combOp = (ctx: RVDContext, rvAggs1: RVAggArray, rvAggs2: RVAggArray) => {
       rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
       rvAggs1
     }
 
     val aggResults = if (seqOps.nonEmpty) {
-      prev.rvd.treeAggregate[RVAggArray](rvAggsMA, seqOp _, combOp _, depth = depth)
+      prev.rvd.treeAggregate[RVAggArray](rvAggsMA, seqOp, combOp, depth = depth)
     } else
       MultiArray2.fill[RegionValueAggregator](localNCols, 0)(null)
 
