@@ -133,8 +133,10 @@ object TypeCheck {
         val tagg2 = tagg.copy(elementType = tout.elementType)
         tagg2.symTab = tagg.symTab
         assert(x.typ == tagg2)
-      case x@SeqOp(a, _, _) =>
+      case x@SeqOp(a, i, _) =>
         check(a)
+        check(i)
+        assert(i.typ.isInstanceOf[TInt32])
       case x@Begin(xs) =>
         xs.foreach { x =>
           check(x)

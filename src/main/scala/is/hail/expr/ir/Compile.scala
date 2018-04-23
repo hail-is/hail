@@ -139,7 +139,7 @@ object CompileWithAggregators {
     args: Seq[(String, Type, ClassTag[_])],
     aggScopeArgs: Seq[(String, Type, ClassTag[_])],
     body: IR,
-    transformAggIR: (IR) => IR
+    transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator], () => F1, Type, () => F2, Type) = {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
@@ -150,8 +150,8 @@ object CompileWithAggregators {
     val ir = Subst(body, env)
 
     val (postAggIR, aggResultType, aggIR, rvAggs) = ExtractAggregators(ir, aggType)
-
-    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(aggIR), aggType)
+    val nAggs = rvAggs.length
+    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, aggIR), aggType)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR)
@@ -186,7 +186,7 @@ object CompileWithAggregators {
 
     apply[AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](aggName, aggTyp, args, aggScopeArgs, body, (aggIR: IR) => aggIR)
+      R](aggName, aggTyp, args, aggScopeArgs, body, (nAggs: Int, aggIR: IR) => aggIR)
   }
 
   def apply[
@@ -204,7 +204,7 @@ object CompileWithAggregators {
     aggName1: String, aggType1: Type,
     aggName2: String, aggType2: Type,
     body: IR,
-    transformAggIR: (IR) => IR
+    transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
     () => AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
     Type,

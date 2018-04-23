@@ -19,7 +19,7 @@ object ExtractAggregators {
         .zipWithIndex
         .map { case (x, i) =>
           val agg = AggOp.get(x.op, x.inputType, x.args.map(_.typ))
-          SeqOp(x.a, i, agg)
+          SeqOp(x.a, I32(i), agg)
         })
 
     val rvas = aggs.map(_.applyAggOp)

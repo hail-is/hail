@@ -889,7 +889,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       "global", prev.typ.globalType,
       "colValues", colValuesType,
       "va", vaType,
-      newRVRow, { (aggIR: IR) =>
+      newRVRow, { (nAggs: Int, aggIR: IR) =>
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
@@ -1009,23 +1009,58 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
     val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
 
-    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
-      "AGG", tAgg,
+    val colValuesType = TArray(prev.typ.colType)
+    val vaType = prev.typ.rvRowType
+    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
       "global", localGlobalsType,
       "sa", prev.typ.colType,
-      newCol)
+      "AGG", tAgg,
+      "global", localGlobalsType,
+      "colValues", colValuesType,
+      "va", vaType,
+      newCol, { (nAggs, aggIR) =>
+        val colIdx = ir.genUID()
+
+        def rewriteSeqOps(x: IR): IR = {
+          x match {
+            case SeqOp(a, i, agg) =>
+              SeqOp(a,
+                ir.ApplyBinaryPrimOp(ir.Add(),
+                  ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
+                i),
+                agg)
+            case _ =>
+              ir.Recur(rewriteSeqOps)(x)
+          }
+        }
+
+        ir.ArrayFor(
+          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
+          colIdx,
+          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
+            ir.Let("g", ir.ArrayRef(
+              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+              ir.Ref(colIdx, TInt32())),
+              rewriteSeqOps(aggIR))))
+      })
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
     val depth = treeAggDepth(hc, prev.nPartitions)
-    val nAggs = seqOps.length
+    val nAggs = rvAggs.length
 
-    val rvAggsMA = MultiArray2.fill[RegionValueAggregator](localNCols, nAggs)(null)
-    for (i <- 0 until localNCols; j <- 0 until nAggs) {
-      rvAggsMA(i, j) = rvAggs(j).copy()
+    val colRVAggs = new Array[RegionValueAggregator](nAggs * localNCols)
+    var i = 0
+    while (i < localNCols) {
+      var j = 0
+      while (j < nAggs) {
+        colRVAggs(i * nAggs + j) = rvAggs(j).copy()
+        j += 1
+      }
+      i += 1
     }
 
-    val aggResults = if (seqOps.nonEmpty) {
-      prev.rvd.treeAggregate[MultiArray2[RegionValueAggregator]](rvAggsMA)({ (rvaggs, rv) =>
+    val aggResults = if (nAggs > 0) {
+      prev.rvd.treeAggregate[Array[RegionValueAggregator]](colRVAggs)({ (colRVAggs, rv) =>
         val rvb = new RegionValueBuilder()
         val region = rv.region
         val oldRow = rv.offset
@@ -1041,29 +1076,19 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
 
         val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
 
-        var i = 0
-        while (i < localNCols) {
-          val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
-          val eOff = localEntriesType.loadElement(region, entriesOff, i)
-          val colMissing = localColsType.isElementMissing(region, cols, i)
-          assert(!colMissing)
-          val colOff = localColsType.loadElement(region, cols, i)
+        seqOps()(region, colRVAggs, 0, true, globals, false, cols, false, oldRow, false)
 
-          var j = 0
-          while (j < seqOps.length) {
-            seqOps(j)()(region, rvaggs(i, j), eOff, eMissing, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
-            j += 1
-          }
+        colRVAggs
+      }, { (rvAggs1, rvAggs2) =>
+        var i = 0
+        while (i < rvAggs1.length) {
+          rvAggs1(i).combOp(rvAggs2(i))
           i += 1
         }
-
-        rvaggs
-      }, { (rvAggs1, rvAggs2) =>
-        rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
         rvAggs1
       }, depth = depth)
     } else
-      MultiArray2.fill[RegionValueAggregator](localNCols, 0)(null)
+      Array.empty[RegionValueAggregator]
 
     val prevColType = prev.typ.colType
     val rvb = new RegionValueBuilder()
@@ -1074,7 +1099,11 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
 
         rvb.start(aggResultType)
         rvb.startStruct()
-        aggResults.row(i).foreach(_.result(rvb))
+        var j = 0
+        while (j < nAggs) {
+          aggResults(i * nAggs + j).result(rvb)
+          j += 1
+        }
         rvb.endStruct()
         val aggResultsOffset = rvb.end()
 

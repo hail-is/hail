@@ -39,7 +39,7 @@ object Recur {
     case AggMap(a, name, body) => AggMap(f(a), name, f(body))
     case AggFilter(a, name, body) => AggFilter(f(a), name, f(body))
     case AggFlatMap(a, name, body) => AggFlatMap(f(a), name, f(body))
-    case SeqOp(a, i, agg) => SeqOp(f(a), i, agg)
+    case SeqOp(a, i, agg) => SeqOp(f(a), f(i), agg)
     case Begin(xs) => Begin(xs.map(f))
     case ApplyAggOp(a, op, args) => ApplyAggOp(f(a), op, args.map(f))
     case MakeTuple(elts) => MakeTuple(elts.map(f))

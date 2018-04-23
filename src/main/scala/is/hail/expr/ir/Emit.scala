@@ -440,17 +440,20 @@ private class Emit(
           Code._empty)
 
       case SeqOp(a, i, agg) =>
+        val codeI = emit(i)
         EmitTriplet(
-          emitAgg(a, env)(agg.seqOp(aggregator(i), _, _)),
+          Code(codeI.setup,
+            codeI.m.mux(
+              Code._empty,
+              emitAgg(a, env)(agg.seqOp(aggregator(coerce[Int](codeI.v)), _, _)))),
           const(false),
           Code._empty)
 
       case Begin(xs) =>
         EmitTriplet(
-          coerce[Unit](Code(xs.map { x =>
-            val codex = emit(x)
-            codex.setup
-          }: _*)),
+          wrapToMethod(xs, env) { case (_, t, code) =>
+            code.setup
+          },
           const(false),
           Code._empty)
 

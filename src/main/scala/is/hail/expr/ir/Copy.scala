@@ -86,8 +86,8 @@ object Copy {
         val IndexedSeq(a: IR, body: IR) = newChildren
         AggFlatMap(a, name, body)
       case SeqOp(a, i, agg) =>
-        val IndexedSeq(newA: IR) = newChildren
-        SeqOp(newA, i, agg)
+        val IndexedSeq(newA: IR, newI: IR) = newChildren
+        SeqOp(newA, newI, agg)
       case Begin(xs) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case ApplyAggOp(_, op, args) =>

@@ -99,7 +99,7 @@ final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR]) extends InferIR {
   def inputType: Type = coerce[TAggregable](a.typ).elementType
 }
 
-final case class SeqOp(a: IR, i: Int, agg: CodeAggregator[T] forSome { type T <: RegionValueAggregator }) extends IR {
+final case class SeqOp(a: IR, i: IR, agg: CodeAggregator[T] forSome { type T <: RegionValueAggregator }) extends IR {
   val typ = TVoid
 }
 
