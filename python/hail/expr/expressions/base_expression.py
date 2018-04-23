@@ -605,7 +605,8 @@ class Expression(object):
         elif len(axes) == 1:
             if isinstance(source, hail.Table):
                 df = source
-                df = df.select(*filter(lambda f: f != name, df.key), **{name: self})
+                keys = filter(lambda f: f != name, df.key) if df.key else []
+                df = df.select(*keys, **{name: self})
                 return df.select_globals()
             else:
                 assert isinstance(source, hail.MatrixTable)

@@ -52,7 +52,7 @@ object Table {
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
-    fromDF(hc, df, Option(key.asScala.toArray.toFastIndexedSeq))
+    fromDF(hc, df, if (key == null) None else Some(key.asScala.toArray.toFastIndexedSeq))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: Option[IndexedSeq[String]] = None): Table = {
@@ -74,15 +74,10 @@ object Table {
   }
 
   def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
-    keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): Table = {
-    parallelize(hc, rowsJSON, signature, keyNames.asScala.toArray, nPartitions)
-  }
-
-  def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
-    key: IndexedSeq[String], nPartitions: Option[Int] = None): Table = {
+    keyNames: Option[java.util.ArrayList[String]], nPartitions: Option[Int]): Table = {
     val parsedRows = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(rowsJSON), TArray(signature))
       .asInstanceOf[IndexedSeq[Row]]
-    parallelize(hc, parsedRows, signature, Some(key), nPartitions)
+    parallelize(hc, parsedRows, signature, keyNames.map(_.asScala.toArray.toFastIndexedSeq), nPartitions)
   }
 
   def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
@@ -108,14 +103,29 @@ object Table {
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct
-  ): Table = apply(hc, rdd, signature, None)
+  ): Table = apply(hc, rdd, signature, None, true)
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    sort: Boolean
+  ): Table = apply(hc, rdd, signature, None, sort)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
     key: Option[IndexedSeq[String]]
-  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty)
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, true)
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: Option[IndexedSeq[String]],
+    sort: Boolean
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, sort)
 
   def apply(
     hc: HailContext,
@@ -130,14 +140,33 @@ object Table {
     signature,
     key,
     globalSignature,
-    globals)
+    globals,
+    true)
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: Option[IndexedSeq[String]],
+    globalSignature: TStruct,
+    globals: Annotation,
+    sort: Boolean
+  ): Table = apply(
+    hc,
+    ContextRDD.weaken[RVDContext](rdd),
+    signature,
+    key,
+    globalSignature,
+    globals,
+    sort)
 
   def apply(
     hc: HailContext,
     crdd: ContextRDD[RVDContext, Row],
     signature: TStruct,
-    key: Option[IndexedSeq[String]]
-  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty)
+    key: Option[IndexedSeq[String]],
+    sort: Boolean
+  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty, sort)
 
   def apply(
     hc: HailContext,
@@ -145,7 +174,8 @@ object Table {
     signature: TStruct,
     key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
-    globals: Annotation
+    globals: Annotation,
+    sort: Boolean
   ): Table = {
     val crdd2 = crdd.mapPartitions(_.toRegionValueIterator(signature))
     new Table(hc, TableLiteral(
@@ -153,7 +183,7 @@ object Table {
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
         new UnpartitionedRVD(signature, crdd2)))
-    ).keyBy(key.map(_.toArray))
+    ).keyBy(key.map(_.toArray), sort)
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -398,18 +428,26 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
     } else {
       assert(key.isEmpty)
-      keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
-        other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
-      ).forall { case (k, (v1, v2)) =>
-        (v1, v2) match {
-          case (None, None) => true
-          case (Some(x), Some(y)) => x.size == y.size
-          case (Some(x), None) =>
-            info(s"ROW IN LEFT, NOT RIGHT: ${ x.mkString("\n    ") }\n")
-            false
-          case (None, Some(y)) =>
-            info(s"ROW IN RIGHT, NOT LEFT: ${ y.mkString("\n    ") }\n")
-            false
+      if (signature.fields.isEmpty) {
+        val leftCount = count()
+        val rightCount = other.count()
+        if (leftCount != rightCount)
+          info(s"EMPTY SCHEMAS, BUT DIFFERENT LENGTHS: left=$leftCount\n  right=$rightCount")
+        leftCount == rightCount
+      } else {
+        keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
+          other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
+        ).forall { case (k, (v1, v2)) =>
+          (v1, v2) match {
+            case (None, None) => true
+            case (Some(x), Some(y)) => x.size == y.size
+            case (Some(x), None) =>
+              info(s"ROW IN LEFT, NOT RIGHT: ${ x.mkString("\n    ") }\n")
+              false
+            case (None, Some(y)) =>
+              info(s"ROW IN RIGHT, NOT LEFT: ${ y.mkString("\n    ") }\n")
+              false
+          }
         }
       }
     }
@@ -522,11 +560,19 @@ class Table(val hc: HailContext, val tir: TableIR) {
     partitionKeys: java.util.ArrayList[String]
   ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
 
-  def keyBy(keys: Array[String]): Table = keyBy(keys, keys)
+  def keyBy(keys: Array[String]): Table = keyBy(keys, keys, true)
+
+  def keyBy(keys: Array[String], sort: Boolean): Table = keyBy(keys, keys, sort)
 
   def keyBy(maybeKeys: Option[Array[String]]): Table =
     maybeKeys match {
       case Some(keys) => keyBy(keys)
+      case None => unkey()
+    }
+
+  def keyBy(maybeKeys: Option[Array[String]], sort: Boolean): Table =
+    maybeKeys match {
+      case Some(keys) => keyBy(keys, sort)
       case None => unkey()
     }
 
@@ -573,7 +619,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
           f().asInstanceOf[Row]
         }
 
-        val newKey = key.map(_.filter(newSignature.fieldNames.toSet))
+        val filteredKey = key.map(_.filter(newSignature.fieldNames.toSet))
+        val newKey = if (filteredKey.exists(_.isEmpty)) None else filteredKey
 
         copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
     }
@@ -1181,7 +1228,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     key: Option[IndexedSeq[String]] = key,
     globalSignature: TStruct = globalSignature,
     newGlobals: Annotation = globals.value): Table = {
-    Table(hc, rdd, signature, key, globalSignature, newGlobals)
+    Table(hc, rdd, signature, key, globalSignature, newGlobals, sort = false)
   }
 
   def copy2(rvd: RVD = rvd,

@@ -923,8 +923,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         case ordered: OrderedRVD => ordered
         case unordered =>
           val ordType = new OrderedRVDType(
-            kt.key.get.toArray,
             kt.key.get.toArray.take(rowPartitionKey.length),
+            kt.key.get.toArray,
             kt.signature)
           unordered.constrainToOrderedPartitioner(ordType, rvd.partitioner)
       }

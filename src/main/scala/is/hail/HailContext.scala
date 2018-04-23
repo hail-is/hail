@@ -411,7 +411,7 @@ class HailContext private(val sc: SparkContext,
     skipBlankLines: Boolean
   ): Table = importTables(inputs.asScala,
     Option(keyNames).map(_.asScala.toIndexedSeq),
-    Option(nPartitions), types.asScala.toMap, comment.asScala.toArray,
+    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap, comment.asScala.toArray,
     separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTable(input: String,
