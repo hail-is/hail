@@ -765,7 +765,7 @@ class Tests(unittest.TestCase):
         dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
         dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
 
-        hl.export_plink(dataset, b_file, id=dataset.s)
+        hl.export_plink(dataset, b_file, ind_id=dataset.s)
 
         sample_ids = [row.s for row in dataset.cols().select('s').collect()]
         n_variants = dataset.count_rows()
@@ -1671,7 +1671,7 @@ class Tests(unittest.TestCase):
         mt = mt.select_entries('GT')
 
         bfile = '/tmp/test_import_export_plink'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
                                       a2_reference=True, reference_genome='GRCh37')
@@ -1680,21 +1680,21 @@ class Tests(unittest.TestCase):
     def test_import_plink_empty_fam(self):
         mt = self.get_dataset().drop_cols()
         bfile = '/tmp/test_empty_fam'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(utils.FatalError, "Empty .fam file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_empty_bim(self):
         mt = self.get_dataset().drop_rows()
         bfile = '/tmp/test_empty_bim'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(utils.FatalError, ".bim file does not contain any variants"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_a1_major(self):
         mt = self.get_dataset()
         bfile = '/tmp/sample_plink'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
 
         def get_data(a2_reference):
             mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim',
