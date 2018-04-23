@@ -26,6 +26,14 @@ object Simplify {
       case ArrayFilter(a, _, True()) => a
 
       case AggFilter(a, _, True()) => a
+        
+      case Let(n, v, b) if !Mentions(b, n) => b
+
+      case AggFilter(AggMap(a, n1, b), n2, p) if !Mentions(p, n2) =>
+        AggMap(AggFilter(a, n2, p), n1, b)
+
+      case AggMap(AggMap(a, n1, b1), n2, b2) =>
+        AggMap(a, n1, Let(n2, b1, b2))
 
       case GetField(MakeStruct(fields), name) =>
         val (_, x) = fields.find { case (n, _) => n == name }.get
