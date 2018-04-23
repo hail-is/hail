@@ -1,4 +1,5 @@
 import numpy as np
+from hail.utils.misc import plural
 from hail.typecheck import *
 from hail.linalg import RowMatrix
 from hail.utils.java import jnone, jsome
@@ -142,7 +143,7 @@ class LinearMixedModel(object):
         - Number of fixed effects :math:`p`
       * - `r`
         - int
-        - Effective number of random effects, must be less than :math:`(n)`
+        - Effective number of random effects, must be less than :math:`n`
       * - `py`
         - numpy.ndarray
         - Projected response vector :math:`P_r y` with shape :math:`(r)`
@@ -219,7 +220,7 @@ class LinearMixedModel(object):
     the squared residuals and follows a chi-squared distribution with one degree of freedom.
 
     When testing alternatives, full-rank inference only requires the vector :math:`P x_\star`,
-    whereas low-rank inference requires both :math:`P_r x_\star`and :math:`x_\star`.
+    whereas low-rank inference requires both :math:`P_r x_\star` and :math:`x_\star`.
 
     Parameters
     ----------
@@ -243,11 +244,13 @@ class LinearMixedModel(object):
         elif y is not None and x is not None:
             low_rank = True
         else:
-            raise ValueError('For low-rank, set both y and x. For full-rank, do not set y or x.')
+            raise ValueError('for low-rank, set both y and x; for full-rank, do not set y or x.')
 
         assert py.ndim == 1 and px.ndim == 2 and s.ndim == 1
         r, f = px.shape
-        assert r > f >= 0
+        if f == 0:
+            raise ValueError('LinearMixedModel must have at least one fixed effect.')  # can relax
+
         assert py.size == r
         assert s.size == r
 
@@ -255,17 +258,21 @@ class LinearMixedModel(object):
             assert y.ndim == 1 and x.ndim == 2
             assert x.shape == (y.size, f)
             assert y.size > r
+            n = y.size
+        else:
+            n = r
 
         self.low_rank = low_rank
-        self.r = r
+        self.n = n
         self.f = f
-        self.n = y.size if low_rank else r
-        self.dof = self.n - f
+        self.r = r
         self.py = py
         self.px = px
         self.s = s
         self.y = y
         self.x = x
+
+        self._check_dof()
 
         self.beta = None
         self.sigma_sq = None
@@ -276,19 +283,26 @@ class LinearMixedModel(object):
         self.optimize_result = None
 
         self._fitted = False
+
         if low_rank:
             self._yty = y @ y
             self._xty = x.T @ y
             self._xtx = x.T @ x
+
+        self._dof = n - f
         self._d = None
         self._ydy = None
         self._xdy = None
         self._xdx = None
+
+        self._dof_alt = n - (f + 1)
         self._d_alt = None
         self._ydy_alt = None
-        self._xdy_alt = np.zeros(self.f + 1)
-        self._xdx_alt = np.zeros((self.f + 1, self.f + 1))
+        self._xdy_alt = np.zeros(f + 1)
+        self._xdx_alt = np.zeros((f + 1, f + 1))
+
         self._residual_sq = None
+
         self._scala_model = None
 
     def _reset(self):
@@ -356,9 +370,9 @@ class LinearMixedModel(object):
         try:
             beta = solve(xdx, xdy, assume_a='pos', overwrite_a=True)
             residual_sq = ydy - xdy.T @ beta
-            sigma_sq = residual_sq / self.dof
+            sigma_sq = residual_sq / self._dof
             tau_sq = sigma_sq / gamma
-            neg_log_reml = (np.linalg.slogdet(xdx)[1] - logdet_d + self.dof * np.log(sigma_sq)) / 2
+            neg_log_reml = (np.linalg.slogdet(xdx)[1] - logdet_d + self._dof * np.log(sigma_sq)) / 2
 
             if return_parameters:
                 return neg_log_reml, beta, sigma_sq, tau_sq
@@ -366,7 +380,7 @@ class LinearMixedModel(object):
                 self._d, self._ydy, self._xdy, self._xdx = d, ydy, xdy, xdx
                 return neg_log_reml
         except LinAlgError as e:
-            raise Exception(f'Linear algebra error while solving for REML estimate:\n  {e}')
+            raise Exception(f'linear algebra error while solving for REML estimate:\n  {e}')
 
     @typecheck_method(log_gamma=nullable(float), bounds=tupleof(numeric), tol=float, maxiter=int)
     def fit(self, log_gamma=None, bounds=(-8.0, 8.0), tol=1e-8, maxiter=500):
@@ -410,19 +424,20 @@ class LinearMixedModel(object):
 
             if self.optimize_result.success:
                 if self.optimize_result.x - bounds[0] < 0.01:
-                    raise Exception("Failed to fit log_gamma: optimum within 0.01 of lower bound.")
+                    raise Exception("failed to fit log_gamma: optimum within 0.01 of lower bound.")
                 elif bounds[1] - self.optimize_result.x < tol:
-                    raise Exception("Failed to fit log_gamma: optimum within 0.01 of upper bound.")
+                    raise Exception("failed to fit log_gamma: optimum within 0.01 of upper bound.")
                 else:
                     self.log_gamma = self.optimize_result.x
             else:
-                raise Exception(f'Failed to fit log_gamma:\n  {self.optimize_result}')
+                raise Exception(f'failed to fit log_gamma:\n  {self.optimize_result}')
 
         _, self.beta, self.sigma_sq, self.tau_sq = self.compute_neg_log_reml(self.log_gamma, return_parameters=True)
 
         self.gamma = np.exp(self.log_gamma)
         self.h_sq = self.sigma_sq / (self.sigma_sq + self.tau_sq)
-        self._residual_sq = self.sigma_sq * self.dof
+
+        self._residual_sq = self.sigma_sq * self._dof
         self._d_alt = self._d
         self._ydy_alt = self._ydy
         self._xdy_alt[1:] = self._xdy
@@ -479,6 +494,8 @@ class LinearMixedModel(object):
         """
         from hail.table import Table
 
+        self._check_dof(self.f + 1)
+
         if self.low_rank and a_t is None:
             raise ValueError('model is low-rank so a_t is required.')
         elif not (self.low_rank or a_t is None):
@@ -534,8 +551,10 @@ class LinearMixedModel(object):
         """
         import pandas as pd
 
+        self._check_dof(self.f + 1)
+
         if not self._fitted:
-            raise Exception("Null model is not fit. Run 'fit' first.")
+            raise Exception("null model is not fit. Run 'fit' first.")
 
         n_cols = pa.shape[1]
         assert pa.shape[0] == self.r
@@ -572,7 +591,7 @@ class LinearMixedModel(object):
         try:
             beta = solve(xdx, xdy, assume_a='pos', overwrite_a=True)  # only uses upper triangle
             residual_sq = ydy - xdy.T @ beta
-            sigma_sq = residual_sq / (self.dof - 1)
+            sigma_sq = residual_sq / self._dof_alt
             chi_sq = self.n * np.log(self._residual_sq / residual_sq)  # division => precision
             p_value = chi2.sf(chi_sq, 1)
 
@@ -585,7 +604,7 @@ class LinearMixedModel(object):
         from hail.linalg import _jarray_from_ndarray, _breeze_from_ndarray
 
         if not self._fitted:
-            raise Exception("Null model is not fit. Run 'fit' first.")
+            raise Exception("null model is not fit. Run 'fit' first.")
 
         self._scala_model = Env.hail().stats.LinearMixedModel.apply(
             Env.hc()._jhc,
@@ -600,3 +619,11 @@ class LinearMixedModel(object):
             jsome(_jarray_from_ndarray(self.y)) if self.low_rank else jnone(),
             jsome(_breeze_from_ndarray(self.x)) if self.low_rank else jnone()
         )
+
+    def _check_dof(self, f=None):
+        if f is None:
+            f = self.f
+        dof = self.n - f
+        if dof <= 0:
+            raise ValueError(f"{self.n} {plural('observation', self.n)} with {f} fixed {plural('effect', f)}"
+                             f"implies {dof} {plural('degree', dof)} of freedom. Must be positive.")
