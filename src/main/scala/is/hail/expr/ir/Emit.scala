@@ -419,11 +419,8 @@ private class Emit(
         val xvv = coerce[Any](mb.newField(valueName)(eti))
         val bodyenv = env.bind(
           valueName -> (eti, xmv.load(), xvv.load()))
-
         val codeB = emit(body, env = bodyenv)
-
         val aBase = emitArrayIterator(a)
-
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
@@ -432,8 +429,15 @@ private class Emit(
         }
 
         val processAElts = aBase.arrayEmitter(cont)
-
-        EmitTriplet(processAElts.setup, const(false), Code._empty)
+        val ma = processAElts.m.getOrElse(const(false))
+        EmitTriplet(
+          Code(
+            processAElts.setup,
+            ma.mux(
+              Code._empty,
+              Code(aBase.calcLength, processAElts.addElements))),
+          const(false),
+          Code._empty)
 
       case SeqOp(a, i, agg) =>
         EmitTriplet(

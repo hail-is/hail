@@ -936,7 +936,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         val aggResultsOff = if (rvAggs.nonEmpty) {
           val newRVAggs = rvAggs.map(_.copy())
 
-          seqOps()(region, newRVAggs, 0, true, globals, false, oldRow, false, cols, false)
+          seqOps()(region, newRVAggs, 0, true, globals, false, cols, false, oldRow, false)
 
           rvb.start(aggResultType)
           rvb.startStruct()
