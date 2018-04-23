@@ -222,7 +222,7 @@ object CalculateConcordance {
 
     val sampleKT = Table(left.hc, sampleRDD, sampleSchema, Some(left.colKey))
 
-    val variantKT = Table(left.hc, variantCRDD, variantSchema, Some(left.rowKey))
+    val variantKT = Table(left.hc, variantCRDD, variantSchema, Some(left.rowKey), sort = true)
 
     (global.toAnnotation, sampleKT, variantKT)
   }
