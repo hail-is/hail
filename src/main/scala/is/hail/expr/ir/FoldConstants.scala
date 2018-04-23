@@ -15,9 +15,6 @@ object FoldConstants {
           throw new MatchError(ir)
 
         ir match {
-          case If(NA(_), _, _) =>
-            NA(ir.typ)
-
           case ApplyUnaryPrimOp(_, _) |
                ApplyBinaryPrimOp(_, _, _) |
                Apply(_, _) |
