@@ -2,10 +2,11 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.io._
-import is.hail.io.plink.{BimAnnotationView, ExportPlinkUtils, BitPacker}
+import is.hail.io.plink.{BimAnnotationView, BitPacker, ExportPlinkUtils}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.table.TableSpec
