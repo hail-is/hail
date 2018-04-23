@@ -149,7 +149,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     PLINK files with the FAM file individual ID set to the sample ID:
 
     >>> ds = hl.split_multi_hts(dataset)
-    >>> hl.export_plink(ds, 'output/example', id = ds.s)
+    >>> hl.export_plink(ds, 'output/example', ind_id = ds.s)
 
     Notes
     -----
