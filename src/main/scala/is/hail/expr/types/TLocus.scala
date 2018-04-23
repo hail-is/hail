@@ -1,7 +1,9 @@
 package is.hail.expr.types
 
 import is.hail.annotations._
+import is.hail.asm4s.Code
 import is.hail.check._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import is.hail.variant._
 
@@ -61,6 +63,31 @@ case class TLocus(rg: RGBase, override val required: Boolean = false) extends Co
         val posOff2 = repr.loadField(r2, o2, 1)
         java.lang.Integer.compare(r1.loadInt(posOff1), r2.loadInt(posOff2))
       }
+    }
+  }
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
+    type T = Long
+
+    override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long], missingGreatest: Boolean): Code[Int] = {
+      val cmp = mb.newLocal[Int]
+
+      val c1 = representation.loadField(rx, x, 0)
+      val c2 = representation.loadField(ry, y, 0)
+
+      val s1 = Code.invokeScalaObject[Region, Long, String](TString.getClass, "loadString", rx, c1)
+      val s2 = Code.invokeScalaObject[Region, Long, String](TString.getClass, "loadString", ry, c2)
+
+      val p1 = rx.loadInt(representation.fieldOffset(x, 1))
+      val p2 = ry.loadInt(representation.fieldOffset(y, 1))
+
+      val codeRG = mb.getReferenceGenome(rg.asInstanceOf[ReferenceGenome])
+
+      Code(
+        cmp := codeRG.invoke[String, String, Int]("compare", s1, s2),
+        cmp.ceq(0).mux(
+          Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", p1, p2),
+          cmp))
     }
   }
 

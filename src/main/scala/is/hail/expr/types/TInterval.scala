@@ -1,8 +1,10 @@
 package is.hail.expr.types
 
+import is.hail.annotations.CodeOrdering
 import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.check.Gen
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
@@ -36,6 +38,9 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
   val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    CodeOrdering.intervalOrdering(this, mb)
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
     new UnsafeOrdering {
@@ -80,6 +85,10 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
   }
 
   override def subst() = TInterval(pointType.subst())
+
+  def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
+
+  def endOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 1)
 
   def loadStart(region: Region, off: Long): Long = representation.loadField(region, off, 0)
 

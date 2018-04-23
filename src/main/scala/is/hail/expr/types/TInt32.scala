@@ -1,9 +1,11 @@
 package is.hail.expr.types
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.IntNumericConversion
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -33,6 +35,28 @@ class TInt32(override val required: Boolean) extends TIntegral {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    new CodeOrdering {
+      type T = Int
+      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
+        Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", x, y)
+
+      override def ltNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
+        x < y
+
+      override def lteqNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
+        x <= y
+
+      override def gtNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
+        x > y
+
+      override def gteqNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
+        x >= y
+
+      override def equivNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
+        x.ceq(y)
+    }
 
   override def byteSize: Long = 4
 }

@@ -412,6 +412,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   // on the JVM Booleans are represented as Ints
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
+
+  def toS: Code[String] = lhs.mux(const("true"), const("false"))
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
@@ -689,6 +691,8 @@ trait Settable[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
+
+  def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
 }
 
 class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
