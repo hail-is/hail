@@ -26,8 +26,8 @@ object RowMatrix {
   }
 
   def readBlockMatrix(hc: HailContext, uri: String, partSize: Int): RowMatrix = {
-    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) = BlockMatrix.readMetadata(hc, uri)
-    val gp = GridPartitioner(blockSize, nRows, nCols)
+    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeSparse, partFiles) = BlockMatrix.readMetadata(hc, uri)
+    val gp = GridPartitioner(blockSize, nRows, nCols, maybeSparse)
     val partitionCounts = computePartitionCounts(partSize, gp.nRows)
     RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partFiles, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)
   }

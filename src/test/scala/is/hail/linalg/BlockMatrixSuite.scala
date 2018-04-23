@@ -828,4 +828,18 @@ class BlockMatrixSuite extends SparkSuite {
 
     assert(entriesTable.select("{i: row.i, j: row.j}").same(expectedTable))
   }
+  
+  @Test
+  def readWriteIdentitySparse() {
+    val lm = toLM(4, 4, (0 until 16).toArray)
+    val m = toBM(lm, blockSize = 2)
+
+    val fname = tmpDir.createTempFile("test")
+    m.write(fname)
+    assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
+
+    val fname2 = tmpDir.createTempFile("test2")
+    m.write(fname2, forceRowMajor = true)
+    assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
+  }
 }

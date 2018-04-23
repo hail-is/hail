@@ -11,7 +11,6 @@ import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
 import is.hail.methods.UpperIndexBounds
-import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
@@ -118,9 +117,9 @@ object BlockMatrix {
     if (!hadoopConf.exists(uri + "/_SUCCESS"))
       fatal("Write failed: no success indicator found")
 
-    val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) = readMetadata(hc, uri)
+    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeSparse, partFiles) = readMetadata(hc, uri)
 
-    val gp = GridPartitioner(blockSize, nRows, nCols)
+    val gp = GridPartitioner(blockSize, nRows, nCols, maybeSparse)
 
     def readBlock(i: Int, is: InputStream, metrics: InputMetrics): Iterator[((Int, Int), BDM[Double])] = {
       val bdm = RichDenseMatrixDouble.read(is, bufferSpec)
@@ -173,7 +172,7 @@ object BlockMatrix {
 }
 
 // must be top-level for Jackson to serialize correctly
-case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long, partFiles: Array[String])
+case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]], partFiles: Array[String])
 
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
@@ -188,7 +187,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
 
   val gp: GridPartitioner = blocks.partitioner.get.asInstanceOf[GridPartitioner]
+  
+  def filterBlocks(support: Array[Int]): BlockMatrix = {
 
+    val filteredGP = gp.filterBlocks(support)
+        
+    new BlockMatrix
+  }
+  
   // element-wise ops
   def unary_+(): M = this
   def unary_-(): M = blockMap(-_)
@@ -268,7 +274,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols, partFiles),
+        BlockMatrixMetadata(blockSize, nRows, nCols, gp.maybeSparse, partFiles),
         os)
     }
 

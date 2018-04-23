@@ -2,10 +2,23 @@ package is.hail.linalg
 
 import org.apache.spark.Partitioner
 import breeze.linalg.{DenseVector => BDV}
+import is.hail.utils._
 
-case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Partitioner {
+
+case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]] = None) extends Partitioner {
   require(nRows > 0 && nRows <= Int.MaxValue.toLong * blockSize)
   require(nCols > 0 && nCols <= Int.MaxValue.toLong * blockSize)
+  require(maybeSparse.forall(support =>
+    support.isEmpty || (support.isIncreasing && support.head >= 0 && support.last < numPartitions)))
+  
+  def filterBlocks(blocksToKeep: Array[Int]): GridPartitioner = {
+    val filteredSupport = maybeSparse match {
+      case Some(support) => support.filter(blocksToKeep.toSet)
+      case None => blocksToKeep  // FIXME: error message if not valid
+    }
+    
+    GridPartitioner(blockSize, nRows, nCols, Some(filteredSupport))
+  }
   
   def blockIndex(index: Long): Int = (index / blockSize).toInt
 
