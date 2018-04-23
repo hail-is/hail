@@ -242,12 +242,11 @@ object Nirvana {
         "sasAn" -> TInt32()
       ),
       "topmed" -> TStruct(
-        "hasFailedFilters" -> TBoolean(),
-        "numSamples" -> TInt32(),
-        "alleleCount" -> TInt32(),
-        "alleleNumber" -> TInt32(),
-        "alleleFreq" -> TFloat64(),
-        "homCount" -> TInt32()
+        "failedFilter" -> TBoolean(),
+        "allAc" -> TInt32(),
+        "allAn" -> TInt32(),
+        "allAf" -> TFloat64(),
+        "allHc" -> TInt32()
       ),
       "globalAllele" -> TStruct(
         "globalMinorAllele" -> TString(),
