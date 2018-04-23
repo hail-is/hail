@@ -267,11 +267,6 @@ class LocalLDPruneSuite extends SparkSuite {
     assert(D_==(LocalLDPrune.computeR2(bvi1, bvi2), 1d))
   }
 
-  @Test def testMultipleChr() = {
-    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold=0.2, windowSize=500, maxQueueSize)
-    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, r2Threshold=0.2, windowSize=500))
-  }
-
   object Spec extends Properties("LDPrune") {
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
     v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
@@ -338,21 +333,6 @@ class LocalLDPruneSuite extends SparkSuite {
 
     // max queue size < 1
     intercept[HailException](LocalLDPrune(vds, r2Threshold = 0.5, windowSize = 1000, maxQueueSize = 0))
-  }
-
-  @Test def testMemoryRequirements() {
-    val nSamples = 5
-    val nVariants = 100
-
-    val memoryPerVariant = LocalLDPruneSuite.variantByteOverhead +
-      math.ceil(8 * nSamples.toDouble / LocalLDPruneSuite.genotypesPerPack).toLong
-    val recipFractionMemoryUsed = 1.0 / LocalLDPruneSuite.fractionMemoryToUse
-    val memoryPerCore = math.ceil(memoryPerVariant * recipFractionMemoryUsed).toInt
-
-    for (expectedMaxQueueSize <- 1 to nVariants) {
-      val y = LocalLDPruneSuite.estimateMemoryRequirements(nVariants, nSamples, memoryPerCore * expectedMaxQueueSize)
-      assert(y == expectedMaxQueueSize)
-    }
   }
 
   @Test def testNoPrune() {
