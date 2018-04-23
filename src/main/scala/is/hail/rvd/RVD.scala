@@ -174,6 +174,19 @@ trait RVD {
     depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
   ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
 
+  def treeAggregate[U: ClassTag](
+    zeroValue: U,
+    seqOp: (RVDContext, U, RegionValue) => U,
+    combOp: (RVDContext, U, U) => U,
+    depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
+  ): U = crdd.ctreeAggregate[U, U](
+    zeroValue,
+    seqOp,
+    combOp,
+    x => x,
+    (_, x) => x,
+    depth)
+
   def aggregate[U: ClassTag](
     zeroValue: U
   )(seqOp: (U, RegionValue) => U,
