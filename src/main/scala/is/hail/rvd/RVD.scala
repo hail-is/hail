@@ -168,17 +168,38 @@ trait RVD {
     newPartitioner: OrderedRVDPartitioner
   ): OrderedRVD
 
-  def treeAggregate[U: ClassTag](zeroValue: U)(
+  def treeAggregate[U: ClassTag](
+    zeroValue: U,
+    seqOp: (U, RegionValue) => U,
+    combOp: (U, U) => U
+  ): U = treeAggregate(
+    zeroValue,
+    seqOp,
+    combOp,
+    treeAggDepth(HailContext.get, rdd.getNumPartitions))
+
+  def treeAggregate[U: ClassTag](
+    zeroValue: U,
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
+    depth: Int
   ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
 
   def treeAggregate[U: ClassTag](
     zeroValue: U,
     seqOp: (RVDContext, U, RegionValue) => U,
+    combOp: (RVDContext, U, U) => U
+  ): U = treeAggregate(
+    zeroValue,
+    seqOp,
+    combOp,
+    treeAggDepth(HailContext.get, rdd.getNumPartitions))
+
+  def treeAggregate[U: ClassTag](
+    zeroValue: U,
+    seqOp: (RVDContext, U, RegionValue) => U,
     combOp: (RVDContext, U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, rdd.getNumPartitions)
+    depth: Int
   ): U = crdd.ctreeAggregate[U, U](
     zeroValue,
     seqOp,
