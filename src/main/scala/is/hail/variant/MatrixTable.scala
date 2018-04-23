@@ -1695,7 +1695,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         })
 
         val result = rvd
-          .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
+          .treeAggregate(zVal, seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
         resOp(result)
 
         (f(), t)

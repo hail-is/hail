@@ -1022,44 +1022,50 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
       rvAggsMA(i, j) = rvAggs(j).copy()
     }
 
-    val aggResults = if (seqOps.nonEmpty) {
-      prev.rvd.treeAggregate[MultiArray2[RegionValueAggregator]](rvAggsMA)({ (rvaggs, rv) =>
-        val rvb = new RegionValueBuilder()
-        val region = rv.region
-        val oldRow = rv.offset
+    type RVAggArray = MultiArray2[RegionValueAggregator]
 
-        rvb.set(region)
-        rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
-        val globals = rvb.end()
+    val seqOp = (ctx: RVDContext, rvaggs: RVAggArray, rv: RegionValue) => {
+      val rvb = ctx.rvb
+      val region = ctx.region
+      val oldRow = rv.offset
 
-        rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
-        val cols = rvb.end()
+      rvb.set(region)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val globals = rvb.end()
 
-        val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
+      rvb.start(localColsType)
+      rvb.addAnnotation(localColsType, colValuesBc.value)
+      val cols = rvb.end()
 
-        var i = 0
-        while (i < localNCols) {
-          val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
-          val eOff = localEntriesType.elementOffset(entriesOff, localNCols, i)
-          val colMissing = localColsType.isElementMissing(region, cols, i)
-          assert(!colMissing)
-          val colOff = localColsType.elementOffset(cols, localNCols, i)
+      val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
 
-          var j = 0
-          while (j < seqOps.length) {
-            seqOps(j)()(region, rvaggs(i, j), oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
-            j += 1
-          }
-          i += 1
+      var i = 0
+      while (i < localNCols) {
+        val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
+        val eOff = localEntriesType.elementOffset(entriesOff, localNCols, i)
+        val colMissing = localColsType.isElementMissing(region, cols, i)
+        assert(!colMissing)
+        val colOff = localColsType.elementOffset(cols, localNCols, i)
+
+        var j = 0
+        while (j < seqOps.length) {
+          seqOps(j)()(region, rvaggs(i, j), oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+          j += 1
         }
+        i += 1
+      }
 
-        rvaggs
-      }, { (rvAggs1, rvAggs2) =>
-        rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
-        rvAggs1
-      }, depth = depth)
+      rvaggs
+    }
+
+    val combOp = (ctx: RVDContext, rvAggs1: RVAggArray, rvAggs2: RVAggArray) => {
+      rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
+      rvAggs1
+    }
+
+    val aggResults = if (seqOps.nonEmpty) {
+      prev.rvd.treeAggregate[RVAggArray](rvAggsMA, seqOp, combOp, depth = depth)
     } else
       MultiArray2.fill[RegionValueAggregator](localNCols, 0)(null)
 
