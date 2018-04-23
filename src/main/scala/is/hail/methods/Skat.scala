@@ -222,7 +222,8 @@ object Skat {
 
     val n = completeColIdx.length
     val completeColIdxBc = sc.broadcast(completeColIdx)
-    
+
+    // FIXME: what to do about skat
     (vsm.rvd.rdd.flatMap { rv =>
       val fullRow = new UnsafeRow(fullRowType, rv)
       val row = fullRow.deleteField(entryArrayIdx)

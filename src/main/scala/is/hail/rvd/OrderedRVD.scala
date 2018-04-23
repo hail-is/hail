@@ -290,6 +290,7 @@ class OrderedRVD(
     if (n == 0)
       return OrderedRVD.empty(sparkContext, typ)
 
+    // FIXME head seems unsafe, do I crdd.head?
     val newRDD = rdd.head(n)
     val newNParts = newRDD.getNumPartitions
     assert(newNParts > 0)
