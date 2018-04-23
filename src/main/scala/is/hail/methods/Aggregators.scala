@@ -159,7 +159,10 @@ object Aggregators {
     val fullRowType = value.typ.rvRowType
     val localEntriesIndex = value.typ.entriesIdx
 
-    val result = value.rvd.treeAggregate(baseArray)({ case (arr, rv) =>
+    def seqOp(
+      arr: MultiArray2[Aggregator],
+      rv: RegionValue
+    ): MultiArray2[Aggregator] = {
       val fullRow = new UnsafeRow(fullRowType, rv)
 
       localA(0) = globalsBc.value
@@ -186,13 +189,21 @@ object Aggregators {
       }
 
       arr
-    }, { case (arr1, arr2) =>
+    }
+
+    def combOp(
+      arr1: MultiArray2[Aggregator],
+      arr2: MultiArray2[Aggregator]
+    ): MultiArray2[Aggregator] = {
       for (i <- 0 until nCols; j <- 0 until nAggregations) {
         val a1 = arr1(i, j)
         a1.combOp(arr2(i, j).asInstanceOf[a1.type])
       }
       arr1
-    }, depth = depth)
+    }
+
+    val result = value.rvd
+      .treeAggregate(baseArray, seqOp _, combOp _, depth = depth)
 
     Some((i: Int) => {
       for (j <- 0 until nAggregations) {
