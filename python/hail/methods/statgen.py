@@ -2980,10 +2980,13 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
                 * locally_pruned_ds.sd_reciprocal, 0))
 
     # BlockMatrix.from_entry_expr writes to disk
-    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
+    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=512)
     correlation_matrix = (block_matrix @ (block_matrix.T))
 
-    entries = correlation_matrix.entries()
+    entries = Table(correlation_matrix._jbm.filteredEntriesTable(
+        locally_pruned_ds.annotate_rows(contig=locally_pruned_ds.locus.contig, pos=locally_pruned_ds.locus.position)
+            .select_rows('contig', 'pos').rows().key_by("contig")._jt, window, False
+    ))
     entries_path = new_temp_file()
     entries.write(entries_path, overwrite=True)
     entries = hl.read_table(entries_path)
