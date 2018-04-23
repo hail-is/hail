@@ -52,7 +52,7 @@ class PCRelateSuite extends SparkSuite {
     val tmpfile = tmpDir.createTempFile(prefix = "pcrelate")
     val localTmpfile = tmpDir.createLocalTempFile(prefix = "pcrelate")
 
-    vds.exportPlink(tmpfile)
+    TestUtils.exportPlink(vds, tmpfile)
 
     for (suffix <- Seq(".bed", ".bim", ".fam")) {
       hadoopConf.copy(tmpfile + suffix, localTmpfile + suffix)

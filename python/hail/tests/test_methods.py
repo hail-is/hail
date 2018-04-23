@@ -1274,7 +1274,7 @@ class Tests(unittest.TestCase):
 
     def test_export_plink_exprs(self):
         ds = self.get_dataset()
-        fam_mapping = {'f0': 'fam_id', 'f1': 'id', 'f2': 'pat_id', 'f3': 'mat_id',
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
                        'f4': 'is_female', 'f5': 'pheno'}
         bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'position_morgan',
                        'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
@@ -1295,18 +1295,18 @@ class Tests(unittest.TestCase):
 
         # Test non-default FAM arguments
         out2 = utils.new_temp_file()
-        hl.export_plink(ds, out2, id=ds.s, fam_id=ds.s, pat_id="nope",
+        hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope",
                         mat_id="nada", is_female=True, pheno=False)
         fam2 = (hl.import_table(out2 + '.fam', no_header=True, impute=False)
                 .rename(fam_mapping))
 
-        self.assertTrue(fam2.all((fam2.fam_id == fam2.id) & (fam2.pat_id == "nope") &
+        self.assertTrue(fam2.all((fam2.fam_id == fam2.ind_id) & (fam2.pat_id == "nope") &
                                  (fam2.mat_id == "nada") & (fam2.is_female == "2") &
                                  (fam2.pheno == "1")))
 
         # Test quantitative phenotype
         out3 = utils.new_temp_file()
-        hl.export_plink(ds, out3, id=ds.s, pheno=hl.float64(hl.len(ds.s)))
+        hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
         fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False)
                 .rename(fam_mapping))
 

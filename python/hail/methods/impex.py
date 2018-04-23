@@ -123,21 +123,21 @@ def export_gen(dataset, output, precision=4):
            output=str,
            call=nullable(expr_call),
            fam_id=nullable(expr_str),
-           id=nullable(expr_str),
+           ind_id=nullable(expr_str),
            pat_id=nullable(expr_str),
            mat_id=nullable(expr_str),
            is_female=nullable(expr_bool),
            pheno=oneof(nullable(expr_bool), nullable(expr_numeric)),
            varid=nullable(expr_str),
            position_morgan=nullable(expr_numeric))
-def export_plink(dataset, output, call=None, fam_id=None, id=None, pat_id=None,
+def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
                  mat_id=None, is_female=None, pheno=None, varid=None,
                  position_morgan=None):
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
 
-    .. include:: ../_templates/req_tvariant.rst
+    .. include:: ../_templates/req_tvariant_w_struct_locus.rst
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -177,7 +177,7 @@ def export_plink(dataset, output, call=None, fam_id=None, id=None, pat_id=None,
     fam_id : :class:`.StringExpression`, optional
         Expression for the family ID. The default and missing values are
         ``'0'``.
-    id : :class:`.StringExpression`, optional
+    ind_id : :class:`.StringExpression`, optional
         Expression for the individual (proband) ID. If ``None``, the column key
         of the dataset is used and must be one field of type :py:data:`.tstr`.
     pat_id : :class:`.StringExpression`, optional
@@ -211,9 +211,9 @@ def export_plink(dataset, output, call=None, fam_id=None, id=None, pat_id=None,
         else:
             return to_expr(default)
 
-    if id is None:
+    if ind_id is None:
         require_col_key_str(dataset, "export_plink")
-        id = dataset.col_key[0]
+        ind_id = dataset.col_key[0]
 
     if call is None:
         if 'GT' in dataset.entry and dataset.GT.dtype == tcall:
@@ -224,7 +224,7 @@ def export_plink(dataset, output, call=None, fam_id=None, id=None, pat_id=None,
         entry_exprs = {'GT': call}
 
     fam_exprs = {'fam_id': expr_or_else(fam_id, '0'),
-                 'id': hl.or_else(id, '0'),
+                 'ind_id': hl.or_else(ind_id, '0'),
                  'pat_id': expr_or_else(pat_id, '0'),
                  'mat_id': expr_or_else(mat_id, '0'),
                  'is_female': expr_or_else(is_female, '0',
@@ -235,8 +235,8 @@ def export_plink(dataset, output, call=None, fam_id=None, id=None, pat_id=None,
     l = dataset.locus
     a = dataset.alleles
 
-    bim_exprs = {'locus': dataset.locus,
-                 'alleles': dataset.alleles,
+    bim_exprs = {'locus': l,
+                 'alleles': a,
                  'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
                  'pos_morgan': expr_or_else(position_morgan, 0)}
 
@@ -254,15 +254,13 @@ def export_plink(dataset, output, call=None, fam_id=None, id=None, pat_id=None,
     # check FAM ids for white space
     t_cols = dataset.cols()
     errors = []
-    for name in ['id', 'fam_id', 'pat_id', 'mat_id']:
-        ids = (t_cols.filter(t_cols[name].matches(r"\s+"))
-               .select(name)
-               .collect())
+    for name in ['ind_id', 'fam_id', 'pat_id', 'mat_id']:
+        ids = t_cols.filter(t_cols[name].matches(r"\s+"))[name].collect()
 
         if ids:
             errors.append(f"""expr '{name}' has spaces in the following values:\n""")
             for row in ids:
-                errors.append(f"""  {row[name]}\n""")
+                errors.append(f"""  {row}\n""")
 
     if errors:
         raise TypeError("\n".join(errors))
