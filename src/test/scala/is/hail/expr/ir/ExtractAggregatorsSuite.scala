@@ -56,9 +56,13 @@ class ExtractAggregatorsSuite {
 
     val seqOps = {
       val fb = EmitFunctionBuilder[Region, Array[RegionValueAggregator], IN, Boolean, SCOPE0, Boolean, Unit]
-      Emit(aggIR, fb, 2, tAgg)
 
-      fb.result(Some(new java.io.PrintWriter(System.out)))()
+      val s = Subst(aggIR, Env.empty[IR].bind("scope0", In(1, hailType[SCOPE0])))
+      Emit(s, fb, 2, tAgg)
+
+      fb.result(
+        // Some(new java.io.PrintWriter(System.out))
+      )()
     }
 
     val tArray = TArray(hailType[IN])
@@ -87,8 +91,8 @@ class ExtractAggregatorsSuite {
     fb.result()()
   }
 
-  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo]
-    (region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
+  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo](
+    region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
     val (post, ret) = runStage1[IN, SCOPE0](region, ir, aOff, scope0)
     val f = compileStage0[R](post)
     f(region, ret, false)
