@@ -139,7 +139,8 @@ class LocalLDPruneSuite extends SparkSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
   lazy val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
-
+  val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
+  
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
   def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table):
@@ -267,12 +268,8 @@ class LocalLDPruneSuite extends SparkSuite {
   }
 
   @Test def testMultipleChr() = {
-    val r2 = 0.2
-    val windowSize = 500
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)))
-    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
-    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2, windowSize, maxQueueSize)
-    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, r2, windowSize))
+    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold=0.2, windowSize=500, maxQueueSize)
+    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, r2Threshold=0.2, windowSize=500))
   }
 
   object Spec extends Properties("LDPrune") {
@@ -360,7 +357,6 @@ class LocalLDPruneSuite extends SparkSuite {
 
   @Test def testNoPrune() {
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
-    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCore = 200 * 1024 * 1024)
     val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize)
     assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
   }
@@ -393,8 +389,6 @@ class LocalLDPruneSuite extends SparkSuite {
   }
 
   @Test def testIsLocallyUncorrelated() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
-    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
     val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
