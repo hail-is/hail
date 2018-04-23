@@ -962,7 +962,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         new MatrixTable(hc, MatrixMapCols(ast, x))
 
       case _ =>
-        log.warn(s"select_rows found no AST to IR conversion: ${ PrettyAST(colsAST) }")
+        log.warn(s"select_cols found no AST to IR conversion: ${ PrettyAST(colsAST) }")
         val (t, f) = Parser.parseExpr(expr, ec)
 
         val newColType = coerce[TStruct](t)

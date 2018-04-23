@@ -1032,6 +1032,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
           val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
           val eOff = localEntriesType.elementOffset(entriesOff, localNCols, i)
           val colMissing = localColsType.isElementMissing(region, cols, i)
+          assert(!colMissing)
           val colOff = localColsType.elementOffset(cols, localNCols, i)
 
           var j = 0
