@@ -13,15 +13,27 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     require(typ.isInstanceOf[TBaseStruct] && coerce[TBaseStruct](typ).size == 2)
     val ttype = coerce[TBaseStruct](typ)
     val kt = ttype.types(0)
-    def wrap[T: TypeInfo](op: CodeOrdering.Op): CodeOrdering.F[T] =
+    val comp: CodeOrdering.F[Int] =
+    { case (r1: Code[Region], (m1: Code[Boolean], v1: Code[Long]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
+      val mk1 = ttype.isFieldMissing(r1, v1, 0)
+      val mk2 = ttype.isFieldMissing(r2, v2, 0)
+      val k1 = mk1.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
+      val k2 = mk2.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
+      val cmp = mb.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+      (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
+
+    }
+    val ceq: CodeOrdering.F[Boolean] =
     { case (r1: Code[Region], (m1: Code[Boolean], v1: Code[Long]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
       val mk1 = m1 || ttype.isFieldMissing(r1, v1, 0)
       val mk2 = m2 || ttype.isFieldMissing(r2, v2, 0)
       val k1 = mk1.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
       val k2 = mk2.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-      mb.getCodeOrdering[T](kt, op, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+
+      mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
     }
-    (wrap[Int](CodeOrdering.compare), wrap[Boolean](CodeOrdering.equiv))
+
+    (comp, ceq)
   } else
     (mb.getCodeOrdering[Int](typ, CodeOrdering.compare, missingGreatest = true),
       mb.getCodeOrdering[Boolean](typ, CodeOrdering.equiv, missingGreatest = true))

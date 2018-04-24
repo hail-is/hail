@@ -148,7 +148,6 @@ class OrderingSuite {
     p.check()
   }
 
-
   @Test def testToDictOnRandomDuplicatedArray() {
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
       case (k, v) => Gen.zip(Gen.const(TTuple(k, v)), TArray(TTuple(k, v)).genNonmissingValue)
