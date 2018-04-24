@@ -36,25 +36,13 @@ object Literal {
   }
 }
 
-object Zero {
-  def apply(t: Type): IR = {
+object NumericConstant {
+  def apply(x: Double, t: Type): IR = {
     t match {
-      case _: TInt32 => I32(0)
-      case _: TInt64 => I64(0L)
-      case _: TFloat32 => F32(0F)
-      case _: TFloat64 => F64(0D)
-      case _ => throw new RuntimeException(s"Unsupported literal type: $t")
-    }
-  }
-}
-
-object One {
-  def apply(t: Type): IR = {
-    t match {
-      case _: TInt32 => I32(1)
-      case _: TInt64 => I64(1L)
-      case _: TFloat32 => F32(1F)
-      case _: TFloat64 => F64(1D)
+      case _: TInt32 => I32(x.toInt)
+      case _: TInt64 => I64(x.toLong)
+      case _: TFloat32 => F32(x.toFloat)
+      case _: TFloat64 => F64(x)
       case _ => throw new RuntimeException(s"Unsupported literal type: $t")
     }
   }
