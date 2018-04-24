@@ -60,6 +60,10 @@ object Pretty {
             case ArrayFilter(_, name, _) => name
             case ArrayFlatMap(_, name, _) => name
             case ArrayFold(_, _, accumName, valueName, _) => s"$accumName $valueName"
+            case AggMap(_, name, _) => name
+            case AggFilter(_, name, _) => name
+            case AggFlatMap(_, name, _) => name
+            case ApplyAggOp(_, op, _) => op.getClass.getName.split("\\.").last
             case Apply(function, _) => function
             case ApplySpecial(function, _) => function
             case In(i, _) => i.toString
@@ -118,9 +122,9 @@ object Pretty {
             sb += '\n'
             children.foreachBetween(c => pretty(c, depth + 2))(sb += '\n')
           }
-
-          sb += ')'
       }
+
+      sb += ')'
     }
 
     pretty(ir, 0)

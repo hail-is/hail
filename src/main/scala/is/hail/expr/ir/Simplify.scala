@@ -4,13 +4,55 @@ import is.hail.utils._
 import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableRead}
 
 object Simplify {
+  private[this] def isStrict(x: IR): Boolean = {
+    x match {
+      case _: Apply |
+        _: ApplyUnaryPrimOp |
+        _: ApplyBinaryPrimOp |
+        _: ArrayRange |
+        _: ArrayRef |
+        _: ArrayLen |
+        _: GetField |
+        _: GetTupleElement => true
+      case _ => false
+    }
+  }
+
+  private[this] def isDefinitelyDefined(x: IR): Boolean = {
+    x match {
+      case _: MakeArray |
+           _: MakeStruct |
+           _: MakeTuple |
+           _: IsNA |
+           _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
+      case _ => false
+    }
+  }
+
   def apply(ir: BaseIR): BaseIR = {
     RewriteBottomUp(ir, matchErrorToNone {
-      // optimze IR
+      // optimize IR
+
+      // propagate NA
+      case x: IR if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
+        NA(x.typ)
+
+      case x@If(NA(_), _, _) => NA(x.typ)
+
+      case x@ArrayMap(NA(_), _, _) => NA(x.typ)
+
+      case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)
+
+      case x@ArrayFilter(NA(_), _, _) => NA(x.typ)
+
+      case x@ArrayFold(NA(_), _, _, _, _) => NA(x.typ)
+
+      case IsNA(NA(_)) => True()
+
+      case IsNA(x) if isDefinitelyDefined(x) => False()
 
       case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
 
-      // If(NA, ...) handled by FoldConstants
       case If(True(), x, _) => x
       case If(False(), _, x) => x
 
@@ -26,6 +68,17 @@ object Simplify {
       case ArrayFilter(a, _, True()) => a
 
       case AggFilter(a, _, True()) => a
+        
+      case Let(n, v, b) if !Mentions(b, n) => b
+
+      case AggFilter(AggMap(a, n1, b), n2, p) if !Mentions(p, n2) =>
+        AggMap(AggFilter(a, n2, p), n1, b)
+
+      case AggMap(AggMap(a, n1, b1), n2, b2) =>
+        AggMap(a, n1, Let(n2, b1, b2))
+
+      case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
+        ArrayMap(a, n1, Let(n2, b1, b2))
 
       case GetField(MakeStruct(fields), name) =>
         val (_, x) = fields.find { case (n, _) => n == name }.get
