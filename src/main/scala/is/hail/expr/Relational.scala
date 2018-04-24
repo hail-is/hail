@@ -1653,6 +1653,23 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
   }
 }
 
+case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
+  assert(children.length > 0)
+  assert(children.tail.forall(_.typ == children(0).typ))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableUnion = {
+    TableUnion(newChildren.map(_.asInstanceOf[TableIR]))
+  }
+
+  val typ: TableType = children(0).typ
+
+  def execute(hc: HailContext): TableValue = {
+    val mvs = children.map(_.execute(hc))
+    mvs(0).copy(
+      rvd = RVD.union(mvs.map(_.rvd)))
+  }
+}
+
 case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child)
 
