@@ -18,7 +18,7 @@ import scala.collection.JavaConverters._
 
 object Nirvana {
 
-  //For Nirnava v2.0.5
+  //For Nirnava v2.0.8
 
   val nirvanaSignature = TStruct(
     "chromosome" -> TString(),
@@ -214,33 +214,6 @@ object Nirvana {
         "sasHc" -> TInt32(),
         "failedFilter" -> TBoolean()
       ),
-      "exac" -> TStruct(
-        "coverage" -> TInt32(),
-        "allAf" -> TFloat64(),
-        "allAc" -> TInt32(),
-        "allAn" -> TInt32(),
-        "afrAf" -> TFloat64(),
-        "afrAc" -> TInt32(),
-        "afrAn" -> TInt32(),
-        "amrAf" -> TFloat64(),
-        "amrAc" -> TInt32(),
-        "amrAn" -> TInt32(),
-        "easAf" -> TFloat64(),
-        "easAc" -> TInt32(),
-        "easAn" -> TInt32(),
-        "finAf" -> TFloat64(),
-        "finAc" -> TInt32(),
-        "finAn" -> TInt32(),
-        "nfeAf" -> TFloat64(),
-        "nfeAc" -> TInt32(),
-        "nfeAn" -> TInt32(),
-        "othAf" -> TFloat64(),
-        "othAc" -> TInt32(),
-        "othAn" -> TInt32(),
-        "sasAf" -> TFloat64(),
-        "sasAc" -> TInt32(),
-        "sasAn" -> TInt32()
-      ),
       "topmed" -> TStruct(
         "failedFilter" -> TBoolean(),
         "allAc" -> TInt32(),
@@ -346,13 +319,14 @@ object Nirvana {
           "mimNumber" -> TInt32(),
           "phenotype" -> TString(),
           "mapping" -> TString(),
-          "inheritance" -> TArray(TString())
+          "inheritance" -> TArray(TString()),
+          "comments" -> TString()
         ))
       )),
-    "exac" -> TStruct(
-      "pLi" -> TFloat64(),
-      "pRec" -> TFloat64(),
-      "pNull" -> TFloat64()
+      "exac" -> TStruct(
+        "pLi" -> TFloat64(),
+        "pRec" -> TFloat64(),
+        "pNull" -> TFloat64()
       )
     ))
   )
