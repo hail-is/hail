@@ -62,12 +62,12 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("dbeta", TFloat64(), TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dbeta")
 
-    registerScalaFunction("rnorm", TFloat64(), TFloat64(), TFloat64())(thisClass, "rnorm")
+    registerScalaFunction("rnorm", TFloat64(), TFloat64(), TFloat64())(thisClass, "rnorm", isDeterministic = false)
 
     registerScalaFunction("pnorm", TFloat64(), TFloat64())(statsPackageClass, "pnorm")
     registerScalaFunction("qnorm", TFloat64(), TFloat64())(statsPackageClass, "qnorm")
 
-    registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois")
+    registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
     // other rpois returns an array
 
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
@@ -82,8 +82,8 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("pchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "chiSquaredTail")
     registerScalaFunction("qchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "inverseChiSquaredTail")
 
-    registerScalaFunction("pcoin", TFloat64(), TBoolean())(thisClass, "pcoin")
-    registerScalaFunction("runif", TFloat64(), TFloat64(), TFloat64())(thisClass, "runif")
+    registerScalaFunction("pcoin", TFloat64(), TBoolean())(thisClass, "pcoin", isDeterministic = false)
+    registerScalaFunction("runif", TFloat64(), TFloat64(), TFloat64())(thisClass, "runif", isDeterministic = false)
 
     registerScalaFunction("floor", TFloat32(), TFloat32())(thisClass, "floor")
     registerScalaFunction("floor", TFloat64(), TFloat64())(thisClass, "floor")
