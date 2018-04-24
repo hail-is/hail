@@ -1,7 +1,5 @@
 package is.hail.annotations.aggregators
 
-import is.hail.asm4s._
-import is.hail.expr.types._
 import is.hail.annotations._
 
 class RegionValueSumBooleanAggregator extends RegionValueAggregator {
@@ -10,10 +8,6 @@ class RegionValueSumBooleanAggregator extends RegionValueAggregator {
   def seqOp(b: Boolean, missing: Boolean) {
     if (!missing)
       sum |= b
-  }
-
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadBoolean(off), missing)
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -35,10 +29,6 @@ class RegionValueSumIntAggregator extends RegionValueAggregator {
       sum += i
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadInt(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     sum += agg2.asInstanceOf[RegionValueSumIntAggregator].sum
   }
@@ -56,10 +46,6 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
   def seqOp(l: Long, missing: Boolean) {
     if (!missing)
       sum += l
-  }
-
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadLong(off), missing)
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -81,10 +67,6 @@ class RegionValueSumFloatAggregator extends RegionValueAggregator {
       sum += f
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadFloat(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     sum += agg2.asInstanceOf[RegionValueSumFloatAggregator].sum
   }
@@ -102,10 +84,6 @@ class RegionValueSumDoubleAggregator extends RegionValueAggregator {
   def seqOp(d: Double, missing: Boolean) {
     if (!missing)
       sum += d
-  }
-
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadDouble(off), missing)
   }
 
   def combOp(agg2: RegionValueAggregator) {
