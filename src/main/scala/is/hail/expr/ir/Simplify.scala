@@ -34,8 +34,7 @@ object Simplify {
       // optimize IR
 
       // propagate NA
-      case x: IR
-        if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
+      case x: IR if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
         NA(x.typ)
 
       case x@If(NA(_), _, _) => NA(x.typ)
@@ -54,7 +53,6 @@ object Simplify {
 
       case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
 
-      // If(NA, ...) handled by FoldConstants
       case If(True(), x, _) => x
       case If(False(), _, x) => x
 
