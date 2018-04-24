@@ -925,13 +925,13 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
           var i = 0
           while (i < localNCols) {
             val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
-            val eOff = localEntriesType.elementOffset(entriesOff, localNCols, i)
+            val eOff = localEntriesType.loadElement(region, entriesOff, i)
             val colMissing = localColsType.isElementMissing(region, cols, i)
-            val colOff = localColsType.elementOffset(cols, localNCols, i)
+            val colOff = localColsType.loadElement(region, cols, i)
 
             var j = 0
             while (j < seqOps.length) {
-              seqOps(j)()(region, newRVAggs(j), oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+              seqOps(j)()(region, newRVAggs(j), eOff, eMissing, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
               j += 1
             }
             i += 1
