@@ -244,7 +244,7 @@ class AggregatorSuite extends SparkSuite {
       } yield {
         val s1 = vds.stringSampleIds(0)
         assert(vds.aggregateCols(s"""AGG.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.numCols)
-        assert(vds.aggregateCols("AGG.map(id => 1).sum()")._1 == vds.numCols)
+        assert(vds.aggregateCols("AGG.filter(r => true).map(id => 1).sum()")._1 == vds.numCols)
         assert(vds.aggregateCols("AGG.filter(r => false).map(id => 1).sum()")._1 == 0)
         assert(vds.aggregateCols("AGG.flatMap(g => [1]).sum()")._1 == vds.numCols)
         assert(vds.aggregateCols("AGG.flatMap(g => [0][:0]).sum()")._1 == 0)
