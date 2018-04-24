@@ -2137,7 +2137,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
         raise FatalError("'split_multi_hts': entry schema must be the HTS entry schema:\n"
                          "  found: {}\n"
                          "  expected: {}\n"
-                         "  Use 'split_multi' to split entries with non-HTS entry fields.".format(
+                         "  Use 'hl.SplitMulti' to split entries with non-HTS entry fields.".format(
             ds.entry.dtype, hl.hts_entry_schema
         ))
 
