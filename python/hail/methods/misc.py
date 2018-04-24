@@ -82,6 +82,10 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
 
     For example, the usual ordering on the integers is defined by: ``l - r``.
 
+    The `tie_breaker` function must satisfy the following properties:
+    ``tie_breaker(l, r) == -tie_breaker(r, l)`` OR
+    ``tie_breaker(l, r) == 0 and tie_breaker(r, l) == 0``.
+
     When multiple nodes have the same degree, this algorithm will order the
     nodes according to ``tie_breaker`` and remove the *largest* node.
 
@@ -100,31 +104,47 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
     -------
     :class:`.Table`
     """
+
     if i.dtype != j.dtype:
         raise ValueError("'maximal_independent_set' expects arguments `i` and `j` to have same type. "
                          "Found {} and {}.".format(i.dtype, j.dtype))
+
     source = i._indices.source
     if not isinstance(source, Table):
         raise ValueError("'maximal_independent_set' expects an expression of 'Table'. Found {}".format(
             "expression of '{}'".format(
                 source.__class__) if source is not None else 'scalar expression'))
+
     if i._indices.source != j._indices.source:
         raise ValueError(
             "'maximal_independent_set' expects arguments `i` and `j` to be expressions of the same Table. "
             "Found\n{}\n{}".format(i, j))
 
     node_t = i.dtype
-    l = construct_expr(VariableReference('l'), node_t)
-    r = construct_expr(VariableReference('r'), node_t)
+
     if tie_breaker:
+        l = construct_expr(VariableReference('l'), node_t)
+        r = construct_expr(VariableReference('r'), node_t)
         tie_breaker_expr = hl.int64(tie_breaker(l, r))
-        edges, _ = source._process_joins(i, j, tie_breaker_expr)
+        t, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_hql = tie_breaker_expr._ast.to_hql()
     else:
-        edges, _ = source._process_joins(i, j)
+        t, _ = source._process_joins(i, j)
         tie_breaker_hql = None
-    return Table(edges._jt.maximalIndependentSet(
-        i._ast.to_hql(), j._ast.to_hql(), keep, joption(tie_breaker_hql)))
+
+    nodes = (t.select(node=[i, j])
+             .explode('node')
+             .key_by('node'))
+
+    edges = t.select(i=i, j=j)
+    keep_nodes = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_hql))
+
+    nt = Table(nodes._jt.annotateGlobal(keep_nodes, hl.tset(node_t)._jtype, 'keep_nodes'))
+    nt = (nt
+          .filter(nt.keep_nodes.contains(nt.node), keep)
+          .drop('keep_nodes'))
+
+    return nt
 
 
 def require_col_key_str(dataset: MatrixTable, method: str):
