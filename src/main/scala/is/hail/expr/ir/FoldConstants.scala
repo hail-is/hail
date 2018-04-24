@@ -4,6 +4,12 @@ import is.hail.utils._
 import is.hail.expr.BaseIR
 
 object FoldConstants {
+  private[this] def isDeterministic(ir: IR): Boolean = ir match {
+    case x: Apply => x.isDeterministic
+    case x: ApplySpecial => x.isDeterministic
+    case _ => true
+  }
+
   def apply(ir: BaseIR): BaseIR =
     RewriteBottomUp(ir, matchErrorToNone[BaseIR, BaseIR] {
       case ir: IR =>
@@ -22,17 +28,9 @@ object FoldConstants {
                ApplyBinaryPrimOp(_, _, _) |
                Apply(_, _) |
                ApplySpecial(_, _) |
-               Cast(_, _) if IsDeterministic(ir) =>
+               Cast(_, _) if isDeterministic(ir) =>
             Literal(Interpret(ir, optimize = false), ir.typ)
 
         }
     })
-}
-
-object IsDeterministic {
-  def apply(ir: IR): Boolean = ir match {
-    case x: Apply => x.isDeterministic
-    case x: ApplySpecial => x.isDeterministic
-    case _ => true
-  }
 }
