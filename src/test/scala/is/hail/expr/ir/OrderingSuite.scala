@@ -97,7 +97,6 @@ class OrderingSuite {
       val ir = ArraySort(GetTupleElement(In(0, TTuple(TArray(t))), 0))
       val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
 
-      Infer(ir)
       Emit(ir, fb)
 
       val f = fb.result()()
@@ -127,7 +126,6 @@ class OrderingSuite {
       val ir = Set(GetTupleElement(In(0, TTuple(TArray(t))), 0))
       val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
 
-      Infer(ir)
       Emit(ir, fb)
 
       val f = fb.result()()
@@ -160,7 +158,6 @@ class OrderingSuite {
       val ir = Dict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
       val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
 
-      Infer(ir)
       Emit(ir, fb)
 
       val f = fb.result()()

@@ -76,6 +76,15 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
+      case x@ArraySort(a) =>
+        check(a)
+        assert(a.typ.isInstanceOf[TArray])
+      case x@Set(a) =>
+        check(a)
+        assert(a.typ.isInstanceOf[TArray])
+      case x@Dict(a) =>
+        check(a)
+        assert(a.typ.isInstanceOf[TArray])
       case x@ArrayMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
