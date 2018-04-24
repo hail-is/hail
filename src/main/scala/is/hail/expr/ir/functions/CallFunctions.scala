@@ -11,6 +11,6 @@ object CallFunctions extends RegistryFunctions {
     registerScalaFunction("UnphasedDiploidGtIndexCall", TInt32(), TCall())(Call2.getClass, "fromUnphasedDiploidGtIndex")
     registerScalaFunction("isNonRef", TCall(), TBoolean())(Call.getClass, "isNonRef")
 
-    registerCode("==", TCall(), TCall(), TBoolean()) { (_, a: Code[Int], b: Code[Int]) => a.ceq(b) }
+    registerCode("==", TCall(), TCall(), TBoolean()) { case (_, a: Code[Int], b: Code[Int]) => a.ceq(b) }
   }
 }

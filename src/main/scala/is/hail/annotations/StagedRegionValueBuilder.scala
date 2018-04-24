@@ -59,9 +59,9 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       case _: TBaseStruct => start(true)
       case _: TBinary =>
         assert(pOffset == null)
-        startOffset.store(endOffset)
+        startOffset := endOffset
       case _ =>
-        startOffset.store(region.allocate(typ.alignment, typ.byteSize))
+        startOffset := region.allocate(typ.alignment, typ.byteSize)
     }
   }
 
@@ -114,7 +114,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       boff := region.appendInt(bytes.length()),
       toUnit(region.appendBytes(bytes)),
       typ.fundamentalType match {
-        case _: TBinary => _empty
+        case _: TBinary =>
+          startOffset := boff
         case _ =>
           region.storeAddress(currentOffset, boff)
       })

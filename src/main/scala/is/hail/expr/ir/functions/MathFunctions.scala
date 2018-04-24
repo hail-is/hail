@@ -57,7 +57,8 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("**", TFloat64(), TFloat64(), TFloat64())(mathPackageClass, "pow")
     registerScalaFunction("gamma", TFloat64(), TFloat64())(thisClass, "gamma")
 
-    registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TString(), TFloat64())(statsPackageClass, "binomTest")
+    // FIXME: This needs to do string conversion.
+    // registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TString(), TFloat64())(statsPackageClass, "binomTest")
 
     registerScalaFunction("dbeta", TFloat64(), TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dbeta")
 

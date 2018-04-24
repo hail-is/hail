@@ -1,26 +1,31 @@
 package is.hail.expr.ir.functions
 
+import is.hail.annotations.CodeOrdering
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.expr.types.coerce
+import is.hail.asm4s
 
 object UtilFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => n * (n + 1) / 2 }
+    registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
 
     registerIR("size", TArray(tv("T")))(ArrayLen)
 
     registerIR("sum", TArray(tnum("T"))) { a =>
       val t = -coerce[TArray](a.typ).elementType
-      val zero = Literal(0, t)
-      ArrayFold(a, zero, "sum", "v", If(IsNA(Ref("v", t)), Ref("sum", t), ApplyBinaryPrimOp(Add(), Ref("sum", t), Ref("v", t))))
+      val sum = genUID()
+      val v = genUID()
+      val zero = Literal(0, coerce[TArray](a.typ).elementType)
+      ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
     }
 
     registerIR("*", TArray(tnum("T")), tv("T")){ (a, c) =>
-      ArrayMap(a, "imul", ApplyBinaryPrimOp(Multiply(), Ref("imul", c.typ), c))
+      val imul = genUID()
+      ArrayMap(a, imul, ApplyBinaryPrimOp(Multiply(), Ref(imul, c.typ), c))
     }
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))

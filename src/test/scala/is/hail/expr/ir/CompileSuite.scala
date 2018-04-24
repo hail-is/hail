@@ -645,4 +645,17 @@ class CompileSuite {
     val expected = grch37.isValidContig("X") && grch37.isValidContig("Y") && grch38.isValidContig("X")
     assert(fb.result()()("X", "Y") == expected)
   }
+
+  @Test
+  def testStringConstantWorks() {
+    val ir = Str("hello")
+
+    val fb = EmitFunctionBuilder[Region, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+
+    val region = Region()
+    val off = f(region)
+    assert(TString.loadString(region, off) == "hello")
+  }
 }
