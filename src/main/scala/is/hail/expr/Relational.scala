@@ -1664,9 +1664,9 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   val typ: TableType = children(0).typ
 
   def execute(hc: HailContext): TableValue = {
-    val mvs = children.map(_.execute(hc))
-    mvs(0).copy(
-      rvd = RVD.union(mvs.map(_.rvd)))
+    val tvs = children.map(_.execute(hc))
+    tvs(0).copy(
+      rvd = RVD.union(tvs.map(_.rvd)))
   }
 }
 
