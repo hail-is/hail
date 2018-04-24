@@ -19,7 +19,7 @@ object UtilFunctions extends RegistryFunctions {
       val t = -coerce[TArray](a.typ).elementType
       val sum = genUID()
       val v = genUID()
-      val zero = Literal(0, coerce[TArray](a.typ).elementType)
+      val zero = Zero(coerce[TArray](a.typ).elementType)
       ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
     }
 
@@ -34,13 +34,13 @@ object UtilFunctions extends RegistryFunctions {
       val t = -coerce[TArray](a.typ).elementType
       val product = genUID()
       val v = genUID()
-      val one = Literal(1, coerce[TArray](a.typ).elementType)
+      val one = One(coerce[TArray](a.typ).elementType)
       ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
     }
 
     registerIR("count", TAggregable(tv("T"))) { agg =>
       val uid = genUID()
-      ApplyAggOp(AggMap(agg, uid, I32(0)), Count(), Seq())
+      ApplyAggOp(AggMap(agg, uid, I64(0)), Count(), Seq())
     }
 
     registerIR("min", TArray(tnum("T"))) { a =>

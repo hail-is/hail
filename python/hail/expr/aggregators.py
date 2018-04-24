@@ -171,7 +171,7 @@ def count(expr=None) -> Int64Expression:
     if expr is not None:
         return _agg_func('count', expr, tint64)
     else:
-        return _agg_func('count', _to_agg(hl.int32(0)), tint64)
+        return _agg_func('count', _to_agg(hl.int64(0)), tint64)
 
 @typecheck(condition=expr_bool)
 def count_where(condition) -> Int64Expression:
