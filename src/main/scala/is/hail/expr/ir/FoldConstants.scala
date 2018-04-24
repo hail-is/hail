@@ -20,8 +20,8 @@ object FoldConstants {
 
           case ApplyUnaryPrimOp(_, _) |
                ApplyBinaryPrimOp(_, _, _) |
-               Apply(_, _) |
-               ApplySpecial(_, _) |
+//               Apply(_, _) |   // FIXME: These need to account for randomness
+//               ApplySpecial(_, _) | // FIXME: These need to account for randomness
                Cast(_, _) =>
             Literal(Interpret(ir, optimize = false), ir.typ)
         }
