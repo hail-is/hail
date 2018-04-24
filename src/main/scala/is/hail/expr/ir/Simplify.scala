@@ -18,13 +18,15 @@ object Simplify {
     }
   }
 
-  def isDefinitelyDefined(x: IR): Boolean = {
-    case _: MakeArray |
-      _: MakeStruct |
-      _: MakeTuple |
-      _: IsNA |
-      _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
-    case _ => false
+  private[this] def isDefinitelyDefined(x: IR): Boolean = {
+    x match {
+      case _: MakeArray |
+           _: MakeStruct |
+           _: MakeTuple |
+           _: IsNA |
+           _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
+      case _ => false
+    }
   }
 
   def apply(ir: BaseIR): BaseIR = {
