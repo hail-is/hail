@@ -68,18 +68,6 @@ case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractCo
 }
 
 object JSONAnnotationImpex {
-  def jsonExtractSample(t: Type, sampleExpr: String): Any => String = {
-    val ec = EvalContext(Map(
-      "root" -> (0, t)))
-
-    val f: () => String = Parser.parseTypedExpr[String](sampleExpr, ec)
-
-    (root: Annotation) => {
-      ec.setAll(root)
-      f()
-    }
-  }
-
   def exportType(t: Type): Type = t
 
   def exportAnnotation(a: Annotation, t: Type): JValue =
