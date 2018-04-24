@@ -167,10 +167,12 @@ object TypeCheck {
       case x@Apply(fn, args) =>
         val impl = x.implementation
         args.foreach(check(_))
+        x.implementation.argTypes.foreach(_.clear())
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall { case (i, j) => j.unify(i) })
       case x@ApplySpecial(fn, args) =>
         val impl = x.implementation
         args.foreach(check(_))
+        x.implementation.argTypes.foreach(_.clear())
         assert(args.map(_.typ).zip(x.implementation.argTypes).forall { case (i, j) => j.unify(i) })
       case MatrixWrite(_, _, _, _) =>
       case x@TableAggregate(child, query) =>
