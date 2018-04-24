@@ -26,7 +26,7 @@ object IRFunctionRegistry {
   private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
     reg.lift(name).map { fs => fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
-      case Seq((_, f)) => Some(f)
+      case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
     }
   }
@@ -35,19 +35,21 @@ object IRFunctionRegistry {
     lookupInRegistry(codeRegistry, name, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
 
   def lookupConversion(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    val findIR = { case ((ts: Seq[Type], ir: IR), t2s: Seq[Type]) =>
+    type Conversion = (Seq[Type], Seq[IR] => IR)
+    val findIR: (Conversion, Seq[Type]) => Boolean =
+    { case ((ts, _), t2s) =>
       ts.length == args.length && {
         ts.foreach(_.clear())
-        (ts, args).zipped.forall(_.unify(_))
+        (ts, t2s).zipped.forall(_.unify(_))
       }
     }
-    val validIR = lookupInRegistry(irRegistry, name, args, findIR).map(_._2)
+    val validIR = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map(_._2)
 
     val validMethods = lookupFunction(name, args).map { f =>
       { irArgs: Seq[IR] =>
         f match {
-          case irf: IRFunctionWithoutMissingness => Apply(name, irArgs)
-          case irf: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
+          case _: IRFunctionWithoutMissingness => Apply(name, irArgs)
+          case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
         }
       }
     }
