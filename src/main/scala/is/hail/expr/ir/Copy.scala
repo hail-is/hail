@@ -52,12 +52,12 @@ object Copy {
       case ArraySort(_) =>
         val IndexedSeq(a: IR) = newChildren
         ArraySort(a)
-      case Set(_) =>
+      case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
-        Set(a)
-      case Dict(_) =>
+        ToSet(a)
+      case ToDict(_) =>
         val IndexedSeq(a: IR) = newChildren
-        Dict(a)
+        ToDict(a)
       case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body)

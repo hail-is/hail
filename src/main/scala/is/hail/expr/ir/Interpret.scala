@@ -210,13 +210,13 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
-      case Set(a) =>
+      case ToSet(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].toSet
-      case Dict(a) =>
+      case ToDict(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
           null

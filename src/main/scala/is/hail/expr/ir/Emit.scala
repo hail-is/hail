@@ -327,7 +327,7 @@ private class Emit(
           processArrayElts.addElements,
           sorter.sort(),
           sorter.toRegion()))
-      case Set(a) =>
+      case ToSet(a) =>
         if (a.typ.isInstanceOf[TSet]) {
           emit(a)
         } else {
@@ -350,7 +350,7 @@ private class Emit(
             sorter.distinctFromSorted,
             sorter.toRegion()))
         }
-      case Dict(a) =>
+      case ToDict(a) =>
         if (a.typ.isInstanceOf[TDict]) {
           emit(a)
         } else {

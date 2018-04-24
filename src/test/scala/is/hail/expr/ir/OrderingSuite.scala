@@ -123,7 +123,7 @@ class OrderingSuite {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TArray(t).genNonmissingValue))
     val p = Prop.forAll(compareGen) { case (t, a) =>
       val array = a.asInstanceOf[IndexedSeq[Any]] ++ a.asInstanceOf[IndexedSeq[Any]]
-      val ir = Set(GetTupleElement(In(0, TTuple(TArray(t))), 0))
+      val ir = ToSet(GetTupleElement(In(0, TTuple(TArray(t))), 0))
       val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
 
       Emit(ir, fb)
@@ -155,7 +155,7 @@ class OrderingSuite {
     }
     val p = Prop.forAll(compareGen) { case (telt, a) =>
       val array: IndexedSeq[Row] = a.asInstanceOf[IndexedSeq[Row]] ++ a.asInstanceOf[IndexedSeq[Row]]
-      val ir = Dict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
+      val ir = ToDict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
       val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
 
       Emit(ir, fb)

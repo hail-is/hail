@@ -22,10 +22,10 @@ object Infer {
       case x@ArraySort(a) =>
         assert(a.typ.isInstanceOf[TArray])
         a.typ
-      case x@Set(a) =>
+      case x@ToSet(a) =>
         assert(a.typ.isInstanceOf[TArray])
         TSet(a.typ.asInstanceOf[TArray].elementType)
-      case x@Dict(a) =>
+      case x@ToDict(a) =>
         assert(a.typ.isInstanceOf[TArray])
         val elt = a.typ.asInstanceOf[TArray].elementType
         assert(coerce[TBaseStruct](elt).size == 2)

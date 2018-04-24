@@ -79,10 +79,10 @@ object TypeCheck {
       case x@ArraySort(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@Set(a) =>
+      case x@ToSet(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@Dict(a) =>
+      case x@ToDict(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
       case x@ArrayMap(a, name, body) =>

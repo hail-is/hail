@@ -73,8 +73,8 @@ final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
 
 final case class ArraySort(a: IR) extends InferIR
-final case class Set(a: IR) extends InferIR
-final case class Dict(a: IR) extends InferIR
+final case class ToSet(a: IR) extends InferIR
+final case class ToDict(a: IR) extends InferIR
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
   override def typ: TArray = coerce[TArray](super.typ)

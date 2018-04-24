@@ -38,9 +38,9 @@ object Children {
       Array(start, stop, step)
     case ArraySort(a) =>
       Array(a)
-    case Set(a) =>
+    case ToSet(a) =>
       Array(a)
-    case Dict(a) =>
+    case ToDict(a) =>
       Array(a)
     case ArrayMap(a, name, body) =>
       Array(a, body)
