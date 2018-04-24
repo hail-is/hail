@@ -853,7 +853,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
                 exac: struct {
                     pLi: float64,
                     pRec: float64,
-
+                    pNull: float64
                 }
             }>
         }
