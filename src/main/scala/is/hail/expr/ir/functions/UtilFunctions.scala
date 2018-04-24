@@ -146,7 +146,7 @@ object UtilFunctions extends RegistryFunctions {
         val av = mb.newLocal(typeToTypeInfo(t))
         val bv = mb.newLocal(typeToTypeInfo(t))
         val v = Code(
-          am := a.m, bm := b.m, av := a.v, bv := b.v,
+          am := a.m, bm := b.m, av.storeAny(a.v), bv.storeAny(b.v),
           cop(mb.getArg[Region](1), (am, av), mb.getArg[Region](1), (bm, bv)))
         EmitTriplet(Code(a.setup, b.setup), const(false), v)
       }
