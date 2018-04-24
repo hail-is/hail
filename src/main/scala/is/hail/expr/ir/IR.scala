@@ -113,11 +113,7 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
   def typ: Type = {
     // convert all arg types before unifying
     val argTypes = args.map(_.typ)
-    implementation.argTypes.foreach(_.clear())
-    argTypes.zip(implementation.argTypes).foreach { case (i, j) =>
-      val u = j.unify(i)
-      assert(u)
-    }
+    implementation.unify(argTypes)
     implementation.returnType.subst()
   }
 
@@ -130,11 +126,7 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
 
   def typ: Type = {
     val argTypes = args.map(_.typ)
-    implementation.argTypes.foreach(_.clear())
-    argTypes.zip(implementation.argTypes).foreach { case (i, j) =>
-      val u = j.unify(i)
-      assert(u)
-    }
+    implementation.unify(argTypes)
     implementation.returnType.subst()
   }
 

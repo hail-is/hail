@@ -519,8 +519,7 @@ private class Emit(
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
-        impl.argTypes.foreach(_.clear())
-        val unified = args.map(_.typ).zip(impl.argTypes).forall { case (i, j) => j.unify(i) }
+        val unified = impl.unify(args.map(_.typ))
         assert(unified)
 
         val meth =
@@ -541,7 +540,7 @@ private class Emit(
         EmitTriplet(setup, missing, value)
       case x@ApplySpecial(_, args) =>
         x.implementation.argTypes.foreach(_.clear())
-        val unified = args.map(_.typ).zip(x.implementation.argTypes).forall { case (i, j) => j.unify(i) }
+        val unified = x.implementation.unify(args.map(_.typ))
         assert(unified)
         x.implementation.apply(mb, args.map(emit(_)): _*)
     }
