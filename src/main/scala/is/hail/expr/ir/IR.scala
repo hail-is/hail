@@ -120,6 +120,8 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
     }
     implementation.returnType.subst()
   }
+
+  def isDeterministic: Boolean = implementation.isDeterministic
 }
 
 final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
@@ -135,6 +137,8 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
     }
     implementation.returnType.subst()
   }
+
+  def isDeterministic: Boolean = implementation.isDeterministic
 }
 
 final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }

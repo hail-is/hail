@@ -20,10 +20,19 @@ object FoldConstants {
 
           case ApplyUnaryPrimOp(_, _) |
                ApplyBinaryPrimOp(_, _, _) |
-//               Apply(_, _) |   // FIXME: These need to account for randomness
-//               ApplySpecial(_, _) | // FIXME: These need to account for randomness
-               Cast(_, _) =>
+               Apply(_, _) |
+               ApplySpecial(_, _) |
+               Cast(_, _) if IsDeterministic(ir) =>
             Literal(Interpret(ir, optimize = false), ir.typ)
+
         }
     })
+}
+
+object IsDeterministic {
+  def apply(ir: IR): Boolean = ir match {
+    case x: Apply => x.isDeterministic
+    case x: ApplySpecial => x.isDeterministic
+    case _ => true
+  }
 }
