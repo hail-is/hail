@@ -853,6 +853,33 @@ def pl_dosage(pl) -> Float64Expression:
     return _func("plDosage", tfloat64, pl)
 
 
+@typecheck(pl=expr_array(expr_int32))
+def pl_to_gp(pl) -> ArrayNumericExpression:
+    """
+    Return the linear-scaled genotype probabilities from an array of Phred-scaled genotype likelihoods.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.pl_to_gp([0, 10, 100]))
+        [0.9090909090082644, 0.09090909090082644, 9.090909090082645e-11]
+
+    Parameters
+    ----------
+    pl : :class:`.ArrayNumericExpression` of type :py:data:`.tint32`
+        Array of Phred-scaled genotype likelihoods
+
+    Returns
+    -------
+   :class:`.ArrayNumericExpression` of type :py:data:`.tfloat64`
+    """
+    max_phred_in_table = 8192
+    phred_table = hl.literal([10 ** (-x/10.0) for x in builtins.range(max_phred_in_table)])
+    gp = hl.bind(lambda pls: pls.map(lambda x: hl.cond(x >= max_phred_in_table, 10 ** (-x/10.0), phred_table[x])), pl)
+    return gp / hl.sum(gp)
+
+
 @typecheck(start=expr_any, end=expr_any,
            includes_start=expr_bool, includes_end=expr_bool)
 def interval(start,
