@@ -105,26 +105,35 @@ object StringFunctions extends RegistryFunctions {
       EmitTriplet(setup, missing, value)
     }
 
-    registerCode("hamming", TString(), TString(), TInt32()) { case (mb: EmitMethodBuilder, v1: Code[Long], v2: Code[Long]) =>
+    registerCodeWithMissingness("hamming", TString(), TString(), TInt32()) { case (mb: EmitMethodBuilder, e1: EmitTriplet, e2: EmitTriplet) =>
       val len = mb.newLocal[Int]
       val i = mb.newLocal[Int]
       val n = mb.newLocal[Int]
       val region: Code[Region] = mb.getArg[Region](1)
 
-      Code(
+      val v1 = mb.newLocal[Long]
+      val v2 = mb.newLocal[Long]
+
+      val m = Code(
+        v1 := e1.value[Long],
+        v2 := e2.value[Long],
         len := TBinary.loadLength(region, v1),
-        len.cne(TBinary.loadLength(region, v2)).mux(
-          Code._fatal("function 'hamming' requires strings to have equal length."),
-          Code(
-            n := 0,
-            i := 0,
-            Code.whileLoop(i < len,
-              region.loadByte(TBinary.bytesOffset(v1) + i.toL)
-                .cne(region.loadByte(TBinary.bytesOffset(v2) + i.toL)).mux(
-                n += 1,
-                Code._empty[Unit]),
-              i += 1),
-            n)))
+        len.cne(TBinary.loadLength(region, v2)))
+      val v =
+        Code(n := 0,
+          i := 0,
+          Code.whileLoop(i < len,
+            region.loadByte(TBinary.bytesOffset(v1) + i.toL)
+              .cne(region.loadByte(TBinary.bytesOffset(v2) + i.toL)).mux(
+              n += 1,
+              Code._empty[Unit]),
+            i += 1),
+          n)
+
+        EmitTriplet(
+          Code(e1.setup, e2.setup),
+          e1.m || e2.m || m,
+          m.mux(ir.defaultValue(TInt32()), v))
     }
   }
 }

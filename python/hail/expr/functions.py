@@ -1779,44 +1779,13 @@ def sqrt(x) -> Float64Expression:
     return _func("sqrt", tfloat64, x)
 
 
-@typecheck(s1=expr_str, s2=expr_str)
-def hamming(s1, s2) -> Int32Expression:
-    """Returns the Hamming distance between the two strings.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> hl.eval_expr(hl.hamming('ATATA', 'ATGCA'))
-        2
-
-        >>> hl.eval_expr(hl.hamming('abcdefg', 'zzcdefz'))
-        3
-
-    Notes
-    -----
-    This method will fail if the two strings have different length.
-
-    Parameters
-    ----------
-    s1 : :class:`.StringExpression`
-        First string.
-    s2 : :class:`.StringExpression`
-        Second string.
-
-    Returns
-    -------
-    :class:`.Expression` of type :py:data:`.tint32`
-    """
-    return _func("hamming", tint32, s1, s2)
-
-
 @typecheck(s=expr_str)
 def is_valid_allele(s) -> BooleanExpression:
     return s.matches(r'^([ACGT]+)|\\*$')
 
 
-_allele_enum = {i: v for i, v in enumerate(["invalid", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star"])}
+_allele_types = ["invalid", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star"]
+_allele_enum = {i: v for i, v in enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
 
@@ -1846,44 +1815,6 @@ def _num_allele_type(ref, alt) -> Int32Expression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-def allele_type(ref, alt)-> StringExpression:
-    """Returns the type of the polymorphism as a string.
-
-    Examples
-    --------
-    .. doctest::
-
-        >>> hl.eval_expr(hl.allele_type('A', 'T'))
-        'SNP'
-
-        >>> hl.eval_expr(hl.allele_type('ATT', 'A'))
-        'Deletion'
-
-    Notes
-    -----
-    The possible return values are:
-     - ``"SNP"``
-     - ``"MNP"``
-     - ``"Insertion"``
-     - ``"Deletion"``
-     - ``"Complex"``
-     - ``"Star"``
-
-    Parameters
-    ----------
-    ref : :class:`.StringExpression`
-        Reference allele.
-    alt : :class:`.StringExpression`
-        Alternate allele.
-
-    Returns
-    -------
-    :class:`.StringExpression`
-    """
-    return hl.literal(_allele_enum)[_num_allele_type(ref, alt)]
-
-
-@typecheck(ref=expr_str, alt=expr_str)
 def is_snp(ref, alt) -> BooleanExpression:
     """Returns ``True`` if the alleles constitute a single nucleotide polymorphism.
 
@@ -1905,7 +1836,7 @@ def is_snp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == hl.literal(_allele_ints["SNP"])
+    return _num_allele_type(ref, alt) == _allele_ints["SNP"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1930,7 +1861,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == hl.literal(_allele_ints["MNP"])
+    return _num_allele_type(ref, alt) == _allele_ints["MNP"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2011,7 +1942,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == hl.literal(_allele_ints["Insertion"])
+    return _num_allele_type(ref, alt) == _allele_ints["Insertion"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2036,7 +1967,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == hl.literal(_allele_ints["Deletion"])
+    return _num_allele_type(ref, alt) == _allele_ints["Deletion"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2061,8 +1992,8 @@ def is_indel(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return hl.bind(lambda t: (t == hl.literal(_allele_ints["Insertion"])) |
-                             (t == hl.literal(_allele_ints["Deletion"])),
+    return hl.bind(lambda t: (t == _allele_ints["Insertion"]) |
+                             (t == _allele_ints["Deletion"]),
                    _num_allele_type(ref, alt))
 
 
@@ -2088,7 +2019,7 @@ def is_star(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == hl.literal(_allele_ints["Star"])
+    return _num_allele_type(ref, alt) == _allele_ints["Star"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2113,7 +2044,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == hl.literal(_allele_ints["Complex"])
+    return _num_allele_type(ref, alt) == _allele_ints["Complex"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2144,6 +2075,76 @@ def is_strand_ambiguous(ref, alt) -> BooleanExpression:
     """
     alleles = hl.literal({('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')})
     return alleles.contains((ref, alt))
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def allele_type(ref, alt)-> StringExpression:
+    """Returns the type of the polymorphism as a string.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.allele_type('A', 'T'))
+        'SNP'
+
+        >>> hl.eval_expr(hl.allele_type('ATT', 'A'))
+        'Deletion'
+
+    Notes
+    -----
+    The possible return values are:
+     - ``"SNP"``
+     - ``"MNP"``
+     - ``"Insertion"``
+     - ``"Deletion"``
+     - ``"Complex"``
+     - ``"Star"``
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+    return hl.literal(_allele_types)[_num_allele_type(ref, alt)]
+
+
+@typecheck(s1=expr_str, s2=expr_str)
+def hamming(s1, s2) -> Int32Expression:
+    """Returns the Hamming distance between the two strings.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> hl.eval_expr(hl.hamming('ATATA', 'ATGCA'))
+        2
+
+        >>> hl.eval_expr(hl.hamming('abcdefg', 'zzcdefz'))
+        3
+
+    Notes
+    -----
+    This method will fail if the two strings have different length.
+
+    Parameters
+    ----------
+    s1 : :class:`.StringExpression`
+        First string.
+    s2 : :class:`.StringExpression`
+        Second string.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tint32`
+    """
+    return _func("hamming", tint32, s1, s2)
 
 
 @typecheck(x=expr_any)

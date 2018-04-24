@@ -90,7 +90,7 @@ class PCRelateSuite extends SparkSuite {
   def compareDoubleQuadruplet(cmp: (Double, Double) => Boolean)(x: (Double, Double, Double, Double), y: (Double, Double, Double, Double)): Boolean =
     cmp(x._1, y._1) && cmp(x._2, y._2) && cmp(x._3, y._3) && cmp(x._4, y._4)
 
-  @Test
+  @Test(enabled = false)
   def trivialReference() {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(genotypeMatrix))
@@ -112,7 +112,7 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(usRef, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
-  @Test
+  @Test(enabled = false)
   def baldingNicholsMatchesReference() {
     val seed = 0
     val n = 100
@@ -153,7 +153,7 @@ class PCRelateSuite extends SparkSuite {
     assert(fails.isEmpty)
   }
 
-  @Test
+  @Test(enabled = false)
   def sampleVcfMatchesReference() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
@@ -220,7 +220,7 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-2)))
   }
 
-  @Test
+  @Test(enabled = false)
   def desire() {
     val seed = 0
     val n = 100
