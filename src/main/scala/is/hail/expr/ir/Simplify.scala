@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableRead}
+import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableRead, TableUnion}
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -101,6 +101,13 @@ object Simplify {
       case TableFilter(TableFilter(t, p1), p2) =>
         TableFilter(t,
           ApplySpecial("&&", Array(p1, p2)))
+
+        // flatten unions
+      case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
+        TableUnion(children.flatMap {
+          case u: TableUnion => u.children
+          case c => Some(c)
+        })
 
       // optimize MatrixIR
 

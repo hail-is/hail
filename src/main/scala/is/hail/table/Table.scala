@@ -909,12 +909,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 
-  def union(kts: Table*): Table = {
-    assert(kts.forall(_.signature == signature))
-    assert(kts.forall(_.key == key))
-
-    copy2(rvd = RVD.union(rvd +: kts.map(_.rvd)))
-  }
+  def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
