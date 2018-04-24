@@ -969,12 +969,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val (iType, _) = Parser.parseExpr(iExpr, rowEvalContext())
 
-    val relatedNodesInMIS = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
+    val nodesInSet = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
 
     val nodes = this.select(s"{node : [$iExpr, $jExpr] }").explode("node").keyBy("node")
     
-    nodes.annotateGlobal(relatedNodesInMIS, TSet(iType), "relatedNodesToKeep")
-      .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
+    nodes.annotateGlobal(nodesInSet, TSet(iType), "nodesInSet")
+      .filter(s"global.nodesInSet.contains(row.node)", keep = keep)
       .selectGlobal("{}")
   }
 

@@ -2967,7 +2967,8 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     locally_pruned_ds = locally_pruned_ds.filter_rows(hl.is_defined(locally_pruned_ds.pruned))
 
     locally_pruned_ds = (locally_pruned_ds.annotate_rows(
-        mean=locally_pruned_ds.pruned.mean, sd_reciprocal=locally_pruned_ds.pruned.sd_reciprocal)
+        mean=locally_pruned_ds.pruned.mean, 
+        centered_length_sd_reciprocal=locally_pruned_ds.pruned.centered_length_sd_reciprocal)
         .add_row_index('row_idx'))
 
     locally_pruned_path = new_temp_file()
@@ -2977,10 +2978,10 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     normalized_mean_imputed_genotype_expr = (
         hl.cond(hl.is_defined(locally_pruned_ds.GT),
                 (locally_pruned_ds.GT.n_alt_alleles() - locally_pruned_ds.mean)
-                * locally_pruned_ds.sd_reciprocal, 0))
+                * locally_pruned_ds.centered_length_sd_reciprocal, 0))
 
     # BlockMatrix.from_entry_expr writes to disk
-    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=512)
+    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=1024)
     correlation_matrix = (block_matrix @ (block_matrix.T))
 
     entries = Table(correlation_matrix._jbm.filteredEntriesTable(
