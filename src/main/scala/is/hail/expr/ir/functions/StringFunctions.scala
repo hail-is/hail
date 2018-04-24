@@ -36,7 +36,7 @@ object StringFunctions extends RegistryFunctions {
       case t => v
     }
 
-    registerCode(mname, argTypes, rType) { (mb, args) =>
+    registerCode(mname, argTypes, rType, isDet = true) { (mb, args) =>
       val cts = argTypes.map(ct(_).runtimeClass)
       val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => convertToString(mb, t, a) } )(ct(rType))
       convertBack(mb, out)

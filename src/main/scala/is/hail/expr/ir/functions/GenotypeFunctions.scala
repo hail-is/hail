@@ -2,6 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.utils._
 

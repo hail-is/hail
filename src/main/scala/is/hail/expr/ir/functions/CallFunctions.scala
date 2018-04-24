@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s.Code
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.variant.{Call, Call2}
 
