@@ -58,6 +58,9 @@ object Copy {
       case ToDict(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToDict(a)
+      case ToArray(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        ToArray(a)
       case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body)

@@ -75,6 +75,7 @@ final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ:
 final case class ArraySort(a: IR) extends InferIR
 final case class ToSet(a: IR) extends InferIR
 final case class ToDict(a: IR) extends InferIR
+final case class ToArray(a: IR) extends InferIR
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
   override def typ: TArray = coerce[TArray](super.typ)

@@ -328,9 +328,6 @@ private class Emit(
           sorter.sort(),
           sorter.toRegion()))
       case ToSet(a) =>
-        if (a.typ.isInstanceOf[TSet]) {
-          emit(a)
-        } else {
           val atyp = coerce[TArray](a.typ)
 
           val aout = emitArrayIterator(a)
@@ -349,11 +346,7 @@ private class Emit(
             sorter.sort(),
             sorter.distinctFromSorted,
             sorter.toRegion()))
-        }
       case ToDict(a) =>
-        if (a.typ.isInstanceOf[TDict]) {
-          emit(a)
-        } else {
           val atyp = coerce[TArray](a.typ)
 
           val aout = emitArrayIterator(a)
@@ -372,7 +365,8 @@ private class Emit(
             sorter.sort(),
             sorter.distinctFromSorted,
             sorter.toRegion()))
-        }
+      case ToArray(a) =>
+        emit(a)
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(mb, ir.typ)

@@ -42,6 +42,8 @@ object Children {
       Array(a)
     case ToDict(a) =>
       Array(a)
+    case ToArray(a) =>
+      Array(a)
     case ArrayMap(a, name, body) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>
