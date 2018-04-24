@@ -17,6 +17,8 @@ object CodeOrdering {
   val gt: Op = 4
   val gteq: Op = 5
 
+  type F[R] = (Code[Region], (Code[Boolean], Code[_]), Code[Region], (Code[Boolean], Code[_])) => Code[R]
+
   def rowOrdering(t: TBaseStruct, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
 

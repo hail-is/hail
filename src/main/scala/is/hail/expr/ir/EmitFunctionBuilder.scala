@@ -48,7 +48,7 @@ class EmitMethodBuilder(
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     fb.getReferenceGenome(rg)
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): fb.OrdF[T] =
+  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t, op, missingGreatest)
 }
 
@@ -61,16 +61,15 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
 
-  type OrdF[T] = (Code[Region], (Code[Boolean], Code[_]), Code[Region], (Code[Boolean], Code[_])) => Code[T]
-  private[this] val compareMap: mutable.Map[(Type, CodeOrdering.Op, Boolean), OrdF[_]] =
-    mutable.Map[(Type, CodeOrdering.Op, Boolean), OrdF[_]]()
+  private[this] val compareMap: mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
+    mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
 
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup))
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): OrdF[T] = {
+  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] = {
     val f = compareMap.getOrElseUpdate((t, op, missingGreatest), {
       val ti = typeToTypeInfo(t)
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
