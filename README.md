@@ -223,6 +223,8 @@ optional arguments:
   --dry-run             Print gcloud dataproc command, but don't run it.```
 
 ```
+
+```
 $ cluster submit -h
 usage: cluster submit [-h] [--properties PROPERTIES]
                       [--args ARGS]
