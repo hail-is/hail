@@ -251,7 +251,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
         val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
         val sw2 = new StringWriter()
         cn.accept(cwNoFrames)
-//        CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+        CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
 
         if (sw2.toString().length() != 0) {
           System.err.println("Verify Output 2 for " + name + ":")
