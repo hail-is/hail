@@ -151,5 +151,7 @@ object UtilFunctions extends RegistryFunctions {
         EmitTriplet(Code(a.setup, b.setup), const(false), v)
       }
     }
+
+    registerIR("!=", tv("T"), tv("T")) { case (a, b) => ApplyUnaryPrimOp(Bang(), ApplySpecial("==", FastSeq(a, b))) }
   }
 }

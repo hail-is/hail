@@ -18,10 +18,9 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterRowsExpr("""va.filters.contains("VQSRTrancheSNP99.60to99.80")""").countRows() == 3)
 
-    // FIXME: rsid of "." should be treated as missing value
-    assert(vds.filterRowsExpr("""va.rsid != "."""").countRows() == 258)
+    assert(vds.filterRowsExpr("""isDefined(va.rsid)""").countRows() == 258)
 
-    assert(vds.filterRowsExpr("""va.rsid == "."""", keep = false).countRows() == 258)
+    assert(vds.filterRowsExpr("""isMissing(va.rsid)""", keep = false).countRows() == 258)
 
     val sQcVds = SampleQC(vds)
 
