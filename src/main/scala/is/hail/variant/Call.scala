@@ -264,9 +264,7 @@ object Call extends Serializable {
       case 0 => 0
       case 1 => (alleleRepr(c) > 0).toInt
       case 2 => allelePair(c).nNonRefAlleles
-      case _ =>
-        println(s"call: ${ c.toHexString }")
-        alleles(c).count(_ != 0)
+      case _ => alleles(c).count(_ != 0)
     }
   }
 
