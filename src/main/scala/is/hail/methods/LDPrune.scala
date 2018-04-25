@@ -354,13 +354,14 @@ object LDPrune {
       (rvds, inputs)
     }
 
+    val dec = RVD.wireCodec.buildDecoder(localRowType)
     for (i <- 0 until nPartitions) {
       val (rvds, inputs) = generalRDDInputs(i)
       val grouped = ContextRDD.weaken[RVDContext](
         new GeneralRDD(sc, rvds.map(_.encodedRDD(RVD.wireCodec)), Array(inputs)))
       val pruned = grouped.cmapPartitions { (ctx, it) =>
         val rv = RegionValue()
-        it.map(_.map(_.map(RVD.bytesToRegionValue(RVD.wireCodec, ctx.region, localRowType, rv))))
+        it.map(_.map(_.map(RVD.bytesToRegionValue(dec, ctx.region, rv))))
       }.flatMap(pruneF)
 
       pruneIntermediates(i) = GlobalPruneIntermediate(
@@ -377,7 +378,7 @@ object LDPrune {
         pruneIntermediates.zipWithIndex.map { case (gpi, i) => Array((i, gpi.index)) }))
     val pruned = grouped.cmapPartitions { (ctx, it) =>
       val rv = RegionValue()
-      it.map(_.map(_.map(RVD.bytesToRegionValue(RVD.wireCodec, ctx.region, localRowType, rv))))
+      it.map(_.map(_.map(RVD.bytesToRegionValue(dec, ctx.region, rv))))
     }.flatMap(pruneF)
 
     val prunedRVD = OrderedRVD(inputRDD.typ, inputRDD.partitioner, pruned)

@@ -858,7 +858,7 @@ object RichContextRDDRegionValue {
 
     it.foreach { rv =>
       en.writeByte(1)
-      en.writeRegionValue(t, rv.region, rv.offset)
+      en.writeRegionValue(rv.region, rv.offset)
       ctx.region.clear()
       rowCount += 1
     }
