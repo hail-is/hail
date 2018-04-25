@@ -890,6 +890,16 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       "colValues", colValuesType,
       "va", vaType,
       newRVRow, { (nAggs: Int, aggIR: IR) =>
+        def rewrite(x: IR): IR = {
+          x match {
+            case x@AggIn(_) =>
+              val dummy = genUID()
+              AggMap(x, dummy, ir.Ref("g", prev.typ.entryType))
+            case _ =>
+              ir.Recur(rewrite)(x)
+          }
+        }
+
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
@@ -897,7 +907,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref("i", TInt32())),
-              aggIR)))
+              rewrite(aggIR))))
       })
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
@@ -1021,7 +1031,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
       newCol, { (nAggs, aggIR) =>
         val colIdx = ir.genUID()
 
-        def rewriteSeqOps(x: IR): IR = {
+        def rewrite(x: IR): IR = {
           x match {
             case SeqOp(a, i, agg) =>
               SeqOp(a,
@@ -1029,8 +1039,11 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
                   ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                 i),
                 agg)
+            case x@AggIn(_) =>
+              val dummy = genUID()
+              AggMap(x, dummy, ir.Ref("g", prev.typ.entryType))
             case _ =>
-              ir.Recur(rewriteSeqOps)(x)
+              ir.Recur(rewrite)(x)
           }
         }
 
@@ -1041,7 +1054,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref(colIdx, TInt32())),
-              rewriteSeqOps(aggIR))))
+              rewrite(aggIR))))
       })
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
