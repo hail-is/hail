@@ -19,6 +19,7 @@ object TypeCheck {
       case F64(x) =>
       case True() =>
       case False() =>
+      case Str(x) =>
 
       case Cast(v, typ) =>
         check(v)

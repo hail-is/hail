@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser, ir}
-import is.hail.io.{CodecSpec, LoadMatrix}
+import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -201,8 +201,7 @@ object HailContext {
   }
 
   def readRowsPartition(
-    t: TStruct,
-    codecSpec: CodecSpec
+    makeDec: (InputStream) => Decoder
   )(ctx: RVDContext,
     in: InputStream,
     metrics: InputMetrics = null
@@ -214,7 +213,7 @@ object HailContext {
       private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
         try {
-          codecSpec.buildDecoder(trackedIn)
+          makeDec(trackedIn)
         } catch {
           case e: Exception =>
             in.close()
@@ -234,7 +233,7 @@ object HailContext {
           throw new NoSuchElementException("next on empty iterator")
 
         try {
-          rv.setOffset(dec.readRegionValue(t, region))
+          rv.setOffset(dec.readRegionValue(region))
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
             ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
@@ -529,7 +528,7 @@ class HailContext private(val sc: SparkContext,
         assert(it.hasNext)
         val (is, m) = it.next
         assert(!it.hasNext)
-        HailContext.readRowsPartition(t, codecSpec)(ctx, is, m)
+        HailContext.readRowsPartition(codecSpec.buildDecoder(t))(ctx, is, m)
       }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {

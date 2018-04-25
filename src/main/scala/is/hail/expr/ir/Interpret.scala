@@ -14,22 +14,25 @@ object Interpret {
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
+  def apply[T](ir: IR, optimize: Boolean): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
+
   def apply[T](ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
-    agg: Option[Agg]): T = {
-
+    agg: Option[Agg],
+    optimize: Boolean = true): T = {
 
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
     var ir = ir0
-    ir = Optimize(ir)
+    if (optimize)
+      ir = Optimize(ir)
+    TypeCheck(ir, agg.map(_._1), typeEnv)
 
     log.info("interpret:\n" + Pretty(ir))
 
-    TypeCheck(ir, agg.map(_._1), typeEnv)
     interpret(ir, valueEnv, args, agg.orNull).asInstanceOf[T]
   }
 
@@ -39,6 +42,7 @@ object Interpret {
       case I64(x) => x
       case F32(x) => x
       case F64(x) => x
+      case Str(x) => x
       case True() => true
       case False() => false
       case Cast(v, t) =>
@@ -289,7 +293,7 @@ object Interpret {
             new HistAggregator(indices)
         }
         aValue.foreach { case (element, _) =>
-            aggregator.seqOp(element)
+          aggregator.seqOp(element)
         }
         aggregator.result
       case MakeStruct(fields) =>
@@ -327,7 +331,7 @@ object Interpret {
         val argTuple = TTuple(functionArgs.map(_.typ): _*)
         val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(Apply(function,
           functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", x.typ), i)
+            GetTupleElement(Ref("in", argTuple), i)
           }))))
 
         val f = makeFunction()
@@ -349,9 +353,9 @@ object Interpret {
         }
       case ir@ApplySpecial(function, functionArgs) =>
         val argTuple = TTuple(functionArgs.map(_.typ): _*)
-        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(ApplySpecial(function,
+        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(FastSeq(ApplySpecial(function,
           functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", x.typ), i)
+            GetTupleElement(Ref("in", argTuple), i)
           }))))
 
         val f = makeFunction()

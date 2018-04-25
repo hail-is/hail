@@ -10,6 +10,7 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
+import is.hail.methods.UpperIndexBounds
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
@@ -559,7 +560,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockMapWithIndex { case ((i, _), lm) =>
         val lv = gp.vectorOnBlockRow(vBc.value, i)
         op(lm, lv)
-    }
+      }
   }
 
   def rowVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
@@ -569,7 +570,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockMapWithIndex { case ((_, j), lm) =>
         val lv = gp.vectorOnBlockCol(vBc.value, j)
         op(lm, lv)
-    }
+      }
   }
 
   def toIndexedRowMatrix(): IndexedRowMatrix = {
@@ -612,9 +613,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize, keepRows.length, keepCols.length)
 
+  def entriesTable(hc: HailContext): Table = entriesTable(hc, None)
 
-  def entriesTable(hc: HailContext): Table = {
+  def entriesTable(hc: HailContext, keep: Option[Array[Int]] = None): Table = {
     val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    val rdd = keep match {
+      case Some(keep) => blocks.subsetPartitions(keep)
+      case None => blocks
+    }
+
     val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
@@ -637,6 +644,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     new Table(hc, entriesRDD, rvRowType)
+  }
+
+  // positions is an ordered table with one value field of type int32, which will be grouped by key field(s) if present
+  /* returns the entry table of the block matrix, filtered to pairs (i, j) such that i <= j, key[i] == key[j], 
+  and position[j] - position[i] <= radius. If includeDiagonal=false, require i < j rather than i <= j.*/
+  def filteredEntriesTable(positions: Table, radius: Int, includeDiagonal: Boolean): Table = {
+    val blocksToKeep = UpperIndexBounds.computeCoverByUpperTriangularBlocks(positions, this.gp, radius, includeDiagonal)
+    this.entriesTable(positions.hc, Some(blocksToKeep))
   }
 }
 

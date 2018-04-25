@@ -36,12 +36,13 @@ package object ir {
 
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
-  def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean, letName: String): ir.IR = {
-    ir.Let(letName,
+  def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean): ir.IR = {
+    val pred = genUID()
+    ir.Let(pred,
       if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
-      ir.If(ir.IsNA(ir.Ref(letName, TBoolean())),
+      ir.If(ir.IsNA(ir.Ref(pred, TBoolean())),
         ir.False(),
-        ir.Ref(letName, TBoolean())))
+        ir.Ref(pred, TBoolean())))
   }
 
   private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)

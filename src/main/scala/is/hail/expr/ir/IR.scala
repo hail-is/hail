@@ -30,7 +30,8 @@ object Literal {
       case _: TFloat32 => F32(x.asInstanceOf[Float])
       case _: TFloat64 => F64(x.asInstanceOf[Double])
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
-      case _ => throw new RuntimeException("Unsupported literal type")
+      case _: TString => Str(x.asInstanceOf[String])
+      case _ => throw new RuntimeException(s"Unsupported literal type: $t")
     }
   }
 }
@@ -49,6 +50,7 @@ final case class I32(x: Int) extends IR { val typ = TInt32() }
 final case class I64(x: Long) extends IR { val typ = TInt64() }
 final case class F32(x: Float) extends IR { val typ = TFloat32() }
 final case class F64(x: Double) extends IR { val typ = TFloat64() }
+final case class Str(x: String) extends IR { val typ = TString() }
 final case class True() extends IR { val typ = TBoolean() }
 final case class False() extends IR { val typ = TBoolean() }
 
@@ -118,6 +120,8 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
     }
     implementation.returnType.subst()
   }
+
+  def isDeterministic: Boolean = implementation.isDeterministic
 }
 
 final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
@@ -133,6 +137,8 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
     }
     implementation.returnType.subst()
   }
+
+  def isDeterministic: Boolean = implementation.isDeterministic
 }
 
 final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }

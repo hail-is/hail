@@ -205,7 +205,7 @@ package object utils extends Logging
     .filter(s => !s.isEmpty)
 
   def prettyIdentifier(str: String): String = {
-    if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
       s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
@@ -567,8 +567,10 @@ package object utils extends Logging
   }
 
   def lift[T, S](pf: PartialFunction[T, S]): (T) => Option[S] = pf.lift
+
   def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift
-  def optMatch[T, S](a: T)(pf : PartialFunction[T, S]): Option[S] = lift(pf)(a)
+
+  def optMatch[T, S](a: T)(pf: PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
   def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
     try {
@@ -587,6 +589,14 @@ package object utils extends Logging
     assert(parts.sum == n)
     assert(parts.max - parts.min <= 1)
     parts
+  }
+
+  def matchErrorToNone[T, U](f: (T) => U): (T) => Option[U] = (x: T) => {
+    try {
+      Some(f(x))
+    } catch {
+      case _: MatchError => None
+    }
   }
 }
 

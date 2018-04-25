@@ -62,7 +62,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     (for { j <- 0 until nBlockCols
            i <- ((j - upperBlockBandwidth) max 0) to
                 ((j + lowerBlockBandwidth) min (nBlockRows - 1))
-    } yield (j * nBlockRows) + i ).toArray
+    } yield (j * nBlockRows) + i).toArray
   }
 
   // returns increasing array of all blocks intersecting the rectangle [firstRow, lastRow] x [firstCol, lastCol]
@@ -77,7 +77,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long) extends Par
     
     (for { j <- firstBlockCol to lastBlockCol
            i <- firstBlockRow to lastBlockRow
-    } yield (j * nBlockRows) + i ).toArray
+    } yield (j * nBlockRows) + i).toArray
   }
 
   // returns increasing array of all blocks intersecting the union of rectangles

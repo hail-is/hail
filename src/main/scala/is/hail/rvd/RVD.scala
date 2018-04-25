@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.expr.types.Type
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream }
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -46,7 +46,7 @@ object RVDSpec {
       val f = path + "/parts/" + p
       using(hConf.unsafeReader(f)) { in =>
         using(RVDContext.default) { ctx =>
-          HailContext.readRowsPartition(rowType, codecSpec)(ctx, in)
+          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType))(ctx, in)
             .map { rv =>
               val r = SafeRow(rowType, rv.region, rv.offset)
               ctx.region.clear()
@@ -93,7 +93,7 @@ case class OrderedRVDSpec(
     val rangeBoundsType = TArray(TInterval(orvdType.pkType))
     OrderedRVD(orvdType,
       new OrderedRVDPartitioner(orvdType.partitionKey, orvdType.kType,
-          JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
+        JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles))
   }
 
@@ -115,7 +115,7 @@ object RVD {
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
-          RichContextRDDRegionValue.writeRowsPartition(rowType, codecSpec)(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
             rows.iterator.map { a =>
               rvb.start(rowType)
               rvb.addAnnotation(rowType, a)
@@ -146,14 +146,13 @@ object RVD {
   val wireCodec = memoryCodec
 
   def regionValueToBytes(
-    codec: CodecSpec,
-    ctx: RVDContext,
-    rowType: Type
+    makeEnc: OutputStream => Encoder,
+    ctx: RVDContext
   )(rv: RegionValue
   ): Array[Byte] =
     using(new ByteArrayOutputStream()) { baos =>
-      using(codec.buildEncoder(baos)) { enc =>
-        enc.writeRegionValue(rowType, rv.region, rv.offset)
+      using(makeEnc(baos)) { enc =>
+        enc.writeRegionValue(rv.region, rv.offset)
         enc.flush()
         ctx.region.clear()
         baos.toByteArray
@@ -161,19 +160,17 @@ object RVD {
     }
 
   def bytesToRegionValue(
-    codec: CodecSpec,
+    makeDec: InputStream => Decoder,
     r: Region,
-    rowType: Type,
     carrierRv: RegionValue
   )(bytes: Array[Byte]
   ): RegionValue =
     using(new ByteArrayInputStream(bytes)) { bais =>
-      using(RVD.memoryCodec.buildDecoder(bais)) { dec =>
-        carrierRv.set(r, dec.readRegionValue(rowType, r))
+      using(makeDec(bais)) { dec =>
+        carrierRv.setOffset(dec.readRegionValue(r))
         carrierRv
       }
     }
-
 }
 
 trait RVD {
@@ -186,9 +183,9 @@ trait RVD {
     unstable: ContextRDD[RVDContext, RegionValue],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, Array[Byte]] = {
-    val localRowType = rowType
+    val enc = codec.buildEncoder(rowType) _
     unstable.cmapPartitions { (ctx, it) =>
-      it.map(RVD.regionValueToBytes(codec, ctx, localRowType))
+      it.map(RVD.regionValueToBytes(enc, ctx))
     }
   }
 
@@ -196,11 +193,11 @@ trait RVD {
     stable: ContextRDD[RVDContext, Array[Byte]],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
-    val localRowType = rowType
+    val dec = codec.buildDecoder(rowType)
     stable.cmapPartitions { (ctx, it) =>
       val rv = RegionValue()
       it.map(
-        RVD.bytesToRegionValue(codec, ctx.region, localRowType, rv))
+        RVD.bytesToRegionValue(dec, ctx.region, rv))
     }
   }
 
@@ -276,7 +273,7 @@ trait RVD {
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
-      RVD.bytesToRegionValue(RVD.wireCodec, region, rowType, RegionValue()))
+      RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType), region, RegionValue()))
 
   // Only use on CRDD's whose T is not dependnet on the context
   private[rvd] def clearingRun[T: ClassTag](
@@ -332,9 +329,13 @@ trait RVD {
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
 
+    val makeEnc = RVD.memoryCodec.buildEncoder(localRowType)(_)
+
+    val makeDec = RVD.memoryCodec.buildDecoder(localRowType)(_)
+
     // copy, persist region values
     val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
-      it.map(RVD.regionValueToBytes(RVD.memoryCodec, ctx, localRowType))
+      it.map(RVD.regionValueToBytes(makeEnc, ctx))
     } .run
       .persist(level)
 
@@ -344,7 +345,7 @@ trait RVD {
           val region = ctx.region
           val rv = RegionValue(region)
           it.map(
-            RVD.bytesToRegionValue(RVD.memoryCodec, region, localRowType, rv))
+            RVD.bytesToRegionValue(makeDec, region, rv))
         })
   }
 

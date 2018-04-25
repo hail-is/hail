@@ -698,6 +698,17 @@ class MatrixTests(unittest.TestCase):
 
         assert(mt_entries.all(mt_entries.bc == mt_entries.foo))
 
+    def test_select_cols(self):
+        mt = hl.utils.range_matrix_table(3, 5, n_partitions=4)
+        mt = mt.annotate_entries(e=mt.col_idx * mt.row_idx)
+        mt = mt.annotate_globals(g=1)
+        mt = mt.annotate_cols(sum=agg.sum(mt.e + mt.col_idx + mt.row_idx + mt.g) + mt.col_idx + mt.g,
+                              count=agg.count_where(mt.e % 2 == 0),
+                              foo=agg.count(mt.e))
+
+        result = convert_struct_to_dict(mt.cols().collect()[-2])
+        self.assertEqual(result, {'col_idx': 3, 'sum': 28, 'count': 2, 'foo': 3})
+
     def test_drop(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)

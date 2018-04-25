@@ -336,8 +336,8 @@ object LDPrune {
     }
 
     val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
-        i == 0 || rangeBounds(i-1).end.asInstanceOf[Row].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[Row].getAs[Locus](0).contig
-      }
+      i == 0 || rangeBounds(i - 1).end.asInstanceOf[Row].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[Row].getAs[Locus](0).contig
+    }
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
 

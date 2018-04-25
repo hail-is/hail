@@ -89,75 +89,100 @@ abstract class RegistryFunctions {
   def tnum(name: String): TVariable =
     tv(name, _.isInstanceOf[TNumeric])
 
-  def registerCode(mname: String, aTypes: Array[Type], rType: Type)(impl: (MethodBuilder, Array[Code[_]]) => Code[_]) {
+  def registerCode(mname: String, aTypes: Array[Type], rType: Type, isDet: Boolean)(impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
+      val isDeterministic: Boolean = isDet
+
       override val name: String = mname
 
       override val argTypes: Seq[Type] = aTypes
 
       override val returnType: Type = rType
 
-      override def apply(mb: MethodBuilder, args: Code[_]*): Code[_] = impl(mb, args.toArray)
+      override def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, args.toArray)
     })
   }
 
-  def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (MethodBuilder, Array[EmitTriplet]) => EmitTriplet) {
+  def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type, isDet: Boolean)(impl: (EmitMethodBuilder, Array[EmitTriplet]) => EmitTriplet) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
+      val isDeterministic: Boolean = isDet
+
       override val name: String = mname
 
       override val argTypes: Seq[Type] = aTypes
 
       override val returnType: Type = rType
 
-      override def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet = impl(mb, args.toArray)
+      override def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet = impl(mb, args.toArray)
     })
   }
 
-  def registerScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
-    registerCode(mname, argTypes, rType) { (mb, args) =>
+  def registerScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String, isDeterministic: Boolean) {
+    registerCode(mname, argTypes, rType, isDeterministic) { (mb, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
       Code.invokeScalaObject(cls, method, cts, args)(TypeToIRIntermediateClassTag(rType))
     }
   }
 
-  def registerScalaFunction(mname: String, types: Type*)(cls: Class[_], method: String): Unit =
-    registerScalaFunction(mname: String, types.init.toArray, types.last)(cls, method)
+  def registerScalaFunction(mname: String, types: Type*)(cls: Class[_], method: String, isDeterministic: Boolean = true): Unit =
+    registerScalaFunction(mname: String, types.init.toArray, types.last)(cls, method, isDeterministic)
 
-  def registerJavaStaticFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
-    registerCode(mname, argTypes, rType) { (mb, args) =>
+  def registerJavaStaticFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String, isDeterministic: Boolean) {
+    registerCode(mname, argTypes, rType, isDeterministic) { (mb, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
       Code.invokeStatic(cls, method, cts, args)(TypeToIRIntermediateClassTag(rType))
     }
   }
 
-  def registerJavaStaticFunction(mname: String, types: Type*)(cls: Class[_], method: String): Unit =
-    registerJavaStaticFunction(mname, types.init.toArray, types.last)(cls, method)
+  def registerJavaStaticFunction(mname: String, types: Type*)(cls: Class[_], method: String, isDeterministic: Boolean = true): Unit =
+    registerJavaStaticFunction(mname, types.init.toArray, types.last)(cls, method, isDeterministic)
 
   def registerIR(mname: String, argTypes: Array[Type])(f: Seq[IR] => IR) {
     IRFunctionRegistry.addIR(mname, argTypes, f)
   }
 
-  def registerCode(mname: String, rt: Type)(impl: MethodBuilder => Code[_]): Unit =
-    registerCode(mname, Array[Type](), rt) { case (mb, Array()) => impl(mb) }
+  def registerCode(mname: String, rt: Type, isDeterministic: Boolean)(impl: EmitMethodBuilder => Code[_]): Unit =
+    registerCode(mname, Array[Type](), rt, isDeterministic) { case (mb, Array()) => impl(mb) }
 
-  def registerCode[T1: TypeInfo](mname: String, mt1: Type, rt: Type)(impl: (MethodBuilder, Code[T1]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1), rt) { case (mb, Array(a1)) => impl(mb, coerce[T1](a1)) }
+  def registerCode(mname: String, rt: Type)(impl: EmitMethodBuilder => Code[_]): Unit =
+    registerCode(mname, rt, isDeterministic = true)(impl)
 
-  def registerCode[T1: TypeInfo, T2: TypeInfo](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (MethodBuilder, Code[T1], Code[T2]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2), rt) { case (mb, Array(a1, a2)) => impl(mb, coerce[T1](a1), coerce[T2](a2)) }
+  def registerCode(mname: String, mt1: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[_]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1), rt, isDeterministic) { case (mb, Array(a1)) => impl(mb, a1) }
 
-  def registerCode[T1: TypeInfo, T2: TypeInfo, T3: TypeInfo](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)
-    (impl: (MethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2, mt3), rt) { case (mb, Array(a1, a2, a3)) => impl(mb, coerce[T1](a1), coerce[T2](a2), coerce[T3](a3)) }
+  def registerCode(mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_]) => Code[_]): Unit =
+    registerCode(mname, mt1, rt, isDeterministic = true)(impl)
 
-  def registerCodeWithMissingness(mname: String, rt: Type)(impl: MethodBuilder => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array[Type](), rt) { case (mb, Array()) => impl(mb) }
+  def registerCode(mname: String, mt1: Type, mt2: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1, mt2), rt, isDeterministic) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
 
-  def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type)(impl: (MethodBuilder, EmitTriplet) => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array(mt1), rt) { case (mb, Array(a1)) => impl(mb, a1) }
+  def registerCode(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]): Unit =
+    registerCode(mname, mt1, mt2, rt, isDeterministic = true)(impl)
 
-  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (MethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array(mt1, mt2), rt) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
+  def registerCode(mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, isDeterministic: Boolean)
+    (impl: (EmitMethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1, mt2, mt3), rt, isDeterministic) { case (mb, Array(a1, a2, a3)) => impl(mb, a1, a2, a3) }
+
+  def registerCode(mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
+    registerCode(mname, mt1, mt2, mt3, rt, isDeterministic = true)(impl)
+
+  def registerCodeWithMissingness(mname: String, rt: Type, isDeterministic: Boolean)(impl: EmitMethodBuilder => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array[Type](), rt, isDeterministic) { case (mb, Array()) => impl(mb) }
+
+  def registerCodeWithMissingness(mname: String, rt: Type)(impl: EmitMethodBuilder => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, rt, isDeterministic = true)(impl)
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1), rt, isDeterministic) { case (mb, Array(a1)) => impl(mb, a1) }
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, mt1, rt, isDeterministic = true)(impl)
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1, mt2), rt, isDeterministic) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, mt1, mt2, rt, isDeterministic = true)(impl)
 
   def registerIR(mname: String)(f: () => IR): Unit =
     registerIR(mname, Array[Type]()) { case Seq() => f() }
@@ -177,13 +202,15 @@ sealed abstract class IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet
+  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
 
-  def getAsMethod(fb: FunctionBuilder[_], args: Type*): MethodBuilder = ???
+  def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = ???
 
   def returnType: Type
 
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+
+  def isDeterministic: Boolean
 
 }
 
@@ -192,9 +219,9 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: MethodBuilder, args: Code[_]*): Code[_]
+  def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_]
 
-  def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet = {
+  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet = {
     val setup = args.map(_.setup)
     val missing = args.map(_.m).reduce(_ || _)
     val value = apply(mb, args.map(_.v): _*)
@@ -202,7 +229,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
     EmitTriplet(setup, missing, value)
   }
 
-  override def getAsMethod(fb: FunctionBuilder[_], args: Type*): MethodBuilder = {
+  override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
     argTypes.foreach(_.clear())
     (argTypes, args).zipped.foreach(_.unify(_))
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
@@ -221,7 +248,7 @@ abstract class IRFunctionWithMissingness extends IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: MethodBuilder, args: EmitTriplet*): EmitTriplet
+  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
 
   def returnType: Type
 

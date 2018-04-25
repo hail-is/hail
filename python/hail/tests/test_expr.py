@@ -1058,7 +1058,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(1 <= hl.eval_expr(hl.median([0, 1, 4, 6])) <= 4)
 
-        self.assertEqual(hl.eval_expr(hl.product([1, 4, 6])), 24)
+        for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
+            self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]).value, 24)
+            self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]).value, 11)
 
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 

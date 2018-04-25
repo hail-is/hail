@@ -636,8 +636,6 @@ case class FilterRows(
       prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
 
     val fullRowType = prev.typ.rvRowType
-    val localRowType = prev.typ.rowType
-    val localEntriesIndex = prev.typ.entriesIdx
 
     val localGlobals = prev.globals.broadcast
 
@@ -738,13 +736,13 @@ case class CollectColsByKey(child: MatrixIR) extends MatrixIR {
   }
 }
 
-case class MapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
+case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, newEntries)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): MapEntries = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapEntries = {
     assert(newChildren.length == 2)
-    MapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixMapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   val newRow = {
@@ -862,8 +860,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     val localRowType = prev.typ.rvRowType
     val localEntriesType = prev.typ.entryArrayType
     val entriesIdx = prev.typ.entriesIdx
-    val localGlobalsType = typ.globalType
-    val localColsType = TArray(typ.colType)
+    val localGlobalsType = prev.typ.globalType
+    val localColsType = TArray(prev.typ.colType)
     val localNCols = prev.nCols
     val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
@@ -880,17 +878,29 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       val newRV = RegionValue()
       val rowF = f()
 
+      val partRegion = Region()
+
+      rvb.set(partRegion)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val partGlobalsOff = rvb.end()
+
+      rvb.start(localColsType)
+      rvb.addAnnotation(localColsType, colValuesBc.value)
+      val partColsOff = rvb.end()
+
       it.map { rv =>
         val region = rv.region
         val oldRow = rv.offset
 
         rvb.set(region)
         rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
         val globals = rvb.end()
 
+        rvb.set(region)
         rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
+        rvb.addRegionValue(localColsType, partRegion, partColsOff)
         val cols = rvb.end()
 
         val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
@@ -901,13 +911,13 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
           var i = 0
           while (i < localNCols) {
             val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
-            val eOff = localEntriesType.elementOffset(entriesOff, localNCols, i)
+            val eOff = localEntriesType.loadElement(region, entriesOff, i)
             val colMissing = localColsType.isElementMissing(region, cols, i)
-            val colOff = localColsType.elementOffset(cols, localNCols, i)
+            val colOff = localColsType.loadElement(region, cols, i)
 
             var j = 0
             while (j < seqOps.length) {
-              seqOps(j)()(region, newRVAggs(j), oldRow, false, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+              seqOps(j)()(region, newRVAggs(j), eOff, eMissing, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
               j += 1
             }
             i += 1
@@ -941,6 +951,134 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
       prev.copy(typ = typ, rvd = newRVD)
     }
+  }
+}
+
+case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(child, newCol)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapCols = {
+    assert(newChildren.length == 2)
+    MatrixMapCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  val tAggElt: Type = child.typ.entryType
+  val aggSymTab = Map(
+    "global" -> (0, child.typ.globalType),
+    "va" -> (1, child.typ.rvRowType),
+    "g" -> (2, child.typ.entryType),
+    "sa" -> (3, child.typ.colType))
+
+  val tAgg = TAggregable(tAggElt, aggSymTab)
+
+  val typ: MatrixType = {
+    val newColType = newCol.typ.asInstanceOf[TStruct]
+    val newColNames = newColType.fieldNames.toSet
+    val newColKey = child.typ.colKey.filter(newColNames.contains)
+    child.typ.copy(colKey = newColKey, colType = newColType)
+  }
+
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+    assert(prev.typ == child.typ)
+
+    val localRowType = prev.typ.rvRowType
+    val localEntriesType = prev.typ.entryArrayType
+    val entriesIdx = prev.typ.entriesIdx
+    val localGlobalsType = prev.typ.globalType
+    val localColsType = TArray(prev.typ.colType)
+    val localNCols = prev.nCols
+    val colValuesBc = prev.colValues.broadcast
+    val globalsBc = prev.globals.broadcast
+
+    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
+      "AGG", tAgg,
+      "global", localGlobalsType,
+      "sa", prev.typ.colType,
+      newCol)
+    assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
+
+    val depth = treeAggDepth(hc, prev.nPartitions)
+    val nAggs = seqOps.length
+
+    val rvAggsMA = MultiArray2.fill[RegionValueAggregator](localNCols, nAggs)(null)
+    for (i <- 0 until localNCols; j <- 0 until nAggs) {
+      rvAggsMA(i, j) = rvAggs(j).copy()
+    }
+
+    val aggResults = if (seqOps.nonEmpty) {
+      prev.rvd.treeAggregate[MultiArray2[RegionValueAggregator]](rvAggsMA)({ (rvaggs, rv) =>
+        val rvb = new RegionValueBuilder()
+        val region = rv.region
+        val oldRow = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
+
+        var i = 0
+        while (i < localNCols) {
+          val eMissing = localEntriesType.isElementMissing(region, entriesOff, i)
+          val eOff = localEntriesType.loadElement(region, entriesOff, i)
+          val colMissing = localColsType.isElementMissing(region, cols, i)
+          assert(!colMissing)
+          val colOff = localColsType.loadElement(region, cols, i)
+
+          var j = 0
+          while (j < seqOps.length) {
+            seqOps(j)()(region, rvaggs(i, j), eOff, eMissing, globals, false, oldRow, false, eOff, eMissing, colOff, colMissing)
+            j += 1
+          }
+          i += 1
+        }
+
+        rvaggs
+      }, { (rvAggs1, rvAggs2) =>
+        rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
+        rvAggs1
+      }, depth = depth)
+    } else
+      MultiArray2.fill[RegionValueAggregator](localNCols, 0)(null)
+
+    val prevColType = prev.typ.colType
+    val rvb = new RegionValueBuilder()
+
+    val mapF = (a: Annotation, i: Int) => {
+      Region.scoped { region =>
+        rvb.set(region)
+
+        rvb.start(aggResultType)
+        rvb.startStruct()
+        aggResults.row(i).foreach(_.result(rvb))
+        rvb.endStruct()
+        val aggResultsOffset = rvb.end()
+
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globalRVoffset = rvb.end()
+
+        val colRVb = new RegionValueBuilder(region)
+        colRVb.start(prevColType)
+        colRVb.addAnnotation(prevColType, a)
+        val colRVoffset = colRVb.end()
+
+        val resultOffset = f()(region, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
+
+        SafeRow(coerce[TStruct](rTyp), region, resultOffset)
+      }
+    }
+
+    val newColValues = BroadcastIndexedSeq(colValuesBc.value.zipWithIndex.map { case (a, i) => mapF(a, i) }, TArray(typ.colType), hc.sc)
+    prev.copy(typ = typ, colValues = newColValues)
   }
 }
 
@@ -1496,6 +1634,23 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
           }
         }
       }))
+  }
+}
+
+case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
+  assert(children.length > 0)
+  assert(children.tail.forall(_.typ == children(0).typ))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableUnion = {
+    TableUnion(newChildren.map(_.asInstanceOf[TableIR]))
+  }
+
+  val typ: TableType = children(0).typ
+
+  def execute(hc: HailContext): TableValue = {
+    val tvs = children.map(_.execute(hc))
+    tvs(0).copy(
+      rvd = RVD.union(tvs.map(_.rvd)))
   }
 }
 

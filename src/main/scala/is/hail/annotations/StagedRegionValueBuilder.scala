@@ -59,9 +59,9 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       case _: TBaseStruct => start(true)
       case _: TBinary =>
         assert(pOffset == null)
-        startOffset.store(endOffset)
+        startOffset := endOffset
       case _ =>
-        startOffset.store(region.allocate(typ.alignment, typ.byteSize))
+        startOffset := region.allocate(typ.alignment, typ.byteSize)
     }
   }
 
@@ -108,13 +108,27 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
 
+  def allocateBinary(n: Code[Int]): Code[Long] = {
+    val boff = mb.newLocal[Long]
+    Code(
+      boff := TBinary.allocate(region, n),
+      region.storeInt(boff, n),
+      typ.fundamentalType match {
+        case _: TBinary => _empty
+        case _ =>
+          region.storeAddress(currentOffset, boff)
+      },
+      boff)
+  }
+
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     val boff = mb.newLocal[Long]
     Code(
       boff := region.appendInt(bytes.length()),
       toUnit(region.appendBytes(bytes)),
       typ.fundamentalType match {
-        case _: TBinary => _empty
+        case _: TBinary =>
+          startOffset := boff
         case _ =>
           region.storeAddress(currentOffset, boff)
       })
@@ -127,7 +141,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
   def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
-  
+
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case _: TInt32 => v => addInt(v.asInstanceOf[Code[Int]])

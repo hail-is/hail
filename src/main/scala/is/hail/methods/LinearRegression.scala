@@ -20,10 +20,10 @@ object LinearRegression {
     ("p_value", TArray(TFloat64())))
 
   def apply(vsm: MatrixTable,
-    yExpr: Array[String], xField: String, covExpr: Array[String], root: String, rowBlockSize: Int
+    yFields: Array[String], xField: String, covFields: Array[String], root: String, rowBlockSize: Int
   ): MatrixTable = {
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(vsm, yExpr, covExpr)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(vsm, yFields, covFields)
 
     val n = y.rows // n_complete_samples
     val k = cov.cols // nCovariates
