@@ -151,8 +151,10 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     cmapPartitions((_, part) => f(part), preservesPartitioning)
 
   def mapPartitionsWithIndex[U: ClassTag](
-    f: (Int, Iterator[T]) => Iterator[U]
-  ): ContextRDD[C, U] = cmapPartitionsWithIndex((i, _, part) => f(i, part))
+    f: (Int, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] =
+    cmapPartitionsWithIndex((i, _, part) => f(i, part), preservesPartitioning)
 
   // FIXME: delete when region values are non-serializable
   def aggregate[U: ClassTag](
@@ -401,9 +403,72 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     }, preservesPartitioning = true)
   }
 
+  def head(n: Long): ContextRDD[C, T] = {
+    require(n >= 0)
+
+    val sc = sparkContext
+    val nPartitions = getNumPartitions
+
+    var partScanned = 0
+    var nLeft = n
+    var idxLast = 0
+    var nLast = 0L
+    var numPartsToTry = 1L
+
+    while (nLeft > 0 && partScanned < nPartitions) {
+      val nSeen = n - nLeft
+
+      if (partScanned > 0) {
+        // If we didn't find any rows after the previous iteration, quadruple and retry.
+        // Otherwise, interpolate the number of partitions we need to try, but overestimate
+        // it by 50%. We also cap the estimation in the end.
+        if (nSeen == 0) {
+          numPartsToTry = partScanned * 4
+        } else {
+          // the left side of max is >=1 whenever partsScanned >= 2
+          numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
+          numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
+        }
+      }
+
+      val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
+      val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
+
+      p.zip(counts).foreach { case (idx, c) =>
+        if (nLeft > 0) {
+          idxLast = idx
+          nLast = if (c < nLeft) c else nLeft
+          nLeft -= nLast
+        }
+      }
+
+      partScanned += p.size
+    }
+
+    mapPartitionsWithIndex({ case (i, it) =>
+      if (i == idxLast)
+        it.take(nLast.toInt)
+      else
+        it
+    }, preservesPartitioning = true)
+      .subsetPartitions((0 to idxLast).toArray)
+  }
+
+  def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =
+    sparkContext.runJob(
+      rdd,
+      { (it: Iterator[ElementType]) => using(mkc())(c => f(it.flatMap(_(c)))) },
+      partitions)
+
+  def blocked(partitionEnds: Array[Int]): ContextRDD[C, T] =
+    new ContextRDD(new BlockedRDD(rdd, partitionEnds), mkc)
+
   def sparkContext: SparkContext = rdd.sparkContext
 
   def getNumPartitions: Int = rdd.getNumPartitions
+
+  def preferredLocations(partition: Partition): Seq[String] =
+    rdd.preferredLocations(partition)
 
   private[this] def clean[T <: AnyRef](value: T): T =
     ExposedUtils.clean(sparkContext, value)

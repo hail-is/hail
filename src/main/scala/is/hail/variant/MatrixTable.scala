@@ -1995,16 +1995,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
 
-    rvd.find { rv =>
-      val ur = new UnsafeRow(localRVRowType, rv)
-      !localRVRowType.typeCheck(ur)
-    }.foreach { rv =>
-      val ur = new UnsafeRow(localRVRowType, rv)
-      foundError = true
-      warn(
-        s"""found violation in row
-            |Schema: $localRVRowType
-            |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
+    Region.scoped { region =>
+      rvd.find(region) { rv =>
+        val ur = new UnsafeRow(localRVRowType, rv)
+        !localRVRowType.typeCheck(ur)
+      }.foreach { rv =>
+        val ur = new UnsafeRow(localRVRowType, rv)
+        foundError = true
+        warn(
+          s"""found violation in row
+          |Schema: $localRVRowType
+
+          |Annotation: ${ Annotation.printAnnotation(
+            ur) }""".stripMargin)
+      }
     }
 
     if (foundError)

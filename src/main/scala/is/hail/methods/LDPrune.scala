@@ -356,7 +356,10 @@ object LDPrune {
     for (i <- 0 until nPartitions) {
       val (rvds, inputs) = generalRDDInputs(i)
       pruneIntermediates(i) = GlobalPruneIntermediate(
-        rvd = new UnpartitionedRVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),
+        rvd = new UnpartitionedRVD(
+          inputRDD.typ.rowType,
+          RVD.wireCodec,
+          new GeneralRDD(sc, rvds.map(_.encodedRDD(RVD.wireCodec)), Array((inputs, pruneF)))),
         rvRowType = localRowType,
         index = 0,
         persist = false) // creating single partition RDDs with partition index = 0
@@ -364,7 +367,8 @@ object LDPrune {
 
     val prunedRDD = OrderedRVD(inputRDD.typ,
       inputRDD.partitioner,
-      new GeneralRDD[RegionValue](sc, pruneIntermediates.map(_.rvd.rdd),
+      RVD.wireCodec,
+      new GeneralRDD(sc, pruneIntermediates.map(_.rvd.encodedRDD(RVD.wireCodec)),
         pruneIntermediates.zipWithIndex.map { case (gpi, i) =>
           (Array((i, gpi.index)), pruneF)
         }))

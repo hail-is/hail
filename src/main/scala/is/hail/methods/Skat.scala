@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.SafeRow
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
@@ -224,8 +225,8 @@ object Skat {
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
     // FIXME: what to do about skat
-    (vsm.rvd.rdd.flatMap { rv =>
-      val fullRow = new UnsafeRow(fullRowType, rv)
+    (vsm.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
+      val fullRow = SafeRow(fullRowType, rv)
       val row = fullRow.deleteField(entryArrayIdx)
 
       (Option(keyQuerier(row)), Option(weightQuerier(row)).map(_.asInstanceOf[Double])) match {
@@ -235,12 +236,13 @@ object Skat {
 
           val data = new Array[Double](n)
 
-          RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](), 
+          RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
             rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
-          
+
           Option((Annotation.copy(keyType, key), (BDV(data), w)))
         case _ => None
       }
+    }
     }.groupByKey(), keyType)
   }
  

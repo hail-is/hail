@@ -20,7 +20,18 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def this(rowType: TStruct, rdd: RDD[RegionValue]) =
     this(rowType, ContextRDD.weaken[RVDContext](rdd))
 
+  def this(rowType: TStruct, codec: CodecSpec, rdd: RDD[Array[Byte]]) =
+    this(
+      rowType,
+      ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+        val rv = RegionValue()
+        it.map(RVD.bytesToRegionValue(codec, ctx.region, rowType, rv))
+      })
+
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
+
+  def head(n: Long): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, crdd.head(n))
 
   def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, crdd.filter(f))
 

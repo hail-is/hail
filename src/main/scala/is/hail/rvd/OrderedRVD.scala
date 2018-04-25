@@ -182,7 +182,7 @@ class OrderedRVD(
   def blockCoalesce(partitionEnds: Array[Int]): OrderedRVD = {
     assert(partitionEnds.last == partitioner.numPartitions - 1 && partitionEnds(0) >= 0)
     assert(partitionEnds.zip(partitionEnds.tail).forall { case (i, inext) => i < inext })
-    OrderedRVD(typ, partitioner.coalesceRangeBounds(partitionEnds), new BlockedRDD(rdd, partitionEnds))
+    OrderedRVD(typ, partitioner.coalesceRangeBounds(partitionEnds), crdd.blocked(partitionEnds))
   }
 
   def naiveCoalesce(maxPartitions: Int): OrderedRVD = {
@@ -290,8 +290,7 @@ class OrderedRVD(
     if (n == 0)
       return OrderedRVD.empty(sparkContext, typ)
 
-    // FIXME head seems unsafe, do I crdd.head?
-    val newRDD = rdd.head(n)
+    val newRDD = crdd.head(n)
     val newNParts = newRDD.getNumPartitions
     assert(newNParts > 0)
 
@@ -789,15 +788,10 @@ object OrderedRVD {
       crdd.cmapPartitions { (ctx, it) =>
         it.map { rv =>
           val wkrv = WritableRegionValue(typ.kType)
-          using(new ByteArrayOutputStream()) { baos =>
-            using(RVD.wireCodec.buildEncoder(baos)) { enc =>
-              enc.writeRegionValue(localType.rowType, rv.region, rv.offset)
-              enc.flush()
-              wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-              ctx.region.clear()
-              (wkrv.value, baos.toByteArray)
-            }
-          }
+          wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+          val bytes =
+            RVD.regionValueToBytes(RVD.wireCodec, ctx, localType.rowType)(rv)
+          (wkrv.value, bytes)
         }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
@@ -805,12 +799,8 @@ object OrderedRVD {
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
             assert(partBc.value.getPartition(k) == i)
-            using(new ByteArrayInputStream(bytes)) { bais =>
-              using(RVD.memoryCodec.buildDecoder(bais)) { dec =>
-                rv.setOffset(dec.readRegionValue(localType.rowType, region))
-                rv
-              }
-            }
+            RVD.bytesToRegionValue(RVD.wireCodec, region, localType.rowType, rv)(
+              bytes)
           }
       })
   }
@@ -910,6 +900,19 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]
   ): OrderedRVD = apply(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
+
+  def apply(
+    typ: OrderedRVDType,
+    partitioner: OrderedRVDPartitioner,
+    codec: CodecSpec,
+    rdd: RDD[Array[Byte]]
+  ): OrderedRVD = apply(
+    typ,
+    partitioner,
+    ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+      val rv = RegionValue()
+      it.map(RVD.bytesToRegionValue(codec, ctx.region, typ.rowType, rv))
+    })
 
   def apply(
     typ: OrderedRVDType,

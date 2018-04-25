@@ -1,5 +1,6 @@
 package is.hail.rvd
 
+import is.hail.expr.types.Type
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailContext
@@ -137,12 +138,42 @@ object RVD {
       ContextRDD.union(sc, rvds.map(_.crdd)))
   }
 
-  private[rvd] val memoryCodec =
+  val memoryCodec =
     new PackCodecSpec(
       new BlockingBufferSpec(32 * 1024,
         new StreamBlockBufferSpec))
 
-  private[rvd] val wireCodec = memoryCodec
+  val wireCodec = memoryCodec
+
+  private[rvd] def regionValueToBytes(
+    codec: CodecSpec,
+    ctx: RVDContext,
+    rowType: Type
+  )(rv: RegionValue
+  ): Array[Byte] =
+    using(new ByteArrayOutputStream()) { baos =>
+      using(codec.buildEncoder(baos)) { enc =>
+        enc.writeRegionValue(rowType, rv.region, rv.offset)
+        enc.flush()
+        ctx.region.clear()
+        baos.toByteArray
+      }
+    }
+
+  private[rvd] def bytesToRegionValue(
+    codec: CodecSpec,
+    r: Region,
+    rowType: Type,
+    carrierRv: RegionValue
+  )(bytes: Array[Byte]
+  ): RegionValue =
+    using(new ByteArrayInputStream(bytes)) { bais =>
+      using(RVD.memoryCodec.buildDecoder(bais)) { dec =>
+        carrierRv.set(r, dec.readRegionValue(rowType, r))
+        carrierRv
+      }
+    }
+
 }
 
 trait RVD {
@@ -152,26 +183,35 @@ trait RVD {
   def crdd: ContextRDD[RVDContext, RegionValue]
 
   private[rvd] def stabilize(
-    unstable: ContextRDD[RVDContext, RegionValue]
+    unstable: ContextRDD[RVDContext, RegionValue],
+    codec: CodecSpec = RVD.memoryCodec
+  ): ContextRDD[RVDContext, Array[Byte]] = {
+    val localRowType = rowType
+    unstable.cmapPartitions { (ctx, it) =>
+      it.map(RVD.regionValueToBytes(codec, ctx, localRowType))
+    }
+  }
+
+  private[rvd] def destabilize(
+    stable: ContextRDD[RVDContext, Array[Byte]],
+    codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
     val localRowType = rowType
-    unstable.map { rv =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
-      rvb.start(localRowType)
-      rvb.addRegionValue(localRowType, rv)
-      RegionValue(region, rvb.end())
+    stable.cmapPartitions { (ctx, it) =>
+      val rv = RegionValue()
+      it.map(
+        RVD.bytesToRegionValue(codec, ctx.region, localRowType, rv))
     }
   }
 
   private[rvd] def stably(
-    f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
-  ): ContextRDD[RVDContext, RegionValue] = f(stabilize(crdd))
+    f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
+  ): ContextRDD[RVDContext, RegionValue] = destabilize(f(stabilize(crdd)))
 
   private[rvd] def stably(
     unstable: ContextRDD[RVDContext, RegionValue],
-    f: ContextRDD[RVDContext, RegionValue] => ContextRDD[RVDContext, RegionValue]
-  ): ContextRDD[RVDContext, RegionValue] = f(stabilize(unstable))
+    f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
+  ): ContextRDD[RVDContext, RegionValue] = destabilize(f(stabilize(unstable)))
 
   private[rvd] def crddBoundary: ContextRDD[RVDContext, RegionValue] =
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
@@ -202,7 +242,13 @@ trait RVD {
   // you must be careful to copy the value into the appropriate region
   def boundary: RVD
 
-  def rdd: RDD[RegionValue] = stabilize(crdd).run
+  def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
+    stabilize(crdd, codec).run
+
+  def head(n: Long): RVD
+
+  def forall(p: RegionValue => Boolean): Boolean =
+    crdd.map(p).run.forall(x => x)
 
   def sparkContext: SparkContext = crdd.sparkContext
 
@@ -225,15 +271,20 @@ trait RVD {
   def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
-  def find(p: (RegionValue) => Boolean): Option[RegionValue] =
-    stabilize(crdd.filter(p)).run.take(1).headOption
+  def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
+    stabilize(crdd.filter(p), codec).run.take(1).headOption
+
+  def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
+    find(RVD.wireCodec, p).map(
+      RVD.bytesToRegionValue(RVD.wireCodec, region, rowType, RegionValue()))
 
   // Only use on CRDD's whose T is not dependnet on the context
-  private[rvd] def clearingRun[T](crdd: ContextRDD[RVDContext, T]): RDD[T] =
-    crdd.cmap { (ctx, v) =>
-      ctx.region.clear()
-      v
-    }.run
+  private[rvd] def clearingRun[T: ClassTag](
+    crdd: ContextRDD[RVDContext, T]
+  ): RDD[T] = crdd.cmap { (ctx, v) =>
+    ctx.region.clear()
+    v
+  }.run
 
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.map(f))
 
@@ -283,16 +334,7 @@ trait RVD {
 
     // copy, persist region values
     val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
-      it.map { rv =>
-        using(new ByteArrayOutputStream()) { baos =>
-          using(RVD.memoryCodec.buildEncoder(baos)) { enc =>
-            enc.writeRegionValue(localRowType, rv.region, rv.offset)
-            enc.flush()
-            ctx.region.clear()
-            baos.toByteArray
-          }
-        }
-      }
+      it.map(RVD.regionValueToBytes(RVD.memoryCodec, ctx, localRowType))
     } .run
       .persist(level)
 
@@ -301,14 +343,8 @@ trait RVD {
         .cmapPartitions { (ctx, it) =>
           val region = ctx.region
           val rv = RegionValue(region)
-          it.map { bytes =>
-            using(new ByteArrayInputStream(bytes)) { bais =>
-              using(RVD.memoryCodec.buildDecoder(bais)) { dec =>
-                rv.setOffset(dec.readRegionValue(localRowType, region))
-                rv
-              }
-            }
-          }
+          it.map(
+            RVD.bytesToRegionValue(RVD.memoryCodec, region, localRowType, rv))
         })
   }
 
