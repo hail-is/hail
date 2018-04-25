@@ -114,7 +114,8 @@ class Tests(unittest.TestCase):
                                       y=agg.count_where(table.idx % 2 == 0),
                                       z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
                                       arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
-                                      bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx))))
+                                      bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
+                                      mean=agg.mean(table.idx)))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)

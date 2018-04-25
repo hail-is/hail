@@ -1647,7 +1647,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(ct.aggType()))
         ct.aggregate(sqir)
-      case None =>
+      case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
 
         val localGlobals = globals.value
@@ -1681,7 +1681,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
         rt.aggregate(sqir)
-      case None =>
+      case _ =>
         log.warn(s"aggregate_rows found no AST to IR conversion: ${ PrettyAST(qAST) }")
         val globalsBc = globals.broadcast
         val (t, f) = Parser.parseExpr(expr, ec)
