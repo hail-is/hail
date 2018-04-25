@@ -36,18 +36,6 @@ object Literal {
   }
 }
 
-object NumericConstant {
-  def apply(x: Double, t: Type): IR = {
-    t match {
-      case _: TInt32 => I32(x.toInt)
-      case _: TInt64 => I64(x.toLong)
-      case _: TFloat32 => F32(x.toFloat)
-      case _: TFloat64 => F64(x)
-      case _ => throw new RuntimeException(s"Unsupported literal type: $t")
-    }
-  }
-}
-
 trait InferIR extends IR {
   var _typ: Type = null
 
