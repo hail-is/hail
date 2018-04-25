@@ -1779,6 +1779,41 @@ def sqrt(x) -> Float64Expression:
     return _func("sqrt", tfloat64, x)
 
 
+@typecheck(s=expr_str)
+def _is_valid_allele(s) -> BooleanExpression:
+    return s.matches(r'^([ACGT]+)|\\*$')
+
+
+_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star"]
+_allele_enum = {i: v for i, v in enumerate(_allele_types)}
+_allele_ints = {v: k for k, v in _allele_enum.items()}
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def _num_allele_type(ref, alt) -> Int32Expression:
+    return hl.bind(lambda r, a:
+                   hl.cond(_is_valid_allele(r) & _is_valid_allele(a),
+                           hl.case()
+                           .when(r.length() == a.length(),
+                                        hl.cond(r.length() == 1,
+                                                hl.cond((r == "*") | (a == "*"),
+                                                        _allele_ints["Star"],
+                                                        _allele_ints["SNP"]),
+                                                hl.cond(hamming(r, a) == 1,
+                                                        _allele_ints["SNP"],
+                                                        _allele_ints["MNP"])
+                                                )
+                                        )
+                           .when((r == "*") | (a == "*"), _allele_ints["Star"])
+                           .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
+                                 _allele_ints["Insertion"])
+                           .when((r[0] == a[0]) & r.endswith(a[1:]),
+                                 _allele_ints["Deletion"])
+                           .default(_allele_ints["Complex"]),
+                           _allele_ints["Unknown"]),
+                   ref, alt)
+
+
 @typecheck(ref=expr_str, alt=expr_str)
 def is_snp(ref, alt) -> BooleanExpression:
     """Returns ``True`` if the alleles constitute a single nucleotide polymorphism.
@@ -1801,7 +1836,7 @@ def is_snp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_snp", tbool, ref, alt)
+    return _num_allele_type(ref, alt) == _allele_ints["SNP"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1826,7 +1861,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_mnp", tbool, ref, alt)
+    return _num_allele_type(ref, alt) == _allele_ints["MNP"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1907,7 +1942,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_insertion", tbool, ref, alt)
+    return _num_allele_type(ref, alt) == _allele_ints["Insertion"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1932,7 +1967,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_deletion", tbool, ref, alt)
+    return _num_allele_type(ref, alt) == _allele_ints["Deletion"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1957,7 +1992,9 @@ def is_indel(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_indel", tbool, ref, alt)
+    return hl.bind(lambda t: (t == _allele_ints["Insertion"]) |
+                             (t == _allele_ints["Deletion"]),
+                   _num_allele_type(ref, alt))
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1982,7 +2019,7 @@ def is_star(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_star", tbool, ref, alt)
+    return _num_allele_type(ref, alt) == _allele_ints["Star"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2007,7 +2044,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_complex", tbool, ref, alt)
+    return _num_allele_type(ref, alt) == _allele_ints["Complex"]
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2063,6 +2100,7 @@ def allele_type(ref, alt)-> StringExpression:
      - ``"Deletion"``
      - ``"Complex"``
      - ``"Star"``
+     - ``"Unknown"``
 
     Parameters
     ----------
@@ -2075,7 +2113,7 @@ def allele_type(ref, alt)-> StringExpression:
     -------
     :class:`.StringExpression`
     """
-    return _func("allele_type", tstr, ref, alt)
+    return hl.literal(_allele_types)[_num_allele_type(ref, alt)]
 
 
 @typecheck(s1=expr_str, s2=expr_str)

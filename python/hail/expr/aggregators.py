@@ -56,7 +56,7 @@ def _agg_func(name, aggregable, ret_type, *args):
 
 def _check_agg_bindings(expr):
     bound_references = {ast.name for ast in expr._ast.search(lambda ast: isinstance(ast, VariableReference))}
-    bind_vars = {ast.uid for ast in expr._ast.search(lambda ast: isinstance(ast, Bind))}
+    bind_vars = {uid for ast in expr._ast.search(lambda ast: isinstance(ast, Bind)) for uid in ast.uids}
     lambda_vars = {ast.lambda_var for ast in expr._ast.search(lambda ast: isinstance(ast, LambdaClassMethod))}
     declared_temp_vars = bind_vars.union(lambda_vars)
 
