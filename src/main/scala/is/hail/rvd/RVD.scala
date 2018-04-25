@@ -196,8 +196,7 @@ trait RVD {
     val dec = codec.buildDecoder(rowType)
     stable.cmapPartitions { (ctx, it) =>
       val rv = RegionValue()
-      it.map(
-        RVD.bytesToRegionValue(dec, ctx.region, rv))
+      it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
     }
   }
 
