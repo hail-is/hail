@@ -586,7 +586,25 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     if (sort) {
       val keyed = copy2(key = Some(keys))
-      keyed.copy2(rvd = keyed.toOrderedRVD(None, partitionKeys.length))
+      def resort = keyed.toOrderedRVD(None, partitionKeys.length)
+      val orvd = rvd match {
+        case ordered: OrderedRVD =>
+          if (keys.zip(ordered.typ.key).forall{ case (l, r) => l == r } &&
+              ordered.typ.partitionKey == partitionKeys.length) {
+            if (keys.length <= ordered.typ.key.length)
+              ordered.copy(typ = ordered.typ.copy(key = keys))
+            else if (ordered.typ.key.length <= keys.length) {
+              val localSortType = new OrderedRVDType(ordered.typ.key, keys, signature)
+              val newType = new OrderedRVDType(ordered.typ.partitionKey, keys, signature)
+              ordered.mapPartitionsPreservesPartitioning(newType) { it =>
+                OrderedRVD.localKeySort(localSortType, it)
+              }
+            } else resort
+          } else resort
+        case _: UnpartitionedRVD =>
+          resort
+      }
+      keyed.copy2(rvd = orvd)
     } else {
       unkey().copy2(key = Some(keys))
     }

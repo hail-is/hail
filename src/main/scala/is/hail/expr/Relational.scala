@@ -1225,6 +1225,7 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
+  require(typ.key.isDefined || rvd.isInstanceOf[UnpartitionedRVD])
 
   def rdd: RDD[Row] =
     rvd.toRows
