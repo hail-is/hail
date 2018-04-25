@@ -251,4 +251,6 @@ trait RVD {
     val localRowType = rowType
     crdd.map { rv => SafeRow(localRowType, rv.region, rv.offset) }.run
   }
+
+  def toUnpartitionedRVD: UnpartitionedRVD
 }

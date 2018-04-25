@@ -10,7 +10,11 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case JString(s) => Parser.parseTableType(s) },
   { case tt: TableType => JString(tt.toString) }))
 
-case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
+case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalType: TStruct) extends BaseType {
+
+  val keyOrEmpty: IndexedSeq[String] = key.getOrElse(IndexedSeq.empty)
+  val keyOrNull: IndexedSeq[String] = key.orNull
+
   def env: Env[Type] = {
     Env.empty[Type]
       .bind(("global", globalType))
@@ -26,11 +30,11 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     .bind("global" -> globalType)
     .bind("AGG" -> tAgg)
 
-  def keyType: TStruct = rowType.select(key.toArray)._1
-  val keyFieldIdx: Array[Int] = key.toArray.map(rowType.fieldIdx)
-  def valueType: TStruct = rowType.filter(key.toSet, include = false)._1
+  def keyType: Option[TStruct] = key.map(key => rowType.select(key.toArray)._1)
+  val keyFieldIdx: Option[Array[Int]] = key.map(_.toArray.map(rowType.fieldIdx))
+  def valueType: TStruct = rowType.filter(keyOrEmpty.toSet, include = false)._1
   val valueFieldIdx: Array[Int] =
-    rowType.fields.filter(f => !key.contains(f.name)).map(_.index).toArray
+    rowType.fields.filter(f => !keyOrEmpty.contains(f.name)).map(_.index).toArray
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0
@@ -53,9 +57,14 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     sb += ','
     newline()
 
-    sb.append(s"key:$space[")
-    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-    sb += ']'
+    key match {
+      case Some(key) =>
+        sb.append(s"key:$space[")
+        key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
+        sb += ']'
+      case None =>
+        sb.append(s"key:${space}none")
+    }
     sb += ','
     newline()
 

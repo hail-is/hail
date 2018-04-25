@@ -558,7 +558,7 @@ object Parser extends JavaTokenParsers {
 
   def table_type_expr: Parser[TableType] =
     (("Table" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~
-      (("," ~ "key" ~ ":") ~> key) ~
+      (("," ~ "key" ~ ":") ~> ("none" ^^ { _ => None } | key ^^ { key => Some(key.toIndexedSeq) })) ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ key ~ rowType =>
       TableType(rowType, key, globalType)
     }

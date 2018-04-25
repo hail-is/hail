@@ -66,9 +66,17 @@ case class MatrixType(
   def extractColValue: Annotation => Annotation = colType.filter(colKey.toSet, include = false)._2
   val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
-  val colsTableType: TableType = TableType(colType, colKey, globalType)
+  val colsTableType: TableType =
+    TableType(
+      colType,
+      if (colKey.isEmpty) None else Some(colKey),
+      globalType)
 
-  val rowsTableType: TableType = TableType(rowType, rowKey, globalType)
+  val rowsTableType: TableType =
+    TableType(
+      rowType,
+      if (rowKey.isEmpty) None else Some(rowKey),
+      globalType)
 
   def orvdType: OrderedRVDType = {
     new OrderedRVDType(rowPartitionKey.toArray,

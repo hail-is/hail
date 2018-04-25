@@ -52,10 +52,10 @@ object Table {
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
-    fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)
+    fromDF(hc, df, if (key == null) None else Some(key.asScala.toArray.toFastIndexedSeq))
   }
 
-  def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[String] = Array.empty[String]): Table = {
+  def fromDF(hc: HailContext, df: DataFrame, key: Option[IndexedSeq[String]] = None): Table = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     Table(hc, df.rdd, signature, key)
   }
@@ -74,20 +74,15 @@ object Table {
   }
 
   def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
-    keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): Table = {
-    parallelize(hc, rowsJSON, signature, keyNames.asScala.toArray, nPartitions)
-  }
-
-  def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
-    key: IndexedSeq[String], nPartitions: Option[Int] = None): Table = {
+    keyNames: Option[java.util.ArrayList[String]], nPartitions: Option[Int]): Table = {
     val parsedRows = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(rowsJSON), TArray(signature))
       .asInstanceOf[IndexedSeq[Row]]
-    parallelize(hc, parsedRows, signature, key, nPartitions)
+    parallelize(hc, parsedRows, signature, keyNames.map(_.asScala.toArray.toFastIndexedSeq), nPartitions)
   }
 
   def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
-    key: IndexedSeq[String], nPartitions: Option[Int]): Table = {
-    val typ = TableType(signature, key.toArray.toFastIndexedSeq, TStruct())
+    key: Option[IndexedSeq[String]], nPartitions: Option[Int]): Table = {
+    val typ = TableType(signature, key.map(_.toArray.toFastIndexedSeq), TStruct())
     new Table(hc, TableParallelize(typ, rows, nPartitions))
   }
 
@@ -101,27 +96,42 @@ object Table {
 
     val rdd = hc.sc.parallelize(data)
 
-    Table(hc, rdd, typ, Array("id"))
+    Table(hc, rdd, typ, Some(IndexedSeq("id")))
   }
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct
-  ): Table = apply(hc, rdd, signature, Array.empty[String])
+  ): Table = apply(hc, rdd, signature, None, true)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String]
-  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty)
+    sort: Boolean
+  ): Table = apply(hc, rdd, signature, None, sort)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: Option[IndexedSeq[String]]
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, true)
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: Option[IndexedSeq[String]],
+    sort: Boolean
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, sort)
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: TStruct,
+    key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Annotation
   ): Table = apply(
@@ -130,30 +140,50 @@ object Table {
     signature,
     key,
     globalSignature,
-    globals)
+    globals,
+    true)
 
   def apply(
     hc: HailContext,
-    crdd: ContextRDD[RVDContext, Row],
+    rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String]
-  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty)
-
-  def apply(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext, Row],
-    signature: TStruct,
-    key: IndexedSeq[String],
+    key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
-    globals: Annotation
+    globals: Annotation,
+    sort: Boolean
+  ): Table = apply(
+    hc,
+    ContextRDD.weaken[RVDContext](rdd),
+    signature,
+    key,
+    globalSignature,
+    globals,
+    sort)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: TStruct,
+    key: Option[IndexedSeq[String]],
+    sort: Boolean
+  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty, sort)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: TStruct,
+    key: Option[IndexedSeq[String]],
+    globalSignature: TStruct,
+    globals: Annotation,
+    sort: Boolean
   ): Table = {
     val crdd2 = crdd.mapPartitions(_.toRegionValueIterator(signature))
     new Table(hc, TableLiteral(
       TableValue(
-        TableType(signature, key, globalSignature),
+        TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, crdd2))
-    ))
+        new UnpartitionedRVD(signature, crdd2)))
+    ).keyBy(key.map(_.toArray), sort)
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -182,7 +212,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Row
   ) = this(hc,
@@ -192,11 +222,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
         BroadcastRow(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, crdd))))
 
-  def this(
-    hc: HailContext,
+  def this(hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Row
   ) = this(
@@ -227,27 +256,30 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String]
+    key: Option[IndexedSeq[String]]
   ) = this(hc, rdd, signature, key, TStruct.empty(), Row.empty)
 
   def this(
     hc: HailContext,
     rdd: RDD[RegionValue],
     signature: TStruct
-  ) = this(hc, rdd, signature, Array.empty[String])
+  ) = this(hc, rdd, signature, None)
 
   lazy val TableValue(ktType, globals, rvd) = value
 
   val TableType(signature, key, globalSignature) = tir.typ
 
+  val keyOrEmpty: IndexedSeq[String] = tir.typ.keyOrEmpty
+  val keyOrNull: IndexedSeq[String] = tir.typ.keyOrNull
+
   lazy val rdd: RDD[Row] = value.rdd
 
   if (!(fieldNames ++ globalSignature.fieldNames).areDistinct())
     fatal(s"Column names are not distinct: ${ (fieldNames ++ globalSignature.fieldNames).duplicates().mkString(", ") }")
-  if (!key.areDistinct())
-    fatal(s"Key names are not distinct: ${ key.duplicates().mkString(", ") }")
-  if (!key.forall(fieldNames.contains(_)))
-    fatal(s"Key names found that are not column names: ${ key.filterNot(fieldNames.contains(_)).mkString(", ") }")
+  if (key.exists(key => !key.areDistinct()))
+    fatal(s"Key names are not distinct: ${ key.get.duplicates().mkString(", ") }")
+  if (key.exists(key => !key.forall(fieldNames.contains(_))))
+    fatal(s"Key names found that are not column names: ${ key.get.filterNot(fieldNames.contains(_)).mkString(", ") }")
 
   def rowEvalContext(): EvalContext = {
     val ec = EvalContext(
@@ -272,11 +304,16 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def fields: Array[Field] = signature.fields.toArray
 
-  val keyFieldIdx: Array[Int] = key.toArray.map(signature.fieldIdx)
+  val keyFieldIdx: Option[Array[Int]] =
+    key.map(_.toArray.map(signature.fieldIdx))
 
-  def keyFields: Array[Field] = key.toArray.map(signature.fieldIdx).map(i => fields(i))
+  def keyFields: Option[Array[Field]] =
+    key.map(_.toArray.map(signature.fieldIdx).map(i => fields(i)))
 
-  val valueFieldIdx: Array[Int] = signature.fields.filter(f => !key.contains(f.name)).map(_.index).toArray
+  val valueFieldIdx: Array[Int] =
+    signature.fields.filter(f =>
+      !keyOrEmpty.contains(f.name)
+    ).map(_.index).toArray
 
   def fieldNames: Array[String] = fields.map(_.name)
 
@@ -293,17 +330,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def nColumns: Int = fields.length
 
-  def nKeys: Int = key.length
+  def nKeys: Option[Int] = key.map(_.length)
 
   def nPartitions: Int = rvd.getNumPartitions
 
-  def keySignature: TStruct = {
+  def keySignature: Option[TStruct] = key.map { key =>
     val (t, _) = signature.select(key.toArray)
     t
   }
 
   def valueSignature: TStruct = {
-    val (t, _) = signature.filter(key.toSet, include = false)
+    val (t, _) = signature.filter(keyOrEmpty.toSet, include = false)
     t
   }
 
@@ -329,8 +366,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def keyedRDD(): RDD[(Row, Row)] = {
+    require(key.isDefined)
     val fieldIndices = fields.map(f => f.name -> f.index).toMap
-    val keyIndices = key.map(fieldIndices)
+    val keyIndices = key.get.map(fieldIndices)
     val keyIndexSet = keyIndices.toSet
     val valueIndices = fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
@@ -347,12 +385,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
            | right: ${ other.signature.toString }
            |""".stripMargin)
       false
-    } else if (key.toSeq != other.key.toSeq) {
+    } else if (key.isDefined != other.key.isDefined ||
+               (key.isDefined && key.get != other.key.get)) {
       info(
-        s"""different key names:
-           | left: ${ key.mkString(", ") }
-           | right: ${ other.key.mkString(", ") }
-           |""".stripMargin)
+        s"""different keys:
+            | left: ${ key.map(_.mkString(", ")).getOrElse("none") }
+            | right: ${ other.key.map(_.mkString(", ")).getOrElse("none")}
+            |""".stripMargin)
       false
     } else if (globalSignatureOpt != other.globalSignature.deepOptional()) {
       info(
@@ -368,7 +407,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
            | right: ${ other.globals.value }
            |""".stripMargin)
       false
-    } else {
+    } else if (key.isDefined) {
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
           case (None, None) => true
@@ -385,6 +424,30 @@ class Table(val hc: HailContext, val tir: TableIR) {
           case _ =>
             info(s"KEY MISMATCH: k=$k\n  left=$v1\n  right=$v2")
             false
+        }
+      }
+    } else {
+      assert(key.isEmpty)
+      if (signature.fields.isEmpty) {
+        val leftCount = count()
+        val rightCount = other.count()
+        if (leftCount != rightCount)
+          info(s"EMPTY SCHEMAS, BUT DIFFERENT LENGTHS: left=$leftCount\n  right=$rightCount")
+        leftCount == rightCount
+      } else {
+        keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
+          other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
+        ).forall { case (k, (v1, v2)) =>
+          (v1, v2) match {
+            case (None, None) => true
+            case (Some(x), Some(y)) => x.size == y.size
+            case (Some(x), None) =>
+              info(s"ROW IN LEFT, NOT RIGHT: ${ x.mkString("\n    ") }\n")
+              false
+            case (None, Some(y)) =>
+              info(s"ROW IN RIGHT, NOT LEFT: ${ y.mkString("\n    ") }\n")
+              false
+          }
         }
       }
     }
@@ -488,21 +551,72 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy(rdd = rdd.head(n))
   }
 
-  def keyBy(key: String*): Table = keyBy(key)
+  def keyBy(key: String*): Table = keyBy(key.toArray, key.toArray)
 
-  def keyBy(key: java.util.ArrayList[String]): Table = keyBy(key.asScala)
+  def keyBy(keys: java.util.ArrayList[String]): Table = keyBy(keys, keys)
 
-  def keyBy(key: Iterable[String]): Table = {
-    val colSet = fieldNames.toSet
-    val badKeys = key.filter(!colSet.contains(_))
+  def keyBy(
+    keys: java.util.ArrayList[String],
+    partitionKeys: java.util.ArrayList[String]
+  ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
 
-    if (badKeys.nonEmpty)
-      fatal(
-        s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
-           |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
+  def keyBy(keys: Array[String]): Table = keyBy(keys, keys, true)
 
-    copy2(key = key.toArray[String])
+  def keyBy(keys: Array[String], sort: Boolean): Table = keyBy(keys, keys, sort)
+
+  def keyBy(maybeKeys: Option[Array[String]]): Table =
+    maybeKeys match {
+      case Some(keys) => keyBy(keys)
+      case None => unkey()
+    }
+
+  def keyBy(maybeKeys: Option[Array[String]], sort: Boolean): Table =
+    maybeKeys match {
+      case Some(keys) => keyBy(keys, sort)
+      case None => unkey()
+    }
+
+  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
+    require(keys.nonEmpty)
+    require(partitionKeys.nonEmpty)
+    val fields = signature.fieldNames.toSet
+    assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
+    assert(partitionKeys.length <= keys.length)
+    assert(keys.zip(partitionKeys).forall{ case (k, pk) => k == pk })
+
+    if (sort) {
+      val keyed = copy2(key = Some(keys))
+      def resort = keyed.toOrderedRVD(None, partitionKeys.length)
+      val orvd = rvd match {
+        case ordered: OrderedRVD =>
+          if (keys.zip(ordered.typ.key).forall{ case (l, r) => l == r } &&
+              ordered.typ.partitionKey == partitionKeys.length) {
+            if (keys.length <= ordered.typ.key.length)
+              ordered.copy(typ = ordered.typ.copy(key = keys))
+            else if (ordered.typ.key.length <= keys.length) {
+              val localSortType = new OrderedRVDType(ordered.typ.key, keys, signature)
+              val newType = new OrderedRVDType(ordered.typ.partitionKey, keys, signature)
+              ordered.mapPartitionsPreservesPartitioning(newType) { it =>
+                OrderedRVD.localKeySort(localSortType, it)
+              }
+            } else resort
+          } else resort
+        case _: UnpartitionedRVD =>
+          resort
+      }
+      keyed.copy2(rvd = orvd)
+    } else {
+      unkey().copy2(key = Some(keys))
+    }
   }
+
+  def unkey(): Table = copy2(
+    key = None,
+    rvd = rvd match {
+      case orvd: OrderedRVD => orvd.toUnpartitionedRVD
+      case _: UnpartitionedRVD => rvd
+    }
+  )
 
   def select(expr: String): Table = {
     val ec = rowEvalContext()
@@ -523,7 +637,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
           f().asInstanceOf[Row]
         }
 
-        val newKey = key.filter(newSignature.fieldNames.toSet)
+        val filteredKey = key.map(_.filter(newSignature.fieldNames.toSet))
+        val newKey = if (filteredKey.exists(_.isEmpty)) None else filteredKey
 
         copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
     }
@@ -537,12 +652,14 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def distinctByKey(): Table = {
-    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.length).distinctByKey())
+    require(!key.isEmpty)
+    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.get.length).distinctByKey())
   }
 
   def groupByKey(name: String): Table = {
-    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.length).groupByKey(name),
-      signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
+    require(!key.isEmpty)
+    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.get.length).groupByKey(name),
+      signature = keySignature.get ++ TStruct(name -> TArray(valueSignature)))
   }
 
   def jToMatrixTable(rowKeys: java.util.ArrayList[String],
@@ -567,10 +684,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     partitionKeys: Array[String],
     nPartitions: Option[Int] = None
   ): MatrixTable = {
-
-    // all keys accounted for
-    assert(rowKeys.length + colKeys.length == key.length)
-    assert(rowKeys.toSet.union(colKeys.toSet) == key.toSet)
 
     // no fields used twice
     val fieldsUsed = mutable.Set.empty[String]
@@ -773,7 +886,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           Row.fromSeq(k.toSeq ++ aggF())
       }
 
-    copy(rdd = newRDD, signature = keySignature.merge(aggSignature)._1, key = newKey)
+    copy(rdd = newRDD, signature = keySignature.merge(aggSignature)._1, key = Some(newKey))
   }
 
   def expandTypes(): Table = {
@@ -814,9 +927,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-    val newKey = keyFieldIdx.flatMap { i =>
+    val newKey = keyFieldIdx.map(_.flatMap { i =>
       newFields(i).map { case (n, _) => n }
-    }
+    })
 
     new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
       .keyBy(newKey)
@@ -1130,24 +1243,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def copy(rdd: RDD[Row] = rdd,
     signature: TStruct = signature,
-    key: IndexedSeq[String] = key,
+    key: Option[IndexedSeq[String]] = key,
     globalSignature: TStruct = globalSignature,
     newGlobals: Annotation = globals.value): Table = {
-    Table(hc, rdd, signature, key, globalSignature, newGlobals)
+    Table(hc, rdd, signature, key, globalSignature, newGlobals, sort = false)
   }
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
-    key: IndexedSeq[String] = key,
+    key: Option[IndexedSeq[String]] = key,
     globalSignature: TStruct = globalSignature,
     globals: BroadcastRow = globals): Table = {
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
   }
-
   def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
-    val orderedKTType = new OrderedRVDType(key.take(partitionKeys).toArray, key.toArray, signature)
+    require(key.isDefined)
+    val orderedKTType = new OrderedRVDType(key.get.take(partitionKeys).toArray, key.get.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD.coerce(orderedKTType, rvd, None, hintPartitioner)
   }

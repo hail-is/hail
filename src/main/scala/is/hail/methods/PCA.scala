@@ -51,7 +51,7 @@ object PCA {
         rv
       }
     }
-    new Table(hc, scoresRDD, rowType, vsm.colKey)
+    new Table(hc, scoresRDD, rowType, Some(vsm.colKey))
   }
 
   // returns (eigenvalues, sample scores, optional variant loadings)
@@ -121,7 +121,7 @@ object PCA {
           rv
         }
       }
-      new Table(vsm.hc, rdd, rowType, vsm.rowKey)
+      new Table(vsm.hc, rdd, rowType, Some(vsm.rowKey))
     })
 
     val data =

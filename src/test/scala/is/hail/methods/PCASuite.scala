@@ -55,8 +55,11 @@ class PCASuite extends SparkSuite {
 
     val structT = TStruct("_PC1" -> TFloat64(), "_PC2" -> TFloat64(), "_PC3" -> TFloat64())
     val truth = Table.parallelize(hc, pyLoadings,
-      TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString())) ++ structT,
-      Array("locus", "alleles"), None)
+      TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
+              "alleles" -> TArray(TString())
+      ) ++ structT,
+      Some(IndexedSeq("locus", "alleles")),
+      None)
     truth.typeCheck()
 
     assert(truth.join(loadings.get, "outer").forall(

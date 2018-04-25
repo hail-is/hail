@@ -125,7 +125,7 @@ def jset_args(x):
 
 
 def jiterable_to_list(it):
-    if it:
+    if it is not None:
         return list(Env.jutils().iterableToArrayList(it))
     else:
         return None

@@ -189,10 +189,17 @@ class SkatSuite extends SparkSuite {
 
     hailKT.typeCheck()
 
-    val resultHail = hailKT.rdd.collect()
+    var resultHail = hailKT.rdd.collect()
 
-    val resultsR = skatInR(vds, "gene", "weight", "pheno",
+    var resultsR = skatInR(vds, "gene", "weight", "pheno",
       Array("Cov1", "Cov2"), logistic, useDosages)
+    if (useBN) {
+      resultHail.sortBy(_.getAs[Int](0))
+      resultsR.sortBy(_.getAs[Int](0))
+    } else {
+      resultHail = resultHail.sortBy(_.getAs[String](0))
+      resultsR = resultsR.sortBy(_.getAs[String](0))
+    }
 
     var i = 0
     while (i < resultsR.length) {

@@ -84,7 +84,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       hc.version,
       "../references",
-      TableType(typ.globalType, Array.empty[String], TStruct.empty()),
+      TableType(typ.globalType, None, TStruct.empty()),
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -1132,6 +1132,7 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
+  require(typ.rowType == rvd.rowType)
   def rdd: RDD[Row] =
     rvd.toRows
 
@@ -1359,7 +1360,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 
   val typ: TableType = TableType(
     TStruct("idx" -> TInt32()),
-    Array("idx"),
+    Some(Array("idx")),
     TStruct.empty())
 
   def execute(hc: HailContext): TableValue = {
@@ -1413,11 +1414,13 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 }
 
 case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends TableIR {
-  require(left.typ.keyType isIsomorphicTo right.typ.keyType)
+  require(left.typ.keyType.zip(right.typ.keyType).exists { case (leftKey, rightKey) =>
+    leftKey isIsomorphicTo rightKey
+  })
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
-  private val joinedFields = left.typ.keyType.fields ++
+  private val joinedFields = left.typ.keyType.get.fields ++
     left.typ.valueType.fields ++
     right.typ.valueType.fields
   private val preNames = joinedFields.map(_.name).toArray
@@ -1442,8 +1445,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     val rightTV = right.execute(hc)
     val leftRowType = left.typ.rowType
     val rightRowType = right.typ.rowType
-    val leftKeyFieldIdx = left.typ.keyFieldIdx
-    val rightKeyFieldIdx = right.typ.keyFieldIdx
+    val leftKeyFieldIdx = left.typ.keyFieldIdx.get
+    val rightKeyFieldIdx = right.typ.keyFieldIdx.get
     val leftValueFieldIdx = left.typ.valueFieldIdx
     val rightValueFieldIdx = right.typ.valueFieldIdx
     val localNewRowType = newRowType
@@ -1490,14 +1493,14 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
       case ordered: OrderedRVD => ordered
       case unordered =>
         OrderedRVD.coerce(
-          new OrderedRVDType(left.typ.key.toArray, left.typ.key.toArray, leftRowType),
+          new OrderedRVDType(left.typ.key.get.toArray, left.typ.key.get.toArray, leftRowType),
           unordered)
     }
     val rightORVD = rightTV.rvd match {
       case ordered: OrderedRVD => ordered
       case unordered =>
         val ordType =
-          new OrderedRVDType(right.typ.key.toArray, right.typ.key.toArray, rightRowType)
+          new OrderedRVDType(right.typ.key.get.toArray, right.typ.key.get.toArray, rightRowType)
         if (joinType == "left" || joinType == "inner")
           unordered.constrainToOrderedPartitioner(ordType, leftORVD.partitioner)
         else
@@ -1518,7 +1521,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   val typ: TableType = {
     val newRowType = newRow.typ.asInstanceOf[TStruct]
-    val newKey = child.typ.key.filter(newRowType.fieldIdx.contains)
+    var newKey = child.typ.key.map(_.filter(newRowType.fieldIdx.contains))
+    if (newKey.exists(_.isEmpty)) newKey = None
     child.typ.copy(rowType = newRowType, key = newKey)
   }
 
@@ -1538,22 +1542,27 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
+    val newRVD = tv.rvd.mapPartitions(typ.rowType) { it =>
+      val globalRV = RegionValue()
+      val globalRVb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      val newRow = f()
+      it.map { rv =>
+        globalRVb.set(rv.region)
+        globalRVb.start(gType)
+        globalRVb.addAnnotation(gType, globalsBc.value)
+        globalRV.set(rv.region, globalRVb.end())
+        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
+        rv2
+      }
+    }
     TableValue(typ,
       tv.globals,
-      tv.rvd.mapPartitions(typ.rowType) { it =>
-        val globalRV = RegionValue()
-        val globalRVb = new RegionValueBuilder()
-        val rv2 = RegionValue()
-        val newRow = f()
-        it.map { rv =>
-          globalRVb.set(rv.region)
-          globalRVb.start(gType)
-          globalRVb.addAnnotation(gType, globalsBc.value)
-          globalRV.set(rv.region, globalRVb.end())
-          rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
-          rv2
-        }
-      })
+      typ.key match {
+        case Some(_) => newRVD
+        case None => newRVD.toUnpartitionedRVD
+      }
+      )
   }
 }
 
@@ -1656,6 +1665,8 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
 case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   assert(children.length > 0)
   assert(children.tail.forall(_.typ == children(0).typ))
+  assert((children(0).typ.key.isEmpty && children.tail.forall(_.typ.key.isEmpty)) ||
+    children.tail.forall(_.typ.key.exists(_ == children(0).typ.key.get)))
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableUnion = {
     TableUnion(newChildren.map(_.asInstanceOf[TableIR]))
