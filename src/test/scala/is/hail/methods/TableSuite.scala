@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -64,6 +65,34 @@ class TableSuite extends SparkSuite {
     }
 
     assert(importedData == exportedData)
+  }
+
+  @Test def testWriteReadOrdered() {
+    val outputFile = tmpDir.createTempFile("ktRdWrtOrd")
+    sampleKT1.write(outputFile)
+    val read = Table.read(hc, outputFile)
+
+    assert(read.rvd.isInstanceOf[OrderedRVD])
+    assert(read.same(sampleKT1))
+  }
+
+  @Test def testWriteReadUnordered() {
+    val outputFile = tmpDir.createTempFile("ktRdWrtUnord")
+    sampleKT1.unkey().write(outputFile)
+    val read = Table.read(hc, outputFile)
+
+    assert(read.rvd.isInstanceOf[UnpartitionedRVD])
+    assert(read.same(sampleKT1.unkey()))
+  }
+
+  @Test def testKeyBy() {
+    val kt = sampleKT1
+    val count = kt.count()
+    val kt2 = kt.keyBy(Array("Sample", "field1"), Array("Sample"))
+    assert(kt2.count() == count)
+    assert(kt2.keyBy(Array("Sample"), Array("Sample")).count() == count)
+    assert(kt.keyBy("field1").count() == count)
+    assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
   @Test def testToMatrixTable() {
@@ -203,8 +232,15 @@ class TableSuite extends SparkSuite {
     val ktBad = ktRight.keyBy("qPhen2")
 
     intercept[Exception] {
-      val ktJoinBad = ktLeft.join(ktBad, "left")
-      assert(ktJoinBad.key.get sameElements Array("Sample"))
+      ktLeft.join(ktBad, "left")
+    }
+
+    intercept[Exception] {
+      ktLeft.join(ktRight.unkey(), "left")
+    }
+
+    intercept[Exception] {
+      ktLeft.unkey().join(ktRight, "left")
     }
 
     val ktJoin = ktLeft.join(ktRight, "left")
