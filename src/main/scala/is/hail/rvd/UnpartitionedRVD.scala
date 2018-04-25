@@ -24,8 +24,9 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     this(
       rowType,
       ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+        val dec = codec.buildDecoder(rowType)
         val rv = RegionValue()
-        it.map(RVD.bytesToRegionValue(codec, ctx.region, rowType, rv))
+        it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
       })
 
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)

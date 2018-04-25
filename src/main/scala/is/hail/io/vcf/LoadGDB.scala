@@ -176,7 +176,7 @@ object LoadGDB {
 
     val records = Region.scoped { region =>
       val baos = new ByteArrayOutputStream()
-      val enc = rvCodec.buildEncoder(baos)
+      val enc = rvCodec.buildEncoder(localRowType)(baos)
       val rvb = new RegionValueBuilder(region)
       gdbReader
         .iterator
@@ -186,7 +186,7 @@ object LoadGDB {
         region.clear()
         rvb.start(localRowType)
         reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags, infoFlagFieldNames)
-        enc.writeRegionValue(localRowType, region, rvb.end())
+        enc.writeRegionValue(region, rvb.end())
         baos.toByteArray()
       }.toArray
     }
@@ -197,8 +197,8 @@ object LoadGDB {
         val rv = RegionValue(region)
         it.map { bytes =>
           val bais = new ByteArrayInputStream(bytes)
-          val dec = rvCodec.buildDecoder(bais)
-          rv.setOffset(dec.readRegionValue(localRowType, region))
+          val dec = rvCodec.buildDecoder(localRowType)(bais)
+          rv.setOffset(dec.readRegionValue(region))
           rv
         }
       }

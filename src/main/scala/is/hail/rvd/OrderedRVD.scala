@@ -786,20 +786,22 @@ object OrderedRVD {
     OrderedRVD(typ,
       partitioner,
       crdd.cmapPartitions { (ctx, it) =>
+        val enc = RVD.wireCodec.buildEncoder(localType.rowType) _
         it.map { rv =>
           val wkrv = WritableRegionValue(typ.kType)
           wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
           val bytes =
-            RVD.regionValueToBytes(RVD.wireCodec, ctx, localType.rowType)(rv)
+            RVD.regionValueToBytes(enc, ctx)(rv)
           (wkrv.value, bytes)
         }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
+          val dec = RVD.wireCodec.buildDecoder(localType.rowType)
           val region = ctx.region
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
             assert(partBc.value.getPartition(k) == i)
-            RVD.bytesToRegionValue(RVD.wireCodec, region, localType.rowType, rv)(
+            RVD.bytesToRegionValue(dec, region, rv)(
               bytes)
           }
       })
@@ -910,8 +912,9 @@ object OrderedRVD {
     typ,
     partitioner,
     ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+      val dec = codec.buildDecoder(typ.rowType)
       val rv = RegionValue()
-      it.map(RVD.bytesToRegionValue(codec, ctx.region, typ.rowType, rv))
+      it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
     })
 
   def apply(
