@@ -944,7 +944,7 @@ object FunctionRegistry {
     Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
   })
 
-  register("binomTest", { (x: Int, n: Int, p: Double, alternative: String) => binomTest(x, n, p, alternative)
+  register("binomTest", { (x: Int, n: Int, p: Double, alternative: Int) => binomTest(x, n, p, alternative)
   })
 
   // NB: merge takes two structs, how do I deal with structs?
