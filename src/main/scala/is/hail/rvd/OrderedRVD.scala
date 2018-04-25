@@ -202,7 +202,7 @@ class OrderedRVD(
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
-      val shuffled = stably(_.coalesce(maxPartitions, shuffle = true))
+      val shuffled = stably(_.shuffleCoalesce(maxPartitions))
       val ranges = OrderedRVD.calculateKeyRanges(
         typ,
         OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)),

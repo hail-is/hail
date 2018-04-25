@@ -375,13 +375,11 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
   }
 
-  def coalesce(numPartitions: Int, shuffle: Boolean = false): ContextRDD[C, T] =
-    // NB: the run marks the end of a context lifetime, the next one starts
-    // after the shuffle
-    if (shuffle)
-      ContextRDD.weaken(run.coalesce(numPartitions, shuffle), mkc)
-    else
-      onRDD(_.coalesce(numPartitions, shuffle))
+  def noShuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
+    onRDD(_.coalesce(numPartitions, false))
+
+  def shuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
+    ContextRDD.weaken(run.coalesce(numPartitions, true), mkc)
 
   def sample(
     withReplacement: Boolean,
