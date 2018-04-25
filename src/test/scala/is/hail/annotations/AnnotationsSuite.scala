@@ -78,7 +78,6 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds3.same(vds1))
   }
 
-
   @Test def testExtendedOrdering() {
     val ord = ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
     val rord = ord.reverse
