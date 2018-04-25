@@ -2302,19 +2302,19 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(*all_exprs)
         jmt = base._jvds
 
-        row_struct = self.row.select(**row_exprs)
+        row_struct = hl.struct(**row_exprs)
         analyze("MatrixTable.select_rows", row_struct, self._row_indices)
         jmt = jmt.selectRows(row_struct._ast.to_hql())
 
-        col_struct = self.col.select(**col_exprs)
+        col_struct = hl.struct(**col_exprs)
         analyze("MatrixTable.select_cols", col_struct, self._col_indices)
         jmt = jmt.selectCols(col_struct._ast.to_hql())
 
-        entry_struct = self.entry.select(**entry_exprs)
+        entry_struct = hl.struct(**entry_exprs)
         analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
         jmt = jmt.selectEntries(entry_struct._ast.to_hql())
 
-        globals_struct = self.globals.select(**global_exprs)
+        globals_struct = hl.struct(**global_exprs)
         analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
         jmt = jmt.selectGlobals(globals_struct._ast.to_hql())
 
