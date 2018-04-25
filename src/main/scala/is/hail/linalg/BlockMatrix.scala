@@ -12,7 +12,7 @@ import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
 import is.hail.methods.UpperIndexBounds
 import is.hail.utils._
-import is.hail.utils.richUtils.{RichDenseMatrixDouble, SubsetRDDPartition}
+import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
@@ -121,11 +121,11 @@ object BlockMatrix {
 
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeSparse)
 
-    def readBlock(i: Int, is: InputStream, metrics: InputMetrics): Iterator[((Int, Int), BDM[Double])] = {
+    def readBlock(pi: Int, is: InputStream, metrics: InputMetrics): Iterator[((Int, Int), BDM[Double])] = {
       val bdm = RichDenseMatrixDouble.read(is, bufferSpec)
       is.close()
 
-      Iterator.single(gp.blockCoordinates(i), bdm)
+      Iterator.single(gp.blockCoordinates(gp.partIndexBlockIndex(pi)), bdm)
     }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
@@ -137,8 +137,13 @@ object BlockMatrix {
     assert(lm.isCompact)
   }
 
-  private[linalg] def block(dm: BlockMatrix, partitions: Array[Partition], partitioner: GridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
-    val it = dm.blocks
+  private[linalg] def block(bm: BlockMatrix,
+    partitions: Array[Partition],
+    partitioner: GridPartitioner,
+    context: TaskContext,
+    i: Int,
+    j: Int): BDM[Double] = {
+    val it = bm.blocks
       .iterator(partitions(partitioner.coordinatesBlock(i, j)), context)
     assert(it.hasNext)
     val v = it.next()._2
@@ -191,7 +196,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def filterBlocks(blocksToKeep: Array[Int]): BlockMatrix = {
     val (filteredGP, partsToKeep) = gp.filterBlocks(blocksToKeep)
     
-    new BlockMatrix(blocks.subsetPartitions(partsToKeep, Some(filteredGP)), blockSize, nRows, nCols)
+    if (gp.numPartitions == filteredGP.numPartitions)
+      this
+    else
+      new BlockMatrix(blocks.subsetPartitions(partsToKeep, Some(filteredGP)), blockSize, nRows, nCols)
   }
   
   // element-wise ops
@@ -592,7 +600,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       l
     }
 
-    new IndexedRowMatrix(this.blocks.flatMap { case ((i, j), lm) =>
+    new IndexedRowMatrix(blocks.flatMap { case ((i, j), lm) =>
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
@@ -603,7 +611,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       nRows, nCols)
   }
 
-  def filterRows(keep: Array[Long]): BlockMatrix = this.transpose().filterCols(keep).transpose()
+  def filterRows(keep: Array[Long]): BlockMatrix = transpose().filterCols(keep).transpose()
 
   def filterCols(keep: Array[Long]): BlockMatrix =
     new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length)
@@ -612,16 +620,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize, keepRows.length, keepCols.length)
 
-  def entriesTable(hc: HailContext): Table = entriesTable(hc, None)
-
-  def entriesTable(hc: HailContext, keep: Option[Array[Int]] = None): Table = {
+  def entriesTable(hc: HailContext): Table = {
     val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
-    val rdd = keep match {
-      case Some(keep) => blocks.subsetPartitions(keep)
-      case None => blocks
-    }
-
-    val entriesRDD = rdd.flatMap { case ((blockRow, blockCol), block) =>
+    
+    val entriesRDD = blocks.flatMap { case ((blockRow, blockCol), block) =>
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
 
@@ -651,7 +653,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   and position[j] - position[i] <= radius. If includeDiagonal=false, require i < j rather than i <= j.*/
   def filteredEntriesTable(positions: Table, radius: Int, includeDiagonal: Boolean): Table = {
     val blocksToKeep = UpperIndexBounds.computeCoverByUpperTriangularBlocks(positions, this.gp, radius, includeDiagonal)
-    this.entriesTable(positions.hc, Some(blocksToKeep))
+    filterBlocks(blocksToKeep).entriesTable(positions.hc)
   }
 }
 
@@ -712,7 +714,7 @@ object BlockMatrixFilterRDD {
     gp: GridPartitioner,
     newGP: GridPartitioner): Array[Array[(Int, Array[Int], Array[Int])]] = {
 
-    computeAllBlockColRanges(keep, gp.transpose, newGP.transpose)
+    computeAllBlockColRanges(keep, gp.transpose._1, newGP.transpose._1)
   }
 }
 
@@ -865,31 +867,27 @@ private class BlockMatrixFilterColsRDD(dm: BlockMatrix, keep: Array[Long])
 
 case class BlockMatrixTransposeRDDPartition(index: Int, prevPartition: Partition) extends Partition
 
-private class BlockMatrixTransposeRDD(dm: BlockMatrix)
-  extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
+private class BlockMatrixTransposeRDD(bm: BlockMatrix)
+  extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
-  private val newPartitioner = dm.gp.transpose
-
-  def transposePI(pi: Int): Int = dm.gp.coordinatesBlock(
-    newPartitioner.blockBlockCol(pi),
-    newPartitioner.blockBlockRow(pi))
+  private val (newGP, inverseTransposePI) = bm.gp.transpose
 
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
-    new NarrowDependency(dm.blocks) {
-      def getParents(partitionId: Int): Seq[Int] = Array(transposePI(partitionId))
+    new NarrowDependency(bm.blocks) {
+      def getParents(partitionId: Int): Seq[Int] = Array(inverseTransposePI(partitionId))
     })
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
-    dm.blocks.iterator(split.asInstanceOf[BlockMatrixTransposeRDDPartition].prevPartition, context)
+    bm.blocks.iterator(split.asInstanceOf[BlockMatrixTransposeRDDPartition].prevPartition, context)
       .map { case ((j, i), lm) => ((i, j), lm.t) }
 
   protected def getPartitions: Array[Partition] = {
-    Array.tabulate(newPartitioner.numPartitions) { pi =>
-      BlockMatrixTransposeRDDPartition(pi, dm.blocks.partitions(transposePI(pi)))
+    Array.tabulate(newGP.numPartitions) { pi =>
+      BlockMatrixTransposeRDDPartition(pi, bm.blocks.partitions(inverseTransposePI(pi)))
     }
   }
 
-  @transient override val partitioner: Option[Partitioner] = Some(newPartitioner)
+  @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
 private class BlockMatrixDiagonalRDD(m: BlockMatrix)

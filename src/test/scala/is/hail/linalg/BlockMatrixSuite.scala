@@ -757,7 +757,7 @@ class BlockMatrixSuite extends SparkSuite {
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
     
-    assert(bm.entriesTable(hc, Some(Array(0, 1, 6))).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
+    assert(bm.filterBlocks(Array(0, 1, 6)).entriesTable(hc).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
       Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
   }
 
@@ -791,6 +791,9 @@ class BlockMatrixSuite extends SparkSuite {
     assert(entriesTable.select("{i: row.i, j: row.j}").same(expectedTable))
   }
   
+  def sparseEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
+    bm1.blocks.collect() sameElements bm2.blocks.collect()
+  
   @Test
   def sparse() {
     val lm = toLM(4, 4, Array(
@@ -798,37 +801,56 @@ class BlockMatrixSuite extends SparkSuite {
       5, 6, 7, 8,
       9, 10, 11, 12,
       13, 14, 15, 16))
- 
-    val lm10 = toLM(2, 2, Array(
-      9, 10,
-      13, 14))
-
-    val lm01 = toLM(2, 2, Array(
-      3, 4,
-      7, 8))
-
-    val blocks = toBM(lm, blockSize = 2)
-      .filterBlocks(Array(1, 2))
-      .blocks
-      .collect()
     
-    assert(blocks.length == 2)
-    assert(blocks(0) == ((1, 0), lm10))
-    assert(blocks(1) == ((0, 1), lm01))
-  }
-  
-  
-  // FIXME ADD BACK
-  def readWriteIdentitySparse() {
-    val lm = toLM(4, 4, (0 until 16).map(_.toDouble).toArray)
-    val m = toBM(lm, blockSize = 2).filterBlocks(Array(1))
+    val bm = toBM(lm, blockSize = 2)
+ 
+    val lm00 = lm(0 to 1, 0 to 1)
+    val lm10 = lm(2 to 3, 0 to 1)
+    val lm01 = lm(0 to 1, 2 to 3)
+    val lm11 = lm(2 to 3, 2 to 3)
 
-    val fname = tmpDir.createTempFile("test")
-    m.write(fname)
-    assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
+    assert(bm.filterBlocks(Array.empty[Int]).blocks.count() == 0)
 
-    val fname2 = tmpDir.createTempFile("test2")
-    m.write(fname2, forceRowMajor = true)
-    assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
+    val bm0 = bm.filterBlocks(Array(0))
+    val blocks0 = bm0.blocks.collect()
+    assert(blocks0.length == 1)
+    assert(blocks0(0) == ((0, 0), lm00))
+
+    val bm13 = bm.filterBlocks(Array(1, 3))
+    val blocks13 = bm13.blocks.collect()
+    assert(blocks13.length == 2)
+    assert(blocks13(0) == ((1, 0), lm10))
+    assert(blocks13(1) == ((1, 1), lm11))
+
+    val bm23 = bm.filterBlocks(Array(2, 3))
+    val blocks23 = bm23.blocks.collect()
+    assert(blocks23.length == 2)
+    assert(blocks23(0) == ((0, 1), lm01))
+    assert(blocks23(1) == ((1, 1), lm11))
+
+    val bm123 = bm.filterBlocks(Array(1, 2, 3))
+    val blocks123 = bm123.blocks.collect()
+    assert(blocks123.length == 3)
+    assert(blocks123(0) == ((1, 0), lm10))
+    assert(blocks123(1) == ((0, 1), lm01))
+    assert(blocks123(2) == ((1, 1), lm11))
+
+    assert(bm.filterBlocks(Array(0, 1, 2, 3)).toBreezeMatrix() === lm)
+    
+    val transposeBI = Array(0 -> 0, 1 -> 2, 2 -> 1, 3 -> 3).toMap
+    
+    // test transpose and read/write identity
+    for { keep <- Array(Array(0), Array(1, 3), Array(2, 3), Array(1, 2, 3)) } {
+      val sbm = bm.filterBlocks(keep)
+      
+      assert(sparseEquals(sbm.transpose().transpose(), sbm))
+      
+      assert(sparseEquals(
+        sbm.transpose(), bm.transpose().filterBlocks(keep.map(transposeBI).sorted)))
+      
+      val fname = tmpDir.createTempFile("test")
+      sbm.write(fname)
+      assert(sparseEquals(sbm, BlockMatrix.read(hc, fname)))
+    }
   }
 }
