@@ -40,7 +40,7 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("count", TAggregable(tv("T"))) { agg =>
       val uid = genUID()
-      ApplyAggOp(AggMap(agg, uid, I64(0)), Count(), Seq())
+      ApplyAggOp(AggMap(agg, uid, I32(0)), Count(), Seq())
     }
 
     registerIR("min", TArray(tnum("T"))) { a =>
