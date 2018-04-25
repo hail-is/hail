@@ -229,7 +229,6 @@ object Skat {
     val n = completeColIdx.length
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
-    // FIXME: what to do about skat
     (vsm.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
       val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
       val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
