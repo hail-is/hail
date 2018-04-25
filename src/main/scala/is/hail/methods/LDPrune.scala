@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.rvd.RVDContext
 import java.util
 
 import is.hail.annotations._
@@ -355,26 +356,34 @@ object LDPrune {
 
     for (i <- 0 until nPartitions) {
       val (rvds, inputs) = generalRDDInputs(i)
+      val grouped = ContextRDD.weaken[RVDContext](
+        new GeneralRDD(sc, rvds.map(_.encodedRDD(RVD.wireCodec)), Array(inputs)))
+      val pruned = grouped.cmapPartitions { (ctx, it) =>
+        val rv = RegionValue()
+        it.map(_.map(_.map(RVD.bytesToRegionValue(RVD.wireCodec, ctx.region, localRowType, rv))))
+      }.flatMap(pruneF)
+
       pruneIntermediates(i) = GlobalPruneIntermediate(
-        rvd = new UnpartitionedRVD(
-          inputRDD.typ.rowType,
-          new GeneralRDD(sc, rvds.map(_.encodedRDD(RVD.wireCodec)), Array(inputs))
-            .flatMap(pruneF)),
+        rvd = new UnpartitionedRVD(inputRDD.typ.rowType, pruned),
         rvRowType = localRowType,
         index = 0,
         persist = false) // creating single partition RDDs with partition index = 0
     }
 
-    val prunedRDD = OrderedRVD(inputRDD.typ,
-      inputRDD.partitioner,
-      new GeneralRDD[RegionValue](
+    val grouped = ContextRDD.weaken[RVDContext](
+      new GeneralRDD(
         sc,
         pruneIntermediates.map(_.rvd.encodedRDD(RVD.wireCodec)),
-        pruneIntermediates.zipWithIndex.map { case (gpi, i) => Array((i, gpi.index)) })
-        .flatMap(pruneF))
+        pruneIntermediates.zipWithIndex.map { case (gpi, i) => Array((i, gpi.index)) }))
+    val pruned = grouped.cmapPartitions { (ctx, it) =>
+      val rv = RegionValue()
+      it.map(_.map(_.map(RVD.bytesToRegionValue(RVD.wireCodec, ctx.region, localRowType, rv))))
+    }.flatMap(pruneF)
+
+    val prunedRVD = OrderedRVD(inputRDD.typ, inputRDD.partitioner, pruned)
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val nVariantsKept = prunedRDD.count()
+    val nVariantsKept = prunedRVD.count()
 
     pruneIntermediates.foreach { gpi =>
       if (gpi.persist)
@@ -382,7 +391,7 @@ object LDPrune {
     }
     inputRDD.unpersist()
 
-    (prunedRDD, nVariantsKept)
+    (prunedRVD, nVariantsKept)
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, nCores: Int, memoryPerCore: Long) = {

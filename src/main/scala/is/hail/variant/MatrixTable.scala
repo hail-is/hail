@@ -1995,11 +1995,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val localRVRowType = rvRowType
 
+    val predicate = { (rv: RegionValue) =>
+      val ur = new UnsafeRow(localRVRowType, rv)
+      !localRVRowType.typeCheck(ur)
+    }
+
     Region.scoped { region =>
-      rvd.find(region) { rv =>
-        val ur = new UnsafeRow(localRVRowType, rv)
-        !localRVRowType.typeCheck(ur)
-      }.foreach { rv =>
+      rvd.find(region)(predicate).foreach { rv =>
         val ur = new UnsafeRow(localRVRowType, rv)
         foundError = true
         warn(

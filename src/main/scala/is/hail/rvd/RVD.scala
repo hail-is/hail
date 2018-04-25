@@ -145,7 +145,7 @@ object RVD {
 
   val wireCodec = memoryCodec
 
-  private[rvd] def regionValueToBytes(
+  def regionValueToBytes(
     codec: CodecSpec,
     ctx: RVDContext,
     rowType: Type
@@ -160,7 +160,7 @@ object RVD {
       }
     }
 
-  private[rvd] def bytesToRegionValue(
+  def bytesToRegionValue(
     codec: CodecSpec,
     r: Region,
     rowType: Type,
