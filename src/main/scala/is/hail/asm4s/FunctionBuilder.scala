@@ -1,11 +1,9 @@
 package is.hail.asm4s
 
-import java.util
 import java.io._
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
-import org.objectweb.asm.{ClassWriter, Type}
 import java.util
 
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
@@ -15,8 +13,7 @@ import scala.collection.mutable
 import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.language.higherKinds
-import scala.reflect.ClassTag
-import scala.reflect.classTag
+import scala.collection.JavaConverters._
 
 import is.hail.utils._
 
@@ -242,6 +239,13 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     val sw1 = new StringWriter()
     var bytes: Array[Byte] = new Array[Byte](0)
     try {
+      for (method <- cn.methods.asInstanceOf[util.List[MethodNode]].asScala) {
+        val count = method.instructions.size
+        log.info(s"${ cn.name }.${ method.name } bytecode size: $count")
+        if (count > 8000)
+          log.info(s"${ cn.name }.${ method.name } bytecode size > 8000")
+      }
+
       cn.accept(cw)
       bytes = cw.toByteArray
       // CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
