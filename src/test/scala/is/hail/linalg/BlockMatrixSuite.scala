@@ -182,7 +182,7 @@ class BlockMatrixSuite extends SparkSuite {
       sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }.check()
 
-    forAll(twoMultipliableDenseMatrices[Double], interestingPosInt) { case ((ll, lr), blockSize) =>
+    forAll(twoMultipliableDenseMatrices[Double](), interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
       val r = toBM(lr, blockSize)
 
@@ -762,8 +762,6 @@ class BlockMatrixSuite extends SparkSuite {
 
       val allParts = hc.hadoopConf.glob(allFile + "/parts/part-*")
         .map(_.getPath.toString)
-      val someParts = hc.hadoopConf.glob(someFile + "/parts/part-*")
-        .map(_.getPath.toString)
 
       for (i <- keep) {
         val allPart = allParts.find(f => getPartNumber(f) == i).get
@@ -830,9 +828,32 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
+  def sparse() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+ 
+    val lm10 = toLM(2, 2, Array(
+      9, 10,
+      13, 14))
+
+    val lm01 = toLM(2, 2, Array(
+      3, 4,
+      7, 8))
+
+    val blocks = toBM(lm, blockSize = 2).filterBlocks(Array(1, 2)).blocks.collect()
+    
+    assert(blocks.length == 2)
+    assert(blocks(0) == ((1, 0), lm10))
+    assert(blocks(1) == ((0, 1), lm01))
+  }
+  
+  @Test
   def readWriteIdentitySparse() {
-    val lm = toLM(4, 4, (0 until 16).toArray)
-    val m = toBM(lm, blockSize = 2)
+    val lm = toLM(4, 4, (0 until 16).map(_.toDouble).toArray)
+    val m = toBM(lm, blockSize = 2).filterBlocks(Array(1))
 
     val fname = tmpDir.createTempFile("test")
     m.write(fname)

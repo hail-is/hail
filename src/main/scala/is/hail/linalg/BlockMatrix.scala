@@ -12,7 +12,7 @@ import is.hail.expr.types._
 import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
 import is.hail.methods.UpperIndexBounds
 import is.hail.utils._
-import is.hail.utils.richUtils.RichDenseMatrixDouble
+import is.hail.utils.richUtils.{RichDenseMatrixDouble, SubsetRDDPartition}
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
@@ -188,11 +188,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   val gp: GridPartitioner = blocks.partitioner.get.asInstanceOf[GridPartitioner]
   
-  def filterBlocks(support: Array[Int]): BlockMatrix = {
-
-    val filteredGP = gp.filterBlocks(support)
-        
-    new BlockMatrix
+  def filterBlocks(blocksToKeep: Array[Int]): BlockMatrix = {
+    val (filteredGP, partsToKeep) = gp.filterBlocks(blocksToKeep)
+    
+    new BlockMatrix(blocks.subsetPartitions(partsToKeep, Some(filteredGP)), blockSize, nRows, nCols)
   }
   
   // element-wise ops
