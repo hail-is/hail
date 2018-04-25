@@ -212,9 +212,10 @@ sealed abstract class IRFunction {
   def isDeterministic: Boolean
 
   def unify(concrete: Seq[Type]): Boolean = {
-    require(argTypes.length == concrete.length)
-    argTypes.foreach(_.clear())
-    argTypes.zip(concrete).forall { case (i, j) => i.unify(j) }
+    argTypes.length == concrete.length && {
+      argTypes.foreach(_.clear())
+      argTypes.zip(concrete).forall { case (i, j) => i.unify(j) }
+    }
   }
 }
 
