@@ -70,10 +70,10 @@ case class MatrixType(
 
   val rowsTableType: TableType = TableType(rowType, rowKey, globalType)
 
-  val entriesTableType: TableType = {
+  lazy val entriesTableType: TableType = {
     val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
     TableType(resultStruct, rowKey ++ colKey, globalType)
-  } 
+  }
 
   def orvdType: OrderedRVDType = {
     new OrderedRVDType(rowPartitionKey.toArray,
