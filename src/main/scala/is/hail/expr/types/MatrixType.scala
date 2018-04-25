@@ -67,16 +67,16 @@ case class MatrixType(
   val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType =
-    if (colKey.isEmpty)
-      TableType(colType, None, globalType)
-    else
-      TableType(colType, Some(colKey), globalType)
+    TableType(
+      colType,
+      if (colKey.isEmpty) None else Some(colKey),
+      globalType)
 
   val rowsTableType: TableType =
-    if(rowKey.isEmpty)
-      TableType(rowType, None, globalType)
-    else
-      TableType(rowType, Some(rowKey), globalType)
+    TableType(
+      rowType,
+      if (rowKey.isEmpty) None else Some(rowKey),
+      globalType)
 
   lazy val entriesTableType: TableType = {
     val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
