@@ -211,11 +211,9 @@ case class MatrixValue(
     val localEntryType = typ.entryType
     val localNCols = nCols
 
-    val localColValuesBc = colValues.broadcast
+    val localColValues = colValues.broadcast.value
 
     rvd.mapPartitions(resultStruct) { it =>
-
-      val colValues = localColValuesBc.value
 
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -241,7 +239,7 @@ case class MatrixValue(
               j += 1
             }
 
-            rv2b.addInlineRow(localColType, colValues(i).asInstanceOf[Row])
+            rv2b.addInlineRow(localColType, localColValues(i).asInstanceOf[Row])
             rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
             rv2b.endStruct()
             rv2.set(rv.region, rv2b.end())
