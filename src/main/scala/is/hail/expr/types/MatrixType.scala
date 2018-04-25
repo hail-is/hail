@@ -67,16 +67,16 @@ case class MatrixType(
   val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType =
-    if (colKey.isEmpty)
-      TableType(colType, None, globalType)
-    else
-      TableType(colType, Some(colKey), globalType)
+    TableType(
+      colType,
+      if (colKey.isEmpty) None else Some(colKey),
+      globalType)
 
   val rowsTableType: TableType =
-    if(rowKey.isEmpty)
-      TableType(rowType, None, globalType)
-    else
-      TableType(rowType, Some(rowKey), globalType)
+    TableType(
+      rowType,
+      if (rowKey.isEmpty) None else Some(rowKey),
+      globalType)
 
   def orvdType: OrderedRVDType = {
     new OrderedRVDType(rowPartitionKey.toArray,
