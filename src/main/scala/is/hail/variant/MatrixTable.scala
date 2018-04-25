@@ -2049,63 +2049,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))
 
-  def entriesTable(): Table = {
-    val localNSamples = numCols
-
-    val allFields = rowType.fields.map(f => f.name -> f.typ) ++
-      colType.fields.map(f => f.name -> f.typ) ++
-      entryType.fields.map(f => f.name -> f.typ)
-
-    val resultStruct = TStruct(allFields: _*)
-
-    val localColType = colType
-    val localEntryType = entryType
-    val fullRowType = rvRowType
-
-    val localEntriesType = matrixType.entryArrayType
-    val localEntriesIndex = entriesIndex
-    val saArrayType = TArray(colType, required = true)
-
-    val rowSize = rowType.size
-
-    val tableType = TableType(resultStruct, rowKey ++ colKey, globalType)
-    val localColValuesBc = colValues.broadcast
-    new Table(hc, TableLiteral(TableValue(tableType, globals, rvd.mapPartitions(resultStruct) { it =>
-
-      val colValues = localColValuesBc.value
-
-      val rv2b = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      it.flatMap { rv =>
-        val rvEnd = rv.region.size
-        rv2b.set(rv.region)
-        val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
-        (0 until localNSamples).iterator
-          .filter { i =>
-            localEntriesType.isElementDefined(rv.region, gsOffset, i)
-          }
-          .map { i =>
-            rv.region.clear(rvEnd)
-            rv2b.clear()
-            rv2b.start(resultStruct)
-            rv2b.startStruct()
-
-            var j = 0
-            while (j < fullRowType.size) {
-              if (j != localEntriesIndex)
-                rv2b.addField(fullRowType, rv, j)
-              j += 1
-            }
-
-            rv2b.addInlineRow(localColType, colValues(i).asInstanceOf[Row])
-            rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
-            rv2b.endStruct()
-            rv2.set(rv.region, rv2b.end())
-            rv2
-          }
-      }
-    })))
-  }
+  def entriesTable(): Table = new Table(hc, MatrixEntriesTable(ast))
 
   def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))
 
