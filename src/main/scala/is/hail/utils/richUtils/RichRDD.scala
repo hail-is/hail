@@ -183,10 +183,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .subsetPartitions((0 to idxLast).toArray)
   }
 
-  def writePartitions(path: String,
-    write: (Int, Iterator[T], OutputStream) => Long,
-    remapPartitions: Option[(Array[Int], Int)] = None
-  )(implicit tct: ClassTag[T]
-  ): (Array[String], Array[Long]) =
-    ContextRDD.weaken[TrivialContext](r).writePartitions(path, write, remapPartitions)
+  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long)
+    (implicit tct: ClassTag[T]): (Array[String], Array[Long]) =
+    ContextRDD.weaken[TrivialContext](r).writePartitions(path, write)
 }

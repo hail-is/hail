@@ -247,7 +247,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   /**
     * Write {@code this} to a Hadoop sequence file at location {@code uri}.
     **/
-  def write(uri: String, forceRowMajor: Boolean = false, optKeep: Option[Array[Int]] = None) {
+  def write(uri: String, forceRowMajor: Boolean = false) {
 
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
@@ -263,12 +263,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    val (partFiles, _) = optKeep match {
-      case Some(keep) =>
-        blocks.subsetPartitions(keep).writePartitions(uri, writeBlock, Some(keep, gp.numPartitions))
-      case None =>
-        blocks.writePartitions(uri, writeBlock)
-    }
+    val (partFiles, _) = blocks.writePartitions(uri, writeBlock)
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats

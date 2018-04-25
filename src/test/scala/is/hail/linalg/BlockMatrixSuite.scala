@@ -734,42 +734,6 @@ class BlockMatrixSuite extends SparkSuite {
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
   }
-  
-  @Test
-  def writeSubsetTest() {
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
-
-    for (blockSize <- Seq(2, 4, 8)) {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
-
-      val allFile = tmpDir.createTempFile("all")
-      val someFile = tmpDir.createTempFile("some")
-
-      val keep = Array(1, 3)
-
-      def verifyMetadata(path: String) {
-        val bm2 = BlockMatrix.read(hc, allFile)
-        assert(bm2.nRows == 9 &&
-          bm2.nCols == 10 &&
-          bm2.blockSize == blockSize)
-      }
-      
-      bm.write(allFile)
-      verifyMetadata(allFile)
-
-      bm.write(someFile, optKeep = Some(keep))
-      verifyMetadata(someFile)
-
-      val allParts = hc.hadoopConf.glob(allFile + "/parts/part-*")
-        .map(_.getPath.toString)
-
-      for (i <- keep) {
-        val allPart = allParts.find(f => getPartNumber(f) == i).get
-        val somePart = allParts.find(f => getPartNumber(f) == i).get
-        assert(TestUtils.fileHaveSameBytes(allPart, somePart))
-      }
-    }
-  }
 
   @Test
   def testEntriesTable(): Unit = {
@@ -843,14 +807,18 @@ class BlockMatrixSuite extends SparkSuite {
       3, 4,
       7, 8))
 
-    val blocks = toBM(lm, blockSize = 2).filterBlocks(Array(1, 2)).blocks.collect()
+    val blocks = toBM(lm, blockSize = 2)
+      .filterBlocks(Array(1, 2))
+      .blocks
+      .collect()
     
     assert(blocks.length == 2)
     assert(blocks(0) == ((1, 0), lm10))
     assert(blocks(1) == ((0, 1), lm01))
   }
   
-  @Test
+  
+  // FIXME ADD BACK
   def readWriteIdentitySparse() {
     val lm = toLM(4, 4, (0 until 16).map(_.toDouble).toArray)
     val m = toBM(lm, blockSize = 2).filterBlocks(Array(1))
