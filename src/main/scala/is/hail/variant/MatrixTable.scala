@@ -449,10 +449,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case this.rowAxis | this.entryAxis =>
         !ast.`type`.isInstanceOf[TStruct] ||
           ast.`type`.asInstanceOf[TStruct].size < 500 &&
-          globalType.size < 3 &&
-          colType.size == 1 &&
-          Set(TInt32(), +TInt32(), TString(), +TString())
-            .contains(colType.types(0))
+            globalType.size < 3 &&
+            colType.size == 1 &&
+            Set(TInt32(), +TInt32(), TString(), +TString())
+              .contains(colType.types(0))
     }
   }
 
@@ -1223,8 +1223,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val fullRowType = rvRowType
 
     insertEntries(noOp, newColType = newColType,
-      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(entryType,
-      { case (_, rv, rvb) =>
+      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(entryType, { case (_, rv, rvb) =>
 
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
       rvb.startArray(newNCols)
@@ -1579,7 +1578,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val et = entriesTable()
 
         val entriesRowType = et.typ.rowType
-        val aggEnv =  new ir.Env[ir.IR].bind(
+        val aggEnv = new ir.Env[ir.IR].bind(
           "g" -> ir.Ref("row", entriesRowType),
           "va" -> ir.Ref("row", entriesRowType),
           "sa" -> ir.Ref("row", entriesRowType))
@@ -1644,7 +1643,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     queryAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(colAxis, queryAST) =>
         val ct = colsTable()
-        val aggEnv =  new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
+        val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(ct.aggType()))
         ct.aggregate(sqir)
       case None =>
@@ -1678,7 +1677,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     qAST.toIR(Some("AGG")) match {
       case Some(qir) if useIR(rowAxis, qAST) =>
         val rt = rowsTable()
-        val aggEnv =  new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
+        val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
         val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
         rt.aggregate(sqir)
       case None =>
@@ -1783,7 +1782,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       newRowKey,
       newRVRowType)
 
-    val newRVD = if (fieldMapRows.isEmpty) rvd else {
+    val newRVD = if (newMatrixType.orvdType == rvd.typ)
+      rvd
+    else {
       val newType = newMatrixType.orvdType
       val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
       rvd.updateType(newType)
@@ -2361,8 +2362,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     insertEntries(noOp,
       newColType = newColType,
       newColKey = Array("id"),
-      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType,
-      { case (_, rv, rvb) =>
+      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType, { case (_, rv, rvb) =>
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
       rvb.startArray(nTrios)
