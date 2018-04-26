@@ -1143,7 +1143,8 @@ def import_table(paths,
            missing=str,
            min_partitions=nullable(int),
            no_header=bool,
-           force_bgz=bool)
+           force_bgz=bool,
+           sep=str)
 def import_matrix_table(paths,
                         row_fields={},
                         row_key=[],
@@ -1151,7 +1152,8 @@ def import_matrix_table(paths,
                         missing="NA",
                         min_partitions=None,
                         no_header=False,
-                        force_bgz=False) -> MatrixTable:
+                        force_bgz=False,
+                        sep='\t') -> MatrixTable:
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1309,8 +1311,11 @@ def import_matrix_table(paths,
         raise FatalError("""import_matrix_table expects entry types to be one of: 
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
+    if len(sep) != 1:
+        raise FatalError('sep must be a single character')
+
     jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
-                                     no_header, force_bgz)
+                                     no_header, force_bgz, sep)
     return MatrixTable(jmt)
 
 
