@@ -46,7 +46,7 @@ object HailContext {
 
     if (majorMinor(jarVersion) != majorMinor(sparkVersion))
       fatal(s"This Hail JAR was compiled for Spark $jarVersion, cannot run with Spark $sparkVersion.\n" +
-         s"  The major and minor versions must agree, though the patch version can differ.")
+        s"  The major and minor versions must agree, though the patch version can differ.")
     else if (jarVersion != sparkVersion)
       warn(s"This Hail JAR was compiled for Spark $jarVersion, running with Spark $sparkVersion.\n" +
         s"  Compatibility is not guaranteed.")
@@ -589,9 +589,10 @@ class HailContext private(val sc: SparkContext,
     missingVal: String,
     minPartitions: Option[Int],
     noHeader: Boolean,
-    forceBGZ: Boolean): MatrixTable =
+    forceBGZ: Boolean,
+    sep: String = "\t"): MatrixTable =
     importMatrices(files.asScala, rowFields.asScala.toMap, keyNames.asScala.toArray,
-      cellType, missingVal, minPartitions, noHeader, forceBGZ)
+      cellType, missingVal, minPartitions, noHeader, forceBGZ, sep)
 
   def importMatrices(files: Seq[String],
     rowFields: Map[String, Type],
@@ -600,12 +601,14 @@ class HailContext private(val sc: SparkContext,
     missingVal: String = "NA",
     nPartitions: Option[Int],
     noHeader: Boolean,
-    forceBGZ: Boolean): MatrixTable = {
+    forceBGZ: Boolean,
+    sep: String = "\t"): MatrixTable = {
+    assert(sep.length == 1)
 
     val inputs = hadoopConf.globAll(files)
 
     forceBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader)
+      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }
 

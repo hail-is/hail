@@ -55,6 +55,8 @@ case class MatrixValue(
 
   def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
 
+  def entriesTableValue: TableValue = TableValue(typ.entriesTableType, globals, entriesRVD())
+  
   private def writeCols(path: String, codecSpec: CodecSpec) {
     val hc = HailContext.get
     val hadoopConf = hc.hadoopConf
@@ -202,6 +204,49 @@ case class MatrixValue(
       signature,
       ContextRDD.parallelize(hc.sc, colValues.value.toArray.map(_.asInstanceOf[Row]))
         .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) })
+  }
+
+  def entriesRVD(): RVD = {
+    val resultStruct = typ.entriesTableType.rowType
+    val fullRowType = typ.rvRowType
+    val localEntriesIndex = typ.entriesIdx
+    val localEntriesType = typ.entryArrayType
+    val localColType = typ.colType
+    val localEntryType = typ.entryType
+    val localNCols = nCols
+
+    val localColValues = colValues.broadcast.value
+
+    rvd.boundary.mapPartitions(resultStruct) { (ctx, it) =>
+      val rv2b = ctx.rvb
+      val rv2 = RegionValue(ctx.region)
+
+      it.flatMap { rv =>
+        val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
+        (0 until localNCols).iterator
+          .filter { i =>
+            localEntriesType.isElementDefined(rv.region, gsOffset, i)
+          }
+          .map { i =>
+            rv2b.clear()
+            rv2b.start(resultStruct)
+            rv2b.startStruct()
+
+            var j = 0
+            while (j < fullRowType.size) {
+              if (j != localEntriesIndex)
+                rv2b.addField(fullRowType, rv, j)
+              j += 1
+            }
+
+            rv2b.addInlineRow(localColType, localColValues(i).asInstanceOf[Row])
+            rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
+            rv2b.endStruct()
+            rv2.setOffset(rv2b.end())
+            rv2
+          }
+      }
+    }
   }
 }
 
@@ -1687,6 +1732,24 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
     val ctv = mv.colsTableValue
     assert(ctv.typ == typ)
     ctv
+  }
+}
+
+case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixEntriesTable = {
+    assert(newChildren.length == 1)
+    MatrixEntriesTable(newChildren(0).asInstanceOf[MatrixIR])
+  }
+
+  val typ: TableType = child.typ.entriesTableType
+
+  def execute(hc: HailContext): TableValue = {
+    val mv = child.execute(hc)
+    val etv = mv.entriesTableValue
+    assert(etv.typ == typ)
+    etv
   }
 }
 

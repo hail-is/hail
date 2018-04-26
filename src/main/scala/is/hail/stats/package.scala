@@ -308,11 +308,11 @@ package object stats {
 
   def qpois(x: Double, lambda: Double): Int = qpois(x, lambda, lowerTail = true, logP = false)
 
-  def binomTest(nSuccess: Int, n: Int, p: Double, alternative: String): Double = {
+  def binomTest(nSuccess: Int, n: Int, p: Double, alternative: Int): Double = {
     val kind = alternative match {
-      case "two.sided" => TestKind.TWO_SIDED
-      case "less" => TestKind.LOWER
-      case "greater" => TestKind.GREATER
+      case 0 => TestKind.TWO_SIDED
+      case 1 => TestKind.LOWER
+      case 2 => TestKind.GREATER
       case _ => fatal(s"""Invalid alternative "$alternative". Must be "two_sided", "less" or "greater".""")
     }
 

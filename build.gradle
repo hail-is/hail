@@ -21,11 +21,9 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 repositories {
     mavenCentral()
     jcenter()
-    maven {
-        url "https://repository.cloudera.com/artifactory/cloudera-repos/"
-        url "http://repo.hortonworks.com/content/repositories/releases/"
-        url "http://repo.spring.io/plugins-release/"
-    }
+    maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
+    maven { url "http://repo.hortonworks.com/content/repositories/releases/" }
+    maven { url "http://repo.spring.io/plugins-release/" }
 }
 
 buildScan {

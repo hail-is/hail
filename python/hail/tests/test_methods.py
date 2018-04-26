@@ -1536,6 +1536,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64), dosage=hl.tfloat64))
         self.assertEqual(bgen.locus.dtype, hl.tlocus('GRCh37'))
 
+    def test_import_bgen_no_entry_fields(self):
+        hl.index_bgen(resource('example.v11.bgen'))
+
+        bgen = hl.import_bgen(resource('example.v11.bgen'),
+                              entry_fields=[],
+                              sample_file=resource('example.sample'),
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+        bgen._jvds.typecheck()
+
     def test_import_bgen_no_reference_specified(self):
         bgen = hl.import_bgen(resource('example.10bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],

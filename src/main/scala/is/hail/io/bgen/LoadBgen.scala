@@ -134,6 +134,8 @@ object LoadBgen {
       }
     }))
 
+    val loadEntries = entryFields.length > 0
+
     val rdd2 = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
@@ -159,7 +161,18 @@ object LoadBgen {
         rvb.endArray()
         rvb.addAnnotation(rowType.types(2), va.get(0))
         rvb.addAnnotation(rowType.types(3), va.get(1))
-        record.getValue(rvb) // gs
+        if (loadEntries)
+          record.getValue(rvb) // gs
+        else {
+          rvb.startArray(nSamples)
+          var j = 0
+          while (j < nSamples) {
+            rvb.startStruct()
+            rvb.endStruct()
+            j += 1
+          }
+          rvb.endArray()
+        }
         rvb.endStruct()
 
         rv.setOffset(rvb.end())

@@ -26,6 +26,11 @@ object UtilFunctions extends RegistryFunctions {
       ArrayMap(a, imul, ApplyBinaryPrimOp(Multiply(), Ref(imul, c.typ), c))
     }
 
+    registerIR("/", TArray(tnum("T")), tv("T")){ (a, c) =>
+      val idiv = genUID()
+      ArrayMap(a, idiv, ApplyBinaryPrimOp(FloatingPointDivide(), Ref(idiv, c.typ), c))
+    }
+
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
     registerIR("product", TArray(tnum("T"))) { a =>
