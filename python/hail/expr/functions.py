@@ -1401,7 +1401,9 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         p-value.
     """
-    return _func("binomTest", tfloat64, x, n, p, to_expr(alternative))
+
+    alt_enum = {"two.sided": 0, "greater": 1, "less": 2}[alternative]
+    return _func("binomTest", tfloat64, x, n, p, to_expr(alt_enum))
 
 
 @typecheck(x=expr_float64, df=expr_float64)

@@ -98,9 +98,9 @@ class StatsSuite extends SparkSuite {
 
   @Test def binomTestTest() {
     //Compare against R
-    assert(D_==(binomTest(2, 10, 0.5, "two.sided"), 0.10937, tolerance = 1e-4))
-    assert(D_==(binomTest(4 ,10, 0.5, "less"), 0.377, tolerance = 1e-3))
-    assert(D_==(binomTest(32, 50, 0.4, "greater"), 0.0005193, tolerance = 1e-4))
+    assert(D_==(binomTest(2, 10, 0.5, 0), 0.10937, tolerance = 1e-4))
+    assert(D_==(binomTest(4 ,10, 0.5, 1), 0.377, tolerance = 1e-3))
+    assert(D_==(binomTest(32, 50, 0.4, 2), 0.0005193, tolerance = 1e-4))
 
   }
 
