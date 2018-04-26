@@ -818,10 +818,6 @@ def import_bgen(path,
 
     rg = reference_genome._jrep if reference_genome else None
 
-    if not entry_fields:
-        raise FatalError("import_bgen: entry_fields must be non-empty."
-                         "\n    Options: 'GT', 'GP', 'dosage'.")
-
     entry_set = set(entry_fields)
     bad_entry_fields = list(entry_set - {'GT', 'GP', 'dosage'})
 
