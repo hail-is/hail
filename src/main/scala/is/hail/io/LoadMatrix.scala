@@ -12,11 +12,10 @@ import org.apache.spark.sql.Row
 import scala.language.implicitConversions
 import scala.io.Source
 
-class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String) {
+class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String, sep: Char) {
 
   assert(entryType.size == 1)
 
-  val sep = '\t'
   val nFields: Int = fieldTypes.length
   val cellf: (String, Long, Int, Int) => Int = addType(entryType.types(0))
 
@@ -78,7 +77,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
       newoff = line.length
     }
     val v = line.substring(off, newoff)
-    if (v == missingValue){
+    if (v == missingValue) {
       rvb.setMissing()
     } else rvb.addString(v)
     newoff + 1
@@ -273,20 +272,20 @@ object LoadMatrix {
     cellType: TStruct = TStruct("x" -> TInt64()),
     missingValue: String = "NA",
     nPartitions: Option[Int] = None,
-    noHeader: Boolean = false): MatrixTable = {
+    noHeader: Boolean = false,
+    sep: Char = '\t'): MatrixTable = {
 
     require(cellType.size == 1, "cellType can only have 1 field")
 
-    val sep = '\t'
     val nAnnotations = rowFields.size
 
-      assert(rowFields.values.forall { t =>
-        t.isOfType(TString()) ||
-          t.isOfType(TInt32()) ||
-          t.isOfType(TInt64()) ||
-          t.isOfType(TFloat32()) ||
-          t.isOfType(TFloat64())
-      })
+    assert(rowFields.values.forall { t =>
+      t.isOfType(TString()) ||
+        t.isOfType(TInt32()) ||
+        t.isOfType(TInt64()) ||
+        t.isOfType(TFloat32()) ||
+        t.isOfType(TFloat64())
+    })
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
@@ -341,7 +340,7 @@ object LoadMatrix {
     val useIndex = keyFields.isEmpty
     val (rowKey, rowType) =
       if (useIndex)
-        (Array("row_id"),TStruct("row_id" -> TInt64()) ++ rowFieldType)
+        (Array("row_id"), TStruct("row_id" -> TInt64()) ++ rowFieldType)
       else (keyFields, rowFieldType)
 
     if (!keyFields.forall(rowType.fieldNames.contains))
@@ -369,7 +368,7 @@ object LoadMatrix {
         if (firstPartitions(i) == i && !noHeader) { it.next() }
 
         val partitionStartInFile = partitionCounts(i) - partitionCounts(firstPartitions(i))
-        val parser = new LoadMatrixParser(rvb, rowFieldType.types, cellType, nCols, missingValue, fileByPartition(i))
+        val parser = new LoadMatrixParser(rvb, rowFieldType.types, cellType, nCols, missingValue, fileByPartition(i), sep)
 
         it.zipWithIndex.map { case (v, row) =>
           val fileRowNum = partitionStartInFile + row
