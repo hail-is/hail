@@ -241,9 +241,9 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     try {
       for (method <- cn.methods.asInstanceOf[util.List[MethodNode]].asScala) {
         val count = method.instructions.size
-        log.info(s"${ cn.name }.${ method.name } bytecode size: $count")
+        log.info(s"${ cn.name }.${ method.name } instruction count: $count")
         if (count > 8000)
-          log.info(s"${ cn.name }.${ method.name } bytecode size > 8000")
+          log.info(s"${ cn.name }.${ method.name } instruction count > 8000")
       }
 
       cn.accept(cw)
