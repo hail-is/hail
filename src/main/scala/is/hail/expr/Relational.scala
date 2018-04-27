@@ -217,7 +217,7 @@ case class MatrixValue(
 
     val localColValues = colValues.broadcast.value
 
-    rvd.boundary.mapPartitions(resultStruct) { (ctx, it) =>
+    rvd.boundary.mapPartitions(resultStruct, { (ctx, it) =>
       val rv2b = ctx.rvb
       val rv2 = RegionValue(ctx.region)
 
@@ -246,7 +246,7 @@ case class MatrixValue(
             rv2
           }
       }
-    }
+    })
   }
 }
 
@@ -918,12 +918,12 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       newRVRow)
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
-    val mapPartitionF = { it: Iterator[RegionValue] =>
+    val mapPartitionF = { (ctx: RVDContext, it: Iterator[RegionValue]) =>
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
       val rowF = f()
 
-      val partRegion = Region()
+      val partRegion = ctx.freshContext.region
 
       rvb.set(partRegion)
       rvb.start(localGlobalsType)
@@ -989,11 +989,12 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     }
 
     if (touchesKeys) {
-      val newRDD = prev.rvd.mapPartitions(mapPartitionF)
       prev.copy(typ = typ,
-        rvd = OrderedRVD.coerce(typ.orvdType, newRDD, None, None))
+        rvd = OrderedRVD.coerce(
+          typ.orvdType,
+          prev.rvd.mapPartitions(typ.rvRowType, mapPartitionF)))
     } else {
-      val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
+      val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
       prev.copy(typ = typ, rvd = newRVD)
     }
   }

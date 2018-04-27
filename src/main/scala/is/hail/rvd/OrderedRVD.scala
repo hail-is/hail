@@ -326,8 +326,6 @@ class OrderedRVD(
         val stepped = OrderedRVIterator(localType, it).staircase
 
         stepped.map { stepIt =>
-          groupedValues.clear()
-          producerRegion.clear()
           rvb.start(newRowType)
           rvb.startStruct()
           var i = 0
@@ -347,6 +345,8 @@ class OrderedRVD(
           rvb.endArray()
           rvb.endStruct()
           outRV.setOffset(rvb.end())
+          groupedValues.clear()
+          producerRegion.clear()
           outRV
         }
       })
