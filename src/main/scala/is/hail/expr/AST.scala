@@ -710,7 +710,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
       ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-        IRFunctionRegistry.lookupConversion(fn, args.map(_.`type`))
+        IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
           .map { irf => irf(irArgs) })
     } yield ir
 
@@ -840,7 +840,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       case _ =>
         for {
           irs <- anyFailAllFail((lhs +: args).map(_.toIR(agg)))
-          ir <- IRFunctionRegistry.lookupConversion(method, (lhs +: args).map(_.`type`))
+          ir <- IRFunctionRegistry.lookupConversion(method, irs.map(_.typ))
               .map { irf => irf(irs) }
         } yield ir
     }

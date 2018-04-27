@@ -14,43 +14,42 @@ object IRFunctionRegistry {
   val irRegistry: mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)] =
     new mutable.HashMap[String, mutable.Set[(Seq[Type], Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)]
 
-  val codeRegistry: mutable.MultiMap[String, (Seq[Type], IRFunction)] =
-    new mutable.HashMap[String, mutable.Set[(Seq[Type], IRFunction)]] with mutable.MultiMap[String, (Seq[Type], IRFunction)]
+  val codeRegistry: mutable.MultiMap[String, IRFunction] =
+    new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
 
   def addIRFunction(f: IRFunction): Unit =
-    codeRegistry.addBinding(f.name, (f.argTypes, f))
+    codeRegistry.addBinding(f.name, f)
 
   def addIR(name: String, types: Seq[Type], f: Seq[IR] => IR): Unit =
     irRegistry.addBinding(name, (types, f))
 
-  private def lookupInRegistry[T](reg: mutable.MultiMap[String, (Seq[Type], T)], name: String, args: Seq[Type]): Option[T] = {
-    reg.lift(name).flatMap { fs =>
-      fs.filter { case (ts, _) =>
-        ts.length == args.length && {
-          ts.foreach(_.clear())
-          (ts, args).zipped.forall(_.unify(_))
-        }
-      }.toSeq match {
-        case Seq() => None
-        case Seq((_, f)) => Some(f)
-        case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
-      }
+  private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
+    reg.lift(name).map { fs => fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
+      case Seq() => None
+      case Seq(f) => Some(f)
+      case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
     }
   }
 
   def lookupFunction(name: String, args: Seq[Type]): Option[IRFunction] =
-    lookupInRegistry(codeRegistry, name, args)
+    lookupInRegistry(codeRegistry, name, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
 
   def lookupConversion(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    assert(args.forall(_ != null))
-
-    val validIR = lookupInRegistry(irRegistry, name, args)
+    type Conversion = (Seq[Type], Seq[IR] => IR)
+    val findIR: (Conversion, Seq[Type]) => Boolean =
+    { case ((ts, _), t2s) =>
+      ts.length == args.length && {
+        ts.foreach(_.clear())
+        (ts, t2s).zipped.forall(_.unify(_))
+      }
+    }
+    val validIR = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map(_._2)
 
     val validMethods = lookupFunction(name, args).map { f =>
       { irArgs: Seq[IR] =>
         f match {
-          case irf: IRFunctionWithoutMissingness => Apply(name, irArgs)
-          case irf: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
+          case _: IRFunctionWithoutMissingness => Apply(name, irArgs)
+          case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
         }
       }
     }
@@ -212,6 +211,12 @@ sealed abstract class IRFunction {
 
   def isDeterministic: Boolean
 
+  def unify(concrete: Seq[Type]): Boolean = {
+    argTypes.length == concrete.length && {
+      argTypes.foreach(_.clear())
+      argTypes.zip(concrete).forall { case (i, j) => i.unify(j) }
+    }
+  }
 }
 
 abstract class IRFunctionWithoutMissingness extends IRFunction {
@@ -230,8 +235,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   }
 
   override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
-    argTypes.foreach(_.clear())
-    (argTypes, args).zipped.foreach(_.unify(_))
+    unify(args)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
     val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType))
     methodbuilder.emit(apply(methodbuilder, ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))

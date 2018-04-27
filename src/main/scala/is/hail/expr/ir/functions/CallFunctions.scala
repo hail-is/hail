@@ -11,8 +11,6 @@ object CallFunctions extends RegistryFunctions {
     registerScalaFunction("downcode", TCall(), TInt32(), TCall())(Call.getClass, "downcode")
     registerScalaFunction("UnphasedDiploidGtIndexCall", TInt32(), TCall())(Call2.getClass, "fromUnphasedDiploidGtIndex")
 
-    registerCode("==", TCall(), TCall(), TBoolean()) { case (_, a: Code[Int], b: Code[Int]) => a.ceq(b) }
-
     val qualities = Array("isPhased", "isHomRef", "isHet",
       "isHomVar", "isNonRef", "isHetNonRef", "isHetRef")
     for (q <- qualities) registerScalaFunction(q, TCall(), TBoolean())(Call.getClass, q)
