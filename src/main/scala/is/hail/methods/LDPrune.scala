@@ -300,12 +300,12 @@ object LDPrune {
     def computeDependencies(partitionId: Int): Array[Int] = {
       val startLocus = rangeBounds(partitionId).start.asInstanceOf[Row].getAs[Locus](0)
       val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
-      
+
       val minPart = partitioner.getPartitionPK(Annotation(minLocus))
       Array.range(minPart, partitionId + 1).reverse
     }
 
-    def pruneF = (x: Array[Iterator[RegionValue]]) => {
+    val pruneF = (x: Array[Iterator[RegionValue]]) => {
       val nPartitions = x.length
       val targetIterator = x(0)
       val prevPartitions = x.drop(1).reverse
