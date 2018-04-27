@@ -20,7 +20,8 @@ case class TableReaderOptions(
   noHeader: Boolean = false,
   header: String = "",
   quote: java.lang.Character = null,
-  skipBlankLines: Boolean = false) {
+  skipBlankLines: Boolean = false,
+  useColIndices: Array[Int] = Array.empty[Int]) {
 
   val isComment = TextTableReader.isCommentLine(commentStartsWith, commentRegexes) _
 }
@@ -162,7 +163,8 @@ object TextTableReader {
     nPartitions: Int = hc.sc.defaultMinPartitions,
     quote: java.lang.Character = null,
     keyNames: Array[String] = Array.empty[String],
-    skipBlankLines: Boolean = false): Table = {
+    skipBlankLines: Boolean = false,
+    useCols: Array[String] = Array.empty[String]): Table = {
 
     require(files.nonEmpty)
 
@@ -205,38 +207,53 @@ object TextTableReader {
 
     val sb = new StringBuilder
 
+    val useColIndices = if (!useCols.isEmpty) {
+      columns.zipWithIndex.flatMap { case (str,index) => if (useCols.contains(str)) Some(index) else None }
+    }
+    else {
+      Array.empty[Int]
+    }
+
     val namesAndTypes = {
       if (impute) {
         info("Reading table to impute column types")
 
         sb.append("Finished type imputation")
         val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
-        columns.zip(imputedTypes).map { case (name, imputedType) =>
-          types.get(name) match {
-            case Some(t) =>
-              sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
-              (name, t)
-            case None =>
-              imputedType match {
-                case Some(t) =>
-                  sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
-                  (name, t)
-                case None =>
-                  sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
-                  (name, TString())
-              }
+        columns.zip(imputedTypes).flatMap { case (name, imputedType) =>
+          if (useCols.isEmpty || useCols.contains(name)) {
+            types.get(name) match {
+              case Some(t) =>
+                sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
+                Some((name, t))
+              case None =>
+                imputedType match {
+                  case Some(t) =>
+                    sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
+                    Some((name, t))
+                  case None =>
+                    sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
+                    Some((name, TString()))
+                }
+            } 
+          } else {
+            None
           }
         }
       } else {
         sb.append("Reading table with no type imputation\n")
-        columns.map { c =>
-          types.get(c) match {
-            case Some(t) =>
-              sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
-              (c, t)
-            case None =>
-              sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
-              (c, TString())
+        columns.flatMap { c =>
+          if (useCols.isEmpty || useCols.contains(c)) {
+            types.get(c) match {
+              case Some(t) =>
+                sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
+                Some((c, t))
+              case None =>
+                sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
+                Some((c, TString()))
+            } 
+          } else {
+            None
           }
         }
       }
@@ -245,7 +262,7 @@ object TextTableReader {
     info(sb.result())
 
     val ttyp = TableType(TStruct(namesAndTypes: _*), keyNames, TStruct())
-    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes, separator, missing, noHeader, header, quote, skipBlankLines)
+    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes, separator, missing, noHeader, header, quote, skipBlankLines, useColIndices)
     new Table(hc, TableImport(files, ttyp, readerOpts))
   }
 }

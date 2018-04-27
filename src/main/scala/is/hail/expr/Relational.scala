@@ -1347,6 +1347,8 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
     val rowTyp = typ.rowType
     val nField = rowTyp.fields.length
     val rowFields = rowTyp.fields
+    
+    val useColIndices = readerOpts.useColIndices
 
     val rvd = hc.sc.textFilesLines(paths, readerOpts.nPartitions)
       .filter { line =>
@@ -1362,7 +1364,10 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
         _.map { line =>
           region.clear()
 
-          val split = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
+          val split = {
+            val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
+            if (useColIndices.isEmpty) sp else sp.zipWithIndex.filter{case (str, index) => useColIndices.contains(index)}.map{case (str, index)=>str}
+          } 
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
           rvb.set(region)
