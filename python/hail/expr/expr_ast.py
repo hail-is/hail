@@ -237,7 +237,7 @@ class Bind(AST):
 
     def to_hql(self):
         bindings = ' and '.join(f'{uid} = {ast.to_hql()}' for uid, ast in zip(self.uids, self.definitions))
-        return f'let {bindings} in {self.expression.to_hql()}'
+        return f'(let {bindings} in {self.expression.to_hql()})'
 
 
 class RegexMatch(AST):
