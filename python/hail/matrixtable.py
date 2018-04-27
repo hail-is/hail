@@ -2972,8 +2972,78 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
 
-    @typecheck_method(sepfields=dictof(str, str))
-    def make_table(self, separator = ".") -> Table:
+    @typecheck_method(separator=str)
+    def make_table(self, separator='.') -> Table:
+        """Make a table from a matrix table with one field per sample.
+
+        Examples
+        --------
+
+        Consider a matrix table with the following schema:
+
+        .. code-block:: text
+          Global fields:
+              'batch': str 
+          Column fields:
+              's': str 
+          Row fields:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+          Entry fields:
+              'GT': call 
+              'GQ': int32 
+          Column key:
+              's': str 
+          Row key:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+          Partition key:
+              'locus': locus<GRCh37> 
+
+        and three sample IDs: `A`, `B` and `C`.  Then the result of
+        :func:`.make_table`:
+
+        >>> ht = mt.make_table() # doctest: +SKIP
+
+        has the original row fields along with 6 additional fields,
+        one for each sample and entry field:
+
+        .. code-block:: text
+          Global fields:
+              'batch': str 
+          Row fields:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+              'A.GT': call 
+              'A.GQ': int32 
+              'B.GT': call 
+              'B.GQ': int32 
+              'C.GT': call 
+              'C.GQ': int32 
+          Key:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+
+        Notes
+        -----
+
+        The table has one row for each row of the input matrix.  The
+        per sample and entry fields are formed by concatenating the
+        sample ID with the entry field name using `separator`.  If the
+        field name is empty, the separator is ommitted.
+
+        The table inherits the globals from the matrix table.
+
+        Parameters
+        ----------
+        separator : :obj:`str`
+            Separator between sample IDs and entry field names.
+
+        Returns
+        -------
+        :class:`.Table`
+
+        """
         return Table(self._jvds.makeTable(separator))
 
 matrix_table_type.set(MatrixTable)
