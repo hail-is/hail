@@ -1,5 +1,7 @@
 package is.hail.expr
 
+import java.util.concurrent.ConcurrentHashMap
+
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
 import is.hail.utils.StringEscapeUtils._
@@ -88,10 +90,20 @@ object Parser extends JavaTokenParsers {
     eval(expr.parse(code), ec)
   }
 
+  private[this] val parserCache =
+    new ConcurrentHashMap[String, AST]()
+
   def parseToAST(code: String, ec: EvalContext): AST = {
-    val t = expr.parse(code)
-    t.typecheck(ec)
-    t
+    val maybeAst = parserCache.get(code)
+    if (maybeAst != null) {
+      maybeAst.typecheck(ec)
+      maybeAst
+    } else {
+      val t = expr.parse(code)
+      parserCache.put(code, t)
+      t.typecheck(ec)
+      t
+    }
   }
 
   def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
