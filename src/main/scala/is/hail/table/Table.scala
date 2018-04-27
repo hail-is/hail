@@ -7,7 +7,6 @@ import is.hail.expr.ir
 import is.hail.expr.ir.IR
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
-import is.hail.io.{CassandraConnector, SolrConnector}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -894,15 +893,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val act = implicitly[ClassTag[Annotation]]
     copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
-  }
-
-  def exportSolr(zkHost: String, collection: String, blockSize: Int = 100): Unit = {
-    SolrConnector.export(this, zkHost, collection, blockSize)
-  }
-
-  def exportCassandra(address: String, keyspace: String, table: String,
-    blockSize: Int = 100, rate: Int = 1000): Unit = {
-    CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 
   def repartition(n: Int, shuffle: Boolean = true): Table = copy2(rvd = rvd.coalesce(n, shuffle))

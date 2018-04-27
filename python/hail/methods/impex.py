@@ -36,23 +36,6 @@ def locus_interval_expr(contig, start, end, includes_start, includes_end,
                            includes_end)
 
 
-@typecheck(table=Table,
-           address=str,
-           keyspace=str,
-           table_name=str,
-           block_size=int,
-           rate=int)
-def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=1000):
-    """Export a :class:`.Table` to Cassandra.
-
-    Warning
-    -------
-    :func:`export_cassandra` is EXPERIMENTAL.
-    """
-
-    table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
-
-
 @typecheck(dataset=MatrixTable,
            output=str,
            precision=int)
@@ -205,21 +188,6 @@ def export_plink(dataset, output, **fam_args):
     base = require_biallelic(base, 'export_plink')
 
     Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
-
-
-@typecheck(table=Table,
-           zk_host=str,
-           collection=str,
-           block_size=int)
-def export_solr(table, zk_host, collection, block_size=100):
-    """Export a :class:`.Table` to Solr.
-
-    Warning
-    -------
-    :func:`export_solr` is EXPERIMENTAL.
-    """
-
-    table._jkt.exportSolr(zk_host, collection, block_size)
 
 
 @typecheck(dataset=MatrixTable,
