@@ -1,6 +1,6 @@
 package is.hail.io.plink
 
-import java.io.OutputStreamWriter
+import java.io.{OutputStream, OutputStreamWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.Region
@@ -88,7 +88,7 @@ object ExportPlink {
           val v = new RegionValueVariant(fullRowType)
           val a = new BimAnnotationView(fullRowType)
           val hcv = HardCallView(fullRowType)
-          val bp = new BitPacker(2, (i: Int) => bedOS.write(i))
+          val bp = new BitPacker(2, bedOS)
 
           it.foreach { rv =>
             v.setRegion(rv)
@@ -153,7 +153,7 @@ class BimAnnotationView(rowType: TStruct) extends View {
   }
 }
 
-class BitPacker(nBitsPerItem: Int, consume: (Int) => Unit) extends Serializable {
+class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
   require(nBitsPerItem > 0)
 
   private val bitMask = (1L << nBitsPerItem) - 1
@@ -168,7 +168,7 @@ class BitPacker(nBitsPerItem: Int, consume: (Int) => Unit) extends Serializable 
 
   private def write() {
     while (nBitsStaged >= 8) {
-      consume(data.toByte)
+      os.write(data.toByte)
       data = data >>> 8
       nBitsStaged -= 8
     }
@@ -176,7 +176,7 @@ class BitPacker(nBitsPerItem: Int, consume: (Int) => Unit) extends Serializable 
 
   def flush() {
     if (nBitsStaged > 0)
-      consume(data.toByte)
+      os.write(data.toByte)
     data = 0L
     nBitsStaged = 0
   }
