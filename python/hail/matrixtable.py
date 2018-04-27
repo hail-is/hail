@@ -2972,4 +2972,8 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
 
+    @typecheck_method(sepfields=dictof(str, str))
+    def make_table(self, separator = ".") -> Table:
+        return Table(self._jvds.makeTable(separator))
+
 matrix_table_type.set(MatrixTable)

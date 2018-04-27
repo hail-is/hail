@@ -1486,84 +1486,78 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
   }
 
-  def makeKT(
-    rowExpr: String,
-    entryExpr: String,
-    keyNames: Option[IndexedSeq[String]] = None,
-    seperator: String = "."
-  ): Table = {
-    requireColKeyString("make table")
+  def makeTable(separator: String = "."): Table = {
+    requireColKeyString("make_table")
+    requireUniqueSamples("make_table")
 
-    val vSymTab = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rowType))
-    val vEC = EvalContext(vSymTab)
-    val vA = vEC.a
+    val sampleIds = stringSampleIds
 
-    val (vNames, vTypes, vf) = Parser.parseNamedExprs(rowExpr, vEC)
-
-    val gSymTab = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rowType),
-      "sa" -> (2, colType),
-      "g" -> (3, entryType))
-    val gEC = EvalContext(gSymTab)
-    val gA = gEC.a
-
-    val (gNames, gTypes, gf) = Parser.parseNamedExprs(entryExpr, gEC)
-
-    val sig = TStruct(((vNames, vTypes).zipped ++
-      stringSampleIds.flatMap { s =>
-        (gNames, gTypes).zipped.map { case (n, t) =>
-          (if (n.isEmpty)
-            s
-          else
-            s + seperator + n, t)
-        }
-      }).toSeq: _*)
+    val ttyp = TableType(
+      TStruct(
+        matrixType.rowType.fields.map { f => f.name -> f.typ } ++
+          sampleIds.flatMap { s =>
+            matrixType.entryType.fields.map { f =>
+              val newName = if (f.name == "") s else s + separator + f.name
+              newName -> f.typ
+            }
+          }: _*),
+      matrixType.rowKey,
+      matrixType.globalType)
 
     val localNSamples = numCols
-    val localColValuesBc = colValues.broadcast
     val localRVRowType = rvRowType
-    val globalsBc = globals.broadcast
     val localEntriesIndex = entriesIndex
+    val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
+    val localEntryType = matrixType.entryType
 
-    val n = vNames.length + gNames.length * localNSamples
-    Table(hc,
-      rvd.mapPartitions { it =>
-        val fullRow = new UnsafeRow(localRVRowType)
+    new Table(hc,
+      TableLiteral(
+        TableValue(ttyp,
+          globals,
+          rvd.mapPartitions(ttyp.rowType) { it =>
+            val rvb = new RegionValueBuilder()
+            val rv2 = RegionValue()
+            val fullRow = new UnsafeRow(localRVRowType)
 
-        it.map { rv =>
-          fullRow.set(rv)
-          val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+            it.map { rv =>
+              fullRow.set(rv)
 
-          val a = new Array[Any](n)
+              val region = rv.region
 
-          var j = 0
-          vEC.setAll(globalsBc.value, fullRow)
-          vf().foreach { x =>
-            a(j) = x
-            j += 1
-          }
+              rvb.set(region)
+              rvb.start(ttyp.rowType)
+              rvb.startStruct()
 
-          var i = 0
-          while (i < localNSamples) {
-            val sa = localColValuesBc.value(i)
-            gEC.setAll(globalsBc.value, fullRow, sa, gs(i))
-            gf().foreach { x =>
-              a(j) = x
-              j += 1
+              var i = 0
+              while (i < localRVRowType.size) {
+                if (i != localEntriesIndex)
+                  rvb.addField(localRVRowType, rv, i)
+                i += 1
+              }
+
+              assert(localRVRowType.isFieldDefined(rv, localEntriesIndex))
+              val entriesAOff = localRVRowType.loadField(rv, localEntriesIndex)
+
+              i = 0
+              while (i < localNSamples) {
+                if (localEntriesType.isElementDefined(region, entriesAOff, i))
+                  rvb.addAllFields(localEntryType, region, localEntriesType.loadElement(region, entriesAOff, i))
+                else {
+                  var j = 0
+                  while (j < localEntryType.size) {
+                    rvb.setMissing()
+                    j += 1
+                  }
+                }
+
+                i += 1
+              }
+              rvb.endStruct()
+
+              rv2.set(region, rvb.end())
+              rv2
             }
-
-            i += 1
-          }
-
-          assert(j == n)
-          Row.fromSeq(a)
-        }
-      },
-      sig,
-      keyNames)
+          })))
   }
 
   def aggregateRowsJSON(expr: String): String = {
