@@ -554,7 +554,7 @@ def mean(expr) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
-    return stats(expr).mean
+    return sum(expr)/count(expr)
 
 @typecheck(expr=agg_expr(expr_float64))
 def stats(expr) -> StructExpression:
