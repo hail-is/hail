@@ -44,20 +44,12 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      val f1 = r1.loadFloat(o1)
-      val f2 = r2.loadFloat(o2)
-      if (f1 == f2) 0 else java.lang.Float.compare(f1, f2)
+      java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
     }
   }
 
   val ordering: ExtendedOrdering =
-    new ExtendedOrdering {
-      def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
-        val fx = x.asInstanceOf[Float]
-        val fy = y.asInstanceOf[Float]
-        if (fx == fy) 0 else java.lang.Float.compare(fx, fy)
-      }
-    }
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Float]])
 
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Float
