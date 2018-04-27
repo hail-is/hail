@@ -36,8 +36,6 @@ case class TLocus(rg: RGBase, override val required: Boolean = false) extends Co
 
   override def genNonmissingValue: Gen[Annotation] = Locus.gen(rg.asInstanceOf[ReferenceGenome])
 
-  override def desc: String = "A ``Locus(GR)`` is a Hail data type representing a specific genomic location in the Variant Dataset. It is parameterized by a reference genome (RG) such as GRCh37 or GRCh38."
-
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
   val ordering: ExtendedOrdering =
