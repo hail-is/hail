@@ -791,24 +791,25 @@ class BlockMatrixSuite extends SparkSuite {
     assert(entriesTable.select("{i: row.i, j: row.j}").same(expectedTable))
   }
   
-  def sparseEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
+  def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
     bm1.blocks.collect() sameElements bm2.blocks.collect()
   
   @Test
-  def sparse() {
+  def blockFiltered() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,
       5, 6, 7, 8,
       9, 10, 11, 12,
       13, 14, 15, 16))
     
-    val bm = toBM(lm, blockSize = 2)
- 
     val lm00 = lm(0 to 1, 0 to 1)
     val lm10 = lm(2 to 3, 0 to 1)
     val lm01 = lm(0 to 1, 2 to 3)
     val lm11 = lm(2 to 3, 2 to 3)
 
+    val bm = toBM(lm, blockSize = 2)
+
+    // test filterBlocks
     assert(bm.filterBlocks(Array.empty[Int]).blocks.count() == 0)
 
     val bm0 = bm.filterBlocks(Array(0))
@@ -834,23 +835,92 @@ class BlockMatrixSuite extends SparkSuite {
     assert(blocks123(0) == ((1, 0), lm10))
     assert(blocks123(1) == ((0, 1), lm01))
     assert(blocks123(2) == ((1, 1), lm11))
-
-    assert(bm.filterBlocks(Array(0, 1, 2, 3)).toBreezeMatrix() === lm)
     
+    assert(filteredEquals(bm, bm.filterBlocks(Array(0, 1, 2, 3))))
+    
+    // test multiple filters
+    assert(filteredEquals(bm13, bm13.filterBlocks(Array(1, 3))))
+    assert(filteredEquals(bm13, bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 3))))
+    assert(filteredEquals(bm13, bm13.filterBlocks(Array(1, 2, 3, 4))))
+    assert(filteredEquals(bm.filterBlocks(Array(1)),
+      bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 2)).filterBlocks(Array(0, 1, 3))))
+    
+    // test transpose, read/write identity, toIndexedRowMatrix, binary ops
     val transposeBI = Array(0 -> 0, 1 -> 2, 2 -> 1, 3 -> 3).toMap
+    val a = Array(1.0, 2.0, 3.0, 4.0)
     
-    // test transpose and read/write identity
     for { keep <- Array(Array(0), Array(1, 3), Array(2, 3), Array(1, 2, 3)) } {
-      val sbm = bm.filterBlocks(keep)
+      val fbm = bm.filterBlocks(keep)
       
-      assert(sparseEquals(sbm.transpose().transpose(), sbm))
+      assert(filteredEquals(fbm.transpose().transpose(), fbm))
       
-      assert(sparseEquals(
-        sbm.transpose(), bm.transpose().filterBlocks(keep.map(transposeBI).sorted)))
+      assert(filteredEquals(
+        fbm.transpose(), bm.transpose().filterBlocks(keep.map(transposeBI).sorted)))
       
       val fname = tmpDir.createTempFile("test")
-      sbm.write(fname)
-      assert(sparseEquals(sbm, BlockMatrix.read(hc, fname)))
+      fbm.write(fname)
+      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
+      
+      filteredEquals(fbm, fbm.toIndexedRowMatrix().toHailBlockMatrix(blockSize = 2))
+
+      assert(filteredEquals(fbm + 2, (bm + 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm - 2, (bm - 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
+
+      assert(filteredEquals(2 - fbm, (2 - bm).filterBlocks(keep)))
+      assert(filteredEquals(2 / fbm, (2 / bm).filterBlocks(keep)))
+      
+      assert(filteredEquals(fbm + fbm, (bm + bm).filterBlocks(keep)))
+      assert(filteredEquals(2 * fbm - fbm, (2 * bm - bm).filterBlocks(keep)))
+      assert(filteredEquals(fbm * fbm, (bm * bm).filterBlocks(keep)))
+      assert(filteredEquals(fbm / (fbm + 1), (bm / (bm + 1)).filterBlocks(keep)))
+      
+      assert(filteredEquals(fbm + 2, (bm + 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm - 2, (bm - 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
+
+      assert(filteredEquals(fbm.rowVectorAdd(a), bm.rowVectorAdd(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.rowVectorSub(a), bm.rowVectorSub(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.rowVectorMul(a), bm.rowVectorMul(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.rowVectorDiv(a), bm.rowVectorDiv(a).filterBlocks(keep)))
+
+      assert(filteredEquals(fbm.reverseRowVectorSub(a), bm.reverseRowVectorSub(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.reverseRowVectorDiv(a), bm.reverseRowVectorDiv(a).filterBlocks(keep)))
+
+      assert(filteredEquals(fbm.colVectorAdd(a), bm.colVectorAdd(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.colVectorSub(a), bm.colVectorSub(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.colVectorMul(a), bm.colVectorMul(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.colVectorDiv(a), bm.colVectorDiv(a).filterBlocks(keep)))
+
+      assert(filteredEquals(fbm.reverseColVectorSub(a), bm.reverseColVectorSub(a).filterBlocks(keep)))
+      assert(filteredEquals(fbm.reverseColVectorDiv(a), bm.reverseColVectorDiv(a).filterBlocks(keep)))
     }
+    
+    // test toBlockMatrix
+    val lm_zero = BDM.zeros[Double](2, 2)
+
+    assert(bm.filterBlocks(Array.empty[Int]).toBreezeMatrix() === BDM.zeros[Double](4, 4))
+
+    val lm0 = lm.copy
+    lm0(2 to 3, 0 to 1) := lm_zero
+    lm0(0 to 1, 2 to 3) := lm_zero
+    lm0(2 to 3, 2 to 3) := lm_zero
+    assert(bm0.toBreezeMatrix() === lm0)
+    
+    val lm13 = lm.copy
+    lm13(0 to 1, 0 to 1) := lm_zero
+    lm13(0 to 1, 2 to 3) := lm_zero
+    assert(bm13.toBreezeMatrix() === lm13)
+
+    val lm23 = lm.copy
+    lm23(0 to 1, 0 to 1) := lm_zero
+    lm23(2 to 3, 0 to 1) := lm_zero    
+    assert(bm23.toBreezeMatrix() === lm23)
+    
+    val lm123 = lm.copy
+    lm123(0 to 1, 0 to 1) := lm_zero
+    assert(bm123.toBreezeMatrix() === lm123)
   }
 }
