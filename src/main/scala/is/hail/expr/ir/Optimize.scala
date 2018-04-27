@@ -7,6 +7,9 @@ object Optimize {
     var ir = ir0
     ir = FoldConstants(ir)
     ir = Simplify(ir)
+    ir = PruneDeadFields(ir)
+
+    assert(ir.typ == ir0.typ, s"optimization changed type!\n  before: ${ir0.typ}\n  after:  ${ir.typ}")
     ir
   }
 

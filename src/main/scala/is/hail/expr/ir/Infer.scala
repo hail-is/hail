@@ -36,7 +36,7 @@ object Infer {
         val elt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)))
       case ArrayMap(a, name, body) =>
-        TArray(-body.typ)
+        TArray(-body.typ, a.typ.required)
       case ArrayFilter(a, name, cond) =>
         a.typ
       case ArrayFlatMap(a, name, body) =>
@@ -61,7 +61,6 @@ object Infer {
                 case Some(f2) => t2.updateKey(name, f2.index, a.typ)
                 case None => t2.appendKey(name, a.typ)
               }
-            case _ => TStruct(name -> a.typ)
           }
         }.asInstanceOf[TStruct]
       case GetField(o, name) =>

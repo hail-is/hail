@@ -230,6 +230,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def typ: TableType = tir.typ
   
   lazy val value: TableValue = {
+//    println("TABLE IR")
+//    println("========")
+//    println(Pretty(tir))
     val opt = ir.Optimize(tir)
 
     log.info("in Table.value: execute:\n" + ir.Pretty(opt))
@@ -506,7 +509,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         )
       case None =>
         if (!keep)
-          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+          filterAST = ApplyAST(filterAST.getPos, "!", Array(filterAST))
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
         val localSignature = signature
 

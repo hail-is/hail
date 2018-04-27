@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr.TableImport
-import is.hail.expr.ir.Interpret
+import is.hail.expr.ir.{Interpret, Pretty}
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.variant.{MatrixTable, ReferenceGenome$, VSMSubgen}

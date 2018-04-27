@@ -45,7 +45,7 @@ object TypeCheck {
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
         val expected = env.lookup(x)
-        assert(x.typ == expected, s"$name ${ x.typ.parsableString() } ${ expected.parsableString() }")
+        assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case x@ApplyBinaryPrimOp(op, l, r) =>
         check(l)
         check(r)

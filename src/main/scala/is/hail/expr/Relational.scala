@@ -30,6 +30,8 @@ abstract class BaseIR {
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
 
+  def deepCopy(): BaseIR = copy(newChildren = children.map(_.deepCopy()))
+
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
     copy(children.map(f))
   }
@@ -1745,7 +1747,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
 
   def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
-    val nFieldOrig = readerOpts.originalRowTypeSize
+    val nFieldOrig = readerOpts.originalType.size
     val rowFields = rowTyp.fields
 
     val useColIndices = readerOpts.useColIndices
@@ -1761,13 +1763,13 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       val rvb = ctx.rvb
       val rv = RegionValue(region)
 
+      val ab = new ArrayBuilder[String]
+      val sb = new StringBuilder
       it.map {
         _.map { line =>
-          val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
+          val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote, ab, sb)
           if (sp.length != nFieldOrig)
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
-
-          val kept = useColIndices.map(sp)
 
           rvb.set(region)
           rvb.start(rowTyp)
@@ -1778,7 +1780,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
             val f = rowFields(i)
             val name = f.name
             val typ = f.typ
-            val field = kept(i)
+            val field = sp(useColIndices(i))
             try {
               if (field == readerOpts.missing)
                 rvb.setMissing()
@@ -1949,6 +1951,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     right.typ.valueType.fields
   private val preNames = joinedFields.map(_.name).toArray
   private val (finalColumnNames, remapped) = mangle(preNames)
+
+  val rightFieldMapping: Map[String, String] = {
+   val remapMap = remapped.toMap
+    (right.typ.key.get.iterator.zip(left.typ.key.get.iterator) ++
+      right.typ.valueType.fieldNames.iterator.map(f => f -> remapMap.getOrElse(f, f))).toMap
+  }
 
   val newRowType = TStruct(joinedFields.zipWithIndex.map {
     case (fd, i) => (finalColumnNames(i), fd.typ)

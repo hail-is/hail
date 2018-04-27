@@ -886,7 +886,7 @@ object LoadVCF {
     val lines = ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions)
 
     val matrixType: MatrixType = MatrixType.fromParts(
-      TStruct.empty(true),
+      TStruct.empty(),
       colType = TStruct("s" -> TString()),
       colKey = Array("s"),
       rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString())) ++ vaSignature,
