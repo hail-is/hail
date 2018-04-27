@@ -11,7 +11,6 @@ object ExportBedBimFam {
 
   def bedRowTransformer(nSamples: Int, rowType: TStruct): Iterator[RegionValue] => Iterator[Array[Byte]] = { it =>
     val hcv = HardCallView(rowType)
-    val rv2 = RegionValue()
     val gtMap = Array(3, 2, 0)
     val nBytes = (nSamples + 3) / 4
     val a = new Array[Byte](nBytes)
