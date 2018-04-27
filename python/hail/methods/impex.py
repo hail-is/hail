@@ -781,7 +781,7 @@ def import_bgen(path,
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.Matrix Table`
     """
 
     rg = reference_genome._jrep if reference_genome else None
@@ -1678,3 +1678,19 @@ def read_table(path) -> Table:
     :class:`.Table`
     """
     return Table(Env.hc()._jhc.readTable(path))
+
+@typecheck(t=Table,
+           host=str,
+           port=int,
+           index=str,
+           index_type=str,
+           block_size=int,
+           config=nullable(dictof(str, str)),
+           verbose=bool)
+def export_elasticsearch(t, host, port, index, index_type, block_size, config=None, verbose=True):
+    """Export to Elasticsearch.
+
+    .. warning::
+        :func:`.export_elasticsearch` is EXPERIMENTAL.
+    """
+    Env.hail().io.ElasticsearchConnector.export(t._jt, host, port, index, index_type, block_size, config, verbose)
