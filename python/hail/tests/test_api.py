@@ -674,8 +674,9 @@ class MatrixTests(unittest.TestCase):
         for name, f in x:
             r = f(hl.struct(x=agg.sum(ds[name]) + ds.g1,
                             y=agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1,
-                            z=agg.sum(ds.g1 + ds[name]) + ds.g1))
-            self.assertEqual(convert_struct_to_dict(r), {u'x': 15, u'y': 13, u'z': 40})
+                            z=agg.sum(ds.g1 + ds[name]) + ds.g1,
+                            mean=agg.mean(ds[name])))
+            self.assertEqual(convert_struct_to_dict(r), {u'x': 15, u'y': 13, u'z': 40, u'mean': 2.0})
 
             r = f(5)
             self.assertEqual(r, 5)

@@ -113,12 +113,15 @@ class Tests(unittest.TestCase):
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
                                       z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
-                                      arr_sum=agg.array_sum([1, 2, hl.null(tint32)])))
+                                      arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
+                                      bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
+                                      mean=agg.mean(table.idx)))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
         self.assertEqual(r.arr_sum, [10, 20, 0])
+        self.assertEqual(r.bind_agg, 5)
 
         r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
                                       lessthan6=agg.fraction(table.idx < 6),
