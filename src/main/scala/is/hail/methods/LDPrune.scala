@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.rvd.RVDContext
+import java.io.InputStream
 import java.util
 
 import is.hail.annotations._
@@ -10,6 +11,7 @@ import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._
 import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, UnpartitionedRVD}
 import is.hail.variant._
+import is.hail.io._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -285,7 +287,16 @@ object LDPrune {
     }
   }
 
-  private def pruneGlobal(inputRDD: OrderedRVD,
+  private[this] def decodeGeneralRDD(
+    encodedData: GeneralRDD[Array[Byte]],
+    dec: InputStream => Decoder
+  ): ContextRDD[RVDContext, Array[Iterator[RegionValue]]] =
+    ContextRDD.weaken[RVDContext](encodedData).cmapPartitions { (ctx, it) =>
+      val rv = RegionValue(ctx.region)
+      it.map(_.map(_.map(RVD.bytesToRegionValue(dec, ctx.region, rv))))
+    }
+
+  private[this] def pruneGlobal(inputRDD: OrderedRVD,
     r2Threshold: Double, windowSize: Int): (OrderedRVD, Long) = {
     val sc = inputRDD.sparkContext
 
@@ -305,7 +316,7 @@ object LDPrune {
       Array.range(minPart, partitionId + 1).reverse
     }
 
-    val pruneF = (x: Array[Iterator[RegionValue]]) => {
+    val pruneF = (ctx: RVDContext, x: Array[Iterator[RegionValue]]) => {
       val nPartitions = x.length
       val targetIterator = x(0)
       val prevPartitions = x.drop(1).reverse
@@ -317,8 +328,10 @@ object LDPrune {
         targetIterator
       else {
         var targetData = targetIterator.map(_.copy()).toArray
+        ctx.region.clear()
 
         prevPartitions.foreach { it =>
+          ctx.region.clear()
           it.foreach { prevRV =>
             bpvvPrev.setRegion(prevRV)
             targetData = targetData.filter { rv =>
@@ -357,12 +370,12 @@ object LDPrune {
     val dec = RVD.wireCodec.buildDecoder(localRowType)
     for (i <- 0 until nPartitions) {
       val (rvds, inputs) = generalRDDInputs(i)
-      val grouped = ContextRDD.weaken[RVDContext](
-        new GeneralRDD(sc, rvds.map(_.encodedRDD(RVD.wireCodec)), Array(inputs)))
-      val pruned = grouped.cmapPartitions { (ctx, it) =>
-        val rv = RegionValue()
-        it.map(_.map(_.map(RVD.bytesToRegionValue(dec, ctx.region, rv))))
-      }.flatMap(pruneF)
+      val grouped = new GeneralRDD(
+        sc,
+        rvds.map(_.encodedRDD(RVD.wireCodec)),
+        Array(inputs))
+      val pruned = decodeGeneralRDD(grouped, dec)
+        .cflatMap(pruneF)
 
       pruneIntermediates(i) = GlobalPruneIntermediate(
         rvd = new UnpartitionedRVD(inputRDD.typ.rowType, pruned),
@@ -371,15 +384,12 @@ object LDPrune {
         persist = false) // creating single partition RDDs with partition index = 0
     }
 
-    val grouped = ContextRDD.weaken[RVDContext](
-      new GeneralRDD(
-        sc,
-        pruneIntermediates.map(_.rvd.encodedRDD(RVD.wireCodec)),
-        pruneIntermediates.zipWithIndex.map { case (gpi, i) => Array((i, gpi.index)) }))
-    val pruned = grouped.cmapPartitions { (ctx, it) =>
-      val rv = RegionValue()
-      it.map(_.map(_.map(RVD.bytesToRegionValue(dec, ctx.region, rv))))
-    }.flatMap(pruneF)
+    val grouped = new GeneralRDD(
+      sc,
+      pruneIntermediates.map(_.rvd.encodedRDD(RVD.wireCodec)),
+      pruneIntermediates.zipWithIndex.map { case (gpi, i) => Array((i, gpi.index)) })
+    val pruned = decodeGeneralRDD(grouped, dec)
+      .cflatMap(pruneF)
 
     val prunedRVD = OrderedRVD(inputRDD.typ, inputRDD.partitioner, pruned)
       .persist(StorageLevel.MEMORY_AND_DISK)
