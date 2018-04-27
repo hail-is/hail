@@ -475,6 +475,7 @@ object OrderedRVD {
     */
   def localKeySort(
     consumerRegion: Region,
+    producerRegion: Region,
     typ: OrderedRVDType,
     // it: Iterator[RegionValue[rowType]]
     it: Iterator[RegionValue]
@@ -496,6 +497,7 @@ object OrderedRVD {
             val rv = bit.next()
             // FIXME ugh, no good answer here
             q.enqueue(rv.copy())
+            producerRegion.clear()
           } while (bit.hasNext && typ.pkInRowOrd.compare(q.head, bit.head) == 0)
         }
 
@@ -675,7 +677,7 @@ object OrderedRVD {
             partitioner,
             adjustedRDD.cmapPartitionsAndContext { (consumerCtx, it) =>
               val producerCtx = consumerCtx.freshContext
-              localKeySort(consumerCtx.region, typ, it.flatMap(_(producerCtx)))
+              localKeySort(consumerCtx.region, producerCtx.region, typ, it.flatMap(_(producerCtx)))
             })
       }
     } else {
