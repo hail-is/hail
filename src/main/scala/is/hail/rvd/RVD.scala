@@ -195,7 +195,7 @@ trait RVD {
   ): ContextRDD[RVDContext, RegionValue] = {
     val dec = codec.buildDecoder(rowType)
     stable.cmapPartitions { (ctx, it) =>
-      val rv = RegionValue()
+      val rv = RegionValue(ctx.region)
       it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
     }
   }
