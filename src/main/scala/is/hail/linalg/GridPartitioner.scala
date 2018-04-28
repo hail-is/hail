@@ -5,7 +5,7 @@ import breeze.linalg.{DenseVector => BDV}
 import is.hail.utils._
 
 
-case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeFiltered: Option[Array[Int]] = None) extends Partitioner {
+case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]] = None) extends Partitioner {
   require(nRows > 0 && nRows <= Int.MaxValue.toLong * blockSize)
   require(nCols > 0 && nCols <= Int.MaxValue.toLong * blockSize)
   
@@ -18,6 +18,10 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeFilter
 
   val maxNBlocks: Long = nBlockRows.toLong * nBlockCols
   
+  require(maybeSparse.forall(bis => bis.isEmpty ||
+    (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
+      bis.length < maxNBlocks))) // a sparse block matrix cannot have all blocks present
+
   val lastBlockRowNRows: Int = offsetBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = offsetBlockOffset(nCols - 1) + 1
   
@@ -38,11 +42,14 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeFilter
   }
   
   def filterBlocks(blocksToKeep: Array[Int]): (GridPartitioner, Array[Int]) = {
-    val (filteredBlocks, partsToKeep) = maybeFiltered match {
-      case Some(blocks) =>
+    require(blocksToKeep.isEmpty ||
+      (blocksToKeep.isIncreasing && blocksToKeep.head >= 0 && blocksToKeep.last < maxNBlocks)) // can be moved into Some
+    
+    val (filteredBlocks, partsToKeep) = maybeSparse match {
+      case Some(bis) =>
         val blocksToKeepSet = blocksToKeep.toSet
-        blocks.zipWithIndex.filter { case (bi, _) => blocksToKeepSet(bi) }.unzip
-      case None => (blocksToKeep, blocksToKeep)  // FIXME: error message if not valid
+        bis.zipWithIndex.filter { case (bi, _) => blocksToKeepSet(bi) }.unzip
+      case None => (blocksToKeep, blocksToKeep)
     }
     
     val filteredGP =
@@ -54,21 +61,36 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeFilter
     (filteredGP, partsToKeep)
   }
   
-  require(maybeFiltered.forall(bis => bis.isEmpty ||
-    (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
-      bis.length < maxNBlocks))) // a filtered block matrix cannot have all blocks present
+  def intersectBlocks(that: GridPartitioner): Option[Array[Int]] = {
+    (maybeSparse, that.maybeSparse) match {
+      case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
+      case (Some(bis), None) => Some(bis)
+      case (None, Some(bis2)) => Some(bis2)
+      case (None, None) => None
+    }
+  }
   
-  val partIndexBlockIndex: Int => Int = maybeFiltered match {
+  def unionBlocks(that: GridPartitioner): Option[Array[Int]] = {
+    (maybeSparse, that.maybeSparse) match {
+      case (Some(bis), Some(bis2)) =>
+        val union = bis.union(bis2)
+        scala.util.Sorting.quickSort(union)
+        Some(union)
+      case _ => None
+    }
+  }
+  
+  val partIndexBlockIndex: Int => Int = maybeSparse match {
     case Some(bis) => bis
     case None => pi => pi
   }
 
-  val blockIndexPartIndex: Int => Int = maybeFiltered match {
+  val blockIndexPartIndex: Int => Int = maybeSparse match {
     case Some(bis) => bis.zipWithIndex.toMap
     case None => bi => bi
   }
   
-  override val numPartitions: Int = maybeFiltered match {
+  override val numPartitions: Int = maybeSparse match {
     case Some(bis) => bis.length
     case None =>
       assert(maxNBlocks < Int.MaxValue)
@@ -85,13 +107,13 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeFilter
     def transposeBI(bi: Int): Int = coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
 
     val (transposedBI, transposePI) =
-      maybeFiltered.getOrElse((0 until numPartitions).toArray)
+      maybeSparse.getOrElse((0 until numPartitions).toArray)
       .map(transposeBI)
       .zipWithIndex
       .sortBy(_._1)
       .unzip
 
-    val transposedGP = maybeFiltered match {
+    val transposedGP = maybeSparse match {
       case Some(bis) => GridPartitioner(blockSize, nCols, nRows, Some(transposedBI))
       case None => gpT
     }
