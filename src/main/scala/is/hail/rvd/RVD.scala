@@ -44,7 +44,7 @@ object RVDSpec {
     val hConf = hc.hadoopConf
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
-      using(hConf.unsafeReader(f)) { in =>
+      hConf.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
           HailContext.readRowsPartition(codecSpec.buildDecoder(rowType))(ctx, in)
             .map { rv =>
@@ -111,7 +111,7 @@ object RVD {
     hConf.mkDir(path + "/parts")
 
     val part0Count =
-      using(hConf.unsafeWriter(path + "/parts/part-0")) { os =>
+      hConf.writeFile(path + "/parts/part-0") { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
@@ -202,7 +202,7 @@ trait RVD {
 
   private[rvd] def stably(
     f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
-  ): ContextRDD[RVDContext, RegionValue] = destabilize(f(stabilize(crdd)))
+  ): ContextRDD[RVDContext, RegionValue] = stably(f)
 
   private[rvd] def stably(
     unstable: ContextRDD[RVDContext, RegionValue],
@@ -234,8 +234,6 @@ trait RVD {
       }
     }
 
-  // SOMEWHAT UNSAFE: the values produced will not be in the consumer's region,
-  // you must be careful to copy the value into the appropriate region
   def boundary: RVD
 
   def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
