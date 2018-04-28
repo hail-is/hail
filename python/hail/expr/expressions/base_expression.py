@@ -120,7 +120,7 @@ def _to_expr(e, dtype):
                 assert dtype == tint64
                 return hl.int64(e)
         return e
-    elif not is_container(dtype):
+    elif not is_compound(dtype):
         # these are not container types and cannot contain expressions if we got here
         return e
     elif isinstance(dtype, tstruct):
@@ -218,7 +218,7 @@ def _to_expr(e, dtype):
 
 def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
     if len(exprs) == 0:
-        return Indices(), LinkedList(Join), LinkedList(Aggregation)
+        return Indices(), LinkedList(Aggregation), LinkedList(Join)
     try:
         new_indices = Indices.unify(*[e._indices for e in exprs])
     except ExpressionException:
@@ -227,7 +227,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
         sources = defaultdict(lambda: [])
         for e in exprs:
             from .expression_utils import get_refs
-            for name, inds in get_refs(e, *[e for a in e._aggregations for e in a._exprs]):
+            for name, inds in get_refs(e, *[e for a in e._aggregations for e in a._exprs]).items():
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."
                                   "\n    Found fields from {n} objects:{fields}".format(
@@ -275,6 +275,21 @@ def unify_types(*ts):
     else:
         return None
 
+def unify_exprs(*exprs: 'Expression') -> Tuple:
+    assert len(exprs) > 0
+    types = {e.dtype for e in exprs}
+
+    # all types are the same
+    if len(types) == 1:
+        return exprs + (True,)
+
+    for t in types:
+        c = expressions.coercer_from_dtype(t)
+        if all(c.can_coerce(e.dtype) for e in exprs):
+            return tuple([c.coerce(e) for e in exprs]) + (True,)
+
+    # cannot coerce all types to the same type
+    return exprs + (False,)
 
 class Expression(object):
     """Base class for Hail expressions."""
@@ -323,7 +338,7 @@ class Expression(object):
             '    {inds}{agg_tag}{maybe_bar}{agg}{joins}\n' \
             '{bar}'.format(bar=bar,
                            t=self.dtype.pretty(indent=4),
-                           src=self._indices.source.__class__,
+                           src=self._indices.source,
                            inds=list(self._indices.axes),
                            maybe_bar='\n' + bar + '\n' if join_str or agg_str else '',
                            agg_tag=agg_tag,
@@ -525,12 +540,11 @@ class Expression(object):
             ``True`` if the two expressions are equal.
         """
         other = to_expr(other)
-        t = unify_types(self._type, other._type)
-        if t is None:
-            raise TypeError("Invalid '==' comparison, cannot compare expressions of type '{}' and '{}'".format(
-                self._type, other._type
-            ))
-        return self._bin_op("==", other, tbool)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '==' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("==", right, tbool)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -566,12 +580,11 @@ class Expression(object):
             ``True`` if the two expressions are not equal.
         """
         other = to_expr(other)
-        t = unify_types(self._type, other._type)
-        if t is None:
-            raise TypeError("Invalid '!=' comparison, cannot compare expressions of type '{}' and '{}'".format(
-                self._type, other._type
-            ))
-        return self._bin_op("!=", other, tbool)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '!=' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("!=", right, tbool)
 
     def _to_table(self, name):
         source = self._indices.source
@@ -671,14 +684,36 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
+        print(self._show(n, width, truncate, types))
+
+    def _show(self, n=10, width=90, truncate=None, types=True):
         name = '<expr>'
         source = self._indices.source
+        if isinstance(source, hl.Table):
+            if self is source.row:
+                return source._show(n, width, truncate, types)
+            elif self is source.key:
+                return source.select(*source.key)._show(n, width, truncate, types)
+        elif isinstance(source, hl.MatrixTable):
+            if self is source.row:
+                return source.rows()._show(n, width, truncate, types)
+            elif self is source.row_key:
+                return source.rows().select(*source.row_key)._show(n, width, truncate, types)
+            if self is source.col:
+                return source.cols()._show(n, width, truncate, types)
+            elif self is source.col_key:
+                return source.cols().select(*source.col_key)._show(n, width, truncate, types)
+            if self is source.entry:
+                return (source.entries()
+                        .select(*source.row_key, *source.col_key, *source.entry)
+                        ._show(n, width, truncate, types))
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
         if name in t.key:
             t = t.select(name)
-        t.show(n, width, truncate, types)
+        return t._show(n, width, truncate, types)
+
 
     @typecheck_method(n=int)
     def take(self, n):
@@ -792,8 +827,3 @@ class Aggregable(object):
     @property
     def dtype(self) -> HailType:
         return self._type
-
-
-FieldRef = Union[str, Expression]
-FieldRefArgs = Tuple[FieldRef]
-NamedExprs = Dict[str, Expression]

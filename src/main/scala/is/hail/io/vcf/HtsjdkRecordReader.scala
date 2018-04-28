@@ -26,7 +26,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
 
   import HtsjdkRecordReader._
 
-  def readVariantInfo(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct) {
+  def readVariantInfo(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, infoFlagFieldNames: Set[String]) {
     // locus, alleles added via VCFLine
 
     // rsid
@@ -58,13 +58,15 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     rvb.startStruct()
     infoType.fields.foreach { f =>
       val a = vc.getAttribute(f.name)
-      addAttribute(rvb, a, f.typ, -1)
+      addAttribute(rvb, a, f.typ, -1, isFlag = infoFlagFieldNames.contains(f.name))
     }
     rvb.endStruct() // info
   }
 
-  def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, dropSamples: Boolean, canonicalFlags: Int): Unit = {
-    readVariantInfo(vc, rvb, infoType)
+  def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, dropSamples: Boolean,
+    canonicalFlags: Int, infoFlagFieldNames: Set[String]): Unit = {
+
+    readVariantInfo(vc, rvb, infoType, infoFlagFieldNames)
 
     if (dropSamples) {
       rvb.startArray(0) // gs
@@ -73,7 +75,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     }
 
     val nAlleles = vc.getNAlleles
-    val nGenotypes = Variant.nGenotypes(nAlleles)
+    val nGenotypes = VariantMethods.nGenotypes(nAlleles)
     val haploidPL = new Array[Int](nGenotypes)
 
     val nCanonicalFields = Integer.bitCount(canonicalFlags)
@@ -203,10 +205,13 @@ object HtsjdkRecordReader {
     }
   }
 
-  def addAttribute(rvb: RegionValueBuilder, attr: Any, t: Type, nAlleles: Int) {
+  def addAttribute(rvb: RegionValueBuilder, attr: Any, t: Type, nAlleles: Int, isFlag: Boolean = false) {
     ((attr, t): @unchecked) match {
       case (null, _) =>
-        rvb.setMissing()
+        if (isFlag)
+          rvb.addBoolean(false)
+        else
+          rvb.setMissing()
       case (".", _) =>
         rvb.setMissing()
       case (s: String, TArray(_: TInt32, _)) =>

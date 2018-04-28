@@ -299,7 +299,6 @@ class TableSuite extends SparkSuite {
     val ktResult3 = Table(hc, resRDD3, TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())), key = Array("Sample"))
     ktResult3.typeCheck()
 
-    intercept[HailException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
     assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
 
@@ -315,9 +314,11 @@ class TableSuite extends SparkSuite {
       .expandTypes()
       .flatten()
       .select(Array("row.`info.MQRankSum`"))
-      .copy2(globalSignature = TStruct.empty())
+      .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
-    val df = kt.toDF(sqlContext)
+    val df = kt
+      .expandTypes()
+      .toDF(sqlContext)
     assert(Table.fromDF(hc, df).same(kt))
   }
 
@@ -328,9 +329,11 @@ class TableSuite extends SparkSuite {
       .rowsTable()
       .annotate("locus = str(row.locus), alleles = str(row.alleles), filters = row.filters.toArray()")
       .flatten()
-      .copy2(globalSignature = TStruct.empty())
+      .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
-    val df = kt.toDF(sqlContext)
+    val df = kt
+      .expandTypes()
+      .toDF(sqlContext)
     val kt2 = Table.fromDF(hc, df, key = Array("locus", "alleles"))
     assert(kt2.same(kt))
   }
@@ -350,14 +353,16 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val Array(ktMean, ktStDev) = kt.query(Array("AGG.map(r => r.qPhen.toFloat64).stats().mean", "AGG.map(r => r.qPhen.toFloat64).stats().stdev")).map(_._1)
+    val IndexedSeq(ktMean, ktStDev) = kt.aggregate(
+      "[AGG.map(r => r.qPhen.toFloat64).stats().mean , " +
+        "AGG.map(r => r.qPhen.toFloat64).stats().stdev]")._1.asInstanceOf[IndexedSeq[Double]]
 
     assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
     assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))
 
     val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
 
-    val ktCounter = kt.query("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
+    val ktCounter = kt.aggregate("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
   }
@@ -406,7 +411,7 @@ class TableSuite extends SparkSuite {
       .keyBy("i").join(Table.range(hc, 100), "inner")
       .signature.fields.map(f => (f.name, f.typ)).toSet
       ===
-      Set(("index", TInt32()), ("i", TInt32()), ("j", TFloat64())))
+      Set(("idx", TInt32()), ("i", TInt32()), ("j", TFloat64())))
   }
 
   @Test def testGlobalAnnotations() {
@@ -415,14 +420,14 @@ class TableSuite extends SparkSuite {
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
       .annotateGlobalExpr("another = global.foo[1]")
 
-    assert(kt.filter("global.dict.get(row.index) == \"bar\"", true).count() == 1)
+    assert(kt.filter("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz = global.foo").forall("row.baz == [1,2,3]"))
     assert(kt.forall("global.foo == [1,2,3]"))
-    assert(kt.exists("global.dict.get(row.index) == \"bar\""))
+    assert(kt.exists("global.dict.get(row.idx) == \"bar\""))
 
-    val gkt = kt.aggregate("index = row.index", "x = AGG.map(r => global.dict.get(r.index)).collect()[0]")
+    val gkt = kt.aggregate("idx = row.idx", "x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
-    assert(kt.select(Array("baz = global.dict.get(row.index)")).exists("row.baz == \"bar\""))
+    assert(kt.select(Array("baz = global.dict.get(row.idx)")).exists("row.baz == \"bar\""))
 
     val tmpPath = tmpDir.createTempFile(extension = "kt")
     kt.write(tmpPath)
@@ -482,5 +487,9 @@ class TableSuite extends SparkSuite {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
     val kt2 = kt.selectGlobal("{x: 5}").selectGlobal("{y: global.x}")
     assert(kt2.globalSignature == TStruct("y" -> TInt32()) && kt2.globals.value.asInstanceOf[Row].get(0) == 5)
+  }
+
+  @Test def testQueryIR() {
+    Table.range(hc, 100).aggregate("AGG.map(x => row.idx + 4).sum()")._1
   }
 }

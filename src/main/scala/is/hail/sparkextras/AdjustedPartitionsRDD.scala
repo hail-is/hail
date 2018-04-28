@@ -1,5 +1,6 @@
 package is.hail.sparkextras
 
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
 
@@ -32,8 +33,8 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
       }
   }
 
-  override def getDependencies: Seq[Dependency[_]] = Seq(new NarrowDependency[T](prev) {
-    override def getParents(partitionId: Int): Seq[Int] = adjustments(partitionId).map(_.index).toSeq
+  override def getDependencies: Seq[Dependency[_]] = FastSeq(new NarrowDependency[T](prev) {
+    override def getParents(partitionId: Int): Seq[Int] = adjustments(partitionId).map(_.index).toFastSeq
   })
 
   override def clearDependencies() {
@@ -58,6 +59,6 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
     val m = locationAvail.values.max
     locationAvail.filter(_._2 == m)
       .keys
-      .toSeq
+      .toFastSeq
   }
 }

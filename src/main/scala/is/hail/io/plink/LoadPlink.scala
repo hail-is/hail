@@ -187,8 +187,8 @@ object LoadPlink {
     }
 
     new MatrixTable(hc, matrixType,
-      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
-      sampleAnnotations,
+      BroadcastRow(Row.empty, matrixType.globalType, sc),
+      BroadcastIndexedSeq(sampleAnnotations, TArray(matrixType.colType), sc),
       OrderedRVD.coerce(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 

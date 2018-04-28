@@ -1,5 +1,6 @@
 package is.hail.sparkextras
 
+import is.hail.utils.FastSeq
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
 
@@ -24,8 +25,8 @@ class ReorderedPartitionsRDD[T](@transient var prev: RDD[T], @transient val oldI
     parent.compute(split.asInstanceOf[ReorderedPartitionsRDDPartition].oldPartition, context)
   }
 
-  override def getDependencies: Seq[Dependency[_]] = Seq(new NarrowDependency[T](prev) {
-    override def getParents(partitionId: Int): Seq[Int] = Seq(oldIndices(partitionId))
+  override def getDependencies: Seq[Dependency[_]] = FastSeq(new NarrowDependency[T](prev) {
+    override def getParents(partitionId: Int): Seq[Int] = FastSeq(oldIndices(partitionId))
   })
 
   override def clearDependencies() {

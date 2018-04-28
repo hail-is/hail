@@ -1,15 +1,13 @@
 package is.hail.methods
 
-import is.hail.utils._
-
 import scala.io.Source
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.expr.types.TString
-import is.hail.stats.ComputeRRM
+import is.hail.utils._
+import is.hail.testUtils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 /**
@@ -23,10 +21,9 @@ class KinshipMatrixSuite extends SparkSuite {
     IndexedRow(3L, Vectors.dense(13, 14, 15, 16))
   )
 
-
   @Test def testFilterSamplesDimensions() {
-    val km = ComputeRRM(hc.baldingNicholsModel(1, 15, 15)
-      .annotateColsExpr("s = str(sa.sample_idx)")
+    val km = TestUtils.computeRRM(hc, hc.baldingNicholsModel(1, 15, 15)
+      .annotateColsExpr("s" -> "str(sa.sample_idx)")
       .keyColsBy("s"))
 
     val kmFilt = km.filterSamples { s =>

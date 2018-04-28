@@ -1,8 +1,10 @@
 package is.hail.expr.types
 
+import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -31,6 +33,7 @@ class TString(override val required: Boolean) extends Type {
 
   override def fundamentalType: Type = TBinary(required)
 
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = TBinary(required).codeOrdering(mb)
 }
 
 object TString {

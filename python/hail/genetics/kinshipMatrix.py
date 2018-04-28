@@ -6,7 +6,7 @@ class KinshipMatrix(object):
     """
     Represents a symmetric matrix encoding the relatedness of each pair of samples in the accompanying sample list.
 
-    **We plan to remove this class in Hail 0.2 while maintaining its functionality**.
+    **We plan to remove this class in Hail 0.2 while maintaining its functionality.**
 
     The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
@@ -17,12 +17,11 @@ class KinshipMatrix(object):
         self._jkm = jkm
 
     @classmethod
-    def _from_block_matrix(cls, sample_schema, bm, sample_ids, n_rows):
+    def _from_block_matrix(cls, bm, col_keys, n_rows):
         return cls(Env.hail().methods.KinshipMatrix.apply(
             Env.hc()._jhc,
-            sample_schema._jtype,
             bm._jbm,
-            sample_ids,
+            col_keys._jt,
             n_rows))
 
     @property

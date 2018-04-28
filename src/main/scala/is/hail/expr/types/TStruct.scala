@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.{EvalContext, HailRep, Parser}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -71,6 +72,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   override val alignment: Long = TBaseStruct.alignment(types)
 
   val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = CodeOrdering.rowOrdering(this, mb)
 
   def fieldByName(name: String): Field = fields(fieldIdx(name))
 
@@ -278,7 +281,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (t.asInstanceOf[TStruct], f)
   }
 
-  def updateKey(key: String, i: Int, sig: Type): Type = {
+  def updateKey(key: String, i: Int, sig: Type): TStruct = {
     assert(fieldIdx.contains(key))
 
     val newFields = Array.fill[Field](fields.length)(null)
@@ -288,7 +291,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     TStruct(newFields)
   }
 
-  def deleteKey(key: String, index: Int): Type = {
+  def deleteKey(key: String, index: Int): TStruct = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
       TStruct.empty()
@@ -523,6 +526,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
     (t, selectF)
   }
+
+  def typeAfterSelect(keep: Array[Int]): TStruct =
+    TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
   override val fundamentalType: TStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)

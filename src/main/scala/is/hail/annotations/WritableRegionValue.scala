@@ -85,13 +85,7 @@ class RegionValueArrayBuffer(val t: Type)
     (t: @unchecked) match {
       case t: TStruct =>
         rvb.start(t)
-        rvb.startStruct()
-        var i = 0
-        while (i < t.size) {
-          rvb.addField(fromT, fromRV, fromFieldIdx(i))
-          i += 1
-        }
-        rvb.endStruct()
+        rvb.selectRegionValue(fromT, fromFieldIdx, fromRV)
         idx += rvb.end()
     }
     this

@@ -73,6 +73,8 @@ class ExprSuite extends SparkSuite {
 
     assert(run[Int](""""abc".length""").contains(3))
     assert(run[IndexedSeq[String]](""""a,b,c".split(",")""").contains(Array("a", "b", "c"): IndexedSeq[String]))
+    assert(run[IndexedSeq[String]](""" "1:5-100".firstMatchIn("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)") """).contains(Array("1", "5", "100"): IndexedSeq[String]))
+    assert(run[IndexedSeq[String]](""" "".firstMatchIn("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)") """).isEmpty)
     assert(run[Int]("(3.0).toInt32()").contains(3))
     assert(run[Double]("(3).toFloat64()").contains(3.0))
   }
@@ -267,12 +269,6 @@ class ExprSuite extends SparkSuite {
       && eval[Int]("gs.homVar[1]").contains(1))
     assert(eval[Int]("gs.hetNonRef35[0]").contains(3)
       && eval[Int]("gs.hetNonRef35[1]").contains(5))
-
-    assert(eval[Int]("orElse(i, 3)").contains(5))
-    assert(eval[Int]("orElse(m, 3)").contains(3))
-
-    assert(eval[Int]("orMissing(t, 3)").contains(3))
-    assert(eval[Int]("orMissing(f, 3)").isEmpty)
 
     assert(eval[Boolean]("isMissing(i)").contains(false))
     assert(eval[Boolean]("isDefined(i)").contains(true))
@@ -1000,10 +996,6 @@ class ExprSuite extends SparkSuite {
 
       property("table") = forAll(g.filter { case (t, a) => !t.isOfType(TFloat64()) && a != null }.resize(10)) { case (t, a) =>
         TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
-
-      property("spark") = forAll(g) { case (t, a) =>
-        SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t), t) == a
       }
     }
 

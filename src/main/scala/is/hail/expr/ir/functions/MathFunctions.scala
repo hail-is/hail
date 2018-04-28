@@ -32,6 +32,10 @@ object MathFunctions extends RegistryFunctions {
 
   def isnan(d: Double): Boolean = d.isNaN
 
+  def pcoin(p: Double): Boolean = math.random < p
+
+  def runif(min: Double, max: Double): Double = min + (max - min) * math.random
+
   def registerAll() {
     val thisClass = getClass
     val mathPackageClass = Class.forName("scala.math.package$")
@@ -53,17 +57,32 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("**", TFloat64(), TFloat64(), TFloat64())(mathPackageClass, "pow")
     registerScalaFunction("gamma", TFloat64(), TFloat64())(thisClass, "gamma")
 
-    registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TString(), TFloat64())(statsPackageClass, "binomTest")
+    registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TInt32(), TFloat64())(statsPackageClass, "binomTest")
 
     registerScalaFunction("dbeta", TFloat64(), TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dbeta")
 
-    registerScalaFunction("rnorm", TFloat64(), TFloat64(), TFloat64())(thisClass, "rnorm")
+    registerScalaFunction("rnorm", TFloat64(), TFloat64(), TFloat64())(thisClass, "rnorm", isDeterministic = false)
 
     registerScalaFunction("pnorm", TFloat64(), TFloat64())(statsPackageClass, "pnorm")
     registerScalaFunction("qnorm", TFloat64(), TFloat64())(statsPackageClass, "qnorm")
 
-    registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois")
+    registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
     // other rpois returns an array
+
+    registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
+    registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
+
+    registerScalaFunction("ppois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "ppois")
+    registerScalaFunction("ppois", TFloat64(), TFloat64(), TBoolean(), TBoolean(), TFloat64())(statsPackageClass, "ppois")
+
+    registerScalaFunction("qpois", TFloat64(), TFloat64(), TInt32())(statsPackageClass, "qpois")
+    registerScalaFunction("qpois", TFloat64(), TFloat64(), TBoolean(), TBoolean(), TInt32())(statsPackageClass, "qpois")
+
+    registerScalaFunction("pchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "chiSquaredTail")
+    registerScalaFunction("qchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "inverseChiSquaredTail")
+
+    registerScalaFunction("pcoin", TFloat64(), TBoolean())(thisClass, "pcoin", isDeterministic = false)
+    registerScalaFunction("runif", TFloat64(), TFloat64(), TFloat64())(thisClass, "runif", isDeterministic = false)
 
     registerScalaFunction("floor", TFloat32(), TFloat32())(thisClass, "floor")
     registerScalaFunction("floor", TFloat64(), TFloat64())(thisClass, "floor")

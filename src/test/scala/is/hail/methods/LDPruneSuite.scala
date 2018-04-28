@@ -6,7 +6,6 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
-import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -111,6 +110,7 @@ object LDPruneSuite {
 class LDPruneSuite extends SparkSuite {
   val bytesPerCoreMB = 256
   val nCores = 4
+  val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
@@ -214,13 +214,9 @@ class LDPruneSuite extends SparkSuite {
   }
 
   object Spec extends Properties("LDPrune") {
-    val compGen = for (r2: Double <- Gen.choose(0.5, 1.0);
-    windowSize: Int <- Gen.choose(0, 5000);
-    nPartitions: Int <- Gen.choose(5, 10)) yield (r2, windowSize, nPartitions)
-
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-      v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
-      v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
+    v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
+    v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
     ) yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
@@ -245,11 +241,11 @@ class LDPruneSuite extends SparkSuite {
 
         val rv1 = LDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
-        val sgs1 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs1 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         val rv2 = LDPruneSuite.makeRV(v2Ann)
         view.setRegion(rv2)
-        val sgs2 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
@@ -265,13 +261,6 @@ class LDPruneSuite extends SparkSuite {
           case _ => true
         }
       }
-
-    property("uncorrelated") =
-      forAll(compGen) { case (r2: Double, windowSize: Int, nPartitions: Int) =>
-        val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(nPartitions)))
-        val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCoreMB)
-        isUncorrelated(prunedVds, r2, windowSize)
-      }
   }
 
   @Test def testRandom() {
@@ -279,8 +268,6 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testInputs() {
-    def vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
-
     // memory per core requirement
     intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCoreMB = 0))
 
@@ -310,15 +297,12 @@ class LDPruneSuite extends SparkSuite {
     }
   }
 
-  @Test def testWindow() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz"))
-    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 100000, memoryPerCoreMB = 200)
-    assert(isUncorrelated(prunedVds, 0.2, 1000))
+  @Test def testLargerInput() {
+    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000000, memoryPerCoreMB = 200)
+    assert(isUncorrelated(prunedVds, 0.2, 1000000))
   }
 
   @Test def testNoPrune() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz"))
-    val nSamples = vds.numCols
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countRows() == filteredVDS.countRows())

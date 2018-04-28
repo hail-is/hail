@@ -21,7 +21,7 @@ abstract class TContainer extends Type {
 
   def contentsAlignment: Long
 
-  override def children = Seq(elementType)
+  override def children = FastSeq(elementType)
 
   final def loadLength(region: Region, aoff: Long): Int =
     TContainer.loadLength(region, aoff)
@@ -143,7 +143,7 @@ abstract class TContainer extends Type {
     clearMissingBits(region, aoff, length)
   }
 
-  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
+  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] = {
     var c = region.storeInt(aoff, length)
     if (elementType.required)
       return c
@@ -159,22 +159,30 @@ abstract class TContainer extends Type {
     )
   }
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val eltOrd = elementType.unsafeOrdering(missingGreatest)
+  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
+    unsafeOrdering(this, missingGreatest)
+
+  override def unsafeOrdering(rightType: Type, missingGreatest: Boolean): UnsafeOrdering = {
+    require(this.isOfType(rightType))
+
+    val right = rightType.asInstanceOf[TContainer]
+    val eltOrd = elementType.unsafeOrdering(
+      right.elementType,
+      missingGreatest)
 
     new UnsafeOrdering {
       override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val length1 = loadLength(r1, o1)
-        val length2 = loadLength(r2, o2)
+        val length2 = right.loadLength(r2, o2)
 
         var i = 0
         while (i < math.min(length1, length2)) {
           val leftDefined = isElementDefined(r1, o1, i)
-          val rightDefined = isElementDefined(r2, o2, i)
+          val rightDefined = right.isElementDefined(r2, o2, i)
 
           if (leftDefined && rightDefined) {
             val eOff1 = loadElement(r1, o1, length1, i)
-            val eOff2 = loadElement(r2, o2, length2, i)
+            val eOff2 = right.loadElement(r2, o2, length2, i)
             val c = eltOrd.compare(r1, eOff1, r2, eOff2)
             if (c != 0)
               return c

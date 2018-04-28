@@ -19,6 +19,7 @@ Genetics
     impute_sex
     ld_prune
     mendel_errors
+    de_novo
     min_rep
     nirvana
     pc_relate
@@ -43,6 +44,7 @@ Genetics
 .. autofunction:: impute_sex
 .. autofunction:: ld_prune
 .. autofunction:: mendel_errors
+.. autofunction:: de_novo
 .. autofunction:: min_rep
 .. autofunction:: nirvana
 .. autofunction:: pc_relate

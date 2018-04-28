@@ -18,22 +18,6 @@ class LocusIntervalSuite extends SparkSuite {
   def genomicInterval(contig: String, start: Int, end: Int): Interval =
     Interval(Locus(contig, start), Locus(contig, end), true, false)
 
-  @Test def testIntervalList() {
-    val ex1 = IntervalList.read(hc, "src/test/resources/example1.interval_list")
-
-    val f = tmpDir.createTempFile("example", extension = "interval_list")
-
-    ex1.annotate("""interval = "[" + row.interval.start.contig + ":" + row.interval.start.position + "-" + row.interval.end.position + "]"""")
-      .export(f)
-
-    val ex1wr = hc.importTable(f).annotate("interval = LocusInterval(row.interval)").keyBy("interval")
-
-    assert(ex1wr.same(ex1))
-
-    val ex2 = IntervalList.read(hc, "src/test/resources/example2.interval_list")
-    assert(ex1.select(Array("row.interval")).same(ex2))
-  }
-
   @Test def testAnnotateVariantsTable() {
     val vds = MatrixTable.fromLegacy[Annotation](hc,
       MatrixType.fromParts(
@@ -58,15 +42,15 @@ class LocusIntervalSuite extends SparkSuite {
     }
 
     assert(vds.annotateRowsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
-      .annotateRowsExpr("foo = va.foo.map(x => x.target)")
-      .rowsTable().query("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+      .annotateRowsExpr("foo" -> "va.foo.map(x => x.target)")
+      .rowsTable().aggregate("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testAnnotateIntervalsAll() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .annotateRowsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
         "annot", product = true)
-      .annotateRowsExpr("annot = va.annot.map(x => x.target)")
+      .annotateRowsExpr("annot" -> "va.annot.map(x => x.target)")
 
     val (t, q) = vds.queryVA("va.annot")
     assert(t == TArray(TString()))
@@ -101,6 +85,24 @@ class LocusIntervalSuite extends SparkSuite {
     assert(Locus.parseInterval("[X:START-Y:END)", rg) == Interval(Locus("X", 1), Locus("Y", yMax), true, false))
     assert(Locus.parseInterval("[X-Y)", rg) == Interval(Locus("X", 1), Locus("Y", yMax), true, false))
     assert(Locus.parseInterval("[1-22)", rg) == Interval(Locus("1", 1), Locus("22", chr22Max), true, false))
+
+    assert(Locus.parseInterval("1:100-1:101", rg) == Interval(Locus("1", 100), Locus("1", 101), true, false))
+    assert(Locus.parseInterval("1:100-101", rg) == Interval(Locus("1", 100), Locus("1", 101), true, false))
+    assert(Locus.parseInterval("X:100-end", rg) == Interval(Locus("X", 100), Locus("X", xMax), true, true))
+    assert(Locus.parseInterval("(X:100-End]", rg) == Interval(Locus("X", 100), Locus("X", xMax), false, true))
+    assert(Locus.parseInterval("(X:100-END)", rg) == Interval(Locus("X", 100), Locus("X", xMax), false, false))
+    assert(Locus.parseInterval("[X:start-101)", rg) == Interval(Locus("X", 1), Locus("X", 101), true, false))
+    assert(Locus.parseInterval("(X:Start-101]", rg) == Interval(Locus("X", 1), Locus("X", 101), false, true))
+    assert(Locus.parseInterval("X:START-101", rg) == Interval(Locus("X", 1), Locus("X", 101), true, false))
+    assert(Locus.parseInterval("X:START-Y:END", rg) == Interval(Locus("X", 1), Locus("Y", yMax), true, true))
+    assert(Locus.parseInterval("X-Y", rg) == Interval(Locus("X", 1), Locus("Y", yMax), true, true))
+    assert(Locus.parseInterval("1-22", rg) == Interval(Locus("1", 1), Locus("22", chr22Max), true, true))
+
+    // test normalizing end points
+    assert(Locus.parseInterval(s"(X:100-${ xMax + 1 })", rg) == Interval(Locus("X", 100), Locus("X", xMax), false, true))
+    assert(Locus.parseInterval(s"(X:0-$xMax]", rg) == Interval(Locus("X", 1), Locus("X", xMax), true, true))
+    TestUtils.interceptFatal("Start `X:0' is not within the range")(Locus.parseInterval("[X:0-5)", rg))
+    TestUtils.interceptFatal(s"End `X:${ xMax + 1 }' is not within the range")(Locus.parseInterval(s"[X:1-${ xMax + 1 }]", rg))
 
     assert(Locus.parseInterval("[16:29500000-30200000)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
     assert(Locus.parseInterval("[16:29.5M-30.2M)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))

@@ -132,7 +132,7 @@ class Int64Coercer(ExprCoercer):
         return t in (tbool, tint32, tint64)
 
     def _coerce(self, x):
-        return x._method("toInt64", tint32)
+        return x._method("toInt64", tint64)
 
 
 class Float32Coercer(ExprCoercer):
@@ -147,7 +147,7 @@ class Float32Coercer(ExprCoercer):
         return t in (tbool, tint32, tint64, tfloat32)
 
     def _coerce(self, x):
-        return x._method("toFloat32", tint32)
+        return x._method("toFloat32", tfloat32)
 
 
 class Float64Coercer(ExprCoercer):
@@ -162,7 +162,7 @@ class Float64Coercer(ExprCoercer):
         return t in (tbool, tint32, tint64, tfloat32, tfloat64)
 
     def _coerce(self, x):
-        return x._method("toFloat64", tint32)
+        return x._method("toFloat64", tfloat64)
 
 
 class StringCoercer(ExprCoercer):
@@ -307,6 +307,7 @@ class TupleCoercer(ExprCoercer):
         super(TupleCoercer, self).__init__()
         self.elements = elements
 
+    @property
     def str_t(self):
         if self.elements is None:
             return 'tuple'
@@ -339,6 +340,7 @@ class StructCoercer(ExprCoercer):
         super(StructCoercer, self).__init__()
         self.fields = fields
 
+    @property
     def str_t(self) -> str:
         if self.fields is None:
             return 'struct'

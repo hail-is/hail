@@ -6,9 +6,10 @@ Getting Started
 
 You'll need:
 
-- The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_. Hail should work with other versions of Spark 2, see below.
-- Python 3.6 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
+- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_.
+  Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
+- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------
 Running Hail locally with a pre-compiled distribution
@@ -16,33 +17,54 @@ Running Hail locally with a pre-compiled distribution
 
 .. include:: distLinks.rst
 
-Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
-environment variables. You may want to add these to the appropriate dot-file (we recommend ``~/.profile``)
-so that you don't need to rerun these commands in each new session.
+Unzip the distribution after you download it. Next, edit and copy the below bash
+commands to set up the Hail environment variables. You may want to add the
+``export`` lines to the appropriate dot-file (we recommend ``~/.profile``) so
+that you don't need to rerun these commands in each new session.
+
+Un-tar the Spark distribution.
+
+.. code-block:: text
+
+    tar xvf <path to spark.tgz>
 
 Here, fill in the path to the **un-tarred** Spark package.
 
 .. code-block:: text
 
-    export SPARK_HOME=???
+    export SPARK_HOME=<path to spark>
+
+Unzip the Hail distribution.
+
+.. code-block:: text
+
+    unzip <path to hail.zip>
 
 Here, fill in the path to the **unzipped** Hail distribution.
 
 .. code-block:: text
 
-    export HAIL_HOME=???
+    export HAIL_HOME=<path to hail>
     export PATH=$PATH:$HAIL_HOME/bin/
-    
-Once you've set up Hail, we recommend that you run the Python tutorials to get an overview of Hail
-functionality and learn about the powerful query language. To try Hail out, run the below commands
-to start a Jupyter Notebook server in the tutorials directory.
+
+To install Python dependencies, create a conda environment for Hail:
+
+.. code-block:: text
+
+    conda env create -n hail -f $HAIL_HOME/python/hail/environment.yml
+    source activate hail
+
+Once you've set up Hail, we recommend that you run the Python tutorials to get
+an overview of Hail functionality and learn about the powerful query language.
+To try Hail out, run the below commands to start a Jupyter Notebook server in
+the tutorials directory.
 
 .. code-block:: text
 
     cd $HAIL_HOME/tutorials
     jhail
 
-You can now click on the "hail-overview" notebook to get started!
+You can now click on the "01-genome-wide-association-study" notebook to get started!
 
 In the future, if you want to run:
 
@@ -137,23 +159,21 @@ the same as above, except:
 
  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
    version of Spark. The following example builds a Hail JAR for Cloudera's
-   2.0.2 version of Spark::
+   2.2.0 version of Spark::
  
-    ./gradlew shadowJar -Dspark.version=2.0.2.cloudera
+    ./gradlew shadowJar -Dspark.version=2.2.0.cloudera
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
 
- - On Cloudera, you can create an interactive Python shell using ``pyspark2``::
+ - On Cloudera, you can create an interactive Python shell using ``pyspark``::
  
-    pyspark2 --jars build/libs/hail-all-spark.jar \
-             --py-files build/distributions/hail-python.zip \
-             --conf spark.sql.files.openCostInBytes=1099511627776 \
-             --conf spark.sql.files.maxPartitionBytes=1099511627776 \
-             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
-             --conf spark.hadoop.parquet.block.size=1099511627776
-
- - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.
+    pyspark --jars build/libs/hail-all-spark.jar \
+            --py-files build/distributions/hail-python.zip \
+            --conf spark.sql.files.openCostInBytes=1099511627776 \
+            --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+            --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
+            --conf spark.hadoop.parquet.block.size=1099511627776
 
 .. _running-in-the-cloud:
 
@@ -177,16 +197,16 @@ Building with other versions of Spark 2
 =======================================
 
 Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.2.1, modify the above
+different version, such as Spark 2.3.0, modify the above
 instructions as follows:
 
  - Set the Spark version in the gradle command
 
    .. code-block:: text
 
-      ./gradlew -Dspark.version=2.2.1 shadowJar
+      ./gradlew -Dspark.version=2.3.0 shadowJar
 
- - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.2.1-bin-hadoop2.7*
+ - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.3.0-bin-hadoop2.7*
 
  - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 

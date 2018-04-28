@@ -25,10 +25,14 @@ Genetics functions
     is_star
     is_complex
     is_strand_ambiguous
+    is_valid_contig
+    is_valid_locus
     allele_type
     pl_dosage
     gp_dosage
     get_sequence
+    mendel_error_code
+    liftover
 
 .. autofunction:: locus
 .. autofunction:: locus_interval
@@ -50,7 +54,11 @@ Genetics functions
 .. autofunction:: is_star
 .. autofunction:: is_complex
 .. autofunction:: is_strand_ambiguous
+.. autofunction:: is_valid_contig
+.. autofunction:: is_valid_locus
 .. autofunction:: allele_type
 .. autofunction:: pl_dosage
 .. autofunction:: gp_dosage
 .. autofunction:: get_sequence
+.. autofunction:: mendel_error_code
+.. autofunction:: liftover

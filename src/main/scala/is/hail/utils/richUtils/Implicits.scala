@@ -3,9 +3,10 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{Region, RegionValue, JoinedRegionValue}
+import is.hail.annotations.{JoinedRegionValue, Region, RegionValue}
 import is.hail.asm4s.Code
-import is.hail.io.RichRDDRegionValue
+import is.hail.io.{InputBuffer, RichContextRDDRegionValue}
+import is.hail.sparkextras._
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import org.apache.hadoop
 import org.apache.spark.SparkContext
@@ -21,18 +22,11 @@ import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
 trait Implicits {
-  implicit def toRichAny(a: Any): RichAny = new RichAny(a)
-
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
-
-  implicit def toRichByteArrayBuilder(t: ArrayBuilder[Byte]): RichByteArrayBuilder =
-    new RichByteArrayBuilder(t)
 
   implicit def toRichBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
-
-  implicit def toRichDouble(d: Double): RichDouble = new RichDouble(d)
 
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] = new RichEnumeration(e)
 
@@ -77,12 +71,9 @@ trait Implicits {
   implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
     vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
 
-  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
-    new RichPairTraversableOnce[K, V](t)
-
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichRDDRegionValue(r: RDD[RegionValue]): RichRDDRegionValue = new RichRDDRegionValue(r)
+  implicit def toRichContextRDDRegionValue[C <: AutoCloseable](r: ContextRDD[C, RegionValue]): RichContextRDDRegionValue[C] = new RichContextRDDRegionValue(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
@@ -104,10 +95,6 @@ trait Implicits {
 
   implicit def toTruncatable(arr: Array[_]): Truncatable = toTruncatable(arr: Iterable[_])
 
-  implicit def toJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): JSONWritable[T] = new JSONWritable(x, jw)
-
-  implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
-
   implicit def toHailIteratorDouble(it: HailIterator[Int]): HailIterator[Double] = new HailIterator[Double] {
     override def next(): Double = it.next().toDouble
     override def hasNext: Boolean = it.hasNext
@@ -121,4 +108,10 @@ trait Implicits {
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
+
+  implicit def toContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](x: ContextRDD[C, (K, V)]): ContextPairRDDFunctions[C, K, V] = new ContextPairRDDFunctions(x)
+
+  implicit def toRichContextRDD[C <: AutoCloseable, T: ClassTag](x: ContextRDD[C, T]): RichContextRDD[C, T] = new RichContextRDD(x)
+
+  implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
 }

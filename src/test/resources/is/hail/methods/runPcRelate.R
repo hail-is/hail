@@ -13,7 +13,6 @@ snpgdsBED2GDS( bed.fn = paste(fname,".bed",sep="")
              , out.gdsfn = paste(fname,".gds",sep="")
              )
 
-gdsfile <- system.file("extdata", paste(fname,".gds",sep=""), package="GENESIS")
 HapMap_geno <- GdsGenotypeReader(filename = paste(fname,".gds",sep=""))
 HapMap_genoData <- GenotypeData(HapMap_geno)
 

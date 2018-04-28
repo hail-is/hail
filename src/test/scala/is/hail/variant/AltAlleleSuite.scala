@@ -1,5 +1,6 @@
 package is.hail.variant
 
+import is.hail.testUtils.AltAllele
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

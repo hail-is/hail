@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
@@ -56,6 +57,9 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering)
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    CodeOrdering.iterableOrdering(this, mb)
 
   override def desc: String =
     """

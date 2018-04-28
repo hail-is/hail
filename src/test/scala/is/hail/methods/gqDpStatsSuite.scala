@@ -24,8 +24,8 @@ class gqDpStatsSuite extends SparkSuite {
     val dpVariantR = VariantQC(dpVds
       .filterRowsExpr("va.alleles.length() == 2"))
       .rowsTable()
-      .query(Array("index(AGG.map(r => {pos: row.locus.position - 1, dp_mean: row.qc.dp_mean, dp_stdev: row.qc.dp_stdev}).collect(), pos)"))
-      .apply(0)._1.asInstanceOf[Map[Int, Row]]
+      .aggregate("index(AGG.map(r => {pos: row.locus.position - 1, dp_mean: row.qc.dp_mean, dp_stdev: row.qc.dp_stdev}).collect(), pos)")._1
+      .asInstanceOf[Map[Int, Row]]
 
     val dpSampleR = dpVds.stringSampleIds.zip(SampleQC.results(dpVds)).toMap
 
@@ -52,8 +52,8 @@ class gqDpStatsSuite extends SparkSuite {
     val gqVariantR = VariantQC(gqVds
       .filterRowsExpr("va.alleles.length() == 2"))
       .rowsTable()
-      .query(Array("index(AGG.map(r => {pos: row.locus.position - 1, gq_mean: row.qc.gq_mean, gq_stdev: row.qc.gq_stdev}).collect(), pos)"))
-      .apply(0)._1.asInstanceOf[Map[Int, Row]]
+      .aggregate("index(AGG.map(r => {pos: row.locus.position - 1, gq_mean: row.qc.gq_mean, gq_stdev: row.qc.gq_stdev}).collect(), pos)")._1
+      .asInstanceOf[Map[Int, Row]]
     val gqSampleR = gqVds.stringSampleIds.zip(SampleQC.results(gqVds)).toMap
 
     gqVariantR.foreach {

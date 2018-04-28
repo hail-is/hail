@@ -8,6 +8,7 @@ from hail.typecheck import *
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
+from hail.genetics.reference_genome import reference_genome_type
 
 
 class CollectionExpression(Expression):
@@ -2120,7 +2121,83 @@ class StringExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._method("contains", tstr, substr)
+        return self._method("contains", tbool, substr)
+
+    @typecheck_method(substr=expr_str)
+    def startswith(self, substr):
+        """Returns whether `substr` is a prefix of the string.
+
+        Examples
+        --------
+        >>> s.startswith('The').value
+        True
+
+        >>> s.startswith('the').value
+        False
+
+        Note
+        ----
+        This method is case-sensitive.
+
+        Parameters
+        ----------
+        substr : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('startswith', tbool, substr)
+
+
+    @typecheck_method(substr=expr_str)
+    def endswith(self, substr):
+        """Returns whether `substr` is a suffix of the string.
+
+        Examples
+        --------
+        >>> s.endswith('dog').value
+        True
+
+        Note
+        ----
+        This method is case-sensitive.
+
+        Parameters
+        ----------
+        substr : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('endswith', tbool, substr)
+
+    @typecheck_method(regex=str)
+    def first_match_in(self, regex):
+        """Returns an array containing the capture groups of the first match of
+        `regex` in the given character sequence.
+
+        Examples
+        --------
+        >>> s.first_match_in("The quick (\\w+) fox").value
+        ["brown"]
+
+        >>> s.first_match_in("The (\\w+) (\\w+) (\\w+)").value
+        ["quick", "brown", "fox"]
+
+        >>> s.first_match_in("(\\w+) (\\w+)").value
+        None
+
+        Parameters
+        ----------
+        regex : :class:`.StringExpression`
+
+        Returns
+        -------
+        :class:`.ArrayExpression` with element type :py:data:`.tstr`
+        """
+        return self._method('firstMatchIn', tarray(tstr), regex)
 
     @typecheck_method(regex=str)
     def matches(self, regex):
@@ -2442,7 +2519,7 @@ class CallExpression(Expression):
 class LocusExpression(Expression):
     """Expression of type :class:`.tlocus`.
 
-    >>> locus = hl.locus('1', 100000)
+    >>> locus = hl.locus('1', 1034245)
     """
 
     @property
@@ -2472,7 +2549,7 @@ class LocusExpression(Expression):
         .. doctest::
 
             >>> hl.eval_expr(locus.position)
-            100000
+            1034245
 
         Returns
         -------
@@ -2627,16 +2704,16 @@ class LocusExpression(Expression):
         .. doctest::
             :options: +SKIP
 
-            >>> hl.eval_expr(locus.sequence_context())
-            "C"
+            >>> locus.sequence_context().value
+            "G"
 
         Get the reference sequence at a locus including the previous 5 bases:
 
         .. doctest::
             :options: +SKIP
 
-            >>> hl.eval_expr(locus.sequence_context(before=5))
-            "ACACTC"
+            >>> locus.sequence_context(before=5).value
+            "ACTCGG"
 
         Notes
         -----
@@ -2661,7 +2738,7 @@ class LocusExpression(Expression):
         rg = self.dtype.reference_genome
         if not rg.has_sequence():
             raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(rg.name))
-        return hl.get_sequence(rg, self.contig, self.position, before, after)
+        return hl.get_sequence(self.contig, self.position, before, after, rg)
 
 
 class IntervalExpression(Expression):

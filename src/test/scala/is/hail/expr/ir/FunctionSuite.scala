@@ -30,8 +30,8 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
-    registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ (_, a: Code[Int], b: Code[Int]) => a + b }
-    registerCode("testCodeUnification2", tv("x"), tv("x")){ (_, a: Code[Long]) => a }
+    registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ case (_, a: Code[Int], b: Code[Int]) => a + b }
+    registerCode("testCodeUnification2", tv("x"), tv("x")){ case (_, a: Code[Long]) => a }
   }
 }
 
@@ -42,18 +42,19 @@ class FunctionSuite {
 
   TestRegisterFunctions.registerAll()
 
+  def emitFromFB[F >: Null : TypeInfo](fb: FunctionBuilder[F]) =
+    new EmitFunctionBuilder[F](fb.parameterTypeInfo, fb.returnTypeInfo, fb.packageName)
+
   def fromHailString(hql: String): IR = Parser.parseToAST(hql, ec).toIR().get
 
   def toF[R: TypeInfo](ir: IR): AsmFunction1[Region, R] = {
-    Infer(ir)
-    val fb = FunctionBuilder.functionBuilder[Region, R]
+    val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, R])
     Emit(ir, fb)
     fb.result(Some(new PrintWriter(System.out)))()
   }
 
   def toF[A: TypeInfo, R: TypeInfo](ir: IR): AsmFunction3[Region, A, Boolean, R] = {
-    Infer(ir)
-    val fb = FunctionBuilder.functionBuilder[Region, A, Boolean, R]
+    val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, A, Boolean, R])
     Emit(ir, fb)
     fb.result(Some(new PrintWriter(System.out)))()
   }

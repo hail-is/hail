@@ -222,7 +222,7 @@ object Nirvana {
   }
 
   def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
-    assert(vds.rowKey == IndexedSeq("locus", "alleles"))
+    assert(vds.rowKey == FastIndexedSeq("locus", "alleles"))
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
 
     val properties = try {
@@ -346,7 +346,6 @@ object Nirvana {
       })
 
     vds.orderedRVDLeftJoinDistinctAndInsert(nirvanaRVD, "nirvana", product = false)
-      .annotateRowsExpr("nirvana = va.nirvana.nirvana")
   }
 
   def apply(vsm: MatrixTable, config: String, blockSize: Int = 500000, root: String): MatrixTable =

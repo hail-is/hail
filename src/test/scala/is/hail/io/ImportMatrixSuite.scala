@@ -23,6 +23,7 @@ class ImportMatrixSuite extends SparkSuite {
     sSigGen = Gen.const(TString()),
     saSigGen = Gen.const(TStruct.empty()),
     vSigGen = Gen.oneOf[Type](TInt32(), TInt64(), TString()),
+    rowPartitionKeyGen = (t: Type) => Gen.const(Array("v")),
     vaSigGen = Type.preGenStruct(required=false, genValidImportType),
     globalSigGen = Gen.const(TStruct.empty()),
     tSigGen = Gen.zip(genValidImportType, Gen.coin(0.2))
@@ -35,7 +36,8 @@ class ImportMatrixSuite extends SparkSuite {
     tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
 
   def reKeyRows(vsm: MatrixTable): MatrixTable = {
-    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows("va.row_id" +: vsm.rowType.fieldNames.map("va."+_): _*)
+    val newFieldNames = "row_id" +: vsm.rowType.fieldNames
+    vsm.indexRows("row_id").keyRowsBy(Array("row_id"), Array("row_id")).selectRows(s"{${ newFieldNames.map(n => s"$n: va.$n").mkString(",") }}")
   }
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {
@@ -48,7 +50,7 @@ class ImportMatrixSuite extends SparkSuite {
       new java.util.HashMap[String, String]())
 
     renamed.copy2(colType = TStruct("s" -> TInt32()),
-      colValues = Array.tabulate[Annotation](vsm.colValues.length){ i => Row(i) })
+      colValues = vsm.colValues.copy(Array.tabulate[Annotation](vsm.colValues.value.length){ i => Row(i) }, t = TArray(TStruct("s" -> TInt32()))))
   }
 
   def renameColKeyField(vsm: MatrixTable): MatrixTable = {

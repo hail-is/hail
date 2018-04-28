@@ -22,7 +22,7 @@ class OrderedRVDPartitioner(
 
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
-  } && rangeBounds.forall { case i: Interval =>
+  } && rangeBounds.forall { i: Interval =>
     pkType.ordering.lteq(i.start, i.end) && !i.definitelyEmpty(pkType.ordering)
   }))
 
@@ -34,7 +34,7 @@ class OrderedRVDPartitioner(
       (rangeBounds(i), i)
     })
 
-  def range: Interval = rangeTree.root.get.range
+  def range: Option[Interval] = rangeTree.root.map(_.range)
 
   /**
     * Find the partition containing the given Row.
@@ -46,13 +46,14 @@ class OrderedRVDPartitioner(
     * partition.
     */
   def getPartitionPK(row: Any): Int = {
+    require(rangeBounds.nonEmpty)
     val part = rangeTree.queryValues(pkType.ordering, row)
     part match {
       case Array() =>
-        if (range.isAbovePosition(pkType.ordering, row))
+        if (range.get.isAbovePosition(pkType.ordering, row))
           0
         else {
-          assert(range.isBelowPosition(pkType.ordering, row))
+          assert(range.get.isBelowPosition(pkType.ordering, row))
           numPartitions - 1
         }
 
@@ -68,7 +69,7 @@ class OrderedRVDPartitioner(
         rangeTree.queryValues(pkType.ordering, row)
       case interval: Interval =>
         if (!rangeTree.probablyOverlaps(pkType.ordering, interval))
-          Seq.empty[Int]
+          FastSeq.empty[Int]
         else {
           val startRange = getPartitionRange(interval.start)
           val start = if (startRange.nonEmpty)
@@ -103,15 +104,22 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
+  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner =
+    enlargeToRange(Some(newRange))
+
   // FIXME Make work if newRange has different point type than pkType
-  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner = {
-    val newStart = pkType.ordering.min(range.start, Annotation.copy(pkType, newRange.start))
-    val newEnd = pkType.ordering.max(range.end, Annotation.copy(pkType, newRange.end))
+  def enlargeToRange(newRange: Option[Interval]): OrderedRVDPartitioner = {
+    if (newRange.isEmpty)
+      return this
+    if (range.isEmpty)
+      return copy(rangeBounds = FastIndexedSeq(newRange.get))
+    val newStart = pkType.ordering.min(range.get.start, Annotation.copy(pkType, newRange.get.start))
+    val newEnd = pkType.ordering.max(range.get.end, Annotation.copy(pkType, newRange.get.end))
     val newRangeBounds =
       rangeBounds match {
-        case IndexedSeq(x) => IndexedSeq(Interval(newStart, newEnd, true, true))
+        case IndexedSeq(x) => FastIndexedSeq(Interval(newStart, newEnd, true, true))
         case IndexedSeq(x1, x2) =>
-          IndexedSeq(x1.copy(start = newStart, includesStart = true),
+          FastIndexedSeq(x1.copy(start = newStart, includesStart = true),
             x2.copy(end = newEnd, includesEnd = true))
         case _ =>
           rangeBounds.head.copy(start = newStart, includesStart = true)  +:
@@ -160,13 +168,12 @@ object OrderedRVDPartitioner {
   }
 
   // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[RegionValue]): Array[Interval] = {
-    val uisRangeBounds = UnsafeIndexedSeq(TArray(pType), rangeBounds)
+  def makeRangeBoundIntervals(pType: Type, rangeBounds: Array[Any]): Array[Interval] = {
     var includesStart = true
-    uisRangeBounds.zip(uisRangeBounds.tail).map { case (s, e) =>
-        val i = Interval(Annotation.copy(pType, s), Annotation.copy(pType, e), includesStart, true)
-        includesStart = false
-        i
-    }.toArray
+    rangeBounds.zip(rangeBounds.tail).map { case (s, e) =>
+      val i = Interval(s, e, includesStart, true)
+      includesStart = false
+      i
+    }
   }
 }

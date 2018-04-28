@@ -7,7 +7,7 @@ import is.hail.check.Prop._
 import is.hail.expr.types._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
-import is.hail.variant.{MatrixTable, VSMSubgen, Variant}
+import is.hail.variant.{Locus, MatrixTable, VSMSubgen}
 import org.testng.annotations.Test
 import is.hail.testUtils._
 
@@ -15,6 +15,9 @@ import scala.io.Source
 import scala.language.postfixOps
 
 class ExportVCFSuite extends SparkSuite {
+  def annotateInfo(mt: MatrixTable, structExpr: String): MatrixTable =
+    mt.annotateRowsExpr(("info", s"annotate(va.info, $structExpr)"))
+
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val outFile = tmpDir.createTempFile("export", "vcf")
@@ -37,13 +40,13 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
-    implicit val variantOrd = vdsNew.referenceGenome.variantOrdering
+    implicit val locusAllelesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
 
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')
-        .map(line => line.split("\t")).take(5).map(a => Variant(a(0), a(1).toInt, a(3), a(4))).toArray
+        .map(line => line.split("\t")).take(5).map(a => Annotation(Locus(a(0), a(1).toInt), FastIndexedSeq(a(3), a(4)))).toArray
     }.isSorted)
   }
 
@@ -79,8 +82,8 @@ class ExportVCFSuite extends SparkSuite {
 
   @Test def testGeneratedInfo() {
     val out = tmpDir.createTempFile("export", "vcf")
-    val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateRowsExpr("va.info.AC = va.info.AC, va.info.another = 5")
+    val vds = annotateInfo(hc.importVCF("src/test/resources/sample2.vcf"),
+      "{AC: va.info.AC, another: 5}")
     ExportVCF(vds, out)
 
     hadoopConf.readFile(out) { in =>
@@ -123,9 +126,9 @@ class ExportVCFSuite extends SparkSuite {
 
     // cast Long to Int
     val out = tmpDir.createTempFile("out", "vcf")
-    ExportVCF(vds
-      .annotateRowsExpr("info.AC_pass = AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
-        "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()).toFloat64 >= 0.2 ) )).count()"),
+    ExportVCF(annotateInfo(vds,
+      "{AC_pass: AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
+        "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()).toFloat64 >= 0.2 ) )).count()}"),
       out)
 
     hadoopConf.readFile(out) { in =>
@@ -140,12 +143,11 @@ class ExportVCFSuite extends SparkSuite {
 
     // other valid types
     val out2 = tmpDir.createTempFile("out2", "vcf")
-    ExportVCF(vds
-      .annotateRowsExpr(
-        "info.array = [\"foo\", \"bar\"]," +
-          "info.set = [4, 5].toSet, " +
-          "info.float = let x = 5.0 in x.toFloat64(), " +
-          "info.bool = true"), out2)
+    ExportVCF(annotateInfo(vds,
+        "{array: [\"foo\", \"bar\"]," +
+          "set: [4, 5].toSet, " +
+          "float: let x = 5.0 in x.toFloat64(), " +
+          "bool: true}"), out2)
 
     hadoopConf.readFile(out2) { in =>
       Source.fromInputStream(in)
@@ -174,38 +176,38 @@ class ExportVCFSuite extends SparkSuite {
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(vds
-        .annotateRowsExpr("info.foo = [[1]]"),
+      ExportVCF(annotateInfo(vds,
+        "{foo: [[1]]}"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(vds
-        .annotateRowsExpr("info.foo = [UnphasedDiploidGtIndexCall(3)]"),
+      ExportVCF(annotateInfo(vds,
+        "{foo: [UnphasedDiploidGtIndexCall(3)]}"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(vds
-        .annotateRowsExpr("info.foo = va.locus"),
+      ExportVCF(annotateInfo(vds,
+        "{foo: va.locus}"),
         out)
     }
 
     TestUtils.interceptSpark("Cannot convert Long to Int") {
       ExportVCF(vds
-        .annotateRowsExpr("info.foo = 2147483648L"),
+        .annotateRowsExpr(("info", "annotate(va.info, {foo: 2147483648L})")),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(vds
-        .annotateRowsExpr("info.foo = [true]"),
+      ExportVCF(annotateInfo(vds,
+        "{foo: [true]}"),
         out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(vds
-        .annotateRowsExpr("info.foo = {INT: 5}"),
+      ExportVCF(annotateInfo(vds,
+        "{foo: {INT: 5}}"),
         out)
     }
 
@@ -224,7 +226,7 @@ class ExportVCFSuite extends SparkSuite {
 
   @Test def testInfoFieldSemicolons() {
     val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
-      .annotateRowsExpr("info = {foo: 5, bar: NA: Int}")
+      .annotateRowsExpr(("info", "{foo: 5, bar: NA: Int}"))
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)

@@ -27,23 +27,23 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   }
 
   private var staticIdx: Int = 0
-  private var idx: LocalRef[Int] = _
-  private var elementsOffset: LocalRef[Long] = _
-  private val startOffset: LocalRef[Long] = mb.newLocal[Long]
+  private var idx: ClassFieldRef[Int] = _
+  private var elementsOffset: ClassFieldRef[Long] = _
+  private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
 
   typ match {
-    case t: TBaseStruct => elementsOffset = mb.newLocal[Long]
+    case t: TBaseStruct => elementsOffset = mb.newField[Long]
     case t: TArray =>
-      elementsOffset = mb.newLocal[Long]
-      idx = mb.newLocal[Int]
+      elementsOffset = mb.newField[Long]
+      idx = mb.newField[Int]
     case _ =>
   }
 
-  def offset: Code[Long] = startOffset.load()
+  def offset: Code[Long] = startOffset
 
   def endOffset: Code[Long] = region.size
 
-  def arrayIdx: Code[Int] = idx.load()
+  def arrayIdx: Code[Int] = idx
 
   def currentOffset: Code[Long] = {
     typ match {
@@ -59,9 +59,9 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       case _: TBaseStruct => start(true)
       case _: TBinary =>
         assert(pOffset == null)
-        startOffset.store(endOffset)
+        startOffset := endOffset
       case _ =>
-        startOffset.store(region.allocate(typ.alignment, typ.byteSize))
+        startOffset := region.allocate(typ.alignment, typ.byteSize)
     }
   }
 
@@ -72,8 +72,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       c = Code(c, region.storeAddress(pOffset, startOffset))
     }
     if (init)
-      c = Code(c, t.initialize(region, startOffset.load(), length, idx))
-    c = Code(c, elementsOffset.store(startOffset.load() + t.elementsOffset(length)))
+      c = Code(c, t.initialize(region, startOffset, length, idx))
+    c = Code(c, elementsOffset.store(startOffset + t.elementsOffset(length)))
     Code(c, idx.store(0))
   }
 
@@ -85,7 +85,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       startOffset.store(pOffset)
     assert(staticIdx == 0)
     if (t.size > 0)
-      c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
+      c = Code(c, elementsOffset := startOffset + t.byteOffsets(0))
     if (init)
       c = Code(c, t.clearMissingBits(region, startOffset))
     c
@@ -108,13 +108,27 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
 
+  def allocateBinary(n: Code[Int]): Code[Long] = {
+    val boff = mb.newLocal[Long]
+    Code(
+      boff := TBinary.allocate(region, n),
+      region.storeInt(boff, n),
+      typ.fundamentalType match {
+        case _: TBinary => _empty
+        case _ =>
+          region.storeAddress(currentOffset, boff)
+      },
+      boff)
+  }
+
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     val boff = mb.newLocal[Long]
     Code(
       boff := region.appendInt(bytes.length()),
       toUnit(region.appendBytes(bytes)),
       typ.fundamentalType match {
-        case _: TBinary => _empty
+        case _: TBinary =>
+          startOffset := boff
         case _ =>
           region.storeAddress(currentOffset, boff)
       })
@@ -127,7 +141,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
   def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
-  
+
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case _: TInt32 => v => addInt(v.asInstanceOf[Code[Int]])
@@ -145,12 +159,12 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
     typ match {
       case t: TArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
-        idx ++
+        idx := idx + 1
       )
       case t: TBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
-          elementsOffset.store(startOffset + t.byteOffsets(staticIdx))
+          elementsOffset := elementsOffset + (t.byteOffsets(staticIdx) - t.byteOffsets(staticIdx - 1))
         else _empty
     }
   }

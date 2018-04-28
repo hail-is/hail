@@ -281,10 +281,10 @@ package object stats {
   def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
 
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def chiSquaredTail(df: Double, x: Double): Double = ChiSquare.cumulative(x, df, false, false)
+  def chiSquaredTail(x: Double, df: Double): Double = ChiSquare.cumulative(x, df, false, false)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
+  def inverseChiSquaredTail(p: Double, df: Double): Double = ChiSquare.quantile(p, df, false, false)
 
   def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 
@@ -292,21 +292,27 @@ package object stats {
 
   def rpois(n: Int, lambda: Double): IndexedSeq[Double] = new Poisson(lambda).random(n)
 
-  def dpois(x: Double, lambda: Double, logP: Boolean = false): Double = new Poisson(lambda).density(x, logP)
+  def dpois(x: Double, lambda: Double, logP: Boolean): Double = new Poisson(lambda).density(x, logP)
 
-  def ppois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
+  def dpois(x: Double, lambda: Double): Double = dpois(x, lambda, logP = false)
 
-  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Int = {
+  def ppois(x: Double, lambda: Double, lowerTail: Boolean, logP: Boolean): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
+
+  def ppois(x: Double, lambda: Double): Double = ppois(x, lambda, lowerTail = true, logP = false)
+
+  def qpois(x: Double, lambda: Double, lowerTail: Boolean, logP: Boolean): Int = {
     val result = new Poisson(lambda).quantile(x, lowerTail, logP)
     assert(result.isValidInt, s"qpois result is not a valid int. Found $result.")
     result.toInt
   }
 
-  def binomTest(nSuccess: Int, n: Int, p: Double, alternative: String): Double = {
+  def qpois(x: Double, lambda: Double): Int = qpois(x, lambda, lowerTail = true, logP = false)
+
+  def binomTest(nSuccess: Int, n: Int, p: Double, alternative: Int): Double = {
     val kind = alternative match {
-      case "two.sided" => TestKind.TWO_SIDED
-      case "less" => TestKind.LOWER
-      case "greater" => TestKind.GREATER
+      case 0 => TestKind.TWO_SIDED
+      case 1 => TestKind.LOWER
+      case 2 => TestKind.GREATER
       case _ => fatal(s"""Invalid alternative "$alternative". Must be "two_sided", "less" or "greater".""")
     }
 
@@ -340,7 +346,7 @@ package object stats {
 
     val rdd = hc.sc.parallelize(
       (0 until callMat.cols).map { j =>
-        (Annotation(Locus("1", j + 1), Array("A", "C").toFastIndexedSeq),
+        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
           (0 until callMat.rows).map { i =>
             Genotype(callMat(i, j))
           }: Iterable[Annotation])
@@ -374,7 +380,7 @@ package object stats {
 
     val rdd = hc.sc.parallelize(
       (0 until gpMat.cols).map { j =>
-        (Annotation(Locus("1", j + 1), Array("A", "C").toFastIndexedSeq),
+        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
           (0 until gpMat.rows).map { i =>
             Row(gpMat(i, j): IndexedSeq[Annotation])
           }: Iterable[Annotation])

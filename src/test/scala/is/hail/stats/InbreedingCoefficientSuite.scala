@@ -55,7 +55,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val vcfFile = root + ".vcf"
           val ibcFile = root + ".het"
 
-          val vds3 = vds2.annotateColsExpr("het = AGG.map(g => g.GT).inbreeding(g => va.qc.AF)")
+          val vds3 = vds2.annotateColsExpr("het" -> "AGG.map(g => g.GT).inbreeding(g => va.qc.AF)")
 
           ExportVCF(vds3, vcfFile)
 
@@ -72,7 +72,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val (_, expHomQuery) = vds3.querySA("sa.het.expected_homs")
           val (_, nCalledQuery) = vds3.querySA("sa.het.n_called")
 
-          val hailResult = vds3.stringSampleIds.zip(vds3.colValues).map { case (sample, sa) =>
+          val hailResult = vds3.stringSampleIds.zip(vds3.colValues.value).map { case (sample, sa) =>
             (sample, (Option(fQuery(sa)).map(_.asInstanceOf[Double]), Option(obsHomQuery(sa)).map(_.asInstanceOf[Long]), Option(expHomQuery(sa)).map(_.asInstanceOf[Double]), Option(nCalledQuery(sa)).map(_.asInstanceOf[Long])))
           }.toMap
 

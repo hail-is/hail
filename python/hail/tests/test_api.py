@@ -1,6 +1,7 @@
 """
 Unit tests for Hail.
 """
+import pandas as pd
 import unittest
 import random
 import hail as hl
@@ -215,7 +216,7 @@ class TableTests(unittest.TestCase):
             x36=True
         )
 
-    def test_query(self):
+    def test_aggregate1(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
         rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
@@ -232,6 +233,67 @@ class TableTests(unittest.TestCase):
         self.assertEqual(results.q2, 3)
         self.assertEqual(set(results.q3), {"hello", "cat", "dog"})
         self.assertEqual(set(results.q4), {"hello", "cat"})
+
+    def test_aggregate2(self):
+        schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
+
+        rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3},
+                {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
+
+        kt = hl.Table.parallelize(rows, schema)
+
+        result = convert_struct_to_dict(
+            kt.group_by(status=kt.status)
+                .aggregate(x1=agg.collect(kt.qPheno * 2),
+                           x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
+                           x3=agg.min(kt.qPheno),
+                           x4=agg.max(kt.qPheno),
+                           x5=agg.sum(kt.qPheno),
+                           x6=agg.product(hl.int64(kt.qPheno)),
+                           x7=agg.count(),
+                           x8=agg.count_where(kt.qPheno == 3),
+                           x9=agg.fraction(kt.qPheno == 1),
+                           x10=agg.stats(hl.float64(kt.qPheno)),
+                           x11=agg.hardy_weinberg(kt.GT),
+                           x13=agg.inbreeding(kt.GT, 0.1),
+                           x14=agg.call_stats(kt.GT, ["A", "T"]),
+                           x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
+                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
+                           x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
+                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
+                           ).take(1)[0])
+
+        expected = {u'status': 0,
+                    u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
+                             u'observed_homs': 1},
+                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
+                    u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
+                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
+                    u'x8': 1, u'x9': 0.0, u'x16': u'apple',
+                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
+                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
+                    u'x17': [],
+                    u'x18': []}
+
+        self.maxDiff = None
+
+        self.assertDictEqual(result, expected)
+
+    def test_aggregate_ir(self):
+        kt = hl.utils.range_table(10).annotate_globals(g1 = 5)
+        r = kt.aggregate(hl.struct(x=agg.sum(kt.idx) + kt.g1,
+                                   y=agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1,
+                                   z=agg.sum(kt.g1 + kt.idx) + kt.g1))
+        self.assertEqual(convert_struct_to_dict(r), {u'x': 50, u'y': 40, u'z': 100})
+
+        r = kt.aggregate(5)
+        self.assertEqual(r, 5)
+
+        r = kt.aggregate(hl.null(hl.tint32))
+        self.assertEqual(r, None)
+
+        r = kt.aggregate(agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1)
+        self.assertEqual(r, 40)
 
     def test_filter(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
@@ -288,45 +350,6 @@ class TableTests(unittest.TestCase):
         s = kt.select()
         self.assertEqual(list(s.row), [])
         self.assertEqual(list(s.key), [])
-
-    def test_aggregate(self):
-        schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
-
-        rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3},
-                {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
-
-        kt = hl.Table.parallelize(rows, schema)
-
-        result = convert_struct_to_dict(
-            kt.group_by(status=kt.status)
-                .aggregate(x1=agg.collect(kt.qPheno * 2),
-                           x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
-                           x3=agg.min(kt.qPheno),
-                           x4=agg.max(kt.qPheno),
-                           x5=agg.sum(kt.qPheno),
-                           x6=agg.product(hl.int64(kt.qPheno)),
-                           x7=agg.count(),
-                           x8=agg.count_where(kt.qPheno == 3),
-                           x9=agg.fraction(kt.qPheno == 1),
-                           x10=agg.stats(hl.float64(kt.qPheno)),
-                           x11=agg.hardy_weinberg(kt.GT),
-                           x13=agg.inbreeding(kt.GT, 0.1),
-                           x14=agg.call_stats(kt.GT, ["A", "T"]),
-                           x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
-                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0]
-                           ).take(1)[0])
-
-        expected = {u'status': 0,
-                    u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
-                             u'observed_homs': 1},
-                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
-                    u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
-                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
-                    u'x8': 1, u'x9': 0.0, u'x16': u'apple',
-                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
-                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16}
-
-        self.assertDictEqual(result, expected)
 
     def test_errors(self):
         schema = hl.tstruct(status=hl.tint32, gt=hl.tcall, qPheno=hl.tint32)
@@ -386,6 +409,11 @@ class TableTests(unittest.TestCase):
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
+
+    def test_join_with_empty(self):
+        kt = hl.utils.range_table(10)
+        kt2 = kt.head(0)
+        kt.annotate(foo = hl.is_defined(kt2[kt.idx]))
 
     def test_join_with_key(self):
         ht = hl.utils.range_table(10)
@@ -458,6 +486,16 @@ class TableTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
+
+    def test_from_pandas_works(self):
+        d = {'a': [1, 2], 'b': ['foo', 'bar']}
+        df = pd.DataFrame(data=d)
+        t = hl.Table.from_pandas(df, key='a')
+
+        d2 = [hl.struct(a=hl.int64(1), b='foo'), hl.struct(a=hl.int64(2), b='bar')]
+        t2 = hl.Table.parallelize(d2, key='a')
+
+        self.assertTrue(t._same(t2))
 
     def test_rename(self):
         kt = hl.utils.range_table(10)
@@ -535,6 +573,13 @@ class TableTests(unittest.TestCase):
         t = t.annotate(ref = t.alleles[0])
         t._force_count()
 
+    def test_range_table(self):
+        t = hl.utils.range_table(26, n_partitions = 5)
+        self.assertEqual(t.globals.dtype, hl.tstruct())
+        self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
+        self.assertEqual(list(t.key), ['idx'])
+        
+        self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
@@ -591,7 +636,7 @@ class MatrixTests(unittest.TestCase):
         vds = vds.filter_entries((vds.z1 < 5) & (vds.y1 == 3) & (vds.x1 == 5) & (vds.foo == 2))
         vds.count_rows()
 
-    def test_query(self):
+    def test_aggregate(self):
         vds = self.get_vds()
 
         vds = vds.annotate_globals(foo=5)
@@ -602,6 +647,8 @@ class MatrixTests(unittest.TestCase):
         qv = vds.aggregate_rows(agg.count())
         qs = vds.aggregate_cols(agg.count())
         qg = vds.aggregate_entries(agg.count())
+
+        self.assertIsNotNone(vds.aggregate_entries(hl.agg.take(vds.s, 1)[0]))
 
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)
@@ -616,6 +663,33 @@ class MatrixTests(unittest.TestCase):
         qgs = vds.aggregate_entries(hl.Struct(x=agg.collect(agg.filter(False, vds.y1)),
                                               y=agg.collect(agg.filter(hl.rand_bool(0.1), vds.GT))))
 
+    def test_aggregate_ir(self):
+        ds = (hl.utils.range_matrix_table(5, 5)
+              .annotate_globals(g1=5)
+              .annotate_entries(e1=3))
+
+        x = [("col_idx", lambda e: ds.aggregate_cols(e)),
+             ("row_idx", lambda e: ds.aggregate_rows(e))]
+
+        for name, f in x:
+            r = f(hl.struct(x=agg.sum(ds[name]) + ds.g1,
+                            y=agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1,
+                            z=agg.sum(ds.g1 + ds[name]) + ds.g1,
+                            mean=agg.mean(ds[name])))
+            self.assertEqual(convert_struct_to_dict(r), {u'x': 15, u'y': 13, u'z': 40, u'mean': 2.0})
+
+            r = f(5)
+            self.assertEqual(r, 5)
+
+            r = f(hl.null(hl.tint32))
+            self.assertEqual(r, None)
+
+            r = f(agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1)
+            self.assertEqual(r, 13)
+
+        r = ds.aggregate_entries(agg.sum(agg.filter((ds.row_idx % 2 != 0) & (ds.col_idx % 2 != 0), ds.e1 + ds.g1 + ds.row_idx + ds.col_idx)) + ds.g1)
+        self.assertTrue(r, 48)
+
     def test_select_entries(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt = mt.annotate_entries(a=hl.struct(b=mt.row_idx, c=mt.col_idx), foo=mt.row_idx * 10 + mt.col_idx)
@@ -624,6 +698,17 @@ class MatrixTests(unittest.TestCase):
         mt_entries = mt.entries()
 
         assert(mt_entries.all(mt_entries.bc == mt_entries.foo))
+
+    def test_select_cols(self):
+        mt = hl.utils.range_matrix_table(3, 5, n_partitions=4)
+        mt = mt.annotate_entries(e=mt.col_idx * mt.row_idx)
+        mt = mt.annotate_globals(g=1)
+        mt = mt.annotate_cols(sum=agg.sum(mt.e + mt.col_idx + mt.row_idx + mt.g) + mt.col_idx + mt.g,
+                              count=agg.count_where(mt.e % 2 == 0),
+                              foo=agg.count(mt.e))
+
+        result = convert_struct_to_dict(mt.cols().collect()[-2])
+        self.assertEqual(result, {'col_idx': 3, 'sum': 28, 'count': 2, 'foo': 3})
 
     def test_drop(self):
         vds = self.get_vds()
@@ -653,6 +738,32 @@ class MatrixTests(unittest.TestCase):
         vds = self.get_vds()
         vds = vds.drop_cols()
         self.assertEqual(vds.count_cols(), 0)
+
+    def test_collect_cols_by_key(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
+        mt = mt.annotate_cols(foo = col_dict.get(mt.col_idx))\
+            .explode_cols('foo')
+        mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
+
+        grouped = mt.collect_cols_by_key()
+
+        self.assertListEqual(grouped.cols().order_by('col_idx').collect(),
+                         [hl.Struct(col_idx=0, foo=[1]),
+                          hl.Struct(col_idx=1, foo=[2, 3]),
+                          hl.Struct(col_idx=2, foo=[4, 5, 6])])
+        self.assertListEqual(
+            grouped.entries().select('row_idx', 'col_idx', 'bar')
+                .order_by('row_idx', 'col_idx').collect(),
+            [hl.Struct(row_idx=0, col_idx=0, bar=[0]),
+             hl.Struct(row_idx=0, col_idx=1, bar=[0, 0]),
+             hl.Struct(row_idx=0, col_idx=2, bar=[0, 0, 0]),
+             hl.Struct(row_idx=1, col_idx=0, bar=[1]),
+             hl.Struct(row_idx=1, col_idx=1, bar=[2, 3]),
+             hl.Struct(row_idx=1, col_idx=2, bar=[4, 5, 6]),
+             hl.Struct(row_idx=2, col_idx=0, bar=[2]),
+             hl.Struct(row_idx=2, col_idx=1, bar=[4, 6]),
+             hl.Struct(row_idx=2, col_idx=2, bar=[8, 10, 12])])
 
     def test_weird_names(self):
         ds = self.get_vds()
@@ -752,12 +863,24 @@ class MatrixTests(unittest.TestCase):
         for i, struct in enumerate(ds.rows().select('rowidx').collect()):
             self.assertEqual(i, struct.rowidx)
 
-    def test_reorder_columns(self):
+    def test_choose_cols(self):
         ds = self.get_vds()
-        new_sample_order = [x.s for x in ds.cols().select("s").collect()]
-        random.shuffle(new_sample_order)
-        self.assertEqual([x.s for x in ds.reorder_columns(new_sample_order).cols().select("s").collect()],
-                         new_sample_order)
+        indices = list(range(ds.count_cols()))
+        random.shuffle(indices)
+
+        old_order = ds.s.collect()
+        self.assertEqual(ds.choose_cols(indices).s.collect(),
+                         [old_order[i] for i in indices])
+
+        self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
+                         old_order[:10])
+
+    def test_choose_cols_vs_explode(self):
+        ds = self.get_vds()
+
+        ds2 = ds.annotate_cols(foo = [0, 0]).explode_cols('foo').drop('foo')
+
+        self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
 
     def test_computed_key_join_1(self):
         ds = self.get_vds()
@@ -844,6 +967,17 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(kept.all(hl.is_defined(kept.x2) & (kept.x2 == kept.x * 10)))
         self.assertTrue(removed.all(hl.is_missing(removed.x2)))
 
+    def test_filter_cols_required_entries(self):
+        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt1 = mt1.filter_cols(mt1.col_idx < 3)
+        self.assertEqual(len(mt1.entries().collect()), 30)
+
+    def test_filter_cols_with_global_references(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        s = hl.literal({1, 3, 5, 7})
+        self.assertEqual(mt.filter_cols(s.contains(mt.col_idx)).count_cols(), 4)
+
+
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
         self.assertEqual(
@@ -869,6 +1003,7 @@ class MatrixTests(unittest.TestCase):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
         self.assertEqual(ds._filter_partitions([0, 1, 4]).n_partitions(), 3)
+        self.assertEqual(ds._filter_partitions(range(3)).n_partitions(), 3)
         self.assertEqual(ds._filter_partitions([4, 5, 7], keep=False).n_partitions(), 5)
         self.assertTrue(
             ds._same(hl.MatrixTable.union_rows(
@@ -930,6 +1065,16 @@ class MatrixTests(unittest.TestCase):
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
+    def test_fix3307_read_mt_wrong(self):
+        mt = hl.import_vcf(resource('sample2.vcf'))
+        mt = hl.split_multi_hts(mt)
+        mt.write('/tmp/foo.mt', overwrite=True)
+        mt2 = hl.read_matrix_table('/tmp/foo.mt')
+        t = hl.read_table('/tmp/foo.mt/rows')
+        self.assertTrue(mt.rows()._same(t))
+        self.assertTrue(mt2.rows()._same(t))
+        self.assertTrue(mt._same(mt2))
+
     def test_rename(self):
         dataset = self.get_vds()
         renamed1 = dataset.rename({'locus': 'locus2', 'info': 'info2', 's': 'info'})
@@ -979,6 +1124,43 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.GQ.take(1), [mt.entries().select('GQ').take(1)[0]['GQ']])
         self.assertEqual(mt.locus.contig.take(1), [mt.rows().select('locus').take(1)[0].locus.contig])
         self.assertEqual(mt['s'][0].take(1), [mt.cols().select('s').take(1)[0].s[0]])
+
+    def test_order_by(self):
+        ht = hl.utils.range_table(10)
+        self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
+        self.assertEqual(ht.order_by(hl.asc('idx')).idx.collect(), list(range(10)))
+        self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
+
+    def test_order_by_intervals(self):
+        intervals = {0: hl.Interval(0, 3, includes_start=True, includes_end=False),
+                     1: hl.Interval(0, 4, includes_start=True, includes_end=True),
+                     2: hl.Interval(1, 4, includes_start=True, includes_end=False),
+                     3: hl.Interval(0, 4, includes_start=False, includes_end=False),
+                     4: hl.Interval(0, 4, includes_start=True, includes_end=False)}
+        ht = hl.utils.range_table(5)
+
+        ht = ht.annotate_globals(ilist = intervals)
+        ht = ht.annotate(interval = ht['ilist'][ht['idx']])
+        ht = ht.order_by(ht['interval'])
+
+        ordered = ht['interval'].collect()
+        expected = [intervals[i] for i in [0, 4, 1, 3, 2]]
+
+        self.assertEqual(ordered, expected)
+
+    def test_range_matrix_table(self):
+        mt = hl.utils.range_matrix_table(13, 7, n_partitions = 5)
+        self.assertEqual(mt.globals.dtype, hl.tstruct())
+        self.assertEqual(mt.row.dtype, hl.tstruct(row_idx=hl.tint32))
+        self.assertEqual(mt.col.dtype, hl.tstruct(col_idx=hl.tint32))
+        self.assertEqual(mt.entry.dtype, hl.tstruct())
+
+        self.assertEqual(list(mt.row_key), ['row_idx'])
+        self.assertEqual(list(mt.partition_key), ['row_idx'])
+        self.assertEqual(list(mt.col_key), ['col_idx'])
+
+        self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
+        self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
 
 
 class GroupedMatrixTests(unittest.TestCase):

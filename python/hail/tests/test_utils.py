@@ -108,3 +108,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(interval1.contains(13))
         self.assertFalse(interval1.contains(22))
         self.assertTrue(interval1.overlaps(interval2))
+
+    def test_range_matrix_table_n_lt_partitions(self):
+        hl.utils.range_matrix_table(1, 1)._force_count_rows()

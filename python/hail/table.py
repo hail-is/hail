@@ -1,8 +1,6 @@
-import itertools
+import pandas
+import pyspark
 
-from pyspark.sql import DataFrame
-
-import hail
 import hail as hl
 from hail.expr.expr_ast import *
 from hail.expr.expressions import *
@@ -91,7 +89,7 @@ class ExprContainer(object):
         self._fields_inverse = other._fields_inverse
 
 class GroupedTable(ExprContainer):
-    """Table that has been grouped.
+    """Table grouped by row that can be aggregated into a new table.
 
     There are only two operations on a grouped table, :meth:`.GroupedTable.partition_hint`
     and :meth:`.GroupedTable.aggregate`.
@@ -112,7 +110,7 @@ class GroupedTable(ExprContainer):
 
 
     @typecheck_method(n=int)
-    def partition_hint(self, n):
+    def partition_hint(self, n) -> 'GroupedTable':
         """Set the target number of partitions for aggregation.
 
         Examples
@@ -190,9 +188,13 @@ class GroupedTable(ExprContainer):
 
 class Table(ExprContainer):
     """Hail's distributed implementation of a dataframe or SQL table.
-    
+
     Use :func:`.read_table` to read a table that was written with
-    :meth:`.Table.write`.
+    :meth:`.Table.write`. Use :meth:`.to_spark` and :meth:`.Table.from_spark`
+    to inter-operate with PySpark's
+    `SQL <https://spark.apache.org/docs/latest/sql-programming-guide.html>`__ and
+    `machine learning <https://spark.apache.org/docs/latest/ml-guide.html>`__
+    functionality.
 
     Examples
     --------
@@ -384,22 +386,21 @@ class Table(ExprContainer):
 
     @classmethod
     @typecheck_method(rows=anytype,
-                      schema=tstruct,
-                      key=oneof(str, listof(str)),
+                      schema=nullable(tstruct),
+                      key=oneof(str, sequenceof(str)),
                       n_partitions=nullable(int))
-    def parallelize(cls, rows, schema, key=[], n_partitions=None):
-        rows = to_expr(rows, hl.tarray(schema))
+    def parallelize(cls, rows, schema=None, key=(), n_partitions=None):
+        rows = to_expr(rows, hl.tarray(schema) if schema is not None else None)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        rows = rows.value
         return Table(
             Env.hail().table.Table.parallelize(
-                Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
-                schema._jtype, wrap_to_list(key), joption(n_partitions)))
+                Env.hc()._jhc, rows.dtype._to_json(rows.value),
+                rows.dtype.element_type._jtype, wrap_to_list(key), joption(n_partitions)))
 
     @typecheck_method(keys=oneof(str, Expression))
-    def key_by(self, *keys):
+    def key_by(self, *keys) -> 'Table':
         """Change the key.
 
         Examples
@@ -598,7 +599,7 @@ class Table(ExprContainer):
         fields_referenced = set()
         for k, v in named_exprs.items():
             check_collisions(self._fields, k, self._row_indices)
-            for name, inds in get_refs(v):
+            for name, inds in get_refs(v).items():
                 if inds == self._row_indices:
                     fields_referenced.add(name)
         fields_referenced = fields_referenced - set(named_exprs.keys())
@@ -635,7 +636,7 @@ class Table(ExprContainer):
             check_collisions(self._fields, k, self._row_indices)
         return self._select('Table.annotate', self.row.annotate(**named_exprs))
 
-    @typecheck_method(expr=anytype,
+    @typecheck_method(expr=expr_bool,
                       keep=bool)
     def filter(self, expr, keep=True):
         """Filter rows.
@@ -680,18 +681,14 @@ class Table(ExprContainer):
         :class:`.Table`
             Filtered table.
         """
-        expr = to_expr(expr)
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
-        if expr.dtype != tbool:
-            raise TypeError("method 'filter' expects an expression of type 'bool', found '{}'"
-                            .format(expr.dtype))
 
         return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
 
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
-    def select(self, *exprs, **named_exprs):
+    def select(self, *exprs, **named_exprs) -> 'Table':
         """Select existing fields or create new fields by name, dropping the rest.
 
         Examples
@@ -889,7 +886,7 @@ class Table(ExprContainer):
 
         self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
-    def group_by(self, *exprs, **named_exprs):
+    def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
 
         Examples
@@ -1029,7 +1026,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        result_json = base._jt.queryJSON(expr._ast.to_hql())
+        result_json = base._jt.aggregateJSON(expr._ast.to_hql())
         return expr.dtype._from_json(result_json)
 
     @typecheck_method(output=str,
@@ -1095,13 +1092,15 @@ class Table(ExprContainer):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        to_print = self._jt.showString(n, joption(truncate), types, width)
-        print(to_print)
+        print(self._show(n,width, truncate, types))
+
+    def _show(self, n=10, width=90, truncate=None, types=True):
+        return self._jt.showString(n, joption(truncate), types, width)
 
     def index(self, *exprs):
         exprs = tuple(exprs)
         if not len(exprs) > 0:
-            raise ValueError('Require at least one expression to index a table')
+            raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
         if non_exprs:
             raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
@@ -1216,27 +1215,45 @@ class Table(ExprContainer):
                         vt = vt.annotate(values=hl.index(vt.values, k_uid))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
-                        key_expr = '{uid} = va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
+                        key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
                             '{}: {}'.format(u, e._ast.to_hql()) for u, e in
                             zip(uids, exprs)))
-                        jl = jl.annotateRowsExpr(key_expr)
+                        jl = jl.selectRows('annotate('+left._row._ast.to_hql()+', {'+key_expr+"})")
                         return MatrixTable(jl)
 
                     return construct_expr(Select(TopLevelReference('va', src._row_indices), uid),
                                           new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
 
             elif indices == src._col_indices:
+                all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
-                        exprs[i] is src[list(src.col_key)[i]] for i in range(len(exprs))]):
-                    # no vds_key (faster)
-                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
-                        right._jt, None, uid, False))
+                        exprs[i] is src.col_key[i] for i in range(len(exprs))]):
+                    # key is already correct
+                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
                 else:
-                    # use vds_key
-                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(
-                        right._jt, [e._ast.to_hql() for e in exprs], uid, False))
+                    index_uid = Env.get_uid()
+                    uids = [Env.get_uid() for _ in exprs]
+
+                    all_uids.append(index_uid)
+                    all_uids.extend(uids)
+                    def joiner(left: MatrixTable):
+                        prev_key = list(src.col_key)
+                        joined = (src
+                                  .annotate_cols(**dict(zip(uids, exprs)))
+                                  .add_col_index(index_uid)
+                                  .key_cols_by(*uids)
+                                  .cols()
+                                  .select(*uids, index_uid)
+                                  .distinct()
+                                  .join(self, 'inner')
+                                  .key_by(index_uid)
+                                  .drop(*uids))
+                        return MatrixTable(left.add_col_index(index_uid)
+                                           .key_cols_by(index_uid)
+                                           ._jvds
+                                           .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                 return construct_expr(Select(TopLevelReference('sa', src._col_indices), uid), new_schema,
-                                      indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
+                                      indices, aggregations, joins.push(Join(joiner, all_uids, uid, exprs)))
             else:
                 raise NotImplementedError()
         else:
@@ -1353,7 +1370,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Unpersisted table.
         """
-        self._jt.unpersist()
+        return Table(self._jt.unpersist())
 
     def collect(self):
         """Collect the rows of the table into a local list.
@@ -1493,7 +1510,15 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with all rows from each component table.
         """
-
+        for i, ht, in enumerate(tables):
+            if not ht.row.dtype == self.row.dtype:
+                raise TypeError(f"'union': table {i} has a different row type.\n"
+                                f"  Expected:  {self.row.dtype}\n"
+                                f"  Table {i}: {ht.row.dtype}")
+            elif list(ht.key) != list(self.key):
+                raise TypeError(f"'union': table {i} has a different key."
+                                f"  Expected:  {list(self.key)}\n"
+                                f"  Table {i}: {list(ht.key)}")
         return Table(self._jt.union([table._jt for table in tables]))
 
     @typecheck_method(n=int)
@@ -1633,7 +1658,7 @@ class Table(ExprContainer):
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'))
-    def join(self, right, how='inner'):
+    def join(self, right: 'Table', how='inner') -> 'Table':
         """Join two tables together.
 
         Examples
@@ -1681,6 +1706,12 @@ class Table(ExprContainer):
             Joined table.
 
         """
+        left_key_types = list(self.key.dtype.values())
+        right_key_types = list(right.key.dtype.values())
+        if not left_key_types == right_key_types:
+            raise ValueError(f"'join': key mismatch:\n  "
+                             f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
+                             f"  right: [{', '.join(str(t) for t in right_key_types)}]")
 
         return Table(self._jt.join(right._jt, how))
 
@@ -1794,7 +1825,7 @@ class Table(ExprContainer):
         Notes
         -----
         Expands the following types: :class:`.tlocus`, :class:`.tinterval`,
-        :class:`.tset`, :class:`.tdict`.
+        :class:`.tset`, :class:`.tdict`, :class:`.ttuple`.
 
         The only types that will remain after this method are:
         :py:data:`.tbool`, :py:data:`.tint32`, :py:data:`.tint64`,
@@ -1930,8 +1961,9 @@ class Table(ExprContainer):
                     sort_cols.append(e._j_obj())
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
-    @typecheck_method(field=oneof(str, Expression))
-    def explode(self, field):
+    @typecheck_method(field=oneof(str, Expression),
+                      name=nullable(str))
+    def explode(self, field, name=None):
         """Explode rows along a top-level field of the table.
 
         Each row is copied for each element of `field`.
@@ -1949,37 +1981,51 @@ class Table(ExprContainer):
             people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
                                      types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
 
-        .. doctest::
 
-            >>> people_table.show()
-            +----------+-------+--------------------------+
-            | Name     |   Age | Children                 |
-            +----------+-------+--------------------------+
-            | str      | int32 | array<str>               |
-            +----------+-------+--------------------------+
-            | Alice    |    34 | ["Dave","Ernie","Frank"] |
-            | Bob      |    51 | ["Gaby","Helen"]         |
-            | Caroline |    10 | []                       |
-            +----------+-------+--------------------------+
+        >>> people_table.show()
+        +----------+-------+--------------------------+
+        | Name     |   Age | Children                 |
+        +----------+-------+--------------------------+
+        | str      | int32 | array<str>               |
+        +----------+-------+--------------------------+
+        | Alice    |    34 | ["Dave","Ernie","Frank"] |
+        | Bob      |    51 | ["Gaby","Helen"]         |
+        | Caroline |    10 | []                       |
+        +----------+-------+--------------------------+
 
         :meth:`.Table.explode` can be used to produce a distinct row for each
         element in the `Children` field:
 
-        .. doctest::
+        >>> exploded = people_table.explode('Children')
+        >>> exploded.show()
+        +-------+-------+----------+
+        | Name  |   Age | Children |
+        +-------+-------+----------+
+        | str   | int32 | str      |
+        +-------+-------+----------+
+        | Alice |    34 | Dave     |
+        | Alice |    34 | Ernie    |
+        | Alice |    34 | Frank    |
+        | Bob   |    51 | Gaby     |
+        | Bob   |    51 | Helen    |
+        +-------+-------+----------+
 
-            >>> exploded = people_table.explode('Children')
-            >>> exploded.show()
-            +-------+-------+----------+
-            | Name  |   Age | Children |
-            +-------+-------+----------+
-            | str   | int32 | str      |
-            +-------+-------+----------+
-            | Alice |    34 | Dave     |
-            | Alice |    34 | Ernie    |
-            | Alice |    34 | Frank    |
-            | Bob   |    51 | Gaby     |
-            | Bob   |    51 | Helen    |
-            +-------+-------+----------+
+        The `name` parameter can be used to produce more appropriate field
+        names:
+
+        >>> exploded = people_table.explode('Children', name='Child')
+        >>> exploded.show()
+        +-------+-------+-------+
+        | Name  |   Age | Child |
+        +-------+-------+-------+
+        | str   | int32 | str   |
+        +-------+-------+-------+
+        | Alice |    34 | Dave  |
+        | Alice |    34 | Ernie |
+        | Alice |    34 | Frank |
+        | Bob   |    51 | Gaby  |
+        | Bob   |    51 | Helen |
+        +-------+-------+-------+
 
         Notes
         -----
@@ -1993,6 +2039,8 @@ class Table(ExprContainer):
         ----------
         field : :obj:`str` or :class:`.Expression`
             Top-level field name or expression.
+        name : :obj:`str` or None
+            If not `None`, rename the exploded field to `name`.
 
         Returns
         -------
@@ -2011,8 +2059,14 @@ class Table(ExprContainer):
             # global field
             assert field._indices == self._global_indices
             raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
+        if not is_container(field.dtype):
+            raise ValueError(f"method 'explode' expects array, set or dict field, found: {field.dtype}")
 
-        return Table(self._jt.explode(self._fields_inverse[field]))
+        f = self._fields_inverse[field]
+        t = Table(self._jt.explode(f))
+        if name is not None:
+            t = t.rename({f: name})
+        return t
 
     @typecheck_method(row_key=expr_any,
                       col_key=expr_any,
@@ -2088,8 +2142,8 @@ class Table(ExprContainer):
         return self._row
 
     @staticmethod
-    @typecheck(df=DataFrame,
-               key=oneof(str, listof(str)))
+    @typecheck(df=pyspark.sql.DataFrame,
+               key=oneof(str, sequenceof(str)))
     def from_spark(df, key=[]):
         """Convert PySpark SQL DataFrame to a table.
 
@@ -2132,58 +2186,76 @@ class Table(ExprContainer):
         """
         return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
-    @typecheck_method(expand=bool,
-                      flatten=bool)
-    def to_spark(self, expand=True, flatten=True):
+    @typecheck_method(flatten=bool)
+    def to_spark(self, flatten=True):
         """Converts this table to a Spark DataFrame.
+
+        Because Spark cannot represent complex types, types are
+        expanded before flattening or conversion.
 
         Parameters
         ----------
-        expand : :obj:`bool`
-            If True, expand_types before converting to Pandas DataFrame.
-
         flatten : :obj:`bool`
-            If True, flatten before converting to Pandas DataFrame.
-            If `expand` and `flatten` are True, flatten is run after
-            expand so that expanded types are flattened.
+            If ``True``, :meth:`flatten` before converting to Spark DataFrame.
 
         Returns
         -------
         :class:`.pyspark.sql.DataFrame`
-            Spark DataFrame constructed from the table.
+
         """
         jt = self._jt
-        if expand:
-            jt = jt.expandTypes()
+        jt = jt.expandTypes()
         if flatten:
             jt = jt.flatten()
-        return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.hc()._sql_context)
+        return pyspark.sql.DataFrame(jt.toDF(Env.hc()._jsql_context), Env.sql_context())
 
-    @typecheck_method(expand=bool,
-                      flatten=bool)
-    def to_pandas(self, expand=True, flatten=True):
-        """Converts this table into a Pandas DataFrame.
+    @typecheck_method(flatten=bool)
+    def to_pandas(self, flatten=True):
+        """Converts this table to a Pandas DataFrame.
+
+        Because converion to Pandas is done through Spark, and Spark
+        cannot represent complex types, types are expanded before
+        flattening or conversion.
 
         Parameters
         ----------
-        expand : :obj:`bool`
-            If True, expand_types before converting to Pandas DataFrame.
-
         flatten : :obj:`bool`
-            If True, flatten before converting to Pandas DataFrame.
-            If `expand` and `flatten` are True, flatten is run after
-            expand so that expanded types are flattened.
+            If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
 
         Returns
         -------
         :class:`.pandas.DataFrame`
-            Pandas DataFrame constructed from the table.
-        """
-        return self.to_spark(expand, flatten).toPandas()
 
-    @typecheck_method(other=table_type, tolerance=nullable(numeric))
-    def _same(self, other, tolerance=1e-6):
-        return self._jt.same(other._jt, tolerance)
+        """
+        return self.to_spark(flatten).toPandas()
+
+    @staticmethod
+    @typecheck(df=pandas.DataFrame,
+               key=oneof(str, sequenceof(str)))
+    def from_pandas(df, key=[]):
+        """Create table from Pandas DataFrame
+
+        Examples
+        --------
+
+        >>> t = hl.Table.from_pandas(df) # doctest: +SKIP
+
+        Parameters
+        ----------
+        df : :class:`.pandas.DataFrame`
+            Pandas DataFrame.
+        key : :obj:`str` or :obj:`list` of :obj:`str`
+            Key fields.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
+
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False):
+        return self._jt.same(other._jt, tolerance, absolute)
 
     def collect_by_key(self, name: str= 'values') -> 'Table':
         """Collect values for each unique key into an array.

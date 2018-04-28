@@ -71,5 +71,8 @@ class MultiArray2[T](val n1: Int,
 object MultiArray2 {
   def fill[T](n1: Int, n2: Int)(elem: => T)(implicit tct: ClassTag[T]): MultiArray2[T] =
     new MultiArray2[T](n1, n2, Array.fill[T](n1 * n2)(elem))
+
+  def empty[T](implicit tct: ClassTag[T]): MultiArray2[T] =
+    new MultiArray2[T](0, 0, Array.empty[T](tct))
 }
 

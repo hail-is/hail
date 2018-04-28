@@ -71,10 +71,10 @@ class SwitchBuilder(ConditionalBuilder):
                 expr = cond(condition, then, expr)
             return expr
 
-        return bind(self._base, f)
+        return bind(f, self._base)
 
     @typecheck_method(value=expr_any, then=expr_any)
-    def when(self, value, then):
+    def when(self, value, then) -> 'SwitchBuilder':
         """Add a value test. If the `base` expression is equal to `value`, then
          returns `then`.
 
@@ -104,7 +104,7 @@ class SwitchBuilder(ConditionalBuilder):
         return self
 
     @typecheck_method(then=expr_any)
-    def when_missing(self, then):
+    def when_missing(self, then) -> 'SwitchBuilder':
         """Add a test for missingness. If the `base` expression is missing,
         returns `then`.
 
@@ -218,7 +218,7 @@ class CaseBuilder(ConditionalBuilder):
         return expr
 
     @typecheck_method(condition=expr_bool, then=expr_any)
-    def when(self, condition, then):
+    def when(self, condition, then) -> 'CaseBuilder':
         """Add a branch. If `condition` is ``True``, then returns `then`.
 
         Warning

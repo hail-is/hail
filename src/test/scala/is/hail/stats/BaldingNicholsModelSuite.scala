@@ -2,7 +2,7 @@ package is.hail.stats
 
 import breeze.stats._
 import is.hail.SparkSuite
-import is.hail.variant.{Call, Variant}
+import is.hail.variant.Call
 import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.Assert.assertEquals
@@ -57,7 +57,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
       val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
 
       //Test population distribution
-      val popArray = bnm.colValues.toArray.map(_.asInstanceOf[Row](1).toString.toDouble)
+      val popArray = bnm.colValues.value.toArray.map(_.asInstanceOf[Row](1).toString.toDouble)
       val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_ (0)).map(_.size)
 
       popCounts.indices.foreach(index => {

@@ -85,11 +85,23 @@ class Tests(unittest.TestCase):
     def test_floating_point(self):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
+    def test_bind_multiple(self):
+        self.assertEqual(hl.bind(lambda x, y: x * y, 2, 3).value, 6)
+        self.assertEqual(hl.bind(lambda y: y * 2, 3).value, 6)
+
+    def test_bind_placement(self):
+        self.assertEqual((5 / hl.bind(lambda x: x, 5)).value, 1.0)
+
     def test_matches(self):
         self.assertEqual(hl.eval_expr('\d+'), '\d+')
         string = hl.literal('12345')
         self.assertTrue(hl.eval_expr(string.matches('\d+')))
         self.assertFalse(hl.eval_expr(string.matches(r'\\d+')))
+
+    def test_first_match_in(self):
+        string = hl.literal('1:25-100')
+        self.assertTrue(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)").value == ['1', '25', '100'])
+        self.assertIsNone(string.first_match_in("hello (\w+)!").value)
 
     def test_cond(self):
         self.assertEqual(hl.eval_expr('A' + hl.cond(True, 'A', 'B')), 'AA')
@@ -104,12 +116,15 @@ class Tests(unittest.TestCase):
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
                                       z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
-                                      arr_sum=agg.array_sum([1, 2, hl.null(tint32)])))
+                                      arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
+                                      bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
+                                      mean=agg.mean(table.idx)))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
         self.assertEqual(r.arr_sum, [10, 20, 0])
+        self.assertEqual(r.bind_agg, 5)
 
         r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
                                       lessthan6=agg.fraction(table.idx < 6),
@@ -307,7 +322,6 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval_expr(hl.bool(s5)))
         self.assertFalse(hl.eval_expr(hl.bool(s6)))
 
-        # lower
         s = hl.literal('abcABC123')
         self.assertEqual(s.lower().value, 'abcabc123')
         self.assertEqual(s.upper().value, 'ABCABC123')
@@ -316,11 +330,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(s_whitespace.strip().value, '1 2 3')
 
         self.assertEqual(s.contains('ABC').value, True)
+        self.assertEqual((~s.contains('ABC')).value, False)
         self.assertEqual(s.contains('a').value, True)
         self.assertEqual(s.contains('C123').value, True)
         self.assertEqual(s.contains('').value, True)
         self.assertEqual(s.contains('C1234').value, False)
         self.assertEqual(s.contains(' ').value, False)
+
+        self.assertTrue(s_whitespace.startswith(' \t').value)
+        self.assertTrue(s_whitespace.endswith('\t\n').value)
+        self.assertFalse(s_whitespace.startswith('a').value)
+        self.assertFalse(s_whitespace.endswith('a').value)
+
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
@@ -1043,7 +1064,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(1 <= hl.eval_expr(hl.median([0, 1, 4, 6])) <= 4)
 
-        self.assertEqual(hl.eval_expr(hl.product([1, 4, 6])), 24)
+        for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
+            self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]).value, 24)
+            self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]).value, 11)
 
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
@@ -1101,6 +1124,9 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    def test_or_else_type_conversion(self):
+        self.assertEqual(hl.or_else(0.5, 2).value, 0.5)
+
     def test_tuple_ops(self):
         t0 = hl.literal(())
         t1 = hl.literal((1,))
@@ -1146,3 +1172,107 @@ class Tests(unittest.TestCase):
         self.assertTrue(li.overlaps(li4).value)
         self.assertFalse(li.overlaps(li3).value)
         self.assertFalse(li.overlaps(li5).value)
+
+    def test_reference_genome_fns(self):
+        self.assertTrue(hl.is_valid_contig('1', 'GRCh37').value)
+        self.assertFalse(hl.is_valid_contig('chr1', 'GRCh37').value)
+        self.assertFalse(hl.is_valid_contig('1', 'GRCh38').value)
+        self.assertTrue(hl.is_valid_contig('chr1', 'GRCh38').value)
+
+        self.assertTrue(hl.is_valid_locus('1', 325423, 'GRCh37').value)
+        self.assertFalse(hl.is_valid_locus('1', 0, 'GRCh37').value)
+        self.assertFalse(hl.is_valid_locus('1', 249250622, 'GRCh37').value)
+        self.assertFalse(hl.is_valid_locus('chr1', 2645, 'GRCh37').value)
+
+    def test_mendel_error_code(self):
+        locus_auto = hl.Locus('2', 20000000)
+        locus_x_par = hl.get_reference('default').par[0].start
+        locus_x_nonpar = hl.Locus(locus_x_par.contig, locus_x_par.position - 1)
+        locus_y_nonpar = hl.Locus('Y', hl.get_reference('default').lengths['Y'] - 1)
+
+        self.assertTrue(hl.all(lambda x: x, hl.array([
+            hl.literal(locus_auto).in_autosome_or_par(),
+            hl.literal(locus_auto).in_autosome_or_par(),
+            ~hl.literal(locus_x_par).in_autosome(),
+            hl.literal(locus_x_par).in_autosome_or_par(),
+            ~hl.literal(locus_x_nonpar).in_autosome_or_par(),
+            hl.literal(locus_x_nonpar).in_x_nonpar(),
+            ~hl.literal(locus_y_nonpar).in_autosome_or_par(),
+            hl.literal(locus_y_nonpar).in_y_nonpar()
+        ])).value)
+
+        hr = hl.Call([0, 0])
+        het = hl.Call([0, 1])
+        hv = hl.Call([1, 1])
+        nocall = None
+
+        expected = {
+            (locus_auto, True, hv, hv, het): 1,
+            (locus_auto, False, hv, hv, het): 1,
+            (locus_x_par, True, hv, hv, het): 1,
+            (locus_x_par, False, hv, hv, het): 1,
+            (locus_auto, True, hr, hr, het): 2,
+            (locus_auto, None, hr, hr, het): 2,
+            (locus_auto, True, hr, het, hv): 3,
+            (locus_auto, True, hr, hv, hv): 3,
+            (locus_auto, True, hr, nocall, hv): 3,
+            (locus_auto, True, het, hr, hv): 4,
+            (locus_auto, True, hv, hr, hv): 4,
+            (locus_auto, True, nocall, hr, hv): 4,
+            (locus_auto, True, hr, hr, hv): 5,
+            (locus_auto, None, hr, hr, hv): 5,
+            (locus_auto, False, hr, hr, hv): 5,
+            (locus_x_par, False, hr, hr, hv): 5,
+            (locus_x_par, False, hv, het, hr): 6,
+            (locus_x_par, False, hv, hr, hr): 6,
+            (locus_x_par, False, hv, nocall, hr): 6,
+            (locus_x_par, False, het, hv, hr): 7,
+            (locus_x_par, False, hr, hv, hr): 7,
+            (locus_x_par, False, nocall, hv, hr): 7,
+            (locus_auto, True, hv, hv, hr): 8,
+            (locus_auto, False, hv, hv, hr): 8,
+            (locus_x_par, False, hv, hv, hr): 8,
+            (locus_x_par, None, hv, hv, hr): 8,
+            (locus_x_nonpar, False, hr, hv, hr): 9,
+            (locus_x_nonpar, False, het, hv, hr): 9,
+            (locus_x_nonpar, False, hv, hv, hr): 9,
+            (locus_x_nonpar, False, nocall, hv, hr): 9,
+            (locus_x_nonpar, False, hr, hr, hv): 10,
+            (locus_x_nonpar, False, het, hr, hv): 10,
+            (locus_x_nonpar, False, hv, hr, hv): 10,
+            (locus_x_nonpar, False, nocall, hr, hv): 10,
+            (locus_y_nonpar, False, hv, hr, hr): 11,
+            (locus_y_nonpar, False, hv, het, hr): 11,
+            (locus_y_nonpar, False, hv, hv, hr): 11,
+            (locus_y_nonpar, False, hv, nocall, hr): 11,
+            (locus_y_nonpar, False, hr, hr, hv): 12,
+            (locus_y_nonpar, False, hr, het, hv): 12,
+            (locus_y_nonpar, False, hr, hv, hv): 12,
+            (locus_y_nonpar, False, hr, nocall, hv): 12,
+            (locus_auto, True, het, het, het): None,
+            (locus_auto, True, hv, het, het): None,
+            (locus_auto, True, het, hr, het): None,
+            (locus_auto, True, hv, hr, het): None,
+            (locus_auto, True, hv, hr, het): None,
+            (locus_x_nonpar, True, hv, hr, het): None,
+            (locus_x_nonpar, False, hv, hr, hr): None,
+            (locus_x_nonpar, None, hv, hr, hr): None,
+            (locus_x_nonpar, False, het, hr, hr): None,
+            (locus_y_nonpar, True, het, hr, het): None,
+            (locus_y_nonpar, True, het, hr, hr): None,
+            (locus_y_nonpar, True, het, hr, het): None,
+            (locus_y_nonpar, True, het, het, het): None,
+            (locus_y_nonpar, True, hr, hr, hr): None,
+            (locus_y_nonpar, None, hr, hr, hr): None,
+            (locus_y_nonpar, False, hr, hv, hr): None,
+            (locus_y_nonpar, False, hv, hv, hv): None,
+            (locus_y_nonpar, None, hv, hv, hv): None,
+        }
+
+        arg_list = hl.literal(list(expected.keys()),
+                              hl.tarray(hl.ttuple(hl.tlocus(), hl.tbool, hl.tcall, hl.tcall, hl.tcall)))
+        values = arg_list.map(lambda args: hl.mendel_error_code(*args))
+        expr = hl.dict(hl.zip(arg_list, values))
+        results = expr.value
+        for args, result in results.items():
+            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')

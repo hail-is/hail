@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, BroadcastIndexedSeq}
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types._
 import is.hail.table.Table
@@ -16,9 +16,8 @@ import scala.language._
 
 class ConcordanceSuite extends SparkSuite {
   def gen(sc: SparkContext) = for {
-    rg <- ReferenceGenome.gen
-    vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(rg))))
-    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(rg))))
+    vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
+    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
     scrambledIds1 <- Gen.shuffle(vds1.stringSampleIds).map(_.iterator)
     newIds2 <- Gen.parameterized { p =>
       Gen.const(vds2.stringSampleIds.map { id =>
@@ -39,16 +38,17 @@ class ConcordanceSuite extends SparkSuite {
         } else
           Row(locus, alleles, locus, alleles)
       },
-        TStruct("locus" -> TLocus(rg),
+        TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
         "alleles" -> TArray(TString()),
-        "locus2" -> TLocus(rg),
+        "locus2" -> TLocus(ReferenceGenome.GRCh37),
         "alleles2" -> TArray(TString())), Array.empty[String], None)
         .keyBy("locus", "alleles"))
     }
   } yield (vds1, vds2.annotateRowsTable(newVariantMapping, "newVariant")
-      .annotateRowsExpr("locus = va.newVariant.locus2, " +
-        "alleles = va.newVariant.alleles2")
-      .copy2(colValues = newIds2.map(Annotation(_)), colType = TStruct("s" -> TString())))
+      .annotateRowsExpr("locus" -> "va.newVariant.locus2",
+        "alleles" -> "va.newVariant.alleles2")
+      .copy2(colValues = BroadcastIndexedSeq(newIds2.map(Annotation(_)), TArray(TStruct("s" -> TString())), sc),
+        colType = TStruct("s" -> TString())))
 
   // FIXME use SnpSift when it's fixed
   def readSampleConcordance(file: String): Map[String, IndexedSeq[IndexedSeq[Int]]] = {

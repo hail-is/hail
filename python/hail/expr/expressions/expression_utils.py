@@ -1,11 +1,11 @@
-from hail.typecheck import *
 from hail.utils import warn, error
 from .indices import *
 from ..expressions import Expression, Aggregable, ExpressionException, expr_any
 from typing import *
 
 
-@typecheck(caller=str, expr=Expression,
+@typecheck(caller=str,
+           expr=Expression,
            expected_indices=Indices,
            aggregation_axes=setof(str))
 def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregation_axes: Set = set()):
@@ -33,7 +33,7 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
         # one or more out-of-scope fields
         refs = get_refs(expr)
         bad_refs = []
-        for name, inds in refs:
+        for name, inds in refs.items():
             bad_axes = inds.axes.intersection(unexpected_axes)
             if bad_axes:
                 bad_refs.append((name, inds))
@@ -68,7 +68,7 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                         ExpressionException(
                             'Expected an expression from source {}, found expression derived from {}'
                             '\n    Invalid fields: [{}]'.format(
-                                expected_source, source, ', '.join("'{}'".format(name) for name, _ in refs)
+                                expected_source, source, ', '.join("'{}'".format(name) for name in refs)
                             )))
 
                 # check for stray indices
@@ -76,7 +76,7 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                 if unexpected_agg_axes:
                     # one or more out-of-scope fields
                     bad_refs = []
-                    for name, inds in refs:
+                    for name, inds in refs.items():
                         bad_axes = inds.axes.intersection(unexpected_agg_axes)
                         if bad_axes:
                             bad_refs.append((name, inds))
@@ -174,22 +174,43 @@ def eval_expr_typed(expression):
     return expression.collect()[0], expression.dtype
 
 
-def _get_refs(expr: Union[Expression, Aggregable], builder: List) -> None:
+def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
     from ..expr_ast import Select, TopLevelReference
 
     second_level_refs: Tuple[Select] = expr._ast.search(lambda a: isinstance(a, Select)
                                                                   and not a.name.startswith('__uid')
                                                                   and isinstance(a.parent, TopLevelReference))
     for ast in second_level_refs:
-        builder.append((ast.name, ast.parent.indices))
+        builder[ast.name] = ast.parent.indices
 
     for join in expr._joins:
         for e in join.exprs:
             _get_refs(e, builder)
 
 
-def get_refs(*exprs: Union[Expression, Aggregable]) -> List[Tuple[str, Indices]]:
-    builder = []
+def get_refs(*exprs: Union[Expression, Aggregable]) -> Dict[str, Indices]:
+    builder = {}
     for e in exprs:
         _get_refs(e, builder)
     return builder
+
+
+@typecheck(caller=str,
+           expr=Expression)
+def matrix_table_source(caller, expr):
+    from hail import MatrixTable
+    source = expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError(
+            "{}: Expect an expression of 'MatrixTable', found {}".format(
+                caller,
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    return source
+
+
+@typecheck(caller=str,
+           expr=Expression)
+def check_entry_indexed(caller, expr):
+    if expr._indices != expr._indices.source._entry_indices:
+        raise ExpressionException("{}: expression must be entry-indexed,"
+                                  " found indices {}".format(caller, list(expr._indices.axes)))

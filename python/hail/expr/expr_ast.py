@@ -157,7 +157,7 @@ class Literal(AST):
 
 
 class ArrayDeclaration(AST):
-    @typecheck_method(values=listof(AST))
+    @typecheck_method(values=sequenceof(AST))
     def __init__(self, values):
         self.values = values
         super(ArrayDeclaration, self).__init__(*values)
@@ -167,7 +167,7 @@ class ArrayDeclaration(AST):
 
 
 class StructDeclaration(AST):
-    @typecheck_method(keys=listof(str), values=listof(AST))
+    @typecheck_method(keys=sequenceof(str), values=sequenceof(AST))
     def __init__(self, keys, values):
         self.keys = keys
         self.values = values
@@ -228,19 +228,16 @@ class Slice(AST):
 
 
 class Bind(AST):
-    @typecheck_method(uid=str, definition=AST, expression=AST)
-    def __init__(self, uid, definition, expression):
-        self.uid = uid
-        self.definition = definition
+    @typecheck_method(uids=sequenceof(str), definitions=sequenceof(AST), expression=AST)
+    def __init__(self, uids, definitions, expression):
+        self.uids = uids
+        self.definitions = definitions
         self.expression = expression
-        super(Bind, self).__init__(definition, expression)
+        super(Bind, self).__init__(*definitions, expression)
 
     def to_hql(self):
-        return "let {uid} = {left_expr} in {right_expr}".format(
-            uid=self.uid,
-            left_expr=self.definition.to_hql(),
-            right_expr=self.expression.to_hql()
-        )
+        bindings = ' and '.join(f'{uid} = {ast.to_hql()}' for uid, ast in zip(self.uids, self.definitions))
+        return f'(let {bindings} in {self.expression.to_hql()})'
 
 
 class RegexMatch(AST):

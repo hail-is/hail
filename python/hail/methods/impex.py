@@ -8,6 +8,32 @@ from hail.expr.types import *
 from hail.expr.expressions import analyze, expr_any
 from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant
+import hail as hl
+
+
+def locus_interval_expr(contig, start, end, includes_start, includes_end,
+                        reference_genome, skip_invalid_intervals):
+    if reference_genome:
+        if skip_invalid_intervals:
+            is_valid_locus_interval = (
+                (hl.is_valid_contig(contig, reference_genome) &
+                 (hl.is_valid_locus(contig, start, reference_genome) |
+                  (~hl.bool(includes_start) & (start == 0))) &
+                 (hl.is_valid_locus(contig, end, reference_genome) |
+                  (~hl.bool(includes_end) & hl.is_valid_locus(contig, end - 1, reference_genome)))))
+
+            return hl.or_missing(is_valid_locus_interval,
+                                 hl.locus_interval(contig, start, end,
+                                                   includes_start, includes_end,
+                                                   reference_genome))
+        else:
+            return hl.locus_interval(contig, start, end, includes_start,
+                                     includes_end, reference_genome)
+    else:
+        return hl.interval(hl.struct(contig=contig, position=start),
+                           hl.struct(contig=contig, position=end),
+                           includes_start,
+                           includes_end)
 
 
 @typecheck(table=Table,
@@ -313,20 +339,25 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
 
 @typecheck(path=str,
-           reference_genome=nullable(reference_genome_type))
-def import_locus_intervals(path, reference_genome='default'):
-    """Import an interval list as a :class:`.Table`.
+           reference_genome=nullable(reference_genome_type),
+           skip_invalid_intervals=bool)
+def import_locus_intervals(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
+    """Import a locus interval list as a :class:`.Table`.
 
     Examples
     --------
 
+    Add the row field `capture_region` indicating inclusion in
+    at least one locus interval from `capture_intervals.txt`:
+
     >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
+    >>> result = dataset.annotate_rows(capture_region = hl.is_defined(intervals[dataset.locus]))
 
     Notes
     -----
 
-    Hail expects an interval file to contain either three or five fields per
-    line in the following formats:
+    Hail expects an interval file to contain either one, three or five fields
+    per line in the following formats:
 
     - ``contig:start-end``
     - ``contig  start  end`` (tab-separated)
@@ -347,51 +378,109 @@ def import_locus_intervals(path, reference_genome='default'):
      - **interval** (:class:`.tinterval`) - Row key. Same schema as above.
      - **target** (:py:data:`.tstr`)
 
-    Note
-    ----
+    If `reference_genome` is defined **AND** the file has one field, intervals
+    are parsed with :func:`.parse_locus_interval`. See the documentation for
+    valid inputs.
+
+    If `reference_genome` is **NOT** defined and the file has one field,
+    intervals are parsed with the regex ```"([^:]*):(\\d+)\\-(\\d+)"``
+    where contig, start, and end match each of the three capture groups.
     ``start`` and ``end`` match positions inclusively, e.g.
-    ``start <= position <= end``. :meth:`.Interval.parse`
-    is exclusive of the end position.
+    ``start <= position <= end``.
 
-    Refer to :class:`.ReferenceGenome` for contig ordering and behavior.
-
-    Warning
-    -------
-    The interval parser for these files does not support the full range of
-    formats supported by the python parser
-    :meth:`representation.Interval.parse`. 'k', 'm', 'start', and 'end' are all
-    invalid motifs in the ``contig:start-end`` format here.
+    For files with three or five fields, ``start`` and ``end`` match positions
+    inclusively, e.g. ``start <= position <= end``.
 
     Parameters
     ----------
     path : :obj:`str`
         Path to file.
-
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
+    skip_invalid_intervals : :obj:`bool`
+        If ``True`` and `reference_genome` is not ``None``, skip lines with
+        intervals that are not consistent with the reference genome.
 
     Returns
     -------
     :class:`.Table`
         Interval-keyed table.
     """
-    rg = reference_genome._jrep if reference_genome else None
 
-    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, joption(rg))
-    return Table(t)
+    t = import_table(path, comment="@", impute=False, no_header=True,
+                     types={'f0': tstr, 'f1': tint32, 'f2': tint32,
+                            'f3': tstr, 'f4': tstr})
+
+    if t.row.dtype == tstruct(f0=tstr):
+        if reference_genome:
+            t = t.select(interval=hl.parse_locus_interval(t['f0'], 
+                                                          reference_genome))
+        else:
+            interval_regex = r"([^:]*):(\d+)\-(\d+)"
+
+            def checked_match_interval_expr(match):
+                return hl.or_missing(hl.len(match) == 3,
+                                     locus_interval_expr(match[0],
+                                                         hl.int32(match[1]),
+                                                         hl.int32(match[2]),
+                                                         True,
+                                                         True,
+                                                         reference_genome,
+                                                         skip_invalid_intervals))
+
+            expr = (
+                hl.bind(t['f0'].first_match_in(interval_regex),
+                        lambda match: hl.cond(hl.bool(skip_invalid_intervals),
+                                              checked_match_interval_expr(match),
+                                              locus_interval_expr(match[0],
+                                                                  hl.int32(match[1]),
+                                                                  hl.int32(match[2]),
+                                                                  True,
+                                                                  True,
+                                                                  reference_genome,
+                                                                  skip_invalid_intervals))))
+
+            t = t.select(interval=expr)
+
+    elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
+        t = t.select(interval=locus_interval_expr(t['f0'],
+                                                  t['f1'],
+                                                  t['f2'],
+                                                  True,
+                                                  True,
+                                                  reference_genome,
+                                                  skip_invalid_intervals))
+
+    elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr, f4=tstr):
+        t = t.select(interval=locus_interval_expr(t['f0'], 
+                                                  t['f1'], 
+                                                  t['f2'], 
+                                                  True, 
+                                                  True, 
+                                                  reference_genome, 
+                                                  skip_invalid_intervals),
+                     target=t['f4'])
+
+    else:
+        raise FatalError("""invalid interval format.  Acceptable formats:
+              'chr:start-end'
+              'chr  start  end' (tab-separated)
+              'chr  start  end  strand  target' (tab-separated, strand is '+' or '-')""")
+
+    if skip_invalid_intervals and reference_genome:
+        t = t.filter(hl.is_defined(t.interval))
+
+    return t.key_by('interval')
 
 
 @typecheck(path=str,
-           reference_genome=nullable(reference_genome_type))
-def import_bed(path, reference_genome='default'):
-    """Import a UCSC .bed file as a :class:`.Table`.
+           reference_genome=nullable(reference_genome_type),
+           skip_invalid_intervals=bool)
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
+    """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
     --------
-
-    >>> bed = hl.import_bed('data/file1.bed')
-
-    >>> bed = hl.import_bed('data/file2.bed')
 
     The file formats are
 
@@ -409,6 +498,17 @@ def import_bed(path, reference_genome='default'):
         20    17000000   18000000  cnv2
         ...
 
+    Add the row field `cnv_region` indicating inclusion in
+    at least one interval of the three-column BED file:
+
+    >>> bed = hl.import_bed('data/file1.bed')
+    >>> result = dataset.annotate_rows(cnv_region = hl.is_defined(bed[dataset.locus]))
+
+    Add a row field `cnv_id` with the value given by the
+    fourth column of a BED file:
+
+    >>> bed = hl.import_bed('data/file2.bed')
+    >>> result = dataset.annotate_rows(cnv_id = bed[dataset.locus].target)
 
     Notes
     -----
@@ -424,7 +524,7 @@ def import_bed(path, reference_genome='default'):
           type :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
 
     If the .bed file has four or more columns, then Hail will store the fourth
-    column as a field in the table:
+    column as a row field in the table:
 
         - *interval* (:class:`.tinterval`) - Row key. Genomic interval. Same schema as above.
         - *target* (:py:data:`.tstr`) - Fourth column of .bed file.
@@ -435,47 +535,68 @@ def import_bed(path, reference_genome='default'):
 
     Warning
     -------
-        UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
-        will contain locus ``5:105`` but not ``5:100``. Details
-        `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
+    UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
+    will contain locus ``5:105`` but not ``5:100``. Details
+    `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
     Parameters
     ----------
     path : :obj:`str`
         Path to .bed file.
-
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
+    skip_invalid_intervals : :obj:`bool`
+        If ``True`` and `reference_genome` is not ``None``, skip lines with
+        intervals that are not consistent with the reference genome.
 
     Returns
     -------
     :class:`.Table`
         Interval-keyed table.
     """
-    # FIXME: once interval join support is added, add the following examples:
-    # Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
-    # at least one interval of the three-column BED file `file1.bed`:
 
-    # >>> bed = hl.import_bed('data/file1.bed')
-    # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.locus])
+    # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
-    # Add a variant annotation **va.cnvRegion** (*String*) with value given by the
-    # fourth column of ``file2.bed``:
+    t = import_table(path, no_header=True, delimiter="\s+", impute=False,
+                     skip_blank_lines=True, types={'f0': tstr, 'f1': tint32, 
+                                                   'f2': tint32, 'f3': tstr, 
+                                                   'f4': tstr},
+                     comment=["""^browser.*""", """^track.*""",
+                              r"""^\w+=("[\w\d ]+"|\d+).*"""])
 
-    # >>> bed = hl.import_bed('data/file2.bed')
-    # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.locus])
+    if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
+        t = t.select(interval=locus_interval_expr(t['f0'], 
+                                                  t['f1'] + 1, 
+                                                  t['f2'],
+                                                  True, 
+                                                  True, 
+                                                  reference_genome, 
+                                                  skip_invalid_intervals))
 
-    rg = reference_genome._jrep if reference_genome else None
+    elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
+        t = t.select(interval=locus_interval_expr(t['f0'], 
+                                                  t['f1'] + 1, 
+                                                  t['f2'],
+                                                  True, 
+                                                  True, 
+                                                  reference_genome, 
+                                                  skip_invalid_intervals),
+                     target=t['f3'])
 
-    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, joption(rg))
-    return Table(jt)
+    else:
+        raise FatalError("too few fields for BED file: expected 3 or more, but found {}".format(len(t.row)))
+
+    if skip_invalid_intervals and reference_genome:
+        t = t.filter(hl.is_defined(t.interval))
+
+    return t.key_by('interval')
 
 
 @typecheck(path=str,
            quant_pheno=bool,
            delimiter=str,
            missing=str)
-def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
+def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Table:
     """Import a PLINK FAM file into a :class:`.Table`.
 
     Examples
@@ -537,7 +658,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
 
 
 @typecheck(regex=str,
-           path=oneof(str, listof(str)),
+           path=oneof(str, sequenceof(str)),
            max_count=int)
 def grep(regex, path, max_count=100):
     """Searches given paths for all lines containing regex matches.
@@ -575,16 +696,20 @@ def grep(regex, path, max_count=100):
     Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
-           entry_fields=listof(str),
+           entry_fields=sequenceof(str),
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric)
-def import_bgen(path, entry_fields, sample_file=None,
-                min_partitions=None, reference_genome='default',
-                contig_recoding=None, tolerance=0.2):
+def import_bgen(path,
+                entry_fields,
+                sample_file=None,
+                min_partitions=None,
+                reference_genome='default',
+                contig_recoding=None,
+                tolerance=0.2) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -693,10 +818,6 @@ def import_bgen(path, entry_fields, sample_file=None,
 
     rg = reference_genome._jrep if reference_genome else None
 
-    if not entry_fields:
-        raise FatalError("import_bgen: entry_fields must be non-empty."
-                         "\n    Options: 'GT', 'GP', 'dosage'.")
-
     entry_set = set(entry_fields)
     bad_entry_fields = list(entry_set - {'GT', 'GP', 'dosage'})
 
@@ -714,15 +835,20 @@ def import_bgen(path, entry_fields, sample_file=None,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
            tolerance=numeric,
            min_partitions=nullable(int),
            chromosome=nullable(str),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
-def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None,
-               reference_genome='default', contig_recoding=None):
+def import_gen(path,
+               sample_file=None,
+               tolerance=0.2,
+               min_partitions=None,
+               chromosome=None,
+               reference_genome='default',
+               contig_recoding=None) -> MatrixTable:
     """
     Import GEN file(s) as a :class:`.MatrixTable`.
 
@@ -814,18 +940,28 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
     return MatrixTable(jmt)
 
 
-@typecheck(paths=oneof(str, listof(str)),
-           key=oneof(str, listof(str)),
+@typecheck(paths=oneof(str, sequenceof(str)),
+           key=oneof(str, sequenceof(str)),
            min_partitions=nullable(int),
            impute=bool,
            no_header=bool,
-           comment=nullable(str),
+           comment=oneof(str, sequenceof(str)),
            delimiter=str,
            missing=str,
            types=dictof(str, hail_type),
-           quote=nullable(char))
-def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
-                 comment=None, delimiter="\t", missing="NA", types={}, quote=None):
+           quote=nullable(char),
+           skip_blank_lines=bool)
+def import_table(paths,
+                 key=(),
+                 min_partitions=None,
+                 impute=False,
+                 no_header=False,
+                 comment=(),
+                 delimiter="\t",
+                 missing="NA",
+                 types={},
+                 quote=None,
+                 skip_blank_lines=False) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -923,14 +1059,21 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
         Use ``delimiter='\\s+'`` to specify whitespace delimited files.
 
     If set, the `comment` parameter causes Hail to skip any line that starts
-    with the given string. For example, passing ``comment='#'`` will skip any
-    line beginning in a pound sign.
+    with the given string(s). For example, passing ``comment='#'`` will skip any
+    line beginning in a pound sign. If the string given is a single character,
+    Hail will skip any line beginning with the character. Otherwise if the
+    length of the string is greater than 1, Hail will interpret the string as a
+    regex and will filter out lines matching the regex. For example, passing
+    ``comment=['#', '^track.*']`` will filter out lines beginning in a pound sign
+    and any lines that match the regex ``'^track.*'``.
 
     The `missing` parameter defines the representation of missing data in the table.
 
     .. note::
 
-        The `comment` and `missing` parameters are **NOT** regexes.
+        The `missing` parameter is **NOT** a regex. The `comment` parameter is
+        treated as a regex **ONLY** if the length of the string is greater than
+        1 (not a single character).
 
     The `no_header` parameter indicates that the file has no header line. If
     this option is passed, then the field names will be `f0`, `f1`,
@@ -948,27 +1091,31 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     Parameters
     ----------
 
-    paths: :obj:`str` or :obj:`list` of :obj:`str`
+    paths : :obj:`str` or :obj:`list` of :obj:`str`
         Files to import.
-    key: :obj:`str` or :obj:`list` of :obj:`str`
+    key : :obj:`str` or :obj:`list` of :obj:`str`
         Key fields(s).
-    min_partitions: :obj:`int` or :obj:`None`
+    min_partitions : :obj:`int` or :obj:`None`
         Minimum number of partitions.
-    no_header: :obj:`bool`
+    no_header : :obj:`bool`
         If ``True```, assume the file has no header and name the N fields `f0`,
         `f1`, ... `fN` (0-indexed).
-    impute: :obj:`bool`
+    impute : :obj:`bool`
         If ``True``, Impute field types from the file.
-    comment: :obj:`str` or :obj:`None`
-        Skip lines beginning with the given string.
-    delimiter: :obj:`str`
+    comment : :obj:`str` or :obj:`list` of :obj:`str`
+        Skip lines beginning with the given string if the string is a single
+        character. Otherwise, skip lines that match the regex specified.
+    delimiter : :obj:`str`
         Field delimiter regex.
-    missing: :obj:`str`
+    missing : :obj:`str`
         Identifier to be treated as missing.
-    types: :obj:`dict` mapping :obj:`str` to :class:`.HailType`
+    types : :obj:`dict` mapping :obj:`str` to :class:`.HailType`
         Dictionary defining field types.
-    quote: :obj:`str` or :obj:`None`
+    quote : :obj:`str` or :obj:`None`
         Quote character.
+    skip_blank_lines : :obj:`bool`
+        If ``True``, ignore empty lines. Otherwise, throw an error if an empty
+        line is found.
 
     Returns
     -------
@@ -977,22 +1124,32 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
     key = wrap_to_list(key)
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
+    comment = wrap_to_list(comment)
 
-    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
-                                   no_header, impute, quote)
+    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
+                                   delimiter, missing, no_header, impute, quote,
+                                   skip_blank_lines)
     return Table(jt)
 
 
-@typecheck(paths=oneof(str, listof(str)),
+@typecheck(paths=oneof(str, sequenceof(str)),
            row_fields=dictof(str, hail_type),
-           row_key=oneof(str, listof(str)),
+           row_key=oneof(str, sequenceof(str)),
            entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
            missing=str,
            min_partitions=nullable(int),
            no_header=bool,
-           force_bgz=bool)
-def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, missing="NA", min_partitions=None,
-                        no_header=False, force_bgz=False):
+           force_bgz=bool,
+           sep=str)
+def import_matrix_table(paths,
+                        row_fields={},
+                        row_key=[],
+                        entry_type=tint32,
+                        missing="NA",
+                        min_partitions=None,
+                        no_header=False,
+                        force_bgz=False,
+                        sep='\t') -> MatrixTable:
     """
     Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1150,8 +1307,11 @@ def import_matrix_table(paths, row_fields={}, row_key=[], entry_type=tint32, mis
         raise FatalError("""import_matrix_table expects entry types to be one of: 
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
+    if len(sep) != 1:
+        raise FatalError('sep must be a single character')
+
     jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
-                                     no_header, force_bgz)
+                                     no_header, force_bgz, sep)
     return MatrixTable(jmt)
 
 
@@ -1175,7 +1335,7 @@ def import_plink(bed, bim, fam,
                  contig_recoding={'23': 'X',
                                   '24': 'Y',
                                   '25': 'X',
-                                  '26': 'MT'}):
+                                  '26': 'MT'}) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
@@ -1291,10 +1451,10 @@ def import_plink(bed, bim, fam,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            _drop_cols=bool,
            _drop_rows=bool)
-def read_matrix_table(path, _drop_cols=False, _drop_rows=False):
+def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
 
     Parameters
@@ -1367,17 +1527,24 @@ def get_vcf_metadata(path):
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
 
 
-@typecheck(path=oneof(str, listof(str)),
+@typecheck(path=oneof(str, sequenceof(str)),
            force=bool,
            force_bgz=bool,
            header_file=nullable(str),
            min_partitions=nullable(int),
            drop_samples=bool,
-           call_fields=oneof(str, listof(str)),
+           call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)))
-def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-               drop_samples=False, call_fields=[], reference_genome='default', contig_recoding=None):
+def import_vcf(path,
+               force=False,
+               force_bgz=False,
+               header_file=None,
+               min_partitions=None,
+               drop_samples=False,
+               call_fields=[],
+               reference_genome='default',
+               contig_recoding=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1502,7 +1669,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, listof(str)))
+@typecheck(path=oneof(str, sequenceof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.
 
@@ -1530,7 +1697,7 @@ def index_bgen(path):
 
 
 @typecheck(path=str)
-def read_table(path):
+def read_table(path) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters

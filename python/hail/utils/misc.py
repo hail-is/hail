@@ -83,7 +83,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     -------
     :class:`.Table`
     """
-    return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(n_partitions)))
+    return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
 
 def wrap_to_list(s):
     if isinstance(s, list):
@@ -119,6 +119,13 @@ def new_local_temp_dir(suffix=None, prefix=None, dir=None):
     local_temp_dir = tempfile.mkdtemp(suffix, prefix, dir)
     atexit.register(shutil.rmtree, local_temp_dir)
     return local_temp_dir
+
+
+def new_local_temp_file(filename="temp"):
+    local_temp_dir = new_local_temp_dir()
+    path = local_temp_dir + "/" + filename
+    return path
+
 
 storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',

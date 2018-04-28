@@ -344,7 +344,7 @@ value before applying it in a function.
 
 .. doctest::
 
-    >>> expr = hl.bind(hl.rand_unif(0, 1), lambda x: [x, x, x])
+    >>> expr = hl.bind(lambda x: [x, x, x], hl.rand_unif(0, 1))
 
     >>> expr.value
     [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]

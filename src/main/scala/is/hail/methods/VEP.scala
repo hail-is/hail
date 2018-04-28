@@ -8,7 +8,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, Variant}
+import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, VariantMethods}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -173,7 +173,7 @@ object VEP {
 
   def annotate(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean,
     blockSize: Int): MatrixTable = {
-    assert(vsm.rowKey == IndexedSeq("locus", "alleles"))
+    assert(vsm.rowKey == FastIndexedSeq("locus", "alleles"))
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
 
@@ -291,12 +291,12 @@ object VEP {
                         case Some(value) =>
                           value.substring(4).split(",")
                         case None =>
-                          warn(s"No CSQ INFO field for VEP output variant ${ Variant.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
+                          warn(s"No CSQ INFO field for VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
                           Annotation.empty
                       }
                       (Annotation(locus, alleles), a)
                     case None =>
-                      fatal(s"VEP output variant ${ Variant.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                      fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
                   val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
@@ -306,7 +306,7 @@ object VEP {
                     case Some(v@(locus, alleles)) =>
                       (Annotation(locus, alleles), a)
                     case None =>
-                      fatal(s"VEP output variant ${ Variant.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                      fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 }
               }
@@ -356,7 +356,6 @@ object VEP {
     info(s"vep: annotated ${ annotations.count() } variants")
 
     vsm.orderedRVDLeftJoinDistinctAndInsert(vepRVD, "vep", product = false)
-      .annotateRowsExpr("vep = va.vep.vep")
   }
 
   def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =

@@ -5,7 +5,7 @@ import htsjdk.variant.vcf.{VCFCompoundHeaderLine, VCFHeader}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.utils._
-import is.hail.variant.{ReferenceGenome, MatrixTable}
+import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.json4s._
 
 import scala.collection.JavaConversions._
@@ -16,6 +16,7 @@ import is.hail.expr.types._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.LoadVCF.headerSignature
 import is.hail.rvd.OrderedRVD
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
@@ -63,7 +64,7 @@ object LoadGDB {
       "GQ" -> TInt32(),
       "PL" -> TArray(TInt32(arrayElementsRequired)))
 
-    val (raw, attrs) = headerSignature(lines, callFields, arrayElementsRequired)
+    val (raw, attrs, _) = headerSignature(lines, callFields, arrayElementsRequired)
 
     var canonicalFlags = 0
     var i = 0
@@ -136,7 +137,7 @@ object LoadGDB {
     }
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs) = LoadVCF.headerSignature(infoHeader)
+    val (infoSignature, infoAttrs, infoFlagFieldNames) = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
@@ -179,7 +180,7 @@ object LoadGDB {
         rvb.clear()
         region.clear()
         rvb.start(localRowType)
-        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags)
+        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags, infoFlagFieldNames)
         rvb.result().copy()
       }.toArray
 
@@ -188,8 +189,8 @@ object LoadGDB {
     queryFile.delete()
 
     new MatrixTable(hc, matrixType,
-      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
-      sampleIds.map(x => Annotation(x)),
+      BroadcastRow(Row.empty, matrixType.globalType, sc),
+      BroadcastIndexedSeq(sampleIds.map(x => Annotation(x)), TArray(matrixType.colType), sc),
       OrderedRVD.coerce(matrixType.orvdType, hc.sc.parallelize(records), None, None))
   }
 }

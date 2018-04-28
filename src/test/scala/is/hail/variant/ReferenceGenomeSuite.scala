@@ -2,6 +2,7 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
+import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.types.{TInterval, TLocus, TStruct}
@@ -63,7 +64,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     ReferenceGenome.addReference(rg)
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateRowsExpr("l = NA: Locus(foo), i = NA: Interval[Locus(foo)]")
+      .annotateRowsExpr("l" -> "NA: Locus(foo)", "i" -> "NA: Interval[Locus(foo)]")
 
     val vas = vds.rowType.asInstanceOf[TStruct]
 
@@ -218,7 +219,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rg = ReferenceGenome("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     ReferenceGenome.addReference(rg)
     kt.annotate("""l1 = Locus(foo)("1:3")""").write(outKT)
-    vds.annotateRowsExpr("""l2 = Locus(foo)("1:3")""").write(outVDS)
+    vds.annotateRowsExpr("l2" -> """Locus(foo)("1:3")""").write(outVDS)
     ReferenceGenome.removeReference("foo")
 
     val rg2 = ReferenceGenome("foo", Array("1"), Map("1" -> 5))
@@ -288,12 +289,23 @@ class ReferenceGenomeSuite extends SparkSuite {
     val table = hc.importTable("src/test/resources/fake_reference.tsv")
     assert(table.annotate("""baseComputed = getReferenceSequence(test)(row.contig, row.pos.toInt32(), 0, 0)""")
       .forall("row.base == row.baseComputed"))
-    
+
     ReferenceGenome.removeReference(rg.name)
 
     val rg2 = ReferenceGenome.fromFASTAFile(hc, "test2", fastaFileGzip, indexFile)
     assert(table.annotate("""baseComputed = getReferenceSequence(test2)(row.contig, row.pos.toInt32(), 0, 0)""")
       .forall("row.base == row.baseComputed"))
     ReferenceGenome.removeReference(rg2.name)
+  }
+
+  @Test def testSerializeOnFB() {
+    val grch38 = ReferenceGenome.GRCh38
+    val fb = FunctionBuilder.functionBuilder[String, Boolean]
+
+    val rgfield = fb.newLazyField(grch38.codeSetup)
+    fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
+
+    val f = fb.result()()
+    assert(f("X") == grch38.isValidContig("X"))
   }
 }

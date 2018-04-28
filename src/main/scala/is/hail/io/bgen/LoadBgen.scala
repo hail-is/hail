@@ -132,6 +132,8 @@ object LoadBgen {
       }
     }))
 
+    val loadEntries = entryFields.length > 0
+
     val rdd2 = sc.union(results.map(_.rdd.mapPartitions { it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
@@ -158,7 +160,18 @@ object LoadBgen {
         rvb.endArray()
         rvb.addAnnotation(rowType.types(2), va.get(0))
         rvb.addAnnotation(rowType.types(3), va.get(1))
-        record.getValue(rvb) // gs
+        if (loadEntries)
+          record.getValue(rvb) // gs
+        else {
+          rvb.startArray(nSamples)
+          var j = 0
+          while (j < nSamples) {
+            rvb.startStruct()
+            rvb.endStruct()
+            j += 1
+          }
+          rvb.endArray()
+        }
         rvb.endStruct()
 
         rv.setOffset(rvb.end())
@@ -167,8 +180,8 @@ object LoadBgen {
     }))
 
     new MatrixTable(hc, matrixType,
-      BroadcastValue(Annotation.empty, matrixType.globalType, sc),
-      sampleIds.map(x => Annotation(x)),
+      BroadcastRow(Row.empty, matrixType.globalType, sc),
+      BroadcastIndexedSeq(sampleIds.map(x => Annotation(x)), TArray(matrixType.colType), sc),
       OrderedRVD.coerce(matrixType.orvdType, rdd2, Some(fastKeys), None))
   }
 
@@ -281,7 +294,7 @@ object LoadBgen {
       .map(_.toInt)
       .toSeq
 
-    if (magicNumber != Seq(0, 0, 0, 0) && magicNumber != Seq(98, 103, 101, 110))
+    if (magicNumber != FastSeq(0, 0, 0, 0) && magicNumber != FastSeq(98, 103, 101, 110))
       fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
 
     if (headerLength > 20)

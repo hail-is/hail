@@ -2,6 +2,8 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.utils._
 
 import scala.reflect.ClassTag
 
@@ -12,7 +14,7 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
 
   override def isRealizable = false
 
-  override def children = Seq(elementType)
+  override def children = FastSeq(elementType)
 
   def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TAggregableVariable is not realizable")
@@ -41,4 +43,6 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
 
   val ordering: ExtendedOrdering = null
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
 }

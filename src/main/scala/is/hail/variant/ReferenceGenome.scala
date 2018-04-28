@@ -4,9 +4,10 @@ import java.io.InputStream
 
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
+import is.hail.asm4s.{ClassFieldRef, Code, FunctionBuilder}
 import is.hail.check.Gen
 import is.hail.expr.types._
-import is.hail.expr.{JSONExtractContig, JSONExtractReferenceGenome, JSONExtractIntervalLocus, Parser}
+import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.reference.FASTAReader
 import is.hail.utils._
 import org.json4s._
@@ -16,6 +17,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
+import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
@@ -26,27 +28,17 @@ abstract class RGBase extends Serializable {
 
   def name: String
 
-  def variantOrdering: Ordering[Variant]
-
   def locusOrdering: Ordering[Locus]
 
   def contigParser: Parser[String]
 
   def isValidContig(contig: String): Boolean
 
-  def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit
-
-  def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit
-
   def checkLocus(l: Locus): Unit
 
   def checkLocus(contig: String, pos: Int): Unit
 
-  def checkInterval(i: Interval): Unit
-
-  def checkInterval(l1: Locus, l2: Locus): Unit
-
-  def checkInterval(contig: String, start: Int, end: Int): Unit
+  def checkLocusInterval(i: Interval): Unit
 
   def contigLength(contig: String): Int
 
@@ -69,8 +61,6 @@ abstract class RGBase extends Serializable {
   def inYPar(locus: Locus): Boolean
 
   def compare(c1: String, c2: String): Int
-
-  def compare(v1: IVariant, v2: IVariant): Int
 
   def compare(l1: Locus, l2: Locus): Int
 
@@ -139,10 +129,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   val yContigIndices = yContigs.map(contigsIndex)
   val mtContigIndices = mtContigs.map(contigsIndex)
 
-  val variantOrdering = new Ordering[Variant] {
-    def compare(x: Variant, y: Variant): Int = ReferenceGenome.compare(contigsIndex, x, y)
-  }
-
   val locusOrdering = new Ordering[Locus] {
     def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(contigsIndex, x, y)
   }
@@ -159,7 +145,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       (!xContigs.contains(end.contig) && !yContigs.contains(end.contig)))
       fatal(s"The contig name for PAR interval `$start-$end' was not found in xContigs `${ xContigs.mkString(",") }' or in yContigs `${ yContigs.mkString(",") }'.")
 
-    Interval(start, end, true, false)
+    Interval(start, end, includesStart = true, includesEnd = false)
   }
 
   private var fastaReader: FASTAReader = _
@@ -220,58 +206,63 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isValidContig(contig: String): Boolean = contigsSet.contains(contig)
 
-  def isValidLocus(contig: String, pos: Int): Boolean = pos > 0 && pos <= contigLength(contig)
+  def isValidLocus(contig: String, pos: Int): Boolean = isValidContig(contig) && pos > 0 && pos <= contigLength(contig)
 
   def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
+
+  def checkContig(contig: String): Unit = {
+    if (!isValidContig(contig))
+      fatal(s"Contig '$contig' is not in the reference genome '$name'.")
+  }
 
   def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
 
   def checkLocus(contig: String, pos: Int): Unit = {
-    if (!isValidContig(contig))
-      fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidLocus(contig, pos))
-      fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
-  }
-  
-  def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
-    val v = s"$contig:$start:$ref:$alt"
-    if (!isValidContig(contig))
-      fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidLocus(contig, start))
-      fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    if (!isValidLocus(contig, pos)) {
+      if (!isValidContig(contig))
+        fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    }
   }
 
-  def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
-
-  def checkInterval(i: Interval): Unit = {
+  def checkLocusInterval(i: Interval): Unit = {
     val start = i.start.asInstanceOf[Locus]
     val end = i.end.asInstanceOf[Locus]
-    if (!isValidContig(start.contig))
-      fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
-    if (!isValidContig(end.contig))
-      fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
-    if (!isValidLocus(start.contig, start.position))
-      fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
-    if (!isValidLocus(end.contig, end.position))
-      fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
+    val includesStart = i.includesStart
+    val includesEnd = i.includesEnd
+
+    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
+      if (!isValidContig(start.contig))
+        fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
+    }
+
+    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
+      if (!isValidContig(end.contig))
+        fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
+    }
   }
 
-  def checkInterval(l1: Locus, l2: Locus): Unit = {
-    val i = s"$l1-$l2"
-    if (!isValidLocus(l1.contig, l1.position))
-      fatal(s"Invalid interval `$i' found. Locus `$l1' is not in the reference genome `$name'.")
-    if (!isValidLocus(l2.contig, l2.position))
-      fatal(s"Invalid interval `$i' found. Locus `$l2' is not in the reference genome `$name'.")
-  }
+  def normalizeLocusInterval(i: Interval): Interval = {
+    var start = i.start.asInstanceOf[Locus]
+    var end = i.end.asInstanceOf[Locus]
+    var includesStart = i.includesStart
+    var includesEnd = i.includesEnd
 
-  def checkInterval(contig: String, start: Int, end: Int): Unit = {
-    val i = s"$contig:$start-$end"
-    if (!isValidContig(contig))
-      fatal(s"Invalid interval `$i' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidLocus(contig, start))
-      fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
-    if (!isValidLocus(contig, end))
-      fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    if (!includesStart && start.position == 0) {
+      start = start.copyChecked(this, position = 1)
+      includesStart = true
+    }
+    if (!includesEnd && end.position == contigLength(end.contig) + 1) {
+      end = end.copyChecked(this, position = contigLength(end.contig))
+      includesEnd = true
+    }
+
+    Interval(start, end, includesStart, includesEnd)
   }
 
   def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
@@ -304,8 +295,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
   def compare(contig1: String, contig2: String): Int = ReferenceGenome.compare(contigsIndex, contig1, contig2)
-
-  def compare(v1: IVariant, v2: IVariant): Int = ReferenceGenome.compare(contigsIndex, v1, v2)
 
   def compare(l1: Locus, l2: Locus): Int = ReferenceGenome.compare(contigsIndex, l1, l2)
 
@@ -355,7 +344,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Contig sizes in FASTA `$fastaFile' do not match expected sizes for reference genome `$name':\n  " +
         s"@1", invalidLengths.truncatable("\n  "))
 
-    fastaReader = FASTAReader(hc, this, fastaFile, indexFile)
+    val fastaPath = hConf.fileStatus(fastaFile).getPath.toString
+    val indexPath = hConf.fileStatus(indexFile).getPath.toString
+    fastaReader = FASTAReader(hc, this, fastaPath, indexPath)
   }
 
   def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
@@ -371,6 +362,56 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!hasSequence)
       fatal(s"FASTA file has not been loaded for reference genome '$name'.")
     fastaReader.lookup(i)
+  }
+
+  def removeSequence(): Unit = {
+    if (!hasSequence)
+      fatal(s"Reference genome '$name' does not have sequence loaded.")
+    fastaReader = null
+  }
+
+  private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
+
+  def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
+
+  def addLiftover(hc: HailContext, chainFile: String, destRGName: String): Unit = {
+    if (name == destRGName)
+      fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
+    if (hasLiftover(destRGName))
+      fatal(s"Chain file already exists for source reference '$name' and destination reference '$destRGName'.")
+    val hConf = hc.hadoopConf
+    if (!hConf.exists(chainFile))
+      fatal(s"Chain file '$chainFile' does not exist.")
+
+    val chainFilePath = hConf.fileStatus(chainFile).getPath.toString
+    val lo = LiftOver(hc, chainFilePath)
+
+    val destRG = ReferenceGenome.getReference(destRGName)
+    lo.checkChainFile(this, destRG)
+
+    liftoverMaps += destRGName -> lo
+  }
+
+  def getLiftover(destRGName: String): LiftOver = {
+    if (!hasLiftover(destRGName))
+      fatal(s"Chain file has not been loaded for source reference '$name' and destination reference '$destRGName'.")
+    liftoverMaps(destRGName)
+  }
+
+  def removeLiftover(destRGName: String): Unit = {
+    if (!hasLiftover(destRGName))
+      fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
+    liftoverMaps -= destRGName
+  }
+
+  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): Locus = {
+    val lo = getLiftover(destRGName)
+    lo.queryLocus(l, minMatch)
+  }
+
+  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double): Interval = {
+    val lo = getLiftover(destRGName)
+    lo.queryInterval(interval, minMatch)
   }
 
   override def equals(other: Any): Boolean = {
@@ -403,9 +444,31 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs, yContigs, mtContigs,
         par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
-      implicit val formats = defaultJSONFormats
+      implicit val formats: Formats = defaultJSONFormats
       Serialization.write(jrg, out)
     }
+
+  def toJSONString: String = {
+    val jrg = JSONExtractReferenceGenome(name,
+      contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
+      xContigs, yContigs, mtContigs,
+      par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(jrg)
+  }
+
+  def codeSetup: Code[ReferenceGenome] = {
+    val json = toJSONString
+    val chunkSize = (1 << 16) - 1
+    val nChunks = (json.length() - 1) / chunkSize + 1
+    assert(nChunks > 0)
+
+    val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
+    val stringAssembler =
+      chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
+
+    Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
+  }
 }
 
 object ReferenceGenome {
@@ -463,6 +526,11 @@ object ReferenceGenome {
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
+  }
+
+  def parse(str: String): ReferenceGenome = {
+    implicit val formats = defaultJSONFormats
+    JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
   def fromResource(file: String): ReferenceGenome = {
@@ -556,22 +624,6 @@ object ReferenceGenome {
     }
   }
 
-  def compare(contigsIndex: Map[String, Int], v1: IVariant, v2: IVariant): Int = {
-    var c = compare(contigsIndex, v1.contig(), v2.contig())
-    if (c != 0)
-      return c
-
-    c = v1.start().compare(v2.start())
-    if (c != 0)
-      return c
-
-    c = v1.ref().compare(v2.ref())
-    if (c != 0)
-      return c
-
-    Ordering.Iterable[AltAllele].compare(v1.altAlleles(), v2.altAlleles())
-  }
-
   def compare(contigsIndex: Map[String, Int], l1: Locus, l2: Locus): Int = {
     val c = compare(contigsIndex, l1.contig, l2.contig)
     if (c != 0)
@@ -648,11 +700,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
 
   def name: String = ???
 
-  def variantOrdering: Ordering[Variant] =
-    new Ordering[Variant] {
-      def compare(x: Variant, y: Variant): Int = throw new UnsupportedOperationException("RGVariable.variantOrdering unimplemented")
-    }
-
   def locusOrdering: Ordering[Locus] =
     new Ordering[Locus] {
       def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("RGVariable.locusOrdering unimplemented")
@@ -662,19 +709,11 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
 
   def isValidContig(contig: String): Boolean = ???
 
-  def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit = ???
-
-  def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit = ???
-
   def checkLocus(l: Locus): Unit = ???
 
   def checkLocus(contig: String, pos: Int): Unit = ???
 
-  def checkInterval(i: Interval): Unit = ???
-
-  def checkInterval(l1: Locus, l2: Locus): Unit = ???
-
-  def checkInterval(contig: String, start: Int, end: Int): Unit = ???
+  def checkLocusInterval(i: Interval): Unit = ???
 
   def contigLength(contig: String): Int = ???
 
@@ -697,8 +736,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
   def inYPar(locus: Locus): Boolean = ???
 
   def compare(c1: String, c2: String): Int = ???
-
-  def compare(v1: IVariant, v2: IVariant): Int = ???
 
   def compare(l1: Locus, l2: Locus): Int = ???
 }

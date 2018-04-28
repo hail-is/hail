@@ -11,8 +11,8 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def schema = TStruct(
-    ("n_complete_samples", TInt32()),
-    ("AC", TFloat64()),
+    ("n", TInt32()),
+    ("sum_x", TFloat64()),
     ("y_transpose_x", TArray(TFloat64())),
     ("beta", TArray(TFloat64())),
     ("standard_error", TArray(TFloat64())),
@@ -20,12 +20,10 @@ object LinearRegression {
     ("p_value", TArray(TFloat64())))
 
   def apply(vsm: MatrixTable,
-    ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
+    yFields: Array[String], xField: String, covFields: Array[String], root: String, rowBlockSize: Int
   ): MatrixTable = {
-    val ec = vsm.matrixType.genotypeEC
-    val xf = RegressionUtils.parseFloat64Expr(xExpr, ec)
 
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(vsm, yFields, covFields)
 
     val n = y.rows // n_complete_samples
     val k = cov.cols // nCovariates
@@ -35,26 +33,28 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"linear_regression: running linear regression on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
+    info(s"linear_regression: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
        + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
 
     val sc = vsm.sparkContext
-
-    val localGlobalAnnotationBc = vsm.globals.broadcast
-    val sampleAnnotationsBc = vsm.colValuesBc
-
-    val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
+    val completeColIdxBc = sc.broadcast(completeColIdx)
     val yBc = sc.broadcast(y)
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
-
     val fullRowType = vsm.rvRowType
-    val localEntriesIndex = vsm.entriesIndex
+    val entryArrayType = vsm.matrixType.entryArrayType
+    val entryType = vsm.entryType
+    val fieldType = entryType.field(xField).typ
+
+    assert(fieldType.isOfType(TFloat64()))
+
+    val entryArrayIdx = vsm.entriesIndex
+    val fieldIdx = entryType.fieldIdx(xField)
 
     val (newRVType, ins) = fullRowType.unsafeStructInsert(LinearRegression.schema, List(root))
 
@@ -66,48 +66,38 @@ object LinearRegression {
         val rvb = new RegionValueBuilder(region2)
         val rv2 = RegionValue(region2)
 
-        val missingSamples = new ArrayBuilder[Int]
-
-        // columns are genotype vectors
-        var X: DenseMatrix[Double] = new DenseMatrix[Double](n, variantBlockSize)
-
-        val blockWRVs = new Array[WritableRegionValue](variantBlockSize)
+        val missingCompleteCols = new ArrayBuilder[Int]
+        val data = new Array[Double](n * rowBlockSize)
+      
+        val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
-        while (i < variantBlockSize) {
+        while (i < rowBlockSize) {
           blockWRVs(i) = WritableRegionValue(fullRowType)
           i += 1
         }
 
-        val fullRow = new UnsafeRow(fullRowType)
-        val row = fullRow.deleteField(localEntriesIndex)
-        it.trueGroupedIterator(variantBlockSize)
+        it.trueGroupedIterator(rowBlockSize)
           .flatMap { git =>
             var i = 0
             while (git.hasNext) {
               val rv = git.next()
-              fullRow.set(rv)
-
-
-              RegressionUtils.inputVector(X(::, i),
-                localGlobalAnnotationBc.value, sampleAnnotationsBc.value, row,
-                fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex),
-                ec, xf,
-                completeSampleIndexBc.value, missingSamples)
-
+              RegressionUtils.setMeanImputedDoubles(data, i * n, completeColIdxBc.value, missingCompleteCols,
+                rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
               blockWRVs(i).set(rv)
               i += 1
             }
             val blockLength = i
 
-            // val AC: DenseMatrix[Double] = sum(X(::, *))
+            val X = new DenseMatrix[Double](n, blockLength, data)
+            
             val AC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
-            assert(AC.length == variantBlockSize)
+            assert(AC.length == blockLength)
 
             val qtx: DenseMatrix[Double] = QtBc.value * X
             val qty: DenseMatrix[Double] = QtyBc.value
             val xxpRec: DenseVector[Double] = 1.0 / (X.t(*, ::).map(r => r dot r) - qtx.t(*, ::).map(r => r dot r))
             val ytx: DenseMatrix[Double] = yBc.value.t * X
-            assert(ytx.rows == yBc.value.cols && ytx.cols == variantBlockSize)
+            assert(ytx.rows == yBc.value.cols && ytx.cols == blockLength)
 
             val xyp: DenseMatrix[Double] = ytx - (qty.t * qtx)
             val yyp: DenseVector[Double] = yypBc.value

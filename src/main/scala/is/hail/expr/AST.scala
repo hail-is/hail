@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.{Row, RowFactory}
 
 import scala.collection.mutable
@@ -76,11 +76,7 @@ case class EvalContext private(st: SymbolTable,
 }
 
 object EvalContext {
-  def apply(symTab0: SymbolTable): EvalContext = {
-    val symTab = symTab0.map { case (name, (i, t)) =>
-      (name, (i, t.deepOptional()))
-    }
-
+  def apply(symTab: SymbolTable): EvalContext = {
     def maxEntry(st: SymbolTable): Int = {
       val m = st.map {
         case (name, (i, t: TAggregable)) => i.max(maxEntry(t.symTab))
@@ -101,7 +97,7 @@ object EvalContext {
 
   def apply(args: (String, Type)*): EvalContext = {
     EvalContext(args.zipWithIndex
-      .map { case ((name, t), i) => (name, (i, t.deepOptional())) }
+      .map { case ((name, t), i) => (name, (i, t)) }
       .toMap)
   }
 }
@@ -213,7 +209,7 @@ object AST extends Positional {
 
 case class Positioned[T](x: T) extends Positional
 
-sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
+sealed abstract class AST(pos: Position, val subexprs: Array[AST] = Array.empty) {
   var `type`: Type = _
 
   def getPos: Position = pos
@@ -297,7 +293,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
     case (t: TFloat32, x: Float) => Some(ir.F32(x))
     case (t: TFloat64, x: Double) => Some(ir.F64(x))
     case (t: TBoolean, x: Boolean) => Some(if (x) ir.True() else ir.False())
-    case (t: TString, x: String) => None
+    case (t: TString, x: String) => Some(ir.Str(x))
     case (t, null) => Some(ir.NA(t))
     case _ => throw new RuntimeException(s"Unrecognized constant of type $t: $value")
   }
@@ -316,7 +312,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
                |    ${ t.fields.map(x => s"${ prettyIdentifier(x.name) }: ${ x.typ }").mkString("\n    ") }""".stripMargin)
         }
 
-      case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
+      case (t, name) => FunctionRegistry.lookupFieldReturnType(t, FastSeq(), name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ, _) =>
             parseError(s"""`$t' has no field or method `$rhs'""".stripMargin)
@@ -326,7 +322,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   }
 
   def compileAggregator(): CMCodeCPS[AnyRef] =
-    FunctionRegistry.callAggregatorTransformation(lhs.`type`, Seq(), rhs)(lhs, Seq())
+    FunctionRegistry.callAggregatorTransformation(lhs.`type`, FastSeq(), rhs)(lhs, FastSeq())
 
   def compile() = (lhs.`type`: @unchecked) match {
     case t: TStruct =>
@@ -337,7 +333,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case t =>
       val localPos = posn
 
-      FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
+      FunctionRegistry.lookupField(t, FastSeq(), rhs)(lhs, FastSeq())
         .valueOr {
           case FunctionRegistry.NotFound(name, typ, _) =>
             ParserUtils.error(localPos,
@@ -352,7 +348,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     s <- lhs.toIR(agg)
     t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
     f <- t.selfField(rhs)
-  } yield ir.GetField(s, rhs, f.typ)
+  } yield ir.GetField(s, rhs)
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -436,6 +432,13 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
     case "LocusInterval" => rg.intervalType
     case "LocusAlleles" => TStruct("locus" -> rg.locusType, "alleles" -> TArray(TString()))
     case "getReferenceSequence" => TString()
+    case "isValidContig" | "isValidLocus" => TBoolean()
+    case "liftoverLocus" | "liftoverLocusInterval" =>
+      val destRG = args.head match {
+        case Const(_, name, TString(_)) => ReferenceGenome.getReference(name.asInstanceOf[String])
+        case _ => fatal(s"invalid arguments to '$fName'.")
+      }
+      if (fName == "liftoverLocus") destRG.locusType else destRG.intervalType
     case _ => throw new UnsupportedOperationException
   }
 
@@ -444,6 +447,22 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
       case "getReferenceSequence" =>
         (args.map(_.`type`): @unchecked) match {
           case Array(TString(_), TInt32(_), TInt32(_), TInt32(_)) =>
+        }
+      case "isValidContig" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TString(_)) =>
+        }
+      case "isValidLocus" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TString(_), TInt32(_)) =>
+        }
+      case "liftoverLocus" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TString(_), TLocus(rg, _), TFloat64(_)) =>
+        }
+      case "liftoverLocusInterval" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TString(_), TInterval(TLocus(rg, _), _), TFloat64(_)) =>
         }
       case _ =>
     }
@@ -462,6 +481,33 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
           null
       }
       AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(CM.invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
+
+    case "isValidContig" =>
+      val localRG = rg
+      val f: (String) => Boolean = { contig => localRG.isValidContig(contig) }
+      for {
+        b <- AST.evalComposeCodeM(args(0))(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
+      } yield Code.checkcast[java.lang.Boolean](b)
+
+    case "isValidLocus" =>
+      val localRG = rg
+      val f: (String, Int) => Boolean = { (contig, pos) => localRG.isValidLocus(contig, pos) }
+      for {
+        b <- AST.evalComposeCodeM(args(0), args(1))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+      } yield Code.checkcast[java.lang.Boolean](b)
+
+    case "liftoverLocus" =>
+      val localRG = rg
+      val destRGName = args(0).asInstanceOf[Const].value.asInstanceOf[String]
+      val f: (Locus, Double) => Locus = { (l, minMatch) => localRG.liftoverLocus(destRGName, l, minMatch) }
+      AST.evalComposeCodeM(args(1), args(2))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+
+    case "liftoverLocusInterval" =>
+      val localRG = rg
+      val destRGName = args(0).asInstanceOf[Const].value.asInstanceOf[String]
+      val f: (Interval, Double) => Interval = { (li, minMatch) => localRG.liftoverLocusInterval(destRGName, li, minMatch) }
+      AST.evalComposeCodeM(args(1), args(2))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+
     case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
   }
 
@@ -653,18 +699,18 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case IndexedSeq((xt, x)) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
         t <- ir.UnaryOp.returnTypeOption(op, xt)
-      } yield ir.ApplyUnaryPrimOp(op, x, t)
+      } yield ir.ApplyUnaryPrimOp(op, x)
       case IndexedSeq((xt, x), (yt, y)) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
         t <- ir.BinaryOp.returnTypeOption(op, xt, yt)
-      } yield ir.ApplyBinaryPrimOp(op, x, y, t)
+      } yield ir.ApplyBinaryPrimOp(op, x, y)
     }
 
   private[this] def tryIRConversion(agg: Option[String]): Option[IR] =
     for {
       irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
       ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-        IRFunctionRegistry.lookupConversion(fn, args.map(_.`type`))
+        IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
           .map { irf => irf(irArgs) })
     } yield ir
 
@@ -777,18 +823,24 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           a <- lhs.toIR(agg)
           b <- body.toIR(agg)
           result <- optMatch((t, m)) {
-            case (_: TAggregable, "map") => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
-            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
+            case (_: TAggregable, "map") => ir.AggMap(a, name, b)
+            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
+            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b)
             case (_: TArray, "map") => ir.ArrayMap(a, name, b)
             case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
             case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
+            case (_: TArray, "exists") =>
+              val v = ir.genUID()
+              ir.ArrayFold(a, ir.False(), v, name, ir.ApplySpecial("||", FastSeq(ir.Ref(v, TBoolean()), b)))
+            case (_: TArray, "forall") =>
+              val v = ir.genUID()
+              ir.ArrayFold(a, ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
           }
         } yield result
       case _ =>
         for {
           irs <- anyFailAllFail((lhs +: args).map(_.toIR(agg)))
-          ir <- IRFunctionRegistry.lookupConversion(method, (lhs +: args).map(_.`type`))
+          ir <- IRFunctionRegistry.lookupConversion(method, irs.map(_.typ))
               .map { irf => irf(irs) }
         } yield ir
     }
@@ -819,9 +871,13 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
+  var typeWithMissingness: Type = null
+
   override def typecheckThis(ec: EvalContext): Type = {
     ec.st.get(symbol) match {
-      case Some((_, t)) => t
+      case Some((_, t)) =>
+        typeWithMissingness = t
+        t.deepOptional()
       case None =>
         val symbols = ec.st.toArray.sortBy(_._2._1).map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }
         parseError(
@@ -841,8 +897,11 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def compile() = CM.lookup(symbol)
 
   def toIR(agg: Option[String] = None): Option[IR] = agg match {
-    case Some(x) if x == symbol => Some(ir.AggIn(`type`.asInstanceOf[TAggregable]))
-    case _ => Some(ir.Ref(symbol, `type`))
+    case Some(x) if x == symbol =>
+      assert(typeWithMissingness != null)
+      Some(ir.AggIn(typeWithMissingness.asInstanceOf[TAggregable]))
+    case _ =>
+      Some(ir.Ref(symbol, typeWithMissingness))
   }
 }
 
@@ -881,5 +940,47 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     condition <- cond.toIR(agg)
     consequent <- thenTree.toIR(agg)
     alternate <- elseTree.toIR(agg)
-  } yield ir.If(condition, consequent, alternate, `type`)
+  } yield ir.If(condition, consequent, alternate)
 }
+
+// PrettyAST(ast) gives a pretty-print of an AST tree
+
+object  PrettyAST {
+  def apply(rootAST: AST): String = {
+    val sb = new StringBuilder()
+
+    def putDeepAST(ast: AST, depth: Int) {
+      sb.append("  " * depth)
+      val children = ast.subexprs
+      sb.append(astToName(ast))
+      if (children.length > 0) {
+        sb.append("(\n")
+        children.foreach(putDeepAST(_, depth+1))
+        sb.append("  " * depth)
+        sb.append(")")
+      }
+      if (depth > 0) sb.append("\n")
+    }
+
+    putDeepAST(rootAST, 0)
+    sb.toString()
+  }
+
+  private def astToName(ast: AST): String = {
+    ast match {
+      case Apply(_, fn, _) => s"Apply[${fn}]"
+      case ApplyMethod(_, _, method, _) => s"ApplyMethod[${method}]"
+      case ArrayConstructor(_, _) => "ArrayConstructor"
+      case Const(_, value, _) => s"Const[${Option(value).getOrElse("NA")}]"
+      case If(_, _, _, _) => "If"
+      case Lambda(_, param, _) => s"Lambda[${param}]"
+      case Let(_, _, _) => "Let"
+      case Select(_, _, rhs) => s"Select[${rhs}]"
+      case StructConstructor(_, _, _) => "StructConstructor"
+      case SymRef(_, symbol) => s"SymRef[${symbol}]"
+      case TupleConstructor(_, _) => "TupleConstructor"
+      case _ => "UnknownAST"
+    }
+  }
+}
+

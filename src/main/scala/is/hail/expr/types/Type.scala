@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
 import is.hail.utils
 import is.hail.utils._
@@ -128,7 +129,7 @@ object Type {
 abstract class Type extends BaseType with Serializable {
   self =>
 
-  def children: Seq[Type] = Seq()
+  def children: Seq[Type] = FastSeq()
 
   def clear(): Unit = children.foreach(_.clear())
 
@@ -152,7 +153,16 @@ abstract class Type extends BaseType with Serializable {
       }
   }
 
-  def unsafeOrdering(missingGreatest: Boolean = false): UnsafeOrdering = ???
+  def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = ???
+
+  def unsafeOrdering(): UnsafeOrdering = unsafeOrdering(false)
+
+  def unsafeOrdering(rightType: Type, missingGreatest: Boolean): UnsafeOrdering = {
+    require(this.isOfType(rightType))
+    unsafeOrdering(missingGreatest)
+  }
+
+  def unsafeOrdering(rightType: Type): UnsafeOrdering = unsafeOrdering(rightType, false)
 
   def getOption(fields: String*): Option[Type] = getOption(fields.toList)
 
@@ -234,13 +244,15 @@ abstract class Type extends BaseType with Serializable {
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
   /* compare values for equality, but compare Float and Double values by the absolute value of their difference is within tolerance or with D_== */
-  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
+  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = a1 == a2
 
   def scalaClassTag: ClassTag[_ <: AnyRef]
 
   def canCompare(other: Type): Boolean = this == other
 
   val ordering: ExtendedOrdering
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
@@ -281,7 +293,6 @@ abstract class Type extends BaseType with Serializable {
       case t: TArray => t.copy(required = required)
       case t: TSet => t.copy(required = required)
       case t: TDict => t.copy(required = required)
-      case t: TVariant => t.copy(required = required)
       case t: TLocus => t.copy(required = required)
       case t: TInterval => t.copy(required = required)
       case t: TStruct => t.copy(required = required)
@@ -303,7 +314,6 @@ abstract class Type extends BaseType with Serializable {
       case TString(_) => t == TStringOptional || t == TStringRequired
       case TCall(_) => t == TCallOptional || t == TCallRequired
       case t2: TLocus => t == t2 || t == +t2
-      case t2: TVariant => t == t2 || t == +t2
       case t2: TInterval => t == t2 || t == +t2
       case t2: TStruct =>
         t.isInstanceOf[TStruct] &&

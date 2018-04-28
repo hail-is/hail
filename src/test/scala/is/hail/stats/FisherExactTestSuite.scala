@@ -98,21 +98,21 @@ class FisherExactTestSuite extends SparkSuite {
         }
 
         val vds2 = vds.annotateColsTable(hc.importTable(phenotypeFile).keyBy("Sample"), root = "pheno")
-          .annotateColsExpr("pheno = sa.pheno.Pheno1")
-          .annotateRowsExpr(
-            """macCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
+          .annotateColsExpr("pheno" -> "sa.pheno.Pheno1")
+          .annotateRowsExpr("macCase" ->
+            """AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
               |2L * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
-          .annotateRowsExpr(
-            """majCase = AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
+          .annotateRowsExpr("majCase" ->
+            """AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHet()).count() +
               |2L * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
-          .annotateRowsExpr(
-            """macControl = AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
+          .annotateRowsExpr("macControl" ->
+            """AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
               |2L * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomVar()).count()""".stripMargin)
-          .annotateRowsExpr(
-            """majControl = AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
+          .annotateRowsExpr("majControl" ->
+            """AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
               |2L * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
-          .annotateRowsExpr(
-            """fet = fet(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
+          .annotateRowsExpr("fet" ->
+            """fet(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
 
 
         val (_, q1) = vds2.queryVA("va.macCase")

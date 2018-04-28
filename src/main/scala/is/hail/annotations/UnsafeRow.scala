@@ -2,11 +2,23 @@ package is.hail.annotations
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
+
+trait UnKryoSerializable extends KryoSerializable {
+  def write(kryo: Kryo, output: Output): Unit = {
+    throw new NotImplementedException()
+  }
+
+  def read(kryo: Kryo, input: Input): Unit = {
+    throw new NotImplementedException()
+  }
+}
 
 object UnsafeIndexedSeq {
   def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
@@ -50,7 +62,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
   var length: Int = t.loadLength(region, aoff)
 
@@ -125,7 +137,7 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TBaseStruct,
-  var region: Region, var offset: Long) extends Row {
+  var region: Region, var offset: Long) extends Row with UnKryoSerializable {
 
   def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
@@ -199,6 +211,29 @@ class UnsafeRow(var t: TBaseStruct,
   private def readObject(s: ObjectInputStream): Unit = {
     throw new NotImplementedException()
   }
+}
+
+object SafeRow {
+  def apply(t: TBaseStruct, region: Region, off: Long): Row = {
+    Annotation.copy(t, new UnsafeRow(t, region, off)).asInstanceOf[Row]
+  }
+
+  def apply(t: TBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.region, rv.offset)
+
+  def read(t: Type, region: Region, off: Long): Annotation =
+    Annotation.copy(t, UnsafeRow.read(t, region, off))
+
+  def read(t: Type, rv: RegionValue): Annotation =
+    read(t, rv.region, rv.offset)
+}
+
+object SafeIndexedSeq {
+  def apply(t: TArray, region: Region, off: Long): IndexedSeq[Annotation] =
+    Annotation.copy(t, new UnsafeIndexedSeq(t, region, off))
+      .asInstanceOf[IndexedSeq[Annotation]]
+
+  def apply(t: TArray, rv: RegionValue): IndexedSeq[Annotation] =
+    apply(t, rv.region, rv.offset)
 }
 
 class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {

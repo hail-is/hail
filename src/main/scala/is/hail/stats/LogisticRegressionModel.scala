@@ -5,6 +5,7 @@ import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.utils.FastSeq
 
 object LogisticRegressionTest {
   val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
@@ -66,7 +67,7 @@ object WaldTest extends LogisticRegressionTest {
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(b(-1), se(-1), z(-1), p(-1))
+  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), se(-1), z(-1), p(-1))
 }
 
 
@@ -90,7 +91,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
     val lrStats =
       if (fit.converged) {
         val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
-        val p = chiSquaredTail(m - m0, chi2)
+        val p = chiSquaredTail(chi2, m - m0)
 
         Some(LikelihoodRatioStats(fit.b, chi2, p))
       } else
@@ -103,7 +104,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
 
 
 case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), chi2, p)
 }
 
 
@@ -133,7 +134,7 @@ object FirthTest extends LogisticRegressionTest {
       val firthStats =
         if (fitFirth.converged) {
           val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
-          val p = chiSquaredTail(m - m0, chi2)
+          val p = chiSquaredTail(chi2, m - m0)
 
           Some(FirthStats(fitFirth.b, chi2, p))
         } else
@@ -147,7 +148,7 @@ object FirthTest extends LogisticRegressionTest {
 
 
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), chi2, p)
 }
 
 
@@ -188,7 +189,7 @@ object ScoreTest extends LogisticRegressionTest {
         fisher(r1, r1) := X1.t * (X1(::, *) *:* (mu *:* (1d - mu)))
 
         val chi2 = score dot (fisher \ score)
-        val p = chiSquaredTail(m - m0, chi2)
+        val p = chiSquaredTail(chi2, m - m0)
 
         Some(ScoreStats(chi2, p))
       } catch {
@@ -203,7 +204,7 @@ object ScoreTest extends LogisticRegressionTest {
 
 
 case class ScoreStats(chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotations: Seq[Annotation] = Seq(chi2, p)
+  def toAnnotations: Seq[Annotation] = FastSeq(chi2, p)
 }
 
 

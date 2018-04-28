@@ -4,7 +4,6 @@ import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.Variant
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
@@ -59,7 +58,7 @@ class AnnotationsSuite extends SparkSuite {
     val dbQuery = vas.query("info", "DB")
     assert(vas.fieldOption("info", "DB").exists(_.typ.isInstanceOf[TBoolean]))
     assert(dbQuery(variantAnnotationMap(firstVariant)) == true)
-    assert(dbQuery(variantAnnotationMap(anotherVariant)) == null)
+    assert(dbQuery(variantAnnotationMap(anotherVariant)) == false)
 
     //type Set[String]
     val filtQuery = vas.query("filters")
@@ -78,7 +77,6 @@ class AnnotationsSuite extends SparkSuite {
     val vds3 = hc.readVDS(f)
     assert(vds3.same(vds1))
   }
-
 
   @Test def testExtendedOrdering() {
     val ord = ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])

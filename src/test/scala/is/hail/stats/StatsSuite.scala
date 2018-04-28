@@ -12,26 +12,26 @@ class StatsSuite extends SparkSuite {
 
   @Test def chiSquaredTailTest() {
     val chiSq1 = new ChiSquaredDistribution(1)
-    assert(D_==(chiSquaredTail(1,1d), 1 - chiSq1.cumulativeProbability(1d)))
-    assert(D_==(chiSquaredTail(1,5.52341d), 1 - chiSq1.cumulativeProbability(5.52341d)))
+    assert(D_==(chiSquaredTail(1d,1), 1 - chiSq1.cumulativeProbability(1d)))
+    assert(D_==(chiSquaredTail(5.52341d,1), 1 - chiSq1.cumulativeProbability(5.52341d)))
 
     val chiSq2 = new ChiSquaredDistribution(2)
-    assert(D_==(chiSquaredTail(2, 1), 1 - chiSq2.cumulativeProbability(1)))
-    assert(D_==(chiSquaredTail(2, 5.52341), 1 - chiSq2.cumulativeProbability(5.52341)))
+    assert(D_==(chiSquaredTail(1, 2), 1 - chiSq2.cumulativeProbability(1)))
+    assert(D_==(chiSquaredTail(5.52341, 2), 1 - chiSq2.cumulativeProbability(5.52341)))
 
     val chiSq5 = new ChiSquaredDistribution(5.2)
-    assert(D_==(chiSquaredTail(5.2, 1), 1 - chiSq5.cumulativeProbability(1)))
-    assert(D_==(chiSquaredTail(5.2, 5.52341), 1 - chiSq5.cumulativeProbability(5.52341)))
+    assert(D_==(chiSquaredTail(1, 5.2), 1 - chiSq5.cumulativeProbability(1)))
+    assert(D_==(chiSquaredTail(5.52341, 5.2), 1 - chiSq5.cumulativeProbability(5.52341)))
 
-    assert(D_==(inverseChiSquaredTail(1.0, .1), chiSq1.inverseCumulativeProbability(1 - .1)))
-    assert(D_==(inverseChiSquaredTail(1.0, .0001), chiSq1.inverseCumulativeProbability(1 - .0001)))
+    assert(D_==(inverseChiSquaredTail(.1, 1.0), chiSq1.inverseCumulativeProbability(1 - .1)))
+    assert(D_==(inverseChiSquaredTail(.0001, 1.0), chiSq1.inverseCumulativeProbability(1 - .0001)))
 
     val a = List(.0000000001, .5, .9999999999, 1.0)
-    a.foreach(p => assert(D_==(chiSquaredTail(1.0, inverseChiSquaredTail(1.0, p)), p)))
+    a.foreach(p => assert(D_==(chiSquaredTail(inverseChiSquaredTail(p, 1.0), 1.0), p)))
 
     // compare with R
-    assert(math.abs(chiSquaredTail(1, 400) - 5.507248e-89) < 1e-93)
-    assert(D_==(inverseChiSquaredTail(1, 5.507248e-89), 400))
+    assert(math.abs(chiSquaredTail(400, 1) - 5.507248e-89) < 1e-93)
+    assert(D_==(inverseChiSquaredTail(5.507248e-89, 1), 400))
   }
 
   @Test def normalTest() {
@@ -69,15 +69,15 @@ class StatsSuite extends SparkSuite {
     // compare with R
     assert(D_==(dpois(5, 10), 0.03783327))
     assert(qpois(0.3, 10) == 8)
-    assert(qpois(0.3, 10, lowerTail = false) == 12)
+    assert(qpois(0.3, 10, lowerTail = false, logP = false) == 12)
     assert(D_==(ppois(5, 10), 0.06708596))
-    assert(D_==(ppois(5, 10, lowerTail = false), 0.932914))
+    assert(D_==(ppois(5, 10, lowerTail = false, logP = false), 0.932914))
     assert(rpois(5) >= 0)
 
     assert(qpois(ppois(5, 10), 10) == 5)
-    assert(qpois(ppois(5, 10, lowerTail = false), 10, lowerTail = false) == 5)
+    assert(qpois(ppois(5, 10, lowerTail = false, logP = false), 10, lowerTail = false, logP = false) == 5)
 
-    assert(ppois(30, 1, lowerTail = false) > 0)
+    assert(ppois(30, 1, lowerTail = false, logP = false) > 0)
   }
 
   @Test def betaTest() {
@@ -98,9 +98,9 @@ class StatsSuite extends SparkSuite {
 
   @Test def binomTestTest() {
     //Compare against R
-    assert(D_==(binomTest(2, 10, 0.5, "two.sided"), 0.10937, tolerance = 1e-4))
-    assert(D_==(binomTest(4 ,10, 0.5, "less"), 0.377, tolerance = 1e-3))
-    assert(D_==(binomTest(32, 50, 0.4, "greater"), 0.0005193, tolerance = 1e-4))
+    assert(D_==(binomTest(2, 10, 0.5, 0), 0.10937, tolerance = 1e-4))
+    assert(D_==(binomTest(4 ,10, 0.5, 1), 0.377, tolerance = 1e-3))
+    assert(D_==(binomTest(32, 50, 0.4, 2), 0.0005193, tolerance = 1e-4))
 
   }
 

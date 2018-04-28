@@ -17,6 +17,15 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
       .bind(("row", rowType))
   }
 
+  def tAgg: TAggregable = TAggregable(rowType, Map(
+    "global" -> (0, globalType),
+    "row" -> (1, rowType)
+  ))
+
+  def aggEnv: Env[Type] = Env.empty[Type]
+    .bind("global" -> globalType)
+    .bind("AGG" -> tAgg)
+
   def keyType: TStruct = rowType.select(key.toArray)._1
   val keyFieldIdx: Array[Int] = key.toArray.map(rowType.fieldIdx)
   def valueType: TStruct = rowType.filter(key.toSet, include = false)._1

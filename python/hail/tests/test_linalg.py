@@ -14,14 +14,22 @@ tearDownModule = stopTestHailContext
 class Tests(unittest.TestCase):
     _dataset = None
 
-    def get_dataset(self):
+    @staticmethod
+    def get_dataset():
         if Tests._dataset is None:
             Tests._dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
         return Tests._dataset
 
+    @staticmethod
+    def np_matrix(a):
+        if isinstance(a, BlockMatrix):
+            return np.matrix(a.to_numpy())
+        else:
+            return np.matrix(a)
+
     def test_from_entry_expr(self):
         mt = self.get_dataset()
-        mt = mt.annotate_entries(x = hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
+        mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
 
         a1 = BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_numpy()
         a2 = BlockMatrix.from_entry_expr(mt.x, block_size=32).to_numpy()
@@ -40,7 +48,7 @@ class Tests(unittest.TestCase):
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
 
-        bm = BlockMatrix._create_block_matrix(n_rows, n_cols, data.tolist(), row_major=True, block_size=4)
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), row_major=True, block_size=4)
         a = data.reshape((n_rows, n_cols))
 
         with tempfile.NamedTemporaryFile() as bm_f:
@@ -60,22 +68,284 @@ class Tests(unittest.TestCase):
                 self.assertTrue(np.array_equal(a4, a))
                 self.assertTrue(np.array_equal(a5, a))
 
-        bmT = bm.T
-        aT = a.T
+        bmt = bm.T
+        at = a.T
 
-        with tempfile.NamedTemporaryFile() as bmT_f:
-            with tempfile.NamedTemporaryFile() as aT_f:
-                bmT.tofile(bmT_f.name)
-                aT.tofile(aT_f.name)
+        with tempfile.NamedTemporaryFile() as bmt_f:
+            with tempfile.NamedTemporaryFile() as at_f:
+                bmt.tofile(bmt_f.name)
+                at.tofile(at_f.name)
 
-                aT1 = bmT.to_numpy()
-                aT2 = BlockMatrix.from_numpy(aT).to_numpy()
-                aT3 = np.fromfile(bmT_f.name).reshape((n_cols, n_rows))
-                aT4 = BlockMatrix.fromfile(aT_f.name, n_cols, n_rows).to_numpy()
-                aT5 = BlockMatrix.fromfile(bmT_f.name, n_cols, n_rows).to_numpy()
+                at1 = bmt.to_numpy()
+                at2 = BlockMatrix.from_numpy(at).to_numpy()
+                at3 = np.fromfile(bmt_f.name).reshape((n_cols, n_rows))
+                at4 = BlockMatrix.fromfile(at_f.name, n_cols, n_rows).to_numpy()
+                at5 = BlockMatrix.fromfile(bmt_f.name, n_cols, n_rows).to_numpy()
 
-                self.assertTrue(np.array_equal(aT1, aT))
-                self.assertTrue(np.array_equal(aT2, aT))
-                self.assertTrue(np.array_equal(aT3, aT))
-                self.assertTrue(np.array_equal(aT4, aT))
-                self.assertTrue(np.array_equal(aT5, aT))
+                self.assertTrue(np.array_equal(at1, at))
+                self.assertTrue(np.array_equal(at2, at))
+                self.assertTrue(np.array_equal(at3, at))
+                self.assertTrue(np.array_equal(at4, at))
+                self.assertTrue(np.array_equal(at5, at))
+
+    def test_promote(self):
+        nx = np.matrix([[2.0]])
+        nc = np.matrix([[1.0], [2.0]])
+        nr = np.matrix([[1.0, 2.0, 3.0]])
+        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2
+        x = BlockMatrix.from_numpy(nx)
+        c = BlockMatrix.from_numpy(nc)
+        r = BlockMatrix.from_numpy(nr)
+        m = BlockMatrix.from_numpy(nm)
+
+        nct, nrt, nmt = nc.T, nr.T, nm.T
+        ct, rt, mt = c.T, r.T, m.T
+
+        good = [(x, x),  (x, c),  (x, r),  (x, m), (x, e),
+                (c, x),  (c, c),           (c, m), (c, e),
+                (r, x),           (r, r),  (r, m), (r, e),
+                (m, x),  (m, c),  (m, r),  (m, m), (m, e),
+                (x, nx), (x, nc), (x, nr), (x, nm),
+                (c, nx), (c, nc),          (c, nm),
+                (r, nx),          (r, nr), (r, nm),
+                (m, nx), (m, nc), (m, nr), (m, nm)]
+
+        bad = [(c, r), (r, c), (c, ct), (r, rt),
+               (c, rt), (c, mt), (ct, r), (ct, m),
+               (r, ct), (r, mt), (rt, c), (rt, m),
+               (m, ct), (m, rt), (m, mt), (mt, c), (mt, r), (mt, m),
+               (c, nr), (r, nc), (c, nct), (r, nrt),
+               (c, nrt), (c, nmt), (ct, nr), (ct, nm),
+               (r, nct), (r, nmt), (rt, nc), (rt, nm),
+               (m, nct), (m, nrt), (m, nmt), (mt, nc), (mt, nr), (mt, nm)]
+
+        for (a, b) in good:
+            a._promote(b, '')
+
+        for (a, b) in bad:
+            self.assertRaises(ValueError,
+                              lambda: a._promote(b, ''))
+
+    def test_elementwise_ops(self):
+        def assert_eq(a, b):
+            self.assertTrue(np.array_equal(self.np_matrix(a), self.np_matrix(b)))
+
+        def assert_close(a, b):
+            self.assertTrue(np.allclose(self.np_matrix(a), self.np_matrix(b)))
+
+        nx = np.matrix([[2.0]])
+        nc = np.matrix([[1.0], [2.0]])
+        nr = np.matrix([[1.0, 2.0, 3.0]])
+        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        x = BlockMatrix.from_numpy(nx)
+        c = BlockMatrix.from_numpy(nc)
+        r = BlockMatrix.from_numpy(nr)
+        m = BlockMatrix.from_numpy(nm)
+
+        self.assertRaises(TypeError,
+                          lambda: x + np.array(['one'], dtype=str))
+
+        assert_eq(+m, 0 + m)
+        assert_eq(-m, 0 - m)
+
+        # addition
+        assert_eq(x + e, nx + e)
+        assert_eq(c + e, nc + e)
+        assert_eq(r + e, nr + e)
+        assert_eq(m + e, nm + e)
+
+        assert_eq(x + e, e + x)
+        assert_eq(c + e, e + c)
+        assert_eq(r + e, e + r)
+        assert_eq(m + e, e + m)
+
+        assert_eq(x + x, 2 * x)
+        assert_eq(c + c, 2 * c)
+        assert_eq(r + r, 2 * r)
+        assert_eq(m + m, 2 * m)
+
+        assert_eq(x + c, np.matrix([[3.0], [4.0]]))
+        assert_eq(x + r, np.matrix([[3.0, 4.0, 5.0]]))
+        assert_eq(x + m, np.matrix([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
+        assert_eq(c + m, np.matrix([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
+        assert_eq(r + m, np.matrix([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
+        assert_eq(x + c, c + x)
+        assert_eq(x + r, r + x)
+        assert_eq(x + m, m + x)
+        assert_eq(c + m, m + c)
+        assert_eq(r + m, m + r)
+
+        assert_eq(x + nx, x + x)
+        assert_eq(x + nc, x + c)
+        assert_eq(x + nr, x + r)
+        assert_eq(x + nm, x + m)
+        assert_eq(c + nx, c + x)
+        assert_eq(c + nc, c + c)
+        assert_eq(c + nm, c + m)
+        assert_eq(r + nx, r + x)
+        assert_eq(r + nr, r + r)
+        assert_eq(r + nm, r + m)
+        assert_eq(m + nx, m + x)
+        assert_eq(m + nc, m + c)
+        assert_eq(m + nr, m + r)
+        assert_eq(m + nm, m + m)
+
+        # subtraction
+        assert_eq(x - e, nx - e)
+        assert_eq(c - e, nc - e)
+        assert_eq(r - e, nr - e)
+        assert_eq(m - e, nm - e)
+
+        assert_eq(x - e, -(e - x))
+        assert_eq(c - e, -(e - c))
+        assert_eq(r - e, -(e - r))
+        assert_eq(m - e, -(e - m))
+
+        assert_eq(x - x, np.zeros((1, 1)))
+        assert_eq(c - c, np.zeros((2, 1)))
+        assert_eq(r - r, np.zeros((1, 3)))
+        assert_eq(m - m, np.zeros((2, 3)))
+
+        assert_eq(x - c, np.matrix([[1.0], [0.0]]))
+        assert_eq(x - r, np.matrix([[1.0, 0.0, -1.0]]))
+        assert_eq(x - m, np.matrix([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
+        assert_eq(c - m, np.matrix([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
+        assert_eq(r - m, np.matrix([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
+        assert_eq(x - c, -(c - x))
+        assert_eq(x - r, -(r - x))
+        assert_eq(x - m, -(m - x))
+        assert_eq(c - m, -(m - c))
+        assert_eq(r - m, -(m - r))
+
+        assert_eq(x - nx, x - x)
+        assert_eq(x - nc, x - c)
+        assert_eq(x - nr, x - r)
+        assert_eq(x - nm, x - m)
+        assert_eq(c - nx, c - x)
+        assert_eq(c - nc, c - c)
+        assert_eq(c - nm, c - m)
+        assert_eq(r - nx, r - x)
+        assert_eq(r - nr, r - r)
+        assert_eq(r - nm, r - m)
+        assert_eq(m - nx, m - x)
+        assert_eq(m - nc, m - c)
+        assert_eq(m - nr, m - r)
+        assert_eq(m - nm, m - m)
+
+        # multiplication
+        assert_eq(x * e, nx * e)
+        assert_eq(c * e, nc * e)
+        assert_eq(r * e, nr * e)
+        assert_eq(m * e, nm * e)
+
+        assert_eq(x * e, e * x)
+        assert_eq(c * e, e * c)
+        assert_eq(r * e, e * r)
+        assert_eq(m * e, e * m)
+
+        assert_eq(x * x, x ** 2)
+        assert_eq(c * c, c ** 2)
+        assert_eq(r * r, r ** 2)
+        assert_eq(m * m, m ** 2)
+
+        assert_eq(x * c, np.matrix([[2.0], [4.0]]))
+        assert_eq(x * r, np.matrix([[2.0, 4.0, 6.0]]))
+        assert_eq(x * m, np.matrix([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
+        assert_eq(c * m, np.matrix([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
+        assert_eq(r * m, np.matrix([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
+        assert_eq(x * c, c * x)
+        assert_eq(x * r, r * x)
+        assert_eq(x * m, m * x)
+        assert_eq(c * m, m * c)
+        assert_eq(r * m, m * r)
+
+        assert_eq(x * nx, x * x)
+        assert_eq(x * nc, x * c)
+        assert_eq(x * nr, x * r)
+        assert_eq(x * nm, x * m)
+        assert_eq(c * nx, c * x)
+        assert_eq(c * nc, c * c)
+        assert_eq(c * nm, c * m)
+        assert_eq(r * nx, r * x)
+        assert_eq(r * nr, r * r)
+        assert_eq(r * nm, r * m)
+        assert_eq(m * nx, m * x)
+        assert_eq(m * nc, m * c)
+        assert_eq(m * nr, m * r)
+        assert_eq(m * nm, m * m)
+
+        # division
+        assert_close(x / e, nx / e)
+        assert_close(c / e, nc / e)
+        assert_close(r / e, nr / e)
+        assert_close(m / e, nm / e)
+
+        assert_close(x / e, 1 / (e / x))
+        assert_close(c / e, 1 / (e / c))
+        assert_close(r / e, 1 / (e / r))
+        assert_close(m / e, 1 / (e / m))
+
+        assert_close(x / x, np.ones((1, 1)))
+        assert_close(c / c, np.ones((2, 1)))
+        assert_close(r / r, np.ones((1, 3)))
+        assert_close(m / m, np.ones((2, 3)))
+
+        assert_close(x / c, np.matrix([[2 / 1.0], [2 / 2.0]]))
+        assert_close(x / r, np.matrix([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
+        assert_close(x / m, np.matrix([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+        assert_close(c / m, np.matrix([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+        assert_close(r / m, np.matrix([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
+        assert_close(x / c, 1 / (c / x))
+        assert_close(x / r, 1 / (r / x))
+        assert_close(x / m, 1 / (m / x))
+        assert_close(c / m, 1 / (m / c))
+        assert_close(r / m, 1 / (m / r))
+
+        assert_close(x / nx, x / x)
+        assert_close(x / nc, x / c)
+        assert_close(x / nr, x / r)
+        assert_close(x / nm, x / m)
+        assert_close(c / nx, c / x)
+        assert_close(c / nc, c / c)
+        assert_close(c / nm, c / m)
+        assert_close(r / nx, r / x)
+        assert_close(r / nr, r / r)
+        assert_close(r / nm, r / m)
+        assert_close(m / nx, m / x)
+        assert_close(m / nc, m / c)
+        assert_close(m / nr, m / r)
+        assert_close(m / nm, m / m)
+
+        # exponentiation
+        assert_close(m ** 3, m * m * m)
+
+        # sqrt
+        assert_close(m.sqrt(), m ** 0.5)
+
+    def test_matrix_ops(self):
+        def assert_eq(a, b):
+            self.assertTrue(np.array_equal(self.np_matrix(a), self.np_matrix(b)))
+
+        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        m = BlockMatrix.from_numpy(nm)
+
+        assert_eq(m.T, nm.T)
+        assert_eq(m.T, nm.T)
+
+        assert_eq(m @ m.T, nm @ nm.T)
+        assert_eq(m @ nm.T, nm @ nm.T)
+
+        assert_eq(m.T @ m, nm.T @ nm)
+        assert_eq(m.T @ nm, nm.T @ nm)
+
+        self.assertRaises(ValueError, lambda: m @ m)
+        self.assertRaises(ValueError, lambda: m @ nm)
+
+        assert_eq(m.diagonal(), np.array([1.0, 5.0]))
+        assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
+        assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))

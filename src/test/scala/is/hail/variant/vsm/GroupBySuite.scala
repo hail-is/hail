@@ -15,22 +15,22 @@ import org.apache.spark.sql.Row
 class GroupBySuite extends SparkSuite {
 
   @Test def testGroupSamplesBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
     vds.groupColsBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupSamplesStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("foo = {str1: 1, str2: \"bar\"}")
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("foo" -> "{str1: 1, str2: \"bar\"}")
     vds.groupColsBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupVariantsBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC = AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
     val vds2 = vds.keyRowsBy(Array("AC"), Array("AC")).aggregateRowsByKey("max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
   @Test def testGroupVariantsStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC = {str1: \"foo\", str2: 1}")
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC" -> "{str1: \"foo\", str2: 1}")
     val vds2 = vds.keyRowsBy(Array("AC"), Array("AC")).aggregateRowsByKey("max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
   }
 
@@ -53,7 +53,7 @@ class GroupBySuite extends SparkSuite {
               "DP = AGG.collect()[0].DP, " +
               "GQ = AGG.collect()[0].GQ, " +
               "PL = AGG.collect()[0].PL")
-        assert(vsm.selectRows("va.locus", "va.alleles").same(grouped))
+        assert(vsm.selectRows("{locus: va.locus, alleles: va.alleles}").same(grouped))
       }
 
       val uniqueSamples = vsm.stringSampleIds.toSet
@@ -63,7 +63,7 @@ class GroupBySuite extends SparkSuite {
         grouped.numCols == uniqueSamples.size
       } else {
         val grouped = vsm.groupColsBy("s = sa.s", "GT = AGG.collect()[0].GT, AD = AGG.collect()[0].AD, DP = AGG.collect()[0].DP, GQ = AGG.collect()[0].GQ, PL = AGG.collect()[0].PL")
-        assert(vsm.selectCols("sa.s")
+        assert(vsm.selectCols("{s: sa.s}")
           .same(grouped
             .reorderCols(vsm.stringSampleIds.toArray.map(Annotation(_)))
           ))
@@ -86,17 +86,17 @@ class GroupBySuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateRowsTable(intervals, root = "genes", product = true)
-      .annotateRowsExpr("genes = va.genes.map(x => x.target)")
-      .annotateRowsExpr("weight = va.locus.position.toFloat64")
+      .annotateRowsExpr("genes" -> "va.genes.map(x => x.target)")
+      .annotateRowsExpr("weight" -> "va.locus.position.toFloat64")
       .annotateColsTable(covariates, root = "cov")
       .annotateColsTable(phenotypes, root = "pheno")
 
     val vdsGrouped = vds.explodeRows("va.genes")
       .keyRowsBy(Array("genes"), Array("genes"))
       .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum()")
-      .annotateColsExpr("pheno = sa.pheno.Pheno")
+      .annotateColsExpr("pheno" -> "sa.pheno.Pheno")
 
-    val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select(Array("row.genes", "row.linreg.beta",
       "row.linreg.standard_error", "row.linreg.t_stat", "row.linreg.p_value"))
       .rdd.map { r => (r.getAs[String](0), (1 to 4).map{ i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }

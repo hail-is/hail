@@ -181,7 +181,7 @@ class Pedigree(object):
     @classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
-    def read(cls, fam_path, delimiter='\\s+'):
+    def read(cls, fam_path, delimiter='\\s+') -> 'Pedigree':
         """Read a PLINK .fam file and return a pedigree object.
 
         **Examples**
@@ -222,7 +222,7 @@ class Pedigree(object):
         """
         return list(filter(lambda t: t.is_complete(), self.trios))
 
-    @typecheck_method(samples=listof(str))
+    @typecheck_method(samples=sequenceof(str))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
 

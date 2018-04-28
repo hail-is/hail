@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser, ir}
-import is.hail.io.{CodecSpec, LoadMatrix}
+import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -20,6 +20,7 @@ import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyCon
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark._
+import org.apache.spark.executor.InputMetrics
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -34,12 +35,25 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
+  private var theContext: HailContext = _
+
+  def get: HailContext = theContext
+
+  def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
+    def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
+
+    if (majorMinor(jarVersion) != majorMinor(sparkVersion))
+      fatal(s"This Hail JAR was compiled for Spark $jarVersion, cannot run with Spark $sparkVersion.\n" +
+        s"  The major and minor versions must agree, though the patch version can differ.")
+    else if (jarVersion != sparkVersion)
+      warn(s"This Hail JAR was compiled for Spark $jarVersion, running with Spark $sparkVersion.\n" +
+        s"  Compatibility is not guaranteed.")
+  }
+
   def configureAndCreateSparkContext(appName: String, master: Option[String],
     local: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
-    require(is.hail.HAIL_SPARK_VERSION == org.apache.spark.SPARK_VERSION,
-      s"""This Hail JAR was compiled for Spark ${ is.hail.HAIL_SPARK_VERSION },
-         |  but the version of Spark available at runtime is ${ org.apache.spark.SPARK_VERSION }.""".stripMargin)
+    checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
 
     val conf = new SparkConf().setAppName(appName)
 
@@ -132,7 +146,9 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = {
+    tmpDir: String = "/tmp",
+    forceIR: Boolean = false): HailContext = {
+    require(theContext == null)
 
     val javaVersion = System.getProperty("java.version")
     if (!javaVersion.startsWith("1.8"))
@@ -166,25 +182,31 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
-    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor, forceIR)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")
+    theContext = hc
     hc
   }
 
-  def startProgressBar(sc: SparkContext): Unit = {
+  def clear() {
+    theContext = null
+  }
+
+  def startProgressBar(sc: SparkContext) {
     ProgressBarBuilder.build(sc)
   }
 
-  def readRowsPartition(t: TStruct, codecSpec: CodecSpec)(i: Int, in: InputStream): Iterator[RegionValue] = {
+  def readRowsPartition(makeDec: (InputStream) => Decoder)(i: Int, in: InputStream, metrics: InputMetrics = null): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       private val region = Region()
       private val rv = RegionValue(region)
 
+      private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
         try {
-          codecSpec.buildDecoder(in)
+          makeDec(trackedIn)
         } catch {
           case e: Exception =>
             in.close()
@@ -205,7 +227,11 @@ object HailContext {
 
         try {
           region.clear()
-          rv.setOffset(dec.readRegionValue(t, region))
+          rv.setOffset(dec.readRegionValue(region))
+          if (metrics != null) {
+            ExposedMetrics.incrementRecord(metrics)
+            ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
+          }
 
           cont = dec.readByte()
           if (cont == 0)
@@ -229,7 +255,8 @@ object HailContext {
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
   val tmpDir: String,
-  val branchingFactor: Int) {
+  val branchingFactor: Int,
+  val forceIR: Boolean) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
@@ -375,48 +402,48 @@ class HailContext private(val sc: SparkContext,
     keyNames: java.util.ArrayList[String],
     nPartitions: java.lang.Integer,
     types: java.util.HashMap[String, Type],
-    commentChar: String,
+    comment: java.util.ArrayList[String],
     separator: String,
     missing: String,
     noHeader: Boolean,
     impute: Boolean,
-    quote: java.lang.Character): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote)
+    quote: java.lang.Character,
+    skipBlankLines: Boolean): Table = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    types.asScala.toMap, comment.asScala.toArray, separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
-    commentChar: Option[String] = None,
+    comment: Array[String] = Array.empty[String],
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null): Table = {
-    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote)
+    quote: java.lang.Character = null,
+    skipBlankLines: Boolean = false): Table = {
+    importTables(List(input), keyNames, nPartitions, types, comment, separator, missing, noHeader, impute, quote, skipBlankLines)
   }
 
   def importTables(inputs: Seq[String],
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
-    commentChar: Option[String] = None,
+    comment: Array[String] = Array.empty[String],
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null): Table = {
+    quote: java.lang.Character = null,
+    skipBlankLines: Boolean = false): Table = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    val (struct, rdd) =
-      TextTableReader.read(sc)(files, types, commentChar, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote)
-
-    Table(this, rdd.map(_.value), struct, keyNames)
+    TextTableReader.read(this)(files, types, comment, separator, missing,
+      noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, keyNames, skipBlankLines)
   }
 
   def importPlink(bed: String, bim: String, fam: String,
@@ -464,7 +491,7 @@ class HailContext private(val sc: SparkContext,
   def readPartitions[T: ClassTag](
     path: String,
     partFiles: Array[String],
-    read: (Int, InputStream) => Iterator[T],
+    read: (Int, InputStream, InputMetrics) => Iterator[T],
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
@@ -478,7 +505,7 @@ class HailContext private(val sc: SparkContext,
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
         val in = sHadoopConfBc.value.value.unsafeReader(filename)
-        read(p.index, in)
+        read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
       @transient override val partitioner: Option[Partitioner] = optPartitioner
@@ -486,7 +513,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def readRows(path: String, t: TStruct, codecSpec: CodecSpec, partFiles: Array[String]): RDD[RegionValue] =
-    readPartitions(path, partFiles, HailContext.readRowsPartition(t, codecSpec))
+    readPartitions(path, partFiles, HailContext.readRowsPartition(codecSpec.buildDecoder(t)))
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)
@@ -546,9 +573,10 @@ class HailContext private(val sc: SparkContext,
     missingVal: String,
     minPartitions: Option[Int],
     noHeader: Boolean,
-    forceBGZ: Boolean): MatrixTable =
+    forceBGZ: Boolean,
+    sep: String = "\t"): MatrixTable =
     importMatrices(files.asScala, rowFields.asScala.toMap, keyNames.asScala.toArray,
-      cellType, missingVal, minPartitions, noHeader, forceBGZ)
+      cellType, missingVal, minPartitions, noHeader, forceBGZ, sep)
 
   def importMatrices(files: Seq[String],
     rowFields: Map[String, Type],
@@ -557,12 +585,14 @@ class HailContext private(val sc: SparkContext,
     missingVal: String = "NA",
     nPartitions: Option[Int],
     noHeader: Boolean,
-    forceBGZ: Boolean): MatrixTable = {
+    forceBGZ: Boolean,
+    sep: String = "\t"): MatrixTable = {
+    assert(sep.length == 1)
 
     val inputs = hadoopConf.globAll(files)
 
     forceBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader)
+      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }
 
@@ -643,9 +673,5 @@ class HailContext private(val sc: SparkContext,
         val (t, f) = Parser.eval(ast, ec)
         (f(), t)
     }
-  }
-
-  def stop() {
-    sc.stop()
   }
 }

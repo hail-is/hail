@@ -13,7 +13,7 @@ from hail.utils.java import Env, joption
            j=Expression,
            keep=bool,
            tie_breaker=nullable(func_spec(2, expr_numeric)))
-def maximal_independent_set(i, j, keep=True, tie_breaker=None):
+def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
     """Return a table containing the vertices in a near
     `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
     of an undirected graph whose edges are given by a two-column table.
@@ -24,15 +24,17 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None):
     Prune individuals from a dataset until no close relationships remain with
     respect to a PC-Relate measure of kinship.
 
-    >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
-    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> pc_rel = hl.pc_relate(dataset.GT, 0.001, k=2, statistics='kin')
+    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125)
+    >>> pairs = pairs.select(i=pairs.i.s, j=pairs.j.s)
     >>> related_samples_to_remove = hl.maximal_independent_set(pairs.i, pairs.j, False)
     >>> result = dataset.filter_cols(hl.is_defined(related_samples_to_remove[dataset.s]), keep=False)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
-    >>> pc_rel = hl.pc_relate(dataset, 2, 0.001)
-    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> pc_rel = hl.pc_relate(dataset.GT, 0.001, k=2, statistics='kin')
+    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125)
+    >>> pairs = pairs.select(i=pairs.i.s, j=pairs.j.s)
     >>> samples = dataset.cols()
     >>> pairs_with_case = pairs.select(
     ...     i=hl.struct(id=pairs.i, is_case=samples[pairs.i].is_case),
@@ -150,14 +152,14 @@ def require_partition_key_locus(dataset, method):
 
 
 @typecheck(dataset=MatrixTable, method=str)
-def require_biallelic(dataset, method):
+def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
     dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
     return dataset
 
 
 @typecheck(dataset=MatrixTable, name=str)
-def rename_duplicates(dataset, name='unique_id'):
+def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     """Rename duplicate column keys.
 
     .. include:: ../_templates/req_tstring.rst
@@ -197,7 +199,7 @@ def rename_duplicates(dataset, name='unique_id'):
 @typecheck(ds=MatrixTable,
            intervals=expr_array(expr_interval(expr_any)),
            keep=bool)
-def filter_intervals(ds, intervals, keep=True):
+def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
     """Filter rows with a list of intervals.
 
     Examples

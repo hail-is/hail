@@ -864,8 +864,8 @@ object FunctionRegistry {
   registerDependent("LocusAlleles", { () =>
     val rg = RG.rg
     (s: String) => {
-      val v = Variant.parse(s, rg)
-      Annotation(v.locus, IndexedSeq(v.ref) ++ v.altAlleles.map(_.alt))
+      val (locus, alleles) = VariantMethods.parse(s, rg)
+      Annotation(locus, alleles)
     }
   })(stringHr, locusAllelesHr)
 
@@ -944,7 +944,7 @@ object FunctionRegistry {
     Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
   })
 
-  register("binomTest", { (x: Int, n: Int, p: Double, alternative: String) => binomTest(x, n, p, alternative)
+  register("binomTest", { (x: Int, n: Int, p: Double, alternative: Int) => binomTest(x, n, p, alternative)
   })
 
   // NB: merge takes two structs, how do I deal with structs?
@@ -986,8 +986,8 @@ object FunctionRegistry {
 
   register("qpois", { (p: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => qpois(p, lambda, lowerTail, logP) })
 
-  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) })
-  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(df, p) })
+  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(x, df) })
+  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(p, df) })
 
   register("!", (a: Boolean) => !a)
 
@@ -1017,6 +1017,9 @@ object FunctionRegistry {
   registerMethod("upper", (s: String) => s.toUpperCase)
   registerMethod("strip", (s: String) => s.trim())
   registerMethod("contains", (s: String, t: String) => s.contains(t))
+  registerMethod("startswith", (s: String, t: String) => s.startsWith(t))
+  registerMethod("endswith", (s: String, t: String) => s.endsWith(t))
+  registerMethod("firstMatchIn", (s: String, regex: String) => regex.r.findFirstMatchIn(s).map(_.subgroups.toArray.toFastIndexedSeq).orNull : IndexedSeq[String])
 
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
     str.replaceAll(pattern1, pattern2))
@@ -1373,41 +1376,56 @@ object FunctionRegistry {
   registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Unit) =>
     a { x =>
       val r = f(x).asInstanceOf[IndexedSeq[Any]]
-      var i = 0
-      while (i < r.size) {
-        k(r(i))
-        i += 1
+      if (r != null) {
+        var i = 0
+        while (i < r.size) {
+          k(r(i))
+          i += 1
+        }
       }
     }
   }
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
-    for (
-      is <- f(x);
-      (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is));
-      (stn, n) <- CM.memoize(r.invoke[Int]("size"));
-      i <- CM.newLocal[Int];
-      ri = r.invoke[Int, AnyRef]("apply", i);
+    for {
+      is <- f(x)
+      (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is))
+      (stn, n) <- CM.memoize(r.invoke[Int]("size"))
+      i <- CM.newLocal[Int]
+      ri = r.invoke[Int, AnyRef]("apply", i)
       invokek <- k(ri)
-    ) yield Code(
+    } yield Code(
       str,
-      stn,
-      i.store(0),
-      Code.whileLoop(i < n,
-        Code(invokek, i.store(i + 1))
-      )
+      r.ifNull(
+        Code._empty,
+        Code(
+          stn,
+          i.store(0),
+          Code.whileLoop(i < n,
+            Code(invokek, i.store(i + 1))
+          )))
     )
   }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x =>
+    val s = f(x).asInstanceOf[Set[Any]]
+    if (s != null)
+      s.foreach(k) } }
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
-    for (
-      fx <- f(x);
-      (stit, it) <- CM.memoize(Code.checkcast[Set[AnyRef]](fx).invoke[Iterator[AnyRef]]("iterator"));
-      hasNext = it.invoke[Boolean]("hasNext");
-      next = it.invoke[AnyRef]("next");
+    for {
+      fx <- f(x)
+      (sts, s) <- CM.memoize(Code.checkcast[Set[AnyRef]](fx))
+      (stit, it) <- CM.memoize(s.invoke[Iterator[AnyRef]]("iterator"))
+      hasNext = it.invoke[Boolean]("hasNext")
+      next = it.invoke[AnyRef]("next")
       invokek <- k(next)
-    ) yield Code(stit, Code.whileLoop(hasNext, invokek))
+    } yield Code(
+      sts,
+      s.ifNull(
+        Code._empty,
+        Code(
+          stit,
+          Code.whileLoop(hasNext, invokek))))
   }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
 
@@ -2195,21 +2213,6 @@ object FunctionRegistry {
     CM.ret(nullableBooleanCode(true)(a, b)))
   registerSpecialCode("&&", (a: Code[java.lang.Boolean], b: Code[java.lang.Boolean]) =>
     CM.ret(nullableBooleanCode(false)(a, b)))
-
-  registerSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
-    val v = f1()
-    if (v == null)
-      f2()
-    else
-      v
-  })(TTHr, TTHr, TTHr)
-
-  register("orMissing", { (predicate: Boolean, value: Any) =>
-    if (predicate)
-      value
-    else
-      null
-  })(boolHr, TTHr, TTHr)
 
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));

@@ -16,14 +16,14 @@ class AnnotateGlobalSuite extends SparkSuite {
     vds = VariantQC(vds)
     vds = SampleQC(vds)
 
-    val (afDist, _) = vds.queryRows("AGG.map(v => va.qc.AF).stats()")
-    val (singStats, _) = vds.queryCols("AGG.filter(sa => sa.qc.n_singleton > 2L).count()")
-    val (acDist, _) = vds.queryRows("AGG.map(v => va.qc.AC.toFloat64).stats()")
-    val (crStats, _) = vds.queryCols("AGG.map(s => sa.qc.call_rate).stats()")
+    val (afDist, _) = vds.aggregateRows("AGG.map(v => va.qc.AF).stats()")
+    val (singStats, _) = vds.aggregateCols("AGG.filter(sa => sa.qc.n_singleton > 2L).count()")
+    val (acDist, _) = vds.aggregateRows("AGG.map(v => va.qc.AC.toFloat64).stats()")
+    val (crStats, _) = vds.aggregateCols("AGG.map(s => sa.qc.call_rate).stats()")
 
     val qSingleton = vds.querySA("sa.qc.n_singleton")._2
 
-    val sCount = vds.colValues.count(sa =>
+    val sCount = vds.colValues.value.count(sa =>
       qSingleton(sa).asInstanceOf[Long] > 2)
 
     assert(singStats == sCount)
@@ -49,7 +49,7 @@ class AnnotateGlobalSuite extends SparkSuite {
     assert(acDist == Annotation(acSC.mean, acSC.stdev, acSC.min, acSC.max, acSC.count, acSC.sum))
 
     val qCR = vds.querySA("sa.qc.call_rate")._2
-    val crSC = vds.colValues
+    val crSC = vds.colValues.value
       .aggregate(new StatCounter())({ case (statC, sa) =>
         val cr = Option(qCR(sa))
         cr.foreach(o => statC.merge(o.asInstanceOf[Double]))

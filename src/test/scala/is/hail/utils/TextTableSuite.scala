@@ -46,8 +46,8 @@ class TextTableSuite extends SparkSuite {
       Some(TString())
     )))
 
-    val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
-      impute = true)
+    val schema = TextTableReader.read(hc)(Array("src/test/resources/variantAnnotations.tsv"),
+      impute = true).signature
     assert(schema == TStruct(
       "Chromosome" -> TInt32(),
       "Position" -> TInt32(),
@@ -57,8 +57,8 @@ class TextTableSuite extends SparkSuite {
       "Rand2" -> TFloat64(),
       "Gene" -> TString()))
 
-    val (schema2, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
-      types = Map("Chromosome" -> TString()), impute = true)
+    val schema2 = TextTableReader.read(hc)(Array("src/test/resources/variantAnnotations.tsv"),
+      types = Map("Chromosome" -> TString()), impute = true).signature
     assert(schema2 == TStruct(
       "Chromosome" -> TString(),
       "Position" -> TInt32(),
@@ -68,16 +68,16 @@ class TextTableSuite extends SparkSuite {
       "Rand2" -> TFloat64(),
       "Gene" -> TString()))
 
-    val (schema3, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
-      impute = true)
+    val schema3 = TextTableReader.read(hc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
+      impute = true).signature
     assert(schema3 == TStruct(
       "Chromosome:Position:Ref:Alt" -> TString(),
       "Rand1" -> TFloat64(),
       "Rand2" -> TFloat64(),
       "Gene" -> TString()))
 
-    val (schema4, _) = TextTableReader.read(sc)(Array("src/test/resources/sampleAnnotations.tsv"),
-      impute = true)
+    val schema4 = TextTableReader.read(hc)(Array("src/test/resources/sampleAnnotations.tsv"),
+      impute = true).signature
     assert(schema4 == TStruct(
       "Sample" -> TString(),
       "Status" -> TString(),

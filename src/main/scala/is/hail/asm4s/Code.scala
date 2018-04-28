@@ -1,7 +1,10 @@
 package is.hail.asm4s
 
+import java.io.PrintStream
+
 import is.hail.expr.CM
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
+import java.util
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -172,6 +175,12 @@ object Code {
     m.invoke(staticObj.get(), args)
   }
 
+  def invokeScalaObject[A1, S](cls: Class[_], method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array(a1))
+
+  def invokeScalaObject[A1, A2, S](cls: Class[_], method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array(a1, a2))
+
   def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     assert(m.isStatic)
@@ -319,6 +328,30 @@ trait CodeConditional extends Code[Boolean] {
       rhs.emitConditional(il, ltrue, lfalse)
     }
   }
+
+  def ceq(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lefttrue = new LabelNode
+      val leftfalse = new LabelNode
+      self.emitConditional(il, lefttrue, leftfalse)
+      il += lefttrue
+      rhs.emitConditional(il, ltrue, lfalse)
+      il += leftfalse
+      rhs.emitConditional(il, lfalse, ltrue)
+    }
+  }
+
+  def cne(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lefttrue = new LabelNode
+      val leftfalse = new LabelNode
+      self.emitConditional(il, lefttrue, leftfalse)
+      il += lefttrue
+      rhs.emitConditional(il, lfalse, ltrue)
+      il += leftfalse
+      rhs.emitConditional(il, ltrue, lfalse)
+    }
+  }
 }
 
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
@@ -371,8 +404,16 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def ||(rhs: Code[Boolean]): Code[Boolean] =
     lhs.toConditional || rhs.toConditional
 
+  def ceq(rhs: Code[Boolean]): Code[Boolean] =
+    lhs.toConditional.ceq(rhs.toConditional)
+
+  def cne(rhs: Code[Boolean]): Code[Boolean] =
+    lhs.toConditional.cne(rhs.toConditional)
+
   // on the JVM Booleans are represented as Ints
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
+
+  def toS: Code[String] = lhs.mux(const("true"), const("false"))
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
@@ -540,6 +581,12 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
   def toD: Code[Double] = lhs
 }
 
+class CodeString(val lhs: Code[String]) extends AnyVal {
+  def concat(other: Code[String]): Code[String] = lhs.invoke[String, String]("concat", other)
+
+  def println(): Code[Unit] = Code.getStatic[System, PrintStream]("out").invoke[String, Unit]("println", lhs)
+}
+
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
   def apply(i: Code[Int]): Code[T] =
     Code(lhs, i, new InsnNode(tti.aloadOp))
@@ -644,6 +691,46 @@ trait Settable[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
+
+  def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
+}
+
+class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
+
+  private[this] val value: ClassFieldRef[T] = fb.newField[T](name)
+  private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
+
+  def load(): Code[T] =
+    Code(present.mux(Code._empty[Unit], Code(value := setup, present := true)), value)
+
+  def store(rhs: Code[T]): Code[Unit] =
+    throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
+}
+
+class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String) extends Settable[T] {
+  val desc: String = typeInfo[T].name
+  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
+
+  fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
+
+  def load(): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        fb.getArg[java.lang.Object](0).emit(il)
+        il += new FieldInsnNode(GETFIELD, fb.name, name, desc)
+      }
+    }
+
+  def store(rhs: Code[T]): Code[Unit] =
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        fb.getArg[java.lang.Object](0).emit(il)
+        rhs.emit(il)
+        il += new FieldInsnNode(PUTFIELD, fb.name, name, desc)
+      }
+    }
+
+  def storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
@@ -740,21 +827,16 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
 }
 
 class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
-  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
-    new Code[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        val lnull = new LabelNode
-        val lafter = new LabelNode
+  def isNull: CodeConditional = new CodeConditional {
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode): Unit = {
         lhs.emit(il)
-        il += new JumpInsnNode(IFNULL, lnull)
-        cnonnullcase.emit(il)
-        il += new JumpInsnNode(GOTO, lafter)
-        il += lnull
-        cnullcase.emit(il)
-        // fall through
-        il += lafter
+        il += new JumpInsnNode(IFNULL, ltrue)
+        il += new JumpInsnNode(GOTO, lfalse)
       }
     }
+
+  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
+    isNull.mux(cnullcase, cnonnullcase)
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)

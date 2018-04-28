@@ -3,8 +3,11 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.types.Type
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 
@@ -96,6 +99,24 @@ trait Py4jUtils {
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
 
   def escapeIdentifier(s: String): String = prettyIdentifier(s)
+
+  def fileExists(hc: HailContext, path: String): Boolean = hc.hadoopConf.exists(path) && hc.hadoopConf.isFile(path)
+
+  def dirExists(hc: HailContext, path: String): Boolean = hc.hadoopConf.exists(path) && hc.hadoopConf.isDir(path)
+
+  def mkdir(hc: HailContext, path: String): Boolean = hc.hadoopConf.mkDir(path)
+
+  def copyToTmp(hc: HailContext, path: String, extension: String): String = {
+    val codecExt = hc.hadoopConf.getCodec(path)
+    val tmpFile = hc.getTemporaryFile(suffix = Some(extension + codecExt))
+    hc.hadoopConf.copy(path, tmpFile)
+    tmpFile
+  }
+
+  def makeJSON(t: Type, value: Any): String = {
+    val jv = JSONAnnotationImpex.exportAnnotation(value, t)
+    JsonMethods.compact(jv)
+  }
 }
 
 class HadoopPyReader(in: InputStream, buffSize: Int) {

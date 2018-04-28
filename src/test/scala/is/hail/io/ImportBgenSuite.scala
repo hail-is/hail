@@ -38,7 +38,7 @@ class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends
 }
 
 class ImportBgenSuite extends SparkSuite {
-  val contigRecoding = Some(Map("01" -> "1"))
+  private val contigRecoding = Some((1 to 9).map(i => s"0$i" -> i.toString).toMap)
 
   def getNumberOfLinesInFile(file: String): Long = {
     hadoopConf.readFile(file) { s =>
@@ -64,7 +64,7 @@ class ImportBgenSuite extends SparkSuite {
       hc.indexBgen(bgenFile)
       val bgenMT = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), includeGT = true, includeGP = true,
         includeDosage = false, nPartitions = Some(10), contigRecoding = contigRecoding)
-      val isSame = genMT.same(bgenMT, tolerance)
+      val isSame = genMT.same(bgenMT, tolerance, absolute = true)
       hadoopConf.delete(bgenFile + ".idx", recursive = true)
       isSame
     })
@@ -73,7 +73,8 @@ class ImportBgenSuite extends SparkSuite {
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- MatrixTable.gen(hc,
       VSMSubgen.callAndProbabilities.copy(
-        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(ReferenceGenome.defaultReference, "1")).gen,
+        // qctool recodes other GRCh37 contigs as "NA"
+        vGen = _ => VariantSubgen.plinkCompatibleBiallelic(ReferenceGenome.defaultReference).genLocusAlleles,
         sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countRows > 0);
       nPartitions <- choose(1, 10))
@@ -229,8 +230,8 @@ class ImportBgenSuite extends SparkSuite {
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"),
       includeGT = true, includeGP = true, includeDosage = false, contigRecoding = contigRecoding)
 
-    assert(vds.annotateRowsExpr("cr1 = AGG.fraction(g => isDefined(g.GT))")
-      .annotateRowsExpr("cr2 = AGG.fraction(g => isDefined(g.GT))")
+    assert(vds.annotateRowsExpr(("cr1", "AGG.fraction(g => isDefined(g.GT))"))
+      .annotateRowsExpr(("cr2", "AGG.fraction(g => isDefined(g.GT))"))
       .rowsTable()
       .forall("row.cr1 == row.cr2"))
   }
@@ -245,10 +246,10 @@ class ImportBgenSuite extends SparkSuite {
       val vds = hc.importBgen(bgen, includeGT = false, includeGP = true, includeDosage = true, contigRecoding = contigRecoding)
         .filterRowsExpr("va.locus.position == 2000")
 
-      val dosages = vds.queryEntries("AGG.map(g => g.dosage).collect()")._1
+      val dosages = vds.aggregateEntries("AGG.map(g => g.dosage).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
 
-      val dosagesFromGP = vds.queryEntries("AGG.map(g => dosage(g.GP)).collect()")._1
+      val dosagesFromGP = vds.aggregateEntries("AGG.map(g => dosage(g.GP)).collect()")._1
         .asInstanceOf[IndexedSeq[java.lang.Double]]
       
       assert(dosages.length == 500 && dosagesFromGP.length == 500)

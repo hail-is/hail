@@ -10,8 +10,8 @@ class HardCallsSuite extends SparkSuite {
   @Test def test() {
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val hard = vds.selectEntries("{GT: g.GT}")
-      assert(hard.queryEntries("AGG.map(g => g.GT).counter()") ==
-        vds.queryEntries("AGG.map(g => g.GT).counter()"))
+      assert(hard.aggregateEntries("AGG.map(g => g.GT).counter()") ==
+        vds.aggregateEntries("AGG.map(g => g.GT).counter()"))
 
       assert(hard.entryType == TStruct(
         "GT" -> TCall()))
