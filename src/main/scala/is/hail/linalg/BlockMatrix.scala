@@ -47,7 +47,8 @@ object BlockMatrix {
     val blocks = new RDD[((Int, Int), BDM[Double])](sc, Nil) {
       override val partitioner = Some(gp)
 
-      def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(i => IntPartition(i))
+      protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
+        new Partition { def index: Int = pi } )
 
       def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
         val pi = split.index
@@ -73,10 +74,8 @@ object BlockMatrix {
     val blocks = new RDD[((Int, Int), BDM[Double])](hc.sc, Nil) {
       override val partitioner = Some(gp)
 
-      def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
-        new Partition {
-          def index: Int = pi
-        })
+      protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
+        new Partition { def index: Int = pi } )
 
       def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
         val pi = split.index
@@ -1063,7 +1062,8 @@ private class BlockMatrixDiagonalRDD(bm: BlockMatrix)
     (0 until math.min(lm.rows, lm.cols)).iterator.map(k => lm(k, k))
   }
 
-  protected def getPartitions: Array[Partition] = Array.tabulate(nDiagBlocks)(IntPartition)
+  protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
+    new Partition { def index: Int = pi } )
 
   def toArray: Array[Double] = {
     val diag = collect()
@@ -1135,15 +1135,12 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
     Iterator.single(((i, j), product))
   }
 
-  protected def getPartitions: Array[Partition] =
-    (0 until gp.numPartitions).map(IntPartition).toArray[Partition]
+  protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
+    new Partition { def index: Int = pi } )
 
   @transient override val partitioner: Option[Partitioner] =
     Some(gp)
 }
-
-case class IntPartition(index: Int) extends Partition
-
 
 // On compute, WriteBlocksRDDPartition writes the block row with index `index`
 // [`start`, `end`] is the range of indices of parent partitions overlapping this block row
