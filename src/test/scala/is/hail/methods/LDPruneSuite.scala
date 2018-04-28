@@ -110,7 +110,7 @@ object LDPruneSuite {
 class LDPruneSuite extends SparkSuite {
   val bytesPerCoreMB = 256
   val nCores = 4
-  val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
+  lazy val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
@@ -306,5 +306,32 @@ class LDPruneSuite extends SparkSuite {
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countRows() == filteredVDS.countRows())
+  }
+
+  @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
+    val r = Region()
+    val rvb = new RegionValueBuilder(r)
+    val t = BitPackedVectorView.rvRowType(
+      +TLocus(ReferenceGenome.GRCh37),
+      +TArray(+TString()))
+    val bpv = new BitPackedVectorView(t)
+    r.appendInt(0xbeef)
+    rvb.start(t)
+    rvb.startStruct()
+    rvb.startStruct()
+    rvb.addString("X")
+    rvb.addInt(42)
+    rvb.endStruct()
+    rvb.startArray(0)
+    rvb.endArray()
+    rvb.startArray(0)
+    rvb.endArray()
+    rvb.addInt(0)
+    rvb.addDouble(0.0)
+    rvb.addDouble(0.0)
+    rvb.endStruct()
+    bpv.setRegion(r, rvb.end())
+    assert(bpv.getContig == "X")
+    assert(bpv.getStart == 42)
   }
 }

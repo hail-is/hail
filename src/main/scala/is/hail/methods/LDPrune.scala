@@ -32,7 +32,6 @@ class BitPackedVectorView(rvRowType: TStruct) {
   private val sdIndex = 5
 
   private var m: Region = _
-  private var vOffset: Long = _
   private var bpvOffset: Long = _
   private var bpvLength: Int = _
   private var bpvEltOffset: Long = _
@@ -49,7 +48,7 @@ class BitPackedVectorView(rvRowType: TStruct) {
     meanOffset = rvRowType.loadField(m, offset, meanIndex)
     sdOffset = rvRowType.loadField(m, offset, sdIndex)
 
-    vView.setRegion(m, vOffset)
+    vView.setRegion(m, offset)
   }
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
