@@ -863,39 +863,15 @@ class BlockMatrixSuite extends SparkSuite {
       
       filteredEquals(fbm, fbm.toIndexedRowMatrix().toHailBlockMatrix(blockSize = 2))
 
-      assert(filteredEquals(fbm + 2, (bm + 2).filterBlocks(keep)))
-      assert(filteredEquals(fbm - 2, (bm - 2).filterBlocks(keep)))
       assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
       assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
-
-      assert(filteredEquals(2 - fbm, (2 - bm).filterBlocks(keep)))
-      assert(filteredEquals(2 / fbm, (2 / bm).filterBlocks(keep)))
       
       assert(filteredEquals(fbm + fbm, (bm + bm).filterBlocks(keep)))
       assert(filteredEquals(2 * fbm - fbm, (2 * bm - bm).filterBlocks(keep)))
       assert(filteredEquals(fbm * fbm, (bm * bm).filterBlocks(keep)))
-      assert(filteredEquals(fbm / (fbm + 1), (bm / (bm + 1)).filterBlocks(keep)))
-      
-      assert(filteredEquals(fbm + 2, (bm + 2).filterBlocks(keep)))
-      assert(filteredEquals(fbm - 2, (bm - 2).filterBlocks(keep)))
-      assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
-      assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
 
-      assert(filteredEquals(fbm.rowVectorAdd(a), bm.rowVectorAdd(a).filterBlocks(keep)))
-      assert(filteredEquals(fbm.rowVectorSub(a), bm.rowVectorSub(a).filterBlocks(keep)))
       assert(filteredEquals(fbm.rowVectorMul(a), bm.rowVectorMul(a).filterBlocks(keep)))
-      assert(filteredEquals(fbm.rowVectorDiv(a), bm.rowVectorDiv(a).filterBlocks(keep)))
-
-      assert(filteredEquals(fbm.reverseRowVectorSub(a), bm.reverseRowVectorSub(a).filterBlocks(keep)))
-      assert(filteredEquals(fbm.reverseRowVectorDiv(a), bm.reverseRowVectorDiv(a).filterBlocks(keep)))
-
-      assert(filteredEquals(fbm.colVectorAdd(a), bm.colVectorAdd(a).filterBlocks(keep)))
-      assert(filteredEquals(fbm.colVectorSub(a), bm.colVectorSub(a).filterBlocks(keep)))
       assert(filteredEquals(fbm.colVectorMul(a), bm.colVectorMul(a).filterBlocks(keep)))
-      assert(filteredEquals(fbm.colVectorDiv(a), bm.colVectorDiv(a).filterBlocks(keep)))
-
-      assert(filteredEquals(fbm.reverseColVectorSub(a), bm.reverseColVectorSub(a).filterBlocks(keep)))
-      assert(filteredEquals(fbm.reverseColVectorDiv(a), bm.reverseColVectorDiv(a).filterBlocks(keep)))
     }
     
     // test toBlockMatrix
@@ -922,5 +898,16 @@ class BlockMatrixSuite extends SparkSuite {
     val lm123 = lm.copy
     lm123(0 to 1, 0 to 1) := lm_zero
     assert(bm123.toBreezeMatrix() === lm123)
+
+    // not supported
+    TestUtils.interceptFatal("not supported for block-filtered") { bm0.diagonal() }
+    
+    TestUtils.interceptFatal("not supported for block-filtered") { bm0.filter(Array(0), Array(0)) }
+    TestUtils.interceptFatal("not supported for block-filtered") { bm0.filterRows(Array(0)) }
+    TestUtils.interceptFatal("not supported for block-filtered") { bm0.filterCols(Array(0)) }
+    
+    // mismatched blocks
+    TestUtils.interceptFatal("same set of blocks present") { bm0 + bm13 }
+    TestUtils.interceptFatal("same set of blocks present") { bm123 + bm13 }
   }
 }

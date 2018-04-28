@@ -195,8 +195,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   val isFiltered: Boolean = gp.maybeFiltered.isDefined
   
-  def requireUnfiltered(name: String): Unit = if (isFiltered)
-    fatal(s"block-filtered block matrices do not support $name.")
+  def requireUnfiltered(name: String): Unit =
+    if (isFiltered)
+      fatal(s"$name is not supported for block-filtered block matrices.")
   
   def filterBlocks(blocksToKeep: Array[Int]): BlockMatrix = {
     val (filteredGP, partsToKeep) = gp.filterBlocks(blocksToKeep)
@@ -209,40 +210,41 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   // element-wise ops
   def unary_+(): M = this
-  def unary_-(): M = blockMap(-_)
+  def unary_-(): M = blockMap(-_, reqUnfiltered = false)
 
-  def add(that: M): M = blockMap2(that, _ + _, "add")
-  def sub(that: M): M = blockMap2(that, _ - _, "subtract")
-  def mul(that: M): M = blockMap2(that, _ *:* _, "element-wise multiplication")
+  def add(that: M): M = blockMap2(that, _ + _, "addition", reqUnfiltered = false)
+  def sub(that: M): M = blockMap2(that, _ - _, "subtraction", reqUnfiltered = false)
+  def mul(that: M): M = blockMap2(that, _ *:* _, "element-wise multiplication", reqUnfiltered = false)
   def div(that: M): M = blockMap2(that, _ /:/ _, "element-wise division")
 
-  def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv)(a)
-  def rowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) - lv)(a)
-  def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv)(a)
-  def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv)(a)
+  def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv, "broadcasted addition of row-vector")(a)
+  def rowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) - lv, "broadcasted subtraction of row-vector")(a)
+  def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv, reqUnfiltered = false)(a)
+  def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv, "broadcasted division by row-vector containing zero", reqUnfiltered = a.contains(0.0))(a)
 
-  def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _))(a)  
-  def reverseRowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv /:/ _))(a)
+  def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _), "broadcasted row-vector minus block matrix")(a)  
+  def reverseRowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv /:/ _), "broadcasted row-vector divided by block matrix")(a)
   
-  def colVectorAdd(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) + lv)(a)
-  def colVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) - lv)(a)
-  def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv)(a)
-  def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv)(a)
+  def colVectorAdd(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) + lv, "broadcasted addition of column-vector")(a)
+  def colVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) - lv, "broadcasted subtraction of column-vector")(a)
+  def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv, reqUnfiltered = false)(a)
+  def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv, "broadcasted division by column-vector containing zero", reqUnfiltered = a.contains(0.0))(a)
 
-  def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _))(a)
-  def reverseColVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv /:/ _))(a)
+  def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _), "broadcasted column-vector minus block matrix")(a)
+  def reverseColVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv /:/ _), "broadcasted column-vector divided by block matrix")(a)
 
-  def scalarAdd(i: Double): M = blockMap(_ + i)
-  def scalarSub(i: Double): M = blockMap(_ - i)
-  def scalarMul(i: Double): M = blockMap(_ *:* i)
-  def scalarDiv(i: Double): M = blockMap(_ /:/ i)
+  def scalarAdd(i: Double): M = blockMap(_ + i, "scalar addition")
+  def scalarSub(i: Double): M = blockMap(_ - i, "scalar subtraction")
+  def scalarMul(i: Double): M = blockMap(_ *:* i, reqUnfiltered = false)
+  def scalarDiv(i: Double): M = blockMap(_ /:/ i, "division by scalar zero", reqUnfiltered = i == 0)
 
-  def reverseScalarSub(i: Double): M = blockMap(i - _)
-  def reverseScalarDiv(i: Double): M = blockMap(i /:/ _)
+  def reverseScalarSub(i: Double): M = blockMap(i - _, "scalar minus block matrix")
+  def reverseScalarDiv(i: Double): M = blockMap(i /:/ _, "scalar divided by block matrix")
 
-  def sqrt(): M = blockMap(breezeSqrt(_))
+  def sqrt(): M = blockMap(breezeSqrt(_), reqUnfiltered = false)
 
-  def pow(exponent: Double): M = blockMap(breezePow(_, exponent))
+  def pow(exponent: Double): M = blockMap(breezePow(_, exponent),
+    "exponentiation by non-positive power", reqUnfiltered = exponent <= 0)
 
   // matrix ops
   def dot(that: M): M = new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
@@ -256,7 +258,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def transpose(): M = new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
 
   def diagonal(): Array[Double] = {
-    requireUnfiltered("diagonal") // easy to extend
+    requireUnfiltered("diagonal") // FIXME extend
     new BlockMatrixDiagonalRDD(this).toArray
   }
 
@@ -352,8 +354,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       s"$name requires same number of cols, but actually: ${ nRows }x${ nCols }, ${ that.nRows }x${ that.nCols }")
     require(blockSize == that.blockSize,
       s"$name requires same block size, but actually: $blockSize and ${ that.blockSize }")
-    require(sameBlocks(that),
-      s"$name requires that block matrices have the same set of filtered blocks")
+    if (!sameBlocks(that))
+      fatal(s"$name requires block matrices to have the same set of blocks present")
   }
   
   private def sameBlocks(that: M): Boolean = {
@@ -364,14 +366,29 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
   }
   
-  def blockMap(op: BDM[Double] => BDM[Double]): M =
+  def blockMap(op: BDM[Double] => BDM[Double],
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
     new BlockMatrix(blocks.mapValues(op), blockSize, nRows, nCols)
+  }
   
-  def blockMapWithIndex(op: ((Int, Int), BDM[Double]) => BDM[Double]): M =
+  def blockMapWithIndex(op: ((Int, Int), BDM[Double]) => BDM[Double],
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
     new BlockMatrix(blocks.mapValuesWithKey(op), blockSize, nRows, nCols)
+  }
 
-  def blockMap2(that: M, op: (BDM[Double], BDM[Double]) => BDM[Double], name: String): M = {
-    requireZippable(that, name)
+  def blockMap2(that: M,
+    op: (BDM[Double], BDM[Double]) => BDM[Double],
+    name: String = "operation", 
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
+    requireZippable(that)
     val newBlocks = blocks.zipPartitions(that.blocks, preservesPartitioning = true) { (thisIter, thatIter) =>
       new Iterator[((Int, Int), BDM[Double])] {
         def hasNext: Boolean = {
@@ -396,7 +413,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def map(op: Double => Double): M = {
+  def map(op: Double => Double,
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
     val newBlocks = blocks.mapValues { lm =>
       assertCompatibleLocalMatrix(lm)
       val src = lm.data
@@ -411,7 +432,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def map2(that: M, op: (Double, Double) => Double): M = {
+  def map2(that: M,
+    op: (Double, Double) => Double,
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
     requireZippable(that)
     val newBlocks = blocks.zipPartitions(that.blocks, preservesPartitioning = true) { (thisIter, thatIter) =>
       new Iterator[((Int, Int), BDM[Double])] {
@@ -458,7 +484,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def map4(bm2: M, bm3: M, bm4: M, op: (Double, Double, Double, Double) => Double): M = {
+  def map4(bm2: M, bm3: M, bm4: M,
+    op: (Double, Double, Double, Double) => Double,
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered) {
+      bm2.requireUnfiltered(name)
+      bm3.requireUnfiltered(name)
+      bm4.requireUnfiltered(name)
+    }
     requireZippable(bm2)
     requireZippable(bm3)
     requireZippable(bm4)
@@ -526,7 +560,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def mapWithIndex(op: (Long, Long, Double) => Double): M = {
+  def mapWithIndex(op: (Long, Long, Double) => Double,
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
     val newBlocks = blocks.mapValuesWithKey { case ((i, j), lm) =>
       val iOffset = i.toLong * blockSize
       val jOffset = j.toLong * blockSize
@@ -546,7 +584,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def map2WithIndex(that: M, op: (Long, Long, Double, Double) => Double): M = {
+  def map2WithIndex(that: M,
+    op: (Long, Long, Double, Double) => Double,
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): M = {
+    if (reqUnfiltered)
+      requireUnfiltered(name)
     requireZippable(that)
     val newBlocks = blocks.zipPartitions(that.blocks, preservesPartitioning = true) { (thisIter, thatIter) =>
       new Iterator[((Int, Int), BDM[Double])] {
@@ -580,24 +623,28 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def colVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
+  def colVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double],
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): Array[Double] => M = {
     a => val v = BDV(a)
       require(v.length == nRows, s"vector length must equal nRows: ${ v.length }, $nRows")
       val vBc = blocks.sparkContext.broadcast(v)
-      blockMapWithIndex { case ((i, _), lm) =>
+      blockMapWithIndex( { case ((i, _), lm) =>
         val lv = gp.vectorOnBlockRow(vBc.value, i)
         op(lm, lv)
-      }
+      }, name, reqUnfiltered = reqUnfiltered)
   }
 
-  def rowVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double]): Array[Double] => M = {
+  def rowVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double],
+    name: String = "operation",
+    reqUnfiltered: Boolean = true): Array[Double] => M = {
     a => val v = BDV(a)
       require(v.length == nCols, s"vector length must equal nCols: ${ v.length }, $nCols")
       val vBc = blocks.sparkContext.broadcast(v)
-      blockMapWithIndex { case ((_, j), lm) =>
+      blockMapWithIndex( { case ((_, j), lm) =>
         val lv = gp.vectorOnBlockCol(vBc.value, j)
         op(lm, lv)
-      }
+      }, name, reqUnfiltered = reqUnfiltered)
   }
 
   def toIndexedRowMatrix(): IndexedRowMatrix = {
