@@ -33,8 +33,6 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.ordering, pointType.genValue)
 
-  override def desc: String = "An ``Interval[T]`` is a Hail data type representing a range over ordered values of type T."
-
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
   val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
