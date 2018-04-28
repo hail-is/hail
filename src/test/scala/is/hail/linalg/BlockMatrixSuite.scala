@@ -1,7 +1,7 @@
 package is.hail.linalg
 
 
-import breeze.linalg.{DenseMatrix => BDM}
+import breeze.linalg.{diag, DenseMatrix => BDM}
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
@@ -859,8 +859,16 @@ class BlockMatrixSuite extends SparkSuite {
       flm
     }
     
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
+    
     // test toBlockMatrix, transpose, read/write identity, toIndexedRowMatrix, binary ops
-    for { keep <- Array(Array.empty[Int], Array(0), Array(1, 3), Array(2, 3), Array(1, 2, 3), Array(0, 1, 2, 3)) } {
+    for { keep <- keepArray } {
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
       
@@ -895,8 +903,10 @@ class BlockMatrixSuite extends SparkSuite {
       
       assert(filteredEquals(fbm.sqrt(), bm.sqrt().filterBlocks(keep)))
       assert(filteredEquals(fbm.pow(3), bm.pow(3).filterBlocks(keep)))
+      
+      assert(fbm.diagonal() sameElements diag(fbm.toBreezeMatrix()).toArray)
     }
-
+    
     // test * with mismatched blocks
     assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))    
     assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(Array(3))))
@@ -906,8 +916,6 @@ class BlockMatrixSuite extends SparkSuite {
     // math ops not supported FIXME extend to these
     val blockMismatch: String = "requires block matrices to have the same set of blocks present"
     val notSupported: String = "not supported for block-filtered block matrices"
-
-    TestUtils.interceptFatal(notSupported) { bm0.diagonal() }
 
     TestUtils.interceptFatal(blockMismatch) { bm0 + bm13 }
     TestUtils.interceptFatal(blockMismatch) { bm123 + bm13 }

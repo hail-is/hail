@@ -33,7 +33,6 @@ object BlockMatrix {
     fromBreezeMatrix(sc, lm, defaultBlockSize)
 
   def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
-    assertCompatibleLocalMatrix(lm)
     val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
       val (i, j) = gp.blockCoordinates(pi)
@@ -121,7 +120,7 @@ object BlockMatrix {
       val block = RichDenseMatrixDouble.read(is, bufferSpec)
       is.close()
 
-      Iterator.single(gp.blockCoordinates(gp.partIndexBlockIndex(pi)), block)
+      Iterator.single(gp.blockCoordinates(gp.partBlock(pi)), block)
     }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
@@ -134,17 +133,18 @@ object BlockMatrix {
   }
 
   private[linalg] def block(bm: BlockMatrix,
-    partitions: Array[Partition],
-    partitioner: GridPartitioner,
+    parts: Array[Partition],
+    gp: GridPartitioner,
     context: TaskContext,
     i: Int,
     j: Int): BDM[Double] = {
-    val it = bm.blocks
-      .iterator(partitions(partitioner.coordinatesBlock(i, j)), context)
+    val bi = gp.coordinatesBlock(i, j)
+    val pi = gp.blockPart(bi)
+    val it = bm.blocks.iterator(parts(pi), context)
     assert(it.hasNext)
-    val v = it.next()._2
+    val lm = it.next()._2
     assert(!it.hasNext)
-    v
+    lm
   }
 
   object ops {
@@ -219,11 +219,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def add(that: M): M = blockMap2(that, _ + _,
     "addition",
-    reqDense = false) // requires matched blocks
+    reqDense = false) // still requires matched blocks
   
   def sub(that: M): M = blockMap2(that, _ - _,
     "subtraction",
-    reqDense = false) // requires matched blocks
+    reqDense = false) // still requires matched blocks
   
   def mul(that: M): M = {
     val maybeIntersection: Option[Array[Int]] = gp.intersectBlocks(that.gp)
@@ -326,11 +326,29 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def transpose(): M = new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
 
   def diagonal(): Array[Double] = {
-    requireDense("diagonal")
-    new BlockMatrixDiagonalRDD(this).toArray
+    val nDiagElements = {
+      val d = math.min(nRows, nCols)
+      if (d > Integer.MAX_VALUE)
+        fatal(s"diagonal is too big for local array: $d")
+      d.toInt
+    }
+
+    val result = new Array[Double](nDiagElements)
+    
+    val nDiagBlocks = math.min(gp.nBlockRows, gp.nBlockCols)
+    val diagBlocks = Array.tabulate(nDiagBlocks)(i => gp.coordinatesBlock(i, i))
+    
+    filterBlocks(diagBlocks).blocks
+      .map { case ((i, j), lm) =>
+        assert(i == j)
+        (i, Array.tabulate(math.min(lm.rows, lm.cols))(ii => lm(ii, ii)))
+      }
+      .collect()
+      .foreach { case (i, a) => System.arraycopy(a, 0, result, i * blockSize, a.length) }
+    
+    result
   }
 
-  // other
   def write(uri: String, forceRowMajor: Boolean = false) {
 
     val hadoop = blocks.sparkContext.hadoopConfiguration
@@ -358,7 +376,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
   }
-
 
   def cache(): this.type = {
     blocks.cache()
@@ -450,7 +467,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def blockMap2(that: M,
     op: (BDM[Double], BDM[Double]) => BDM[Double],
-    name: String = "operation", 
+    name: String = "operation",
     reqDense: Boolean = true): M = {
     if (reqDense) {
       requireDense(name)
@@ -1034,42 +1051,6 @@ private class BlockMatrixTransposeRDD(bm: BlockMatrix)
   }
 
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
-}
-
-private class BlockMatrixDiagonalRDD(bm: BlockMatrix)
-  extends RDD[Double](bm.blocks.sparkContext, Nil) {
-
-  import BlockMatrix.block
-
-  private val nDiagElements = {
-    val d = math.min(bm.nRows, bm.nCols)
-    require(d <= Integer.MAX_VALUE, s"diagonal is too big for local array: $d; ${ bm.st }")
-    d.toInt
-  }
-
-  private val parts = bm.blocks.partitions
-  private val gp = bm.gp
-  private val nDiagBlocks = math.min(gp.nBlockRows, gp.nBlockCols)
-
-  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
-    new NarrowDependency(bm.blocks) {
-      def getParents(partitionId: Int): Seq[Int] = Array(gp.coordinatesBlock(partitionId, partitionId))
-    })
-
-  def compute(split: Partition, context: TaskContext): Iterator[Double] = {
-    val i = split.index
-    val lm = block(bm, parts, gp, context, i, i)
-    (0 until math.min(lm.rows, lm.cols)).iterator.map(k => lm(k, k))
-  }
-
-  protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
-    new Partition { def index: Int = pi } )
-
-  def toArray: Array[Double] = {
-    val diag = collect()
-    assert(diag.length == nDiagElements)
-    diag
-  }
 }
 
 private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)

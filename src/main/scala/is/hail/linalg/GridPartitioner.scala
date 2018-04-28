@@ -80,12 +80,12 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
     }
   }
   
-  val partIndexBlockIndex: Int => Int = maybeSparse match {
+  val partBlock: Int => Int = maybeSparse match {
     case Some(bis) => bis
     case None => pi => pi
   }
 
-  val blockIndexPartIndex: Int => Int = maybeSparse match {
+  val blockPart: Int => Int = maybeSparse match {
     case Some(bis) => bis.zipWithIndex.toMap
     case None => bi => bi
   }
@@ -98,7 +98,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   }
   
   override def getPartition(key: Any): Int = key match {
-    case (i: Int, j: Int) => blockIndexPartIndex(coordinatesBlock(i, j))
+    case (i: Int, j: Int) => blockPart(coordinatesBlock(i, j))
   }
   
   def transpose: (GridPartitioner, Array[Int]) = {
