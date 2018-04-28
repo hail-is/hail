@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
 import is.hail.utils
 import is.hail.utils._
@@ -250,6 +251,8 @@ abstract class Type extends BaseType with Serializable {
   def canCompare(other: Type): Boolean = this == other
 
   val ordering: ExtendedOrdering
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)

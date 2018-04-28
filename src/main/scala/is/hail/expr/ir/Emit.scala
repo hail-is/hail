@@ -519,6 +519,9 @@ private class Emit(
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
+        val unified = impl.unify(args.map(_.typ))
+        assert(unified)
+
         val meth =
           methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
             case Seq(f) =>
@@ -536,6 +539,9 @@ private class Emit(
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         EmitTriplet(setup, missing, value)
       case x@ApplySpecial(_, args) =>
+        x.implementation.argTypes.foreach(_.clear())
+        val unified = x.implementation.unify(args.map(_.typ))
+        assert(unified)
         x.implementation.apply(mb, args.map(emit(_)): _*)
     }
   }

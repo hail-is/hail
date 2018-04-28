@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.{EvalContext, HailRep, Parser}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -71,6 +72,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   override val alignment: Long = TBaseStruct.alignment(types)
 
   val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = CodeOrdering.rowOrdering(this, mb)
 
   def fieldByName(name: String): Field = fields(fieldIdx(name))
 

@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
@@ -45,6 +46,9 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.setOrdering(elementType.ordering)
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    CodeOrdering.setOrdering(this, mb)
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

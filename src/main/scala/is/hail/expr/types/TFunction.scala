@@ -1,6 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.annotations._
+import is.hail.expr.ir.EmitMethodBuilder
 
 import scala.reflect.ClassTag
 
@@ -34,4 +35,6 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TFunction is not realizable")
 
   val ordering: ExtendedOrdering = null
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
 }

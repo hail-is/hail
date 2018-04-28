@@ -1245,7 +1245,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def localizeEntries(entriesFieldName: String): Table = {
     val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
-    new Table(hc, TableLiteral(TableValue(TableType(rvRowType.rename(m), rowKey, globalType), globals, rvd)))
+    val newRowType = rvRowType.rename(m)
+    new Table(hc, TableLiteral(TableValue(
+      TableType(newRowType, rowKey, globalType),
+      globals,
+      rvd.copy(typ = rvd.typ.copy(rowType = newRowType)))))
   }
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {

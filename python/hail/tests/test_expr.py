@@ -89,6 +89,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.bind(lambda x, y: x * y, 2, 3).value, 6)
         self.assertEqual(hl.bind(lambda y: y * 2, 3).value, 6)
 
+    def test_bind_placement(self):
+        self.assertEqual((5 / hl.bind(lambda x: x, 5)).value, 1.0)
+
     def test_matches(self):
         self.assertEqual(hl.eval_expr('\d+'), '\d+')
         string = hl.literal('12345')

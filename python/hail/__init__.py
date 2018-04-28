@@ -25,9 +25,9 @@ from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
-from . import genetics
+from . import genetics as genetics
 from .methods import *
-from . import methods
+from . import methods as methods
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open
 
@@ -47,7 +47,9 @@ __all__ = ['init',
            'hadoop_copy',
            'Struct',
            'Interval',
-           'agg']
+           'agg',
+           'genetics',
+           'methods']
 
 
 __all__.extend(genetics.__all__)

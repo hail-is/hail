@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.check.Gen
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import is.hail.variant.Call
 
@@ -30,6 +31,8 @@ class TCall(override val required: Boolean) extends ComplexType {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = TInt32().codeOrdering(mb)
 }
 
 object TCall {

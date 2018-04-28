@@ -8,7 +8,7 @@ You'll need:
 
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
 - `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_.
-  Hail should work with other versions of Spark 2, see below.
+  Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
 - `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
 
 -----------------------------------------------------

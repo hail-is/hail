@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.EmitMethodBuilder
 
 import scala.reflect.ClassTag
 
@@ -51,4 +52,6 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
 
   val ordering: ExtendedOrdering = null
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
 }

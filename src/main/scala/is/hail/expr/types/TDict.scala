@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -78,4 +79,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.mapOrdering(elementType.ordering)
+
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    CodeOrdering.mapOrdering(this, mb)
 }
