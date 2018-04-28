@@ -691,6 +691,12 @@ def de_novo(mt: MatrixTable,
     DE_NOVO_PRIOR = 1 / 30000000
     MIN_POP_PRIOR = 100 / 30000000
 
+    required_entry_fields = {'GT', 'AD', 'DP', 'GQ', 'PL'}
+    missing_fields = required_entry_fields - set(mt.entry)
+    if missing_fields:
+        raise ValueError(f"'de_novo': expected 'MatrixTable' to have at least {required_entry_fields}, "
+                         f"missing {missing_fields}")
+
     mt = mt.annotate_rows(__prior=pop_frequency_prior,
                           __alt_alleles=hl.agg.sum(mt.GT.n_alt_alleles()),
                           __total_alleles=2 * hl.agg.sum(hl.is_defined(mt.GT)))
