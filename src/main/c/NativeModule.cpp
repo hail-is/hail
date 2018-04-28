@@ -207,9 +207,9 @@ private:
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.extLib_.c_str());
     fprintf(f, "CXX       := %s/bin/clang\n", llvmHome.c_str());
-    // Not sure whether we want -Wweak-vtables
+    // Downgrading from -std=c++14 to -std=c++11 for CI w/ old compilers
     fprintf(f, "CXXFLAGS  := \\\n");
-    fprintf(f, "  -std=c++14 -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n");
+    fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n");
     fprintf(f, "  -I%s/include -I%s/include/%s \\\n", 
       javaHome.c_str(), javaHome.c_str(), javaMD.c_str());
     const char* userOptions = options_.c_str();

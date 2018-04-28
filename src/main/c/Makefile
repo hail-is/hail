@@ -39,8 +39,11 @@ ifeq ($(UNAME_S),Darwin)
   # CXX := c++
 endif
 
+# Eventually we would like -std=c++17, but the CI machines have
+# compilers which only go to -std=c++11
+
 # append existing flags so they override our flags
-CXXFLAGS += -O3 -march=native -g -std=c++14 -Ilibsimdpp-2.0-rc2 -Wall -Werror
+CXXFLAGS += -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror
 ifeq ($(UNAME_S),Linux)
 #CXXFLAGS += --no-strict-aliasing
 endif
