@@ -830,7 +830,7 @@ class BlockMatrixSuite extends SparkSuite {
       Array(1, 2, 3),
       Array(0, 1, 2, 3))
     
-    // test filterBlocks, toBlockMatrix, toIndexedRowMatrix, transpose, diagonal, read/write identity, binary ops
+    // test filterBlocks, toBlockMatrix, toIndexedRowMatrix, toRowMatrix, read/write identity, transpose, diagonal, math ops
     for { keep <- keepArray } {
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
@@ -843,6 +843,13 @@ class BlockMatrixSuite extends SparkSuite {
 
       assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
       
+      val fname = tmpDir.createTempFile("test")
+      fbm.write(fname, forceRowMajor = true)
+      
+      assert(RowMatrix.readBlockMatrix(hc, fname, 3).toBreezeMatrix() === flm)
+
+      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
+
       assert(filteredEquals(fbm.transpose().transpose(), fbm))
       
       assert(filteredEquals(
@@ -850,10 +857,6 @@ class BlockMatrixSuite extends SparkSuite {
 
       assert(fbm.diagonal() sameElements diag(fbm.toBreezeMatrix()).toArray)
 
-      val fname = tmpDir.createTempFile("test")
-      fbm.write(fname)
-      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
-            
       assert(filteredEquals(+fbm, +bm.filterBlocks(keep)))
       assert(filteredEquals(-fbm, -bm.filterBlocks(keep)))
       
