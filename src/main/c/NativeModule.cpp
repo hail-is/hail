@@ -92,7 +92,7 @@ std::string lastMatch(const char* pattern) {
   ss << "/bin/ls -d " << pattern << " | tail -1";
   FILE* f = popen(ss.str().c_str(), "r");
   char buf[1024];
-  int len = 0;
+  size_t len = 0;
   if (f) {
     for (;;) {
       int c = fgetc(f);
