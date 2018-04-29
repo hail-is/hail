@@ -120,7 +120,7 @@ object BlockMatrix {
       val block = RichDenseMatrixDouble.read(is, bufferSpec)
       is.close()
 
-      Iterator.single(gp.blockCoordinates(gp.partBlock(pi)), block)
+      Iterator.single(gp.partCoordinates(pi), block)
     }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
@@ -132,19 +132,18 @@ object BlockMatrix {
     assert(lm.isCompact)
   }
 
-  private[linalg] def block(bm: BlockMatrix,
-    parts: Array[Partition],
-    gp: GridPartitioner,
-    context: TaskContext,
-    i: Int,
-    j: Int): BDM[Double] = {
-    val bi = gp.coordinatesBlock(i, j)
-    val pi = gp.blockPart(bi)
-    val it = bm.blocks.iterator(parts(pi), context)
-    assert(it.hasNext)
-    val lm = it.next()._2
-    assert(!it.hasNext)
-    lm
+  private[linalg] def block(bm: BlockMatrix, parts: Array[Partition], gp: GridPartitioner, context: TaskContext,
+    i: Int, j: Int): Option[BDM[Double]] = {
+    val pi = gp.coordinatesPart(i, j)
+    if (pi >= 0) {
+      val it = bm.blocks.iterator(parts(pi), context)
+      assert(it.hasNext)
+      val lm = it.next()._2
+      assert(!it.hasNext)
+      Some(lm)
+    } else {
+      None
+    }
   }
 
   object ops {
@@ -350,7 +349,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def write(uri: String, forceRowMajor: Boolean = false) {
-
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
@@ -935,7 +933,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
         val (_, block) = bm.blocks.iterator(bm.blocks.partitions(parentPI), context).next()
 
         jCol = jCol0 // reset col index for new blockRow in same blockCol        
-      var colRangeIndex = 0
+        var colRangeIndex = 0
         while (colRangeIndex < colStartIndices.length) {
           val siCol = colStartIndices(colRangeIndex)
           val eiCol = colEndIndices(colRangeIndex)
@@ -1063,11 +1061,11 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   require(l.blockSize == r.blockSize,
     s"blocks must be same size, but actually were ${ l.blockSize }x${ l.blockSize } and ${ r.blockSize }x${ r.blockSize }")
 
-  private val lPartitioner = l.gp
-  private val lPartitions = l.blocks.partitions
-  private val rPartitioner = r.gp
-  private val rPartitions = r.blocks.partitions
-  private val nProducts = lPartitioner.nBlockCols
+  private val lGP = l.gp
+  private val lParts = l.blocks.partitions
+  private val rGP = r.gp
+  private val rParts = r.blocks.partitions
+  private val nProducts = lGP.nBlockCols
   private val gp = GridPartitioner(l.blockSize, l.nRows, r.nCols)
 
   override def getDependencies: Seq[Dependency[_]] =
@@ -1075,41 +1073,25 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       new NarrowDependency(l.blocks) {
         def getParents(partitionId: Int): Seq[Int] = {
           val i = gp.blockBlockRow(partitionId)
-          val deps = new Array[Int](nProducts)
-          var k = 0
-          while (k < nProducts) {
-            deps(k) = lPartitioner.coordinatesBlock(i, k)
-            k += 1
-          }
-          deps
+          (0 until nProducts).map(k => lGP.coordinatesPart(i, k)).filter(_ >= 0).toArray
         }
       },
       new NarrowDependency(r.blocks) {
         def getParents(partitionId: Int): Seq[Int] = {
           val j = gp.blockBlockCol(partitionId)
-          val deps = new Array[Int](nProducts)
-          var k = 0
-          while (k < nProducts) {
-            deps(k) = rPartitioner.coordinatesBlock(k, j)
-            k += 1
-          }
-          deps
+          (0 until nProducts).map(k => rGP.coordinatesPart(k, j)).filter(_ >= 0).toArray
         }
       })
-
-  private def leftBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
-    block(l, lPartitions, lPartitioner, context, i, j)
-
-  private def rightBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
-    block(r, rPartitions, rPartitioner, context, i, j)
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (i, j) = gp.blockCoordinates(split.index)
     val (blockNRows, blockNCols) = gp.blockDims(split.index)
-    val product = BDM.zeros[Double](blockNRows, blockNCols)
+    val product = BDM.zeros[Double](blockNRows, blockNCols)   
     var k = 0
     while (k < nProducts) {
-      product :+= leftBlock(i, k, context) * rightBlock(k, j, context)
+      block(l, lParts, lGP, context, i, k).foreach(left =>
+        block(r, rParts, rGP, context, k, j).foreach(right =>
+          product :+= left * right))
       k += 1
     }
 

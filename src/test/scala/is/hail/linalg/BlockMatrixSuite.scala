@@ -872,6 +872,8 @@ class BlockMatrixSuite extends SparkSuite {
       
       assert(filteredEquals(fbm.sqrt(), bm.sqrt().filterBlocks(keep)))
       assert(filteredEquals(fbm.pow(3), bm.pow(3).filterBlocks(keep)))
+      
+      assert(fbm.dot(fbm).toBreezeMatrix() === flm * flm)
     }
     
     val bm0 = bm.filterBlocks(Array(0)).cache()
@@ -890,7 +892,7 @@ class BlockMatrixSuite extends SparkSuite {
     assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))    
     assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(Array(3))))
     assert(filteredEquals(bm13 * bm, (bm * bm).filterBlocks(Array(1, 3))))
-    assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(Array(1, 3))))
+    assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(Array(1, 3))))    
     
     // math ops not supported FIXME extend to these
     val blockMismatch: String = "requires block matrices to have the same set of blocks present"

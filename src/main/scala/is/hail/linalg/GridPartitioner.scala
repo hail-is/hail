@@ -79,17 +79,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
       case _ => None
     }
   }
-  
-  val partBlock: Int => Int = maybeSparse match {
-    case Some(bis) => bis
-    case None => pi => pi
-  }
 
-  val blockPart: Int => Int = maybeSparse match {
-    case Some(bis) => bis.zipWithIndex.toMap
-    case None => bi => bi
-  }
-  
   override val numPartitions: Int = maybeSparse match {
     case Some(bis) => bis.length
     case None =>
@@ -97,8 +87,26 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
       maxNBlocks.toInt
   }
   
+  val partBlock: Int => Int = maybeSparse match {
+    case Some(bis) => pi =>
+      assert(pi >= 0 && pi < bis.length)
+      bis(pi)
+    case None => pi =>
+      assert(pi >= 0 && pi < numPartitions)
+      pi
+  }
+  
+  val blockPart: Int => Int = maybeSparse match {
+    case Some(bis) => bis.zipWithIndex.toMap.withDefaultValue(-1)
+    case None => bi => bi
+  }
+  
+  val partCoordinates: Int => (Int, Int) = pi => blockCoordinates(partBlock(pi))
+    
+  val coordinatesPart: (Int, Int) => Int = (i, j) => blockPart(coordinatesBlock(i, j))
+
   override def getPartition(key: Any): Int = key match {
-    case (i: Int, j: Int) => blockPart(coordinatesBlock(i, j))
+    case (i: Int, j: Int) => coordinatesPart(i, j)
   }
   
   def transpose: (GridPartitioner, Array[Int]) = {
@@ -113,10 +121,11 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
       .sortBy(_._1)
       .unzip
 
-    val transposedGP = maybeSparse match {
-      case Some(bis) => GridPartitioner(blockSize, nCols, nRows, Some(transposedBI))
-      case None => gpT
-    }
+    val transposedGP =
+      if (maybeSparse.isDefined)
+        GridPartitioner(blockSize, nCols, nRows, Some(transposedBI))
+      else
+        gpT
 
     val inverseTransposePI = transposePI.zipWithIndex.sortBy(_._1).map(_._2)
 
