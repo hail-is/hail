@@ -368,7 +368,7 @@ class BlockMatrix(object):
             to row-major format before writing.
             If ``False``, write blocks in their current format.
         """
-        self._jbm.write(path, force_row_major, joption(None))
+        self._jbm.write(path, force_row_major)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,

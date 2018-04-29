@@ -171,10 +171,10 @@ class ReadBlocksAsRowsRDD(path: String,
 
   def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Double])] = {
     val ReadBlocksAsRowsRDDPartition(_, start, end) = split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
-
-    var inPerBlockCol = new Array[InputBuffer](nBlockCols)
+    
+    var inPerBlockCol = IndexedSeq.empty[(InputBuffer, Int, Int)]
     var i = start
-
+    
     new Iterator[(Long, Array[Double])] {
       def hasNext: Boolean = i < end
 
@@ -183,46 +183,45 @@ class ReadBlocksAsRowsRDD(path: String,
           val blockRow = (i / blockSize).toInt
           val nRowsInBlock = gp.blockRowNRows(blockRow)
           
-          inPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
-            val pi = gp.coordinatesPart(blockRow, blockCol)
-            if (pi >= 0) {
-              val filename = path + "/parts/" + partFiles(pi)
+          inPerBlockCol = (0 until nBlockCols)
+            .flatMap { blockCol =>
+              val pi = gp.coordinatesPart(blockRow, blockCol)
+              if (pi >= 0) {
+                val filename = path + "/parts/" + partFiles(pi)
 
-              val is = sHadoopBc.value.value.unsafeReader(filename)
-              val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+                val is = sHadoopBc.value.value.unsafeReader(filename)
+                val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
-              val nColsInBlock = gp.blockColNCols(blockCol)
+                val nColsInBlock = gp.blockColNCols(blockCol)
 
-              assert(in.readInt() == nRowsInBlock)
-              assert(in.readInt() == nColsInBlock)
-              val isTranspose = in.readBoolean()
-              if (!isTranspose)
-                fatal("BlockMatrix must be stored row major on disk in order to be read as a RowMatrix")
+                assert(in.readInt() == nRowsInBlock)
+                assert(in.readInt() == nColsInBlock)
+                val isTranspose = in.readBoolean()
+                if (!isTranspose)
+                  fatal("BlockMatrix must be stored row major on disk in order to be read as a RowMatrix")
 
-              if (i == start) {
-                val skip = (start % blockSize).toInt * (nColsInBlock << 3)
-                in.skipBytes(skip)
-              }
+                if (i == start) {
+                  val skip = (start % blockSize).toInt * (nColsInBlock << 3)
+                  in.skipBytes(skip)
+                }
 
-              in
-            } else
-              null
-          }
+                Some((in, blockCol, nColsInBlock))
+              } else
+                None
+            }
         }
 
         val row = new Array[Double](nCols)
-        var blockCol = 0
-        while (blockCol < nBlockCols) {
-          val in = inPerBlockCol(blockCol)
-          if (in != null)
-            in.readDoubles(row, blockCol * blockSize, gp.blockColNCols(blockCol))
-          blockCol += 1
+        
+        inPerBlockCol.foreach { case (in, blockCol, nColsInBlock) =>
+          in.readDoubles(row, blockCol * blockSize, nColsInBlock)
         }
+        
         val iRow = (i, row)
         i += 1
         
         if (i % blockSize == 0 || i == end)
-          inPerBlockCol.filter(_ != null).foreach(_.close())
+          inPerBlockCol.foreach(_._1.close())
         
         iRow
       }
