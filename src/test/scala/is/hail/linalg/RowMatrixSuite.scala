@@ -91,24 +91,24 @@ class RowMatrixSuite extends SparkSuite {
       Array(7.0, 8.0, 9.0))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
 
-    exportImportAssert(rowMatrix.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.export(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays: _*)
 
-    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(1.0),
       Array(4.0, 5.0),
       Array(7.0, 8.0, 9.0))
 
-    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(4.0),
       Array(7.0, 8.0))
 
-    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(1.0, 2.0, 3.0),
       Array(5.0, 6.0),
       Array(9.0))
 
-    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(2.0, 3.0),
       Array(6.0))
   }
@@ -120,21 +120,21 @@ class RowMatrixSuite extends SparkSuite {
       Array(4.0, 5.0, 6.0))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
 
-    exportImportAssert(rowMatrix.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.export(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays: _*)
 
-    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(1.0),
       Array(4.0, 5.0))
 
-    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(4.0))
     
-    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(1.0, 2.0, 3.0),
       Array(5.0, 6.0))
     
-    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(2.0, 3.0),
       Array(6.0))
   }
@@ -147,23 +147,23 @@ class RowMatrixSuite extends SparkSuite {
       Array(7.0, 8.0))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
 
-    exportImportAssert(rowMatrix.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.export(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays: _*)
 
-    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(1.0),
       Array(4.0, 5.0),
       Array(7.0, 8.0))
 
-    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(4.0),
       Array(7.0, 8.0))
 
-    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(1.0, 2.0),
       Array(5.0))
     
-    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       Array(2.0))
   }  
 
@@ -172,29 +172,29 @@ class RowMatrixSuite extends SparkSuite {
     val rowArrays: Array[Array[Double]] = Array.tabulate(20)( r => Array.tabulate(30)(c => 30 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
     
-    exportImportAssert(rowMatrix.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.export(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays: _*)
 
-    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays.zipWithIndex
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j <= i }.map(_._1) }
         .toArray[Array[Double]]:_*)
         
-    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictLowerTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays.zipWithIndex
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j < i }.map(_._1) }
         .filter(_.nonEmpty)
         .toArray[Array[Double]]:_*)
 
-    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays.zipWithIndex
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j >= i }.map(_._1) }
         .toArray[Array[Double]]:_*)
 
-    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
+    exportImportAssert(rowMatrix.exportStrictUpperTriangle(_, ",", header=None, addIndex = false, exportType = ExportType.CONCATENATED),
       rowArrays.zipWithIndex
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j > i }.map(_._1) }
