@@ -1,7 +1,6 @@
 from hail.utils.java import Env, joption
 from hail.typecheck import *
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
-import numpy as np
 
 row_matrix_type = lazy()
 
@@ -13,7 +12,7 @@ class RowMatrix(object):
 
     Notes
     -----
-    Row matrices must have fewer than ``2^31`` columns.
+    Row matrices must have fewer than :math:`2^31` columns.
 
     Under the hood, row matrices are partitioned into group of rows.
     """
@@ -117,7 +116,7 @@ class RowMatrix(object):
         return cls(jrm)
 
     @typecheck_method(path=str,
-                      column_delimiter=str,
+                      delimiter=str,
                       header=nullable(str),
                       add_index=bool,
                       parallel=nullable(enumeration('separate_header', 'header_per_shard')),
@@ -128,12 +127,14 @@ class RowMatrix(object):
         Examples
         --------
 
+        >>> import numpy as np
         >>> from hail.linalg import BlockMatrix
+        >>> from hail.linalg import RowMatrix
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write('/output/bm')
-        >>> rm = RowMatrix.read_block_matrix('/output/bm')
+        >>> BlockMatrix.from_numpy(nd).write('output/bm', force_row_major=True)
+        >>> rm = RowMatrix.read_block_matrix('output/bm', partition_size=2)
 
         Export the full matrix as a file with tab-separated values:
 
@@ -143,8 +144,8 @@ class RowMatrix(object):
         comma-separated values.
 
         >>> rm.export('output/row_matrix.csv',
-        ...            delimiter=',',
-        ...            entries='upper')
+        ...           delimiter=',',
+        ...           entries='upper')
 
         Export the full matrix in parallel as a folder of files,
         each with a header line for columns ``index``, ``A``, ``B``,
@@ -152,15 +153,16 @@ class RowMatrix(object):
         by its absolute row index:
 
         >>> rm.export('output/row_matrix',
-        ...            header='\t'.join(['index', 'A', 'B', 'C']),
-        ...            add_index=True,
-        ...            parallel='header_per_shard')
+        ...           header='\t'.join(['index', 'A', 'B', 'C']),
+        ...           add_index=True,
+        ...           parallel='header_per_shard')
 
         Notes
         -----
-
         Here is the full export with header and row index as one file:
+
         .. code-block:: text
+
             index,A,B,C
             0   1.0 0.8 0.7
             1   0.8 1.0 0.3
@@ -169,30 +171,40 @@ class RowMatrix(object):
         The five `entries` options are illustrated below.
 
         Full:
+
         .. code-block:: text
+
             1.0 0.8 0.7
             0.8 1.0 0.3
             0.7 0.3 1.0
 
         Lower triangle:
+
         .. code-block:: text
+
             1.0
             0.8 1.0
             0.7 0.3 1.0
 
         Strict lower triangle:
+
         .. code-block:: text
+
             0.8
             0.7 0.3
 
         Upper triangle:
+
         .. code-block:: text
+
             1.0 0.8 0.7
             1.0 0.3
             1.0
 
         Strict upper triangle:
+
         .. code-block:: text
+
             0.8 0.7
             0.3
 
@@ -221,7 +233,6 @@ class RowMatrix(object):
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
-
         export_type = Env.hail().utils.ExportType.getExportType(parallel)
 
         if entries == 'full':

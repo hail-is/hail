@@ -2,7 +2,7 @@ package is.hail.linalg
   
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
-import is.hail.check.{Gen, Prop}
+import is.hail.check.Gen
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -81,6 +81,23 @@ class RowMatrixSuite extends SparkSuite {
     val fname = tmpDir.createTempFile("test")
     export(fname)
     assert(readCSV(fname) === expected.toArray[Array[Double]])
+  }
+
+  @Test
+  def exportWithIndex() {
+    val rowArrays = Array(
+      Array(1.0, 2.0, 3.0),
+      Array(4.0, 5.0, 6.0),
+      Array(7.0, 8.0, 9.0))
+    val rowMatrix = rowArrayToRowMatrix(rowArrays)
+
+    val rowArraysWithIndex = Array(
+      Array(0.0, 1.0, 2.0, 3.0),
+      Array(1.0, 4.0, 5.0, 6.0),
+      Array(2.0, 7.0, 8.0, 9.0))
+
+    exportImportAssert(rowMatrix.export(_, ",", header = None, addIndex = true, exportType = ExportType.CONCATENATED),
+      rowArraysWithIndex: _*)
   }
 
   @Test
