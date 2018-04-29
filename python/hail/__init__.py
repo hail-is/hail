@@ -28,6 +28,7 @@ from .genetics import *
 from . import genetics as genetics
 from .methods import *
 from . import methods as methods
+from . import linalg as linalg
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open
 
@@ -49,7 +50,8 @@ __all__ = ['init',
            'Interval',
            'agg',
            'genetics',
-           'methods']
+           'methods',
+           'linalg']
 
 
 __all__.extend(genetics.__all__)

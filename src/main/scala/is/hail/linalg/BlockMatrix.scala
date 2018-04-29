@@ -68,7 +68,7 @@ object BlockMatrix {
 
   // uniform or Gaussian
   def random(hc: HailContext, nRows: Int, nCols: Int, blockSize: Int = defaultBlockSize,
-    seed: Int = 0, gaussian: Boolean = false): M = {
+    seed: Int = 0, gaussian: Boolean): M = {
 
     val gp = GridPartitioner(blockSize, nRows, nCols)
 

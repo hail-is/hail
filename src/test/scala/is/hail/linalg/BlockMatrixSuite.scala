@@ -719,9 +719,9 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def randomTest() {
-    var lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toBreezeMatrix()
-    var lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toBreezeMatrix()
-    var lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2).toBreezeMatrix()
+    var lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
+    var lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
+    var lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2, gaussian = false).toBreezeMatrix()
 
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
