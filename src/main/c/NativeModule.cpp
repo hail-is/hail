@@ -87,6 +87,24 @@ const char* getenvWithDefault(const char* name, const char* defaultVal) {
   return(s ? s : defaultVal);
 }
 
+std::string lastMatch(const char* pattern) {
+  std::stringstream ss;
+  ss << "/bin/ls -d " << pattern << " | tail -1";
+  FILE* f = popen(ss.str().c_str(), "r");
+  char buf[1024];
+  int len = 0;
+  if (f) {
+    for (;;) {
+      int c = fgetc(f);
+      if (c == EOF) break;
+      if ((c != '\n') && (len+1 < sizeof(buf))) buf[len++] = c;
+    }
+    fclose(f);
+  }
+  buf[len] = 0;
+  return std::string(buf);
+}
+
 class ModuleConfig {
 public:
   bool isOsDarwin_;
@@ -95,6 +113,7 @@ public:
   std::string extMak_;
   std::string extNew_;
   std::string moduleDir_;
+  std::string cxxName_;
   std::string llvmHome_;
   std::string javaHome_;
   std::string javaMD_;
@@ -114,14 +133,13 @@ public:
     const char* envHome = getenvWithDefault("HOME", "/tmp");
     moduleDir_ = (std::string(envHome) + "/hail_modules");
     if (isOsDarwin_) {
-      llvmHome_ = "/usr/local/clang+llvm-6.0.0-x86_64-apple-darwin";
-      if (access(llvmHome_.c_str(), R_OK) < 0) {
-        llvmHome_ = "/usr";
-      }
+      llvmHome_ = lastMatch("/usr /usr/local/*llvm-6*x86_64*darwin");
+      cxxName_ = (fileExists(llvmHome_+"/bin/clang") ? "clang" : "c++");
       javaHome_ = "/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home";
       javaMD_ = "darwin";
     } else {
-      llvmHome_ = "/usr/lib/llvm-5.0";
+      llvmHome_ = lastMatch("/usr/l*/llvm* /usr/l*/llvm-5* /usr/l*/llvm-6*");
+      cxxName_ = (fileExists(llvmHome_+"/bin/clang") ? "clang" : "g++");
       javaHome_ = "/usr/lib/jvm/default-java";
       javaMD_ = "linux";
     }
@@ -201,12 +219,12 @@ private:
   void writeMakefile() {
     FILE* f = fopen(moduleMak_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
-    std::string llvmHome = config.llvmHome_;
     std::string javaHome = config.javaHome_;
     std::string javaMD = config.javaMD_;
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.extLib_.c_str());
-    fprintf(f, "CXX       := %s/bin/clang\n", llvmHome.c_str());
+    fprintf(f, "CXX       := %s/bin/%s\n", 
+      config.llvmHome_.c_str(), config.cxxName_.c_str());
     // Downgrading from -std=c++14 to -std=c++11 for CI w/ old compilers
     fprintf(f, "CXXFLAGS  := \\\n");
     fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n");

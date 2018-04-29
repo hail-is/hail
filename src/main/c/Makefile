@@ -12,26 +12,38 @@ UNAME_P := $(shell uname -p)
 
 # Compile with new version of clang if it is installed
 ifeq ($(UNAME_S),Linux)
-  CLANG_VERSION := 5.0
-  CLANG_HOME := /usr/lib/llvm-$(CLANG_VERSION)
-  JAVA_HOME := /usr/lib/jvm/default-java
+  ifndef CLANG_HOME
+    CLANG_HOME := $(shell /bin/ls -d /usr/l*/llvm* /usr/l*/llvm-5* /usr/l*/llvm-6* 2>/dev/null | tail -1)
+  endif
+  ifndef JAVA_HOME
+    JAVA_HOME := $(shell /bin/ls -d /usr/lib/jvm/java-8-*64 /usr/lib/jvm/java-9-*64 2>/dev/null | tail -1)
+  endif
   JAVA_MD := linux
 else
-  CLANG_VERSION := 6.0.0
   CLANG_HOME := /usr/local/llvm-$(CLANG_VERSION)
-  JAVA_HOME := /Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home
+  ifndef JAVA_HOME
+    JAVA_JDK := $(shell /bin/ls -d /Library/Java/JavaVirtualMachines/jdk1.8*.jdk 2> /dev/null | tail -1)
+    ifneq ($(JAVA_JDK),)
+      JAVA_HOME := $(JAVA_JDK)/Contents/Home
+    endif
+  endif
   JAVA_MD := darwin
 endif
 
-ifndef JAVA_HOME
+ifeq ($(CLANG_HOME),)
+  CLANG_HOME := CLANG_HOME_undefined
+endif
+ifeq ($(JAVA_HOME),)
   JAVA_HOME := JAVA_HOME_undefined
 endif
 
 ifeq ($(shell [ -d $(CLANG_HOME) ] && echo found),found)
   CXX := $(CLANG_HOME)/bin/clang
+  CXXSTD := -std=c++14
   LIBDIRS := -L$(CLANG_HOME)/lib
 else
   CXX ?= c++
+  CXXSTD := -std=c++11
   LIBDIRS :=
 endif
 
@@ -45,7 +57,7 @@ HAIL_HOME ?= ../../..
 # compilers which only go to -std=c++11
 
 # append existing flags so they override our flags
-CXXFLAGS += -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror
+CXXFLAGS += -O3 -march=native -g $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
 ifeq ($(UNAME_S),Linux)
 #CXXFLAGS += --no-strict-aliasing
 endif
