@@ -379,7 +379,7 @@ class BlockMatrix(object):
             to row-major format before writing.
             If ``False``, write blocks in their current format.
         """
-        self._jbm.write(path, force_row_major, joption(None))
+        self._jbm.write(path, force_row_major)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -484,6 +484,101 @@ class BlockMatrix(object):
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
         return Table(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
+
+    @typecheck_method(starts=sequenceof(int),
+                      stops=sequenceof(int),
+                      blocks_only=bool)
+    def sparsify_row_intervals(self, starts, stops, blocks_only=True):
+        """Creates a sparse block matrix by filtering to an interval for each row.
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+        ...                [ 5.0,  6.0,  7.0,  8.0],
+        ...                [ 9.0, 10.0, 11.0, 12.0],
+        ...                [13.0, 14.0, 15.0, 16.0]])
+        >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
+
+        Set all elements outside the given row intervals to zero
+        and collect to NumPy:
+
+        >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
+        ...                            stops= [2, 0, 3, 4])
+        ...    .to_numpy())
+
+        .. code-block:: text
+
+            array([[ 0.,  2.,  0.,  0.],
+                   [ 0.,  0.,  0.,  0.],
+                   [ 0.,  0., 11.,  0.],
+                   [ 0.,  0., 15., 16.]])
+
+        Set all blocks fully outside the given row intervals to
+        blocks of zeros and collect to NumPy:
+
+        >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
+        ...                            stops= [2, 0, 3, 4],
+        ...                            blocks_only=False)
+        ...    .to_numpy())
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  0.,  0.],
+                   [ 5.,  6.,  0.,  0.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
+
+        Notes
+        -----
+        This methods creates a sparse block matrix by zeroing out all blocks
+        which are disjoint from all row intervals. By default, all elements
+        outside the row intervals but inside blocks that overlap the row
+        intervals are set to zero as well.
+
+        Sparse block matrices do not store the zeroed blocks explicitly; rather
+        zeroed blocks are dropped both in memory and when stored on disk. This
+        enables computations, such as banded correlation for a huge number of
+        variables, that would otherwise be prohibitively expensive, as dropped
+        blocks are never computed in the first place. Matrix multiplication
+        by a sparse block matrix is also accelerated in proportion to the
+        block sparsity.
+
+        Matrix product ``@`` currently always results in a dense block matrix.
+        Sparse block matrices also support transpose :meth:`T`,
+        :math:`diagonal`, and all non-mathematical operations except filtering.
+
+        Element-wise mathematical operations are currently supported if and
+        only if they cannot transform zeroed blocks to non-zero blocks. For
+        example, all forms of element-wise multiplication ``*`` are supported,
+        and element-wise multiplication results in a sparse block matrix with
+        block support equal to the intersection of that of the operands. On the
+        other hand, scalar addition is not supported, and matrix addition is
+        supported only between block matrices with the same block sparsity.
+
+        This method requires the number of rows to be less than :math:`2^{31}`.
+
+        Parameters
+        ----------
+        starts: :obj:`list` of :obj:`int`
+            Start indices for each row (inclusive).
+        stops: :obj:`list` of :obj:`int`
+            Stop indices for each row (exclusive).
+        blocks_only: :obj:`bool`
+            If ``False``, set all elements outside row intervals to zero.
+            If ``True``, only set all blocks outside row intervals to blocks
+            of zeros; this is more efficient.
+        Returns
+        -------
+        :class:`.BlockMatrix`
+            Sparse block matrix.
+        """
+        return BlockMatrix(self._jbm.filterRowIntervals(
+            jarray(Env.jvm().long, starts),
+            jarray(Env.jvm().long, stops),
+            blocks_only))
 
     @typecheck_method(uri=str)
     def tofile(self, uri):

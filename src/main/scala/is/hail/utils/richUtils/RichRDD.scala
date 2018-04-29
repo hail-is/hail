@@ -5,10 +5,9 @@ import java.io.OutputStream
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
-import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.{NarrowDependency, Partition, TaskContext}
+import org.apache.spark.{NarrowDependency, Partition, Partitioner, TaskContext}
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -99,7 +98,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     )
   }
 
-  def subsetPartitions(keep: Array[Int])(implicit ct: ClassTag[T]): RDD[T] = {
+  def subsetPartitions(keep: Array[Int], newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
     require(keep.length <= r.partitions.length,
       s"tried to subset to more partitions than exist ${keep.toSeq} ${r.partitions.toSeq}")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < r.partitions.length)),
@@ -115,6 +114,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
+      
+      @transient override val partitioner: Option[Partitioner] = newPartitioner
     }
   }
 
@@ -185,12 +186,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writePartitions(path: String,
-    write: (Iterator[T], OutputStream) => Long,
-    remapPartitions: Option[(Array[Int], Int)] = None
+    write: (Iterator[T], OutputStream) => Long
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
     ContextRDD.weaken[RVDContext](r).writePartitions(
       path,
-      (_, it, os) => write(it, os),
-      remapPartitions)
+      (_, it, os) => write(it, os))
 }
