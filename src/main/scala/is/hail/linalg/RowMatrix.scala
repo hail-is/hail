@@ -218,6 +218,7 @@ class ReadBlocksAsRowsRDD(path: String,
         }
         
         val iRow = (i, row)
+        
         i += 1
         
         if (i % blockSize == 0 || i == end)
