@@ -215,10 +215,30 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     require(nRows <= Int.MaxValue) // FIXME relax
     require(starts.length == nRows)
     require(stops.length == nRows)
-
-    val rectangles = ((0 until nRows.toInt).toArray, starts, stops)
-      .zipped
-      .map { case (row, start, stop) => Array(row, row, start, stop - 1) }
+    
+    val rectangles = starts.grouped(blockSize).zip(stops.grouped(blockSize))
+      .zipWithIndex
+      .flatMap { case ((startsInBlockRow, stopsInBlockRow), blockRow) =>
+        val nRowsInBlockRow = gp.blockRowNRows(blockRow)
+        var minStart = Long.MaxValue
+        var maxStop = Long.MinValue
+        var ii = 0
+        while (ii < nRowsInBlockRow) {
+          val start = startsInBlockRow(ii)
+          val stop = stopsInBlockRow(ii)
+          assert(start >= 0 && start <= stop && stop <= nCols) // require start <= stop?
+          if (start < stop) {
+            minStart = minStart min start
+            maxStop = maxStop max stop
+          }
+          ii += 1
+        }
+        if (minStart < maxStop) {
+          val row = blockRow * blockSize
+          Some(Array(row, row, minStart, maxStop - 1))
+        } else
+          None
+      }.toArray
 
     val filteredBM = filterBlocks(gp.rectangularBlocks(rectangles))
 
