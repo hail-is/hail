@@ -13,17 +13,19 @@ import scala.util.matching.Regex
 
 case class TableReaderOptions(
   nPartitions: Int,
-  commentStartsWith: Array[String] = Array.empty[String],
-  commentRegexes: Array[Regex] = Array.empty[Regex],
-  separator: String = "\t",
-  missing: String = "NA",
-  noHeader: Boolean = false,
-  header: String = "",
-  quote: java.lang.Character = null,
-  skipBlankLines: Boolean = false,
-  useColIndices: Array[Int] = Array.empty[Int]) {
+  commentStartsWith: Array[String],
+  commentRegexes: Array[Regex],
+  separator: String,
+  missing: String,
+  noHeader: Boolean,
+  header: String,
+  quote: java.lang.Character,
+  skipBlankLines: Boolean,
+  useColIndices: Array[Int],
+  originalType: TStruct) {
+  assert(useColIndices.isSorted)
 
-  val isComment = TextTableReader.isCommentLine(commentStartsWith, commentRegexes) _
+  def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
 }
 
 object TextTableReader {
@@ -163,8 +165,7 @@ object TextTableReader {
     nPartitions: Int = hc.sc.defaultMinPartitions,
     quote: java.lang.Character = null,
     keyNames: Array[String] = Array.empty[String],
-    skipBlankLines: Boolean = false,
-    useCols: Array[String] = Array.empty[String]): Table = {
+    skipBlankLines: Boolean = false): Table = {
 
     require(files.nonEmpty)
 
@@ -202,17 +203,11 @@ object TextTableReader {
     val rdd = hc.sc.textFilesLines(files, nPartitions)
       .filter { line =>
         !isComment(line.value) &&
-        (noHeader || line.value != header) &&
-          !(skipBlankLines && line.value.isEmpty) }
+          (noHeader || line.value != header) &&
+          !(skipBlankLines && line.value.isEmpty)
+      }
 
     val sb = new StringBuilder
-
-    val useColIndices = if (!useCols.isEmpty) {
-      columns.zipWithIndex.flatMap { case (str,index) => if (useCols.contains(str)) Some(index) else None }
-    }
-    else {
-      Array.empty[Int]
-    }
 
     val namesAndTypes = {
       if (impute) {
@@ -221,39 +216,32 @@ object TextTableReader {
         sb.append("Finished type imputation")
         val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
         columns.zip(imputedTypes).flatMap { case (name, imputedType) =>
-          if (useCols.isEmpty || useCols.contains(name)) {
-            types.get(name) match {
-              case Some(t) =>
-                sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
-                Some((name, t))
-              case None =>
-                imputedType match {
-                  case Some(t) =>
-                    sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
-                    Some((name, t))
-                  case None =>
-                    sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
-                    Some((name, TString()))
-                }
-            } 
-          } else {
-            None
+          types.get(name) match {
+            case Some(t) =>
+              sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
+              Some((name, t))
+            case None =>
+              imputedType match {
+                case Some(t) =>
+                  sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
+                  Some((name, t))
+                case None =>
+                  sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
+                  Some((name, TString()))
+              }
           }
         }
-      } else {
+      }
+      else {
         sb.append("Reading table with no type imputation\n")
         columns.flatMap { c =>
-          if (useCols.isEmpty || useCols.contains(c)) {
-            types.get(c) match {
-              case Some(t) =>
-                sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
-                Some((c, t))
-              case None =>
-                sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
-                Some((c, TString()))
-            } 
-          } else {
-            None
+          types.get(c) match {
+            case Some(t) =>
+              sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
+              Some((c, t))
+            case None =>
+              sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
+              Some((c, TString()))
           }
         }
       }
@@ -262,7 +250,9 @@ object TextTableReader {
     info(sb.result())
 
     val ttyp = TableType(TStruct(namesAndTypes: _*), keyNames, TStruct())
-    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes, separator, missing, noHeader, header, quote, skipBlankLines, useColIndices)
+    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
+      separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
+      ttyp.rowType)
     new Table(hc, TableImport(files, ttyp, readerOpts))
   }
 }
