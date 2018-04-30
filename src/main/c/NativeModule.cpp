@@ -261,7 +261,7 @@ private:
     // build .o from .cpp
     fprintf(f, "$(MODULE).o: $(MODULE).cpp\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $@ -c $< 2> $(MODULE).err \\\n");
-    fprintf(f, "\t  || ( /bin/rm -f $(MODULE).new ; exit 1 )\n");
+    fprintf(f, "\t  || ( /bin/rm -f $(MODULE).new ; cat $(MODULE).mak $(MODULE).err 1>2 ; exit 1 )\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).new $(MODULE).o\n");
     fprintf(f, "\t/bin/chmod a+rx $(MODULE).new\n");
     fprintf(f, "\t/bin/rm -f $(MODULE).err\n\n");

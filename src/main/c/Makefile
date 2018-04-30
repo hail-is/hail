@@ -51,8 +51,6 @@ ifeq ($(UNAME_S),Darwin)
   # CXX := c++
 endif
 
-HAIL_HOME ?= ../../..
-
 # Eventually we would like -std=c++17, but the CI machines have
 # compilers which only go to -std=c++11
 
