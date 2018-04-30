@@ -136,6 +136,9 @@ private class Emit(
     *  2. evaluate precompute *on all static code-paths* leading to missingness or value
     *  3. guard the the evaluation of value by missingness
     *
+    *  Triplets returning values cannot have side-effects.  For void triplets, precompute
+    *  contains the side effect, missingness is false, and value is {@code Code._empty}.
+    *
     * JVM gotcha:
     * a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
     *
@@ -153,18 +156,13 @@ private class Emit(
     *
     * Aggregating expressions must have at least two special arguments. As with
     * all expressions, the first argument must be a {@code  Region}. The second
-    * argument is the {@code  RegionValueAggregator} that implements the
-    * functionality of the (unique) {@code  AggOp} in the expression. Note that
-    * the special arguments do not appear in pairs, i.e., they may not be
-    * missing.
+    * argument is the {@code  Array[RegionValueAggregator]} that is used by
+    * {@code SeqOp} to implement the aggregation. Note that the special arguments
+    * do not appear in pairs, i.e., they may not be missing.
     *
-    * An aggregating expression additionally has an element argument and a
-    * number of "scope" argmuents following the special arguments. The type of
-    * the element is {@code  tAggIn.elementType}. The number and types of the
-    * scope arguments are defined by the symbol table of {@code  tAggIn}. The
-    * element argument and the scope arguments, unlike special arguments, appear
-    * in pairs of a value and a missingness bit. Moreover, the element argument
-    * must appear first.
+    * When compiling an aggregation expression, {@code AggIn} refers to the first
+    * argument {@code In(0)} whose type must be of type
+    * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
   private def emit(ir: IR, env: E): EmitTriplet = {

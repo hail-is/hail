@@ -85,12 +85,12 @@ object Copy {
       case AggFlatMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         AggFlatMap(a, name, body)
-      case SeqOp(a, i, agg) =>
-        val IndexedSeq(newA: IR, newI: IR) = newChildren
-        SeqOp(newA, newI, agg)
-      case Begin(xs) =>
+      case SeqOp(_, _, agg) =>
+        val IndexedSeq(a: IR, i: IR) = newChildren
+        SeqOp(a, i, agg)
+      case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case ApplyAggOp(_, op, args) =>
+      case ApplyAggOp(_, op, _) =>
         ApplyAggOp(newChildren.head.asInstanceOf[IR], op, newChildren.tail.map(_.asInstanceOf[IR]))
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))

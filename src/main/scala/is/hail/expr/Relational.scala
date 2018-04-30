@@ -941,8 +941,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         rvb.addRegionValue(localColsType, partRegion, partColsOff)
         val cols = rvb.end()
 
-        val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
-
         val aggResultsOff = if (rvAggs.nonEmpty) {
           val newRVAggs = rvAggs.map(_.copy())
 
@@ -1086,8 +1084,6 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
         rvb.start(localColsType)
         rvb.addAnnotation(localColsType, colValuesBc.value)
         val cols = rvb.end()
-
-        val entriesOff = localRowType.loadField(region, oldRow, entriesIdx)
 
         seqOps()(region, colRVAggs, 0, true, globals, false, cols, false, oldRow, false)
 
