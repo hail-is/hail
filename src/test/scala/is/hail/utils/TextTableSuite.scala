@@ -2,6 +2,8 @@ package is.hail.utils
 
 import is.hail.SparkSuite
 import is.hail.check._
+import is.hail.expr.TableImport
+import is.hail.expr.ir.Interpret
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.variant.{MatrixTable, ReferenceGenome$, VSMSubgen}
@@ -93,15 +95,22 @@ class TextTableSuite extends SparkSuite {
   @Test def testUseColsParameter() {
     val file = "src/test/resources/variantAnnotations.tsv"
     val readAllColsTbl = TextTableReader.read(hc)(Array(file), impute = true)
-    val readOneColTbl = TextTableReader.read(hc)(Array(file),
-      impute = true, useCols = Array[String]("Gene"))
-    val readTwoColsTbl = TextTableReader.read(hc)(Array(file),
-      impute = true, useCols = Array[String]("Chromosome", "Rand2"))
-    
-    assert(readAllColsTbl.signature == TStruct("Chromosome" -> TInt32(), "Position" -> TInt32(), "Ref" -> TString(),
-      "Alt" -> TString(), "Rand1" -> TFloat64(), "Rand2" -> TFloat64(), "Gene" -> TString()))
-    
-    assert(readOneColTbl.same(readAllColsTbl.select("{Gene: row.Gene}")))
-    assert(readTwoColsTbl.same(readAllColsTbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}")))
+
+    val select = readAllColsTbl.select("{Gene: row.Gene}")
+    val tir = readAllColsTbl.tir.asInstanceOf[TableImport]
+    val irSelect = new Table(hc, TableImport(
+      tir.paths,
+      select.typ,
+      tir.readerOpts.copy(useColIndices = Array(6))
+    ))
+    assert(select.same(irSelect))
+
+    val select2 = readAllColsTbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}")
+    val irSelect2 = new Table(hc, TableImport(
+      tir.paths,
+      select2.typ,
+      tir.readerOpts.copy(useColIndices = Array(0, 5))
+    ))
+    assert(select2.same(irSelect2))
   }
 }
