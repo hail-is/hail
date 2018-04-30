@@ -1665,17 +1665,19 @@ class Tests(unittest.TestCase):
     def test_export_import_plink_same(self):
         mt = self.get_dataset()
         mt = mt.select_rows('locus', 'alleles',
-                            rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'))
+                            rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
+                            position_morgan=15)
         mt = mt.select_cols('s', fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
                             is_female=hl.null(hl.tbool), is_case=hl.null(hl.tbool))
         mt = mt.select_entries('GT')
 
         bfile = '/tmp/test_import_export_plink'
-        hl.export_plink(mt, bfile, ind_id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s, position_morgan=mt.position_morgan)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
                                       a2_reference=True, reference_genome='GRCh37')
         self.assertTrue(mt._same(mt_imported))
+        self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.position_morgan == 15)))
 
     def test_import_plink_empty_fam(self):
         mt = self.get_dataset().drop_cols()
