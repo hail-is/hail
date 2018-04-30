@@ -150,9 +150,19 @@ object HailContext {
     forceIR: Boolean = false): HailContext = {
     require(theContext == null)
 
-    val javaVersion = System.getProperty("java.version")
-    if (!javaVersion.startsWith("1.8"))
-      fatal(s"Hail requires Java 1.8, found version $javaVersion")
+    val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
+    val versionString = System.getProperty("java.version")
+    versionString match {
+      // old-style version: 1.MAJOR.MINOR
+      // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
+      // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
+      case javaVersion("1", major, minor) =>
+        if (major.toInt < 8)
+          fatal(s"Hail requires at least Java 1.8, found $versionString")
+      case javaVersion(major, minor, security) =>
+      case _ =>
+        fatal(s"Unknown JVM version string: $versionString")
+    }
 
     {
       import breeze.linalg._
