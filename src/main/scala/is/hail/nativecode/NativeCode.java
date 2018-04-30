@@ -31,7 +31,7 @@ class NativeCode {
       name = name.substring(0, len-12);
     }
     if (name.substring(0, 5).equals("file:")) {
-      name = name.substring(5, name.length()-5);
+      name = name.substring(5, name.length());
     }
     return(name);
   }
