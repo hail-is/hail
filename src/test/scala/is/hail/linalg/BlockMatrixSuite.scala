@@ -795,7 +795,7 @@ class BlockMatrixSuite extends SparkSuite {
     bm1.blocks.collect() sameElements bm2.blocks.collect()
   
   @Test
-  def blockFiltered() {
+  def testSparse() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,
       5, 6, 7, 8,
@@ -936,5 +936,35 @@ class BlockMatrixSuite extends SparkSuite {
     TestUtils.interceptFatal(notSupported) { bm0.filter(Array(0), Array(0)) }
     TestUtils.interceptFatal(notSupported) { bm0.filterRows(Array(0)) }
     TestUtils.interceptFatal(notSupported) { bm0.filterCols(Array(0)) }
+  }
+  
+  @Test
+  def testFilterBlocksByRow() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+
+    val starts = Array[Long](1, 0, 0, 2)
+    val stops = Array[Long](4, 4, 0, 3)
+
+    val filteredLM = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      0, 0, 11, 12,
+      0, 0, 15, 16))
+    
+    val zeroedLM = toLM(4, 4, Array(
+      0, 2, 3, 4,
+      5, 6, 7, 8,
+      0, 0, 0, 0,
+      0, 0, 15, 0))
+    
+    val bm = toBM(lm, blockSize = 2)
+    
+    
+    assert(bm.filterBlocksByRow(starts, stops, setZero = false).toBreezeMatrix() === filteredLM)
+    assert(bm.filterBlocksByRow(starts, stops, setZero = true).toBreezeMatrix() === zeroedLM)
   }
 }

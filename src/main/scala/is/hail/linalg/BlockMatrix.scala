@@ -215,49 +215,59 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     require(nRows <= Int.MaxValue) // FIXME relax
     require(starts.length == nRows)
     require(stops.length == nRows)
-    
+
     val rectangles = ((0 until nRows.toInt).toArray, starts, stops)
       .zipped
       .map { case (row, start, stop) => Array(row, row, start, stop - 1) }
-    
+
     val filteredBM = filterBlocks(gp.rectangularBlocks(rectangles))
-    
-    if (!setZero)
-      return filteredBM
-    
-    def partOffsets(positions: Array[Long]): Map[Int, Array[(Int, Int)]] =
-      positions.zipWithIndex
-        .map { case (start, row) =>
-          val pi = gp.coordinatesPart(gp.indexBlockIndex(row), gp.indexBlockIndex(start))
-          val ii = gp.indexBlockOffset(row)
-          val jj = gp.indexBlockOffset(start)
-          (pi, ii, jj)
+
+    if (setZero)
+      filteredBM.zeroBlocksByRow(starts, stops)
+    else
+      filteredBM
+  }
+  
+  def zeroBlocksByRow(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
+    def partOffsets(cols: Array[Long], ignorable: Long): Map[Int, Array[(Int, Int)]] =
+      cols.zipWithIndex
+        .flatMap { case (col, row) =>
+          if (col != ignorable) {
+            val pi = gp.coordinatesPart(gp.indexBlockIndex(row), gp.indexBlockIndex(col))
+            if (pi >= 0)
+              Some((pi, gp.indexBlockOffset(row), gp.indexBlockOffset(col)))
+            else
+              None
+          } else
+            None
         }
         .groupBy( _._1 )
         .map { case (pi, v) =>
           pi -> v.map { case (_, ii, jj) => (ii, jj) }
         }
     
-    val sc = filteredBM.blocks.sparkContext
-    val partStartOffsetsBc = sc.broadcast(partOffsets(starts))
-    val partStopOffsetsBc = sc.broadcast(partOffsets(stops))
+    val sc = blocks.sparkContext    
+    println(partOffsets(starts, 0).mapValues(_.toIndexedSeq))
+    println(partOffsets(stops, nCols).mapValues(_.toIndexedSeq))
+    val partStartOffsetsBc = sc.broadcast(partOffsets(starts, 0))
+    val partStopOffsetsBc = sc.broadcast(partOffsets(stops, nCols))
 
-    val zeroedBlocks = filteredBM.blocks.mapPartitionsWithIndex( { case (pi, it) =>
+    val zeroedBlocks = blocks.mapPartitionsWithIndex( { case (pi, it) =>
       assert(it.hasNext)
-      val (_, lm) = it.next()
+      val ((i, j), lm) = it.next()
       assert(!it.hasNext)
 
       val nColsInBlock = lm.cols
-
-      partStartOffsetsBc.value.get(pi).foreach(_.foreach { 
-        case (ii, jj) => lm(ii to ii, 0 until jj) := 0.0 
+      
+      partStartOffsetsBc.value.get(pi).foreach(_.foreach {
+        case (ii, jj) => println(lm, ii, jj); lm(ii to ii, 0 until jj) := 0.0; println(lm)
       })
 
       partStopOffsetsBc.value.get(pi).foreach(_.foreach {
-        case (ii, jj) => lm(ii to ii, jj until nColsInBlock) := 0.0
+        case (ii, jj) => println(lm, ii, jj); lm(ii to ii, jj until nColsInBlock) := 0.0; println(lm)
       })
       
-      it
+      Iterator.single(((i, j), lm))
     }, preservesPartitioning = true)
     
     new BlockMatrix(zeroedBlocks, blockSize, nRows, nCols)

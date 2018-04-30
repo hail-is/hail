@@ -158,8 +158,11 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
 
   // returns increasing array of all blocks intersecting the rectangle [firstRow, lastRow] x [firstCol, lastCol]
   def rectangularBlocks(firstRow: Long, lastRow: Long, firstCol: Long, lastCol: Long): Array[Int] = {
-    require(firstRow >= 0 && firstRow <= lastRow && lastRow <= nRows)
-    require(firstCol >= 0 && firstCol <= lastCol && lastCol <= nCols)
+    require(firstRow >= 0 && lastRow < nRows)
+    require(firstCol >= 0 && lastCol < nCols)
+    
+    if (firstRow > lastRow || firstCol > lastCol)
+      return Array.empty[Int]
     
     val firstBlockRow = indexBlockIndex(firstRow)
     val lastBlockRow = indexBlockIndex(lastRow)
