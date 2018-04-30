@@ -1,6 +1,7 @@
 package is.hail.nativecode;
 
 import java.util.*;
+import java.net.URL;
 import com.sun.jna.*;
 
 
@@ -21,6 +22,18 @@ class NativeCode {
     //
     System.load(libName);
     System.err.println("NativeCode init done");
+  }
+
+  final static String getIncludeDir() {
+    String name = ClassLoader.getSystemResource("include/hail/hail.h").toString();
+    int len = name.length();
+    if (len >= 12) {
+      name = name.substring(0, len-12);
+    }
+    if (name.substring(0, 5).equals("file:")) {
+      name = name.substring(5, name.length()-5);
+    }
+    return(name);
   }
 
   final static void forceLoad() { }

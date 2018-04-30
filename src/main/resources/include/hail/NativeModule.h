@@ -29,7 +29,7 @@ public:
   std::string newName_;
   
 public:
-  NativeModule(const char* options, const char* source, bool forceBuild);
+  NativeModule(const char* options, const char* source, const char* include, bool forceBuild);
   
   NativeModule(bool isGlobal, const char* key, long binarySize, const void* binary);
 

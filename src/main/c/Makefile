@@ -4,7 +4,7 @@
 # this list
 OBJECTS := \
   ibs.o davies.o \
-  NativeModule.o NativeObj.o NativePtr.o \
+  NativeModule.o NativePtr.o \
   NativeStatus.o NativeLongFunc.o NativeCodeSuite.o
 
 UNAME_S := $(shell uname -s)
@@ -62,7 +62,7 @@ ifeq ($(UNAME_S),Linux)
 #CXXFLAGS += --no-strict-aliasing
 endif
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
-CXXFLAGS += -I$(HAIL_HOME)/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
+CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
 
 ifeq ($(UNAME_S),Linux)
@@ -97,13 +97,10 @@ clean:
 	rm -rf *.o
 	echo done
 
-
-
-headers: $(shell /usr/bin/find ../../../include -name "*.h")
+headers: $(shell /usr/bin/find ../resources/include -name "*.h")
 	touch headers
 
 NativeModule.o: headers
-NativeObj.o: headers
 NativePtr.o: headers
 NativeStatus.o: headers
 NativeLongFunc.o: headers

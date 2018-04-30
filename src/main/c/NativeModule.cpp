@@ -194,6 +194,7 @@ class ModuleBuilder {
 private:
   std::string options_;
   std::string source_;
+  std::string include_;
   std::string key_;
   std::string moduleBase_;
   std::string moduleMak_;
@@ -205,10 +206,12 @@ public:
   ModuleBuilder(
     const std::string& options,
     const std::string& source,
+    const std::string& include,
     const std::string& key
   ) :
     options_(options),
     source_(source),
+    include_(include),
     key_(key) {
     // To start with, put dynamic code in $HOME/hail_modules
     auto base = (config.moduleDir_ + "/hm_") + key_;
@@ -246,7 +249,7 @@ private:
     const char* userOptions = options_.c_str();
     fprintf(f, "  %s%s\\\n",
       strstr(userOptions, "-O") ? "" : "-O3 ", userOptions);
-    fprintf(f, "  -I$(HAIL_HOME)/include \\\n");
+    fprintf(f, "  -I%s \\\n", include_.c_str());
     fprintf(f, "  -DHAIL_MODULE=$(MODULE)\n");
     fprintf(f, "LIBFLAGS := -fvisibility=default %s\n", 
       config.isOsDarwin_ ? "-dynamiclib -Wl,-undefined,dynamic_lookup"
@@ -291,6 +294,7 @@ public:
 NativeModule::NativeModule(
   const char* options,
   const char* source,
+  const char* include,
   bool forceBuild
 ) :
   buildState_(kInit),
@@ -310,7 +314,7 @@ NativeModule::NativeModule(
     //
     // The file doesn't exist, let's start building it
     //
-    ModuleBuilder builder(options, source, key_);
+    ModuleBuilder builder(options, source, include, key_);
     builder.tryToStartBuild();
   }
 }
@@ -489,12 +493,14 @@ NATIVEMETHOD(void, NativeModule, nativeCtorMaster)(
   jobject thisObj,
   jstring optionsJ,
   jstring sourceJ,
+  jstring includeJ,
   jboolean forceBuildJ
 ) {
   JString options(env, optionsJ);
   JString source(env, sourceJ);
+  JString include(env, includeJ);
   bool forceBuild = (forceBuildJ != JNI_FALSE);
-  auto ptr = MAKE_NATIVE(NativeModule, options, source, forceBuild);
+  auto ptr = MAKE_NATIVE(NativeModule, options, source, include, forceBuild);
   initNativePtr(env, thisObj, &ptr);
 }
 
