@@ -469,26 +469,29 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
 
+    # FIXME Draft for hackathon
     @typecheck_method(starts=sequenceof(int),
                       stops=sequenceof(int),
                       set_zero=bool)
     def sparsify_by_row(self, starts, stops, set_zero):
-        """Rough draft: sparsifies block matrix using [start, stop) interval for each row.
+        """Sparsifies block matrix using [start, stop) interval for each row.
 
         Notes
         -----
-        Blocks within the complement are are dropped.
-        Blocks that overlap the intervals and complement remain,
-        with elements outside intervals optionally set to zero as well.
+        The set of matrix entries is partitioned into
+        the union of row intervals and its complement.
+        Blocks fully inside the complement are filtered out.
+        If `set_zero` is true, all remaining entries
+        in the complement are set to zero as well.
 
         Parameters
         ----------
         starts: :obj:`list` of :obj:`int`
-            Start indices for each row (inclusive)
+            Start indices for each row (inclusive).
         stops: :obj:`list` of :obj:`int`
-            Stop indices for each row (exclusive)
+            Stop indices for each row (exclusive).
         set_zero: :obj:`bool`
-            If true, also zero out elements outside ranges in overlapping blocks.
+            If true, set all remaining elements in the complement to zero.
         Returns
         -------
         :class:`.BlockMatrix`
