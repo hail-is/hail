@@ -244,7 +244,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
     ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...                                       covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -281,22 +281,22 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     .. math::
 
-        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
-                          + \\beta_2 \, \mathrm{age}
-                          + \\beta_3 \, \mathrm{is_female}
+        \mathrm{height} = \\beta_0 \, \mathrm{genotype}
+                          + \\beta_1 \, \mathrm{age}
+                          + \\beta_2 \, \mathrm{is_female}
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
     Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for
-    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
+    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_0 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    :math:`n - k - 1` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
-    ``x`` and the intercept.
+    ``x``.
 
     Parameters
     ----------
@@ -382,14 +382,16 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
 
     Examples
     --------
+
     Run the logistic regression Wald test per variant using a Boolean
-    phenotype and two covariates stored in column-indexed fields:
+    phenotype, intercept and two covariates stored in column-indexed
+    fields:
 
     >>> ds_result = hl.logistic_regression(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
-    ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...     covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
     -----
@@ -410,9 +412,9 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     .. math::
 
         \mathrm{Prob}(\mathrm{is_case}) =
-            \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
-                            + \beta_2 \, \mathrm{age}
-                            + \beta_3 \, \mathrm{is_female} + \varepsilon),
+            \mathrm{sigmoid}(\beta_0 \, \mathrm{gt}
+                            + \beta_1 \, \mathrm{age}
+                            + \beta_2 \, \mathrm{is_female} + \varepsilon),
         \quad
         \varepsilon \sim \mathrm{N}(0, \sigma^2)
 
@@ -420,7 +422,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
     HomVar, and the Boolean covariate :math:`\mathrm{is_female}` is coded as
     for ``True`` (female) and 0 for ``False`` (male). The null model sets
-    :math:`\beta_1 = 0`.
+    :math:`\beta_0 = 0`.
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
@@ -431,19 +433,19 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     Test       Field                   Type    Value
     ========== ======================= ======= ============================================
     Wald       `logreg.beta`           float64 fit effect coefficient,
-                                               :math:`\hat\beta_1`
+                                               :math:`\hat\beta_0`
     Wald       `logreg.standard_error` float64 estimated standard error,
                                                :math:`\widehat{\mathrm{se}}`
     Wald       `logreg.z_stat`         float64 Wald :math:`z`-statistic, equal to
-                                               :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    Wald       `logreg.p_value`        float64 Wald p-value testing :math:`\beta_1 = 0`
+                                               :math:`\hat\beta_0 / \widehat{\mathrm{se}}`
+    Wald       `logreg.p_value`        float64 Wald p-value testing :math:`\beta_0 = 0`
     LRT, Firth `logreg.beta`           float64 fit effect coefficient,
-                                               :math:`\hat\beta_1`
+                                               :math:`\hat\beta_0`
     LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
     LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
-                                               :math:`\beta_1 = 0`
+                                               :math:`\beta_0 = 0`
     Score      `logreg.chi_sq_stat`    float64 score statistic
-    Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
+    Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_0 = 0`
     ========== ======================= ======= ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
@@ -572,6 +574,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     -------
     :class:`.MatrixTable`
         Matrix table with regression results in a new row-indexed field.
+
     """
     mt = matrix_table_source('logistic_regression/x', x)
     check_entry_indexed('logistic_regression/x', x)
@@ -706,7 +709,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
          - true if fit by ML, false if fit by REML
        * - `beta`
          - dict<str, float64>
-         - map from *intercept* and the given `covariates` expressions to the
+         - map from the given `covariates` expressions to the
            corresponding fit :math:`\beta` coefficients
        * - `sigma_g_squared`
          - float64
@@ -833,8 +836,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
     :math:`n` samples and :math:`c` sample covariates, we define:
 
     - :math:`y = n \times 1` vector of phenotypes
-    - :math:`X = n \times c` matrix of sample covariates and intercept column
-      of ones
+    - :math:`X = n \times c` matrix of sample covariates
     - :math:`K = n \times n` kinship matrix
     - :math:`I = n \times n` identity matrix
     - :math:`\beta = c \times 1` vector of covariate coefficients
