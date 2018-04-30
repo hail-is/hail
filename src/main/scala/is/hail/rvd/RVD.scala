@@ -202,7 +202,7 @@ trait RVD {
 
   private[rvd] def stably(
     f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
-  ): ContextRDD[RVDContext, RegionValue] = stably(f)
+  ): ContextRDD[RVDContext, RegionValue] = stably(crdd, f)
 
   private[rvd] def stably(
     unstable: ContextRDD[RVDContext, RegionValue],
