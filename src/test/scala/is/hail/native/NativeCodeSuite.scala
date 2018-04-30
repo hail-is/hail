@@ -24,7 +24,6 @@ class NativeCodeSuite extends SparkSuite {
 
   @Test def testNativePtr() = {
     System.err.println("testNativePtr() ...")
-    NativeCode.init()
     var a = new NativeStatus()
     assert(a.ok)
     assert(a.use_count() == 1)
@@ -62,7 +61,6 @@ class NativeCodeSuite extends SparkSuite {
 
   @Test def testNativeGlobal() = {
     System.err.println("testNativeGlobal() ...")
-    NativeCode.init()
     var ret: Long = -1
     val st = new NativeStatus()
     val globalModule = new NativeModule("global")
@@ -95,7 +93,6 @@ class NativeCodeSuite extends SparkSuite {
 
   @Test def testNativeBuild() = {
     System.err.println("testNativeBuild() ...")
-    NativeCode.init()
     val sb = new StringBuilder()
     sb.append("#include \"hail/hail.h\"\n")
     sb.append("NAMESPACE_HAIL_MODULE_BEGIN\n")

@@ -21,7 +21,7 @@ NAMESPACE_BEGIN(hail)
 
 #define volatile
 
-namespace { // anonymous
+NAMESPACE_BEGIN_ANON
 
 typedef void MakeNativeFunc(NativeObjPtr*, ...);
 
@@ -36,7 +36,7 @@ void initInfo(JNIEnv* env) {
   isInfoReady = true;
 }
 
-} // end anonymous
+NAMESPACE_END_ANON
 
 NativeObj* getFromNativePtr(JNIEnv* env, jobject obj) {
   if (!isInfoReady) initInfo(env);
