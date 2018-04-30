@@ -85,11 +85,11 @@ object RegressionUtils {
     covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
     val nPhenos = yFields.length
-    val nCovs = covFields.length + 1 // intercept
+    val nCovs = covFields.length
 
     if (nPhenos == 0)
       fatal("No phenotypes present.")
-
+    
     val yIS = getColumnVariables(vsm, yFields)
     val covIS = getColumnVariables(vsm, covFields)
 
@@ -105,7 +105,7 @@ object RegressionUtils {
     val yArray = yForCompleteSamples.flatMap(_.map(_.get)).toArray
     val y = new DenseMatrix(rows = n, cols = nPhenos, data = yArray, offset = 0, majorStride = nPhenos, isTranspose = true)
 
-    val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
+    val covArray = covForCompleteSamples.flatMap(_.map(_.get)).toArray
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
     if (n < vsm.numCols)

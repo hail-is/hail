@@ -246,7 +246,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
     ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...                                       covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -283,22 +283,22 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     .. math::
 
-        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
-                          + \\beta_2 \, \mathrm{age}
-                          + \\beta_3 \, \mathrm{is\_female}
+        \mathrm{height} = \\beta_0 \, \mathrm{genotype}
+                          + \\beta_1 \, \mathrm{age}
+                          + \\beta_2 \, \mathrm{is\_female}
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
     Boolean covariates like :math:`\mathrm{is\_female}` are encoded as 1 for
-    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
+    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_0 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    :math:`n - k - 1` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
-    ``x`` and the intercept.
+    ``x``.
 
     Parameters
     ----------
@@ -384,14 +384,16 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
 
     Examples
     --------
+
     Run the logistic regression Wald test per variant using a Boolean
-    phenotype and two covariates stored in column-indexed fields:
+    phenotype, intercept and two covariates stored in column-indexed
+    fields:
 
     >>> ds_result = hl.logistic_regression(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
-    ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...     covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
     -----
@@ -422,7 +424,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
     HomVar, and the Boolean covariate :math:`\mathrm{is\_female}` is coded as
     for ``True`` (female) and 0 for ``False`` (male). The null model sets
-    :math:`\beta_1 = 0`.
+    :math:`\beta_0 = 0`.
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
@@ -443,7 +445,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
                                                :math:`\hat\beta_1`
     LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
     LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
-                                               :math:`\beta_1 = 0`
+                                               :math:`\beta_1 = 1`
     Score      `logreg.chi_sq_stat`    float64 score statistic
     Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
     ========== ======================= ======= ============================================
