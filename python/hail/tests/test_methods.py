@@ -1282,7 +1282,7 @@ class Tests(unittest.TestCase):
         # Test default arguments
         out1 = utils.new_temp_file()
         hl.export_plink(ds, out1)
-        fam1 = (hl.import_table(out1 + '.fam', no_header=True, impute=False)
+        fam1 = (hl.import_table(out1 + '.fam', no_header=True, impute=False, missing="")
                 .rename(fam_mapping))
         bim1 = (hl.import_table(out1 + '.bim', no_header=True, impute=False)
                 .rename(bim_mapping))
@@ -1297,7 +1297,7 @@ class Tests(unittest.TestCase):
         out2 = utils.new_temp_file()
         hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope",
                         mat_id="nada", is_female=True, pheno=False)
-        fam2 = (hl.import_table(out2 + '.fam', no_header=True, impute=False)
+        fam2 = (hl.import_table(out2 + '.fam', no_header=True, impute=False, missing="")
                 .rename(fam_mapping))
 
         self.assertTrue(fam2.all((fam2.fam_id == fam2.ind_id) & (fam2.pat_id == "nope") &
@@ -1307,7 +1307,7 @@ class Tests(unittest.TestCase):
         # Test quantitative phenotype
         out3 = utils.new_temp_file()
         hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
-        fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False)
+        fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="")
                 .rename(fam_mapping))
 
         self.assertTrue(fam3.all((fam3.fam_id == "0") & (fam3.pat_id == "0") &
