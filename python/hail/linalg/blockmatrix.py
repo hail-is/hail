@@ -469,6 +469,35 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
 
+    @typecheck_method(starts=sequenceof(int),
+                      stops=sequenceof(int),
+                      set_zero=bool)
+    def sparsify_by_row(self, starts, stops, set_zero):
+        """Rough draft: sparsifies block matrix using [start, stop) interval for each row.
+
+        Notes
+        -----
+        Blocks within the complement are are dropped.
+        Blocks that overlap the intervals and complement remain,
+        with elements outside intervals optionally set to zero as well.
+
+        Parameters
+        ----------
+        starts: :obj:`list` of :obj:`int`
+            Start indices for each row (inclusive)
+        stops: :obj:`list` of :obj:`int`
+            Stop indices for each row (exclusive)
+        set_zero: :obj:`bool`
+            If true, also zero out elements outside ranges in overlapping blocks.
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return BlockMatrix(self._jbm.filterBlocksByRow(
+            jarray(Env.jvm().long, starts),
+            jarray(Env.jvm().long, stops),
+            set_zero))
+
     @typecheck_method(uri=str)
     def tofile(self, uri):
         """Collects and writes data to a binary file.

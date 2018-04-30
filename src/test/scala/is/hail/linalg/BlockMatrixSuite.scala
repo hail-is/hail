@@ -963,8 +963,25 @@ class BlockMatrixSuite extends SparkSuite {
     
     val bm = toBM(lm, blockSize = 2)
     
-    
     assert(bm.filterBlocksByRow(starts, stops, setZero = false).toBreezeMatrix() === filteredLM)
     assert(bm.filterBlocksByRow(starts, stops, setZero = true).toBreezeMatrix() === zeroedLM)
+    
+    val starts2 = Array[Long](0, 1, 2, 3)
+    val stops2 = Array[Long](1, 2, 3, 4)
+
+    val filteredLM2 = toLM(4, 4, Array(
+      1, 2, 0, 0,
+      5, 6, 0, 0,
+      0, 0, 11, 12,
+      0, 0, 15, 16))
+    
+    val zeroedLM2 = toLM(4, 4, Array(
+      1, 0, 0, 0,
+      0, 6, 0, 0,
+      0, 0, 11, 0,
+      0, 0, 0, 16))
+    
+    assert(bm.filterBlocksByRow(starts2, stops2, setZero = false).toBreezeMatrix() === filteredLM2)
+    assert(bm.filterBlocksByRow(starts2, stops2, setZero = true).toBreezeMatrix() === zeroedLM2)
   }
 }

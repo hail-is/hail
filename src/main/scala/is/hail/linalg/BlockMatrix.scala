@@ -210,7 +210,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
   
   // for row i, filter to indices [starts[i], stops[i]) by dropping non-overlapping blocks
-  // if setZero, also zero out elements in partially overlap
+  // if setZero, also zero out elements outside ranges in overlapping blocks
   def filterBlocksByRow(starts: Array[Long], stops: Array[Long], setZero: Boolean): BlockMatrix = {
     require(nRows <= Int.MaxValue) // FIXME relax
     require(starts.length == nRows)
@@ -229,43 +229,43 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
   
   def zeroBlocksByRow(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
-    def partOffsets(cols: Array[Long], ignorable: Long): Map[Int, Array[(Int, Int)]] =
-      cols.zipWithIndex
-        .flatMap { case (col, row) =>
-          if (col != ignorable) {
-            val pi = gp.coordinatesPart(gp.indexBlockIndex(row), gp.indexBlockIndex(col))
-            if (pi >= 0)
-              Some((pi, gp.indexBlockOffset(row), gp.indexBlockOffset(col)))
-            else
-              None
-          } else
-            None
-        }
-        .groupBy( _._1 )
-        .map { case (pi, v) =>
-          pi -> v.map { case (_, ii, jj) => (ii, jj) }
-        }
-    
     val sc = blocks.sparkContext    
-    println(partOffsets(starts, 0).mapValues(_.toIndexedSeq))
-    println(partOffsets(stops, nCols).mapValues(_.toIndexedSeq))
-    val partStartOffsetsBc = sc.broadcast(partOffsets(starts, 0))
-    val partStopOffsetsBc = sc.broadcast(partOffsets(stops, nCols))
+    val startBlockIndexBc = sc.broadcast(starts.map(gp.indexBlockIndex))
+    val stopBlockIndexBc = sc.broadcast(stops.map(stop => (stop / blockSize).toInt))
+    val startBlockOffsetBc = sc.broadcast(starts.map(gp.indexBlockOffset))
+    val stopBlockOffsetsBc = sc.broadcast(stops.map(gp.indexBlockOffset))
 
     val zeroedBlocks = blocks.mapPartitionsWithIndex( { case (pi, it) =>
       assert(it.hasNext)
-      val ((i, j), lm) = it.next()
+      val ((i, j), lm0) = it.next()
       assert(!it.hasNext)
 
-      val nColsInBlock = lm.cols
+      val lm = lm0.copy // avoidable?
       
-      partStartOffsetsBc.value.get(pi).foreach(_.foreach {
-        case (ii, jj) => println(lm, ii, jj); lm(ii to ii, 0 until jj) := 0.0; println(lm)
-      })
+      val startBlockIndex = startBlockIndexBc.value
+      val stopBlockIndex = stopBlockIndexBc.value
+      val startBlockOffset = startBlockOffsetBc.value
+      val stopBlockOffset = stopBlockOffsetsBc.value
+      
+      val nRowsInBlock = lm.rows
+      val nColsInBlock = lm.cols
 
-      partStopOffsetsBc.value.get(pi).foreach(_.foreach {
-        case (ii, jj) => println(lm, ii, jj); lm(ii to ii, jj until nColsInBlock) := 0.0; println(lm)
-      })
+      var row = i * blockSize
+      var ii = 0
+      while (ii < nRowsInBlock) {
+        val startBlock = startBlockIndex(row)
+        if (startBlock == j)
+          lm(ii to ii, 0 until startBlockOffset(row)) := 0.0
+        else if (startBlock > j)
+          lm(ii to ii, ::) := 0.0
+        val stopBlock = stopBlockIndex(row)
+        if (stopBlock == j)
+          lm(ii to ii, stopBlockOffset(row) until nColsInBlock) := 0.0
+        else if (stopBlock < j)
+          lm(ii to ii, ::) := 0.0
+        row += 1
+        ii += 1
+      }
       
       Iterator.single(((i, j), lm))
     }, preservesPartitioning = true)
