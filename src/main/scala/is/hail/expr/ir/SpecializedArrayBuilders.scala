@@ -79,14 +79,12 @@ class StagedArrayBuilder(val elt: Type, mb: MethodBuilder, len: Code[Int]) {
   def clear: Code[Unit] = wrapArgs[Unit]("clear")
 }
 
-sealed abstract class MissingArrayBuilder[T](initialCapacity: Int) {
+sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
 
   var missing: Array[Boolean] = new Array[Boolean](initialCapacity)
   var size_ : Int = 0
 
   def size: Int = size_
-
-  def apply(i: Int): T
 
   def isMissing(i: Int): Boolean = {
     require(i >= 0 && i < size)
@@ -94,10 +92,6 @@ sealed abstract class MissingArrayBuilder[T](initialCapacity: Int) {
   }
 
   def ensureCapacity(n: Int): Unit
-
-  def add(x: T): Unit
-
-  def update(i: Int, x: T): Unit
 
   def setMissing(i: Int, m: Boolean): Unit = {
     require(i >= 0 && i < size)
@@ -118,7 +112,7 @@ sealed abstract class MissingArrayBuilder[T](initialCapacity: Int) {
   def clear() {  size_ = 0 }
 }
 
-class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Byte](initialCapacity) {
+class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Byte] = new Array[Byte](initialCapacity)
 
   def apply(i: Int): Byte = {
@@ -152,7 +146,7 @@ class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Byte](i
   }
 }
 
-class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Int](initialCapacity) {
+class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Int] = new Array[Int](initialCapacity)
 
   def apply(i: Int): Int = {
@@ -186,7 +180,7 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Int](ini
   }
 }
 
-class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Long](initialCapacity) {
+class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Long] = new Array[Long](initialCapacity)
 
   def apply(i: Int): Long = {
@@ -220,7 +214,7 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Long](i
   }
 }
 
-class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Float](initialCapacity) {
+class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Float] = new Array[Float](initialCapacity)
 
   def apply(i: Int): Float = {
@@ -254,7 +248,7 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Float]
   }
 }
 
-class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Double](initialCapacity) {
+class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Double] = new Array[Double](initialCapacity)
 
   def apply(i: Int): Double = {
@@ -288,7 +282,7 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Doubl
   }
 }
 
-class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder[Boolean](initialCapacity) {
+class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Boolean] = new Array[Boolean](initialCapacity)
 
   def apply(i: Int): Boolean = {
