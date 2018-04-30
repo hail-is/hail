@@ -1475,14 +1475,14 @@ class Tests(unittest.TestCase):
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
-                covariates=[ds.cov.Cov1, ds.cov.Cov2],
+                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
                 logistic=False).count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=hl.pl_dosage(ds.PL),
-                covariates=[ds.cov.Cov1, ds.cov.Cov2],
+                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
                 logistic=True).count()
 
     def test_import_gen(self):
