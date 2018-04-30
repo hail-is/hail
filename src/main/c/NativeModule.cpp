@@ -67,18 +67,29 @@ bool fileExistsAndIsRecent(const std::string& name) {
   st.st_mtime = now;
   int rc;
   do {
+    errno = 0;
     rc = stat(name.c_str(), &st);
   } while ((rc < 0) && (errno == EINTR));
   return ((rc == 0) && (st.st_mtime+120 > now));
 }
 
 bool fileExists(const std::string& name) {
-  return(::access(name.c_str(), R_OK) == 0);
+  int rc;
+  struct stat st;
+  do {
+    errno = 0;
+    rc = stat(name.c_str(), &st);
+  } while ((rc < 0) && (errno == EINTR));
+  return(rc == 0);
 }
 
 long fileSize(const std::string& name) {
+  int rc;
   struct stat st;
-  int rc = ::stat(name.c_str(), &st);
+  do {
+    errno = 0;
+    rc = ::stat(name.c_str(), &st);
+  } while ((rc < 0) && (errno = EINTR));
   return((rc < 0) ? -1 : st.st_size);
 }
 
@@ -99,9 +110,10 @@ std::string lastMatch(const char* pattern) {
       if (c == EOF) break;
       if ((c != '\n') && (len+1 < sizeof(buf))) buf[len++] = c;
     }
-    fclose(f);
+    pclose(f);
   }
   buf[len] = 0;
+  //fprintf(stderr, "DEBUG: lastMatch(%s) -> %s\n", pattern, buf);
   return std::string(buf);
 }
 
@@ -135,6 +147,7 @@ public:
     if (isOsDarwin_) {
       llvmHome_ = lastMatch("/usr /usr/local/*llvm-6*x86_64*darwin");
       cxxName_ = (fileExists(llvmHome_+"/bin/clang") ? "clang" : "c++");
+      if (cxxName_ == "c++") llvmHome_ = "/usr";
       javaHome_ = "/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home";
       javaMD_ = "darwin";
     } else {
