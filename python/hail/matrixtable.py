@@ -2982,6 +2982,7 @@ class MatrixTable(ExprContainer):
         Consider a matrix table with the following schema:
 
         .. code-block:: text
+
           Global fields:
               'batch': str 
           Column fields:
@@ -3009,6 +3010,7 @@ class MatrixTable(ExprContainer):
         one for each sample and entry field:
 
         .. code-block:: text
+
           Global fields:
               'batch': str 
           Row fields:
