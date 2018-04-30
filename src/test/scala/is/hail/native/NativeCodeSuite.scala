@@ -12,21 +12,6 @@ import org.testng.annotations.Test
 import is.hail.utils._
 import is.hail.testUtils._
 
-object NativeObject {
-  //@native def objectMethod(a: Long): Long
-
-  lazy val isLoaded: Boolean = {
-    val envHailHome = System.getenv("HAIL_HOME")
-    val osName = System.getProperty("os.name")
-    if ((osName.length >= 6) && osName.substring(0, 6).equals("Mac OS"))
-      System.load(s"${envHailHome}/build/resources/main/darwin/libhail.dylib")
-    else
-      System.load(s"${envHailHome}/build/resources/main/linux-x86-64/libhail.so")
-    true
-  }
-  
-}
-
 class TestFieldAccess {
   var fieldLong: Long = 0
 
@@ -37,13 +22,9 @@ class TestFieldAccess {
 
 class NativeCodeSuite extends SparkSuite {
 
-  @Test def testAAALoadLibHail(): Unit = {
-    NativeObject.isLoaded
-  }
-
   @Test def testNativePtr() = {
     System.err.println("testNativePtr() ...")
-    NativeObject.isLoaded
+    NativeCode.init()
     var a = new NativeStatus()
     assert(a.ok)
     assert(a.use_count() == 1)
@@ -81,7 +62,7 @@ class NativeCodeSuite extends SparkSuite {
 
   @Test def testNativeGlobal() = {
     System.err.println("testNativeGlobal() ...")
-    NativeObject.isLoaded
+    NativeCode.init()
     var ret: Long = -1
     val st = new NativeStatus()
     val globalModule = new NativeModule("global")
@@ -114,7 +95,7 @@ class NativeCodeSuite extends SparkSuite {
 
   @Test def testNativeBuild() = {
     System.err.println("testNativeBuild() ...")
-    NativeObject.isLoaded
+    NativeCode.init()
     val sb = new StringBuilder()
     sb.append("#include \"hail/hail.h\"\n")
     sb.append("NAMESPACE_HAIL_MODULE_BEGIN\n")

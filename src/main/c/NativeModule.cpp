@@ -89,7 +89,7 @@ const char* getenvWithDefault(const char* name, const char* defaultVal) {
 
 std::string lastMatch(const char* pattern) {
   std::stringstream ss;
-  ss << "/bin/ls -d " << pattern << " | tail -1";
+  ss << "/bin/ls -d " << pattern << " 2>/dev/null | tail -1";
   FILE* f = popen(ss.str().c_str(), "r");
   char buf[1024];
   size_t len = 0;

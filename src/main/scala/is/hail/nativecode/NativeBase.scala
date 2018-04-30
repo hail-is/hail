@@ -12,6 +12,21 @@ package is.hail.nativecode
 // to get this right.
 //
 
+object NativeCode {
+  val isLoaded: Boolean = {
+    val hailHome = System.getenv("HAIL_HOME")
+    val os = System.getProperty("os.name")
+    System.err.println(s"hailHome ${hailHome} os ${os}")
+    val extLib = if ((os.length >= 6) && os.substring(0, 6).equals("Mac OS")) ".dylib" else ".so"
+    val libName = s"${hailHome}/out/production/resources/linux-x86-64/libhail${extLib}"
+    System.err.println(s"System.load(${libName}) ...")
+    System.load(libName)
+    true
+  }
+
+  def init(): Unit = { }
+}
+
 class NativeBase() extends AutoCloseable {
   protected var addrA: Long = 0
   protected var addrB: Long = 0

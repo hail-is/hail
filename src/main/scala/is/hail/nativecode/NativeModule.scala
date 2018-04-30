@@ -1,5 +1,7 @@
 package is.hail.nativecode
 
+import com.sun.jna.Native
+
 //
 // NativeModule refers to a single DLL.
 //
@@ -17,8 +19,8 @@ package is.hail.nativecode
 class NativeModule() extends NativeBase() {
   @native def nativeCtorMaster(options: String, source: String, forceBuild: Boolean): Unit
   @native def nativeCtorWorker(isGlobal: Boolean, key: String, binary: Array[Byte]): Unit
-  
-  // Copy-constructor 
+
+  // Copy-constructor
   def this(b: NativeModule) {
     this()
     super.copyAssign(b)
