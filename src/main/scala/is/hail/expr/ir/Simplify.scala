@@ -90,6 +90,22 @@ object Simplify {
           case None => GetField(old, name)
         }
 
+      case InsertFields(InsertFields(base, fields1), fields2) =>
+        val fields1Set = fields1.map(_._1).toSet
+        val fields2Map = fields2.toMap
+
+        val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
+          fields2.filter { case (name, _) => !fields1Set.contains(name) }
+        InsertFields(base, finalFields)
+
+      case InsertFields(MakeStruct(fields1), fields2) =>
+        val fields1Set = fields1.map(_._1).toSet
+        val fields2Map = fields2.toMap
+
+        val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
+          fields2.filter { case (name, _) => !fields1Set.contains(name) }
+        MakeStruct(finalFields)
+
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
       // optimize TableIR
