@@ -2268,7 +2268,6 @@ class MatrixTable(ExprContainer):
         if row_exprs:
             row_struct = self.row.annotate(**row_exprs)
             analyze("MatrixTable.annotate_rows", row_struct, self._row_indices)
-            hql = row_struct._ast.to_hql()
             jmt = jmt.selectRows(row_struct._ast.to_hql())
         if col_exprs:
             col_struct = self.col.annotate(**col_exprs)
@@ -2883,7 +2882,9 @@ class MatrixTable(ExprContainer):
                 partition_key = [partition_key]
             if len(partition_key) == 0:
                 raise ValueError('partition_key must not be empty')
-            elif table.key is None or list(table.key)[:len(partition_key)] != partition_key:
+            elif table.key is None:
+                raise ValueError('Table must have a defined key to convert to matrix table')
+            elif list(table.key)[:len(partition_key)] != partition_key:
                 raise ValueError('partition_key must be a prefix of table key')
         jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt, partition_key)
         return MatrixTable(jmt)

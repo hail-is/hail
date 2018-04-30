@@ -231,18 +231,25 @@ class TableSuite extends SparkSuite {
     val ktRight = hc.importTable(inputFile2, impute = true).keyBy("Sample").rename(Map("Sample" -> "sample"), Map())
     val ktBad = ktRight.keyBy("qPhen2")
 
+    // test incompatible keys
     intercept[Exception] {
       ktLeft.join(ktBad, "left")
     }
 
+    // test no key on right
     intercept[Exception] {
       ktLeft.join(ktRight.unkey(), "left")
     }
 
+    // test no key on left
     intercept[Exception] {
       ktLeft.unkey().join(ktRight, "left")
     }
 
+    // test no key on both
+    intercept[Exception] {
+      ktLeft.unkey().join(ktRight.unkey(), "left")
+    }
     val ktJoin = ktLeft.join(ktRight, "left")
     assert(ktJoin.key.get sameElements Array("Sample"))
   }
@@ -480,10 +487,10 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testMaximalIndependentSet() {
-    val edges = List((0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
+    val edges = Array((0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
     val edgeTable = Table.parallelize(
       SparkSuite.hc,
-      edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) }.toIndexedSeq,
+      edges.map { case (i: Int, j: Int) => Row(i.toLong, j.toLong) },
       TStruct("i" -> TInt64(), "j" -> TInt64()),
       None,
       None)
@@ -503,7 +510,7 @@ class TableSuite extends SparkSuite {
 
   @Test def testMaximalIndependentSetWithTieBreakerAndStrings() {
     val isCase = Map("A" -> true, "C" -> true, "E" -> true, "G" -> true, "H" -> true)
-    val edges = List(("A", "B"), ("C", "D"), ("E", "F"), ("G", "H"))
+    val edges = Array(("A", "B"), ("C", "D"), ("E", "F"), ("G", "H"))
       .map { case (strA, strB) =>
         ((strA, isCase.getOrElse(strA, false)), (strB, isCase.getOrElse(strB, false)))
       }
@@ -512,7 +519,7 @@ class TableSuite extends SparkSuite {
 
     val edgeTable = Table.parallelize(
       SparkSuite.hc,
-      edges.map { case (i, j) => Row(Row(i._1, i._2), Row(j._1, j._2)) }.toIndexedSeq,
+      edges.map { case (i, j) => Row(Row(i._1, i._2), Row(j._1, j._2)) },
       TStruct("i" -> iStruct, "j" -> iStruct),
       None,
       None)

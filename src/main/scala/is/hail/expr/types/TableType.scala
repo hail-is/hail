@@ -63,7 +63,7 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
         key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
         sb += ']'
       case None =>
-        sb.append(s"key:${space}none")
+        sb.append(s"key:${space}None")
     }
     sb += ','
     newline()

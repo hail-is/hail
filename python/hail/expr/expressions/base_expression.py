@@ -711,7 +711,7 @@ class Expression(object):
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
-        if name in t.key:
+        if t.key is not None and name in t.key:
             t = t.select(name)
         return t._show(n, width, truncate, types)
 

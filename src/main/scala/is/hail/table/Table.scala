@@ -389,8 +389,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
                (key.isDefined && key.get != other.key.get)) {
       info(
         s"""different keys:
-            | left: ${ key.map(_.mkString(", ")).getOrElse("none") }
-            | right: ${ other.key.map(_.mkString(", ")).getOrElse("none")}
+            | left: ${ key.map(_.mkString(", ")).getOrElse("None") }
+            | right: ${ other.key.map(_.mkString(", ")).getOrElse("None")}
             |""".stripMargin)
       false
     } else if (globalSignatureOpt != other.globalSignature.deepOptional()) {
@@ -410,7 +410,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     } else if (key.isDefined) {
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
-          case (None, None) => true
           case (Some(x), Some(y)) =>
             val r1 = x.toArray
             val r2 = y.toArray
@@ -439,7 +438,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
           other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
         ).forall { case (k, (v1, v2)) =>
           (v1, v2) match {
-            case (None, None) => true
             case (Some(x), Some(y)) => x.size == y.size
             case (Some(x), None) =>
               info(s"ROW IN LEFT, NOT RIGHT: ${ x.mkString("\n    ") }\n")
@@ -564,11 +562,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def keyBy(keys: Array[String], sort: Boolean): Table = keyBy(keys, keys, sort)
 
-  def keyBy(maybeKeys: Option[Array[String]]): Table =
-    maybeKeys match {
-      case Some(keys) => keyBy(keys)
-      case None => unkey()
-    }
+  def keyBy(maybeKeys: Option[Array[String]]): Table = keyBy(maybeKeys, true)
 
   def keyBy(maybeKeys: Option[Array[String]], sort: Boolean): Table =
     maybeKeys match {

@@ -729,6 +729,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateColsTable(kt: Table, root: String): MatrixTable = {
+    require(kt.keyFields.isDefined)
 
     val (finalType, inserter) = colType.structInsert(
       kt.valueSignature,
@@ -783,7 +784,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val rightValueIndices = rightRVD.typ.valueIndices
     assert(!product || rightValueIndices.length == 1)
 
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
     val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
       val rvb = new RegionValueBuilder()
       val rv = RegionValue()
@@ -820,6 +820,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
     }
 
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
     val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length).toArray).orderedJoinDistinct(
       right.keyBy(),
       "left",
@@ -1483,8 +1484,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
   }
 
-  // FIXME
-  def makeKT(rowExpr: String, entryExpr: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {
+  def makeKT(
+    rowExpr: String,
+    entryExpr: String,
+    keyNames: Option[IndexedSeq[String]] = None,
+    seperator: String = "."
+  ): Table = {
     requireColKeyString("make table")
 
     val vSymTab = Map(
@@ -1556,7 +1561,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         }
       },
       sig,
-      Some(keyNames.toIndexedSeq))
+      keyNames)
   }
 
   def aggregateRowsJSON(expr: String): String = {

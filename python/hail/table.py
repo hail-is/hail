@@ -2224,7 +2224,7 @@ class Table(ExprContainer):
     def to_pandas(self, flatten=True):
         """Converts this table to a Pandas DataFrame.
 
-        Because converion to Pandas is done through Spark, and Spark
+        Because conversion to Pandas is done through Spark, and Spark
         cannot represent complex types, types are expanded before
         flattening or conversion.
 
@@ -2306,7 +2306,8 @@ class Table(ExprContainer):
 
         Notes
         -----
-        The order of the values array is not guaranteed.
+        The order of the values array is not guaranteed. Does not work on tables
+        with `key=None`.
 
         Parameters
         ----------
@@ -2317,6 +2318,8 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
+        if self.key is None:
+            raise ValueError('''method 'collect_by_key' requires keyed table''')
         return Table(self._jt.groupByKey(name))
 
     def distinct(self) -> 'Table':
@@ -2354,12 +2357,15 @@ class Table(ExprContainer):
 
         Notes
         -----
-        The row chosen per distinct key is not guaranteed.
+        The row chosen per distinct key is not guaranteed. Does not work on
+        tables with `key=None`.
 
         Returns
         -------
         :class:`.Table`
         """
+        if self.key is None:
+            raise ValueError('''method 'distinct' requires keyed table''')
         return Table(self._jt.distinctByKey())
 
 table_type.set(Table)
