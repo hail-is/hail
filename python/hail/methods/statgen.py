@@ -2912,6 +2912,28 @@ class FilterAlleles(object):
 @typecheck(ds=MatrixTable,
            r2=numeric,
            window=int,
+           memory_per_core=int)  
+def _local_ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
+    bytes_per_core = memory_per_core * 1024 * 1024
+    fraction_memory_to_use = 0.25
+    variant_byte_overhead = 50
+    genotypes_per_pack = 32
+    n_samples = ds.count_cols()
+    min_memory_per_core = math.ceil((1 / fraction_memory_to_use) * 8 * n_samples + variant_byte_overhead)
+    if bytes_per_core < min_memory_per_core:
+        raise ValueError("memory per core must be greater than {} MB".format(min_memory_per_core * 1024 * 1024))
+    bytes_per_variant = math.ceil(8 * n_samples / genotypes_per_pack) + variant_byte_overhead
+    memory_available_per_core = bytes_per_core * fraction_memory_to_use
+    max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
+
+    sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
+        require_biallelic(ds, 'ld_prune')._jvds, float(r2), window, max_queue_size))
+
+    return sites_only_table
+
+@typecheck(ds=MatrixTable,
+           r2=numeric,
+           window=int,
            memory_per_core=int)
 def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     """Prune variants in linkage disequilibrium.
@@ -2944,20 +2966,7 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     :class:`.Table`
         Table of variants after pruning.
     """
-    bytes_per_core = memory_per_core * 1024 * 1024
-    fraction_memory_to_use = 0.25
-    variant_byte_overhead = 50
-    genotypes_per_pack = 32
-    n_samples = ds.count_cols()
-    min_memory_per_core = math.ceil((1 / fraction_memory_to_use) * 8 * n_samples + variant_byte_overhead)
-    if bytes_per_core < min_memory_per_core:
-        raise ValueError("memory per core must be greater than {} MB".format(min_memory_per_core * 1024 * 1024))
-    bytes_per_variant = math.ceil(8 * n_samples / genotypes_per_pack) + variant_byte_overhead
-    memory_available_per_core = bytes_per_core * fraction_memory_to_use
-    max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
-
-    sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
-        require_biallelic(ds, 'ld_prune')._jvds, float(r2), window, max_queue_size))
+    sites_only_table = _local_ld_prune(ds, r2, window, memory_per_core)
 
     sites_path = new_temp_file()
     sites_only_table.write(sites_path, overwrite=True)
@@ -2968,12 +2977,13 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
 
     locally_pruned_ds = (locally_pruned_ds.annotate_rows(
         mean=locally_pruned_ds.pruned.mean, 
-        centered_length_sd_reciprocal=locally_pruned_ds.pruned.centered_length_sd_reciprocal)
-        .add_row_index('row_idx'))
+        centered_length_sd_reciprocal=locally_pruned_ds.pruned.centered_length_sd_reciprocal))
 
     locally_pruned_path = new_temp_file()
     locally_pruned_ds.write(locally_pruned_path, overwrite=True)
     locally_pruned_ds = hl.read_matrix_table(locally_pruned_path)
+
+    locally_pruned_ds = locally_pruned_ds.add_row_index('row_idx')
 
     normalized_mean_imputed_genotype_expr = (
         hl.cond(hl.is_defined(locally_pruned_ds.GT),
@@ -2984,13 +2994,10 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=1024)
     correlation_matrix = (block_matrix @ (block_matrix.T))
 
-    entries = Table(correlation_matrix._jbm.filteredEntriesTable(
-        locally_pruned_ds.annotate_rows(contig=locally_pruned_ds.locus.contig, pos=locally_pruned_ds.locus.position)
-            .select_rows('contig', 'pos').rows().key_by("contig")._jt, window, False
-    ))
-    entries_path = new_temp_file()
-    entries.write(entries_path, overwrite=True)
-    entries = hl.read_table(entries_path)
+    locally_pruned_rows = locally_pruned_ds.rows()
+    entries = correlation_matrix._filtered_entries_table(
+        locally_pruned_rows.select(contig=locally_pruned_rows.locus.contig, pos=locally_pruned_rows.locus.position)
+            .key_by("contig"), window, False)
 
     entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i != entries.j) & (entries.i < entries.j))
 
@@ -3000,12 +3007,15 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     entries = entries.filter((entries.locus_i.contig == entries.locus_j.contig)
                              & ((hl.abs(entries.locus_i.position - entries.locus_j.position)) <= window))
 
+    entries_path = new_temp_file()
+    entries.write(entries_path, overwrite=True)
+    entries = hl.read_table(entries_path)
+
     related_nodes_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
 
     pruned_ds = locally_pruned_ds.filter_rows(
         hl.is_defined(related_nodes_to_remove[locally_pruned_ds.row_idx]), keep=False)
 
-    info("LD prune step 2 of 2: nVariantsKept={}".format(pruned_ds.count_rows()))
     return pruned_ds.rows().select('locus', 'alleles')
 
 

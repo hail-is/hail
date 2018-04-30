@@ -266,17 +266,6 @@ object LocalLDPrune {
     }
   }
 
-  private def pruneLocalTimed(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, maxQueueSize: Option[Int]):
-  ((OrderedRVD, Long, Int), Long) = {
-    time({
-      val prunedRDD = pruneLocal(inputRDD, r2Threshold, windowSize, maxQueueSize)
-      val nVariantsKept = prunedRDD.count()
-      val nPartitions = prunedRDD.getNumPartitions
-      assert(nVariantsKept >= 1)
-      (prunedRDD, nVariantsKept, nPartitions)
-    })
-  }
-
   def apply(mt: MatrixTable, r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
 
     mt.requireRowKeyVariant("ld_prune")
@@ -329,10 +318,8 @@ object LocalLDPrune {
             None
         }
       })
-
-    val ((rddLP, nVariantsLP1, nPartitionsLP1), durationLP1) = pruneLocalTimed(
-      standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
-    info(s"LD prune step 1 of 2: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
+    
+    val rddLP = pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val tableType = TableType(
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_sd_reciprocal" -> TFloat64Required),
