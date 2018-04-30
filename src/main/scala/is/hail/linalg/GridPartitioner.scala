@@ -11,7 +11,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   
   def indexBlockIndex(index: Long): Int = (index / blockSize).toInt
 
-  def offsetBlockOffset(index: Long): Int = (index % blockSize).toInt
+  def indexBlockOffset(index: Long): Int = (index % blockSize).toInt
 
   val nBlockRows: Int = indexBlockIndex(nRows - 1) + 1
   val nBlockCols: Int = indexBlockIndex(nCols - 1) + 1
@@ -22,8 +22,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
       bis.length < maxNBlocks))) // a sparse block matrix cannot have all blocks present
 
-  val lastBlockRowNRows: Int = offsetBlockOffset(nRows - 1) + 1
-  val lastBlockColNCols: Int = offsetBlockOffset(nCols - 1) + 1
+  val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
+  val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
   
   def blockRowNRows(i: Int): Int = if (i < nBlockRows - 1) blockSize else lastBlockRowNRows
   def blockColNCols(j: Int): Int = if (j < nBlockCols - 1) blockSize else lastBlockColNCols

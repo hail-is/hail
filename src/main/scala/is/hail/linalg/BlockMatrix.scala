@@ -209,6 +209,60 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       new BlockMatrix(blocks.subsetPartitions(partsToKeep, Some(filteredGP)), blockSize, nRows, nCols)
   }
   
+  // for row i, filter to indices [starts[i], stops[i]) by dropping non-overlapping blocks
+  // if setZero, also zero out elements in partially overlap
+  def filterBlocksByRow(starts: Array[Long], stops: Array[Long], setZero: Boolean): BlockMatrix = {
+    require(nRows <= Int.MaxValue) // FIXME relax
+    require(starts.length == nRows)
+    require(stops.length == nRows)
+    
+    val rectangles = ((0 until nRows.toInt).toArray, starts, stops)
+      .zipped
+      .map { case (row, start, stop) => Array(row, row, start, stop - 1) }
+    
+    val filteredBM = filterBlocks(gp.rectangularBlocks(rectangles))
+    
+    if (!setZero)
+      return filteredBM
+    
+    def partOffsets(positions: Array[Long]): Map[Int, Array[(Int, Int)]] =
+      positions.zipWithIndex
+        .map { case (start, row) =>
+          val pi = gp.coordinatesPart(gp.indexBlockIndex(row), gp.indexBlockIndex(start))
+          val ii = gp.indexBlockOffset(row)
+          val jj = gp.indexBlockOffset(start)
+          (pi, ii, jj)
+        }
+        .groupBy( _._1 )
+        .map { case (pi, v) =>
+          pi -> v.map { case (_, ii, jj) => (ii, jj) }
+        }
+    
+    val sc = filteredBM.blocks.sparkContext
+    val partStartOffsetsBc = sc.broadcast(partOffsets(starts))
+    val partStopOffsetsBc = sc.broadcast(partOffsets(stops))
+
+    val zeroedBlocks = filteredBM.blocks.mapPartitionsWithIndex( { case (pi, it) =>
+      assert(it.hasNext)
+      val (_, lm) = it.next()
+      assert(!it.hasNext)
+
+      val nColsInBlock = lm.cols
+
+      partStartOffsetsBc.value.get(pi).foreach(_.foreach { 
+        case (ii, jj) => lm(ii to ii, 0 until jj) := 0.0 
+      })
+
+      partStopOffsetsBc.value.get(pi).foreach(_.foreach {
+        case (ii, jj) => lm(ii to ii, jj until nColsInBlock) := 0.0
+      })
+      
+      it
+    }, preservesPartitioning = true)
+    
+    new BlockMatrix(zeroedBlocks, blockSize, nRows, nCols)
+  }
+  
   // element-wise ops
   def unary_+(): M = this
   
@@ -235,7 +289,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def div(that: M): M = blockMap2(that, _ /:/ _,
     "element-wise division")
 
-  private val divSet: Set[Double] = Set(0.0, Double.NaN, Double.NegativeInfinity, Double.PositiveInfinity)
+  private val badDivSet: Set[Double] = Set(0.0, Double.NaN, Double.NegativeInfinity, Double.PositiveInfinity)
   
   // row broadcast
   def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv,
@@ -250,7 +304,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv, 
     "broadcasted division by row-vector containing zero, nan, or infinity",
-    reqDense = a.exists(divSet))(a)
+    reqDense = a.exists(badDivSet))(a)
 
   def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _),
     "broadcasted row-vector minus block matrix")(a)
@@ -271,7 +325,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv,
     "broadcasted division by column-vector containing zero",
-    reqDense = a.exists(divSet))(a)
+    reqDense = a.exists(badDivSet))(a)
 
   def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _),
     "broadcasted column-vector minus block matrix")(a)
@@ -291,7 +345,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     reqDense = false)
   
   def scalarDiv(i: Double): M = {
-    if (divSet(i))
+    if (badDivSet(i))
       fatal(s"cannot divide block matrix by scalar $i")
     blockMap(_ /:/ i,
       "scalar division",
