@@ -1379,6 +1379,8 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
 
 case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableReaderOptions) extends TableIR {
   assert(typ.globalType.size == 0)
+  assert(typ.rowType.size == readerOpts.useColIndices.length)
+
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableImport = {
@@ -1388,8 +1390,11 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
 
   def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
-    val nField = rowTyp.fields.length
+    val nFieldOrig = readerOpts.originalRowTypeSize
     val rowFields = rowTyp.fields
+    
+    val useColIndices = readerOpts.useColIndices
+
 
     val rvd = hc.sc.textFilesLines(paths, readerOpts.nPartitions)
       .filter { line =>
@@ -1405,25 +1410,30 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
         _.map { line =>
           region.clear()
 
-          val split = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
-          if (split.length != nField)
-            fatal(s"expected $nField fields, but found ${ split.length } fields")
+          val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
+          if (sp.length != nFieldOrig)
+            fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
+
+          val kept = useColIndices.map(sp)
+
           rvb.set(region)
           rvb.start(rowTyp)
           rvb.startStruct()
 
           var i = 0
-          while (i < nField) {
-            val Field(name, t, _) = rowFields(i)
-            val field = split(i)
+          while (i < useColIndices.length) {
+            val f = rowFields(i)
+            val name = f.name
+            val typ = f.typ
+            val field = kept(i)
             try {
               if (field == readerOpts.missing)
                 rvb.setMissing()
               else
-                rvb.addAnnotation(t, TableAnnotationImpex.importAnnotation(field, t))
+                rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
             } catch {
               case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """)
             }
             i += 1
           }

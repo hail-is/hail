@@ -2,8 +2,12 @@ package is.hail.utils
 
 import is.hail.SparkSuite
 import is.hail.check._
+import is.hail.expr.TableImport
+import is.hail.expr.ir.Interpret
 import is.hail.expr.types._
-import is.hail.variant.{ReferenceGenome$, MatrixTable, VSMSubgen}
+import is.hail.table.Table
+import is.hail.variant.{MatrixTable, ReferenceGenome$, VSMSubgen}
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -86,5 +90,27 @@ class TextTableSuite extends SparkSuite {
 
   @Test def testPipeDelimiter() {
     assert(TextTableReader.splitLine("a|b", "|", '#').toSeq == Seq("a", "b"))
+  }
+  
+  @Test def testUseColsParameter() {
+    val file = "src/test/resources/variantAnnotations.tsv"
+    val tbl = TextTableReader.read(hc)(Array(file), impute = true)
+    val tir = tbl.tir.asInstanceOf[TableImport]
+    
+    val selectOneCol = tbl.select("{Gene: row.Gene}")
+    val irSelectOneCol = new Table(hc, TableImport(
+      tir.paths,
+      selectOneCol.typ,
+      tir.readerOpts.copy(useColIndices = Array(6))
+    ))
+    assert(selectOneCol.same(irSelectOneCol))
+
+    val selectTwoCols = tbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}")
+    val irSelectTwoCols = new Table(hc, TableImport(
+      tir.paths,
+      selectTwoCols.typ,
+      tir.readerOpts.copy(useColIndices = Array(0, 5))
+    ))
+    assert(selectTwoCols.same(irSelectTwoCols))
   }
 }
