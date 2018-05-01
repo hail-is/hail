@@ -1347,7 +1347,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
 
   def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
-    val nFieldOrig = readerOpts.originalType.size
+    val nFieldOrig = readerOpts.originalRowTypeSize
     val rowFields = rowTyp.fields
     
     val useColIndices = readerOpts.useColIndices

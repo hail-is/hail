@@ -94,23 +94,23 @@ class TextTableSuite extends SparkSuite {
   
   @Test def testUseColsParameter() {
     val file = "src/test/resources/variantAnnotations.tsv"
-    val readAllColsTbl = TextTableReader.read(hc)(Array(file), impute = true)
-
-    val select = readAllColsTbl.select("{Gene: row.Gene}")
-    val tir = readAllColsTbl.tir.asInstanceOf[TableImport]
-    val irSelect = new Table(hc, TableImport(
+    val tbl = TextTableReader.read(hc)(Array(file), impute = true)
+    val tir = tbl.tir.asInstanceOf[TableImport]
+    
+    val selectOneCol = tbl.select("{Gene: row.Gene}")
+    val irSelectOneCol = new Table(hc, TableImport(
       tir.paths,
-      select.typ,
+      selectOneCol.typ,
       tir.readerOpts.copy(useColIndices = Array(6))
     ))
-    assert(select.same(irSelect))
+    assert(selectOneCol.same(irSelectOneCol))
 
-    val select2 = readAllColsTbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}")
-    val irSelect2 = new Table(hc, TableImport(
+    val selectTwoCols = tbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}")
+    val irSelectTwoCols = new Table(hc, TableImport(
       tir.paths,
-      select2.typ,
+      selectTwoCols.typ,
       tir.readerOpts.copy(useColIndices = Array(0, 5))
     ))
-    assert(select2.same(irSelect2))
+    assert(selectTwoCols.same(irSelectTwoCols))
   }
 }

@@ -22,7 +22,7 @@ case class TableReaderOptions(
   quote: java.lang.Character,
   skipBlankLines: Boolean,
   useColIndices: Array[Int],
-  originalType: TStruct) {
+  originalRowTypeSize: Int) {
   assert(useColIndices.isSorted)
 
   def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
@@ -215,33 +215,33 @@ object TextTableReader {
 
         sb.append("Finished type imputation")
         val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
-        columns.zip(imputedTypes).flatMap { case (name, imputedType) =>
+        columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>
               sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
-              Some((name, t))
+              (name, t)
             case None =>
               imputedType match {
                 case Some(t) =>
                   sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
-                  Some((name, t))
+                  (name, t)
                 case None =>
                   sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
-                  Some((name, TString()))
+                  (name, TString())
               }
           }
         }
       }
       else {
         sb.append("Reading table with no type imputation\n")
-        columns.flatMap { c =>
+        columns.map { c =>
           types.get(c) match {
             case Some(t) =>
               sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
-              Some((c, t))
+              (c, t)
             case None =>
               sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
-              Some((c, TString()))
+              (c, TString())
           }
         }
       }
@@ -252,7 +252,7 @@ object TextTableReader {
     val ttyp = TableType(TStruct(namesAndTypes: _*), keyNames, TStruct())
     val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
       separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
-      ttyp.rowType)
+      ttyp.rowType.size)
     new Table(hc, TableImport(files, ttyp, readerOpts))
   }
 }
