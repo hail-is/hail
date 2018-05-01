@@ -28,17 +28,9 @@ object ElasticsearchConnector {
     if (verbose)
       println(s"Config ${ mergedConfig }")
 
-    val fields = t.signature.fields.map(_.name)
-
     val df = t
       .expandTypes()
       .toDF(HailContext.get.sqlContext)
       .saveToEs(s"${ index }/${ indexType }", mergedConfig)
-
-    /*
-    EsSpark.saveToEs(
-      t.rdd.map(r => fields.zip(r.toSeq).toMap[String, Any]),
-      s"${index}/${indexType}",
-      mergedConfig) */
   }
 }
