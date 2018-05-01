@@ -16,10 +16,6 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
       ab.add(b)
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadBoolean(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     val other = agg2.asInstanceOf[RegionValueCollectBooleanAggregator]
     other.ab.foreach { _ =>
@@ -44,10 +40,6 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
       ab.addMissing()
     else
       ab.add(x)
-  }
-
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadInt(off), missing)
   }
 
   def combOp(agg2: RegionValueAggregator) {

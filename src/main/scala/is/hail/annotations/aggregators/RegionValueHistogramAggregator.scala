@@ -32,10 +32,6 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
       combiner.merge(x)
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadDouble(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     combiner.merge(agg2.asInstanceOf[RegionValueHistogramAggregator].combiner)
   }

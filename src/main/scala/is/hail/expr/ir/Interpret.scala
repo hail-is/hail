@@ -45,6 +45,7 @@ object Interpret {
       case Str(x) => x
       case True() => true
       case False() => false
+      case Void() => ()
       case Cast(v, t) =>
         val vValue = interpret(v, env, args, agg)
         if (vValue == null)
@@ -247,6 +248,14 @@ object Interpret {
           }
           zeroValue
         }
+      case ArrayFor(a, valueName, body) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue != null) {
+          aValue.asInstanceOf[IndexedSeq[Any]].foreach { element =>
+            interpret(body, env.bind(valueName -> element), args, agg)
+          }
+        }
+        ()
       case x@ApplyAggOp(a, op, aggArgs) =>
         val aValue = interpretAgg(a, agg._2)
         val aggType = a.typ.asInstanceOf[TAggregable].elementType
@@ -398,13 +407,15 @@ object Interpret {
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
 
         val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
+          "global", child.typ.globalType,
           "AGG", tAgg,
           "global", child.typ.globalType,
+          "row", child.typ.rowType,
           MakeTuple(Array(query)))
 
         val value = child.execute(HailContext.get)
         val globalsBc = value.globals.broadcast
-        val aggResults = if (seqOps.nonEmpty) {
+        val aggResults = if (rvAggs.nonEmpty) {
           value.rvd.aggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
             // add globals to region value
             val rowOffset = rv.offset
@@ -414,10 +425,9 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
 
-            rvaggs.zip(seqOps).foreach { case (rvagg, seqOp) =>
-              seqOp()(rv.region, rvagg, rowOffset, false, globalsOffset, false, rowOffset, false)
-            }
-            rvaggs
+            seqOps()(rv.region, rvAggs, rowOffset, false, globalsOffset, false, rowOffset, false)
+
+            rvAggs
           }, { (rvAggs1, rvAggs2) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1

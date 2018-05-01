@@ -12,10 +12,6 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
       max = i
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadBoolean(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxBooleanAggregator]
     if (that.max > max)
@@ -40,10 +36,6 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
     found = true
     if (i > max)
       max = i
-  }
-
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadInt(off), missing)
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -72,10 +64,6 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
       max = i
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadLong(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxLongAggregator]
     if (that.max > max)
@@ -102,10 +90,6 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
       max = i
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadFloat(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxFloatAggregator]
     if (that.max > max)
@@ -130,10 +114,6 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
     found = true
     if (i > max)
       max = i
-  }
-
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadDouble(off), missing)
   }
 
   def combOp(agg2: RegionValueAggregator) {

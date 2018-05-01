@@ -23,6 +23,8 @@ object Subst {
         ArrayFlatMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFold(a, zero, accumName, valueName, body) =>
         ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
+      case ArrayFor(a, valueName, body) =>
+        ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
       case ApplyAggOp(a, op, args) =>
         val substitutedArgs = args.map(arg => Recur(subst(_))(arg))
         ApplyAggOp(subst(a, aggEnv, Env.empty), op, substitutedArgs)

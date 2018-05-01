@@ -31,7 +31,7 @@ object Emit {
     apply(ir, fb, Some(tAggIn), nSpecialArguments)
   }
 
-  private def apply(ir: IR, fb: EmitFunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
+  def apply(ir: IR, fb: EmitFunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
     val triplet = emit(ir, fb, Env.empty, tAggIn, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
@@ -122,6 +122,7 @@ private class Emit(
           wrapCodeChunks(chunks)
       }
     }
+
     wrapCodeChunks(irs, true)
   }
 
@@ -135,8 +136,11 @@ private class Emit(
     *  2. evaluate precompute *on all static code-paths* leading to missingness or value
     *  3. guard the the evaluation of value by missingness
     *
+    *  Triplets returning values cannot have side-effects.  For void triplets, precompute
+    *  contains the side effect, missingness is false, and value is {@code Code._empty}.
+    *
     * JVM gotcha:
-    *  a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
+    * a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
     *
     * Argument Convention
     * -------------------
@@ -152,18 +156,13 @@ private class Emit(
     *
     * Aggregating expressions must have at least two special arguments. As with
     * all expressions, the first argument must be a {@code  Region}. The second
-    * argument is the {@code  RegionValueAggregator} that implements the
-    * functionality of the (unique) {@code  AggOp} in the expression. Note that
-    * the special arguments do not appear in pairs, i.e., they may not be
-    * missing.
+    * argument is the {@code  Array[RegionValueAggregator]} that is used by
+    * {@code SeqOp} to implement the aggregation. Note that the special arguments
+    * do not appear in pairs, i.e., they may not be missing.
     *
-    * An aggregating expression additionally has an element argument and a
-    * number of "scope" argmuents following the special arguments. The type of
-    * the element is {@code  tAggIn.elementType}. The number and types of the
-    * scope arguments are defined by the symbol table of {@code  tAggIn}. The
-    * element argument and the scope arguments, unlike special arguments, appear
-    * in pairs of a value and a missingness bit. Moreover, the element argument
-    * must appear first.
+    * When compiling an aggregation expression, {@code AggIn} refers to the first
+    * argument {@code In(0)} whose type must be of type
+    * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
   private def emit(ir: IR, env: E): EmitTriplet = {
@@ -171,15 +170,12 @@ private class Emit(
     def emit(ir: IR, env: E = env): EmitTriplet =
       this.emit(ir, env)
 
-    def emitAgg(ir: IR, env: E = env)(k: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] =
-      this.emitAgg(ir, aggEnv)(k)
-
     def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env)
 
     val region = mb.getArg[Region](1).load()
     lazy val aggregator = {
       assert(nSpecialArguments >= 2)
-      mb.getArg[RegionValueAggregator](2)
+      mb.getArg[Array[RegionValueAggregator]](2)
     }
 
     ir match {
@@ -197,6 +193,8 @@ private class Emit(
         present(const(true))
       case False() =>
         present(const(false))
+      case Void() =>
+        EmitTriplet(Code._empty, const(false), Code._empty)
 
       case Cast(v, typ) =>
         val codeV = emit(v)
@@ -412,9 +410,50 @@ private class Emit(
           xvout := xmout.mux(defaultValue(typ), xvout)
         ), xmout, xvout)
 
-      case x@ApplyAggOp(a, op, args) =>
-        val agg = AggOp.get(op, x.inputType, args.map(_.typ))
-        present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
+      case ArrayFor(a, valueName, body) =>
+        val tarray = coerce[TArray](a.typ)
+        val eti = typeToTypeInfo(tarray.elementType)
+        val xmv = mb.newField[Boolean]()
+        val xvv = coerce[Any](mb.newField(valueName)(eti))
+        val bodyenv = env.bind(
+          valueName -> (eti, xmv.load(), xvv.load()))
+        val codeB = emit(body, env = bodyenv)
+        val aBase = emitArrayIterator(a)
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := v,
+            codeB.setup)
+        }
+
+        val processAElts = aBase.arrayEmitter(cont)
+        val ma = processAElts.m.getOrElse(const(false))
+        EmitTriplet(
+          Code(
+            processAElts.setup,
+            ma.mux(
+              Code._empty,
+              Code(aBase.calcLength, processAElts.addElements))),
+          const(false),
+          Code._empty)
+
+      case SeqOp(a, i, agg) =>
+        val codeI = emit(i)
+        EmitTriplet(
+          Code(codeI.setup,
+            codeI.m.mux(
+              Code._empty,
+              emitAgg(a, env)(agg.seqOp(aggregator(coerce[Int](codeI.v)), _, _)))),
+          const(false),
+          Code._empty)
+
+      case Begin(xs) =>
+        EmitTriplet(
+          wrapToMethod(xs, env) { case (_, t, code) =>
+            code.setup
+          },
+          const(false),
+          Code._empty)
 
       case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
@@ -558,9 +597,10 @@ private class Emit(
     val tAggIn = tAggInOpt.get
 
     val region = mb.getArg[Region](1).load()
-    // aggregator is 2
-    val element = mb.getArg(3)(typeToTypeInfo(tAggIn.elementType)).load()
-    val melement = mb.getArg[Boolean](4).load()
+
+    val element = mb.getArg(normalArgumentPosition(0))(typeToTypeInfo(tAggIn.elementType))
+    val melement = mb.getArg[Boolean](normalArgumentPosition(0) + 1)
+
     ir match {
       case AggIn(typ) =>
         assert(tAggIn == typ)
@@ -815,22 +855,7 @@ private class Emit(
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)
 
-  private lazy val aggEnv: E = {
-    val scopeOffset = nSpecialArguments + 2 // element and element missingness
-    Env.empty.bind(tAggInOpt.get.bindings.zipWithIndex
-      .map {
-        case ((n, t), i) => n -> ((
-          typeToTypeInfo(t),
-          mb.getArg[Boolean](scopeOffset + i * 2 + 2).load(),
-          mb.getArg(scopeOffset + i * 2 + 1)(typeToTypeInfo(t)).load()))
-      }: _*)
-  }
-
   private def normalArgumentPosition(idx: Int): Int = {
-    val aggArgs = tAggInOpt match {
-      case Some(t) => (t.symTab.size + 1) * 2 // one extra for the element itself
-      case None => 0
-    }
-    nSpecialArguments + aggArgs + 1 + idx * 2
+    1 + nSpecialArguments + idx * 2
   }
 }

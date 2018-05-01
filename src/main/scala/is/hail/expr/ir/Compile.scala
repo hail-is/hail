@@ -11,7 +11,7 @@ import scala.reflect.{ClassTag, classTag}
 object Compile {
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](args: Seq[(String, Type, ClassTag[_])], body: IR): (Type, () => F) = {
-    assert(args.forall{ case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
+    assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] =
       GenericTypeInfo[Region]() +:
@@ -19,6 +19,32 @@ object Compile {
           FastSeq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
         }.toArray
 
+    Compile[F, R](args, argTypeInfo, body, None)
+  }
+
+  def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    args: Seq[(String, Type, ClassTag[_])],
+    body: IR,
+    tAggIn: TAggregable
+  ): (Type, () => F) = {
+    assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
+
+    val argTypeInfo: Array[MaybeGenericTypeInfo[_]] =
+      GenericTypeInfo[Region]() +:
+        GenericTypeInfo[Array[RegionValueAggregator]]() +:
+        args.flatMap { case (_, t, _) =>
+          FastSeq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
+        }.toArray
+
+    Compile[F, R](args, argTypeInfo, body, Some(tAggIn))
+  }
+
+  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    args: Seq[(String, Type, ClassTag[_])],
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    body: IR,
+    tAggIn: Option[TAggregable]
+  ): (Type, () => F) = {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
@@ -28,15 +54,16 @@ object Compile {
 
     ir = Subst(ir, env)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-    Emit(ir, fb)
+    Emit(ir, fb, tAggIn, if (tAggIn.isDefined) 2 else 1)
     (ir.typ, fb.result())
+
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (Type, () => AsmFunction1[Region, R]) = {
     apply[AsmFunction1[Region, R], R](FastSeq[(String, Type, ClassTag[_])](), body)
   }
 
-  def apply[T0 : ClassTag, R: TypeInfo : ClassTag](
+  def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: Type,
     body: IR): (Type, () => AsmFunction3[Region, T0, Boolean, R]) = {
@@ -44,7 +71,7 @@ object Compile {
     apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body)
   }
 
-  def apply[T0 : ClassTag, T1 : ClassTag, R: TypeInfo : ClassTag](
+  def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: Type,
     name1: String,
@@ -55,10 +82,10 @@ object Compile {
   }
 
   def apply[
-    T0 : TypeInfo : ClassTag,
-    T1 : TypeInfo : ClassTag,
-    T2 : TypeInfo : ClassTag,
-    R: TypeInfo : ClassTag
+  T0: TypeInfo : ClassTag,
+  T1: TypeInfo : ClassTag,
+  T2: TypeInfo : ClassTag,
+  R: TypeInfo : ClassTag
   ](name0: String,
     typ0: Type,
     name1: String,
@@ -75,13 +102,13 @@ object Compile {
   }
 
   def apply[
-    T0 : ClassTag,
-    T1 : ClassTag,
-    T2 : ClassTag,
-    T3 : ClassTag,
-    T4 : ClassTag,
-    T5 : ClassTag,
-    R: TypeInfo : ClassTag
+  T0: ClassTag,
+  T1: ClassTag,
+  T2: ClassTag,
+  T3: ClassTag,
+  T4: ClassTag,
+  T5: ClassTag,
+  R: TypeInfo : ClassTag
   ](name0: String, typ0: Type,
     name1: String, typ1: Type,
     name2: String, typ2: Type,
@@ -104,15 +131,16 @@ object Compile {
 
 object CompileWithAggregators {
   def apply[
-    F1 >: Null : TypeInfo,
-    F2 >: Null : TypeInfo,
-    R: TypeInfo : ClassTag
+  F1 >: Null : TypeInfo,
+  F2 >: Null : TypeInfo,
+  R: TypeInfo : ClassTag
   ](aggName: String,
     aggType: TAggregable,
     args: Seq[(String, Type, ClassTag[_])],
     aggScopeArgs: Seq[(String, Type, ClassTag[_])],
-    body: IR
-  ): (Array[RegionValueAggregator], Array[() => F1], Type, () => F2, Type) = {
+    body: IR,
+    transformAggIR: (Int, IR) => IR
+  ): (Array[RegionValueAggregator], () => F1, Type, () => F2, Type) = {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
@@ -121,20 +149,9 @@ object CompileWithAggregators {
 
     val ir = Subst(body, env)
 
-    val (postAggIR, aggResultType, aggregators) = ExtractAggregators(ir, aggType)
-
-    val f1TypeInfo: Array[MaybeGenericTypeInfo[_]] =
-      GenericTypeInfo[Region]() +:
-        GenericTypeInfo[RegionValueAggregator]() +:
-        (aggType +: aggScopeArgs.map(_._2).toArray).flatMap { t =>
-          Seq[GenericTypeInfo[_]](GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
-        }
-
-    val (rvAggs, seqOps) = aggregators.zipWithIndex.map { case ((ir, agg), i) =>
-      val fb = new EmitFunctionBuilder[F1](f1TypeInfo, GenericTypeInfo[Unit]())
-      Emit(ir, fb, 2, aggType)
-      (agg, fb.result())
-    }.unzip
+    val (postAggIR, aggResultType, aggIR, rvAggs) = ExtractAggregators(ir, aggType)
+    val nAggs = rvAggs.length
+    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, aggIR), aggType)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR)
@@ -142,18 +159,18 @@ object CompileWithAggregators {
   }
 
   def apply[
-    TAGG : ClassTag,
-    T0 : ClassTag,
-    S0 : ClassTag,
-    S1 : ClassTag,
-    R: TypeInfo : ClassTag
-  ](aggName: String,
-    aggTyp: TAggregable,
-    name0: String,
-    typ0: Type,
+  T0: ClassTag,
+  TAGG: ClassTag,
+  S0: ClassTag,
+  S1: ClassTag,
+  R: TypeInfo : ClassTag
+  ](name0: String, typ0: Type,
+    aggName: String, aggTyp: TAggregable,
+    aggName0: String, aggTyp0: Type,
+    aggName1: String, aggTyp1: Type,
     body: IR
   ): (Array[RegionValueAggregator],
-    Array[() => AsmFunction8[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, Unit]],
+    () => AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
     Type,
     () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
     Type) = {
@@ -162,37 +179,34 @@ object CompileWithAggregators {
 
     val args = FastSeq((name0, typ0, classTag[T0]))
 
-    val scope = aggTyp.symTab
-    assert(scope.size == 2)
+    val aggScopeArgs = FastSeq(
+      (aggName, aggTyp, classTag[TAGG]),
+      (aggName0, aggTyp0, classTag[S0]),
+      (aggName1, aggTyp1, classTag[S1]))
 
-    val aggScopeArgs = scope
-      .map { case (n, (i, t)) => (n, t) }
-      .zip(Array(classTag[S0], classTag[S1]))
-      .map { case ((n, t), ct) => (n, t, ct) }.toArray
-
-    apply[AsmFunction8[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
+    apply[AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](aggName, aggTyp, args, aggScopeArgs, body)
+      R](aggName, aggTyp, args, aggScopeArgs, body, (nAggs: Int, aggIR: IR) => aggIR)
   }
 
   def apply[
-    TAGG : ClassTag,
-    T0 : ClassTag,
-    T1 : ClassTag,
-    S0 : ClassTag,
-    S1 : ClassTag,
-    S2 : ClassTag,
-    S3 : ClassTag,
-    R: TypeInfo : ClassTag
-  ](aggName: String,
-    aggTyp: TAggregable,
-    name0: String,
-    typ0: Type,
-    name1: String,
-    typ1: Type,
-    body: IR
+  T0: ClassTag,
+  T1: ClassTag,
+  TAGG: ClassTag,
+  S0: ClassTag,
+  S1: ClassTag,
+  S2: ClassTag,
+  R: TypeInfo : ClassTag
+  ](name0: String, typ0: Type,
+    name1: String, typ1: Type,
+    aggName: String, aggTyp: TAggregable,
+    aggName0: String, aggType0: Type,
+    aggName1: String, aggType1: Type,
+    aggName2: String, aggType2: Type,
+    body: IR,
+    transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
-    Array[() => AsmFunction12[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit]],
+    () => AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
     Type,
     () => AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
     Type) = {
@@ -203,16 +217,14 @@ object CompileWithAggregators {
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]))
 
-    val scope = aggTyp.symTab
-    assert(scope.size == 4)
+    val aggArgs = FastSeq(
+      (aggName, aggTyp.elementType, classTag[TAGG]),
+      (aggName0, aggType0, classTag[S0]),
+      (aggName1, aggType1, classTag[S1]),
+      (aggName2, aggType2, classTag[S2]))
 
-    val aggScopeArgs = scope
-      .map { case (n, (i, t)) => (n, t) }
-      .zip(Array(classTag[S0], classTag[S1], classTag[S2], classTag[S3]))
-      .map { case ((n, t), ct) => (n, t, ct) }.toArray
-
-    apply[AsmFunction12[Region, RegionValueAggregator, TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, S3, Boolean, Unit],
+    apply[AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
       AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
-      R](aggName, aggTyp, args, aggScopeArgs, body)
+      R](aggName, aggTyp, args, aggArgs, body, transformAggIR)
   }
 }

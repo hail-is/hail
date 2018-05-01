@@ -20,6 +20,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
+      case Void() =>
 
       case Cast(v, typ) =>
         check(v)
@@ -98,6 +99,10 @@ object TypeCheck {
         check(body, env = env.bind(accumName -> zero.typ, valueName -> -tarray.elementType))
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
+      case x@ArrayFor(a, valueName, body) =>
+        check(a)
+        val tarray = coerce[TArray](a.typ)
+        check(body, env = env.bind(valueName -> -tarray.elementType))
       case x@AggIn(typ) =>
         (tAgg, typ) match {
           case (Some(t), null) => x.typ = t
@@ -125,6 +130,15 @@ object TypeCheck {
         val tagg2 = tagg.copy(elementType = tout.elementType)
         tagg2.symTab = tagg.symTab
         assert(x.typ == tagg2)
+      case x@SeqOp(a, i, _) =>
+        check(a)
+        check(i)
+        assert(i.typ.isInstanceOf[TInt32])
+      case x@Begin(xs) =>
+        xs.foreach { x =>
+          check(x)
+          assert(x.typ == TVoid)
+        }
       case x@ApplyAggOp(a, op, args) =>
         val tAgg = coerce[TAggregable](a.typ)
         check(a)

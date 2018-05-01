@@ -22,10 +22,12 @@ package object ir {
     case _: TBinary => typeInfo[Long]
     case _: TArray => typeInfo[Long]
     case _: TBaseStruct => typeInfo[Long]
+    case TVoid => typeInfo[Unit]
     case _ => throw new RuntimeException(s"unsupported type found, $t")
   }
 
   def defaultValue(t: Type): Code[_] = typeToTypeInfo(t) match {
+    case UnitInfo => Code._empty[Unit]
     case BooleanInfo => false
     case IntInfo => 0
     case LongInfo => 0L

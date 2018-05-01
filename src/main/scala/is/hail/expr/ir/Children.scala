@@ -13,6 +13,7 @@ object Children {
     case Str(x) => none
     case True() => none
     case False() => none
+    case Void() => none
     case Cast(v, typ) =>
       Array(v)
     case NA(typ) => none
@@ -44,6 +45,8 @@ object Children {
       Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
+    case ArrayFor(a, valueName, body) =>
+      Array(a, body)
     case MakeStruct(fields) =>
       fields.map(_._2).toIndexedSeq
     case InsertFields(old, fields) =>
@@ -56,6 +59,10 @@ object Children {
       Array(a, body)
     case AggFlatMap(a, name, body) =>
       Array(a, body)
+    case SeqOp(a, i, _) =>
+      Array(a, i)
+    case Begin(xs) =>
+      xs
     case ApplyAggOp(a, op, args) =>
       (a +: args).toIndexedSeq
     case GetField(o, name) =>
