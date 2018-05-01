@@ -13,20 +13,74 @@ import is.hail.variant.{MatrixTable, VSMSubgen}
 import org.apache.spark.sql.Row
 
 class GroupBySuite extends SparkSuite {
+  lazy val sampleVDS: MatrixTable = hc.importVCF("src/test/resources/sample.vcf")
 
-  @Test def testGroupSamplesBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    vds.groupColsBy("AC = sa.AC", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+  @Test def testAggregateColumnsByKeyOnSmallExampleGoingThroughIR() {
+    // convert to Int64 to make this go through the IR (int32 sum aggregator goes through ast)
+    val mt = MatrixTable.range(hc, nRows = 5, nCols = 4, None).annotateColsExpr("group" -> "sa.col_idx%2==0")
+      .annotateEntriesExpr("x" -> "(sa.col_idx+va.row_idx).toInt64()")
+
+    val result = mt.keyColsBy("group")
+      .aggregateColsByKey("{sum: AGG.map(g=>g.x).sum(), min: AGG.map(g=>g.x).min()}")
+    
+    val resultRows = result.entriesTable().collect().map(row => Array(row.get(0), row.get(1), row.get(2), row.get(3)))
+
+    val expectedRows = Array(Array(0, true, 2, 0), Array(0, false, 4, 1),
+      Array(1, true, 4, 1), Array(1, false, 6, 2),
+      Array(2, true, 6, 2), Array(2, false, 8, 3),
+      Array(3, true, 8, 3), Array(3, false, 10, 4),
+      Array(4, true, 10, 4), Array(4, false, 12, 5))
+    assert(resultRows.deep sameElements expectedRows.deep)
+  }
+  
+  @Test def testAggregateColumnsByKeyOnSmallExampleGoingThroughAST() {
+    val mt = MatrixTable.range(hc, nRows = 3, nCols = 4, None).annotateColsExpr("group" -> "sa.col_idx%2==0")
+      .annotateEntriesExpr("x" -> "sa.col_idx+va.row_idx")
+
+    val result = mt.keyColsBy("group").aggregateColsByKey("{sum: AGG.map(g=>g.x).sum()}")
+
+    val resultRows = result.entriesTable().collect().map(row => Array(row.get(0), row.get(1), row.get(2)))
+
+    val expectedRows = Array(Array(0, true, 2), Array(0, false, 4),
+      Array(1, true, 4), Array(1, false, 6),
+      Array(2, true, 6), Array(2, false, 8))
+    assert(resultRows.deep sameElements expectedRows.deep)
   }
 
-  @Test def testGroupSamplesStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateColsExpr("foo" -> "{str1: 1, str2: \"bar\"}")
-    vds.groupColsBy("foo = sa.foo", "max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+  @Test def testResultSchemaFromAggregateColsByKey() {
+    val mt = sampleVDS.annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+
+    val resultMT = mt.keyColsBy("AC")
+      .aggregateColsByKey("{max : AGG.map(g => g.GT.nNonRefAlleles()).max(), " +
+        "min : AGG.map(g => g.GT.nNonRefAlleles()).min()}")
+    
+    assert(resultMT.entryType == TStruct("max" -> TInt32(), "min" -> TInt32())
+      && resultMT.rowType == mt.rowType
+      && resultMT.colType == mt.colType.filter(f => f.name == "AC")._1)
+    
+    resultMT.entriesTable().forceCount()
   }
 
+  @Test def testStructParameterInAggregateColsByKey() {
+    val mt = sampleVDS.annotateColsExpr("foo" -> "{str1: 1, str2: \"bar\"}")
+    val result = mt.keyColsBy("foo").aggregateColsByKey("{max: AGG.map(g => g.GT.nNonRefAlleles()).max()}")
+    result.entriesTable().forceCount()
+  }
+  
+  @Test def testInitOpInAggregateColsByKey() {
+    val mt = sampleVDS.chooseCols(Array(0, 1)).head(2)
+    
+    val result = mt.aggregateColsByKey("{call_stats: AGG.map(g => g.GT).callStats(g => va.alleles.size())}")
+
+    val ac = result.selectRows("{locus: va.locus, alleles: va.alleles}", None).selectCols("{s: sa.s}", None)
+      .selectEntries("{AC: g.call_stats.AC}").entriesTable().collect().map(row => row.get(3))
+    // call_stats will be null if initop not working
+    assert(ac.deep sameElements Array(Array(2,0), Array(1,1), Array(2,0), Array(2,0)).deep)
+  }
+  
   @Test def testGroupVariantsBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC"))
+    val mt = sampleVDS.annotateRowsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    val mt2 = mt.keyRowsBy(Array("AC"), Array("AC"))
       .aggregateRowsByKey(
         "{ max : AGG.map(g => g.GT.nNonRefAlleles()).max() }",
         "max = AGG.map(g => g.GT.nNonRefAlleles()).max()"
@@ -34,8 +88,8 @@ class GroupBySuite extends SparkSuite {
   }
 
   @Test def testGroupVariantsStruct() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC" -> "{str1: \"foo\", str2: 1}")
-    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC"))
+    val mt = sampleVDS.annotateRowsExpr("AC" -> "{str1: \"foo\", str2: 1}")
+    val mt2 = mt.keyRowsBy(Array("AC"), Array("AC"))
       .aggregateRowsByKey(
         "{ max : AGG.map(g => g.GT.nNonRefAlleles()).max() }",
         "max = AGG.map(g => g.GT.nNonRefAlleles()).max()")
@@ -76,10 +130,10 @@ class GroupBySuite extends SparkSuite {
       val uniqueSamples = vsm.stringSampleIds.toSet
       if (vsm.stringSampleIds.size != uniqueSamples.size) {
         sSkipped += 1
-        val grouped = vsm.groupColsBy("s = sa.s", "first = AGG.collect()[0]")
+        val grouped = vsm.keyColsBy("s").aggregateColsByKey("{first : AGG.collect()[0]}")
         grouped.numCols == uniqueSamples.size
       } else {
-        val grouped = vsm.groupColsBy("s = sa.s", "GT = AGG.collect()[0].GT, AD = AGG.collect()[0].AD, DP = AGG.collect()[0].DP, GQ = AGG.collect()[0].GQ, PL = AGG.collect()[0].PL")
+        val grouped = vsm.keyColsBy("s").aggregateColsByKey("{GT : AGG.collect()[0].GT, AD : AGG.collect()[0].AD, DP : AGG.collect()[0].DP, GQ : AGG.collect()[0].GQ, PL : AGG.collect()[0].PL}")
         assert(vsm.selectCols("{s: sa.s}", None)
           .same(grouped
             .reorderCols(vsm.stringSampleIds.toArray.map(Annotation(_)))
@@ -118,7 +172,7 @@ class GroupBySuite extends SparkSuite {
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.rowsTable().select(Array("row.genes", "row.linreg.beta",
       "row.linreg.standard_error", "row.linreg.t_stat", "row.linreg.p_value"))
-      .rdd.map { r => (r.getAs[String](0), (1 to 4).map{ i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }
+      .rdd.map { r => (r.getAs[String](0), (1 to 4).map { i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }
       .collect()
       .toMap
     val sampleMap = resultsVSM.rdd.map { case (keys, (_, gs)) =>
@@ -148,6 +202,6 @@ class GroupBySuite extends SparkSuite {
       3 -> IndexedSeq(0.0, 5.0, 3.0, 0.0, 7.0, 3.0, 1.0, 0.0))
 
     assert(mapSameElements(linregMapR.map { case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxedDoubleEquals(1e-3)))
-    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxedDoubleEquals(1e-6)))
+    assert(mapSameElements(sampleMapR.map { case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxedDoubleEquals(1e-6)))
   }
 }

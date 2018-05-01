@@ -341,8 +341,7 @@ class GroupedMatrixTable(ExprContainer):
         if self._col_keys is not None:
             assert self._new_col_keys is not None
             base = MatrixTable(base.key_cols_by(*self._new_col_keys)._jvds
-                               .groupColsBy(','.join(["`{}` = sa.`{}`".format(k, k) for k in self._new_col_keys]),
-                                            ',\n'.join(strs)))
+                               .aggregateColsByKey(hl.struct(**named_exprs)._ast.to_hql()))
         elif self._row_keys is not None:
             if self._partition_key is None:
                 self._partition_key = self._row_keys.keys()
