@@ -194,7 +194,7 @@ trait RVD {
 
     val makeEnc = persistCodec.buildEncoder(localRowType)(_)
 
-    val makeDec = persistCodec.buildDecoder(localRowType)(_)
+    val makeDec = persistCodec.buildDecoder(localRowType)
 
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
