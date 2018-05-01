@@ -380,8 +380,8 @@ class BlockMatrix(object):
         Examples
         --------
         >>> mt = hl.balding_nichols_model(3, 25, 50)
-        >>> bm = BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(),
-        ...                                        'output/model.bm')
+        >>> BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(),
+        ...                                   'output/model.bm')
 
         Notes
         -----
@@ -917,6 +917,8 @@ class BlockMatrix(object):
         at least a few partitions per core. Setting the partition size
         to an exact (rather than approximate) divisor or multiple of the
         block size reduces superfluous shuffling of data.
+
+        See also :meth:`.RowMatrix.read_from_block_matrix`.
 
         Parameters
         ----------

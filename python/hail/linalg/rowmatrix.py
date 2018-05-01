@@ -95,15 +95,18 @@ class RowMatrix(object):
 
         Examples
         --------
-        >>> from hail.linalg import RowMatrix
-        >>> rm = RowMatrix.read_from_block_matrix('output/bm',
+        >>> from hail.linalg import BlockMatrix, RowMatrix
+        >>> bm = BlockMatrix.random(3, 3).write('output/example.bm')
+        >>> rm = RowMatrix.read_from_block_matrix('output/example.bm',
         ...                                       partition_size=2)
 
         Notes
         -----
+
         The number of partitions in the resulting row matrix equals
         the ceiling of ``n_rows / partition_size``.
-        See :meth:`BlockMatrix.to_row_matrix` for more info.
+
+        See also :meth:`BlockMatrix.to_row_matrix`.
 
         Warning
         -------
