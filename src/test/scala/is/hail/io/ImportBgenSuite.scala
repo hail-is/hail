@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
@@ -103,7 +103,7 @@ class ImportBgenSuite extends SparkSuite {
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
 
-        ExportGen(vds, fileRoot, 5)
+        TestUtils.exportGen(vds, fileRoot, 5)
 
         val localRoot = tmpDir.createLocalTempFile("testImportBgen")
         val localGenFile = localRoot + ".gen"

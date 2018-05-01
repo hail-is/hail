@@ -1348,6 +1348,41 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(utils.FatalError, "Invalid 'varid' found at locus"):
             hl.export_plink(ds, utils.new_temp_file(), varid="hello world")
 
+    def test_export_gen(self):
+        gen = hl.import_gen(resource('example.gen'),
+                            sample_file=resource('example.sample'),
+                            contig_recoding={"01": "1"},
+                            reference_genome='GRCh37',
+                            min_partitions=3)
+
+        file = '/tmp/test_export_gen'
+        hl.export_gen(gen, file)
+        gen2 = hl.import_gen(file + '.gen',
+                             sample_file=file + '.sample',
+                             reference_genome='GRCh37',
+                             min_partitions=3)
+
+        self.assertTrue(gen._same(gen2, tolerance=3E-4, absolute=True))
+
+    def test_export_gen_exprs(self):
+        gen = hl.import_gen(resource('example.gen'),
+                            sample_file=resource('example.sample'),
+                            contig_recoding={"01": "1"},
+                            reference_genome='GRCh37',
+                            min_partitions=3).add_col_index().add_row_index()
+
+        out1 = utils.new_temp_file()
+        hl.export_gen(gen, out1, id1=hl.str(gen.col_idx), id2=hl.str(gen.col_idx), missing=0.5,
+                      varid=hl.str(gen.row_idx), rsid=hl.str(gen.row_idx), gp=[0.0, 1.0, 0.0])
+
+        in1 = (hl.import_gen(out1 + '.gen', sample_file=out1 + '.sample', min_partitions=3)
+               .add_col_index()
+               .add_row_index())
+        self.assertTrue(in1.aggregate_entries(agg.fraction(in1.GP == [0.0, 1.0, 0.0])) == 1.0)
+        self.assertTrue(in1.aggregate_rows(agg.fraction((in1.varid == hl.str(in1.row_idx)) &
+                                                        (in1.rsid == hl.str(in1.row_idx)))) == 1.0)
+        self.assertTrue(in1.aggregate_cols(agg.fraction((in1.s == hl.str(in1.col_idx)))))
+
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))
         tdt_tab = (hl.transmission_disequilibrium_test(

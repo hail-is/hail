@@ -174,14 +174,19 @@ final class ArrayGenotypeView(rvType: TStruct) {
   }
 
   def getGP(idx: Int): Double = {
-    val adOffset = tg.loadField(m, gOffset, gpIndex)
-    val length = ArrayGenotypeView.tArrayFloat64.loadLength(m, adOffset)
+    val gpOffset = tg.loadField(m, gOffset, gpIndex)
+    val length = ArrayGenotypeView.tArrayFloat64.loadLength(m, gpOffset)
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
-    assert(ArrayGenotypeView.tArrayFloat64.isElementDefined(m, adOffset, idx))
+    assert(ArrayGenotypeView.tArrayFloat64.isElementDefined(m, gpOffset, idx))
 
-    val elementOffset = ArrayGenotypeView.tArrayFloat64.elementOffset(adOffset, length, idx)
+    val elementOffset = ArrayGenotypeView.tArrayFloat64.elementOffset(gpOffset, length, idx)
     m.loadDouble(elementOffset)
+  }
+
+  def getGPLength(): Int = {
+    val gpOffset = tg.loadField(m, gOffset, gpIndex)
+    ArrayGenotypeView.tArrayFloat64.loadLength(m, gpOffset)
   }
 }
 

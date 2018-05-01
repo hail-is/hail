@@ -35,11 +35,23 @@ def locus_interval_expr(contig, start, end, includes_start, includes_end,
                            includes_start,
                            includes_end)
 
+def expr_or_else(expr, default, f=lambda x: x):
+    if expr is not None:
+        return hl.or_else(f(expr), default)
+    else:
+        return to_expr(default)
 
 @typecheck(dataset=MatrixTable,
            output=str,
-           precision=int)
-def export_gen(dataset, output, precision=4):
+           precision=int,
+           gp=nullable(expr_array(expr_float64)),
+           id1=nullable(expr_str),
+           id2=nullable(expr_str),
+           missing=nullable(expr_numeric),
+           varid=nullable(expr_str),
+           rsid=nullable(expr_str))
+def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
+               missing=None, varid=None, rsid=None):
     """Export a :class:`.MatrixTable` as GEN and SAMPLE files.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -60,46 +72,93 @@ def export_gen(dataset, output, precision=4):
     Writes out the dataset to a GEN and SAMPLE fileset in the
     `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
 
-    This method requires a `GP` (genotype probabilities) entry field of type
-    ``array<float64>``. The values at indices 0, 1, and 2 are exported as the
-    probabilities of homozygous reference, heterozygous, and homozygous variant,
-    respectively. Missing `GP` values are exported as ``0 0 0``.
-
-    The first six columns of the GEN file are as follows:
-
-    - chromosome (`locus.contig`)
-    - variant ID (`varid` if defined, else Contig:Position:Ref:Alt)
-    - rsID (`rsid` if defined, else ``.``)
-    - position (`locus.position`)
-    - reference allele (`alleles[0]`)
-    - alternate allele (`alleles[1]`)
-
-    The SAMPLE file has three columns:
-
-    - ID_1 and ID_2 are identical and set to the sample ID (`s`).
-    - The third column (``missing``) is set to 0 for all samples.
-
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        Dataset with entry field `GP` of type ``array<float64>``.
+        Dataset.
     output : :obj:`str`
         Filename root for output GEN and SAMPLE files.
     precision : :obj:`int`
         Number of digits to write after the decimal point.
+    gp : :class:`.ArrayExpression` of type :py:data:`.tfloat64`, optional
+        Expression for the genotype probabilities to output. If ``None``, the
+        entry field `GP` is used if defined and is of type :py:data:`.tarray`
+        with element type :py:data:`.tfloat64`. The array length must be 3.
+        The values at indices 0, 1, and 2 are exported as the probabilities of
+        homozygous reference, heterozygous, and homozygous variant,
+        respectively. The default and missing value is ``[0, 0, 0]``.
+    id1 : :class:`.StringExpression`, optional
+        Expression for the first column of the SAMPLE file. If ``None``, the
+        column key of the dataset is used and must be one field of type
+        :py:data:`.tstr`.
+    id2 : :class:`.StringExpression`, optional
+        Expression for the second column of the SAMPLE file. If ``None``, the
+        column key of the dataset is used and must be one field of type
+        :py:data:`.tstr`.
+    missing : :class:`.NumericExpression`, optional
+        Expression for the third column of the SAMPLE file, which is the sample
+        missing rate. Values must be between 0 and 1.
+    varid : :class:`.StringExpression`, optional
+        Expression for the variant ID (2nd column of the GEN file). If ``None``,
+        the row field `varid` is used if defined and is of type :py:data:`.tstr`.
+        The default and missing value is
+        ``hl.delimit([dataset.locus.contig, hl.str(dataset.locus.position), dataset.alleles[0], dataset.alleles[1]], ':')``
+    rsid : :class:`.StringExpression`, optional
+        Expression for the rsID (3rd column of the GEN file). If ``None``,
+        the row field `rsid` is used if defined and is of type :py:data:`.tstr`.
+        The default and missing value is ``"."``.
     """
 
-    dataset = require_biallelic(dataset, 'export_gen')
-    try:
-        gp = dataset['GP']
-        if gp.dtype != tarray(tfloat64) or gp._indices != dataset._entry_indices:
-            raise KeyError
-    except KeyError:
-        raise FatalError("export_gen: no entry field 'GP' of type 'array<float64>'")
+    require_biallelic(dataset, 'export_gen')
 
-    dataset = require_biallelic(dataset, 'export_plink')
+    if gp is None:
+        if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
+            entry_exprs = {'GP': dataset.GP}
+        else:
+            entry_exprs = {}
+    else:
+        entry_exprs = {'GP': gp}
 
-    Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+    if id1 is None:
+        require_col_key_str(dataset, "export_gen")
+        id1 = dataset.col_key[0]
+
+    if id2 is None:
+        require_col_key_str(dataset, "export_gen")
+        id2 = dataset.col_key[0]
+
+    if missing is None:
+        missing = hl.float64(0)
+
+    if varid is None:
+        if 'varid' in dataset.row and dataset.varid.dtype == tstr:
+            varid = dataset.varid
+
+    if rsid is None:
+        if 'rsid' in dataset.row and dataset.rsid.dtype == tstr:
+            rsid = dataset.rsid
+
+    sample_exprs = {'id1': id1, 'id2': id2, 'missing': missing}
+
+    l = dataset.locus
+    a = dataset.alleles
+
+    gen_exprs = {'locus': l,
+                 'alleles': a,
+                 'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+                 'rsid': expr_or_else(rsid, ".")}
+
+    for exprs, axis in [(sample_exprs, dataset._col_indices),
+                        (gen_exprs, dataset._row_indices),
+                        (entry_exprs, dataset._entry_indices)]:
+        for name, expr in exprs.items():
+            analyze('export_gen/{}'.format(name), expr, axis)
+
+    dataset = dataset._select_all(col_exprs=sample_exprs,
+                                  row_exprs=gen_exprs,
+                                  entry_exprs=entry_exprs)
+
+    dataset._jvds.exportGen(output, precision)
 
 
 @typecheck(dataset=MatrixTable,
@@ -187,12 +246,6 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     require_biallelic(dataset, 'export_plink')
     require_row_key_variant_w_struct_locus(dataset, 'export_plink')
 
-    def expr_or_else(expr, default, f=lambda x: x):
-        if expr is not None:
-            return hl.or_else(f(expr), default)
-        else:
-            return to_expr(default)
-
     if ind_id is None:
         require_col_key_str(dataset, "export_plink")
         ind_id = dataset.col_key[0]
@@ -226,8 +279,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
                         (bim_exprs, dataset._row_indices),
                         (entry_exprs, dataset._entry_indices)]:
         for name, expr in exprs.items():
-            if expr is not None:
-                analyze('export_plink/{}'.format(name), expr, axis)
+            analyze('export_plink/{}'.format(name), expr, axis)
 
     dataset = dataset._select_all(col_exprs=fam_exprs,
                                   row_exprs=bim_exprs,

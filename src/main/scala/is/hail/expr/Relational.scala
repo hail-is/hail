@@ -7,6 +7,8 @@ import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.io._
+import is.hail.io.gen.ExportGen
+import is.hail.io.plink.ExportPlink
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -170,8 +172,9 @@ case class MatrixValue(
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def exportPlink(path: String): Unit =
-    is.hail.io.plink.ExportPlink(this, path)
+  def exportPlink(path: String): Unit = ExportPlink(this, path)
+
+  def exportGen(path: String, precision: Int = 4): Unit = ExportGen(this, path, precision)
 
   def rowsRVD(): OrderedRVD = {
     val localRowType = typ.rowType

@@ -1723,23 +1723,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def queryVA(code: String): (Type, Querier) =
-    query(code, Map(Annotation.ROW_HEAD -> (0, rowType)))
-
-  def query(code: String, st: SymbolTable): (Type, Querier) = {
-    val ec = EvalContext(st)
-    val a = ec.a
-
-    val (t, f) = Parser.parseExpr(code, ec)
-
-    val f2: Annotation => Any = { annotation =>
-      a(0) = annotation
-      f()
-    }
-
-    (t, f2)
-  }
-
   def chooseCols(oldIndices: java.util.ArrayList[Int]): MatrixTable =
     chooseCols(oldIndices.asScala.toArray)
 
@@ -2185,6 +2168,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def exportPlink(path: String) {
     ir.Interpret(ir.MatrixWrite(ast, _.exportPlink(path)))
+  }
+
+  def exportGen(path: String, precision: Int = 4) {
+    ir.Interpret(ir.MatrixWrite(ast, _.exportGen(path, precision)))
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {
