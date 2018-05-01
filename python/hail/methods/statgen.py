@@ -283,14 +283,14 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     .. math::
 
-        \mathrm{height} = \\beta_0 \, \mathrm{genotype}
-                          + \\beta_1 \, \mathrm{age}
-                          + \\beta_2 \, \mathrm{is\_female}
+        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
+                          + \\beta_2 \, \mathrm{age}
+                          + \\beta_3 \, \mathrm{is\_female}
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
     Boolean covariates like :math:`\mathrm{is\_female}` are encoded as 1 for
-    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_0 = 0`.
+    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
@@ -424,7 +424,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
     HomVar, and the Boolean covariate :math:`\mathrm{is\_female}` is coded as
     for ``True`` (female) and 0 for ``False`` (male). The null model sets
-    :math:`\beta_0 = 0`.
+    :math:`\beta_1 = 0`.
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
@@ -445,7 +445,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
                                                :math:`\hat\beta_1`
     LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
     LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
-                                               :math:`\beta_1 = 1`
+                                               :math:`\beta_1 = 0`
     Score      `logreg.chi_sq_stat`    float64 score statistic
     Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
     ========== ======================= ======= ============================================
