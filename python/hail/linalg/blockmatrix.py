@@ -1,8 +1,10 @@
+import hail as hl
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
 from hail.table import Table
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
+from hail.linalg import RowMatrix
 import numpy as np
 from enum import IntEnum
 
@@ -230,10 +232,16 @@ class BlockMatrix(object):
     def from_entry_expr(cls, entry_expr, block_size=None):
         """Create a block matrix using a matrix table entry expression.
 
+        Examples
+        --------
+        >>> mt = hl.balding_nichols_model(3, 25, 50)
+        >>> bm = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles())
+
         Parameters
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
+            All values must be non-missing.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
@@ -370,14 +378,23 @@ class BlockMatrix(object):
     def write_from_entry_expr(entry_expr, path, block_size=None):
         """Writes a block matrix from a matrix table entry expression.
 
+        Examples
+        --------
+        >>> mt = hl.balding_nichols_model(3, 25, 50)
+        >>> bm = BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(),
+        ...                                        'output/model.bm')
+
         Notes
         -----
+        If any values are missing, an error message is returned.
+
         The resulting file can be loaded with :meth:`BlockMatrix.read`.
 
         Parameters
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
+            All values must be non-missing.
         path: :obj:`str`
             Path for output.
         block_size: :obj:`int`, optional
@@ -386,9 +403,9 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        check_entry_indexed('write_from_entry_expr/entry_expr', entry_expr)
+        check_entry_indexed('BlockMatrix.write_from_entry_expr/entry_expr', entry_expr)
 
-        mt = matrix_table_source('write_from_entry_expr/entry_expr', entry_expr)
+        mt = matrix_table_source('BlockMatrix.write_from_entry_expr/entry_expr', entry_expr)
 
         #  FIXME: remove once select_entries on a field is free
         if entry_expr in mt._fields_inverse:
@@ -876,6 +893,47 @@ class BlockMatrix(object):
             Table with a row for each entry.
         """
         return Table(self._jbm.entriesTable(Env.hc()._jhc))
+
+    @classmethod
+    @typecheck_method(partition_size=int)
+    def to_row_matrix(self, partition_size):
+        """Creates a row matrix from a block matrix.
+
+        Examples
+        --------
+        >>> bm = BlockMatrix.random(3, 3)
+        >>> rm = bm.to_row_matrix(2)
+
+        Notes
+        -----
+        The number of partitions in the resulting row matrix equals
+        the ceiling of ``n_rows / partition_size``.
+
+        For example, consider a block matrix with :math:`10^6` rows,
+        :math:`10^5` columns, and block size :math:`2^{12}` (4096). 
+        A partition size of :math:`2^{10}` (1024) will result
+        in a row matrix with 977 partitions. with all but the last partition
+        containing 1024 full rows, e.g. 781 MB of 8-byte floats.
+
+        For good parallelism and load balancing, it's good practice to have
+        at least a few partitions per core. Setting the partition size
+        to an exact (rather than approximate) divisor or multiple of the
+        block size reduces superfluous shuffling of data.
+
+        Parameters
+        ----------
+        partition_size: :obj:`int`
+            Number of rows to group per partition.
+
+        Returns
+        -------
+        :class:`RowMatrix`
+        """
+
+        path = new_temp_file()
+        self.write(path, force_row_major=True)
+
+        return RowMatrix.read_from_block_matrix(path, partition_size)
 
 
 block_matrix_type.set(BlockMatrix)

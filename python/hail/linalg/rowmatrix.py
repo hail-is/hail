@@ -1,3 +1,4 @@
+import hail as hl
 from hail.utils.java import Env, joption
 from hail.typecheck import *
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
@@ -12,9 +13,9 @@ class RowMatrix(object):
 
     Notes
     -----
-    Row matrices must have fewer than :math:`2^31` columns.
+    Row matrices must have fewer than :math:`2^{31}` columns.
 
-    Under the hood, row matrices are partitioned into group of rows.
+    Under the hood, row matrices are partitioned into groups of rows.
     """
 
     def __init__(self, jrm):
@@ -56,19 +57,26 @@ class RowMatrix(object):
     def from_entry_expr(cls, entry_expr):
         """Creates a row matrix using a matrix table entry expression.
 
+        Examples
+        --------
+
+        >>> mt = hl.balding_nichols_model(3, 25, 50)
+        >>> bm = RowMatrix.from_entry_expr(mt.GT.n_alt_alleles())
+
         Parameters
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
+            All values must be non-missing.
 
         Returns
         -------
         :class:`RowMatrix`
         """
 
-        check_entry_indexed('write_from_entry_expr/entry_expr', entry_expr)
+        check_entry_indexed('RowMatrix.from_entry_expr/entry_expr', entry_expr)
 
-        mt = matrix_table_source('write_from_entry_expr/entry_expr', entry_expr)
+        mt = matrix_table_source('RowMatrix.from_entry_expr/entry_expr', entry_expr)
 
         #  FIXME: remove once select_entries on a field is free
         if entry_expr in mt._fields_inverse:
@@ -82,31 +90,34 @@ class RowMatrix(object):
 
     @classmethod
     @typecheck_method(path=str, partition_size=int)
-    def read_block_matrix(cls, path, partition_size):
+    def read_from_block_matrix(cls, path, partition_size):
         """Creates a row matrix from a stored block matrix.
+
+        Examples
+        --------
+        >>> rm = RowMatrix.read_from_block_matrix('output/bm',
+        ...                                       partition_size=2)
 
         Notes
         -----
-        The number of partitions in the resulting row matrix will equal
+        The number of partitions in the resulting row matrix equals
         the ceiling of ``n_rows / partition_size``.
-
-        Setting the partition size to an exact (rather than approximate)
-        divisor or multiple of the block size will reduce superfluous shuffling
-        of data.
+        See :meth:`BlockMatrix.to_row_matrix` for more info.
 
         Warning
         -------
         The block matrix must be stored in row-major format, as results from
         :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
         :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`read_block_matrix` will produce an error message.
+        :meth:`read_from_block_matrix` will produce an error message.
 
         Parameters
         ----------
         path: :obj:`str`
-            Path to block matrix.
+            Path to block matrix on disk.
         partition_size: :obj:`int`
             Number of rows to group per partition.
+
         Returns
         -------
         :class:`RowMatrix`
@@ -126,15 +137,16 @@ class RowMatrix(object):
 
         Examples
         --------
+        Consider the following row matrix.
 
         >>> import numpy as np
         >>> from hail.linalg import BlockMatrix
-        >>> from hail.linalg import RowMatrix
+        >>>
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write('output/bm', force_row_major=True)
-        >>> rm = RowMatrix.read_block_matrix('output/bm', partition_size=2)
+        >>> bm = BlockMatrix.from_numpy(nd)
+        >>> rm = bm.to_row_matrix(partition_size=2)
 
         Export the full matrix as a file with tab-separated values:
 
@@ -147,28 +159,32 @@ class RowMatrix(object):
         ...           delimiter=',',
         ...           entries='upper')
 
-        Export the full matrix in parallel as a folder of files,
-        each with a header line for columns ``index``, ``A``, ``B``,
-        and ``C``. Every value line is tab-separated and prepended
-        by its absolute row index:
+        Export the full matrix with row indices in parallel as a folder of
+        files, each with a header line for columns ``idx``, ``A``, ``B``,
+        and ``C``.
 
         >>> rm.export('output/row_matrix',
-        ...           header='\t'.join(['index', 'A', 'B', 'C']),
+        ...           header='\t'.join(['idx', 'A', 'B', 'C']),
         ...           add_index=True,
         ...           parallel='header_per_shard')
 
-        Notes
-        -----
-        Here is the full export with header and row index as one file:
+        Since ``rm`` has two partitions, this produces two file:
 
         .. code-block:: text
 
-            index,A,B,C
+            idx A   B   C
             0   1.0 0.8 0.7
             1   0.8 1.0 0.3
+
+        .. code-block:: text
+
+            idx A   B   C
             2   0.7 0.3 1.0
 
-        The five `entries` options are illustrated below.
+        Notes
+        -----
+
+        The five options for `entries` are illustrated below.
 
         Full:
 
@@ -208,9 +224,6 @@ class RowMatrix(object):
             0.8 0.7
             0.3
 
-        If `header` is ``None``, the `parallel` options ``'header_per_shard'`` and
-        ``'separate_header'`` are equivalent.
-
         Parameters
         ----------
         path: :obj:`str`
@@ -218,9 +231,9 @@ class RowMatrix(object):
         delimiter: :obj:`str`
             Column delimiter.
         header: :obj:`str`, optional
-            If provided, header string is prepended before the first row of data.
+            If provided, `header` is prepended before the first row of data.
         add_index: :obj:`bool`
-            If true, add an initial column with the row index.
+            If ``True``, add an initial column with the absolute row index.
         parallel: :obj:`str`, optional
             If ``'header_per_shard'``, create a folder with one file per
             partition, each with a header if provided.
@@ -229,6 +242,8 @@ class RowMatrix(object):
             a separate file.
             If ``None``, serially concatenate the header and all partitions
             into one file; export will be slower.
+            If `header` is ``None`` then ``'header_per_shard'`` and
+            ``'separate_header'`` are equivalent.
         entries: :obj:`str
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.

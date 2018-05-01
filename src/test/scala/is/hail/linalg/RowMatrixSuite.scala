@@ -7,12 +7,12 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 class RowMatrixSuite extends SparkSuite {
-  private def rowArrayToRowMatrix(a: Array[Array[Double]]): RowMatrix = {
+  private def rowArrayToRowMatrix(a: Array[Array[Double]], nPartitions: Int = sc.defaultParallelism): RowMatrix = {
     require(a.length > 0)
     val nRows = a.length
     val nCols = a(0).length
     
-    RowMatrix(hc, sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }), nCols, nRows)
+    RowMatrix(hc, sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }, nPartitions), nCols, nRows)
   }
   
   private def rowArrayToLocalMatrix(a: Array[Array[Double]]): DenseMatrix[Double] = {
@@ -89,7 +89,7 @@ class RowMatrixSuite extends SparkSuite {
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
       Array(7.0, 8.0, 9.0))
-    val rowMatrix = rowArrayToRowMatrix(rowArrays)
+    val rowMatrix = rowArrayToRowMatrix(rowArrays, nPartitions = 2)
 
     val rowArraysWithIndex = Array(
       Array(0.0, 1.0, 2.0, 3.0),
