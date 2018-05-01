@@ -1432,6 +1432,7 @@ def import_plink(bed, bim, fam,
           array containing the alleles of the variant. The reference allele (A2
           if `a2_reference` is ``True``) is the first element in the array.
         * `rsid` (:py:data:`.tstr`) -- Column 2 in the BIM file.
+        * `position_morgan` (:py:data:`.tint32`) -- Column 3 in the BIM file.
 
     * Column fields:
 
