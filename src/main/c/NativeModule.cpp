@@ -93,6 +93,19 @@ long fileSize(const std::string& name) {
   return((rc < 0) ? -1 : st.st_size);
 }
 
+std::string readFileAsString(const std::string& name) {
+  FILE* f = fopen(name.c_str(), "r");
+  if (!f) return std::string("");
+  std::stringstream ss;
+  for (;;) {
+    int c = fgetc(f);
+    if (c == EOF) break;
+    ss << (char)c;
+  }
+  fclose(f);
+  return ss.str();
+}
+
 const char* getenvWithDefault(const char* name, const char* defaultVal) {
   const char* s = ::getenv(name);
   return(s ? s : defaultVal);
@@ -261,7 +274,7 @@ private:
     // build .o from .cpp
     fprintf(f, "$(MODULE).o: $(MODULE).cpp\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $@ -c $< 2> $(MODULE).err \\\n");
-    fprintf(f, "\t  || ( /bin/rm -f $(MODULE).new ; cat $(MODULE).mak $(MODULE).err 1>2 ; exit 1 )\n");
+    fprintf(f, "\t  || ( /bin/rm -f $(MODULE).new ; exit 1 )\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).new $(MODULE).o\n");
     fprintf(f, "\t/bin/chmod a+rx $(MODULE).new\n");
     fprintf(f, "\t/bin/rm -f $(MODULE).err\n\n");
@@ -389,6 +402,11 @@ bool NativeModule::tryWaitForBuild() {
       usleep(kFilePollMicrosecs);
     }
     buildState_ = (fileExists(libName_) ? kPass : kFail);
+    if (buildState_ == kFail) {
+      std::string base(config.moduleDir_ + "/hm_" + key_);
+      fprintf(stderr, "makefile:\n%s", readFileAsString(base+".mak").c_str());
+      fprintf(stderr, "errors:\n%s",   readFileAsString(base+".err").c_str());
+    }
   }
   return(buildState_ == kPass);
 }
