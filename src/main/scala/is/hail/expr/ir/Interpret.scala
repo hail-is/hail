@@ -382,6 +382,9 @@ object Interpret {
       case MatrixWrite(child, path, overwrite, codecSpecJSONStr) =>
         val matrixValue = child.execute(HailContext.get)
         matrixValue.write(path, overwrite, codecSpecJSONStr)
+      case ExportPlink(child, path) =>
+        val matrixValue = child.execute(HailContext.get)
+        matrixValue.exportPlink(path)
       case TableWrite(child, path, overwrite, codecSpecJSONStr) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)

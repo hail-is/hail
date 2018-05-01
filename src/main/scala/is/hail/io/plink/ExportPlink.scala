@@ -1,95 +1,183 @@
 package is.hail.io.plink
 
-import is.hail.expr.{EvalContext, Parser}
+import java.io.{OutputStream, OutputStreamWriter}
+
+import is.hail.HailContext
+import is.hail.annotations.Region
+import is.hail.expr.MatrixValue
 import is.hail.expr.types._
-import is.hail.variant.MatrixTable
+import is.hail.variant._
 import is.hail.utils._
+import org.apache.spark.TaskContext
 
 object ExportPlink {
-  def apply(vsm: MatrixTable, path: String, famExpr: String = "id = sa.s") {
-    vsm.requireColKeyString("export_plink")
+  val bedHeader = Array[Byte](108, 27, 1)
+  val gtMap = Array(3, 2, 0)
+  val spaceRegex = """\s+""".r
 
-    val ec = EvalContext(Map(
-      "sa" -> (0, vsm.colType),
-      "global" -> (1, vsm.globalType)))
+  def writeBimRow(v: RegionValueVariant, a: BimAnnotationView, osw: OutputStreamWriter): Unit = {
+    val contig = v.contig()
+    val position = v.position()
+    val alleles = v.alleles()
+    val a0 = alleles(0)
+    val a1 = alleles(1)
+    val varid = a.varid()
 
-    ec.set(1, vsm.globals.value)
+    if (spaceRegex.findFirstIn(contig).isDefined)
+      fatal(s"Invalid 'contig' found -- no white space allowed: '$contig'")
+    if (spaceRegex.findFirstIn(a0).isDefined)
+      fatal(s"Invalid allele found at locus '$contig:$position' -- no white space allowed: '$a0'")
+    if (spaceRegex.findFirstIn(a1).isDefined)
+      fatal(s"Invalid allele found at locus '$contig:$position' -- no white space allowed: '$a1'")
+    if (spaceRegex.findFirstIn(varid).isDefined)
+      fatal(s"Invalid 'varid' found at locus '$contig:$position' -- no white space allowed: '$varid'")
 
-    type Formatter = (Option[Any]) => String
+    osw.write(contig)
+    osw.write('\t')
+    osw.write(varid)
+    osw.write('\t')
+    osw.write(a.positionMorgan().toString)
+    osw.write('\t')
+    osw.write(position.toString)
+    osw.write('\t')
+    osw.write(a1)
+    osw.write('\t')
+    osw.write(a0)
+    osw.write('\n')
+  }
 
-    val formatID: Formatter = _.map(_.asInstanceOf[String]).getOrElse("0")
-    val formatIsFemale: Formatter = _.map { a =>
-      if (a.asInstanceOf[Boolean])
-        "2"
-      else
-        "1"
-    }.getOrElse("0")
-    val formatIsCase: Formatter = _.map { a =>
-      if (a.asInstanceOf[Boolean])
-        "2"
-      else
-        "1"
-    }.getOrElse("NA")
-    val formatQPheno: Formatter = a => a.map(_.toString).getOrElse("NA")
-
-    val famColumns: Map[String, (Type, Int, Formatter)] = Map(
-      "fam_id" -> (TString(), 0, formatID),
-      "id" -> (TString(), 1, formatID),
-      "pat_id" -> (TString(), 2, formatID),
-      "mat_id" -> (TString(), 3, formatID),
-      "is_female" -> (TBoolean(), 4, formatIsFemale),
-      "quant_pheno" -> (TFloat64(), 5, formatQPheno),
-      "is_case" -> (TBoolean(), 5, formatIsCase))
-
-    val (names, types, f) = Parser.parseNamedExprs(famExpr, ec)
-
-    val famFns: Array[(Array[Option[Any]]) => String] = Array(
-      _ => "0", _ => "0", _ => "0", _ => "0", _ => "NA", _ => "NA")
-
-    (names.zipWithIndex, types).zipped.foreach { case ((name, i), t) =>
-      famColumns.get(name) match {
-        case Some((colt, j, formatter)) =>
-          if (colt != t)
-            fatal(s"invalid type for .fam file column $i: expected $colt, got $t")
-          famFns(j) = (a: Array[Option[Any]]) => formatter(a(i))
-
-        case None =>
-          fatal(s"no .fam file column $name")
-      }
+  def writeBedRow(hcv: HardCallView, bp: BitPacker, nSamples: Int): Unit = {
+    var k = 0
+    while (k < nSamples) {
+      hcv.setGenotype(k)
+      val gt = if (hcv.hasGT) gtMap(Call.unphasedDiploidGtIndex(hcv.getGT)) else 1
+      bp += gt
+      k += 1
     }
+    bp.flush()
+  }
 
-    val spaceRegex = """\s+""".r
-    val badSampleIds = vsm.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
-    if (badSampleIds.nonEmpty) {
-      fatal(
-        s"""Found ${ badSampleIds.length } sample IDs with whitespace
-           |  Fix this problem before exporting to plink format
-           |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
-    }
+  def apply(mv: MatrixValue, path: String): Unit = {
+    val hc = HailContext.get
+    val sc = hc.sc
+    val hConf = hc.hadoopConf
 
-    val bedHeader = Array[Byte](108, 27, 1)
+    val tmpBedDir = hConf.getTemporaryFile(hc.tmpDir)
+    val tmpBimDir = hConf.getTemporaryFile(hc.tmpDir)
 
-    // FIXME: don't reevaluate the upstream RDD twice
-    vsm.rvd.mapPartitions(
-      ExportBedBimFam.bedRowTransformer(vsm.numCols, vsm.rvd.typ.rowType)
-    ).saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
+    hConf.mkDir(tmpBedDir)
+    hConf.mkDir(tmpBimDir)
 
-    vsm.rvd.mapPartitions(
-      ExportBedBimFam.bimRowTransformer(vsm.rvd.typ.rowType)
-    ).writeTable(path + ".bim", vsm.hc.tmpDir)
+    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
-    val famRows = vsm
-      .colValues.value
-      .map { sa =>
-        ec.set(0, sa)
-        val a = f().map(Option(_))
-        famFns.map(_ (a)).mkString("\t")
+    val nPartitions = mv.rvd.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val nSamples = mv.colValues.value.length
+    val fullRowType = mv.typ.rvRowType
+
+    val nRecordsWritten = mv.rvd.mapPartitionsWithIndex { case (i, it) =>
+      val hConf = sHConfBc.value.value
+      val f = partFile(d, i, TaskContext.get)
+      val bedPartPath = tmpBedDir + "/" + f
+      val bimPartPath = tmpBimDir + "/" + f
+      var rowCount = 0L
+
+      hConf.writeTextFile(bimPartPath) { bimOS =>
+        hConf.writeFile(bedPartPath) { bedOS =>
+          val v = new RegionValueVariant(fullRowType)
+          val a = new BimAnnotationView(fullRowType)
+          val hcv = HardCallView(fullRowType)
+          val bp = new BitPacker(2, bedOS)
+
+          it.foreach { rv =>
+            v.setRegion(rv)
+            a.setRegion(rv)
+            ExportPlink.writeBimRow(v, a, bimOS)
+
+            hcv.setRegion(rv)
+            ExportPlink.writeBedRow(hcv, bp, nSamples)
+
+            rowCount += 1
+          }
+        }
       }
 
-    vsm.hc.hadoopConf.writeTextFile(path + ".fam")(out =>
-      famRows.foreach(line => {
-        out.write(line)
-        out.write("\n")
-      }))
+      Iterator.single(rowCount)
+    }.collect().sum
+
+    hConf.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
+    hConf.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlink.bedHeader))
+    hConf.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true)
+
+    hConf.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
+    hConf.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false)
+
+    mv.colsTableValue.export(path + ".fam", header = false)
+
+    info(s"wrote $nRecordsWritten variants and $nSamples samples to '$path'")
+  }
+}
+
+class BimAnnotationView(rowType: TStruct) extends View {
+  private val varidField = rowType.fieldByName("varid")
+  private val posMorganField = rowType.fieldByName("pos_morgan")
+  private val varidIdx = varidField.index
+  private val posMorganIdx = posMorganField.index
+  private val tvarid = varidField.typ.asInstanceOf[TString]
+  private val tposm = posMorganField.typ.asInstanceOf[TInt32]
+  private var region: Region = _
+  private var varidOffset: Long = _
+  private var posMorganOffset: Long = _
+
+  private var cachedVarid: String = _
+
+  def setRegion(region: Region, offset: Long) {
+    this.region = region
+
+    assert(rowType.isFieldDefined(region, offset, varidIdx))
+    assert(rowType.isFieldDefined(region, offset, posMorganIdx))
+    this.varidOffset = rowType.loadField(region, offset, varidIdx)
+    this.posMorganOffset = rowType.loadField(region, offset, posMorganIdx)
+
+    cachedVarid = null
+  }
+
+  def positionMorgan(): Int =
+    region.loadInt(posMorganOffset)
+
+  def varid(): String = {
+    if (cachedVarid == null)
+      cachedVarid = TString.loadString(region, varidOffset)
+    cachedVarid
+  }
+}
+
+class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
+  require(nBitsPerItem > 0)
+
+  private val bitMask = (1L << nBitsPerItem) - 1
+  private var data = 0L
+  private var nBitsStaged = 0
+
+  def +=(i: Int) {
+    data |= ((i.toUIntFromRep.toLong & bitMask) << nBitsStaged)
+    nBitsStaged += nBitsPerItem
+    write()
+  }
+
+  private def write() {
+    while (nBitsStaged >= 8) {
+      os.write(data.toByte)
+      data = data >>> 8
+      nBitsStaged -= 8
+    }
+  }
+
+  def flush() {
+    if (nBitsStaged > 0)
+      os.write(data.toByte)
+    data = 0L
+    nBitsStaged = 0
   }
 }

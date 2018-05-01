@@ -158,3 +158,8 @@ final case class MatrixWrite(
   codecSpecJSONStr: String = null) extends IR {
   val typ: Type = TVoid
 }
+final case class ExportPlink(
+  child: MatrixIR,
+  path: String) extends IR {
+  val typ: Type = TVoid
+}

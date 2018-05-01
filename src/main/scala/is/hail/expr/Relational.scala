@@ -168,6 +168,9 @@ case class MatrixValue(
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
+  def exportPlink(path: String): Unit =
+    is.hail.io.plink.ExportPlink(this, path)
+
   def rowsRVD(): OrderedRVD = {
     val localRowType = typ.rowType
     val fullRowType = typ.rvRowType

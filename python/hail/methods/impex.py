@@ -5,9 +5,9 @@ from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
-from hail.expr.expressions import analyze, expr_any
+from hail.expr.expressions import *
 from hail.genetics.reference_genome import reference_genome_type
-from hail.methods.misc import require_biallelic, require_row_key_variant
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
 
 
@@ -121,13 +121,23 @@ def export_gen(dataset, output, precision=4):
 
 @typecheck(dataset=MatrixTable,
            output=str,
-           fam_args=expr_any)
-def export_plink(dataset, output, **fam_args):
+           call=nullable(expr_call),
+           fam_id=nullable(expr_str),
+           ind_id=nullable(expr_str),
+           pat_id=nullable(expr_str),
+           mat_id=nullable(expr_str),
+           is_female=nullable(expr_bool),
+           pheno=oneof(nullable(expr_bool), nullable(expr_numeric)),
+           varid=nullable(expr_str),
+           position_morgan=nullable(expr_numeric))
+def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
+                 mat_id=None, is_female=None, pheno=None, varid=None,
+                 position_morgan=None):
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
 
-    .. include:: ../_templates/req_tvariant.rst
+    .. include:: ../_templates/req_tvariant_w_struct_locus.rst
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -139,30 +149,10 @@ def export_plink(dataset, output, **fam_args):
     PLINK files with the FAM file individual ID set to the sample ID:
 
     >>> ds = hl.split_multi_hts(dataset)
-    >>> hl.export_plink(ds, 'output/example', id = ds.s)
+    >>> hl.export_plink(ds, 'output/example', ind_id = ds.s)
 
     Notes
     -----
-    `fam_args` may be used to set the fields in the output
-    `FAM file <https://www.cog-genomics.org/plink2/formats#fam>`__
-    via expressions with column and global fields in scope:
-
-    - ``fam_id``: :py:data:`.tstr` for the family ID
-    - ``id``: :py:data:`.tstr` for the individual (proband) ID
-    - ``mat_id``: :py:data:`.tstr` for the maternal ID
-    - ``pat_id``: :py:data:`.tstr` for the paternal ID
-    - ``is_female``: :py:data:`.tbool` for the proband sex
-    - ``is_case``: :py:data:`.tbool` or `quant_pheno`: :py:data:`.tfloat64` for the
-       phenotype
-
-    If no assignment is given, the corresponding PLINK missing value is written:
-    ``0`` for IDs and sex, ``NA`` for phenotype. Only one of ``is_case`` or
-    ``quant_pheno`` can be assigned. For Boolean expressions, true and false are
-    output as ``2`` and ``1``, respectively (i.e., female and case are ``2``).
-
-    The BIM file ID field has the form ``chr:pos:ref:alt`` with values given by
-    `v.contig`, `v.start`, `v.ref`, and `v.alt`.
-
     On an imported VCF, the example above will behave similarly to the PLINK
     conversion command
 
@@ -174,7 +164,6 @@ def export_plink(dataset, output, **fam_args):
 
     - Variants that result from splitting a multi-allelic variant may be
       re-ordered relative to the BIM and BED files.
-    - PLINK uses the rsID for the BIM file ID.
 
     Parameters
     ----------
@@ -182,29 +171,101 @@ def export_plink(dataset, output, **fam_args):
         Dataset.
     output : :obj:`str`
         Filename root for output BED, BIM, and FAM files.
-    fam_args : varargs of :class:`hail.expr.expressions.Expression`
-        Named expressions defining FAM field values.
+    call : :class:`.CallExpression`, optional
+        Expression for the genotype call to output. If ``None``, the entry field
+        `GT` is used if defined and is of type :py:data:`.tcall`.
+    fam_id : :class:`.StringExpression`, optional
+        Expression for the family ID. The default and missing values are
+        ``'0'``.
+    ind_id : :class:`.StringExpression`, optional
+        Expression for the individual (proband) ID. If ``None``, the column key
+        of the dataset is used and must be one field of type :py:data:`.tstr`.
+    pat_id : :class:`.StringExpression`, optional
+        Expression for the paternal ID. The default and missing values are
+        ``'0'``.
+    mat_id : :class:`.StringExpression`, optional
+        Expression for the maternal ID. The default and missing values are
+        ``'0'``.
+    is_female : :class:`.BooleanExpression`, optional
+        Expression for the proband sex. ``True`` is output as ``'2'`` and
+        ``False`` is output as ``'1'``. The default and missing values are
+        ``'0'``.
+    pheno : :class:`.BooleanExpression` or :class:`.NumericExpression`, optional
+        Expression for the phenotype. If `pheno` is a boolean expression,
+        ``True`` is output as ``'2'`` and ``False`` is output as ``'1'``. The
+        default and missing values are ``'NA'``.
+    varid : :class:`.StringExpression`, optional
+        Expression for the variant ID (2nd column of the BIM file). The default
+        value is ``hl.delimit([dataset.locus.contig, hl.str(dataset.locus.position), dataset.alleles[0], dataset.alleles[1]], ':')``
+    position_morgan : :class:`.NumericExpression`, optional
+        Expression for the position in either morgans or centimorgans (3rd
+        column of the BIM file). The default and missing values are ``'0'``.
     """
 
-    fam_dict = {'fam_id': tstr, 'id': tstr, 'mat_id': tstr, 'pat_id': tstr,
-                'is_female': tbool, 'is_case': tbool, 'quant_pheno': tfloat64}
+    require_biallelic(dataset, 'export_plink')
+    require_row_key_variant_w_struct_locus(dataset, 'export_plink')
 
-    exprs = []
-    named_exprs = {k: v for k, v in fam_args.items()}
-    if ('is_case' in named_exprs) and ('quant_pheno' in named_exprs):
-        raise ValueError("At most one of 'is_case' and 'quant_pheno' may be given as fam_args. Found both.")
-    for k, v in named_exprs.items():
-        if k not in fam_dict:
-            raise ValueError("fam_arg '{}' not recognized. Valid names: {}".format(k, ', '.join(fam_dict)))
-        elif (v.dtype != fam_dict[k]):
-            raise TypeError("fam_arg '{}' expression has type {}, expected type {}".format(k, v.dtype, fam_dict[k]))
+    def expr_or_else(expr, default, f=lambda x: x):
+        if expr is not None:
+            return hl.or_else(f(expr), default)
+        else:
+            return to_expr(default)
 
-        analyze('export_plink/{}'.format(k), v, dataset._col_indices)
-        exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
-    base, _ = dataset._process_joins(*named_exprs.values())
-    base = require_biallelic(base, 'export_plink')
+    if ind_id is None:
+        require_col_key_str(dataset, "export_plink")
+        ind_id = dataset.col_key[0]
 
-    Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
+    if call is None:
+        if 'GT' in dataset.entry and dataset.GT.dtype == tcall:
+            entry_exprs = {'GT': dataset.GT}
+        else:
+            entry_exprs = {}
+    else:
+        entry_exprs = {'GT': call}
+
+    fam_exprs = {'fam_id': expr_or_else(fam_id, '0'),
+                 'ind_id': hl.or_else(ind_id, '0'),
+                 'pat_id': expr_or_else(pat_id, '0'),
+                 'mat_id': expr_or_else(mat_id, '0'),
+                 'is_female': expr_or_else(is_female, '0',
+                                           lambda x: hl.cond(x, '2', '1')),
+                 'pheno': expr_or_else(pheno, 'NA',
+                                       lambda x: hl.cond(x, '2', '1') if x.dtype == tbool else hl.str(x))}
+
+    l = dataset.locus
+    a = dataset.alleles
+
+    bim_exprs = {'locus': l,
+                 'alleles': a,
+                 'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+                 'pos_morgan': expr_or_else(position_morgan, 0)}
+
+    for exprs, axis in [(fam_exprs, dataset._col_indices),
+                        (bim_exprs, dataset._row_indices),
+                        (entry_exprs, dataset._entry_indices)]:
+        for name, expr in exprs.items():
+            if expr is not None:
+                analyze('export_plink/{}'.format(name), expr, axis)
+
+    dataset = dataset._select_all(col_exprs=fam_exprs,
+                                  row_exprs=bim_exprs,
+                                  entry_exprs=entry_exprs)
+
+    # check FAM ids for white space
+    t_cols = dataset.cols()
+    errors = []
+    for name in ['ind_id', 'fam_id', 'pat_id', 'mat_id']:
+        ids = t_cols.filter(t_cols[name].matches(r"\s+"))[name].collect()
+
+        if ids:
+            errors.append(f"""expr '{name}' has spaces in the following values:\n""")
+            for row in ids:
+                errors.append(f"""  {row}\n""")
+
+    if errors:
+        raise TypeError("\n".join(errors))
+
+    dataset._jvds.exportPlink(output)
 
 
 @typecheck(table=Table,

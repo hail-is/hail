@@ -2278,12 +2278,45 @@ class MatrixTable(ExprContainer):
             analyze("MatrixTable.annotate_entries", entry_struct, self._entry_indices)
             jmt = jmt.selectEntries(entry_struct._ast.to_hql())
         if global_exprs:
-            global_strs = []
-            for k, v in global_exprs.items():
-                analyze('MatrixTable.annotate_globals', v, self._global_indices)
-                global_strs.append('global.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-                check_collisions(self._fields, k, self._global_indices)
-                jmt = jmt.annotateGlobalsExpr(",\n".join(global_strs))
+            globals_struct = self.globals.annotate(**global_exprs)
+            analyze("MatrixTable.annotate_globals", globals_struct, self._global_indices)
+            jmt = jmt.selectGlobals(globals_struct._ast.to_hql())
+
+        return cleanup(MatrixTable(jmt))
+
+    @typecheck_method(row_exprs=dictof(str, expr_any),
+                      col_exprs=dictof(str, expr_any),
+                      entry_exprs=dictof(str, expr_any),
+                      global_exprs=dictof(str, expr_any))
+    def _select_all(self,
+                    row_exprs={},
+                    col_exprs={},
+                    entry_exprs={},
+                    global_exprs={},
+                    ) -> 'MatrixTable':
+        all_exprs = list(itertools.chain(row_exprs.values(),
+                                         col_exprs.values(),
+                                         entry_exprs.values(),
+                                         global_exprs.values()))
+
+        base, cleanup = self._process_joins(*all_exprs)
+        jmt = base._jvds
+
+        row_struct = hl.struct(**row_exprs)
+        analyze("MatrixTable.select_rows", row_struct, self._row_indices)
+        jmt = jmt.selectRows(row_struct._ast.to_hql())
+
+        col_struct = hl.struct(**col_exprs)
+        analyze("MatrixTable.select_cols", col_struct, self._col_indices)
+        jmt = jmt.selectCols(col_struct._ast.to_hql())
+
+        entry_struct = hl.struct(**entry_exprs)
+        analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
+        jmt = jmt.selectEntries(entry_struct._ast.to_hql())
+
+        globals_struct = hl.struct(**global_exprs)
+        analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
+        jmt = jmt.selectGlobals(globals_struct._ast.to_hql())
 
         return cleanup(MatrixTable(jmt))
 

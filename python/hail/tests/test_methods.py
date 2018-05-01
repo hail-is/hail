@@ -75,8 +75,6 @@ class Tests(unittest.TestCase):
         hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
 
     def test_impute_sex_same_as_plink(self):
-        import subprocess as sp
-
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
         sex = hl.impute_sex(ds.GT, include_par=True)
@@ -86,14 +84,8 @@ class Tests(unittest.TestCase):
 
         hl.export_vcf(ds, vcf_file)
 
-        try:
-            out = sp.check_output(
-                ["plink", "--vcf", vcf_file, "--const-fid", "--check-sex",
-                 "--silent", "--out", out_file],
-                stderr=sp.STDOUT)
-        except sp.CalledProcessError as e:
-            print(e.output)
-            raise e
+        utils.run_command(["plink", "--vcf", vcf_file, "--const-fid",
+                           "--check-sex", "--silent", "--out", out_file])
 
         plink_sex = hl.import_table(out_file + '.sexcheck',
                                     delimiter=' +',
@@ -773,7 +765,7 @@ class Tests(unittest.TestCase):
         dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
         dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
 
-        hl.export_plink(dataset, b_file, id=dataset.s)
+        hl.export_plink(dataset, b_file, ind_id=dataset.s)
 
         sample_ids = [row.s for row in dataset.cols().select('s').collect()]
         n_variants = dataset.count_rows()
@@ -927,20 +919,13 @@ class Tests(unittest.TestCase):
         self.assertTrue(loadings._same(loadings2))
 
     def _R_pc_relate(self, mt, maf):
-        import subprocess as sp
-
         plink_file = utils.uri_path(utils.new_temp_file())
-        hl.export_plink(mt, plink_file, id=hl.str(mt.col_key[0]))
-        try:
-            sp.check_output(
-                ["Rscript",
-                 resource("is/hail/methods/runPcRelate.R"),
-                 plink_file,
-                 str(maf)],
-                stderr=sp.STDOUT)
-        except sp.CalledProcessError as e:
-            print(e.output)
-            raise e
+        hl.export_plink(mt, plink_file, ind_id=hl.str(mt.col_key[0]))
+        utils.run_command(["Rscript",
+                           resource("is/hail/methods/runPcRelate.R"),
+                           plink_file,
+                           str(maf)])
+
         types = {
             'ID1': hl.tstr,
             'ID2': hl.tstr,
@@ -1248,26 +1233,110 @@ class Tests(unittest.TestCase):
         self.assertEqual(nfam, i)
 
     def test_export_plink(self):
+        vcf_file = resource('sample.vcf')
+        mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))
+
+        split_vcf_file = utils.uri_path(utils.new_temp_file())
+        hl_output = utils.uri_path(utils.new_temp_file())
+        plink_output = utils.uri_path(utils.new_temp_file())
+        merge_output = utils.uri_path(utils.new_temp_file())
+
+        hl.export_vcf(mt, split_vcf_file)
+        hl.export_plink(mt, hl_output)
+
+        utils.run_command(["plink", "--vcf", split_vcf_file,
+                           "--make-bed", "--out", plink_output,
+                           "--const-fid", "--keep-allele-order"])
+
+        data = []
+        with open(utils.uri_path(plink_output + ".bim")) as file:
+            for line in file:
+                row = line.strip().split()
+                row[1] = ":".join([row[0], row[3], row[5], row[4]])
+                data.append("\t".join(row) + "\n")
+
+        with open(plink_output + ".bim", 'w') as f:
+            f.writelines(data)
+
+        utils.run_command(["plink", "--bfile", plink_output,
+                           "--bmerge", hl_output, "--merge-mode",
+                           "6", "--out", merge_output])
+
+        same = True
+        with open(merge_output + ".diff") as f:
+            for line in f:
+                row = line.strip().split()
+                if row != ["SNP", "FID", "IID", "NEW", "OLD"]:
+                    same = False
+                    break
+
+        self.assertTrue(same)
+
+    def test_export_plink_exprs(self):
         ds = self.get_dataset()
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
+                       'f4': 'is_female', 'f5': 'pheno'}
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'position_morgan',
+                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
 
-        hl.export_plink(ds, '/tmp/plink_example', id=ds.s)
+        # Test default arguments
+        out1 = utils.new_temp_file()
+        hl.export_plink(ds, out1)
+        fam1 = (hl.import_table(out1 + '.fam', no_header=True, impute=False, missing="")
+                .rename(fam_mapping))
+        bim1 = (hl.import_table(out1 + '.bim', no_header=True, impute=False)
+                .rename(bim_mapping))
 
-        hl.export_plink(ds, '/tmp/plink_example2', id=ds.s, fam_id=ds.s, pat_id="nope",
-                        mat_id="nada", is_female=True, is_case=False)
+        self.assertTrue(fam1.all((fam1.fam_id == "0") & (fam1.pat_id == "0") &
+                                 (fam1.mat_id == "0") & (fam1.is_female == "0") &
+                                 (fam1.pheno == "NA")))
+        self.assertTrue(bim1.all((bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1) &
+                                 (bim1.position_morgan == "0")))
 
-        hl.export_plink(ds, '/tmp/plink_example3', id=ds.s, fam_id=ds.s, pat_id="nope",
-                        mat_id="nada", is_female=True, quant_pheno=hl.float64(hl.len(ds.s)))
+        # Test non-default FAM arguments
+        out2 = utils.new_temp_file()
+        hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope",
+                        mat_id="nada", is_female=True, pheno=False)
+        fam2 = (hl.import_table(out2 + '.fam', no_header=True, impute=False, missing="")
+                .rename(fam_mapping))
 
-        self.assertRaises(ValueError,
-                          lambda: hl.export_plink(ds, '/tmp/plink_example', is_case=True, quant_pheno=0.0))
+        self.assertTrue(fam2.all((fam2.fam_id == fam2.ind_id) & (fam2.pat_id == "nope") &
+                                 (fam2.mat_id == "nada") & (fam2.is_female == "2") &
+                                 (fam2.pheno == "1")))
 
-        self.assertRaises(ValueError, lambda: hl.export_plink(ds, '/tmp/plink_example', foo=0.0))
+        # Test quantitative phenotype
+        out3 = utils.new_temp_file()
+        hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
+        fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="")
+                .rename(fam_mapping))
 
-        self.assertRaises(TypeError, lambda: hl.export_plink(ds, '/tmp/plink_example', is_case=0.0))
+        self.assertTrue(fam3.all((fam3.fam_id == "0") & (fam3.pat_id == "0") &
+                                 (fam3.mat_id == "0") & (fam3.is_female == "0") &
+                                 (fam3.pheno != "0") & (fam3.pheno != "NA")))
 
-        # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
-        # self.assertRaises(ExpressionException, lambda: hl.export_plink(ds, '/tmp/plink_example', id = ds.locus.contig))
-        # self.assertRaises(ExpressionException, lambda: hl.export_plink(ds, '/tmp/plink_example', id = ds.GT))
+        # Test non-default BIM arguments
+        out4 = utils.new_temp_file()
+        hl.export_plink(ds, out4, varid="hello", position_morgan=100)
+        bim4 = (hl.import_table(out4 + '.bim', no_header=True, impute=False)
+                .rename(bim_mapping))
+
+        self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.position_morgan == "100")))
+
+        # Test call expr
+        out5 = utils.new_temp_file()
+        ds_call = ds.annotate_entries(gt_fake=hl.call(0, 0))
+        hl.export_plink(ds_call, out5, call=ds_call.gt_fake)
+        ds_all_hom_ref = hl.import_plink(out5 + '.bed', out5 + '.bim', out5 + '.fam')
+        nerrors = ds_all_hom_ref.aggregate_entries(agg.count_where(~ds_all_hom_ref.GT.is_hom_ref()))
+        self.assertTrue(nerrors == 0)
+
+        # Test white-space in FAM id expr raises error
+        with self.assertRaisesRegex(TypeError, "has spaces in the following values:"):
+            hl.export_plink(ds, utils.new_temp_file(), mat_id="hello world")
+
+        # Test white-space in varid expr raises error
+        with self.assertRaisesRegex(utils.FatalError, "Invalid 'varid' found at locus"):
+            hl.export_plink(ds, utils.new_temp_file(), varid="hello world")
 
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))
@@ -1602,7 +1671,7 @@ class Tests(unittest.TestCase):
         mt = mt.select_entries('GT')
 
         bfile = '/tmp/test_import_export_plink'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
                                       a2_reference=True, reference_genome='GRCh37')
@@ -1611,21 +1680,21 @@ class Tests(unittest.TestCase):
     def test_import_plink_empty_fam(self):
         mt = self.get_dataset().drop_cols()
         bfile = '/tmp/test_empty_fam'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(utils.FatalError, "Empty .fam file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_empty_bim(self):
         mt = self.get_dataset().drop_rows()
         bfile = '/tmp/test_empty_bim'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(utils.FatalError, ".bim file does not contain any variants"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_a1_major(self):
         mt = self.get_dataset()
         bfile = '/tmp/sample_plink'
-        hl.export_plink(mt, bfile, id=mt.s)
+        hl.export_plink(mt, bfile, ind_id=mt.s)
 
         def get_data(a2_reference):
             mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim',
