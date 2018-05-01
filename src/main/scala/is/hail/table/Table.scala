@@ -571,8 +571,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
   def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
-    require(keys.nonEmpty)
-    require(partitionKeys.nonEmpty)
     val fields = signature.fieldNames.toSet
     assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
     assert(partitionKeys.length <= keys.length)

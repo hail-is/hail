@@ -405,7 +405,7 @@ class Table(ExprContainer):
                 Env.hc()._jhc, rows.dtype._to_json(rows.value),
                 rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
 
-    @typecheck_method(keys=oneof(str, Expression))
+    @typecheck_method(keys=nullable(oneof(str, Expression)))
     def key_by(self, *keys) -> 'Table':
         """Change the key.
 
@@ -434,6 +434,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
+        if len(keys) == 1 and keys[0] is None:
+            return Table(self._jt.unkey())
         str_keys = []
         for k in keys:
             if isinstance(k, Expression):
@@ -2271,6 +2273,8 @@ class Table(ExprContainer):
     def collect_by_key(self, name: str= 'values') -> 'Table':
         """Collect values for each unique key into an array.
 
+        .. include:: _templates/req_keyed_table.rst
+
         Examples
         --------
         >>> t1 = hl.Table.parallelize([
@@ -2306,8 +2310,7 @@ class Table(ExprContainer):
 
         Notes
         -----
-        The order of the values array is not guaranteed. Does not work on tables
-        with `key=None`.
+        The order of the values array is not guaranteed.
 
         Parameters
         ----------
@@ -2324,6 +2327,8 @@ class Table(ExprContainer):
 
     def distinct(self) -> 'Table':
         """Keep only one row for each unique key.
+
+        .. include:: _templates/req_keyed_table.rst
 
         Examples
         --------
@@ -2357,8 +2362,7 @@ class Table(ExprContainer):
 
         Notes
         -----
-        The row chosen per distinct key is not guaranteed. Does not work on
-        tables with `key=None`.
+        The row chosen per distinct key is not guaranteed.
 
         Returns
         -------
