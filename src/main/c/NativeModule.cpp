@@ -166,6 +166,7 @@ public:
     } else {
       llvmHome_ = lastMatch("/usr/l*/llvm* /usr/l*/llvm-5* /usr/l*/llvm-6*");
       cxxName_ = (fileExists(llvmHome_+"/bin/clang") ? "clang" : "g++");
+      if (cxxName_ == "g++") llvmHome_ = "/usr";
       javaHome_ = "/usr/lib/jvm/default-java";
       javaMD_ = "linux";
     }
