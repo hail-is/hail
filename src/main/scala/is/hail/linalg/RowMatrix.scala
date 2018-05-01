@@ -16,7 +16,7 @@ object RowMatrix {
   
   def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long, partitionCounts: Array[Long]): RowMatrix =
     new RowMatrix(hc, rows, nCols, Some(nRows), Some(partitionCounts))
-    
+  
   def computePartitionCounts(partSize: Long, nRows: Long): Array[Long] = {
     val nParts = ((nRows - 1) / partSize).toInt + 1
     val partitionCounts = Array.fill[Long](nParts)(partSize)
@@ -92,7 +92,7 @@ class RowMatrix(val hc: HailContext,
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, i => math.min(i, localNCols.toLong).toInt, _ => localNCols)
   }  
-    
+  
   def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, i => math.min(i + 1, localNCols.toLong).toInt, _ => localNCols)

@@ -4,7 +4,6 @@ from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
 from hail.table import Table
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
-from hail.linalg import RowMatrix
 import numpy as np
 from enum import IntEnum
 
@@ -894,7 +893,6 @@ class BlockMatrix(object):
         """
         return Table(self._jbm.entriesTable(Env.hc()._jhc))
 
-    @classmethod
     @typecheck_method(partition_size=int)
     def to_row_matrix(self, partition_size):
         """Creates a row matrix from a block matrix.
@@ -933,7 +931,7 @@ class BlockMatrix(object):
         path = new_temp_file()
         self.write(path, force_row_major=True)
 
-        return RowMatrix.read_from_block_matrix(path, partition_size)
+        return hl.linalg.RowMatrix.read_from_block_matrix(path, partition_size)
 
 
 block_matrix_type.set(BlockMatrix)
