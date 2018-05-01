@@ -1426,15 +1426,15 @@ class Table(ExprContainer):
             row_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
-        row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                          for f in self.key) if self.key else '\n    None'
+        row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.key) + ']' \
+            if self.key else None
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \
             '----------------------------------------\n' \
             'Row fields:{r}\n' \
             '----------------------------------------\n' \
-            'Key:{rk}\n' \
+            'Key: {rk}\n' \
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
                                                               r=row_fields)

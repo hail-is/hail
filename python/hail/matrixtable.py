@@ -2357,10 +2357,10 @@ class MatrixTable(ExprContainer):
             row_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
-        row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                          for f in self.row_key) if self.row_key else '\n    None'
-        partition_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                                for f in self.partition_key) if self.partition_key else '\n    None'
+        row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.row_key) + ']' \
+            if self.row_key else None
+        partition_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.partition_key) + ']' \
+            if self.partition_key else None
 
         if len(self.col) == 0:
             col_fields = '\n    None'
@@ -2368,8 +2368,8 @@ class MatrixTable(ExprContainer):
             col_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
-        col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                          for f in self.col_key) if self.col_key else '\n    None'
+        col_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.col_key) + ']' \
+            if self.col_key else None
 
         if len(self.entry) == 0:
             entry_fields = '\n    None'
@@ -2386,9 +2386,9 @@ class MatrixTable(ExprContainer):
             '----------------------------------------\n' \
             'Entry fields:{e}\n' \
             '----------------------------------------\n' \
-            'Column key:{ck}\n' \
-            'Row key:{rk}\n' \
-            'Partition key:{pk}\n' \
+            'Column key: {ck}\n' \
+            'Row key: {rk}\n' \
+            'Partition key: {pk}\n' \
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
                                                               pk=partition_key,
