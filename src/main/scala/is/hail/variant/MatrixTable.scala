@@ -2165,11 +2165,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.MatrixWrite(ast, path, overwrite, codecSpecJSONStr))
+    val f = (mv: MatrixValue) => mv.write(path, overwrite, codecSpecJSONStr)
+    ir.Interpret(ir.MatrixWrite(ast, f))
   }
 
   def exportPlink(path: String) {
-    ir.Interpret(ir.ExportPlink(ast, path))
+    val f = (mv: MatrixValue) => mv.exportPlink(path)
+    ir.Interpret(ir.MatrixWrite(ast, f))
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {

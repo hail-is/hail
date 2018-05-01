@@ -186,8 +186,7 @@ object TypeCheck {
         val impl = x.implementation
         args.foreach(check(_))
         assert(x.implementation.unify(args.map(_.typ)))
-      case MatrixWrite(_, _, _, _) =>
-      case ExportPlink(_, _) =>
+      case MatrixWrite(_, _) =>
       case x@TableAggregate(child, query) =>
         check(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)
         assert(x.typ == query.typ)

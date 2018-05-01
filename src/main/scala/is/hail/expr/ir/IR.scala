@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.{BaseIR, MatrixIR, TableIR}
+import is.hail.expr.{BaseIR, MatrixIR, MatrixValue, TableIR}
 import is.hail.expr.ir.functions.{IRFunction, IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.ExportType
 
@@ -169,13 +169,6 @@ final case class TableExport(
 
 final case class MatrixWrite(
   child: MatrixIR,
-  path: String,
-  overwrite: Boolean = true,
-  codecSpecJSONStr: String = null) extends IR {
-  val typ: Type = TVoid
-}
-final case class ExportPlink(
-  child: MatrixIR,
-  path: String) extends IR {
+  f: (MatrixValue) => Unit) extends IR {
   val typ: Type = TVoid
 }
