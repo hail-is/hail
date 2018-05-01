@@ -59,7 +59,7 @@ class RowMatrix(object):
 
         Examples
         --------
-
+        >>> from hail.linalg import RowMatrix
         >>> mt = hl.balding_nichols_model(3, 25, 50)
         >>> bm = RowMatrix.from_entry_expr(mt.GT.n_alt_alleles())
 
@@ -95,6 +95,7 @@ class RowMatrix(object):
 
         Examples
         --------
+        >>> from hail.linalg import RowMatrix
         >>> rm = RowMatrix.read_from_block_matrix('output/bm',
         ...                                       partition_size=2)
 
