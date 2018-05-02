@@ -93,7 +93,7 @@ class RegionValueArrayBuffer(val t: Type, region: Region)
   def clear() {
     region.clear()
     idx.clear()
-    rvb.clear()
+    rvb.clear() // remove
   }
 
   private var itIdx = 0

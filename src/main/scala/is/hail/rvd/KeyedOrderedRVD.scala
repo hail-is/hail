@@ -24,7 +24,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
   def orderedJoin(
     right: KeyedOrderedRVD,
     joinType: String,
-    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD = {
     checkJoinCompatability(right)
@@ -45,25 +45,26 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "outer" => _.outerJoin(_, _)
       }
 
-    repartitionedLeft.boundary.zipPartitions(
+    repartitionedLeft.zipPartitions(
       joinedType,
       newPartitioner,
-      repartitionedRight.boundary,
+      repartitionedRight,
       preservesPartitioning = true
     ) { (ctx, leftIt, rightIt) =>
       val sideBuffer = ctx.freshContext.region
-      joiner(compute(
-        OrderedRVIterator(lTyp, leftIt),
-        OrderedRVIterator(rTyp, rightIt),
-        new RegionValueArrayBuffer(rTyp.rowType, sideBuffer)
-      ))
+      joiner(
+        ctx,
+        compute(
+          OrderedRVIterator(lTyp, leftIt),
+          OrderedRVIterator(rTyp, rightIt),
+          new RegionValueArrayBuffer(rTyp.rowType, sideBuffer)))
     }
   }
 
   def orderedJoinDistinct(
     right: KeyedOrderedRVD,
     joinType: String,
-    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD = {
     checkJoinCompatability(right)
@@ -84,10 +85,12 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
       newPartitioner,
       repartitionedRight,
       preservesPartitioning = true
-    ) { (_, leftIt, rightIt) =>
-      joiner(compute(
-        OrderedRVIterator(rekeyedLTyp, leftIt),
-        OrderedRVIterator(rekeyedRTyp, rightIt)))
+    ) { (ctx, leftIt, rightIt) =>
+      joiner(
+        ctx,
+        compute(
+          OrderedRVIterator(rekeyedLTyp, leftIt),
+          OrderedRVIterator(rekeyedRTyp, rightIt)))
     }
   }
 

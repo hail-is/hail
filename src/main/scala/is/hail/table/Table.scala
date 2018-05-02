@@ -220,7 +220,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     log.info("in Table.value: execute:\n" + ir.Pretty(opt))
 
-    opt.execute(hc)
+    val tv = opt.execute(hc)
+    tv.rvd.count()
+    tv
   }
 
   def this(
@@ -506,7 +508,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def head(n: Long): Table = {
     if (n < 0)
       fatal(s"n must be non-negative! Found `$n'.")
-    copy(rdd = rdd.head(n))
+    copy2(rvd = rvd.head(n))
   }
 
   def keyBy(key: String*): Table = keyBy(key)
@@ -913,6 +915,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val act = implicitly[ClassTag[Annotation]]
+    // FIXME: need to add sortBy on rvd?
     copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
   }
 
@@ -931,7 +934,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
-  def take(n: Int): Array[Row] = rdd.take(n)
+  def take(n: Int): Array[Row] = rvd.take(n, RVD.wireCodec)
 
   def takeJSON(n: Int): String = {
     val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
@@ -949,6 +952,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val (newSignature, ins) = signature.insert(TInt64(), name)
 
+    // FIXME: should use RVD, need zipWithIndex
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
@@ -1161,6 +1165,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
     globals: BroadcastRow = globals): Table = {
+    rvd.count()
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))

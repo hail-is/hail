@@ -1479,19 +1479,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     val leftValueFieldIdx = left.typ.valueFieldIdx
     val rightValueFieldIdx = right.typ.valueFieldIdx
     val localNewRowType = newRowType
-    val rvMerger: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
-      val rvb = new RegionValueBuilder()
+    val rvMerger = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
+      val rvb = ctx.rvb
       val rv = RegionValue()
       it.map { joined =>
         val lrv = joined._1
         val rrv = joined._2
-
-        if (lrv != null)
-          rvb.set(lrv.region)
-        else {
-          assert(rrv != null)
-          rvb.set(rrv.region)
-        }
 
         rvb.start(localNewRowType)
         rvb.startStruct()

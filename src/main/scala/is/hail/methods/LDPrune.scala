@@ -514,6 +514,11 @@ object LDPrune {
     val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
     info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
-    vsm.copy2(rvd = vsm.rvd.orderedJoinDistinct(globalPrunedRDD, "inner", _.map(_.rvLeft), vsm.rvd.typ))
+    vsm.copy2(
+      rvd = vsm.rvd.orderedJoinDistinct(
+        globalPrunedRDD,
+        "inner",
+        (_, it) => it.map(_.rvLeft),
+        vsm.rvd.typ))
   }
 }

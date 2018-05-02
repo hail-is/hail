@@ -43,4 +43,6 @@ final class RegionValue(var region: Region,
   private def readObject(s: ObjectInputStream): Unit = {
     throw new NotImplementedException()
   }
+
+  override def toString = s"$region, $offset"
 }

@@ -777,20 +777,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
 
     val rightRowType = rightRVD.rowType
+    val leftRowType = rvRowType
 
     val rightValueIndices = rightRVD.typ.valueIndices
     assert(!product || rightValueIndices.length == 1)
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
 
-    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
-      val rvb = new RegionValueBuilder()
+    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
+      val rvb = ctx.rvb
       val rv = RegionValue()
 
       it.map { jrv =>
         val lrv = jrv.rvLeft
-
-        rvb.set(lrv.region)
+        leftRowType
         rvb.start(newRVType)
         ins(lrv.region, lrv.offset, rvb,
           () => {
@@ -814,7 +814,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               }
             }
           })
-        rv.set(lrv.region, rvb.end())
+        rv.set(ctx.region, rvb.end())
         rv
       }
     }
@@ -1423,15 +1423,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = matrixType.entryArrayType
     assert(right.matrixType.entryArrayType == localEntriesType)
 
-    val joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue] = { it =>
-      val rvb = new RegionValueBuilder()
+    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
+      val rvb = ctx.rvb
       val rv2 = RegionValue()
 
       it.map { jrv =>
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
 
-        rvb.set(lrv.region)
         rvb.start(leftRVType)
         rvb.startStruct()
         var i = 0
@@ -1464,7 +1463,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         rvb.endArray()
         rvb.endStruct()
-        rv2.set(lrv.region, rvb.end())
+        rv2.set(ctx.region, rvb.end())
         rv2
       }
     }
@@ -2186,6 +2185,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
 
+        // FIXME: how is this not broken?
         it.flatMap { rv =>
           val ur = new UnsafeRow(localRVRowType, rv.region, rv.offset)
 

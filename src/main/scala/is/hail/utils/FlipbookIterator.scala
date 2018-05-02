@@ -162,13 +162,15 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
     ord.setBottom()
-    val stepIterator: FlipbookIterator[A] = FlipbookIterator(
-      new StateMachine[A] {
-        def value: A = self.value
-        def isValid: Boolean = self.isValid && ord.isEquivalent(value)
-        def advance() = { self.advance() }
+    val stepSM = new StateMachine[A] {
+      def value: A = self.value
+      var isValid: Boolean = self.isValid && ord.isEquivalent(self.value)
+      def advance() = {
+        self.advance()
+        isValid = self.isValid && ord.isEquivalent(self.value)
       }
-    )
+    }
+    val stepIterator: FlipbookIterator[A] = FlipbookIterator(stepSM)
     val sm = new StateMachine[FlipbookIterator[A]] {
       var isValid: Boolean = true
       val value: FlipbookIterator[A] = stepIterator
@@ -176,6 +178,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)
+          stepSM.isValid = self.isValid && ord.isEquivalent(self.value)
         } else {
           ord.setBottom()
           isValid = false

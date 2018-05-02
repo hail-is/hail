@@ -122,7 +122,7 @@ class OrderedRVD(
   def orderedJoin(
     right: OrderedRVD,
     joinType: String,
-    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD =
     keyBy().orderedJoin(right.keyBy(), joinType, joiner, joinedType)
@@ -130,7 +130,7 @@ class OrderedRVD(
   def orderedJoinDistinct(
     right: OrderedRVD,
     joinType: String,
-    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD =
     keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
@@ -955,7 +955,8 @@ object OrderedRVD {
               prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
 
               pkUR.set(prevPK.value)
-              assert(partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR))
+              assert(partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR),
+                s"${partitionerBc.value.rangeBounds(i)}, ${pkUR}, ${localType.pkType}")
 
               assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
               rv

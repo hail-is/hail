@@ -175,6 +175,7 @@ object RVD {
 
 trait RVD {
   self =>
+
   def rowType: TStruct
 
   def crdd: ContextRDD[RVDContext, RegionValue]
@@ -240,6 +241,15 @@ trait RVD {
     stabilize(crdd, codec).run
 
   def head(n: Long): RVD
+
+  final def take(n: Int, codec: CodecSpec): Array[Row] = Region.scoped { region =>
+    val dec = codec.buildDecoder(rowType)
+    head(n)
+      .encodedRDD(codec)
+      .collect()
+      .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
+      .map(SafeRow(rowType, _))
+  }
 
   def forall(p: RegionValue => Boolean): Boolean =
     crdd.map(p).run.forall(x => x)

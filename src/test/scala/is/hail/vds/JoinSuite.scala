@@ -67,7 +67,7 @@ class JoinSuite extends SparkSuite {
     val localRowType = left.rvRowType
 
     // Inner distinct ordered join
-    val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner", _.map(_._1), left.rvd.typ)
+    val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner", (_, it) => it.map(_._1), left.rvd.typ)
     val jInnerOrdRDD1 = left.rdd.join(right.rdd.distinct)
 
     assert(jInner.count() == jInnerOrdRDD1.count())
@@ -77,7 +77,7 @@ class JoinSuite extends SparkSuite {
     }.collect() sameElements jInnerOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
 
     // Left distinct ordered join
-    val jLeft = left.rvd.orderedJoinDistinct(right.rvd, "left", _.map(_._1), left.rvd.typ)
+    val jLeft = left.rvd.orderedJoinDistinct(right.rvd, "left", (_, it) => it.map(_._1), left.rvd.typ)
     val jLeftOrdRDD1 = left.rdd.leftOuterJoin(right.rdd.distinct)
 
     assert(jLeft.count() == jLeftOrdRDD1.count())

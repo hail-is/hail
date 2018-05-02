@@ -948,6 +948,11 @@ class MatrixTests(unittest.TestCase):
         mt2 = hl.utils.range_matrix_table(1, 1, n_partitions=1)
         mt2 = mt2.annotate_entries(foo = 10101)
 
+        mt1._force_count_rows
+        mt2._force_count_rows
+
+        mt2[mt1.row_idx // 100, mt1.col_idx // 100].show()
+
         mt_join = mt1.annotate_entries(**mt2[mt1.row_idx // 100, mt1.col_idx // 100])
         mt_join_entries = mt_join.entries()
         self.assertTrue(mt_join_entries.all(mt_join_entries['foo'] == 10101))
