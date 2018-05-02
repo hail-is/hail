@@ -1692,7 +1692,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val fullRowType = rvRowType
         val localEntriesIndex = entriesIndex
         val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
-          val fullRow = new UnsafeRow(fullRowType, rv)
+          val fullRow = SafeRow(fullRowType, rv)
           ec.set(0, globalsBc.value)
           ec.set(1, fullRow)
         })
