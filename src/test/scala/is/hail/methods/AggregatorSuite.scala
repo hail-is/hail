@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.expr.types._
@@ -10,6 +11,7 @@ import is.hail.variant.{MatrixTable, VSMSubgen}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
+import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
 
 class AggregatorSuite extends SparkSuite {
@@ -439,5 +441,54 @@ class AggregatorSuite extends SparkSuite {
 
     assert(kt.aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
     assert(kt.union(kt, kt).aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
+  }
+
+  @Test def testAggregatorsVersusStatCounters() {
+    var vds = hc.importVCF("src/test/resources/sample.vcf")
+    vds = SampleQC(vds)
+    vds = VariantQC(vds)
+
+    val (rowAgg, _) = vds.aggregateRows("{x1: AGG.map(v => va.qc.AF).stats(), " +
+      "x2: AGG.map(v => va.qc.AC.toFloat64).stats()}")
+    val Row(afDist, acDist) = rowAgg.asInstanceOf[Row]
+    val (singStats, _) = vds.aggregateCols("AGG.filter(sa => sa.qc.n_singleton > 2L).count()")
+    val (crStats, _) = vds.aggregateCols("AGG.map(s => sa.qc.call_rate).stats()")
+
+    val qSingleton = vds.querySA("sa.qc.n_singleton")._2
+
+    val sCount = vds.colValues.value.count(sa =>
+      qSingleton(sa).asInstanceOf[Long] > 2)
+
+    assert(singStats == sCount)
+
+    val qAF = vds.queryVA("va.qc.AF")._2
+    val afSC = vds.variantsAndAnnotations.map(_._2)
+      .aggregate(new StatCounter())({ case (statC, va) =>
+        val af = Option(qAF(va))
+        af.foreach(o => statC.merge(o.asInstanceOf[Double]))
+        statC
+      }, { case (sc1, sc2) => sc1.merge(sc2) })
+
+    assert(afDist == Annotation(afSC.mean, afSC.stdev, afSC.min, afSC.max, afSC.count, afSC.sum))
+
+    val qAC = vds.queryVA("va.qc.AC")._2
+    val acSC = vds.variantsAndAnnotations.map(_._2)
+      .aggregate(new StatCounter())({ case (statC, va) =>
+        val ac = Option(qAC(va))
+        ac.foreach(o => statC.merge(o.asInstanceOf[Int]))
+        statC
+      }, { case (sc1, sc2) => sc1.merge(sc2) })
+
+    assert(acDist == Annotation(acSC.mean, acSC.stdev, acSC.min, acSC.max, acSC.count, acSC.sum))
+
+    val qCR = vds.querySA("sa.qc.call_rate")._2
+    val crSC = vds.colValues.value
+      .aggregate(new StatCounter())({ case (statC, sa) =>
+        val cr = Option(qCR(sa))
+        cr.foreach(o => statC.merge(o.asInstanceOf[Double]))
+        statC
+      }, { case (sc1, sc2) => sc1.merge(sc2) })
+
+    assert(crStats == Annotation(crSC.mean, crSC.stdev, crSC.min, crSC.max, crSC.count, crSC.sum))
   }
 }
