@@ -1,4 +1,5 @@
 import itertools
+import math
 from typing import *
 
 import hail as hl
@@ -9,11 +10,11 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_col_key_str
+from hail.methods.misc import require_biallelic, require_col_key_str, maximal_independent_set
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
-from hail.utils import wrap_to_list
+from hail.utils import wrap_to_list, new_temp_file
 from hail.utils.java import *
 from hail.utils.misc import check_collisions
 
@@ -2908,15 +2909,114 @@ class FilterAlleles(object):
                 self._left_aligned, self._keep_star))
         return cleanup(m)
 
+@typecheck(ds=MatrixTable,
+           r2=numeric,
+           window=int,
+           memory_per_core=int)  
+def _local_ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
+    bytes_per_core = memory_per_core * 1024 * 1024
+    fraction_memory_to_use = 0.25
+    variant_byte_overhead = 50
+    genotypes_per_pack = 32
+    n_samples = ds.count_cols()
+    min_memory_per_core = math.ceil((1 / fraction_memory_to_use) * 8 * n_samples + variant_byte_overhead)
+    if bytes_per_core < min_memory_per_core:
+        raise ValueError("memory per core must be greater than {} MB".format(min_memory_per_core * 1024 * 1024))
+    bytes_per_variant = math.ceil(8 * n_samples / genotypes_per_pack) + variant_byte_overhead
+    memory_available_per_core = bytes_per_core * fraction_memory_to_use
+    max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
+
+    sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
+        require_biallelic(ds, 'ld_prune')._jvds, float(r2), window, max_queue_size))
+
+    return sites_only_table
 
 @typecheck(ds=MatrixTable,
-           n_cores=int,
            r2=numeric,
            window=int,
            memory_per_core=int)
-def ld_prune(ds, n_cores, r2=0.2, window=1000000, memory_per_core=256):
-    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, n_cores, r2, window, memory_per_core)
-    return MatrixTable(jmt)
+def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
+    """Prune variants in linkage disequilibrium.
+
+    Notes
+    -----
+
+    This method prunes variants in linkage disequilibrium in two stages. The first stage
+    is a local pruning step, which prunes variants in the same partition. The parallelism
+    in this step will be affected by the number of partitions in the dataset, as well as
+    the memory per core, which is used to calculate a queue size for the local prune.
+
+    The second stage is a global pruning step which makes use of a correlation matrix
+    across all remaining variants. In the global pruning step, correlated variants are
+    passed to a method that computes a maximal independent set of those variants.
+
+    Parameters
+    ----------
+    ds : :class:`.MatrixTable`
+        dataset to prune
+    r2 : :obj:`float`
+        correlation threshold (exclusive) above which variants are removed
+    window : :obj:`int`
+        distance in kilobases; correlation between variants further apart is not considered in pruning
+    memory_per_core : :obj:`int`
+        memory in MB per core for local pruning
+
+    Returns
+    -------
+    :class:`.Table`
+        Table of variants after pruning.
+    """
+    sites_only_table = _local_ld_prune(ds, r2, window, memory_per_core)
+
+    sites_path = new_temp_file()
+    sites_only_table.write(sites_path, overwrite=True)
+    sites_only_table = hl.read_table(sites_path)
+
+    locally_pruned_ds = ds.annotate_rows(pruned=sites_only_table[ds.row_key])
+    locally_pruned_ds = locally_pruned_ds.filter_rows(hl.is_defined(locally_pruned_ds.pruned))
+
+    locally_pruned_ds = (locally_pruned_ds.annotate_rows(
+        mean=locally_pruned_ds.pruned.mean, 
+        centered_length_sd_reciprocal=locally_pruned_ds.pruned.centered_length_sd_reciprocal))
+
+    locally_pruned_path = new_temp_file()
+    locally_pruned_ds.write(locally_pruned_path, overwrite=True)
+    locally_pruned_ds = hl.read_matrix_table(locally_pruned_path)
+
+    locally_pruned_ds = locally_pruned_ds.add_row_index('row_idx')
+
+    normalized_mean_imputed_genotype_expr = (
+        hl.cond(hl.is_defined(locally_pruned_ds.GT),
+                (locally_pruned_ds.GT.n_alt_alleles() - locally_pruned_ds.mean)
+                * locally_pruned_ds.centered_length_sd_reciprocal, 0))
+
+    # BlockMatrix.from_entry_expr writes to disk
+    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=1024)
+    correlation_matrix = (block_matrix @ (block_matrix.T))
+
+    locally_pruned_rows = locally_pruned_ds.rows()
+    entries = correlation_matrix._filtered_entries_table(
+        locally_pruned_rows.select(contig=locally_pruned_rows.locus.contig, pos=locally_pruned_rows.locus.position)
+            .key_by("contig"), window, False)
+
+    entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i != entries.j) & (entries.i < entries.j))
+
+    index_table = sites_only_table.add_index().select('locus', 'idx').key_by('idx')
+    entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
+
+    entries = entries.filter((entries.locus_i.contig == entries.locus_j.contig)
+                             & ((hl.abs(entries.locus_i.position - entries.locus_j.position)) <= window))
+
+    entries_path = new_temp_file()
+    entries.write(entries_path, overwrite=True)
+    entries = hl.read_table(entries_path)
+
+    related_nodes_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
+
+    pruned_ds = locally_pruned_ds.filter_rows(
+        hl.is_defined(related_nodes_to_remove[locally_pruned_ds.row_idx]), keep=False)
+
+    return pruned_ds.rows().select('locus', 'alleles')
 
 
 @typecheck(ds=MatrixTable,
