@@ -16,7 +16,7 @@ object RowMatrix {
   
   def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long, partitionCounts: Array[Long]): RowMatrix =
     new RowMatrix(hc, rows, nCols, Some(nRows), Some(partitionCounts))
-    
+  
   def computePartitionCounts(partSize: Long, nRows: Long): Array[Long] = {
     val nParts = ((nRows - 1) / partSize).toInt + 1
     val partitionCounts = Array.fill[Long](nParts)(partSize)
@@ -71,43 +71,48 @@ class RowMatrix(val hc: HailContext,
     new DenseMatrix[Double](nRowsInt, nCols, a.flatten, 0, nCols, isTranspose = true)
   }
   
-  def export(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+  def export(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
     val localNCols = nCols
-    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, _ => 0, _ => localNCols)
+    exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, _ => 0, _ => localNCols)
   }
 
   // includes the diagonal
-  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
     val localNCols = nCols
-    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, _ => 0, i => math.min(i + 1, localNCols.toLong).toInt)
+    exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, _ => 0, i => math.min(i + 1, localNCols.toLong).toInt)
   }
 
-  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
     val localNCols = nCols
-    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, _ => 0, i => math.min(i, localNCols.toLong).toInt)
+    exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, _ => 0, i => math.min(i, localNCols.toLong).toInt)
   }
 
   // includes the diagonal
-  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
     val localNCols = nCols
-    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => math.min(i, localNCols.toLong).toInt, _ => localNCols)
+    exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, i => math.min(i, localNCols.toLong).toInt, _ => localNCols)
   }  
-    
-  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+  
+  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
     val localNCols = nCols
-    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => math.min(i + 1, localNCols.toLong).toInt, _ => localNCols)
+    exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, i => math.min(i + 1, localNCols.toLong).toInt, _ => localNCols)
   }
   
   // convert elements in [start, end) of each array to a string, delimited by columnDelimiter, and export
   def exportDelimitedRowSlices(
     path: String, 
     columnDelimiter: String,
-    header: Option[String], 
+    header: Option[String],
+    addIndex: Boolean,
     exportType: Int, 
     start: (Long) => Int, 
     end: (Long) => Int) {
-    
+        
     genericExport(path, header, exportType, { (sb, i, v) =>
+      if (addIndex) {
+        sb.append(i)
+        sb.append(columnDelimiter)
+      }
       val l = start(i)
       val r = end(i)
       var j = l
@@ -168,8 +173,6 @@ class ReadBlocksAsRowsRDD(path: String,
     val ReadBlocksAsRowsRDDPartition(_, start, end) = split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
 
     var inPerBlockCol = new Array[InputBuffer](nBlockCols)
-    val buf = new Array[Byte](blockSize << 3)
-
     var i = start
 
     new Iterator[(Long, Array[Double])] {

@@ -18,3 +18,4 @@ to maintain compatibility.
     :template: class.rst
 
     BlockMatrix
+    RowMatrix
