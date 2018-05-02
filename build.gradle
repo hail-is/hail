@@ -239,6 +239,8 @@ shadowJar {
     dependencies {
         include(dependency('com.intel:genomicsdb:.*'))
 
+	include(dependency('org.apache.commons:commons-jexl:2.1.1'))
+
         include(dependency('org.slf4j:slf4j-api:1.7.25'))
 
         include(dependency('org.lz4:lz4-java:.*'))

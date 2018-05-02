@@ -61,7 +61,7 @@ object ImportGenomicsDB {
     log.info(s"localizing GenomicsDB shard: $shard => $localShard")
     hadoopConf.copy(shard, localShard)
 
-    val untarCommand = Seq("bash", "-c", s"(cd ${ uriPath(localShardTmpdir) } && tar xf $shardName)")
+    val untarCommand = Seq("bash", "-c", s"(cd ${ uriPath(localShardTmpdir) } && gtar xf $shardName)")
     log.info(s"untar'ing GenomicsDB shard with: $untarCommand")
     val rc = untarCommand !
 
