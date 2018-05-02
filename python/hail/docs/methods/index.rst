@@ -15,15 +15,13 @@ Methods
 
 .. autosummary::
 
-    export_cassandra
+    export_elasticsearch
     export_gen
     export_plink
-    export_solr
     export_vcf
     get_vcf_metadata
     import_bed
     import_bgen
-    index_bgen
     import_fam
     import_gen
     import_locus_intervals
@@ -31,6 +29,7 @@ Methods
     import_plink
     import_table
     import_vcf
+    index_bgen
     read_matrix_table
     read_table
 

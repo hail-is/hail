@@ -36,23 +36,6 @@ def locus_interval_expr(contig, start, end, includes_start, includes_end,
                            includes_end)
 
 
-@typecheck(table=Table,
-           address=str,
-           keyspace=str,
-           table_name=str,
-           block_size=int,
-           rate=int)
-def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=1000):
-    """Export a :class:`.Table` to Cassandra.
-
-    Warning
-    -------
-    :func:`export_cassandra` is EXPERIMENTAL.
-    """
-
-    table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
-
-
 @typecheck(dataset=MatrixTable,
            output=str,
            precision=int)
@@ -266,21 +249,6 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
         raise TypeError("\n".join(errors))
 
     dataset._jvds.exportPlink(output)
-
-
-@typecheck(table=Table,
-           zk_host=str,
-           collection=str,
-           block_size=int)
-def export_solr(table, zk_host, collection, block_size=100):
-    """Export a :class:`.Table` to Solr.
-
-    Warning
-    -------
-    :func:`export_solr` is EXPERIMENTAL.
-    """
-
-    table._jkt.exportSolr(zk_host, collection, block_size)
 
 
 @typecheck(dataset=MatrixTable,
@@ -1772,3 +1740,19 @@ def read_table(path) -> Table:
     :class:`.Table`
     """
     return Table(Env.hc()._jhc.readTable(path))
+
+@typecheck(t=Table,
+           host=str,
+           port=int,
+           index=str,
+           index_type=str,
+           block_size=int,
+           config=nullable(dictof(str, str)),
+           verbose=bool)
+def export_elasticsearch(t, host, port, index, index_type, block_size, config=None, verbose=True):
+    """Export a :class:`.Table` to Elasticsearch.
+
+    .. warning::
+        :func:`.export_elasticsearch` is EXPERIMENTAL.
+    """
+    Env.hail().io.ElasticsearchConnector.export(t._jt, host, port, index, index_type, block_size, config, verbose)
