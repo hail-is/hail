@@ -162,6 +162,12 @@ def require_partition_key_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
 
+@typecheck(table=Table, method=str)
+def require_key(table, method):
+    if table.key is None:
+        raise ValueError("Method '{}' requires keyed table".format(method))
+
+
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)

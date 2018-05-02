@@ -164,7 +164,7 @@ object TextTableReader {
     impute: Boolean = false,
     nPartitions: Int = hc.sc.defaultMinPartitions,
     quote: java.lang.Character = null,
-    keyNames: Array[String] = Array.empty[String],
+    keyNames: Option[IndexedSeq[String]] = None,
     skipBlankLines: Boolean = false): Table = {
 
     require(files.nonEmpty)

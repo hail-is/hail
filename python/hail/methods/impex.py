@@ -970,7 +970,7 @@ def import_gen(path,
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
-           key=oneof(str, sequenceof(str)),
+           key=table_key_type,
            min_partitions=nullable(int),
            impute=bool,
            no_header=bool,
@@ -981,7 +981,7 @@ def import_gen(path,
            quote=nullable(char),
            skip_blank_lines=bool)
 def import_table(paths,
-                 key=(),
+                 key=None,
                  min_partitions=None,
                  impute=False,
                  no_header=False,
@@ -1150,7 +1150,6 @@ def import_table(paths,
     -------
     :class:`.Table`
     """
-    key = wrap_to_list(key)
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
     comment = wrap_to_list(comment)

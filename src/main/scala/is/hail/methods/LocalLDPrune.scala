@@ -323,7 +323,7 @@ object LocalLDPrune {
 
     val tableType = TableType(
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_sd_reciprocal" -> TFloat64Required),
-      key = mt.rowKey, globalType = TStruct.empty())
+      key = Some(mt.rowKey), globalType = TStruct.empty())
 
     val sitesOnlyRDD = rddLP.mapPartitionsPreservesPartitioning(
       new OrderedRVDType(typ.partitionKey, typ.key, tableType.rowType))({

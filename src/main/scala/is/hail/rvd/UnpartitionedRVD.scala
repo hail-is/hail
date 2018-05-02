@@ -75,4 +75,6 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
 
     OrderedRVD.shuffle(ordType, newPartitioner, filtered)
   }
+
+  override def toUnpartitionedRVD: UnpartitionedRVD = this
 }

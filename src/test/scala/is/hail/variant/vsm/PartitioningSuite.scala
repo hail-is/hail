@@ -65,7 +65,7 @@ class PartitioningSuite extends SparkSuite {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
     val t = new Table(hc,
       TableLiteral(TableValue(
-        TableType(TStruct("tidx"->TInt32()), Array("tidx"), TStruct.empty()),
+        TableType(TStruct("tidx"->TInt32()), Some(IndexedSeq("tidx")), TStruct.empty()),
         BroadcastRow(Row.empty, TStruct.empty(), sc),
         UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32())))))
     mt.annotateRowsTable(t, "foo").forceCountRows()

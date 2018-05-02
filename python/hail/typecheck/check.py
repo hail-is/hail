@@ -374,6 +374,11 @@ numeric = oneof(int, float)
 
 char = CharChecker()
 
+table_key_type = nullable(
+    oneof(
+        transformed((str, lambda x: [x])),
+        sequenceof(str)))
+
 def check_all(f, args, kwargs, checks, is_method):
     if not hasattr(f, '_cached_spec'):
         setattr(f, '_cached_spec', inspect.getfullargspec(f))

@@ -34,6 +34,21 @@ class OrderedRVDPartitioner(
       (rangeBounds(i), i)
     })
 
+  def coarsenedPKRangeTree(newPK: Int): IntervalTree[Int] = {
+    val (newPKType, getNewPK) = pkType.select(partitionKey.take(newPK))
+    IntervalTree.fromSorted(
+      newPKType.ordering,
+      Array.tabulate[(Interval, Int)](numPartitions) { i =>
+        (Interval(
+          getNewPK(rangeBounds(i).start.asInstanceOf[Row]),
+          getNewPK(rangeBounds(i).end.asInstanceOf[Row]),
+          includesStart = true,
+          includesEnd = true),
+        i)
+      }
+    )
+  }
+
   def range: Option[Interval] = rangeTree.root.map(_.range)
 
   /**
