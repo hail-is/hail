@@ -6,6 +6,7 @@ import scala.reflect.ClassTag
 sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {
   def castFromGeneric(x: Code[_]): Code[T]
   def castToGeneric(x: Code[T]): Code[_]
+  def castUnknownToGeneric(x: Code[_]): Code[_] = coerce[T](x)
 
   val base: TypeInfo[_]
   val generic: TypeInfo[_]

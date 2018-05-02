@@ -32,7 +32,7 @@ object FunctionBuilder {
   }
 
   def functionBuilder[R: TypeInfo]: FunctionBuilder[AsmFunction0[R]] =
-    new FunctionBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+    new FunctionBuilder[AsmFunction0[R]](Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction1[A, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
@@ -111,6 +111,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   }
 
   def emit(insn: AbstractInsnNode) {
+    require(!fb.closed)
     l += insn
   }
 
@@ -131,7 +132,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
 }
 
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
-  val packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
+  val packageName: String = "is/hail/codegen/generated")(implicit val interfaceTi: TypeInfo[F]) {
 
   import FunctionBuilder._
 
@@ -155,6 +156,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
   init.instructions.add(new InsnNode(RETURN))
 
+  private[this] val children: mutable.Map[String, (Array[Byte], CodeObject[_])] = mutable.Map[String, (Array[Byte], CodeObject[_])]()
 
   private[this] lazy val _apply_method: MethodBuilder = {
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -180,6 +182,23 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   val classBitSet = new ClassBitSet(this)
 
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
+
+  private[this] def newDependentFunction[F2 >: Null <: AnyRef : TypeInfo : ClassTag](fb: FunctionBuilder[F2]): (Array[Byte], CodeObject[_]) = {
+    val n = fb.localName
+    val b = fb.classAsBytes()
+    val c = loadClass(n, b)
+    val obj = newLazyField(Code.newInstance()(ClassTag(c), fb.interfaceTi))(fb.interfaceTi)
+    (b, new CodeObject[F2](obj))
+  }
+
+  def invokeDependentFunction[R: TypeInfo](fb: FunctionBuilder[_], args: Code[_]*): Code[R] = {
+    val genericArgs = fb.parameterTypeInfo.zip(args).map { case (ti, c) => ti.castUnknownToGeneric(c) }
+    val (_, f) = children.getOrElseUpdate(fb.localName, newDependentFunction(fb))
+    val genericReturn = f.invoke[java.lang.Object]("apply", Array.fill[Class[_]](genericArgs.length)(classOf[java.lang.Object]), genericArgs)
+    NotGenericTypeInfo[R].castFromGeneric(genericReturn)
+  }
+
+  val localName: String = name.replace("/",".")
 
   def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
 
@@ -229,7 +248,10 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: MethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
+  var closed: Boolean = false
+
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+    assert(!closed)
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 
@@ -279,14 +301,18 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
       val tcv = new TraceClassVisitor(null, new Textifier, pw)
       cr.accept(tcv, 0)
     }
+    closed = true
     bytes
   }
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
 
   def result(print: Option[PrintWriter] = None): () => F = {
+
+    val childClasses = children.result()
+
     val bytes = classAsBytes(print)
-    val localName = name.replaceAll("/", ".")
+    val n = localName
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -300,7 +326,8 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
           if (f == null) {
             this.synchronized {
               if (f == null) {
-                f = loadClass(localName, bytes).newInstance().asInstanceOf[F]
+                childClasses.foreach { case (n, (b, f)) => loadClass(n, b) }
+                f = loadClass(n, bytes).newInstance().asInstanceOf[F]
               }
             }
           }
