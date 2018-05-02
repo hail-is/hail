@@ -1002,7 +1002,7 @@ def import_gen(path,
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
-           key=nullable(oneof(str, sequenceof(str))),
+           key=table_key_type,
            min_partitions=nullable(int),
            impute=bool,
            no_header=bool,
@@ -1182,7 +1182,6 @@ def import_table(paths,
     -------
     :class:`.Table`
     """
-    key = wrap_to_list(key) if key else None
     paths = wrap_to_list(paths)
     jtypes = {k: v._jtype for k, v in types.items()}
     comment = wrap_to_list(comment)

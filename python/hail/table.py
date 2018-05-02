@@ -391,12 +391,10 @@ class Table(ExprContainer):
     @classmethod
     @typecheck_method(rows=anytype,
                       schema=nullable(tstruct),
-                      key=nullable(oneof(str, sequenceof(str))),
+                      key=table_key_type,
                       n_partitions=nullable(int))
     def parallelize(cls, rows, schema=None, key=None, n_partitions=None):
         rows = to_expr(rows, hl.tarray(schema) if schema is not None else None)
-        if key is not None:
-            key = wrap_to_list(key)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
@@ -1107,8 +1105,7 @@ class Table(ExprContainer):
 
     def index(self, *exprs):
         exprs = tuple(exprs)
-        if self.key is None:
-            raise TypeError('Cannot index an unkeyed table')
+        hail.methods.misc.require_key(self, 'index')
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
@@ -1716,8 +1713,8 @@ class Table(ExprContainer):
             Joined table.
 
         """
-        if self.key is None or right.key is None:
-            raise TypeError("'join' requires keyed tables")
+        hail.methods.misc.require_key(self, 'join')
+        hail.methods.misc.require_key(right, 'join')
         left_key_types = list(self.key.dtype.values())
         right_key_types = list(right.key.dtype.values())
         if not left_key_types == right_key_types:
@@ -2155,7 +2152,7 @@ class Table(ExprContainer):
 
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
-               key=nullable(oneof(str, sequenceof(str))))
+               key=table_key_type)
     def from_spark(df, key=None):
         """Convert PySpark SQL DataFrame to a table.
 
@@ -2196,7 +2193,6 @@ class Table(ExprContainer):
         :class:`.Table`
             Table constructed from the Spark SQL DataFrame.
         """
-        key = wrap_to_list(key) if key else None
         return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
 
     @typecheck_method(flatten=bool)
@@ -2321,8 +2317,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        if self.key is None:
-            raise ValueError('''method 'collect_by_key' requires keyed table''')
+        hail.methods.misc.require_key(self, 'collect_by_key')
         return Table(self._jt.groupByKey(name))
 
     def distinct(self) -> 'Table':
@@ -2368,8 +2363,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        if self.key is None:
-            raise ValueError('''method 'distinct' requires keyed table''')
+        hail.methods.misc.require_key(self, "distinct")
         return Table(self._jt.distinctByKey())
 
 table_type.set(Table)

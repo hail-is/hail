@@ -2877,13 +2877,12 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
+        hail.methods.misc.require_key(table, 'from_rows_table')
         if partition_key is not None:
             if isinstance(partition_key, str):
                 partition_key = [partition_key]
             if len(partition_key) == 0:
                 raise ValueError('partition_key must not be empty')
-            elif table.key is None:
-                raise ValueError('Table must have a defined key to convert to matrix table')
             elif list(table.key)[:len(partition_key)] != partition_key:
                 raise ValueError('partition_key must be a prefix of table key')
         jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt, partition_key)
