@@ -128,11 +128,11 @@ object Simplify {
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case FilterRowsIR(MatrixRead(path, spec, dropCols,  _), False() | NA(_)) =>
-        MatrixRead(path, spec, dropCols, dropRows = true)
+      case FilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, f), False() | NA(_)) =>
+        MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f)
 
-      case FilterColsIR(MatrixRead(path, spec, _, dropRows), False() | NA(_)) =>
-        MatrixRead(path, spec, dropCols = true, dropRows)
+      case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, f), False() | NA(_)) =>
+        MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f)
 
       // Keep all rows/cols = do nothing
       case FilterRowsIR(m, True()) => m
