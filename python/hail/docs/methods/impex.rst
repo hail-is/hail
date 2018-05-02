@@ -8,10 +8,9 @@ Import / Export
 
 .. autosummary::
 
-    export_cassandra
+    export_elasticsearch
     export_gen
     export_plink
-    export_solr
     export_vcf
     get_vcf_metadata
     import_bed
@@ -27,10 +26,9 @@ Import / Export
     read_matrix_table
     read_table
 
-.. autofunction:: export_cassandra
+.. autofunction:: export_elasticsearch
 .. autofunction:: export_gen
 .. autofunction:: export_plink
-.. autofunction:: export_solr
 .. autofunction:: export_vcf
 .. autofunction:: get_vcf_metadata
 .. autofunction:: import_bed
