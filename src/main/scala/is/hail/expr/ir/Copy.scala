@@ -106,12 +106,9 @@ object Copy {
       case ApplySpecial(fn, args) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
       // from MatrixIR
-      case MatrixWrite(_, path, overwrite, codecSpecJSONStr) =>
+      case MatrixWrite(_, f) =>
         val IndexedSeq(child: MatrixIR) = newChildren
-        MatrixWrite(child, path, overwrite, codecSpecJSONStr)
-      case ExportPlink(_, path) =>
-        val IndexedSeq(child: MatrixIR) = newChildren
-        ExportPlink(child, path)
+        MatrixWrite(child, f)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren
