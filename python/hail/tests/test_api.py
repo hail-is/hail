@@ -1162,6 +1162,29 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
         self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
 
+    def test_make_table(self):
+        mt = hl.utils.range_matrix_table(3, 2)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.select_cols(col_idx = hl.str(mt.col_idx))
+
+        t = hl.Table.parallelize(
+            [{'row_idx': 0, '0.x': 0, '1.x': 0},
+             {'row_idx': 1, '0.x': 0, '1.x': 1},
+             {'row_idx': 2, '0.x': 0, '1.x': 2}],
+            hl.tstruct(**{'row_idx': hl.tint32, '0.x': hl.tint32, '1.x': hl.tint32}),
+            key='row_idx')
+
+        self.assertTrue(mt.make_table()._same(t))
+
+    def test_make_table_empty_entry_field(self):
+        mt = hl.utils.range_matrix_table(3, 2)
+        mt = mt.select_entries(**{'':  mt.row_idx * mt.col_idx})
+        mt = mt.select_cols(col_idx = hl.str(mt.col_idx))
+
+        t = mt.make_table()
+        self.assertEqual(
+            t.row.dtype,
+            hl.tstruct(**{'row_idx': hl.tint32, '0': hl.tint32, '1': hl.tint32}))
 
 class GroupedMatrixTests(unittest.TestCase):
 

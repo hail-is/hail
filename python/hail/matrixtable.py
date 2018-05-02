@@ -3032,7 +3032,7 @@ class MatrixTable(ExprContainer):
         The table has one row for each row of the input matrix.  The
         per sample and entry fields are formed by concatenating the
         sample ID with the entry field name using `separator`.  If the
-        field name is empty, the separator is ommitted.
+        entry field name is empty, the separator is omitted.
 
         The table inherits the globals from the matrix table.
 
