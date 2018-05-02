@@ -42,41 +42,20 @@ class StagedArrayBuilder(val elt: Type, mb: MethodBuilder, len: Code[Int]) {
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
-  private def wrapArgs[A1: ClassTag, A2: ClassTag, R: ClassTag](method: String, a1: Code[A1], a2: Code[A2]): Code[R] = ti match {
-    case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[A1, A2, R](method, a1, a2)
-    case IntInfo => coerce[IntArrayBuilder](ref).invoke[A1, A2, R](method, a1, a2)
-    case LongInfo => coerce[LongArrayBuilder](ref).invoke[A1, A2, R](method, a1, a2)
-    case FloatInfo => coerce[FloatArrayBuilder](ref).invoke[A1, A2, R](method, a1, a2)
-    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[A1, A2, R](method, a1, a2)
-  }
+  def addMissing(): Code[Unit] =
+    coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
 
-  private def wrapArgs[A1: ClassTag, R: ClassTag](method: String, a1: Code[A1]): Code[R] = ti match {
-    case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[A1, R](method, a1)
-    case IntInfo => coerce[IntArrayBuilder](ref).invoke[A1, R](method, a1)
-    case LongInfo => coerce[LongArrayBuilder](ref).invoke[A1, R](method, a1)
-    case FloatInfo => coerce[FloatArrayBuilder](ref).invoke[A1, R](method, a1)
-    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[A1, R](method, a1)
-  }
+  def isMissing(i: Code[Int]): Code[Boolean] =
+    coerce[MissingArrayBuilder](ref).invoke[Int, Boolean]("isMissing", i)
 
-  private def wrapArgs[R: ClassTag](method: String): Code[R] = ti match {
-    case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[R](method)
-    case IntInfo => coerce[IntArrayBuilder](ref).invoke[R](method)
-    case LongInfo => coerce[LongArrayBuilder](ref).invoke[R](method)
-    case FloatInfo => coerce[FloatArrayBuilder](ref).invoke[R](method)
-    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[R](method)
-  }
+  def setMissing(i: Code[Int], m: Code[Boolean]): Code[Unit] =
+    coerce[MissingArrayBuilder](ref).invoke[Int, Boolean, Unit]("setMissing", i, m)
 
-  def addMissing(): Code[Unit] = wrapArgs[Unit]("addMissing")
+  def size: Code[Int] = coerce[MissingArrayBuilder](ref).invoke[Int]("size")
 
-  def isMissing(i: Code[Int]): Code[Boolean] = wrapArgs[Int, Boolean]("isMissing", i)
+  def setSize(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("setSize", n)
 
-  def setMissing(i: Code[Int], m: Code[Boolean]): Code[Unit] = wrapArgs[Int, Boolean, Unit]("setMissing", i, m)
-
-  def size: Code[Int] = wrapArgs[Int]("size")
-
-  def setSize(n: Code[Int]): Code[Unit] = wrapArgs[Int, Unit]("setSize", n)
-
-  def clear: Code[Unit] = wrapArgs[Unit]("clear")
+  def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {

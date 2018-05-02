@@ -24,9 +24,8 @@ object Infer {
       case x@ToSet(a) =>
         TSet(coerce[TArray](a.typ).elementType)
       case x@ToDict(a) =>
-        val elt = coerce[TArray](a.typ).elementType
-        val eltt = coerce[TBaseStruct](elt)
-        TDict(eltt.types(0), eltt.types(1))
+        val elt = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
+        TDict(elt.types(0), elt.types(1))
       case x@ToArray(a) =>
         TArray(coerce[TContainer](a.typ).elementType)
       case x@ArrayMap(a, name, body) =>

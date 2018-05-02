@@ -85,10 +85,7 @@ object TypeCheck {
       case x@ToDict(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
-        assert {
-          val elt = coerce[TArray](a.typ).elementType
-          elt.isInstanceOf[TBaseStruct] && coerce[TBaseStruct](elt).size == 2
-        }
+        assert(coerce[TBaseStruct](coerce[TArray](a.typ).elementType).size == 2)
       case x@ToArray(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])

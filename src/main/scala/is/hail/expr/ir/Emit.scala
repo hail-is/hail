@@ -309,12 +309,13 @@ private class Emit(
         val codeA = emit(a)
         EmitTriplet(codeA.setup, codeA.m, TContainer.loadLength(region, coerce[Long](codeA.v)))
 
-      case ArraySort(a) =>
+      case _: ArraySort | _: ToSet | _: ToDict =>
+        val a = ir.children(0).asInstanceOf[IR]
         val atyp = coerce[TArray](a.typ)
 
         val aout = emitArrayIterator(a)
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-        val sorter = new ArraySorter(mb, vab)
+        val sorter = new ArraySorter(mb, vab, keyOnly = ir.isInstanceOf[ToDict])
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           m.mux(vab.addMissing(), vab.add(v))
@@ -325,46 +326,8 @@ private class Emit(
           vab.clear,
           aout.calcLength,
           processArrayElts.addElements,
-          sorter.sort(),
-          sorter.toRegion()))
-      case ToSet(a) =>
-          val atyp = coerce[TArray](a.typ)
+          sorter.sortIntoRegion(distinct = !ir.isInstanceOf[ArraySort])))
 
-          val aout = emitArrayIterator(a)
-          val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-          val sorter = new ArraySorter(mb, vab, keyOnly = false)
-
-          val cont = { (m: Code[Boolean], v: Code[_]) =>
-            m.mux(vab.addMissing(), vab.add(v))
-          }
-
-          val processArrayElts = aout.arrayEmitter(cont)
-          EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-            vab.clear,
-            aout.calcLength,
-            processArrayElts.addElements,
-            sorter.sort(),
-            sorter.distinctFromSorted,
-            sorter.toRegion()))
-      case ToDict(a) =>
-          val atyp = coerce[TArray](a.typ)
-
-          val aout = emitArrayIterator(a)
-          val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-          val sorter = new ArraySorter(mb, vab, keyOnly = true)
-
-          val cont = { (m: Code[Boolean], v: Code[_]) =>
-            m.mux(vab.addMissing(), vab.add(v))
-          }
-
-          val processArrayElts = aout.arrayEmitter(cont)
-          EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-            vab.clear,
-            aout.calcLength,
-            processArrayElts.addElements,
-            sorter.sort(),
-            sorter.distinctFromSorted,
-            sorter.toRegion()))
       case ToArray(a) =>
         emit(a)
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
