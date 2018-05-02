@@ -82,9 +82,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
 
     For example, the usual ordering on the integers is defined by: ``l - r``.
 
-    The `tie_breaker` function must satisfy the following properties:
-    ``tie_breaker(l, r) == -tie_breaker(r, l)`` OR
-    ``tie_breaker(l, r) == 0 and tie_breaker(r, l) == 0``.
+    The `tie_breaker` function must satisfy the following property:
+    ``tie_breaker(l, r) == -tie_breaker(r, l)``.
 
     When multiple nodes have the same degree, this algorithm will order the
     nodes according to ``tie_breaker`` and remove the *largest* node.
@@ -123,9 +122,10 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
     node_t = i.dtype
 
     if tie_breaker:
-        l = construct_expr(VariableReference('l'), node_t)
-        r = construct_expr(VariableReference('r'), node_t)
-        tie_breaker_expr = hl.int64(tie_breaker(l, r))
+        wrapped_node_t = ttuple(node_t)
+        l = construct_expr(VariableReference('l'), wrapped_node_t)
+        r = construct_expr(VariableReference('r'), wrapped_node_t)
+        tie_breaker_expr = hl.int64(tie_breaker(l[0], r[0]))
         t, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_hql = tie_breaker_expr._ast.to_hql()
     else:

@@ -16,13 +16,8 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBr
       val tb1 = maybeTieBreaker(a, b)
       val tb2 = maybeTieBreaker(b, a)
 
-      if (tb1 == 0) {
-        if (tb2 != 0)
-          fatal(s"'maximal_independent_set' requires if 'tie_breaker(l, r)' equals 0, then 'tie_breaker(r, l)' must also equal 0. Found ($tb1, $tb2).")
-      } else {
-        if (tb1 != -tb2)
-          fatal(s"'maximal_independent_set' requires if 'tie_breaker(l, r)' equals '-1 * tie_breaker(r, l)'. Found ($tb1, $tb2).")
-      }
+      if (tb1 != -tb2)
+        fatal(s"'maximal_independent_set' requires 'tie_breaker(l, r)' equals '-1 * tie_breaker(r, l)'. Found ($tb1, $tb2).")
 
       tb1 > 0
     }

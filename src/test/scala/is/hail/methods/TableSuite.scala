@@ -485,14 +485,4 @@ class TableSuite extends SparkSuite {
     val table = Table.range(hc, 1).annotate("x = 5").keyBy("x")
     table.flatten()
   }
-
-  @Test def testSelectGlobals() {
-    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
-    val kt2 = kt.selectGlobal("{x: 5}").selectGlobal("{y: global.x}")
-    assert(kt2.globalSignature == TStruct("y" -> TInt32()) && kt2.globals.value.asInstanceOf[Row].get(0) == 5)
-  }
-
-  @Test def testQueryIR() {
-    Table.range(hc, 100).aggregate("AGG.map(x => row.idx + 4).sum()")._1
-  }
 }

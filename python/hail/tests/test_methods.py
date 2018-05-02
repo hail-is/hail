@@ -1399,7 +1399,7 @@ class Tests(unittest.TestCase):
         non_maximal_indep_sets = [{0, 7}, {6, 1}]
         self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
 
-    def test_maximal_independent_set_tiebreaker(self):
+    def test_maximal_independent_set3(self):
         is_case = {"A", "C", "E", "G", "H"}
         edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
         edges = [{"i": {"id": l, "is_case": l in is_case},

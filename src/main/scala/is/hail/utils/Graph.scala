@@ -42,13 +42,14 @@ object Graph {
     if (edges2.length > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    val tieBreakerEc = EvalContext("l" -> edgeType, "r" -> edgeType)
+    val wrappedEdgeType = TTuple(edgeType)
+    val tieBreakerEc = EvalContext("l" -> wrappedEdgeType, "r" -> wrappedEdgeType)
 
     val tieBreakerF = tieBreaker.map { e =>
       val ast = Parser.parseToAST(e, tieBreakerEc)
       ast.toIR() match {
         case Some(ir) =>
-          val (t, f) = Compile[Long, Long, Long]("l", edgeType, "r", edgeType, MakeTuple(FastSeq(ir)))
+          val (t, f) = Compile[Long, Long, Long]("l", wrappedEdgeType, "r", wrappedEdgeType, MakeTuple(FastSeq(ir)))
           assert(t.isOfType(TTuple(TInt64())))
 
           (l: Any, r: Any) => {
@@ -56,12 +57,16 @@ object Graph {
               val rvb = new RegionValueBuilder()
               rvb.set(region)
 
-              rvb.start(edgeType)
+              rvb.start(wrappedEdgeType)
+              rvb.startTuple()
               rvb.addAnnotation(edgeType, l)
+              rvb.endTuple()
               val lOffset = rvb.end()
 
-              rvb.start(edgeType)
+              rvb.start(wrappedEdgeType)
+              rvb.startTuple()
               rvb.addAnnotation(edgeType, r)
+              rvb.endTuple()
               val rOffset = rvb.end()
 
               val resultOffset = f()(region, lOffset, false, rOffset, false)
