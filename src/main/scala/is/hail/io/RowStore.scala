@@ -84,7 +84,7 @@ object CodecSpec {
 }
 
 trait CodecSpec extends Serializable {
-  def buildEncoder(t: Type)(out: OutputStream): Encoder
+  def buildEncoder(t: Type): (OutputStream) => Encoder
 
   def buildDecoder(t: Type): (InputStream) => Decoder
 
@@ -96,7 +96,9 @@ trait CodecSpec extends Serializable {
 }
 
 final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
-  def buildEncoder(t: Type)(out: OutputStream): Encoder = new PackEncoder(t, child.buildOutputBuffer(out))
+  def buildEncoder(t: Type): (OutputStream) => Encoder = { out: OutputStream =>
+    new PackEncoder(t, child.buildOutputBuffer(out))
+  }
 
   // def buildDecoder(t: Type)(in: InputStream): Decoder = new PackDecoder(t, child.buildInputBuffer(in))
 

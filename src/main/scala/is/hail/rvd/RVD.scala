@@ -192,9 +192,9 @@ trait RVD {
         new BlockingBufferSpec(32 * 1024,
           new StreamBlockBufferSpec))
 
-    val makeEnc = persistCodec.buildEncoder(localRowType)(_)
+    val makeEnc = persistCodec.buildEncoder(localRowType)
 
-    val makeDec = persistCodec.buildDecoder(localRowType)(_)
+    val makeDec = persistCodec.buildDecoder(localRowType)
 
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
