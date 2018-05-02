@@ -113,11 +113,8 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testSum() {
-    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      print(vds.matrixType)
-      var vds2 = TestUtils.splitMultiHTS(vds)
-      vds2.forceCountRows()
-      vds2 = VariantQC(vds2, "qc")
+    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
+      var vds2 = VariantQC(vds, "qc")
       vds2 = vds2
         .annotateRowsExpr("oneHotAC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum()")
         .annotateRowsExpr("same" -> ("(AGG.filter(g => isDefined(g.GT)).count() == 0) || " +

@@ -1017,6 +1017,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             case Apply(_, "annotate", Array(StructConstructor(_, names, asts), newstruct)) =>
               structSelectChangesRowKeys(names, asts) ||
                 coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
+            case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
+              coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
             case x@Apply(_, "drop", Array(StructConstructor(_, names, asts), _*)) =>
               val rowKeySet = rowKey.toSet
               structSelectChangesRowKeys(names, asts) ||
