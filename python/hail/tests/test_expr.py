@@ -932,6 +932,32 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_strand_ambiguous("G", "T")))
 
+    def test_allele_type(self):
+        self.assertEqual(
+            hl.tuple((
+                hl.allele_type('A', 'C'),
+                hl.allele_type('AC', 'CT'),
+                hl.allele_type('C', 'CT'),
+                hl.allele_type('CT', 'C'),
+                hl.allele_type('CTCA', 'AAC'),
+                hl.allele_type('CTCA', '*'),
+                hl.allele_type('C', '<DEL>'),
+                hl.allele_type('C', 'H'),
+                hl.allele_type('C', ''),
+            )).value,
+            (
+                'SNP',
+                'MNP',
+                'Insertion',
+                'Deletion',
+                'Complex',
+                'Star',
+                'Symbolic',
+                'Unknown',
+                'Unknown',
+            )
+        )
+
     def test_hamming(self):
         self.assertEqual(hl.eval_expr(hl.hamming('A', 'T')), 1)
         self.assertEqual(hl.eval_expr(hl.hamming('AAAAA', 'AAAAT')), 1)

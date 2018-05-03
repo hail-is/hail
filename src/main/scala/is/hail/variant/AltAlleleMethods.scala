@@ -6,7 +6,7 @@ import scala.util.matching.Regex
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
-  val SNP, MNP, Insertion, Deletion, Complex, Star = Value
+  val SNP, MNP, Insertion, Deletion, Complex, Star, Symbolic = Value
 }
 
 object CopyState extends Enumeration {
@@ -17,7 +17,7 @@ object CopyState extends Enumeration {
 object AltAlleleMethods {
   import is.hail.variant.AltAlleleType._
 
-  val alleleRegex: Regex = "^([ACGT]+)|\\*$".r
+  val alleleRegex: Regex = "^([ACGT]+)|(\\*)|(<[\\w:-]+>)$".r
 
   def validate(allele: String) {
     if (!alleleRegex.matches(allele))
@@ -27,6 +27,8 @@ object AltAlleleMethods {
   def altAlleleType(ref: String, alt: String): AltAlleleType = {
     validate(ref)
     validate(alt)
+    if (ref(0) == '<' || alt(0) == '<')
+      AltAlleleType.Symbolic
     if (ref.length == alt.length) {
       if (ref.length == 1)
         if (ref == "*" || alt == "*")

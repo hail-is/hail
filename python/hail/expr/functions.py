@@ -1783,10 +1783,10 @@ def sqrt(x) -> Float64Expression:
 
 @typecheck(s=expr_str)
 def _is_valid_allele(s) -> BooleanExpression:
-    return s.matches(r'^([ACGT]+)|\\*$')
+    return s.matches(r'^([ACGT]+)|(\*)|(<[\w:-]+>)$')
 
 
-_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star"]
+_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
 _allele_enum = {i: v for i, v in enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
@@ -1796,6 +1796,7 @@ def _num_allele_type(ref, alt) -> Int32Expression:
     return hl.bind(lambda r, a:
                    hl.cond(_is_valid_allele(r) & _is_valid_allele(a),
                            hl.case()
+                           .when((ref[0] == '<') | (alt[0] == '<'), _allele_ints['Symbolic'])
                            .when(r.length() == a.length(),
                                         hl.cond(r.length() == 1,
                                                 hl.cond((r == "*") | (a == "*"),
@@ -2102,6 +2103,7 @@ def allele_type(ref, alt)-> StringExpression:
      - ``"Deletion"``
      - ``"Complex"``
      - ``"Star"``
+     - ``"Symbolic"``
      - ``"Unknown"``
 
     Parameters
