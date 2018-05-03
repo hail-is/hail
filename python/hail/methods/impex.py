@@ -1149,7 +1149,10 @@ def import_table(paths,
         line is found.
     force_bgz : :obj:`bool`
         If ``True``, load files as blocked gzip files, assuming
-        that they were actually compressed using the BGZ codec.
+        that they were actually compressed using the BGZ codec. This option is
+        useful when the file extension is not ``'.bgz'``, but the file is
+        blocked gzip, so that the file can be read in parallel and not on a
+        single node.
 
     Returns
     -------
