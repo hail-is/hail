@@ -247,8 +247,13 @@ trait RVD {
     head(n)
       .encodedRDD(codec)
       .collect()
+      .iterator
       .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
-      .map(SafeRow(rowType, _))
+      .map { rv =>
+        val row = SafeRow(rowType, rv)
+        region.clear()
+        row
+      }.toArray
   }
 
   def forall(p: RegionValue => Boolean): Boolean =

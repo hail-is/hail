@@ -311,45 +311,42 @@ class OrderedRVD(
 
     val localType = typ
 
-    OrderedRVD(
-      newTyp,
-      partitioner,
-      crdd.cmapPartitionsAndContext { (consumerCtx, useCtxes) =>
-        val rvb = consumerCtx.rvb
-        val consumerRegion = consumerCtx.region
-        val outRV = RegionValue(consumerRegion)
+    OrderedRVD(newTyp, partitioner, crdd.cmapPartitionsAndContext { (consumerCtx, useCtxes) =>
+      val consumerRegion = consumerCtx.region
+      val rvb = consumerCtx.rvb
+      val outRV = RegionValue(consumerRegion)
 
-        val producerCtx = consumerCtx.freshContext
-        val producerRegion = producerCtx.region
-        val groupedValues = mutable.ArrayBuffer[Long]()
-        val it = useCtxes.flatMap(_(producerCtx))
-        val stepped = OrderedRVIterator(localType, it).staircase
+      val bufferRegion = consumerCtx.freshContext.region
+      val buffer = new RegionValueArrayBuffer(localType.valueType, bufferRegion)
 
-        stepped.map { stepIt =>
-          rvb.start(newRowType)
-          rvb.startStruct()
-          var i = 0
-          while (i < localType.kType.size) {
-            rvb.addField(localType.rowType, stepIt.value, localType.kRowFieldIdx(i))
-            i += 1
-          }
-          for (rv <- stepIt)
-            groupedValues += rv.offset
-          rvb.startArray(groupedValues.length)
-          for (value <- groupedValues)
-            rvb.selectRegionValue(
-              localType.rowType,
-              localType.valueFieldIdx,
-              producerRegion,
-              value)
-          rvb.endArray()
-          rvb.endStruct()
-          outRV.setOffset(rvb.end())
-          groupedValues.clear()
-          producerRegion.clear()
-          outRV
+      val producerCtx = consumerCtx.freshContext
+      val producerRegion = producerCtx.region
+      val it = useCtxes.flatMap(_ (producerCtx))
+
+      val stepped = OrderedRVIterator(localType, it).staircase
+
+      stepped.map { stepIt =>
+        buffer.clear()
+        rvb.start(newRowType)
+        rvb.startStruct()
+        var i = 0
+        while (i < localType.kType.size) {
+          rvb.addField(localType.rowType, stepIt.value, localType.kRowFieldIdx(i))
+          i += 1
         }
-      })
+        for (rv <- stepIt) {
+          buffer.appendSelect(localType.rowType, localType.valueFieldIdx, rv)
+          producerRegion.clear()
+        }
+        rvb.startArray(buffer.length)
+        for (rv <- buffer)
+          rvb.addRegionValue(localType.valueType, rv)
+        rvb.endArray()
+        rvb.endStruct()
+        outRV.setOffset(rvb.end())
+        outRV
+      }
+    })
   }
 
   def distinctByKey(): OrderedRVD = {

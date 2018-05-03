@@ -164,10 +164,11 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     ord.setBottom()
     val stepSM = new StateMachine[A] {
       def value: A = self.value
-      var isValid: Boolean = self.isValid && ord.isEquivalent(self.value)
+      var _isValid: Boolean = self.isValid && ord.isEquivalent(self.value)
+      def isValid = _isValid
       def advance() = {
         self.advance()
-        isValid = self.isValid && ord.isEquivalent(self.value)
+        _isValid = self.isValid && ord.isEquivalent(self.value)
       }
     }
     val stepIterator: FlipbookIterator[A] = FlipbookIterator(stepSM)
@@ -178,9 +179,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)
-          stepSM.isValid = self.isValid && ord.isEquivalent(self.value)
+          stepSM._isValid = self.isValid && ord.isEquivalent(self.value)
         } else {
           ord.setBottom()
+          stepSM._isValid = false
           isValid = false
         }
       }
