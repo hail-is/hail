@@ -266,7 +266,7 @@ class TableTests(unittest.TestCase):
         expected = {u'status': 0,
                     u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777,
                              u'observed_homs': 1},
-                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
+                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'AN': 4},
                     u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
                     u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
                     u'x8': 1, u'x9': 0.0, u'x16': u'apple',
