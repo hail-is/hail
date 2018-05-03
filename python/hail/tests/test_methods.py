@@ -1345,7 +1345,7 @@ class Tests(unittest.TestCase):
             hl.export_plink(ds, utils.new_temp_file(), mat_id="hello world")
 
         # Test white-space in varid expr raises error
-        with self.assertRaisesRegex(utils.FatalError, "Invalid 'varid' found at locus"):
+        with self.assertRaisesRegex(utils.FatalError, "no white space allowed:"):
             hl.export_plink(ds, utils.new_temp_file(), varid="hello world")
 
     def test_export_gen(self):
