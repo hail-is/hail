@@ -90,6 +90,16 @@ object TypeCheck {
       case x@ToArray(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
+      case x@SetContains(set, elem) =>
+        check(set)
+        check(elem)
+        assert(set.typ.isInstanceOf[TSet])
+        assert(-coerce[TSet](set.typ).elementType == elem.typ)
+      case x@DictGet(dict, key) =>
+        check(dict)
+        check(key)
+        assert(dict.typ.isInstanceOf[TDict])
+        assert(-coerce[TDict](dict.typ).keyType == key.typ)
       case x@ArrayMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)

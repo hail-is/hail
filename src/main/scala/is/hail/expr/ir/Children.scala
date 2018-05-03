@@ -45,6 +45,10 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case SetContains(set, elem) =>
+      Array(set, elem)
+    case DictGet(dict, key) =>
+      Array(dict, key)
     case ArrayMap(a, name, body) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>
