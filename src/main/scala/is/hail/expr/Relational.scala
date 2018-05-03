@@ -1451,6 +1451,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
 }
 
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {
+  private val nPartitionsAdj = math.min(n, nPartitions)
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRange = {
@@ -1458,7 +1459,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     this
   }
 
-  private val partCounts = partition(n, nPartitions)
+  private val partCounts = partition(n, nPartitionsAdj)
 
   override val partitionCounts = Some(partCounts.map(_.toLong))
 
@@ -1474,8 +1475,15 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 
     TableValue(typ,
       BroadcastRow(Row(), typ.globalType, hc.sc),
-      new UnpartitionedRVD(typ.rowType,
-        hc.sc.parallelize(Range(0, nPartitions), nPartitions)
+      new OrderedRVD(
+        new OrderedRVDType(Array("idx"), Array("idx"), typ.rowType),
+        new OrderedRVDPartitioner(Array("idx"), typ.rowType,
+          Array.tabulate(nPartitionsAdj) { i =>
+            val start = partStarts(i)
+            val end = partStarts(i + 1)
+            Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+          }),
+        hc.sc.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
           .mapPartitionsWithIndex { case (i, _) =>
             val region = Region()
             val rvb = new RegionValueBuilder(region)

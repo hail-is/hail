@@ -581,7 +581,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       val orvd = rvd match {
         case ordered: OrderedRVD =>
           if (keys.zip(ordered.typ.key).forall{ case (l, r) => l == r } &&
-              ordered.typ.partitionKey == partitionKeys.length) {
+              ordered.typ.partitionKey.length == partitionKeys.length) {
             if (keys.length <= ordered.typ.key.length)
               ordered.copy(typ = ordered.typ.copy(key = keys))
             else if (ordered.typ.key.length <= keys.length) {
