@@ -66,7 +66,7 @@ final class Region(
 
   def loadByte(off: Long): Byte = {
     assert(size <= capacity)
-    assert(off >= 0 && off + 1 <= size, s"$off, $size")
+    assert(off >= 0 && off + 1 <= size)
     Memory.loadByte(mem, off)
   }
 

@@ -242,22 +242,28 @@ trait RVD {
 
   def head(n: Long): RVD
 
-  final def take(n: Int, codec: CodecSpec): Array[Row] = Region.scoped { region =>
+  final def takeAsBytes(n: Int, codec: CodecSpec): Array[Array[Byte]] =
+    head(n).encodedRDD(codec).collect()
+
+  final def take(n: Int, codec: CodecSpec): Array[Row] = {
     val dec = codec.buildDecoder(rowType)
-    head(n)
-      .encodedRDD(codec)
-      .collect()
-      .iterator
-      .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
-      .map { rv =>
-        val row = SafeRow(rowType, rv)
-        region.clear()
-        row
-      }.toArray
+    val encodedData = takeAsBytes(n, codec)
+    Region.scoped { region =>
+      encodedData.iterator
+        .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
+        .map { rv =>
+          val row = SafeRow(rowType, rv)
+          region.clear()
+          row
+        }.toArray
+    }
   }
 
   def forall(p: RegionValue => Boolean): Boolean =
     crdd.map(p).run.forall(x => x)
+
+  def exists(p: RegionValue => Boolean): Boolean =
+    crdd.map(p).run.exists(x => x)
 
   def sparkContext: SparkContext = crdd.sparkContext
 
@@ -281,13 +287,13 @@ trait RVD {
     new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
   def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
-    stabilize(crdd.filter(p), codec).run.take(1).headOption
+    filter(p).takeAsBytes(1, codec).headOption
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
       RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType), region, RegionValue()))
 
-  // Only use on CRDD's whose T is not dependnet on the context
+  // Only use on CRDD's whose T is not dependent on the context
   private[rvd] def clearingRun[T: ClassTag](
     crdd: ContextRDD[RVDContext, T]
   ): RDD[T] = crdd.cmap { (ctx, v) =>
@@ -360,8 +366,7 @@ trait RVD {
         .cmapPartitions { (ctx, it) =>
           val region = ctx.region
           val rv = RegionValue(region)
-          it.map(
-            RVD.bytesToRegionValue(makeDec, region, rv))
+          it.map(RVD.bytesToRegionValue(makeDec, region, rv))
         })
   }
 
@@ -387,11 +392,7 @@ trait RVD {
 
   def toRows: RDD[Row] = {
     val localRowType = rowType
-    crdd.cmap { (ctx, rv) =>
-      val r = SafeRow(localRowType, rv.region, rv.offset)
-      ctx.region.clear()
-      r
-    }.run
+    map(rv => SafeRow(localRowType, rv.region, rv.offset))
   }
 
   def toUnpartitionedRVD: UnpartitionedRVD

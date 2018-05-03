@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.annotations.SafeRow
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._

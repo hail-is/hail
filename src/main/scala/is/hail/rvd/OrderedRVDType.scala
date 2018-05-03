@@ -61,12 +61,6 @@ class OrderedRVDType(
     }
     def compareFinite(rv: RegionValue): Int =
       kRowOrd.compare(wrv.value, rv)
-
-    override def toString =
-      if (isInfinite != 0)
-        s"isInfinite: $isInfinite"
-      else
-        wrv.value.pretty(wrv.t)
   }
 
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {

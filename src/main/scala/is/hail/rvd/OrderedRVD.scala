@@ -401,7 +401,6 @@ class OrderedRVD(
     }
   )
 
-  // FIXME: should this introduce a boundary?
   def zipPartitionsPreservesPartitioning[T: ClassTag](
     newTyp: OrderedRVDType,
     that: ContextRDD[RVDContext, T]
@@ -953,8 +952,7 @@ object OrderedRVD {
               prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
 
               pkUR.set(prevPK.value)
-              assert(partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR),
-                s"${partitionerBc.value.rangeBounds(i)}, ${pkUR}, ${localType.pkType}")
+              assert(partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR))
 
               assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
               rv

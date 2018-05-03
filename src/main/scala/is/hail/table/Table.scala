@@ -1270,7 +1270,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     key: Option[IndexedSeq[String]] = key,
     globalSignature: TStruct = globalSignature,
     globals: BroadcastRow = globals): Table = {
-    rvd.count()
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
