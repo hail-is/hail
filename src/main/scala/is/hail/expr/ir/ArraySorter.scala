@@ -18,12 +18,12 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
 
     val comp: CodeOrdering.F[Int] = {
       case (r1: Code[Region], (m1: Code[Boolean], v1: Code[Long]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
-        val mk1 = Code(mk1l := m1 || ttype.isFieldMissing(r1, v1, 0), mk1l)
-        val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(r2, v2, 0), mk2l)
+        val mk1 = Code(mk1l := ttype.isFieldMissing(r1, v1, 0), mk1l)
+        val mk2 = Code(mk2l := ttype.isFieldMissing(r2, v2, 0), mk2l)
         val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
         val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-        mb.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
-
+        val cmp = mb.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+        (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
     }
     val ceq: CodeOrdering.F[Boolean] = {
       case (r1: Code[Region], (m1: Code[Boolean], v1: Code[Long]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
@@ -55,9 +55,10 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     def loadPivot(start: Code[Int], end: Code[Int]): Code[Unit] = {
       def median(v1: Code[Int], v2: Code[Int], v3: Code[Int]): Code[Int] = {
         lt(v1, v2).mux(
-          lt(v2, v3).mux(v2, lt(v1, v3).mux(v3, v1)),// v1 < v2
-          lt(v1, v3).mux(v1, lt(v2, v3).mux(v3, v2)))// "v2 < v1"
+          lt(v2, v3).mux(v2, lt(v1, v3).mux(v3, v1)), // v1 < v2
+          lt(v1, v3).mux(v1, lt(v2, v3).mux(v3, v2))) // "v2 < v1"
       }
+
       val threshold = 10
       val findPivot = (end - start < threshold).mux(
         Code._empty,
