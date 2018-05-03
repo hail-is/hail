@@ -928,7 +928,7 @@ class BlockMatrix(object):
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write('output/example.bm')
+        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', force_row_major=True)
 
         Export the full matrix as a file with tab-separated values:
 
