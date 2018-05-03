@@ -4,6 +4,7 @@ import java.io.File
 
 import com.intel.genomicsdb.GenomicsDBFeatureReader
 import htsjdk.variant.bcf2.BCF2Codec
+import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf.{VCFFormatHeaderLine, VCFHeader}
 import is.hail.utils._
 import is.hail.HailContext
@@ -17,10 +18,11 @@ import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.hadoop
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Row
-import org.json4s.JsonAST.{JArray, JObject, JString}
+import org.json4s.JObject
+import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods.parse
 
-import scala.collection.JavaConverters.asScalaIteratorConverter
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.sys.process._
 import scala.language.postfixOps
@@ -29,11 +31,17 @@ case class GenomicsDBShard(
   interval: Interval,
   filename: String)
 
+
+case class GenomicsDBFileMetadata(
+  sample_names: Array[String],
+  shards: Array[JObject],
+  vcfheader: String)
+
 case class GenomicsDBMetadata(
   rg: ReferenceGenome,
-  // FIXME
   fastaFilename: String,
   baseDirname: String,
+  sampleIds: Array[String],
   typ: MatrixType,
   infoType: TStruct,
   callFields: Set[String],
@@ -84,15 +92,17 @@ object ImportGenomicsDB {
       new File(workspace, DEFAULT_VCFHEADER_FILE_NAME).getAbsolutePath,
       new BCF2Codec())
 
+    assert(gdbReader.getHeader.asInstanceOf[VCFHeader].getSampleNamesInOrder.asScala
+      == metadata.sampleIds.toFastSeq)
+
     val reader = new HtsjdkRecordReader(metadata.callFields)
 
     val region = Region()
     val rvb = new RegionValueBuilder(region)
     val rv = RegionValue(region)
 
-    gdbReader
-      .iterator
-      .asScala
+    val it: java.util.Iterator[VariantContext] = gdbReader.iterator
+    it.asScala
       .map { vc =>
         region.clear()
         rvb.start(typ.rvRowType)
@@ -158,21 +168,15 @@ object ImportGenomicsDB {
     val basePath = metadataPath.getParent
     val baseDirname = basePath.toString
 
-    val shards =
+    val fileMetadata =
       hConf
-        .readFile(metadataFilename) { in => parse(in) }
-        .asInstanceOf[JArray]
-        .arr.iterator
-        .map { case JObject(fields) =>
-          assert(fields.length == 1)
-          fields.head match {
-            case (interval, JString(path)) =>
-              GenomicsDBShard(Parser.parseLocusInterval(interval, rg), path)
-          }
+        .readFile(metadataFilename) { in =>
+          implicit val formats = defaultJSONFormats
+          val jv = parse(in)
+          jv.extract[GenomicsDBFileMetadata]
         }
-        .toArray
 
-    val headerLines = LoadVCF.getHeaderLines(hConf, vcfHeaderFilename)
+    val headerLines = LoadVCF.getHeaderLines(hConf, baseDirname + "/" + fileMetadata.vcfheader)
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
     val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
@@ -202,11 +206,18 @@ object ImportGenomicsDB {
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)
 
-    val metadata = GenomicsDBMetadata(rg, fastaFilename, baseDirname, typ, infoSignature, callFields, canonicalFlags, infoFlagFieldNames, shards)
+    val metadata = GenomicsDBMetadata(rg, fastaFilename, baseDirname, fileMetadata.sample_names, typ, infoSignature, callFields, canonicalFlags, infoFlagFieldNames,
+      fileMetadata.shards
+        .map { case JObject(fields) =>
+          assert(fields.length == 1)
+          fields.head match {
+            case (interval, JString(path)) =>
+              GenomicsDBShard(Parser.parseLocusInterval(interval, rg), path)
+          }
+        })
 
     val colValues = BroadcastIndexedSeq(
-      header.getSampleNamesInOrder
-        .toArray()
+      fileMetadata.sample_names
         .map { Row(_) },
       TArray(typ.colType),
       hc.sc)
