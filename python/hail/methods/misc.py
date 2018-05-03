@@ -137,12 +137,12 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
              .key_by('node'))
 
     edges = t.select(i=i, j=j)
-    keep_nodes = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_hql))
+    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_hql))
 
-    nt = Table(nodes._jt.annotateGlobal(keep_nodes, hl.tset(node_t)._jtype, 'keep_nodes'))
+    nt = Table(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
     nt = (nt
-          .filter(nt.keep_nodes.contains(nt.node), keep)
-          .drop('keep_nodes'))
+          .filter(nt.nodes_in_set.contains(nt.node), keep)
+          .drop('nodes_in_set'))
 
     return nt
 
