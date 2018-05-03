@@ -1474,7 +1474,14 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 
     TableValue(typ,
       BroadcastRow(Row(), typ.globalType, hc.sc),
-      new UnpartitionedRVD(typ.rowType,
+      new OrderedRVD(
+        new OrderedRVDType(Array("idx"), Array("idx"), typ.rowType),
+        new OrderedRVDPartitioner(Array("idx"), typ.rowType,
+          Array.tabulate(nPartitions) { i =>
+            val start = partStarts(i)
+            val end = partStarts(i+1)
+            Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+          }),
         hc.sc.parallelize(Range(0, nPartitions), nPartitions)
           .mapPartitionsWithIndex { case (i, _) =>
             val region = Region()

@@ -47,8 +47,10 @@ case class TableSpec(
 }
 
 object Table {
-  def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =
-    new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
+  def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table = {
+    require(nPartitions.forall(_ <= n))
+    new Table(hc, TableRange(n, nPartitions.getOrElse(math.min(n, hc.sc.defaultParallelism))))
+  }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
     fromDF(hc, df, if (key == null) None else Some(key.asScala.toArray.toFastIndexedSeq))
@@ -581,7 +583,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       val orvd = rvd match {
         case ordered: OrderedRVD =>
           if (keys.zip(ordered.typ.key).forall{ case (l, r) => l == r } &&
-              ordered.typ.partitionKey == partitionKeys.length) {
+              ordered.typ.partitionKey.length == partitionKeys.length) {
             if (keys.length <= ordered.typ.key.length)
               ordered.copy(typ = ordered.typ.copy(key = keys))
             else if (ordered.typ.key.length <= keys.length) {
