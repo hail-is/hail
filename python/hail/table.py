@@ -294,8 +294,12 @@ class Table(ExprContainer):
         self._row = construct_expr(TopLevelReference('row', self._row_indices), self._row_type,
                                    indices=self._row_indices)
 
-        self._key = hail.struct(
-            **{k: self._row[k] for k in jiterable_to_list(jt.key())})
+        opt_key = from_option(jt.key())
+        if opt_key is None:
+            self._key = None
+        else:
+            self._key = hail.struct(
+                **{k: self._row[k] for k in jiterable_to_list(opt_key)})
 
         for k, v in itertools.chain(self._globals.items(),
                                     self._row.items()):
@@ -322,7 +326,7 @@ class Table(ExprContainer):
             return self.index(*exprs)
 
     @property
-    def key(self) -> StructExpression:
+    def key(self) -> Optional[StructExpression]:
         """Row key struct.
 
         Examples
@@ -387,9 +391,9 @@ class Table(ExprContainer):
     @classmethod
     @typecheck_method(rows=anytype,
                       schema=nullable(tstruct),
-                      key=oneof(str, sequenceof(str)),
+                      key=table_key_type,
                       n_partitions=nullable(int))
-    def parallelize(cls, rows, schema=None, key=(), n_partitions=None):
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None):
         rows = to_expr(rows, hl.tarray(schema) if schema is not None else None)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
@@ -397,9 +401,9 @@ class Table(ExprContainer):
         return Table(
             Env.hail().table.Table.parallelize(
                 Env.hc()._jhc, rows.dtype._to_json(rows.value),
-                rows.dtype.element_type._jtype, wrap_to_list(key), joption(n_partitions)))
+                rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
 
-    @typecheck_method(keys=oneof(str, Expression))
+    @typecheck_method(keys=nullable(oneof(str, Expression)))
     def key_by(self, *keys) -> 'Table':
         """Change the key.
 
@@ -428,6 +432,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
+        if len(keys) == 1 and keys[0] is None:
+            return Table(self._jt.unkey())
         str_keys = []
         for k in keys:
             if isinstance(k, Expression):
@@ -1099,6 +1105,7 @@ class Table(ExprContainer):
 
     def index(self, *exprs):
         exprs = tuple(exprs)
+        hail.methods.misc.require_key(self, 'index')
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
@@ -1275,7 +1282,7 @@ class Table(ExprContainer):
 
     def _process_joins(self, *exprs):
         # ordered to support nested joins
-        original_key = list(self.key)
+        original_key = list(self.key) if self.key else None
 
         all_uids = []
         left = self
@@ -1288,7 +1295,7 @@ class Table(ExprContainer):
                     all_uids.extend(j.temp_vars)
                     used_uids.add(j.uid)
 
-        if left is not self:
+        if left is not self and original_key is not None:
             left = left.key_by(*original_key)
 
         def cleanup(table):
@@ -1416,15 +1423,15 @@ class Table(ExprContainer):
             row_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
-        row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                          for f in self.key) if self.key else '\n    None'
+        row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.key) + ']' \
+            if self.key else None
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \
             '----------------------------------------\n' \
             'Row fields:{r}\n' \
             '----------------------------------------\n' \
-            'Key:{rk}\n' \
+            'Key: {rk}\n' \
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
                                                               r=row_fields)
@@ -1706,6 +1713,8 @@ class Table(ExprContainer):
             Joined table.
 
         """
+        hail.methods.misc.require_key(self, 'join')
+        hail.methods.misc.require_key(right, 'join')
         left_key_types = list(self.key.dtype.values())
         right_key_types = list(right.key.dtype.values())
         if not left_key_types == right_key_types:
@@ -1806,10 +1815,10 @@ class Table(ExprContainer):
 
         table = self
         if row_map:
-            remapped_key = [row_map.get(k, k) for k in table.key.keys()]
-            table = (table
-                     .select(**{row_map.get(k, k): v for k, v in table.row.items()})
-                     .key_by(*remapped_key))
+            remapped_key = [row_map.get(k, k) for k in table.key.keys()] if table.key else None
+            table = table.select(**{row_map.get(k, k): v for k, v in table.row.items()})
+            if remapped_key:
+                table = table.key_by(*remapped_key)
         if global_map:
             table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
         return table
@@ -2143,8 +2152,8 @@ class Table(ExprContainer):
 
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
-               key=oneof(str, sequenceof(str)))
-    def from_spark(df, key=[]):
+               key=table_key_type)
+    def from_spark(df, key=None):
         """Convert PySpark SQL DataFrame to a table.
 
         Examples
@@ -2184,7 +2193,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Table constructed from the Spark SQL DataFrame.
         """
-        return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
+        return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
 
     @typecheck_method(flatten=bool)
     def to_spark(self, flatten=True):
@@ -2213,7 +2222,7 @@ class Table(ExprContainer):
     def to_pandas(self, flatten=True):
         """Converts this table to a Pandas DataFrame.
 
-        Because converion to Pandas is done through Spark, and Spark
+        Because conversion to Pandas is done through Spark, and Spark
         cannot represent complex types, types are expanded before
         flattening or conversion.
 
@@ -2259,6 +2268,8 @@ class Table(ExprContainer):
 
     def collect_by_key(self, name: str= 'values') -> 'Table':
         """Collect values for each unique key into an array.
+
+        .. include:: _templates/req_keyed_table.rst
 
         Examples
         --------
@@ -2306,10 +2317,13 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
+        hail.methods.misc.require_key(self, 'collect_by_key')
         return Table(self._jt.groupByKey(name))
 
     def distinct(self) -> 'Table':
         """Keep only one row for each unique key.
+
+        .. include:: _templates/req_keyed_table.rst
 
         Examples
         --------
@@ -2349,6 +2363,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
+        hail.methods.misc.require_key(self, "distinct")
         return Table(self._jt.distinctByKey())
 
 table_type.set(Table)

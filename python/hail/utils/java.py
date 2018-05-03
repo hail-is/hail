@@ -70,7 +70,7 @@ class Env:
     def dummy_table():
         if Env._dummy_table is None:
             import hail
-            Env._dummy_table = hail.utils.range_table(1, 1).cache()
+            Env._dummy_table = hail.utils.range_table(1, 1).key_by(None).cache()
         return Env._dummy_table
 
 
@@ -125,7 +125,7 @@ def jset_args(x):
 
 
 def jiterable_to_list(it):
-    if it:
+    if it is not None:
         return list(Env.jutils().iterableToArrayList(it))
     else:
         return None

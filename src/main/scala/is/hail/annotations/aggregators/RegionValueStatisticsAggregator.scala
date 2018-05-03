@@ -23,10 +23,6 @@ class RegionValueStatisticsAggregator extends RegionValueAggregator {
       sc.merge(x)
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadDouble(off), missing)
-  }
-
   def combOp(agg2: RegionValueAggregator) {
     sc.merge(agg2.asInstanceOf[RegionValueStatisticsAggregator].sc)
   }

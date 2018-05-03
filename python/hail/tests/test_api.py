@@ -336,7 +336,7 @@ class TableTests(unittest.TestCase):
 
         t1 = kt.select(kt.a, kt.e)
         self.assertEqual(list(t1.row), ['a', 'e'])
-        self.assertEqual(list(t1.key), [])
+        self.assertEqual(t1.key, None)
 
         t2 = kt.key_by('d', 'e')
         t2 = t2.select(*[t2.a, t2.e])
@@ -349,7 +349,7 @@ class TableTests(unittest.TestCase):
         # select no fields
         s = kt.select()
         self.assertEqual(list(s.row), [])
-        self.assertEqual(list(s.key), [])
+        self.assertEqual(s.key, None)
 
     def test_errors(self):
         schema = hl.tstruct(status=hl.tint32, gt=hl.tcall, qPheno=hl.tint32)
@@ -444,13 +444,13 @@ class TableTests(unittest.TestCase):
 
         ktd = kt.drop('idx', 'foo')
         self.assertEqual(list(ktd.row), ['sq', 'bar'])
-        self.assertEqual(list(ktd.key), [])
+        self.assertEqual(ktd.key, None)
 
         self.assertEqual(list(kt.drop(kt['idx'], kt['foo']).row), ['sq', 'bar'])
 
         d = kt.drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
-        self.assertEqual(list(d.key), [])
+        self.assertEqual(d.key, None)
 
         self.assertTrue(kt.drop()._same(kt))
         self.assertTrue(kt.drop(*list(kt.row))._same(kt.select()))
@@ -1167,6 +1167,29 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
         self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
 
+    def test_make_table(self):
+        mt = hl.utils.range_matrix_table(3, 2)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.select_cols(col_idx = hl.str(mt.col_idx))
+
+        t = hl.Table.parallelize(
+            [{'row_idx': 0, '0.x': 0, '1.x': 0},
+             {'row_idx': 1, '0.x': 0, '1.x': 1},
+             {'row_idx': 2, '0.x': 0, '1.x': 2}],
+            hl.tstruct(**{'row_idx': hl.tint32, '0.x': hl.tint32, '1.x': hl.tint32}),
+            key='row_idx')
+
+        self.assertTrue(mt.make_table()._same(t))
+
+    def test_make_table_empty_entry_field(self):
+        mt = hl.utils.range_matrix_table(3, 2)
+        mt = mt.select_entries(**{'':  mt.row_idx * mt.col_idx})
+        mt = mt.select_cols(col_idx = hl.str(mt.col_idx))
+
+        t = mt.make_table()
+        self.assertEqual(
+            t.row.dtype,
+            hl.tstruct(**{'row_idx': hl.tint32, '0': hl.tint32, '1': hl.tint32}))
 
 class GroupedMatrixTests(unittest.TestCase):
 

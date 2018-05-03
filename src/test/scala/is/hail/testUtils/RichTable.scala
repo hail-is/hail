@@ -42,7 +42,7 @@ class RichTable(ht: Table) {
 
   def rename(rowUpdateMap: Map[String, String], globalUpdateMap: Map[String, String]): Table = {
     select(ht.fieldNames.map(n => s"${ rowUpdateMap.getOrElse(n, n) } = row.$n"))
-      .keyBy(ht.key.map(k => rowUpdateMap.getOrElse(k, k)))
+      .keyBy(ht.key.map(_.map(k => rowUpdateMap.getOrElse(k, k)).toArray))
       .selectGlobal(ht.globalSignature.fieldNames.map(n => s"${ globalUpdateMap.getOrElse(n, n) } = global.$n"))
   }
 
@@ -83,7 +83,8 @@ class RichTable(ht: Table) {
         }
     }
 
-    val newKey = ht.key.filter(insertionPaths.toSet)
+    var newKey = ht.key.map(_.filter(insertionPaths.toSet))
+    if (newKey.exists(_.isEmpty)) newKey = None
 
     ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature, key = newKey)
   }
@@ -113,7 +114,7 @@ class RichTable(ht: Table) {
         }
     }
 
-    ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature, key = ht.key)
+    ht.copy(rdd = ht.rdd.map(annotF), signature = finalSignature)
   }
 
   def selectGlobal(fields: Array[String]): Table = {

@@ -13,16 +13,19 @@ import scala.util.matching.Regex
 
 case class TableReaderOptions(
   nPartitions: Int,
-  commentStartsWith: Array[String] = Array.empty[String],
-  commentRegexes: Array[Regex] = Array.empty[Regex],
-  separator: String = "\t",
-  missing: String = "NA",
-  noHeader: Boolean = false,
-  header: String = "",
-  quote: java.lang.Character = null,
-  skipBlankLines: Boolean = false) {
+  commentStartsWith: Array[String],
+  commentRegexes: Array[Regex],
+  separator: String,
+  missing: String,
+  noHeader: Boolean,
+  header: String,
+  quote: java.lang.Character,
+  skipBlankLines: Boolean,
+  useColIndices: Array[Int],
+  originalRowTypeSize: Int) {
+  assert(useColIndices.isSorted)
 
-  val isComment = TextTableReader.isCommentLine(commentStartsWith, commentRegexes) _
+  def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
 }
 
 object TextTableReader {
@@ -161,7 +164,7 @@ object TextTableReader {
     impute: Boolean = false,
     nPartitions: Int = hc.sc.defaultMinPartitions,
     quote: java.lang.Character = null,
-    keyNames: Array[String] = Array.empty[String],
+    keyNames: Option[IndexedSeq[String]] = None,
     skipBlankLines: Boolean = false): Table = {
 
     require(files.nonEmpty)
@@ -200,8 +203,9 @@ object TextTableReader {
     val rdd = hc.sc.textFilesLines(files, nPartitions)
       .filter { line =>
         !isComment(line.value) &&
-        (noHeader || line.value != header) &&
-          !(skipBlankLines && line.value.isEmpty) }
+          (noHeader || line.value != header) &&
+          !(skipBlankLines && line.value.isEmpty)
+      }
 
     val sb = new StringBuilder
 
@@ -227,7 +231,8 @@ object TextTableReader {
               }
           }
         }
-      } else {
+      }
+      else {
         sb.append("Reading table with no type imputation\n")
         columns.map { c =>
           types.get(c) match {
@@ -245,7 +250,9 @@ object TextTableReader {
     info(sb.result())
 
     val ttyp = TableType(TStruct(namesAndTypes: _*), keyNames, TStruct())
-    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes, separator, missing, noHeader, header, quote, skipBlankLines)
+    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
+      separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
+      ttyp.rowType.size)
     new Table(hc, TableImport(files, ttyp, readerOpts))
   }
 }

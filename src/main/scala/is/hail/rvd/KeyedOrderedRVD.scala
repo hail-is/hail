@@ -72,8 +72,9 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
     val rekeyedRTyp = new OrderedRVDType(right.typ.partitionKey, right.key, right.typ.rowType)
 
     val newPartitioner = this.rvd.partitioner
-    val repartitionedRight =
-      right.rvd.constrainToOrderedPartitioner(right.typ, newPartitioner)
+    val repartitionedRight = right.rvd.constrainToOrderedPartitioner(
+      right.typ.copy(partitionKey = right.typ.key.take(newPartitioner.partitionKey.length)),
+      newPartitioner)
     val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
         case "inner" => _.innerJoinDistinct(_)

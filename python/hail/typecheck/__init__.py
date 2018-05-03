@@ -17,4 +17,5 @@ __all__ = ['TypeChecker',
            'enumeration',
            'identity',
            'transformed',
-           'func_spec']
+           'func_spec',
+           'table_key_type']

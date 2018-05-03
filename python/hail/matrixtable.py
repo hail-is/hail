@@ -2278,12 +2278,45 @@ class MatrixTable(ExprContainer):
             analyze("MatrixTable.annotate_entries", entry_struct, self._entry_indices)
             jmt = jmt.selectEntries(entry_struct._ast.to_hql())
         if global_exprs:
-            global_strs = []
-            for k, v in global_exprs.items():
-                analyze('MatrixTable.annotate_globals', v, self._global_indices)
-                global_strs.append('global.{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
-                check_collisions(self._fields, k, self._global_indices)
-                jmt = jmt.annotateGlobalsExpr(",\n".join(global_strs))
+            globals_struct = self.globals.annotate(**global_exprs)
+            analyze("MatrixTable.annotate_globals", globals_struct, self._global_indices)
+            jmt = jmt.selectGlobals(globals_struct._ast.to_hql())
+
+        return cleanup(MatrixTable(jmt))
+
+    @typecheck_method(row_exprs=dictof(str, expr_any),
+                      col_exprs=dictof(str, expr_any),
+                      entry_exprs=dictof(str, expr_any),
+                      global_exprs=dictof(str, expr_any))
+    def _select_all(self,
+                    row_exprs={},
+                    col_exprs={},
+                    entry_exprs={},
+                    global_exprs={},
+                    ) -> 'MatrixTable':
+        all_exprs = list(itertools.chain(row_exprs.values(),
+                                         col_exprs.values(),
+                                         entry_exprs.values(),
+                                         global_exprs.values()))
+
+        base, cleanup = self._process_joins(*all_exprs)
+        jmt = base._jvds
+
+        row_struct = hl.struct(**row_exprs)
+        analyze("MatrixTable.select_rows", row_struct, self._row_indices)
+        jmt = jmt.selectRows(row_struct._ast.to_hql())
+
+        col_struct = hl.struct(**col_exprs)
+        analyze("MatrixTable.select_cols", col_struct, self._col_indices)
+        jmt = jmt.selectCols(col_struct._ast.to_hql())
+
+        entry_struct = hl.struct(**entry_exprs)
+        analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
+        jmt = jmt.selectEntries(entry_struct._ast.to_hql())
+
+        globals_struct = hl.struct(**global_exprs)
+        analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
+        jmt = jmt.selectGlobals(globals_struct._ast.to_hql())
 
         return cleanup(MatrixTable(jmt))
 
@@ -2324,10 +2357,10 @@ class MatrixTable(ExprContainer):
             row_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
-        row_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                          for f in self.row_key) if self.row_key else '\n    None'
-        partition_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                                for f in self.partition_key) if self.partition_key else '\n    None'
+        row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.row_key) + ']' \
+            if self.row_key else None
+        partition_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.partition_key) + ']' \
+            if self.partition_key else None
 
         if len(self.col) == 0:
             col_fields = '\n    None'
@@ -2335,8 +2368,8 @@ class MatrixTable(ExprContainer):
             col_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
-        col_key = ''.join("\n    '{name}': {type} ".format(name=f, type=format_type(self[f].dtype))
-                          for f in self.col_key) if self.col_key else '\n    None'
+        col_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.col_key) + ']' \
+            if self.col_key else None
 
         if len(self.entry) == 0:
             entry_fields = '\n    None'
@@ -2353,9 +2386,9 @@ class MatrixTable(ExprContainer):
             '----------------------------------------\n' \
             'Entry fields:{e}\n' \
             '----------------------------------------\n' \
-            'Column key:{ck}\n' \
-            'Row key:{rk}\n' \
-            'Partition key:{pk}\n' \
+            'Column key: {ck}\n' \
+            'Row key: {rk}\n' \
+            'Partition key: {pk}\n' \
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
                                                               pk=partition_key,
@@ -2844,6 +2877,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
+        hail.methods.misc.require_key(table, 'from_rows_table')
         if partition_key is not None:
             if isinstance(partition_key, str):
                 partition_key = [partition_key]
@@ -2937,5 +2971,81 @@ class MatrixTable(ExprContainer):
                 global_map[k] = v
 
         return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
+
+    @typecheck_method(separator=str)
+    def make_table(self, separator='.') -> Table:
+        """Make a table from a matrix table with one field per sample.
+
+        Examples
+        --------
+
+        Consider a matrix table with the following schema:
+
+        .. code-block:: text
+
+          Global fields:
+              'batch': str 
+          Column fields:
+              's': str 
+          Row fields:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+          Entry fields:
+              'GT': call 
+              'GQ': int32 
+          Column key:
+              's': str 
+          Row key:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+          Partition key:
+              'locus': locus<GRCh37> 
+
+        and three sample IDs: `A`, `B` and `C`.  Then the result of
+        :func:`.make_table`:
+
+        >>> ht = mt.make_table() # doctest: +SKIP
+
+        has the original row fields along with 6 additional fields,
+        one for each sample and entry field:
+
+        .. code-block:: text
+
+          Global fields:
+              'batch': str 
+          Row fields:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+              'A.GT': call 
+              'A.GQ': int32 
+              'B.GT': call 
+              'B.GQ': int32 
+              'C.GT': call 
+              'C.GQ': int32 
+          Key:
+              'locus': locus<GRCh37> 
+              'alleles': array<str> 
+
+        Notes
+        -----
+
+        The table has one row for each row of the input matrix.  The
+        per sample and entry fields are formed by concatenating the
+        sample ID with the entry field name using `separator`.  If the
+        entry field name is empty, the separator is omitted.
+
+        The table inherits the globals from the matrix table.
+
+        Parameters
+        ----------
+        separator : :obj:`str`
+            Separator between sample IDs and entry field names.
+
+        Returns
+        -------
+        :class:`.Table`
+
+        """
+        return Table(self._jvds.makeTable(separator))
 
 matrix_table_type.set(MatrixTable)

@@ -12,10 +12,6 @@ class RegionValueFractionAggregator extends RegionValueAggregator {
       trues += 1
   }
 
-  def seqOp(region: Region, off: Long, missing: Boolean) {
-    seqOp(region.loadBoolean(off), missing)
-  }
-
   def result(rvb: RegionValueBuilder) {
     if (total == 0)
       rvb.setMissing()

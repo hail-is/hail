@@ -299,6 +299,10 @@ trait RVD {
 
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
 
+  def mapPartitionsWithIndex[T: ClassTag](
+    f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[T]
+  ): RDD[T] = clearingRun(crdd.cmapPartitionsWithIndex(f))
+
   def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitions(f))
 
   def constrainToOrderedPartitioner(
@@ -341,9 +345,9 @@ trait RVD {
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType
 
-    val makeEnc = RVD.memoryCodec.buildEncoder(localRowType)(_)
+    val makeEnc = RVD.memoryCodec.buildEncoder(localRowType)
 
-    val makeDec = RVD.memoryCodec.buildDecoder(localRowType)(_)
+    val makeDec = RVD.memoryCodec.buildDecoder(localRowType)
 
     // copy, persist region values
     val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
@@ -389,4 +393,6 @@ trait RVD {
       r
     }.run
   }
+
+  def toUnpartitionedRVD: UnpartitionedRVD
 }

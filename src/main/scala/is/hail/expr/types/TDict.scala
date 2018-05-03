@@ -70,11 +70,6 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
           o1.liftedZip(o2).exists { case (v1, v2) => valueType.valuesSimilar(v1, v2, tolerance, absolute) }
         })
 
-  override def desc: String =
-    """
-    A ``Dict`` is an unordered collection of key-value pairs. Each key can only appear once in the collection.
-    """
-
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
   val ordering: ExtendedOrdering =

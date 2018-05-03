@@ -88,7 +88,7 @@ class HailContext(object):
 
             if version.startswith('devel'):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
-                                 '  during the beta period. We also recommend pulling\n'
+                                 '  during the beta period. We recommend pulling\n'
                                  '  the latest changes weekly.\n')
 
         install_exception_handler()

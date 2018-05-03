@@ -453,6 +453,12 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
 
+    @typecheck_method(table=Table,
+                      radius=int,
+                      include_diagonal=bool)
+    def _filtered_entries_table(self, table, radius, include_diagonal):
+        return Table(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
+
     @typecheck_method(uri=str)
     def tofile(self, uri):
         """Collects and writes data to a binary file.

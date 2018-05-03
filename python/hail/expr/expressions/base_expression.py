@@ -605,7 +605,8 @@ class Expression(object):
         elif len(axes) == 1:
             if isinstance(source, hail.Table):
                 df = source
-                df = df.select(*filter(lambda f: f != name, df.key), **{name: self})
+                keys = filter(lambda f: f != name, df.key) if df.key else []
+                df = df.select(*keys, **{name: self})
                 return df.select_globals()
             else:
                 assert isinstance(source, hail.MatrixTable)
@@ -710,7 +711,7 @@ class Expression(object):
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
-        if name in t.key:
+        if t.key is not None and name in t.key:
             t = t.select(name)
         return t._show(n, width, truncate, types)
 

@@ -318,14 +318,14 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new Table(vds.hc, ktRdd2, ibdSignature, Array("i", "j"))
+    new Table(vds.hc, ktRdd2, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString()), ("j", TString())).merge(ExtendedIBDInfo.signature)
 
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
-    Table(sc, ktRdd, ibdSignature, Array("i", "j"))
+    Table(sc, ktRdd, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 
   def toRDD(kt: Table): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {

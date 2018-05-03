@@ -36,8 +36,6 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
     TAggregable(elementType.subst(), st.get)
   }
 
-  override def desc: String = TAggregable.desc
-
   override def canCompare(other: Type): Boolean = false
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")

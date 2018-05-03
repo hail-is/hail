@@ -24,15 +24,15 @@ object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
   private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, String, String, String)] = {
+    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, Int, String, String, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
           val recodedContig = contigRecoding.getOrElse(contig, contig)
           if (a2Reference)
-            (recodedContig, bpPos.toInt, allele2, allele1, rsId)
+            (recodedContig, bpPos.toInt, morganPos.toInt, allele2, allele1, rsId)
           else
-            (recodedContig, bpPos.toInt, allele1, allele2, rsId)
+            (recodedContig, bpPos.toInt, morganPos.toInt, allele1, allele2, rsId)
 
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
@@ -113,7 +113,7 @@ object LoadPlink {
     bedPath: String,
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: TStruct,
-    variants: Array[(String, Int, String, String, String)],
+    variants: Array[(String, Int, Int, String, String, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): MatrixTable = {
@@ -136,7 +136,7 @@ object LoadPlink {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = sampleAnnotationSignature,
-      rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString()), "rsid" -> TString()),
+      rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString()), "rsid" -> TString(), "position_morgan" -> TInt32()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
       entryType = TStruct(required = true, "GT" -> TCall()))
@@ -150,7 +150,7 @@ object LoadPlink {
       val rv = RegionValue(region)
 
       it.map { case (_, record) =>
-        val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
+        val (contig, pos, posMorgan, ref, alt, rsid) = variantsBc.value(record.getKey)
 
         rvb.start(kType)
         rvb.startStruct()
@@ -172,7 +172,7 @@ object LoadPlink {
       val rv = RegionValue(region)
 
       it.map { case (_, record) =>
-        val (contig, pos, ref, alt, rsid) = variantsBc.value(record.getKey)
+        val (contig, pos, posMorgan, ref, alt, rsid) = variantsBc.value(record.getKey)
 
         rvb.start(rvRowType)
         rvb.startStruct()
@@ -182,6 +182,7 @@ object LoadPlink {
         rvb.addString(alt)
         rvb.endArray()
         rvb.addAnnotation(rvRowType.types(2), rsid)
+        rvb.addInt(posMorgan)
         record.getValue(rvb)
         rvb.endStruct()
 

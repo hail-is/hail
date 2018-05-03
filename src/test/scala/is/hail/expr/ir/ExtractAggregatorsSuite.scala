@@ -52,13 +52,17 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(hailType[IN], Map("scope0" -> (0, hailType[SCOPE0])))
 
     // special arguments: region, aggregator, element, element missingness
-    val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg)
+    val (post, aggResultStruct, aggIR, rvAggs) = ExtractAggregators(ir, tAgg)
 
-    val seqOps = aggregators.map { case (ir, agg) =>
-      val fb = EmitFunctionBuilder[Region, RegionValueAggregator, IN, Boolean, SCOPE0, Boolean, Unit]
-      Emit(ir, fb, 2, tAgg)
+    val seqOps = {
+      val fb = EmitFunctionBuilder[Region, Array[RegionValueAggregator], IN, Boolean, SCOPE0, Boolean, Unit]
 
-      (agg, fb.result(Some(new java.io.PrintWriter(System.out)))())
+      val s = Subst(aggIR, Env.empty[IR].bind("scope0", In(1, hailType[SCOPE0])))
+      Emit(s, fb, 2, tAgg)
+
+      fb.result(
+        // Some(new java.io.PrintWriter(System.out))
+      )()
     }
 
     val tArray = TArray(hailType[IN])
@@ -69,11 +73,10 @@ class ExtractAggregatorsSuite {
       val e =
         if (me) defaultValue(hailType[IN]).asInstanceOf[IN]
         else loadT(region, tArray.loadElement(region, aOff, i)).asInstanceOf[IN]
-      seqOps.foreach { case (agg, seqOp) =>
-        seqOp(region, agg, e, me, scope0(i), false) }
+        seqOps(region, rvAggs, e, me, scope0(i), false)
     }
 
-    val aggResultsOff = packageResults(region, aggResultStruct, seqOps.map(_._1))
+    val aggResultsOff = packageResults(region, aggResultStruct, rvAggs)
 
     val env = Env.empty[IR].bind("AGGR", In(0, aggResultStruct))
     val postSubst = Subst(post, env)
@@ -88,8 +91,8 @@ class ExtractAggregatorsSuite {
     fb.result()()
   }
 
-  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo]
-    (region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
+  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo](
+    region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
     val (post, ret) = runStage1[IN, SCOPE0](region, ir, aOff, scope0)
     val f = compileStage0[R](post)
     f(region, ret, false)

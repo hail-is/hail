@@ -64,6 +64,7 @@ object Pretty {
             case AggFilter(_, name, _) => name
             case AggFlatMap(_, name, _) => name
             case ApplyAggOp(_, op, _) => op.getClass.getName.split("\\.").last
+            case ArrayFor(_, valueName, _) => s"$valueName"
             case Apply(function, _) => function
             case ApplySpecial(function, _) => function
             case In(i, _) => i.toString

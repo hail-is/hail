@@ -500,21 +500,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  override def desc: String =
-    """
-    A ``Struct`` is like a Python tuple where the fields are named and the set of fields is fixed.
-
-    An example of constructing and accessing the fields in a ``Struct`` is
-
-    .. code-block:: text
-        :emphasize-lines: 2
-
-        let s = {gene: "ACBD", function: "LOF", nHet: 12} in s.gene
-        result: "ACBD"
-
-    A field of the ``Struct`` can also be another ``Struct``. For example, ``va.info.AC`` selects the struct ``info`` from the struct ``va``, and then selects the array ``AC`` from the struct ``info``.
-    """
-
   def select(keep: Array[String]): (TStruct, (Row) => Row) = {
     val t = TStruct(keep.map { n =>
       n -> field(n).typ

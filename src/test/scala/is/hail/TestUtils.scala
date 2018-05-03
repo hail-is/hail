@@ -237,4 +237,12 @@ object TestUtils {
 
     KinshipMatrix(vds.hc, TString(), rrm, vds.stringSampleIds.map(s => s: Annotation).toArray, nVariants)
   }
+
+  def exportPlink(mt: MatrixTable, path: String): Unit = {
+    mt.selectCols("""{fam_id: "0", id: sa.s, mat_id: "0", pat_id: "0", is_female: "0", pheno: "NA"}""")
+      .annotateRowsExpr(
+        "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
+        "pos_morgan" -> "0")
+      .exportPlink(path)
+  }
 }

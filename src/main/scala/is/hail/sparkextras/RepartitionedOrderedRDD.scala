@@ -31,20 +31,14 @@ class RepartitionedOrderedRDD(
     newPartitionerBc: Broadcast[OrderedRVDPartitioner])
   extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.sparkContext, Nil) { // Nil since we implement getDependencies
 
-  private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
-
-//  require(newPartitioner.kType isPrefixOf prev.typ.kType)
-  // There should really be no precondition on partition keys. Drop this when
-  // we're able
-  require(typ.pkType isPrefixOf newPartitioner.pkType)
 
   def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](newPartitioner.numPartitions) { i =>
       RepartitionedOrderedRDD2Partition(
         i,
         dependency.getParents(i).toArray.map(prev.partitions),
-        newPartitioner.rangeBounds(i).asInstanceOf[Interval])
+        newPartitioner.rangeBounds(i))
     }
   }
 
@@ -65,22 +59,25 @@ class RepartitionedOrderedRDD(
   override def getDependencies: Seq[Dependency[_]] = FastSeq(dependency)
 }
 
-class OrderedDependency[T](oldPartitionerBc: Broadcast[OrderedRVDPartitioner], newPartitionerBc: Broadcast[OrderedRVDPartitioner], rdd: RDD[T])
+class OrderedDependency[T](
+    oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+    newPartitionerBc: Broadcast[OrderedRVDPartitioner],
+    rdd: RDD[T])
   extends NarrowDependency[T](rdd) {
 
   private def oldPartitioner = oldPartitionerBc.value
   private def newPartitioner = newPartitionerBc.value
-
-  // no precondition on partition keys
-//  require(newPartitioner.kType isPrefixOf prev.typ.kType)
-  // There should really be no precondition on partition keys. Drop this when
-  // we're able
-  require(oldPartitioner.pkType isPrefixOf newPartitioner.pkType)
+  private val coarsenedIntervalTree = oldPartitioner.coarsenedPKRangeTree(
+    Math.min(oldPartitioner.partitionKey.length, newPartitioner.partitionKey.length)
+  )
 
   override def getParents(partitionId: Int): Seq[Int] = {
     val partBounds =
       newPartitioner.rangeBounds(partitionId)
-    oldPartitioner.getPartitionRange(partBounds)
+
+    coarsenedIntervalTree.queryOverlappingValues(
+      newPartitioner.pkType.ordering,
+      partBounds)
   }
 }
 

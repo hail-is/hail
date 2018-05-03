@@ -16,6 +16,7 @@ object Copy {
       case Str(_) => same
       case True() => same
       case False() => same
+      case Void() => same
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
         Cast(v, typ)
@@ -61,6 +62,9 @@ object Copy {
       case ArrayFold(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
         ArrayFold(a, zero, accumName, valueName, body)
+      case ArrayFor(_, valueName, _) =>
+        val IndexedSeq(a: IR, body: IR) = newChildren
+        ArrayFor(a, valueName, body)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
@@ -81,7 +85,12 @@ object Copy {
       case AggFlatMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         AggFlatMap(a, name, body)
-      case ApplyAggOp(_, op, args) =>
+      case SeqOp(_, _, agg) =>
+        val IndexedSeq(a: IR, i: IR) = newChildren
+        SeqOp(a, i, agg)
+      case Begin(_) =>
+        Begin(newChildren.map(_.asInstanceOf[IR]))
+      case ApplyAggOp(_, op, _) =>
         ApplyAggOp(newChildren.head.asInstanceOf[IR], op, newChildren.tail.map(_.asInstanceOf[IR]))
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))
@@ -97,9 +106,9 @@ object Copy {
       case ApplySpecial(fn, args) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
       // from MatrixIR
-      case MatrixWrite(_, path, overwrite, codecSpecJSONStr) =>
+      case MatrixWrite(_, f) =>
         val IndexedSeq(child: MatrixIR) = newChildren
-        MatrixWrite(child, path, overwrite, codecSpecJSONStr)
+        MatrixWrite(child, f)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren

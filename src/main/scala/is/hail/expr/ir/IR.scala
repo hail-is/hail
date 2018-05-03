@@ -1,9 +1,12 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.{BaseIR, MatrixIR, TableIR}
+import is.hail.expr.{BaseIR, MatrixIR, MatrixValue, TableIR}
 import is.hail.expr.ir.functions.{IRFunction, IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.ExportType
+
+import scala.language.existentials
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -53,6 +56,7 @@ final case class F64(x: Double) extends IR { val typ = TFloat64() }
 final case class Str(x: String) extends IR { val typ = TString() }
 final case class True() extends IR { val typ = TBoolean() }
 final case class False() extends IR { val typ = TBoolean() }
+final case class Void() extends IR { val typ = TVoid }
 
 final case class Cast(v: IR, typ: Type) extends IR
 
@@ -83,12 +87,24 @@ final case class ArrayFlatMap(a: IR, name: String, body: IR) extends InferIR {
 }
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends InferIR
 
+final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
+  val typ = TVoid
+}
+
 final case class AggIn(var typ: TAggregable) extends IR
 final case class AggMap(a: IR, name: String, body: IR) extends InferIR
 final case class AggFilter(a: IR, name: String, body: IR) extends InferIR
 final case class AggFlatMap(a: IR, name: String, body: IR) extends InferIR
 final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR]) extends InferIR {
   def inputType: Type = coerce[TAggregable](a.typ).elementType
+}
+
+final case class SeqOp(a: IR, i: IR, agg: CodeAggregator[T] forSome { type T <: RegionValueAggregator }) extends IR {
+  val typ = TVoid
+}
+
+final case class Begin(xs: IndexedSeq[IR]) extends IR {
+  val typ = TVoid
 }
 
 final case class MakeStruct(fields: Seq[(String, IR)]) extends InferIR
@@ -153,8 +169,6 @@ final case class TableExport(
 
 final case class MatrixWrite(
   child: MatrixIR,
-  path: String,
-  overwrite: Boolean = true,
-  codecSpecJSONStr: String = null) extends IR {
+  f: (MatrixValue) => Unit) extends IR {
   val typ: Type = TVoid
 }

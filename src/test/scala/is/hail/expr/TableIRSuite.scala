@@ -11,9 +11,9 @@ class TableIRSuite extends SparkSuite {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = Array("Sample")
+    val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, keyNames)
+    val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
     kt
   }
