@@ -425,7 +425,7 @@ def check_all(f, args, kwargs, checks, is_method):
         try:
             arg_ = tc.check(arg, name, argname)
             args_.append(arg_)
-        except TypecheckFailure:
+        except TypecheckFailure as e:
             if i < len(named_args):
                 raise TypeError("{fname}: parameter '{argname}': "
                                 "expected {expected}, found {found}".format(
@@ -433,7 +433,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     argname=argname,
                     expected=tc.expects(),
                     found=tc.format(arg)
-                )) from None
+                )) from e
             else:
                 raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
                                 "expected {expected}, found {found}".format(
@@ -443,7 +443,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     tot=len(pos_args) - len(named_args),
                     expected=tc.expects(),
                     found=tc.format(arg)
-                )) from None
+                )) from e
 
     kwargs_ = {}
 
