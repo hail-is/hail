@@ -25,7 +25,7 @@ object FilterIntervals {
       vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ, { (ctx, it) =>
         val pkUR = new UnsafeRow(pkType)
         it.filter { rv =>
-          ctx.rvb.start(rowType)
+          ctx.rvb.start(pkType)
           ctx.rvb.selectRegionValue(rowType, pkRowFieldIdx, rv)
           rv.set(ctx.region, ctx.rvb.end())
           pkUR.set(rv)
