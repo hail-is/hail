@@ -791,7 +791,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
       it.map { jrv =>
         val lrv = jrv.rvLeft
-        leftRowType
         rvb.start(newRVType)
         ins(lrv.region, lrv.offset, rvb,
           () => {
@@ -2382,7 +2381,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = numCols
 
-    val rows = rvd.mapPartitionsWithIndex { case (pi, it) =>
+    val rows = rvd.mapPartitionsWithIndex { (pi, it) =>
       var i = partStartsBc.value(pi)
       it.map { rv =>
         val region = rv.region

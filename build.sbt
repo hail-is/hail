@@ -42,6 +42,7 @@ lazy val root = (project in file(".")).
         , "org.json4s" %% "json4s-core" % "3.2.10"
         , "org.json4s" %% "json4s-jackson" % "3.2.10"
         , "org.json4s" %% "json4s-ast" % "3.2.10"
+        , "org.elasticsearch" % "elasticsearch-spark-20_2.11" % "6.2.4"
         , "org.apache.solr" % "solr-solrj" % "6.2.0"
         , "com.datastax.cassandra" % "cassandra-driver-core" % "3.0.0"
         , "com.jayway.restassured" % "rest-assured" % "2.8.0"

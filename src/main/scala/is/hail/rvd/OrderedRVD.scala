@@ -786,7 +786,7 @@ object OrderedRVD {
     OrderedRVD(typ,
       partitioner,
       crdd.cmapPartitions { (ctx, it) =>
-        val enc = RVD.wireCodec.buildEncoder(localType.rowType) _
+        val enc = RVD.wireCodec.buildEncoder(localType.rowType)
         it.map { rv =>
           val wkrv = WritableRegionValue(typ.kType)
           wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)

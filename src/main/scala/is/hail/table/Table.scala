@@ -617,9 +617,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
             else if (ordered.typ.key.length <= keys.length) {
               val localSortType = new OrderedRVDType(ordered.typ.key, keys, signature)
               val newType = new OrderedRVDType(ordered.typ.partitionKey, keys, signature)
-              ordered.mapPartitionsPreservesPartitioning(newType) { it =>
-                OrderedRVD.localKeySort(localSortType, it)
-              }
+              OrderedRVD(
+                newType,
+                ordered.partitioner,
+                ordered.crdd.cmapPartitionsAndContext { (consumerCtx, it) =>
+                  val producerCtx = consumerCtx.freshContext
+                  OrderedRVD.localKeySort(
+                    consumerCtx.region,
+                    producerCtx.region,
+                    localSortType,
+                    it.flatMap(_(producerCtx)))
+                })
             } else resort
           } else resort
         case _: UnpartitionedRVD =>

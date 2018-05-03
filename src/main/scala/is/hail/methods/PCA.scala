@@ -121,7 +121,9 @@ object PCA {
           rv
         }
       }
-      new Table(vsm.hc, rdd, rowType, Some(vsm.rowKey))
+      Some(new Table(vsm.hc, rdd, rowType, Some(vsm.rowKey)))
+    } else {
+      None
     }
 
     val data =

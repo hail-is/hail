@@ -184,7 +184,7 @@ trait RVD {
     unstable: ContextRDD[RVDContext, RegionValue],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, Array[Byte]] = {
-    val enc = codec.buildEncoder(rowType) _
+    val enc = codec.buildEncoder(rowType)
     unstable.cmapPartitions { (ctx, it) =>
       it.map(RVD.regionValueToBytes(enc, ctx))
     }
