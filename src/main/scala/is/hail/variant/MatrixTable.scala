@@ -1501,7 +1501,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               newName -> f.typ
             }
           }: _*),
-      matrixType.rowKey,
+      Some(matrixType.rowKey),
       matrixType.globalType)
 
     val localNSamples = numCols
