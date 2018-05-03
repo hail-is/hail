@@ -1115,6 +1115,16 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
+    def test_import_table_force_bgz(self):
+        f = utils.new_temp_file(suffix=".bgz")
+        t = utils.range_table(10, 5)
+        t.export(f)
+
+        f2 = utils.new_temp_file(suffix=".gz")
+        utils.run_command(["cp", utils.uri_path(f), utils.uri_path(f2)])
+        t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
+        self.assertTrue(t._same(t2))
+
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
