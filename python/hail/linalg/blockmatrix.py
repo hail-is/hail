@@ -1009,6 +1009,8 @@ class BlockMatrix(object):
             0.8 0.7
             0.3
 
+        The number of columns must be less than :math:`2^{31}`.
+
         The number of partitions (file shards) exported equals the ceiling
         of ``n_rows / partition_size``. By default, there is one partition
         per row of blocks in the block matrix. The number of partitions

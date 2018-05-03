@@ -27,6 +27,9 @@ object RowMatrix {
 
   def readBlockMatrix(hc: HailContext, uri: String, maybePartSize: Option[Int]): RowMatrix = {
     val BlockMatrixMetadata(blockSize, nRows, nCols, partFiles) = BlockMatrix.readMetadata(hc, uri)
+    if (nCols >= Int.MaxValue) {
+      fatal(s"Number of columns must be less than 2^31, found $nCols")
+    }
     val gp = GridPartitioner(blockSize, nRows, nCols)
     val partSize = maybePartSize.getOrElse(blockSize)
     val partitionCounts = computePartitionCounts(partSize, gp.nRows)
