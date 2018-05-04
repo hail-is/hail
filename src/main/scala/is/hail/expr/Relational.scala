@@ -1550,15 +1550,15 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
         val lrv = joined._1
         val rrv = joined._2
 
-        rvb.start(localNewRowType)
-        rvb.startStruct()
-
         if (lrv != null)
           rvb.set(lrv.region)
         else {
           assert(rrv != null)
           rvb.set(rrv.region)
         }
+
+        rvb.start(localNewRowType)
+        rvb.startStruct()
 
         if (lrv != null)
           rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
