@@ -1394,6 +1394,42 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.literal(1), hl.literal(2), True))
 
+    def test_maximal_independent_set2(self):
+        edges = [(0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6),
+                 (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
+        edges = [{"i": l, "j": r} for l, r in edges]
+
+        t = hl.Table.parallelize(edges, hl.tstruct(i=hl.tint64, j=hl.tint64))
+        mis_t = hl.maximal_independent_set(t.i, t.j)
+        self.assertTrue(mis_t.row.dtype == hl.tstruct(node=hl.tint64) and
+                        mis_t.globals.dtype == hl.tstruct())
+
+        mis = set([row.node for row in mis_t.collect()])
+        maximal_indep_sets = [{0, 6, 5, 3}, {1, 4, 7, 2}]
+        non_maximal_indep_sets = [{0, 7}, {6, 1}]
+        self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
+
+    def test_maximal_independent_set3(self):
+        is_case = {"A", "C", "E", "G", "H"}
+        edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
+        edges = [{"i": {"id": l, "is_case": l in is_case},
+                  "j": {"id": r, "is_case": r in is_case}} for l, r in edges]
+
+        t = hl.Table.parallelize(edges, hl.tstruct(i=hl.tstruct(id=hl.tstr, is_case=hl.tbool),
+                                                   j=hl.tstruct(id=hl.tstr, is_case=hl.tbool)))
+
+        tiebreaker = lambda l, r: (hl.case()
+                                   .when(l.is_case & (~r.is_case), -1)
+                                   .when(~(l.is_case) & r.is_case, 1)
+                                   .default(0))
+
+        mis = hl.maximal_independent_set(t.i, t.j, tie_breaker=tiebreaker)
+
+        expected_sets = [{"A", "C", "E", "G"}, {"A", "C", "E", "H"}]
+
+        self.assertTrue(mis.all(mis.node.is_case))
+        self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
+
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),
