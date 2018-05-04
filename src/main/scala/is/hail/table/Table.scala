@@ -211,29 +211,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, RegionValue],
     signature: TStruct,
-    key: Option[IndexedSeq[String]],
-    globalSignature: TStruct,
-    globals: Row
+    key: Option[IndexedSeq[String]] = None,
+    globalSignature: TStruct = TStruct.empty(),
+    globals: Row = Row.empty
   ) = this(hc,
     TableLiteral(
       TableValue(
         TableType(signature, key, globalSignature),
         BroadcastRow(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, crdd))))
-
-  def this(hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct,
-    key: Option[IndexedSeq[String]],
-    globalSignature: TStruct,
-    globals: Row
-  ) = this(
-    hc,
-    ContextRDD.weaken[RVDContext](rdd),
-    signature,
-    key,
-    globalSignature,
-    globals)
 
   def typ: TableType = tir.typ
 
@@ -250,47 +236,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     opt.execute(hc)
   }
-
-  def this(
-    hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct,
-    key: Option[IndexedSeq[String]]
-  ) = this(hc, rdd, signature, key, TStruct.empty(), Row.empty)
-
-  def this(
-    hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct
-  ) = this(hc, rdd, signature, None)
-
-  def this(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext, RegionValue],
-    signature: TStruct,
-    key: IndexedSeq[String],
-    globalSignature: TStruct
-  ) = this(hc, crdd, signature, Some(key), globalSignature, Row.empty)
-
-  def this(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext,RegionValue],
-    signature: TStruct,
-    key: Option[IndexedSeq[String]]
-  ) = this(hc, crdd, signature, key, TStruct.empty(), Row.empty)
-
-  def this(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext,RegionValue],
-    signature: TStruct,
-    key: IndexedSeq[String]
-  ) = this(hc, crdd, signature, key, TStruct.empty())
-
-  def this(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext, RegionValue],
-    signature: TStruct
-  ) = this(hc, crdd, signature, None)
 
   lazy val TableValue(ktType, globals, rvd) = value
 
