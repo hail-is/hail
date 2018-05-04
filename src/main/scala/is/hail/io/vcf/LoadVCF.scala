@@ -725,7 +725,6 @@ object LoadVCF {
   }
 
   // parses the Variant (key), leaves the rest to f
-<<<<<<< HEAD
   def parseLines[C](
     makeContext: () => C
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
