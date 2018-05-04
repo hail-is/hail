@@ -9,8 +9,19 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBr
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
   private var next: Int = 0
 
-  private def isLeftFavoredTie(ai: Int, bi: Int): Boolean =
-    maybeTieBreaker != null && ranks(ai) == ranks(bi) && maybeTieBreaker(ts(ai), ts(bi)) > 0
+  private def isLeftFavoredTie(ai: Int, bi: Int): Boolean = {
+    maybeTieBreaker != null && ranks(ai) == ranks(bi) && {
+      val a = ts(ai)
+      val b = ts(bi)
+      val tb1 = maybeTieBreaker(a, b)
+      val tb2 = maybeTieBreaker(b, a)
+
+      if (tb1 != -tb2)
+        fatal(s"'maximal_independent_set' requires 'tie_breaker(l, r)' equals '-1 * tie_breaker(r, l)'. Found ($tb1, $tb2).")
+
+      tb1 > 0
+    }
+  }
 
   def size: Int = next
 

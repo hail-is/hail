@@ -611,7 +611,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       val orvd = rvd match {
         case ordered: OrderedRVD =>
           if (keys.zip(ordered.typ.key).forall{ case (l, r) => l == r } &&
-              ordered.typ.partitionKey == partitionKeys.length) {
+              ordered.typ.partitionKey.length == partitionKeys.length) {
             if (keys.length <= ordered.typ.key.length)
               ordered.copy(typ = ordered.typ.copy(key = keys))
             else if (ordered.typ.key.length <= keys.length) {
@@ -1066,50 +1066,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
-  }
-
-  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String]): Array[Any] = {
-    val ec = rowEvalContext()
-
-    val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
-    val (jType, jThunk) = Parser.parseExpr(jExpr, ec)
-
-    if (iType != jType)
-      fatal(s"node expressions must have the same type: type of `i' is $iType, but type of `j' is $jType")
-
-    val tieBreakerEc = EvalContext("l" -> iType, "r" -> iType)
-
-    val maybeTieBreaker = tieBreakerExpr.map { e =>
-      val tieBreakerThunk = Parser.parseTypedExpr[Long](e, tieBreakerEc)
-
-      (l: Any, r: Any) => {
-        tieBreakerEc.setAll(l, r)
-        tieBreakerThunk()
-      }
-    }.getOrElse(null)
-
-    val globalsBc = globals.broadcast
-
-    val edgeRdd = rdd.map { r =>
-      ec.setAll(globalsBc.value, r)
-      (iThunk(), jThunk())
-    }
-    
-    Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
-  }
-
-  def maximalIndependentSet(iExpr: String, jExpr: String, keep: Boolean,
-    maybeTieBreaker: Option[String] = None): Table = {
-
-    val (iType, _) = Parser.parseExpr(iExpr, rowEvalContext())
-
-    val nodesInSet = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
-
-    val nodes = this.select(s"{node : [$iExpr, $jExpr] }").explode("node").keyBy("node")
-    
-    nodes.annotateGlobal(nodesInSet, TSet(iType), "nodesInSet")
-      .filter(s"global.nodesInSet.contains(row.node)", keep = keep)
-      .selectGlobal("{}")
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {

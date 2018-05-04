@@ -1115,6 +1115,16 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
+    def test_import_table_force_bgz(self):
+        f = utils.new_temp_file(suffix=".bgz")
+        t = utils.range_table(10, 5)
+        t.export(f)
+
+        f2 = utils.new_temp_file(suffix=".gz")
+        utils.run_command(["cp", utils.uri_path(f), utils.uri_path(f2)])
+        t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
+        self.assertTrue(t._same(t2))
+
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
@@ -1383,6 +1393,42 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.literal(1), hl.literal(2), True))
+
+    def test_maximal_independent_set2(self):
+        edges = [(0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6),
+                 (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
+        edges = [{"i": l, "j": r} for l, r in edges]
+
+        t = hl.Table.parallelize(edges, hl.tstruct(i=hl.tint64, j=hl.tint64))
+        mis_t = hl.maximal_independent_set(t.i, t.j)
+        self.assertTrue(mis_t.row.dtype == hl.tstruct(node=hl.tint64) and
+                        mis_t.globals.dtype == hl.tstruct())
+
+        mis = set([row.node for row in mis_t.collect()])
+        maximal_indep_sets = [{0, 6, 5, 3}, {1, 4, 7, 2}]
+        non_maximal_indep_sets = [{0, 7}, {6, 1}]
+        self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
+
+    def test_maximal_independent_set3(self):
+        is_case = {"A", "C", "E", "G", "H"}
+        edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
+        edges = [{"i": {"id": l, "is_case": l in is_case},
+                  "j": {"id": r, "is_case": r in is_case}} for l, r in edges]
+
+        t = hl.Table.parallelize(edges, hl.tstruct(i=hl.tstruct(id=hl.tstr, is_case=hl.tbool),
+                                                   j=hl.tstruct(id=hl.tstr, is_case=hl.tbool)))
+
+        tiebreaker = lambda l, r: (hl.case()
+                                   .when(l.is_case & (~r.is_case), -1)
+                                   .when(~(l.is_case) & r.is_case, 1)
+                                   .default(0))
+
+        mis = hl.maximal_independent_set(t.i, t.j, tie_breaker=tiebreaker)
+
+        expected_sets = [{"A", "C", "E", "G"}, {"A", "C", "E", "H"}]
+
+        self.assertTrue(mis.all(mis.node.is_case))
+        self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
 
     def test_filter_alleles(self):
         # poor man's Gen
