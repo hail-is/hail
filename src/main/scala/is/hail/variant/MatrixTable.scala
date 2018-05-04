@@ -2033,9 +2033,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         warn(
           s"""found violation in row
           |Schema: $localRVRowType
-
-          |Annotation: ${ Annotation.printAnnotation(
-            ur) }""".stripMargin)
+          |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
     }
 
