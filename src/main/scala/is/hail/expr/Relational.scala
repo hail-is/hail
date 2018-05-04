@@ -1544,8 +1544,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     val rightValueFieldIdx = right.typ.valueFieldIdx
     val localNewRowType = newRowType
     val rvMerger = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      // FIXME: why copy into a fresh region? No need really.
-      val rvb = ctx.rvb
+      val rvb = new RegionValueBuilder()
       val rv = RegionValue()
       it.map { joined =>
         val lrv = joined._1
@@ -1553,6 +1552,13 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
 
         rvb.start(localNewRowType)
         rvb.startStruct()
+
+        if (lrv != null)
+          rvb.set(lrv.region)
+        else {
+          assert(rrv != null)
+          rvb.set(rrv.region)
+        }
 
         if (lrv != null)
           rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
