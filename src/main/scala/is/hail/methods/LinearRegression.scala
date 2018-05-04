@@ -60,10 +60,10 @@ object LinearRegression {
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
-    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
-
-        val region2 = Region()
-        val rvb = new RegionValueBuilder(region2)
+    val newRDD2 = vsm.rvd.boundary.mapPartitionsPreservesPartitioning(
+      newMatrixType.orvdType, { (ctx, it) =>
+        val region2 = ctx.region
+        val rvb = ctx.rvb
         val rv2 = RegionValue(region2)
 
         val missingCompleteCols = new ArrayBuilder[Int]
@@ -136,7 +136,7 @@ object LinearRegression {
               rv2
             }
           }
-      }
+      })
 
     vsm.copyMT(matrixType = newMatrixType,
       rvd = newRDD2)

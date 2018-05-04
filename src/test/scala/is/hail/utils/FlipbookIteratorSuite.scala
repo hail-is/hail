@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.SparkSuite
 import org.testng.annotations.Test
+
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 

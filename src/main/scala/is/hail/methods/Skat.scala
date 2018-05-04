@@ -227,8 +227,8 @@ object Skat {
 
     val n = completeColIdx.length
     val completeColIdxBc = sc.broadcast(completeColIdx)
-    
-    (vsm.rvd.rdd.flatMap { rv =>
+
+    (vsm.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
       val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
       val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
 
@@ -243,6 +243,7 @@ object Skat {
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         Some(key -> (BDV(data), weight))
       } else None
+    }
     }.groupByKey(), keyType)
   }
  

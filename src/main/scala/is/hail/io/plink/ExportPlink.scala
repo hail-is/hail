@@ -76,7 +76,7 @@ object ExportPlink {
     val nSamples = mv.colValues.value.length
     val fullRowType = mv.typ.rvRowType
 
-    val nRecordsWritten = mv.rvd.mapPartitionsWithIndex { case (i, it) =>
+    val nRecordsWritten = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
       val f = partFile(d, i, TaskContext.get)
       val bedPartPath = tmpBedDir + "/" + f
@@ -97,7 +97,7 @@ object ExportPlink {
 
             hcv.setRegion(rv)
             ExportPlink.writeBedRow(hcv, bp, nSamples)
-
+            ctx.region.clear()
             rowCount += 1
           }
         }

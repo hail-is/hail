@@ -4,8 +4,8 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.io.compress.LZ4Utils
-import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDSpec, UnpartitionedRVDSpec}
-import is.hail.sparkextras.ContextRDD
+import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDContext, RVDSpec, UnpartitionedRVDSpec}
+import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.json4s.{Extraction, JValue}
@@ -61,6 +61,10 @@ object CodecSpec {
       new BlockingBufferSpec(32 * 1024,
         new LZ4BlockBufferSpec(32 * 1024,
           new StreamBlockBufferSpec))))
+
+  val defaultUncompressed = new PackCodecSpec(
+    new BlockingBufferSpec(32 * 1024,
+      new StreamBlockBufferSpec))
 
   val blockSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
@@ -850,13 +854,14 @@ final class PackEncoder(rowType: Type, out: OutputBuffer) extends Encoder {
 }
 
 object RichContextRDDRegionValue {
-  def writeRowsPartition(makeEnc: (OutputStream) => Encoder)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
+  def writeRowsPartition(makeEnc: (OutputStream) => Encoder)(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream): Long = {
     val en = makeEnc(os)
     var rowCount = 0L
 
     it.foreach { rv =>
       en.writeByte(1)
       en.writeRegionValue(rv.region, rv.offset)
+      ctx.region.clear()
       rowCount += 1
     }
 
@@ -868,7 +873,7 @@ object RichContextRDDRegionValue {
   }
 }
 
-class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, RegionValue]) extends AnyVal {
+class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
     crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
   }
@@ -892,11 +897,11 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
     val entriesRVType = TStruct(
       MatrixType.entriesIdentifier -> TArray(t.entryType))
 
-    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)(_)
+    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)(_)
+    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
 
-    val partFilePartitionCounts = crdd.mapPartitionsWithIndex { case (i, it) =>
+    val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
 
       val f = partFile(d, i, TaskContext.get)
@@ -939,6 +944,8 @@ class RichContextRDDRegionValue[C <: AutoCloseable](val crdd: ContextRDD[C, Regi
 
               rowsEN.writeByte(0) // end
               entriesEN.writeByte(0)
+
+              ctx.region.clear()
 
               Iterator.single(f -> rowCount)
             }

@@ -17,10 +17,10 @@ object UnpartitionedRVD {
 class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
-  def this(rowType: TStruct, rdd: RDD[RegionValue]) =
-    this(rowType, ContextRDD.weaken[RVDContext](rdd))
+  def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
-  val rdd = crdd.run
+  def head(n: Long): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, crdd.head(n))
 
   def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, crdd.filter(f))
 
@@ -52,7 +52,12 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     UnpartitionedRVDSpec(rowType, codecSpec, partFiles)
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.coalesce(maxPartitions, shuffle = shuffle))
+    new UnpartitionedRVD(
+      rowType,
+      if (shuffle)
+        stably(_.shuffleCoalesce(maxPartitions))
+      else
+        crdd.noShuffleCoalesce(maxPartitions))
 
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,

@@ -342,30 +342,31 @@ class LocalLDPruneSuite extends SparkSuite {
   }
 
   @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
-    val r = Region()
-    val rvb = new RegionValueBuilder(r)
-    val t = BitPackedVectorView.rvRowType(
-      +TLocus(ReferenceGenome.GRCh37),
-      +TArray(+TString()))
-    val bpv = new BitPackedVectorView(t)
-    r.appendInt(0xbeef)
-    rvb.start(t)
-    rvb.startStruct()
-    rvb.startStruct()
-    rvb.addString("X")
-    rvb.addInt(42)
-    rvb.endStruct()
-    rvb.startArray(0)
-    rvb.endArray()
-    rvb.startArray(0)
-    rvb.endArray()
-    rvb.addInt(0)
-    rvb.addDouble(0.0)
-    rvb.addDouble(0.0)
-    rvb.endStruct()
-    bpv.setRegion(r, rvb.end())
-    assert(bpv.getContig == "X")
-    assert(bpv.getStart == 42)
+    Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      val t = BitPackedVectorView.rvRowType(
+        +TLocus(ReferenceGenome.GRCh37),
+        +TArray(+TString()))
+      val bpv = new BitPackedVectorView(t)
+      r.appendInt(0xbeef)
+      rvb.start(t)
+      rvb.startStruct()
+      rvb.startStruct()
+      rvb.addString("X")
+      rvb.addInt(42)
+      rvb.endStruct()
+      rvb.startArray(0)
+      rvb.endArray()
+      rvb.startArray(0)
+      rvb.endArray()
+      rvb.addInt(0)
+      rvb.addDouble(0.0)
+      rvb.addDouble(0.0)
+      rvb.endStruct()
+      bpv.setRegion(r, rvb.end())
+      assert(bpv.getContig == "X")
+      assert(bpv.getStart == 42)
+    }
   }
 
   @Test def testIsLocallyUncorrelated() {

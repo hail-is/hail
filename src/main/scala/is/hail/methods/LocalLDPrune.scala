@@ -319,13 +319,13 @@ object LocalLDPrune {
         }
       })
     
-    val rddLP = pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
+    val rvdLP = pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val tableType = TableType(
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_sd_reciprocal" -> TFloat64Required),
       key = Some(mt.rowKey), globalType = TStruct.empty())
 
-    val sitesOnlyRDD = rddLP.mapPartitionsPreservesPartitioning(
+    val sitesOnly = rvdLP.mapPartitionsPreservesPartitioning(
       new OrderedRVDType(typ.partitionKey, typ.key, tableType.rowType))({
       it =>
         val region = Region()
@@ -345,7 +345,7 @@ object LocalLDPrune {
         }
     })
 
-    new Table(hc = mt.hc, rdd = sitesOnlyRDD.rdd, signature = tableType.rowType, key = tableType.key)
+    new Table(hc = mt.hc, crdd = sitesOnly.crdd, signature = tableType.rowType, key = tableType.key)
   }
 }
 

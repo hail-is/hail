@@ -22,15 +22,15 @@ object FilterIntervals {
       val pkRowFieldIdx = vsm.rvd.typ.pkRowFieldIdx
       val rowType = vsm.rvd.typ.rowType
 
-      vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ) { it =>
-        val pk = WritableRegionValue(pkType)
+      vsm.copy2(rvd = vsm.rvd.mapPartitionsPreservesPartitioning(vsm.rvd.typ, { (ctx, it) =>
         val pkUR = new UnsafeRow(pkType)
         it.filter { rv =>
-          pk.setSelect(rowType, pkRowFieldIdx, rv)
-          pkUR.set(pk.value)
+          ctx.rvb.start(pkType)
+          ctx.rvb.selectRegionValue(rowType, pkRowFieldIdx, rv)
+          pkUR.set(ctx.region, ctx.rvb.end())
           !intervalsBc.value.contains(pkType.ordering, pkUR)
         }
-      })
+      }))
     }
   }
 }

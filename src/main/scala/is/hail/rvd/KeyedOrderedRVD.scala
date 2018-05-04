@@ -5,6 +5,8 @@ import is.hail.sparkextras._
 import is.hail.utils.fatal
 import org.apache.spark.rdd.RDD
 
+import scala.collection.generic.Growable
+
 class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
   val typ: OrderedRVDType = rvd.typ
   val (kType, _) = rvd.rowType.select(key)
@@ -22,7 +24,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
   def orderedJoin(
     right: KeyedOrderedRVD,
     joinType: String,
-    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD = {
     checkJoinCompatability(right)
@@ -35,28 +37,34 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
       this.rvd.constrainToOrderedPartitioner(this.typ, newPartitioner)
     val repartitionedRight =
       right.rvd.constrainToOrderedPartitioner(right.typ, newPartitioner)
-    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
+    val compute: (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
-        case "inner" => _.innerJoin(_)
-        case "left" => _.leftJoin(_)
-        case "right" => _.rightJoin(_)
-        case "outer" => _.outerJoin(_)
+        case "inner" => _.innerJoin(_, _)
+        case "left" => _.leftJoin(_, _)
+        case "right" => _.rightJoin(_, _)
+        case "outer" => _.outerJoin(_, _)
       }
-    val joinedRDD =
-      repartitionedLeft.crdd.zipPartitions(repartitionedRight.crdd, true) {
-        (leftIt, rightIt) =>
-          joiner(compute(
-            OrderedRVIterator(lTyp, leftIt),
-            OrderedRVIterator(rTyp, rightIt)))
-    }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    repartitionedLeft.zipPartitions(
+      joinedType,
+      newPartitioner,
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (ctx, leftIt, rightIt) =>
+      val sideBuffer = ctx.freshContext.region
+      joiner(
+        ctx,
+        compute(
+          OrderedRVIterator(lTyp, leftIt),
+          OrderedRVIterator(rTyp, rightIt),
+          new RegionValueArrayBuffer(rTyp.rowType, sideBuffer)))
+    }
   }
 
   def orderedJoinDistinct(
     right: KeyedOrderedRVD,
     joinType: String,
-    joiner: Iterator[JoinedRegionValue] => Iterator[RegionValue],
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD = {
     checkJoinCompatability(right)
@@ -72,15 +80,19 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         case "inner" => _.innerJoinDistinct(_)
         case "left" => _.leftJoinDistinct(_)
       }
-    val joinedRDD =
-      this.rvd.crdd.zipPartitions(repartitionedRight.crdd, true) {
-        (leftIt, rightIt) =>
-          joiner(compute(
-            OrderedRVIterator(rekeyedLTyp, leftIt),
-            OrderedRVIterator(rekeyedRTyp, rightIt)))
-    }
 
-    new OrderedRVD(joinedType, newPartitioner, joinedRDD)
+    rvd.zipPartitions(
+      joinedType,
+      newPartitioner,
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (ctx, leftIt, rightIt) =>
+      joiner(
+        ctx,
+        compute(
+          OrderedRVIterator(rekeyedLTyp, leftIt),
+          OrderedRVIterator(rekeyedRTyp, rightIt)))
+    }
   }
 
   def orderedZipJoin(right: KeyedOrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] = {
@@ -91,7 +103,10 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
 
     val leftType = this.typ
     val rightType = right.typ
-    repartitionedLeft.crdd.zipPartitions(repartitionedRight.crdd, true){ (leftIt, rightIt) =>
+    repartitionedLeft.zipPartitions(
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (_, leftIt, rightIt) =>
       OrderedRVIterator(leftType, leftIt).zipJoin(OrderedRVIterator(rightType, rightIt))
     }
   }

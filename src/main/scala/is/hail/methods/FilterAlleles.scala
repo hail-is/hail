@@ -104,15 +104,14 @@ object FilterAlleles {
 
       val localSampleAnnotationsBc = vsm.colValues.broadcast
 
-      rdd.mapPartitions(newRVType) { it =>
+      rdd.boundary.mapPartitions(newRVType, { (ctx, it) =>
         var prevLocus: Locus = null
         val fullRow = new UnsafeRow(fullRowType)
         val rvv = new RegionValueVariant(fullRowType)
+        val rvb = ctx.rvb
+        val rv2 = RegionValue(ctx.region)
 
         it.flatMap { rv =>
-          val rvb = new RegionValueBuilder()
-          val rv2 = RegionValue()
-
           rvv.setRegion(rv)
           fullRow.set(rv)
 
@@ -132,7 +131,6 @@ object FilterAlleles {
                 || (!isLeftAligned && removeMoving))
                 None
               else {
-                rvb.set(rv.region)
                 rvb.start(newRVType)
                 rvb.startStruct()
 
@@ -162,13 +160,13 @@ object FilterAlleles {
                 }
                 rvb.endArray()
                 rvb.endStruct()
-                rv2.set(rv.region, rvb.end())
+                rv2.setOffset(rvb.end())
 
                 Some(rv2)
               }
             }
         }
-      }
+      })
     }
 
     val newRDD2: OrderedRVD =

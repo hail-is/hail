@@ -55,10 +55,9 @@ class WritableRegionValue private (val t: Type) {
   def pretty: String = value.pretty(t)
 }
 
-class RegionValueArrayBuffer(val t: Type)
+class RegionValueArrayBuffer(val t: Type, region: Region)
   extends Iterable[RegionValue] with Growable[RegionValue] {
 
-  val region = Region()
   val value = RegionValue(region, 0)
 
   private val rvb = new RegionValueBuilder(region)
@@ -94,7 +93,7 @@ class RegionValueArrayBuffer(val t: Type)
   def clear() {
     region.clear()
     idx.clear()
-    rvb.clear()
+    rvb.clear() // remove
   }
 
   private var itIdx = 0

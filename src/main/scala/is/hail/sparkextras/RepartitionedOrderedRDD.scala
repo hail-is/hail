@@ -19,8 +19,8 @@ object RepartitionedOrderedRDD {
     new RepartitionedOrderedRDD(
       prev.crdd,
       prev.typ,
-      prev.partitioner.broadcast(prev.rdd.sparkContext),
-      newPartitioner.broadcast(prev.rdd.sparkContext))
+      prev.partitioner.broadcast(prev.crdd.sparkContext),
+      newPartitioner.broadcast(prev.crdd.sparkContext))
   }
 }
 

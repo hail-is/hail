@@ -176,7 +176,7 @@ object Table {
     globals: Annotation,
     sort: Boolean
   ): Table = {
-    val crdd2 = crdd.mapPartitions(_.toRegionValueIterator(signature))
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
     new Table(hc, TableLiteral(
       TableValue(
         TableType(signature, None, globalSignature),
@@ -211,29 +211,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, RegionValue],
     signature: TStruct,
-    key: Option[IndexedSeq[String]],
-    globalSignature: TStruct,
-    globals: Row
+    key: Option[IndexedSeq[String]] = None,
+    globalSignature: TStruct = TStruct.empty(),
+    globals: Row = Row.empty
   ) = this(hc,
     TableLiteral(
       TableValue(
         TableType(signature, key, globalSignature),
         BroadcastRow(globals, globalSignature, hc.sc),
         new UnpartitionedRVD(signature, crdd))))
-
-  def this(hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct,
-    key: Option[IndexedSeq[String]],
-    globalSignature: TStruct,
-    globals: Row
-  ) = this(
-    hc,
-    ContextRDD.weaken[RVDContext](rdd),
-    signature,
-    key,
-    globalSignature,
-    globals)
 
   def typ: TableType = tir.typ
 
@@ -250,19 +236,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     opt.execute(hc)
   }
-
-  def this(
-    hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct,
-    key: Option[IndexedSeq[String]]
-  ) = this(hc, rdd, signature, key, TStruct.empty(), Row.empty)
-
-  def this(
-    hc: HailContext,
-    rdd: RDD[RegionValue],
-    signature: TStruct
-  ) = this(hc, rdd, signature, None)
 
   lazy val TableValue(ktType, globals, rvd) = value
 
@@ -545,7 +518,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def head(n: Long): Table = {
     if (n < 0)
       fatal(s"n must be non-negative! Found `$n'.")
-    copy(rdd = rdd.head(n))
+    copy2(rvd = rvd.head(n))
   }
 
   def keyBy(key: String*): Table = keyBy(key.toArray, key.toArray)
@@ -587,9 +560,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
             else if (ordered.typ.key.length <= keys.length) {
               val localSortType = new OrderedRVDType(ordered.typ.key, keys, signature)
               val newType = new OrderedRVDType(ordered.typ.partitionKey, keys, signature)
-              ordered.mapPartitionsPreservesPartitioning(newType) { it =>
-                OrderedRVD.localKeySort(localSortType, it)
-              }
+              OrderedRVD(
+                newType,
+                ordered.partitioner,
+                ordered.crdd.cmapPartitionsAndContext { (consumerCtx, it) =>
+                  val producerCtx = consumerCtx.freshContext
+                  OrderedRVD.localKeySort(
+                    consumerCtx.region,
+                    producerCtx.region,
+                    localSortType,
+                    it.flatMap(_(producerCtx)))
+                })
             } else resort
           } else resort
         case _: UnpartitionedRVD =>
@@ -785,16 +766,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRVType = matrixType.rvRowType
     val orderedRKStruct = matrixType.rowKeyStruct
 
-    val newRVD = ordered.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
+    val newRVD = ordered.boundary.mapPartitionsPreservesPartitioning(matrixType.orvdType, { (ctx, it) =>
+      val region = ctx.region
+      val rvb = ctx.rvb
       val outRV = RegionValue(region)
 
       OrderedRVIterator(
         new OrderedRVDType(partitionKeys, rowKeys, rowEntryStruct),
         it
       ).staircase.map { rowIt =>
-        region.clear()
         rvb.start(newRVType)
         rvb.startStruct()
         var i = 0
@@ -828,7 +808,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         outRV.setOffset(rvb.end())
         outRV
       }
-    }
+    })
     new MatrixTable(hc,
       matrixType,
       globals,
@@ -997,6 +977,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val act = implicitly[ClassTag[Annotation]]
+    // FIXME: need to add sortBy on rvd?
     copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
   }
 
@@ -1006,7 +987,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
-  def take(n: Int): Array[Row] = rdd.take(n)
+  def take(n: Int): Array[Row] = rvd.take(n, RVD.wireCodec)
 
   def takeJSON(n: Int): String = {
     val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
@@ -1024,6 +1005,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val (newSignature, ins) = signature.insert(TInt64(), name)
 
+    // FIXME: should use RVD, need zipWithIndex
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)

@@ -2,6 +2,7 @@ package is.hail.utils.richUtils
 
 import java.io.OutputStream
 
+import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
@@ -99,7 +100,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def subsetPartitions(keep: Array[Int])(implicit ct: ClassTag[T]): RDD[T] = {
-    require(keep.length <= r.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.length <= r.partitions.length,
+      s"tried to subset to more partitions than exist ${keep.toSeq} ${r.partitions.toSeq}")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < r.partitions.length)),
       "values not sorted or not in range [0, number of partitions)")
     val parentPartitions = r.partitions
@@ -139,7 +141,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     var partScanned = 0
     var nLeft = n
-    var idxLast = 0
+    var idxLast = -1
     var nLast = 0L
     var numPartsToTry = 1L
 
@@ -183,9 +185,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writePartitions(path: String,
-    write: (Int, Iterator[T], OutputStream) => Long,
+    write: (Iterator[T], OutputStream) => Long,
     remapPartitions: Option[(Array[Int], Int)] = None
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
-    ContextRDD.weaken[TrivialContext](r).writePartitions(path, write, remapPartitions)
+    ContextRDD.weaken[RVDContext](r).writePartitions(
+      path,
+      (_, it, os) => write(it, os),
+      remapPartitions)
 }
