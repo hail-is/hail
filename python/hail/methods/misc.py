@@ -102,6 +102,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
     Returns
     -------
     :class:`.Table`
+        Table with the set of independent vertices. The table schema is one row
+        field `node` which has the same type as input expressions `i` and `j`.
     """
 
     if i.dtype != j.dtype:
