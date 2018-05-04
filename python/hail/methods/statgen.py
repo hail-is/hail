@@ -1541,6 +1541,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
+    .. include:: ../_templates/req_unphased_diploid_gt.rst
 
     Examples
     --------
@@ -1873,6 +1874,11 @@ class SplitMulti(object):
     ...     PL=pl,
     ...     GQ=hl.gq_from_pl(pl))
     >>> split_ds = sm.result()
+
+    Warning
+    -------
+    Any entry and row fields that are not updated will be copied (unchanged)
+    for each split variant.
     """
 
     @typecheck_method(ds=MatrixTable,
@@ -1978,6 +1984,17 @@ class SplitMulti(object):
             self._row_fields = {}
         if not self._entry_fields:
             self._entry_fields = {}
+
+        unmod_row_fields = set(self._ds.row) - set(self._row_fields) - {'locus', 'alleles', 'a_index', 'was_split'}
+        unmod_entry_fields = set(self._ds.entry) - set(self._entry_fields)
+
+        for name, fds in [('row', unmod_row_fields), ('entry', unmod_entry_fields)]:
+            if fds:
+                field = hl.utils.misc.plural('field', len(fds))
+                word = hl.utils.misc.plural('was', len(fds), 'were')
+                fds = ', '.join(["'" + f + "'" for f in fds])
+                warn(f"SplitMulti: The following {name} {field} {word} not updated: {fds}. " \
+                      "Data will be copied (unchanged) for each split variant.")
 
         base, _ = self._ds._process_joins(*itertools.chain(
             self._row_fields.values(), self._entry_fields.values()))
@@ -2937,6 +2954,8 @@ def _local_ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
            memory_per_core=int)
 def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     """Prune variants in linkage disequilibrium.
+
+    .. include:: ../_templates/req_unphased_diploid_gt.rst
 
     Notes
     -----

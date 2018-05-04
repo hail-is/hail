@@ -131,15 +131,23 @@ object CalculateConcordance {
             rview.setGenotype(leftToRightBc.value(li))
           comb(li).merge(
             if (lrv != null) {
-              if (lview.hasGT)
-                Call.unphasedDiploidGtIndex(lview.getGT) + 2
+              if (lview.hasGT) {
+                val gt = Call.unphasedDiploidGtIndex(lview.getGT)
+                if (gt > 2)
+                  fatal(s"'concordance' requires biallelic genotype calls. Found ${ Call.toString(lview.getGT) }.")
+                gt + 2
+              }
               else
                 1
             } else
               0,
             if (rrv != null) {
-              if (rview.hasGT)
-                Call.unphasedDiploidGtIndex(rview.getGT) + 2
+              if (rview.hasGT) {
+                val gt = Call.unphasedDiploidGtIndex(rview.getGT)
+                if (gt > 2)
+                  fatal(s"'concordance' requires biallelic genotype calls. Found ${ Call.toString(rview.getGT) }.")
+                gt + 2
+              }
               else
                 1
             } else

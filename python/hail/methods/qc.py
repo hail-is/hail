@@ -97,6 +97,7 @@ def variant_qc(dataset, name='variant_qc') -> MatrixTable:
 
     .. include:: ../_templates/req_biallelic.rst
     .. include:: ../_templates/req_tvariant.rst
+    .. include:: ../_templates/req_unphased_diploid_gt.rst
 
     Examples
     --------
@@ -174,6 +175,8 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     .. include:: ../_templates/req_biallelic.rst
 
+    .. include:: ../_templates/req_unphased_diploid_gt.rst
+
     .. testsetup::
 
         dataset2 = dataset
@@ -193,7 +196,8 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     This method computes the genotype call concordance (from the entry
     field **GT**) between two biallelic variant datasets.  It requires
     unique sample IDs and performs an inner join on samples (only
-    samples in both datasets will be considered).
+    samples in both datasets will be considered). In addition, all genotype
+    calls must be **diploid** and **unphased**.
 
     It performs an ordered zip join of the variants.  That means the
     variants of each dataset are sorted, with duplicate variants
