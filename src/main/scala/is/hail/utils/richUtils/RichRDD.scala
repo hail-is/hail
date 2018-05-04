@@ -100,7 +100,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def subsetPartitions(keep: Array[Int])(implicit ct: ClassTag[T]): RDD[T] = {
-    require(keep.length <= r.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.length <= r.partitions.length,
+      s"tried to subset to more partitions than exist ${keep.toSeq} ${r.partitions.toSeq}")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < r.partitions.length)),
       "values not sorted or not in range [0, number of partitions)")
     val parentPartitions = r.partitions
@@ -140,7 +141,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     var partScanned = 0
     var nLeft = n
-    var idxLast = 0
+    var idxLast = -1
     var nLast = 0L
     var numPartsToTry = 1L
 

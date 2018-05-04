@@ -409,7 +409,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
     var partScanned = 0
     var nLeft = n
-    var idxLast = 0
+    var idxLast = -1
     var nLast = 0L
     var numPartsToTry = 1L
 

@@ -290,7 +290,7 @@ class OrderedRVD(
 
     val newRDD = crdd.head(n)
     val newNParts = newRDD.getNumPartitions
-    assert(newNParts > 0)
+    assert(newNParts >= 0)
 
     val newRangeBounds = Array.range(0, newNParts).map(partitioner.rangeBounds)
     val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
